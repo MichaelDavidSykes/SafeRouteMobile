@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { StatusBar } from 'expo-status-bar';
 import { StyleSheet, View } from 'react-native';
+import { SafeAreaProvider, initialWindowMetrics } from 'react-native-safe-area-context';
 
 import { SAFEROUTE_PREVIEW_MODE_ENABLED } from './src/config/env';
 import { getCurrentUser } from './src/features/auth/authApi';
@@ -177,44 +178,46 @@ export default function App() {
       : sessionMessage;
 
   return (
-    <View testID={uiTestIds.appRoot} style={styles.root}>
-      <StatusBar style="dark" />
-      {screen === 'login' ? (
-        <LoginScreen
-          sessionMessage={authPrompt || sessionMessage}
-          onAuthenticated={handleAuthenticated}
-          onCancel={() => {
-            setAuthPrompt('');
-            setScreen('guest-map');
-          }}
-        />
-      ) : screen === 'route-preview' && selectedRoute ? (
-        <LiveMapScreen
-          returnAccessibilityLabel={returnCopy.accessibilityLabel}
-          returnLabel={returnCopy.label}
-          routeContext={routePreviewSource}
-          routePlan={selectedRoute}
-          onChangeRoute={returnFromRoutePreview}
-        />
-      ) : screen === 'routes' && session && authenticated ? (
-        <RouteListScreen
-          accessToken={session.accessToken}
-          sessionNotice={routeListSessionNotice}
-          userEmail={session.user?.email || session.email}
-          onBackToMap={returnToMapHome}
-          onSelectRoute={handleSelectSavedRoute}
-          onSessionExpired={handleSessionExpired}
-          onSignOut={handleSignOut}
-        />
-      ) : (
-        <GuestMapScreen
-          authenticated={authenticated}
-          onOpenFullAccessFeature={openFullAccessFeature}
-          onOpenRoutePreview={openRoutePreview}
-          onSignIn={() => openSignIn()}
-        />
-      )}
-    </View>
+    <SafeAreaProvider initialMetrics={initialWindowMetrics} style={styles.root}>
+      <View testID={uiTestIds.appRoot} style={styles.root}>
+        <StatusBar style="dark" />
+        {screen === 'login' ? (
+          <LoginScreen
+            sessionMessage={authPrompt || sessionMessage}
+            onAuthenticated={handleAuthenticated}
+            onCancel={() => {
+              setAuthPrompt('');
+              setScreen('guest-map');
+            }}
+          />
+        ) : screen === 'route-preview' && selectedRoute ? (
+          <LiveMapScreen
+            returnAccessibilityLabel={returnCopy.accessibilityLabel}
+            returnLabel={returnCopy.label}
+            routeContext={routePreviewSource}
+            routePlan={selectedRoute}
+            onChangeRoute={returnFromRoutePreview}
+          />
+        ) : screen === 'routes' && session && authenticated ? (
+          <RouteListScreen
+            accessToken={session.accessToken}
+            sessionNotice={routeListSessionNotice}
+            userEmail={session.user?.email || session.email}
+            onBackToMap={returnToMapHome}
+            onSelectRoute={handleSelectSavedRoute}
+            onSessionExpired={handleSessionExpired}
+            onSignOut={handleSignOut}
+          />
+        ) : (
+          <GuestMapScreen
+            authenticated={authenticated}
+            onOpenFullAccessFeature={openFullAccessFeature}
+            onOpenRoutePreview={openRoutePreview}
+            onSignIn={() => openSignIn()}
+          />
+        )}
+      </View>
+    </SafeAreaProvider>
   );
 }
 

@@ -1,4 +1,4 @@
-import { SafeAreaView } from "react-native";
+import { SafeAreaView } from "react-native-safe-area-context";
 
 import type { RiskZone, SavedSafeRoutePlan } from "./liveMapTypes";
 import type { LiveMapOverlayLayout } from "./liveMapLayout";

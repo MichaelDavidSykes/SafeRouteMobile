@@ -85,6 +85,28 @@ describe("rounded visual language", () => {
     }
   });
 
+  it("uses safe-area-context for modern runtime-safe screen chrome", () => {
+    const packageJson = JSON.parse(readFileSync(join(process.cwd(), "package.json"), "utf8")) as {
+      dependencies?: Record<string, string>;
+    };
+    const packageLock = JSON.parse(readFileSync(join(process.cwd(), "package-lock.json"), "utf8")) as {
+      packages?: Record<string, { dependencies?: Record<string, string> }>;
+    };
+    const appSource = readFileSync(join(process.cwd(), "App.tsx"), "utf8");
+    const sourceFiles = ["App.tsx", ...collectProductionSourceFiles("src")];
+    const reactNativeSafeAreaImport = /import\s*\{[^}]*\bSafeAreaView\b[^}]*\}\s*from\s*["']react-native["']/;
+    const violations = sourceFiles.filter((file) => {
+      const source = readFileSync(join(process.cwd(), file), "utf8");
+      return reactNativeSafeAreaImport.test(source);
+    });
+
+    assert.equal(packageJson.dependencies?.["react-native-safe-area-context"], "~5.7.0");
+    assert.equal(packageLock.packages?.[""]?.dependencies?.["react-native-safe-area-context"], "~5.7.0");
+    assert.match(appSource, /import\s*\{[^}]*\bSafeAreaProvider\b[^}]*\binitialWindowMetrics\b[^}]*\}\s*from\s*["']react-native-safe-area-context["']/);
+    assert.match(appSource, /<SafeAreaProvider initialMetrics=\{initialWindowMetrics\} style=\{styles\.root\}>/);
+    assert.deepEqual(violations, []);
+  });
+
   it("keeps production screens free of shared raised-surface tokens", () => {
     const sourceFiles = collectProductionSourceFiles("src");
     const violations: string[] = [];

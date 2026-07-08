@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
-import { Keyboard, Pressable, SafeAreaView, Text, TextInput, View } from 'react-native';
+import { Keyboard, Pressable, Text, TextInput, View } from 'react-native';
 import MapView, { Marker, Polyline } from 'react-native-maps';
+import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { colors } from '../../theme';
 import { uiTestIds } from '../../testing/uiTestIds';

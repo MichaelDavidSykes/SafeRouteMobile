@@ -3,11 +3,11 @@ import {
   ActivityIndicator,
   Pressable,
   RefreshControl,
-  SafeAreaView,
   ScrollView,
   Text,
   View,
 } from "react-native";
+import { SafeAreaView } from "react-native-safe-area-context";
 
 import { ApiSessionExpiredError } from "../api/apiClient";
 import type { SavedSafeRoutePlan } from "../live-map/liveMapTypes";

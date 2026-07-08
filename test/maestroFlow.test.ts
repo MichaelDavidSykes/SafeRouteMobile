@@ -45,6 +45,13 @@ describe("Maestro iOS preview smoke flow", () => {
     assert.doesNotMatch(flow, /text:\s*"Simulation"/);
   });
 
+  it("handles the iOS foreground-location prompt before live-map assertions", () => {
+    const flow = previewFlowSource();
+
+    assert.match(flow, /visible:\s*"Allow While Using App"/);
+    assert.match(flow, /tapOn:\s*"Allow While Using App"/);
+  });
+
   it("limits action tap settling so map animations do not stall the smoke run", () => {
     const flow = previewFlowSource();
 

@@ -31,6 +31,13 @@ appId: host.exp.Exponent
     point: "91%,49%"
 - waitForAnimationToEnd:
     timeout: 5000
+- runFlow:
+    when:
+      visible: "Allow While Using App"
+    commands:
+      - tapOn: "Allow While Using App"
+      - waitForAnimationToEnd:
+          timeout: 3000
 - extendedWaitUntil:
     visible:
       id: "saferoute-app-root"
@@ -71,6 +78,13 @@ appId: host.exp.Exponent
           id: "safe-route-card-sr-city-airport-alpha"
       - waitForAnimationToEnd:
           timeout: 5000
+- runFlow:
+    when:
+      visible: "Allow While Using App"
+    commands:
+      - tapOn: "Allow While Using App"
+      - waitForAnimationToEnd:
+          timeout: 3000
 - extendedWaitUntil:
     visible:
       id: "safe-route-live-map"

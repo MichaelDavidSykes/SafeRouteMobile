@@ -1,0 +1,222 @@
+import assert from 'node:assert/strict';
+import { describe, it } from 'node:test';
+
+import { formatDistance, mapRouteDtoToSavedPlan } from '../src/features/routes/routeMapper';
+
+describe('SafeRoute mobile DTO mapper', () => {
+  it('maps backend mobile route DTOs into app route plans', () => {
+    const plan = mapRouteDtoToSavedPlan({
+      id: 'route-1',
+      name: 'Airport transfer',
+      mobile_status: 'ready',
+      client_name: 'Acme',
+      operation: 'Executive move',
+      convoy_callsign: 'Lead 1',
+      updated_at: new Date().toISOString(),
+      origin: {
+        label: 'Hotel',
+        coordinate: { latitude: 51.5, longitude: -0.1 }
+      },
+      destination: {
+        label: 'Airport',
+        coordinate: { latitude: 51.52, longitude: -0.02 }
+      },
+      route: {
+        id: 'variant-1',
+        label: 'Primary',
+        color: '#15b981',
+        coordinates: [
+          { latitude: 51.5, longitude: -0.1 },
+          { latitude: 51.52, longitude: -0.02 }
+        ],
+        distance_meters: 8000,
+        eta_label: '18 min',
+        risk_score: 22,
+        risk_level: 'low'
+      },
+      risk_overlays: [
+        {
+          id: 'risk-1',
+          title: 'Crowd activity',
+          severity: 'critical',
+          category: 'civil-unrest',
+          coordinate: { latitude: 51.51, longitude: -0.06 },
+          radius_meters: 300
+        }
+      ]
+    });
+
+    assert.equal(plan.name, 'Airport transfer');
+    assert.equal(plan.status, 'ready');
+    assert.equal(plan.convoyCallsign, 'Lead 1');
+    assert.equal(plan.origin, 'Hotel');
+    assert.equal(plan.route.eta, '18 min');
+    assert.equal(plan.route.distance, '8.0 km');
+    assert.equal(plan.riskZones[0].severity, 'high');
+    assert.equal(plan.checkpoints.length, 2);
+  });
+
+  it('preserves provider-snapped route geometry instead of collapsing to endpoint waypoints', () => {
+    const snappedGeometry = [
+      { latitude: 51.5, longitude: -0.1 },
+      { latitude: 51.502, longitude: -0.091 },
+      { latitude: 51.507, longitude: -0.084 },
+      { latitude: 51.514, longitude: -0.072 }
+    ];
+    const plan = mapRouteDtoToSavedPlan({
+      id: 'route-snapped',
+      name: 'Snapped geometry route',
+      origin: {
+        label: 'Origin',
+        coordinate: snappedGeometry[0]
+      },
+      destination: {
+        label: 'Destination',
+        coordinate: snappedGeometry[snappedGeometry.length - 1]
+      },
+      route: {
+        coordinates: snappedGeometry,
+        distance_meters: 2500
+      }
+    });
+
+    assert.equal(plan.route.coordinates.length, snappedGeometry.length);
+    assert.deepEqual(plan.route.coordinates, snappedGeometry);
+  });
+
+  it('falls back safely when route geometry is missing', () => {
+    const plan = mapRouteDtoToSavedPlan({
+      id: 'route-empty',
+      name: 'Sparse route',
+      origin: { label: 'Origin' },
+      destination: { label: 'Destination' },
+      route: {}
+    });
+
+    assert.equal(plan.route.coordinates.length, 0);
+    assert.equal(plan.route.eta, 'ETA pending');
+    assert.equal(plan.region.latitude, 51.5072);
+  });
+
+  it('maps structure sightline overlays with route segment and connector geometry', () => {
+    const plan = mapRouteDtoToSavedPlan({
+      id: 'route-structure',
+      name: 'Structure route',
+      route: {
+        coordinates: [
+          { latitude: 51.5, longitude: -0.1 },
+          { latitude: 51.51, longitude: -0.06 }
+        ]
+      },
+      risk_overlays: [
+        {
+          id: 'structure-osm-way-100',
+          title: 'Tall office',
+          severity: 'high',
+          category: 'structure-exposure',
+          shape: 'sightline',
+          coordinate: { latitude: 51.511, longitude: -0.061 },
+          coordinates: [
+            { latitude: 51.505, longitude: -0.08 },
+            { latitude: 51.51, longitude: -0.06 }
+          ],
+          connector_coordinates: [
+            { latitude: 51.511, longitude: -0.061 },
+            { latitude: 51.51, longitude: -0.06 }
+          ],
+          radius_meters: 640
+        }
+      ]
+    });
+
+    assert.equal(plan.riskZones[0].category, 'Structure Exposure');
+    assert.equal(plan.riskZones[0].shape, 'sightline');
+    assert.equal(plan.riskZones[0].routeSegmentCoordinates?.length, 2);
+    assert.equal(plan.riskZones[0].connectorCoordinates?.length, 2);
+    assert.equal(plan.riskZones[0].radiusMeters, 640);
+  });
+
+
+  it('keeps malformed route payload collections from crashing the importer', () => {
+    const plan = mapRouteDtoToSavedPlan({
+      id: 'route-malformed',
+      name: 'Malformed import',
+      route: {
+        coordinates: 'not-an-array',
+        eta_seconds: 540,
+        distance_meters: '1520',
+        next_distance_meters: '240',
+        risk_score: '48',
+        risk_level: 'unknown'
+      },
+      risk_overlays: 'not-an-array',
+      checkpoints: 'not-an-array',
+      origin: {
+        label: 'Depot',
+        coordinate: { latitude: '51.5', longitude: '-0.1' }
+      },
+      destination: {
+        label: 'Embassy',
+        coordinate: { latitude: 51.52, longitude: -0.02 }
+      }
+    } as any);
+
+    assert.equal(plan.route.coordinates.length, 2);
+    assert.equal(plan.route.eta, '9 min');
+    assert.equal(plan.route.distance, '1.5 km');
+    assert.equal(plan.route.nextDistance, '240 m');
+    assert.equal(plan.route.safeScore, 48);
+    assert.equal(plan.riskZones.length, 0);
+    assert.equal(plan.checkpoints.length, 2);
+  });
+
+  it('normalizes backend enum casing and falls back from unsafe route colors', () => {
+    const plan = mapRouteDtoToSavedPlan({
+      id: 'route-normalized-enums',
+      name: 'Normalized route',
+      mobile_status: ' IN_PROGRESS ',
+      route: {
+        color: 'javascript:alert(1)',
+        risk_score: 82,
+        risk_level: ' HIGH '
+      },
+      risk_overlays: [
+        {
+          title: 'Public order risk',
+          severity: ' CRITICAL ',
+          category: 'public order',
+          coordinate: { latitude: 51.51, longitude: -0.06 }
+        }
+      ]
+    });
+
+    assert.equal(plan.status, 'in-progress');
+    assert.equal(plan.route.riskLabel, 'High');
+    assert.equal(plan.route.color, '#f3a32b');
+    assert.equal(plan.route.mutedColor, 'rgba(243, 163, 43, 0.24)');
+    assert.equal(plan.riskZones[0].severity, 'high');
+  });
+
+  it('keeps fallback overlay copy risk-first instead of internal intel jargon', () => {
+    const plan = mapRouteDtoToSavedPlan({
+      id: 'route-risk-copy',
+      name: 'Risk copy route',
+      risk_overlays: [
+        {
+          coordinate: { latitude: 51.51, longitude: -0.06 }
+        }
+      ]
+    });
+
+    assert.equal(plan.riskZones[0].title, 'Route risk');
+    assert.equal(plan.riskZones[0].category, 'Risk');
+    assert.equal(plan.riskZones[0].description, 'SafeRoute risk note');
+  });
+
+
+  it('formats distances for cards and guidance', () => {
+    assert.equal(formatDistance(0), '0 m');
+    assert.equal(formatDistance(420), '420 m');
+    assert.equal(formatDistance(1520), '1.5 km');
+  });
+});

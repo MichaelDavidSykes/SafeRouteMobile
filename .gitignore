@@ -1,0 +1,16 @@
+node_modules/
+.expo/
+dist/
+web-build/
+ios/
+android/
+*.log
+.env
+.env.local
+.DS_Store
+
+# Generated export artifacts
+dist-android/
+
+# Local visual QA captures
+smoothed-guest-preview-after-coordinate-tap.png

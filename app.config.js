@@ -1,0 +1,125 @@
+const supportedEnvironments = ['development', 'staging', 'production'];
+
+function trimmedEnv(name) {
+  const value = process.env[name];
+  return typeof value === 'string' ? value.trim() : undefined;
+}
+
+function firstConfiguredValue(...values) {
+  return values.find((value) => typeof value === 'string' && value.trim().length > 0);
+}
+
+function normalizeApiVersion(value) {
+  const normalized = (value || 'v1').trim().replace(/^\/+|\/+$/g, '');
+  return normalized || 'v1';
+}
+
+function normalizeApiUrl(value) {
+  return value.trim().replace(/\/+$/, '');
+}
+
+const appEnvironment = trimmedEnv('SAFEROUTE_APP_ENV') || 'development';
+
+if (!supportedEnvironments.includes(appEnvironment)) {
+  throw new Error(
+    `Unsupported SAFEROUTE_APP_ENV "${appEnvironment}". Expected one of: ${supportedEnvironments.join(', ')}.`
+  );
+}
+
+const enableDemoDriveOverride = trimmedEnv('SAFEROUTE_ENABLE_DEMO_DRIVE');
+const enablePreviewModeOverride = trimmedEnv('SAFEROUTE_ENABLE_PREVIEW_MODE');
+const safeRouteDemoDriveEnabled =
+  appEnvironment !== 'production' &&
+  (enableDemoDriveOverride ? enableDemoDriveOverride.toLowerCase() === 'true' : true);
+const safeRoutePreviewModeEnabled =
+  appEnvironment !== 'production' &&
+  (enablePreviewModeOverride ? enablePreviewModeOverride.toLowerCase() === 'true' : false);
+const apiUrls = {
+  development: firstConfiguredValue(trimmedEnv('SAFEROUTE_DEV_API_URL'), trimmedEnv('SAFEROUTE_API_URL'), 'https://api.lunarchain.net'),
+  staging: firstConfiguredValue(trimmedEnv('SAFEROUTE_STAGING_API_URL'), trimmedEnv('SAFEROUTE_API_URL'), 'https://api.lunarchain.net'),
+  production: firstConfiguredValue(trimmedEnv('SAFEROUTE_PROD_API_URL'), trimmedEnv('SAFEROUTE_API_URL'), 'https://api.lunarchain.net')
+};
+const safeRouteApiUrl = normalizeApiUrl(firstConfiguredValue(apiUrls[appEnvironment], apiUrls.development));
+const safeRouteApiVersion = normalizeApiVersion(trimmedEnv('SAFEROUTE_API_VERSION'));
+const mapsPluginOptions = {};
+const googleMapsAndroidApiKey = trimmedEnv('GOOGLE_MAPS_ANDROID_API_KEY');
+const googleMapsIosApiKey = trimmedEnv('GOOGLE_MAPS_IOS_API_KEY');
+
+if (googleMapsAndroidApiKey) {
+  mapsPluginOptions.androidGoogleMapsApiKey = googleMapsAndroidApiKey;
+}
+
+if (googleMapsIosApiKey) {
+  mapsPluginOptions.iosGoogleMapsApiKey = googleMapsIosApiKey;
+}
+
+if (appEnvironment === 'production') {
+  if (!safeRouteApiUrl || !safeRouteApiUrl.trim()) {
+    throw new Error('SAFEROUTE_PROD_API_URL or SAFEROUTE_API_URL is required for production builds.');
+  }
+
+  if (!safeRouteApiUrl.startsWith('https://')) {
+    throw new Error('Production SafeRoute API URL must use HTTPS.');
+  }
+
+  if (!googleMapsIosApiKey) {
+    throw new Error('GOOGLE_MAPS_IOS_API_KEY is required for production iOS builds.');
+  }
+}
+
+module.exports = {
+  expo: {
+    name: 'SafeRoute',
+    slug: 'saferoute-mobile',
+    version: '0.1.0',
+    orientation: 'portrait',
+    userInterfaceStyle: 'light',
+    scheme: 'saferoute',
+    jsEngine: 'hermes',
+    icon: './assets/icon.png',
+    splash: {
+      image: './assets/splash.png',
+      resizeMode: 'contain',
+      backgroundColor: '#000000'
+    },
+    ios: {
+      supportsTablet: false,
+      bundleIdentifier: 'com.lunarchain.saferoute',
+      config: googleMapsIosApiKey
+        ? {
+            googleMapsApiKey: googleMapsIosApiKey
+          }
+        : undefined,
+      infoPlist: {
+        NSLocationWhenInUseUsageDescription: 'Allow SafeRoute to use your location for live route guidance.'
+      }
+    },
+    android: {
+      package: 'com.lunarchain.saferoute',
+      permissions: ['ACCESS_COARSE_LOCATION', 'ACCESS_FINE_LOCATION'],
+      adaptiveIcon: {
+        foregroundImage: './assets/adaptive-icon.png',
+        backgroundColor: '#000000'
+      }
+    },
+    plugins: [
+      [
+        'expo-location',
+        {
+          locationWhenInUsePermission: 'Allow SafeRoute to use your location for live route guidance.'
+        }
+      ],
+      'expo-secure-store',
+      Object.keys(mapsPluginOptions).length
+        ? ['react-native-maps', mapsPluginOptions]
+        : 'react-native-maps'
+    ],
+    extra: {
+      safeRouteEnvironment: appEnvironment,
+      safeRouteApiUrl,
+      safeRouteApiVersion,
+      safeRouteDemoDriveEnabled,
+      safeRoutePreviewModeEnabled
+    }
+  }
+};

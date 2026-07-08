@@ -1,0 +1,73 @@
+import { Pressable, Text, View } from "react-native";
+
+import { uiTestIds } from "../../testing/uiTestIds";
+import { routeListStyles as styles } from "./RouteListScreen.styles";
+import {
+  createRouteListHeaderCopy,
+  createRouteListMapReturnState,
+  createRouteListSignOutState,
+} from "./routeListUiState";
+
+interface RouteListHeaderProps {
+  sessionNotice?: string;
+  userEmail: string;
+  onBackToMap: () => void;
+  onSignOut: () => void;
+}
+
+export function RouteListHeader({
+  onBackToMap,
+  onSignOut,
+  sessionNotice,
+  userEmail,
+}: RouteListHeaderProps) {
+  const headerCopy = createRouteListHeaderCopy();
+  const mapReturnState = createRouteListMapReturnState();
+  const signOutState = createRouteListSignOutState(userEmail);
+
+  return (
+    <>
+      <View style={styles.header}>
+        <Text numberOfLines={1} style={styles.title}>
+          {headerCopy.title}
+        </Text>
+        <View style={styles.headerActions}>
+          <Pressable
+            accessibilityHint={mapReturnState.accessibilityHint}
+            accessibilityLabel={mapReturnState.accessibilityLabel}
+            accessibilityRole="button"
+            testID={uiTestIds.routeListMapReturn}
+            style={({ pressed }) => [
+              styles.mapReturnButton,
+              pressed ? styles.mapReturnButtonPressed : null,
+            ]}
+            onPress={onBackToMap}
+          >
+            <Text style={styles.mapReturnButtonText}>
+              {mapReturnState.label}
+            </Text>
+          </Pressable>
+          <Pressable
+            accessibilityHint={signOutState.signOutAccessibilityHint}
+            accessibilityLabel={signOutState.signOutAccessibilityLabel}
+            accessibilityRole="button"
+            testID={uiTestIds.routeListSignOut}
+            style={({ pressed }) => [
+              styles.signOutButton,
+              pressed ? styles.signOutButtonPressed : null,
+            ]}
+            onPress={onSignOut}
+          >
+            <Text style={styles.signOutButtonText}>{signOutState.label}</Text>
+          </Pressable>
+        </View>
+      </View>
+
+      {sessionNotice ? (
+        <View accessibilityRole="alert" style={styles.noticeBox}>
+          <Text style={styles.noticeText}>{sessionNotice}</Text>
+        </View>
+      ) : null}
+    </>
+  );
+}

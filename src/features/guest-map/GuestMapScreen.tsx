@@ -1,0 +1,340 @@
+import { useEffect, useRef, useState } from 'react';
+import { Pressable, SafeAreaView, Text, TextInput, View } from 'react-native';
+import MapView, { Marker, Polyline } from 'react-native-maps';
+
+import { colors } from '../../theme';
+import { uiTestIds } from '../../testing/uiTestIds';
+import type { SavedSafeRoutePlan } from '../live-map/liveMapTypes';
+import {
+  GUEST_MAP_REGION,
+  createGuestMapHomeCopy,
+  createGuestRouteActionState,
+  createGuestRoutePlan,
+  createGuestRoutePreviewState,
+  getGuestFullAccessCopy,
+  getGuestMapGateFeatures,
+  shouldShowGuestMapSubtitle,
+  type GuestFullAccessFeature
+} from './guestRoutePlanner';
+import { guestMapStyles as styles } from './GuestMapScreen.styles';
+
+interface GuestMapScreenProps {
+  authenticated: boolean;
+  onOpenFullAccessFeature: (feature: GuestFullAccessFeature) => void;
+  onOpenRoutePreview?: (routePlan: SavedSafeRoutePlan) => void;
+  onSignIn: () => void;
+}
+
+export function GuestMapScreen({
+  authenticated,
+  onOpenFullAccessFeature,
+  onOpenRoutePreview,
+  onSignIn
+}: GuestMapScreenProps) {
+  const mapRef = useRef<MapView | null>(null);
+  const [origin, setOrigin] = useState('Current location');
+  const [destination, setDestination] = useState('');
+  const [routePlan, setRoutePlan] = useState<SavedSafeRoutePlan | null>(null);
+  const routePlotted = Boolean(routePlan);
+  const mapHomeCopy = createGuestMapHomeCopy(authenticated);
+  const showSheetSubtitle = shouldShowGuestMapSubtitle(routePlotted);
+  const routeAction = createGuestRouteActionState({
+    destination,
+    routePlotted
+  });
+  const gateFeatures = getGuestMapGateFeatures({
+    authenticated,
+    routePlotted
+  });
+
+  useEffect(() => {
+    if (!routePlan?.route.coordinates.length) {
+      return;
+    }
+
+    const timer = setTimeout(() => {
+      mapRef.current?.fitToCoordinates(routePlan.route.coordinates, {
+        animated: true,
+        edgePadding: {
+          bottom: 360,
+          left: 42,
+          right: 42,
+          top: 150
+        }
+      });
+    }, 120);
+
+    return () => clearTimeout(timer);
+  }, [routePlan?.id, routePlan?.origin, routePlan?.destination]);
+
+  const handlePlotRoute = () => {
+    if (routeAction.disabled) {
+      return;
+    }
+
+    const nextRoutePlan = createGuestRoutePlan({
+      authenticated,
+      origin,
+      destination
+    });
+    setRoutePlan(nextRoutePlan);
+  };
+
+  const handleOpenPreview = () => {
+    if (routeAction.disabled) {
+      return;
+    }
+
+    if (!routePlan) {
+      handlePlotRoute();
+      return;
+    }
+
+    onOpenRoutePreview?.(routePlan);
+  };
+
+  const handleOriginChange = (value: string) => {
+    setOrigin(value);
+    setRoutePlan(null);
+  };
+
+  const handleDestinationChange = (value: string) => {
+    setDestination(value);
+    setRoutePlan(null);
+  };
+
+  return (
+    <View style={styles.screen}>
+      <MapView
+        ref={mapRef}
+        style={styles.map}
+        initialRegion={GUEST_MAP_REGION}
+        showsBuildings={false}
+        showsCompass={false}
+        showsIndoors={false}
+        showsIndoorLevelPicker={false}
+        showsMyLocationButton={false}
+        showsScale={false}
+        showsTraffic={false}
+        toolbarEnabled={false}
+        userInterfaceStyle="light"
+      >
+        {routePlan ? (
+          <>
+            <Polyline
+              coordinates={routePlan.route.coordinates}
+              strokeColor="rgba(255, 255, 255, 0.9)"
+              strokeWidth={13}
+              lineCap="round"
+              lineJoin="round"
+            />
+            <Polyline
+              coordinates={routePlan.route.coordinates}
+              strokeColor="rgba(60, 60, 67, 0.18)"
+              strokeWidth={10}
+              lineCap="round"
+              lineJoin="round"
+            />
+            <Polyline
+              coordinates={routePlan.route.coordinates}
+              strokeColor={colors.routePrimary}
+              strokeWidth={7}
+              lineCap="round"
+              lineJoin="round"
+            />
+            {routePlan.checkpoints.map((checkpoint) => (
+              <Marker
+                key={checkpoint.id}
+                coordinate={checkpoint.coordinate}
+                title={checkpoint.caption}
+                description={checkpoint.kind === 'origin' ? 'Route start' : 'Destination'}
+                anchor={{ x: 0.5, y: 0.5 }}
+              >
+                <View
+                  accessibilityLabel={`${checkpoint.kind === 'origin' ? 'Route start' : 'Destination'}: ${checkpoint.caption}`}
+                  accessibilityRole="image"
+                  style={[
+                    styles.marker,
+                    checkpoint.kind === 'origin' ? styles.markerOrigin : styles.markerDestination
+                  ]}
+                >
+                  <View style={styles.markerCore} />
+                </View>
+              </Marker>
+            ))}
+          </>
+        ) : null}
+      </MapView>
+
+      <SafeAreaView pointerEvents="box-none" style={styles.overlay}>
+        <View style={styles.topBar}>
+          <Pressable
+            accessibilityRole="button"
+            accessibilityLabel={mapHomeCopy.primaryActionAccessibilityLabel}
+            testID={uiTestIds.guestMapPrimaryAction}
+            style={({ pressed }) => [
+              styles.signInButton,
+              authenticated ? styles.signInButtonAuthenticated : null,
+              pressed ? styles.signInButtonPressed : null
+            ]}
+            onPress={() => (authenticated ? onOpenFullAccessFeature('saved-routes') : onSignIn())}
+          >
+            <Text
+              style={[
+                styles.signInButtonText,
+                authenticated ? styles.signInButtonTextAuthenticated : null
+              ]}
+            >
+              {mapHomeCopy.primaryActionLabel}
+            </Text>
+          </Pressable>
+        </View>
+
+        <View pointerEvents="box-none" style={styles.sheet}>
+          <View style={styles.sheetHeaderRow}>
+            <View style={styles.sheetTitleBlock}>
+              <Text style={styles.sheetTitle}>{mapHomeCopy.sheetTitle}</Text>
+              {showSheetSubtitle ? (
+                <Text style={styles.sheetSubtitle}>{mapHomeCopy.sheetSubtitle}</Text>
+              ) : null}
+            </View>
+            {routePlan ? (
+              <RoutePreview authenticated={authenticated} inline routePlan={routePlan} />
+            ) : null}
+          </View>
+
+          <View style={styles.inputStack}>
+            <RouteInput
+              divided
+              label="Route origin"
+              placeholder="Start point"
+              testID={uiTestIds.guestMapOriginInput}
+              value={origin}
+              onChangeText={handleOriginChange}
+            />
+            <RouteInput
+              label="Route destination"
+              placeholder="Where to?"
+              testID={uiTestIds.guestMapDestinationInput}
+              value={destination}
+              onChangeText={handleDestinationChange}
+            />
+          </View>
+
+          <Pressable
+            accessibilityHint={routeAction.accessibilityHint}
+            accessibilityLabel={routeAction.accessibilityLabel}
+            accessibilityRole="button"
+            accessibilityState={{ disabled: routeAction.disabled }}
+            disabled={routeAction.disabled}
+            testID={uiTestIds.guestMapPlotAction}
+            style={({ pressed }) => [
+              styles.primaryButton,
+              routeAction.disabled ? styles.primaryButtonDisabled : null,
+              pressed && !routeAction.disabled ? styles.primaryButtonPressed : null
+            ]}
+            onPress={routePlan ? handleOpenPreview : handlePlotRoute}
+          >
+            <Text style={styles.primaryButtonText}>{routeAction.label}</Text>
+          </Pressable>
+
+          {gateFeatures.length ? (
+            <View style={styles.supportRow}>
+              {gateFeatures.map((feature) => (
+                <SupportButton
+                  key={feature}
+                  authenticated={authenticated}
+                  feature={feature}
+                  onPress={onOpenFullAccessFeature}
+                />
+              ))}
+            </View>
+          ) : null}
+        </View>
+      </SafeAreaView>
+    </View>
+  );
+}
+
+function RouteInput({
+  label,
+  onChangeText,
+  placeholder,
+  testID,
+  value,
+  divided = false
+}: {
+  divided?: boolean;
+  label: string;
+  onChangeText: (value: string) => void;
+  placeholder: string;
+  testID: string;
+  value: string;
+}) {
+  return (
+    <View style={[styles.inputRow, divided ? styles.inputRowDivider : null]}>
+      <TextInput
+        accessibilityLabel={label}
+        autoCapitalize="words"
+        autoCorrect={false}
+        placeholder={placeholder}
+        placeholderTextColor={colors.muted}
+        style={styles.input}
+        testID={testID}
+        value={value}
+        onChangeText={onChangeText}
+      />
+    </View>
+  );
+}
+
+function RoutePreview({
+  authenticated,
+  inline = false,
+  routePlan
+}: {
+  authenticated: boolean;
+  inline?: boolean;
+  routePlan: SavedSafeRoutePlan;
+}) {
+  const previewState = createGuestRoutePreviewState(routePlan, {
+    authenticated
+  });
+
+  return (
+    <View
+      accessible
+      accessibilityLabel={previewState.accessibilityLabel}
+      testID={uiTestIds.guestMapRoutePreview}
+      style={[styles.routePreview, inline ? styles.routePreviewInline : null]}
+    >
+      <Text numberOfLines={1} style={styles.routePreviewSummary}>
+        {previewState.summaryLabel}
+      </Text>
+    </View>
+  );
+}
+
+function SupportButton({
+  authenticated,
+  feature,
+  onPress
+}: {
+  authenticated: boolean;
+  feature: GuestFullAccessFeature;
+  onPress: (feature: GuestFullAccessFeature) => void;
+}) {
+  const copy = getGuestFullAccessCopy(feature);
+  return (
+    <Pressable
+      accessibilityRole="button"
+      accessibilityLabel={authenticated ? `Open ${copy.title}` : copy.action}
+      accessibilityHint={authenticated ? 'Opens authenticated SafeRoute functionality.' : copy.body}
+      testID={uiTestIds.guestMapGateAction(feature)}
+      style={({ pressed }) => [styles.supportButton, pressed ? styles.supportButtonPressed : null]}
+      onPress={() => onPress(feature)}
+    >
+      <Text style={styles.supportLabel}>{copy.title}</Text>
+    </Pressable>
+  );
+}

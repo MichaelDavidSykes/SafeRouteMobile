@@ -1,0 +1,245 @@
+import type { LatLng, Region } from 'react-native-maps';
+
+import { densifyRouteCoordinates } from '../live-map/routeGeometry';
+import type { SavedSafeRoutePlan } from '../live-map/liveMapTypes';
+
+export type GuestFullAccessFeature = 'saved-routes' | 'planned-trips' | 'convoy-management';
+
+export type GuestFullAccessCopy = {
+  action: string;
+  body: string;
+  title: string;
+};
+
+export type GuestRouteActionState = {
+  accessibilityHint: string;
+  accessibilityLabel: string;
+  disabled: boolean;
+  label: string;
+};
+
+export type GuestRoutePreviewState = {
+  accessibilityLabel: string;
+  summaryLabel: string;
+};
+
+export type GuestMapHomeCopy = {
+  primaryActionAccessibilityLabel: string;
+  primaryActionLabel: string;
+  sheetTitle: string;
+  sheetSubtitle: string;
+};
+
+export type GuestMapGateOptions = {
+  authenticated: boolean;
+  routePlotted: boolean;
+};
+
+export const GUEST_MAP_REGION: Region = {
+  latitude: 51.512,
+  longitude: -0.073,
+  latitudeDelta: 0.095,
+  longitudeDelta: 0.14
+};
+
+const GUEST_ROUTE_SIMULATION_MAX_SEGMENT_METERS = 330;
+
+const GUEST_ROUTE_ANCHORS: LatLng[] = [
+  { latitude: 51.5099, longitude: -0.1479 },
+  { latitude: 51.5126, longitude: -0.1266 },
+  { latitude: 51.5144, longitude: -0.1032 },
+  { latitude: 51.5148, longitude: -0.0732 },
+  { latitude: 51.5136, longitude: -0.0445 },
+  { latitude: 51.5088, longitude: -0.0182 }
+];
+
+const GUEST_ROUTE_COORDINATES: LatLng[] = densifyRouteCoordinates(
+  GUEST_ROUTE_ANCHORS,
+  GUEST_ROUTE_SIMULATION_MAX_SEGMENT_METERS
+);
+
+export function normalizeGuestRouteLabel(value: string, fallback: string): string {
+  const trimmed = value.trim().replace(/\s+/g, ' ');
+  return trimmed || fallback;
+}
+
+export function hasGuestRouteDestination(destination: string): boolean {
+  return normalizeGuestRouteLabel(destination, '').length > 0;
+}
+
+export function createGuestRouteActionState({
+  destination,
+  routePlotted
+}: {
+  destination: string;
+  routePlotted: boolean;
+}): GuestRouteActionState {
+  if (!hasGuestRouteDestination(destination)) {
+    return {
+      accessibilityHint: 'Enter a destination before plotting a route on the map.',
+      accessibilityLabel: 'Add a destination to plot a route',
+      disabled: true,
+      label: 'Add destination'
+    };
+  }
+
+  if (routePlotted) {
+    return {
+      accessibilityHint: 'Opens this plotted route in the live map preview.',
+      accessibilityLabel: 'Open route preview',
+      disabled: false,
+      label: 'Preview map'
+    };
+  }
+
+  return {
+    accessibilityHint: 'Plots a local route on the map.',
+    accessibilityLabel: 'Plot local route on map',
+    disabled: false,
+    label: 'Plot route'
+  };
+}
+
+export function shouldShowGuestMapSubtitle(routePlotted: boolean): boolean {
+  return !routePlotted;
+}
+
+export function createGuestMapHomeCopy(authenticated: boolean): GuestMapHomeCopy {
+  if (authenticated) {
+    return {
+      primaryActionAccessibilityLabel: 'Open saved routes',
+      primaryActionLabel: 'Saved',
+      sheetTitle: 'Where to?',
+      sheetSubtitle: 'Plot fast or open Saved.'
+    };
+  }
+
+  return {
+    primaryActionAccessibilityLabel: 'Sign in to SafeRoute',
+    primaryActionLabel: 'Sign in',
+    sheetTitle: 'Where to?',
+    sheetSubtitle: 'Map first. Save after sign-in.'
+  };
+}
+
+export function createGuestRoutePlan({
+  authenticated = false,
+  destination,
+  origin
+}: {
+  authenticated?: boolean;
+  destination: string;
+  origin: string;
+}): SavedSafeRoutePlan {
+  const originLabel = normalizeGuestRouteLabel(origin, 'Current location');
+  const destinationLabel = normalizeGuestRouteLabel(destination, '');
+
+  if (!destinationLabel) {
+    throw new Error('A destination is required before plotting a guest route.');
+  }
+
+  return {
+    id: 'guest-plotted-route',
+    name: 'Route preview',
+    operation: authenticated ? 'Local route' : 'Unsaved route',
+    status: 'ready',
+    convoyCallsign: authenticated ? 'Map preview' : 'Guest mode',
+    updatedAtLabel: 'Local preview',
+    origin: originLabel,
+    destination: destinationLabel,
+    region: GUEST_MAP_REGION,
+    route: {
+      id: 'guest-route-preview',
+      label: 'Preview route',
+      eta: '24 min',
+      distance: '8.6 km',
+      safeScore: 0,
+      riskLabel: 'Preview',
+      tone: 'blue',
+      color: '#15b981',
+      mutedColor: 'rgba(21, 185, 129, 0.22)',
+      description: authenticated
+        ? 'Local preview. Saved plans stay in Saved.'
+        : 'Local preview. Sign in to save.',
+      nextInstruction: authenticated
+        ? 'Review the route, then open Saved for synced plans.'
+        : 'Review the route, then sign in to save it.',
+      nextDistance: 'Preview',
+      coordinates: GUEST_ROUTE_COORDINATES
+    },
+    riskZones: [],
+    checkpoints: [
+      {
+        id: 'guest-origin',
+        label: 'A',
+        caption: originLabel,
+        coordinate: GUEST_ROUTE_COORDINATES[0],
+        kind: 'origin'
+      },
+      {
+        id: 'guest-destination',
+        label: 'B',
+        caption: destinationLabel,
+        coordinate: GUEST_ROUTE_COORDINATES[GUEST_ROUTE_COORDINATES.length - 1],
+        kind: 'destination'
+      }
+    ]
+  };
+}
+
+export function createGuestRoutePreviewState(
+  routePlan: SavedSafeRoutePlan,
+  { authenticated = false }: { authenticated?: boolean } = {}
+): GuestRoutePreviewState {
+  const modeValue = authenticated ? 'Local' : 'Unsaved';
+  const guidanceCopy = authenticated
+    ? 'Open the preview map for guidance. Saved plans are available from Saved.'
+    : 'Sign in to save it.';
+
+  return {
+    accessibilityLabel: `${modeValue} route preview from ${routePlan.origin} to ${routePlan.destination}. ${routePlan.route.eta}, ${routePlan.route.distance}. ${guidanceCopy}`,
+    summaryLabel: `${routePlan.route.eta} · ${routePlan.route.distance}`,
+  };
+}
+
+export function shouldShowGuestMapGateRow({
+  authenticated,
+  routePlotted
+}: GuestMapGateOptions): boolean {
+  return getGuestMapGateFeatures({ authenticated, routePlotted }).length > 0;
+}
+
+export function getGuestMapGateFeatures({
+  authenticated,
+  routePlotted
+}: GuestMapGateOptions): GuestFullAccessFeature[] {
+  if (!authenticated || routePlotted) {
+    return [];
+  }
+
+  return ['planned-trips', 'convoy-management'];
+}
+
+export function getGuestFullAccessCopy(feature: GuestFullAccessFeature): GuestFullAccessCopy {
+  switch (feature) {
+    case 'planned-trips':
+      return {
+        title: 'Trips',
+        body: 'View assigned trips after sign-in.',
+        action: 'Sign in to view trips'
+      };
+    case 'convoy-management':
+      return {
+        title: 'Convoys',
+        body: 'View convoy assignments after sign-in.',
+        action: 'Sign in to view convoys'
+      };
+    case 'saved-routes':
+    default:
+      return {
+        title: 'Saved',
+        body: 'Sync saved SafeRoute plans after sign-in.',
+        action: 'Sign in to sync saved routes'
+      };
+  }
+}

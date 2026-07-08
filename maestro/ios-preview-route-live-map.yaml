@@ -1,0 +1,76 @@
+appId: host.exp.Exponent
+---
+- stopApp
+- openLink: exp://127.0.0.1:8081
+- waitForAnimationToEnd:
+    timeout: 3000
+# Re-open the deep link once Expo Go is foregrounded; local simulator runs can
+# otherwise land on the Expo Go home screen even with the dev server available.
+- openLink: exp://127.0.0.1:8081
+- waitForAnimationToEnd:
+    timeout: 10000
+# Expo Go's first-run developer-menu tutorial and follow-on dev-menu sheet are
+# not always exposed in XCUITest's accessibility tree. Coordinate taps dismiss
+# that Expo chrome without adding conditional hierarchy polls, which are flaky
+# on the local simulator.
+- tapOn:
+    point: "50%,92%"
+- waitForAnimationToEnd:
+    timeout: 3000
+- tapOn:
+    point: "91%,49%"
+- waitForAnimationToEnd:
+    timeout: 5000
+- extendedWaitUntil:
+    visible:
+      id: "saferoute-app-root"
+    timeout: 45000
+- assertVisible:
+    id: "guest-map-primary-action"
+# Expo Go's floating Tools button can cover the center of the top Saved capsule
+# in development, so tap the far-left side of that same control after
+# asserting its stable app test id is present.
+- tapOn:
+    point: "77%,12%"
+- waitForAnimationToEnd:
+    timeout: 5000
+- extendedWaitUntil:
+    visible:
+      id: "safe-route-picker"
+    timeout: 30000
+- assertVisible:
+    id: "saferoute-app-root"
+- assertVisible:
+    id: "safe-route-picker"
+- assertVisible:
+    text: "Choose route"
+- tapOn:
+    id: "safe-route-card-sr-city-airport-alpha"
+- waitForAnimationToEnd:
+    timeout: 5000
+- assertVisible:
+    id: "safe-route-live-map"
+- assertVisible:
+    id: "safe-route-summary-sheet"
+- assertVisible:
+    id: "safe-route-primary-action"
+- assertVisible:
+    id: "safe-route-demo-action"
+- tapOn:
+    id: "safe-route-demo-action"
+- waitForAnimationToEnd:
+    timeout: 3000
+- assertVisible:
+    text: "Simulation"
+- tapOn:
+    id: "safe-route-primary-action"
+- waitForAnimationToEnd:
+    timeout: 3000
+- assertVisible:
+    id: "safe-route-stop-action"
+- tapOn:
+    id: "safe-route-stop-action"
+- waitForAnimationToEnd:
+    timeout: 3000
+- assertVisible:
+    id: "safe-route-primary-action"

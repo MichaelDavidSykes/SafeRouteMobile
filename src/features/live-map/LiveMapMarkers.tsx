@@ -1,3 +1,4 @@
+import type { ComponentProps, ComponentType } from 'react';
 import { StyleSheet, View } from 'react-native';
 import { Circle, Marker, Polygon, Polyline } from 'react-native-maps';
 
@@ -5,6 +6,13 @@ import type { RiskSeverity, RiskZone, RouteCheckpoint } from './liveMapTypes';
 import { createRiskZoneAccessibilityLabel } from './routeRisk';
 import { uiTestIds } from '../../testing/uiTestIds';
 import { colors, radius } from '../../theme';
+
+type TappableCircleProps = ComponentProps<typeof Circle> & {
+  onPress?: () => void;
+  tappable?: boolean;
+};
+
+const TappableCircle = Circle as ComponentType<TappableCircleProps>;
 
 export function RiskOverlay({
   active,
@@ -64,16 +72,20 @@ export function RiskOverlay({
           strokeColor={zone.strokeColor}
           fillColor={zone.fillColor}
           strokeWidth={selected || active ? 3 : 2}
+          testID={uiTestIds.liveMapRiskZoneArea(zone.id)}
           tappable={Boolean(onPress)}
           onPress={handlePress}
         />
       ) : (
-        <Circle
+        <TappableCircle
           center={zone.coordinate}
           radius={zone.radiusMeters}
           strokeColor={zone.strokeColor}
           fillColor={zone.fillColor}
           strokeWidth={selected || active ? 3 : 2}
+          testID={uiTestIds.liveMapRiskZoneArea(zone.id)}
+          tappable={Boolean(onPress)}
+          onPress={handlePress}
         />
       )}
       <RiskMarker active={active} onPress={handlePress} selected={selected} zone={zone} />

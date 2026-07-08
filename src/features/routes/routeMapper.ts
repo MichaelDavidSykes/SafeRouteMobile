@@ -57,6 +57,8 @@ interface MobileRiskOverlayDto {
   severity?: string;
   category?: string;
   shape?: string;
+  area_shape?: string;
+  areaShape?: string;
   coordinate?: LatLng | null;
   coordinates?: LatLng[];
   connector_coordinates?: LatLng[];
@@ -185,21 +187,23 @@ function normalizeCoordinate(coordinate?: LatLng | null): LatLng | null {
 }
 
 function mapRiskOverlay(overlay: MobileRiskOverlayDto): RiskZone | null {
-  const coordinate = normalizeCoordinate(overlay.coordinate);
-  if (!coordinate) {
-    return null;
-  }
-
   const severity = normalizeSeverity(overlay.severity);
   const colors = severityColors[severity];
   const category = String(overlay.category || 'Risk').replace(/[-_]+/g, ' ');
   const overlayCoordinates = normalizeCoordinates(overlay.coordinates);
   const normalizedShape = normalizeEnumToken(overlay.shape);
+  const normalizedAreaShape = normalizeEnumToken(firstNonEmptyString(overlay.area_shape, overlay.areaShape));
   const isStructureSightline = normalizeEnumToken(overlay.category) === 'structure-exposure' ||
     normalizedShape === 'sightline';
-  const polygonCoordinates = shouldTreatOverlayAsPolygon(overlayCoordinates, normalizedShape)
+  const polygonCoordinates = shouldTreatOverlayAsPolygon(overlayCoordinates, normalizedShape, normalizedAreaShape)
     ? overlayCoordinates
     : [];
+  const coordinate = normalizeCoordinate(overlay.coordinate) ||
+    deriveRiskOverlayCoordinate(polygonCoordinates, overlayCoordinates);
+  if (!coordinate) {
+    return null;
+  }
+
   const routeSegmentCoordinates = !polygonCoordinates.length && (isStructureSightline || overlayCoordinates.length > 1)
     ? overlayCoordinates
     : [];
@@ -221,7 +225,11 @@ function mapRiskOverlay(overlay: MobileRiskOverlayDto): RiskZone | null {
   };
 }
 
-function shouldTreatOverlayAsPolygon(coordinates: LatLng[], normalizedShape: string): boolean {
+function shouldTreatOverlayAsPolygon(
+  coordinates: LatLng[],
+  normalizedShape: string,
+  normalizedAreaShape = ''
+): boolean {
   if (coordinates.length < 3) {
     return false;
   }
@@ -231,7 +239,9 @@ function shouldTreatOverlayAsPolygon(coordinates: LatLng[], normalizedShape: str
     normalizedShape === 'area' ||
     normalizedShape === 'risk-area' ||
     normalizedShape === 'hot-zone' ||
-    normalizedShape === 'geofence'
+    normalizedShape === 'geofence' ||
+    normalizedAreaShape === 'polygon' ||
+    normalizedAreaShape === 'rectangle'
   ) {
     return true;
   }
@@ -239,6 +249,52 @@ function shouldTreatOverlayAsPolygon(coordinates: LatLng[], normalizedShape: str
   const first = coordinates[0];
   const last = coordinates[coordinates.length - 1];
   return Boolean(first && last && first.latitude === last.latitude && first.longitude === last.longitude);
+}
+
+function deriveRiskOverlayCoordinate(polygonCoordinates: LatLng[], overlayCoordinates: LatLng[]): LatLng | null {
+  if (polygonCoordinates.length >= 3) {
+    return centroidCoordinate(polygonCoordinates);
+  }
+
+  return overlayCoordinates[0] || null;
+}
+
+function centroidCoordinate(coordinates: LatLng[]): LatLng | null {
+  const uniqueCoordinates = withoutClosingDuplicate(coordinates);
+  if (!uniqueCoordinates.length) {
+    return null;
+  }
+
+  const totals = uniqueCoordinates.reduce(
+    (sum, coordinate) => ({
+      latitude: sum.latitude + coordinate.latitude,
+      longitude: sum.longitude + coordinate.longitude
+    }),
+    { latitude: 0, longitude: 0 }
+  );
+
+  return {
+    latitude: totals.latitude / uniqueCoordinates.length,
+    longitude: totals.longitude / uniqueCoordinates.length
+  };
+}
+
+function withoutClosingDuplicate(coordinates: LatLng[]): LatLng[] {
+  if (coordinates.length < 2) {
+    return coordinates;
+  }
+
+  const first = coordinates[0];
+  const last = coordinates[coordinates.length - 1];
+  if (first.latitude !== last.latitude || first.longitude !== last.longitude) {
+    return coordinates;
+  }
+
+  return coordinates.slice(0, -1);
+}
+
+function firstNonEmptyString(...values: Array<string | undefined>): string {
+  return values.find((value) => typeof value === 'string' && value.trim().length > 0) || '';
 }
 
 function mapCheckpoints(

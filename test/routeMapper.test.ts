@@ -172,6 +172,75 @@ describe('SafeRoute mobile DTO mapper', () => {
     assert.deepEqual(plan.riskZones[0].routeSegmentCoordinates, []);
   });
 
+  it('derives a tappable marker anchor when polygon risk overlays omit a center coordinate', () => {
+    const polygon = [
+      { latitude: 51.501, longitude: -0.101 },
+      { latitude: 51.501, longitude: -0.099 },
+      { latitude: 51.503, longitude: -0.099 },
+      { latitude: 51.503, longitude: -0.101 },
+      { latitude: 51.501, longitude: -0.101 }
+    ];
+    const plan = mapRouteDtoToSavedPlan({
+      id: 'route-polygon-risk-no-anchor',
+      name: 'Coordinate-free area route',
+      route: {
+        coordinates: [
+          { latitude: 51.5, longitude: -0.105 },
+          { latitude: 51.5, longitude: -0.095 }
+        ]
+      },
+      risk_overlays: [
+        {
+          id: 'risk-polygon-no-anchor',
+          title: 'Police cordon',
+          severity: 'medium',
+          category: 'area-risk',
+          shape: 'area',
+          area_shape: 'polygon',
+          coordinates: polygon
+        }
+      ]
+    });
+
+    assert.equal(plan.riskZones.length, 1);
+    assert.deepEqual(plan.riskZones[0].polygonCoordinates, polygon);
+    assertCoordinateNear(plan.riskZones[0].coordinate, {
+      latitude: 51.502,
+      longitude: -0.1
+    });
+  });
+
+  it('supports camelCase areaShape polygon overlays from platform clients', () => {
+    const polygon = [
+      { latitude: 51.51, longitude: -0.06 },
+      { latitude: 51.51, longitude: -0.058 },
+      { latitude: 51.512, longitude: -0.058 },
+      { latitude: 51.512, longitude: -0.06 }
+    ];
+    const plan = mapRouteDtoToSavedPlan({
+      id: 'route-camel-area-shape',
+      name: 'Camel area shape route',
+      risk_overlays: [
+        {
+          id: 'camel-area-risk',
+          title: 'Managed zone',
+          shape: 'area',
+          area_shape: '   ',
+          areaShape: 'polygon',
+          coordinates: polygon
+        }
+      ]
+    });
+
+    assert.equal(plan.riskZones.length, 1);
+    assert.equal(plan.riskZones[0].shape, 'area');
+    assert.deepEqual(plan.riskZones[0].polygonCoordinates, polygon);
+    assertCoordinateNear(plan.riskZones[0].coordinate, {
+      latitude: 51.511,
+      longitude: -0.059
+    });
+  });
+
 
   it('keeps malformed route payload collections from crashing the importer', () => {
     const plan = mapRouteDtoToSavedPlan({
@@ -256,3 +325,11 @@ describe('SafeRoute mobile DTO mapper', () => {
     assert.equal(formatDistance(1520), '1.5 km');
   });
 });
+
+function assertCoordinateNear(
+  actual: { latitude: number; longitude: number },
+  expected: { latitude: number; longitude: number }
+) {
+  assert.ok(Math.abs(actual.latitude - expected.latitude) < 0.000001);
+  assert.ok(Math.abs(actual.longitude - expected.longitude) < 0.000001);
+}

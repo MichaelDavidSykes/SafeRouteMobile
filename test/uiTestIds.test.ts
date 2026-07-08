@@ -42,6 +42,10 @@ describe("UI test identifiers", () => {
     assert.equal(uiTestIds.liveMapRiskAlert, "safe-route-risk-alert");
     assert.equal(uiTestIds.liveMapRiskDetail, "safe-route-risk-detail");
     assert.equal(
+      uiTestIds.liveMapRiskZoneArea("Guest/Bank Crowd"),
+      "safe-route-risk-area-guest-bank-crowd",
+    );
+    assert.equal(
       uiTestIds.liveMapRiskZone("Guest/Bank Crowd"),
       "safe-route-risk-zone-guest-bank-crowd",
     );

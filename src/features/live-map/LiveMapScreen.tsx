@@ -27,10 +27,12 @@ import {
   resolveGuidance,
 } from "./routeProgress";
 import {
+  type DriveAlongCameraPose,
   resolveDriveAlongCamera,
   resolveActiveNavigationState,
   resolveOverviewCameraReset,
   resolveVehicleHeading,
+  shouldAnimateDriveAlongCamera,
   shouldSuspendDriveAlongCamera,
   shouldUseDriveAlongCamera,
 } from "./liveMapNavigation";
@@ -55,6 +57,7 @@ export function LiveMapScreen({
   routeContext = "saved",
 }: LiveMapScreenProps) {
   const mapRef = useRef<MapView | null>(null);
+  const lastDriveAlongCameraPoseRef = useRef<DriveAlongCameraPose | null>(null);
   const viewport = useWindowDimensions();
   const [alertsVisible, setAlertsVisible] = useState(
     DEFAULT_ROUTE_INTELLIGENCE_VISIBLE,
@@ -244,17 +247,35 @@ export function LiveMapScreen({
         vehicleCoordinate,
       )
     ) {
+      lastDriveAlongCameraPoseRef.current = null;
+      return;
+    }
+
+    const nextCameraPose: DriveAlongCameraPose = {
+      compact: layout.isCompact,
+      coordinate: vehicleCoordinate,
+      heading,
+      state: activeNavigationState,
+    };
+
+    if (
+      !shouldAnimateDriveAlongCamera(
+        lastDriveAlongCameraPoseRef.current,
+        nextCameraPose,
+      )
+    ) {
       return;
     }
 
     const driveAlongCamera = resolveDriveAlongCamera(
-      vehicleCoordinate,
-      heading,
-      layout.isCompact,
+      nextCameraPose.coordinate,
+      nextCameraPose.heading,
+      nextCameraPose.compact,
     );
     mapRef.current?.animateCamera(driveAlongCamera.camera, {
       duration: driveAlongCamera.durationMs,
     });
+    lastDriveAlongCameraPoseRef.current = nextCameraPose;
   }, [
     activeNavigationState,
     followModeEnabled,
@@ -265,6 +286,7 @@ export function LiveMapScreen({
   ]);
 
   const resetToOverviewCamera = () => {
+    lastDriveAlongCameraPoseRef.current = null;
     const overviewCamera = resolveOverviewCameraReset();
     mapRef.current?.animateCamera(overviewCamera.camera, {
       duration: overviewCamera.durationMs,
@@ -326,6 +348,12 @@ export function LiveMapScreen({
       mapRef.current?.animateCamera(driveAlongCamera.camera, {
         duration: 480,
       });
+      lastDriveAlongCameraPoseRef.current = {
+        compact: layout.isCompact,
+        coordinate: vehicleCoordinate,
+        heading,
+        state: activeNavigationState,
+      };
       return;
     }
 

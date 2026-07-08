@@ -1,7 +1,11 @@
 import type { Camera, LatLng } from "react-native-maps";
 
 import type { NavigationLifecycle } from "./liveMapUiState";
-import { bearingBetween, type RouteProgressSnapshot } from "./routeProgress";
+import {
+  bearingBetween,
+  haversineDistanceMeters,
+  type RouteProgressSnapshot,
+} from "./routeProgress";
 
 const EARTH_RADIUS_METERS = 6371000;
 const DRIVE_ALONG_CAMERA_DURATION_MS = 650;
@@ -10,6 +14,8 @@ const DRIVE_ALONG_CAMERA_PITCH = 58;
 const DRIVE_ALONG_CAMERA_ZOOM = 17.2;
 const DRIVE_ALONG_CAMERA_ALTITUDE = 520;
 const OVERVIEW_CAMERA_RESET_DURATION_MS = 320;
+const CAMERA_MIN_ANIMATION_DISTANCE_METERS = 4;
+const CAMERA_MIN_ANIMATION_HEADING_DEGREES = 4;
 
 export interface DriveAlongCamera {
   camera: Partial<Camera>;
@@ -19,6 +25,13 @@ export interface DriveAlongCamera {
 export interface OverviewCameraReset {
   camera: Partial<Camera>;
   durationMs: number;
+}
+
+export interface DriveAlongCameraPose {
+  compact: boolean;
+  coordinate: LatLng;
+  heading: number;
+  state: NavigationLifecycle;
 }
 
 export function resolveActiveNavigationState(
@@ -118,6 +131,36 @@ export function resolveDriveAlongCamera(
   };
 }
 
+export function shouldAnimateDriveAlongCamera(
+  previousPose: DriveAlongCameraPose | null | undefined,
+  nextPose: DriveAlongCameraPose,
+): boolean {
+  if (!previousPose) {
+    return true;
+  }
+
+  if (
+    previousPose.compact !== nextPose.compact ||
+    previousPose.state !== nextPose.state
+  ) {
+    return true;
+  }
+
+  const distanceMeters = haversineDistanceMeters(
+    previousPose.coordinate,
+    nextPose.coordinate,
+  );
+  const headingDelta = headingDeltaDegrees(
+    previousPose.heading,
+    nextPose.heading,
+  );
+
+  return (
+    distanceMeters >= CAMERA_MIN_ANIMATION_DISTANCE_METERS ||
+    headingDelta >= CAMERA_MIN_ANIMATION_HEADING_DEGREES
+  );
+}
+
 export function resolveOverviewCameraReset(): OverviewCameraReset {
   return {
     camera: {
@@ -126,6 +169,11 @@ export function resolveOverviewCameraReset(): OverviewCameraReset {
     },
     durationMs: OVERVIEW_CAMERA_RESET_DURATION_MS,
   };
+}
+
+function headingDeltaDegrees(first: number, second: number): number {
+  const delta = Math.abs(normalizeHeading(first) - normalizeHeading(second));
+  return Math.min(delta, 360 - delta);
 }
 
 function coordinateAtBearingDistance(

@@ -7,6 +7,7 @@ import {
   resolveActiveNavigationState,
   resolveOverviewCameraReset,
   resolveVehicleHeading,
+  shouldAnimateDriveAlongCamera,
   shouldSuspendDriveAlongCamera,
   shouldUseDriveAlongCamera,
 } from "../src/features/live-map/liveMapNavigation";
@@ -119,6 +120,41 @@ describe("live map navigation helpers", () => {
     assert.equal(driveAlongCamera.durationMs, 650);
     assert.ok(center.longitude > routeCoordinates[0].longitude);
     assert.ok(Math.abs(center.latitude - routeCoordinates[0].latitude) < 0.0001);
+  });
+
+  it("skips tiny drive-along camera updates to avoid heading jitter", () => {
+    const previousPose = {
+      compact: false,
+      coordinate: routeCoordinates[0],
+      heading: 359,
+      state: "navigating" as const,
+    };
+
+    assert.equal(
+      shouldAnimateDriveAlongCamera(previousPose, {
+        ...previousPose,
+        coordinate: {
+          latitude: routeCoordinates[0].latitude,
+          longitude: routeCoordinates[0].longitude + 0.00001,
+        },
+        heading: 1,
+      }),
+      false,
+    );
+    assert.equal(
+      shouldAnimateDriveAlongCamera(previousPose, {
+        ...previousPose,
+        heading: 8,
+      }),
+      true,
+    );
+    assert.equal(
+      shouldAnimateDriveAlongCamera(previousPose, {
+        ...previousPose,
+        coordinate: routeCoordinates[1],
+      }),
+      true,
+    );
   });
 
   it("uses a slightly wider drive-along camera on compact iPhones", () => {

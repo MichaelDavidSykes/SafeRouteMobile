@@ -29,6 +29,7 @@ import {
 import {
   resolveDriveAlongCamera,
   resolveActiveNavigationState,
+  resolveOverviewCameraReset,
   resolveVehicleHeading,
   shouldSuspendDriveAlongCamera,
   shouldUseDriveAlongCamera,
@@ -263,7 +264,16 @@ export function LiveMapScreen({
     vehicleCoordinate?.longitude,
   ]);
 
+  const resetToOverviewCamera = () => {
+    const overviewCamera = resolveOverviewCameraReset();
+    mapRef.current?.animateCamera(overviewCamera.camera, {
+      duration: overviewCamera.durationMs,
+    });
+  };
+
   const fitRoute = () => {
+    resetToOverviewCamera();
+
     if (routePlan.route.coordinates.length >= 2) {
       mapRef.current?.fitToCoordinates(routePlan.route.coordinates, {
         animated: true,
@@ -319,6 +329,8 @@ export function LiveMapScreen({
       return;
     }
 
+    resetToOverviewCamera();
+
     mapRef.current?.animateToRegion(
       {
         ...vehicleCoordinate,
@@ -357,6 +369,8 @@ export function LiveMapScreen({
     setNavigationState("stopped");
     setRouteStep(0);
     setProgressFloorMeters(0);
+    setFollowModeEnabled(false);
+    fitRoute();
   };
 
   const toggleDemoDrive = () => {

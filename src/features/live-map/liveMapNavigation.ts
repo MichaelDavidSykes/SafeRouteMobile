@@ -9,8 +9,14 @@ const DRIVE_ALONG_CAMERA_LOOK_AHEAD_METERS = 58;
 const DRIVE_ALONG_CAMERA_PITCH = 58;
 const DRIVE_ALONG_CAMERA_ZOOM = 17.2;
 const DRIVE_ALONG_CAMERA_ALTITUDE = 520;
+const OVERVIEW_CAMERA_RESET_DURATION_MS = 320;
 
 export interface DriveAlongCamera {
+  camera: Partial<Camera>;
+  durationMs: number;
+}
+
+export interface OverviewCameraReset {
   camera: Partial<Camera>;
   durationMs: number;
 }
@@ -109,6 +115,16 @@ export function resolveDriveAlongCamera(
       zoom: compact ? 16.85 : DRIVE_ALONG_CAMERA_ZOOM,
     },
     durationMs: DRIVE_ALONG_CAMERA_DURATION_MS,
+  };
+}
+
+export function resolveOverviewCameraReset(): OverviewCameraReset {
+  return {
+    camera: {
+      heading: 0,
+      pitch: 0,
+    },
+    durationMs: OVERVIEW_CAMERA_RESET_DURATION_MS,
   };
 }
 

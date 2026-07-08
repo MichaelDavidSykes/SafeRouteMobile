@@ -5,6 +5,7 @@ import type { RouteProgressSnapshot } from "../src/features/live-map/routeProgre
 import {
   resolveDriveAlongCamera,
   resolveActiveNavigationState,
+  resolveOverviewCameraReset,
   resolveVehicleHeading,
   shouldSuspendDriveAlongCamera,
   shouldUseDriveAlongCamera,
@@ -127,5 +128,14 @@ describe("live map navigation helpers", () => {
     assert.ok(Number(compactCamera.camera.pitch) < Number(regularCamera.camera.pitch));
     assert.ok(Number(compactCamera.camera.zoom) < Number(regularCamera.camera.zoom));
     assert.ok(Number(compactCamera.camera.altitude) > Number(regularCamera.camera.altitude));
+  });
+
+  it("resets tilted navigation camera back to a north-up overview", () => {
+    const overviewCamera = resolveOverviewCameraReset();
+
+    assert.equal(overviewCamera.camera.heading, 0);
+    assert.equal(overviewCamera.camera.pitch, 0);
+    assert.ok(overviewCamera.durationMs > 0);
+    assert.ok(overviewCamera.durationMs < 500);
   });
 });

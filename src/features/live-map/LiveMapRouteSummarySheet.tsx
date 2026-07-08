@@ -193,7 +193,7 @@ export function LiveMapRouteSummarySheet({
             ]}
             onPress={onStopRoute}
           >
-            <Text style={styles.stopButtonText}>Stop</Text>
+            <Text style={styles.stopButtonText}>End</Text>
           </Pressable>
         ) : null}
         {inlineDemoAction ? (

@@ -37,6 +37,9 @@ export function LiveMapCanvas({
   vehicleCoordinate,
 }: LiveMapCanvasProps) {
   const routeCoordinates = routePlan.route.coordinates;
+  const showRouteCheckpoints =
+    activeNavigationState !== "navigating" &&
+    activeNavigationState !== "off-route";
 
   return (
     <MapView
@@ -104,9 +107,11 @@ export function LiveMapCanvas({
           ))
         : null}
 
-      {routePlan.checkpoints.map((checkpoint) => (
-        <CheckpointMarker key={checkpoint.id} checkpoint={checkpoint} />
-      ))}
+      {showRouteCheckpoints
+        ? routePlan.checkpoints.map((checkpoint) => (
+            <CheckpointMarker key={checkpoint.id} checkpoint={checkpoint} />
+          ))
+        : null}
 
       {vehicleCoordinate ? (
         <VehicleMarker

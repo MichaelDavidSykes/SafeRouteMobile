@@ -19,23 +19,25 @@ describe("Maestro iOS preview smoke flow", () => {
 
     assert.doesNotMatch(flow, /-\s*clearState/);
     assert.match(flow, /openLink:\s*exp:\/\/localhost:8081/);
-    assert.match(flow, /openLink:\s*exp:\/\/127\.0\.0\.1:8081/);
+    assert.doesNotMatch(flow, /openLink:\s*exp:\/\/127\.0\.0\.1:8081/);
     assert.match(flow, /visible:\s*"Open"/);
     assert.match(flow, /tapOn:\s*"Open"/);
   });
 
-  it("keeps localhost primary with one IPv4 loopback fallback for no-build simulator previews", () => {
+  it("keeps the no-build simulator preview handoff on localhost only", () => {
     const flow = previewFlowSource();
     const scripts = packageJson().scripts;
     const localhostOpenCount = (flow.match(/openLink: exp:\/\/localhost:8081/g) ?? []).length;
     const loopbackOpenCount = (flow.match(/openLink: exp:\/\/127\.0\.0\.1:8081/g) ?? []).length;
     const firstLocalhostIndex = flow.indexOf("openLink: exp://localhost:8081");
-    const loopbackIndex = flow.indexOf("openLink: exp://127.0.0.1:8081");
     const lastLocalhostIndex = flow.lastIndexOf("openLink: exp://localhost:8081");
+    const appRootWaitIndex = flow.indexOf('id: "saferoute-app-root"');
 
-    assert.equal(localhostOpenCount, 3);
-    assert.equal(loopbackOpenCount, 1);
+    assert.equal(localhostOpenCount, 2);
+    assert.equal(loopbackOpenCount, 0);
     assert.match(flow, /expo start --localhost/);
+    assert.match(flow, /localhost only/);
+    assert.match(flow, /previous IPv4 loopback retry could time\s*\n?#?\s*out in iOS/);
     assert.equal(
       scripts["start:maestro:ios"],
       "NODE_OPTIONS=--dns-result-order=ipv4first expo start --localhost --port 8081",
@@ -45,8 +47,8 @@ describe("Maestro iOS preview smoke flow", () => {
       "maestro test maestro/ios-preview-route-live-map.yaml",
     );
     assert.ok(firstLocalhostIndex >= 0);
-    assert.ok(loopbackIndex > firstLocalhostIndex);
-    assert.ok(lastLocalhostIndex > loopbackIndex);
+    assert.ok(lastLocalhostIndex > firstLocalhostIndex);
+    assert.ok(appRootWaitIndex > lastLocalhostIndex);
   });
 
   it("plots a guest route before opening the live map", () => {

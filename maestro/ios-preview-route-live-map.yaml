@@ -21,26 +21,10 @@ appId: host.exp.Exponent
       - tapOn: "Open"
 - waitForAnimationToEnd:
     timeout: 10000
-# Expo Go can occasionally ignore the localhost handoff and stay on its home
-# screen even while Metro is reachable. Try the IPv4 loopback once, then return
-# to localhost so runs still work when the dev server only binds through the
-# localhost listener.
-- openLink: exp://127.0.0.1:8081
-- runFlow:
-    when:
-      visible: "Open"
-    commands:
-      - tapOn: "Open"
-- waitForAnimationToEnd:
-    timeout: 5000
-- openLink: exp://localhost:8081
-- runFlow:
-    when:
-      visible: "Open"
-    commands:
-      - tapOn: "Open"
-- waitForAnimationToEnd:
-    timeout: 5000
+# Keep the handoff on localhost only. A previous IPv4 loopback retry could time
+# out in iOS before app assertions, making the smoke fail before SafeRoute could
+# render. If Expo Go stays on its home screen, the app-root wait below records
+# the actual handoff blocker instead of adding another deep-link failure mode.
 # Expo Go's first-run developer-menu tutorial and follow-on dev-menu sheet are
 # not always exposed in XCUITest's accessibility tree. Coordinate taps dismiss
 # that Expo chrome without adding conditional hierarchy polls, which are flaky

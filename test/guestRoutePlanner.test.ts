@@ -4,6 +4,7 @@ import { describe, it } from 'node:test';
 import {
   createGuestMapHomeCopy,
   createGuestRouteActionState,
+  createGuestRouteInputCopy,
   createGuestRoutePlan,
   createGuestRoutePreviewState,
   getGuestFullAccessCopy,
@@ -39,6 +40,56 @@ describe('guest route planner helpers', () => {
   it('hides the map-home helper subtitle once route context is visible', () => {
     assert.equal(shouldShowGuestMapSubtitle(false), true);
     assert.equal(shouldShowGuestMapSubtitle(true), false);
+  });
+
+  it('keeps guest route input accessibility hints concise and state-aware', () => {
+    assert.deepEqual(
+      createGuestRouteInputCopy({
+        field: 'origin',
+        routePlotted: false
+      }),
+      {
+        accessibilityHint: 'Edit where the map route starts.',
+        accessibilityLabel: 'Route origin',
+        placeholder: 'Start point'
+      }
+    );
+
+    assert.deepEqual(
+      createGuestRouteInputCopy({
+        field: 'destination',
+        routePlotted: false
+      }),
+      {
+        accessibilityHint: 'Enter a destination to unlock route plotting.',
+        accessibilityLabel: 'Route destination',
+        placeholder: 'Where to?'
+      }
+    );
+
+    assert.deepEqual(
+      createGuestRouteInputCopy({
+        field: 'origin',
+        routePlotted: true
+      }),
+      {
+        accessibilityHint: 'Changing the start clears the current preview.',
+        accessibilityLabel: 'Route origin',
+        placeholder: 'Start point'
+      }
+    );
+
+    assert.deepEqual(
+      createGuestRouteInputCopy({
+        field: 'destination',
+        routePlotted: true
+      }),
+      {
+        accessibilityHint: 'Changing the destination clears the current preview.',
+        accessibilityLabel: 'Route destination',
+        placeholder: 'Where to?'
+      }
+    );
   });
 
   it('keeps local route plotting disabled until a destination is present', () => {

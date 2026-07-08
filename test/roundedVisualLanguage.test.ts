@@ -311,6 +311,10 @@ describe("rounded visual language", () => {
       join(process.cwd(), "src/features/guest-map/GuestMapScreen.styles.ts"),
       "utf8",
     );
+    const guestPlannerSource = readFileSync(
+      join(process.cwd(), "src/features/guest-map/guestRoutePlanner.ts"),
+      "utf8",
+    );
     const inputStackBlock =
       /inputStack:\s*\{([\s\S]*?)\n  \},\n  inputRow:/.exec(guestMapStylesSource)?.[1] || "";
     const inputRowBlock =
@@ -318,8 +322,12 @@ describe("rounded visual language", () => {
     const inputRowDividerBlock =
       /inputRowDivider:\s*\{([\s\S]*?)\n  \},\n  input:/.exec(guestMapStylesSource)?.[1] || "";
 
-    assert.match(guestMapSource, /placeholder="Start point"/);
-    assert.match(guestMapSource, /placeholder="Where to\?"/);
+    assert.match(guestPlannerSource, /placeholder:\s*['"]Start point['"]/);
+    assert.match(guestPlannerSource, /placeholder:\s*['"]Where to\?['"]/);
+    assert.match(guestPlannerSource, /accessibilityHint:/);
+    assert.match(guestMapSource, /placeholder=\{originInputCopy\.placeholder\}/);
+    assert.match(guestMapSource, /placeholder=\{destinationInputCopy\.placeholder\}/);
+    assert.match(guestMapSource, /accessibilityHint=\{accessibilityHint\}/);
     assert.match(guestMapSource, /accessibilityLabel=\{label\}/);
     assert.match(guestMapSource, /<RouteInput\s+divided/);
     assert.match(guestMapSource, /styles\.inputRowDivider/);

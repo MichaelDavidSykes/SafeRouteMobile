@@ -18,6 +18,14 @@ export type GuestRouteActionState = {
   label: string;
 };
 
+export type GuestRouteInputField = 'origin' | 'destination';
+
+export type GuestRouteInputCopy = {
+  accessibilityHint: string;
+  accessibilityLabel: string;
+  placeholder: string;
+};
+
 export type GuestRoutePreviewState = {
   accessibilityLabel: string;
   summaryLabel: string;
@@ -141,6 +149,32 @@ export function createGuestRouteActionState({
 
 export function shouldShowGuestMapSubtitle(routePlotted: boolean): boolean {
   return !routePlotted;
+}
+
+export function createGuestRouteInputCopy({
+  field,
+  routePlotted
+}: {
+  field: GuestRouteInputField;
+  routePlotted: boolean;
+}): GuestRouteInputCopy {
+  if (field === 'origin') {
+    return {
+      accessibilityHint: routePlotted
+        ? 'Changing the start clears the current preview.'
+        : 'Edit where the map route starts.',
+      accessibilityLabel: 'Route origin',
+      placeholder: 'Start point'
+    };
+  }
+
+  return {
+    accessibilityHint: routePlotted
+      ? 'Changing the destination clears the current preview.'
+      : 'Enter a destination to unlock route plotting.',
+    accessibilityLabel: 'Route destination',
+    placeholder: 'Where to?'
+  };
 }
 
 export function createGuestMapHomeCopy(authenticated: boolean): GuestMapHomeCopy {

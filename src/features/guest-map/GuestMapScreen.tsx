@@ -10,6 +10,7 @@ import {
   GUEST_MAP_REGION,
   createGuestMapHomeCopy,
   createGuestRouteActionState,
+  createGuestRouteInputCopy,
   createGuestRoutePlan,
   createGuestRoutePreviewState,
   getGuestFullAccessCopy,
@@ -41,6 +42,14 @@ export function GuestMapScreen({
   const showSheetSubtitle = shouldShowGuestMapSubtitle(routePlotted);
   const routeAction = createGuestRouteActionState({
     destination,
+    routePlotted
+  });
+  const originInputCopy = createGuestRouteInputCopy({
+    field: 'origin',
+    routePlotted
+  });
+  const destinationInputCopy = createGuestRouteInputCopy({
+    field: 'destination',
     routePlotted
   });
   const gateFeatures = getGuestMapGateFeatures({
@@ -209,15 +218,17 @@ export function GuestMapScreen({
           <View style={styles.inputStack}>
             <RouteInput
               divided
-              label="Route origin"
-              placeholder="Start point"
+              accessibilityHint={originInputCopy.accessibilityHint}
+              label={originInputCopy.accessibilityLabel}
+              placeholder={originInputCopy.placeholder}
               testID={uiTestIds.guestMapOriginInput}
               value={origin}
               onChangeText={handleOriginChange}
             />
             <RouteInput
-              label="Route destination"
-              placeholder="Where to?"
+              accessibilityHint={destinationInputCopy.accessibilityHint}
+              label={destinationInputCopy.accessibilityLabel}
+              placeholder={destinationInputCopy.placeholder}
               testID={uiTestIds.guestMapDestinationInput}
               value={destination}
               onChangeText={handleDestinationChange}
@@ -261,6 +272,7 @@ export function GuestMapScreen({
 }
 
 function RouteInput({
+  accessibilityHint,
   label,
   onChangeText,
   onSubmitEditing,
@@ -269,6 +281,7 @@ function RouteInput({
   value,
   divided = false
 }: {
+  accessibilityHint: string;
   divided?: boolean;
   label: string;
   onChangeText: (value: string) => void;
@@ -280,6 +293,7 @@ function RouteInput({
   return (
     <View style={[styles.inputRow, divided ? styles.inputRowDivider : null]}>
       <TextInput
+        accessibilityHint={accessibilityHint}
         accessibilityLabel={label}
         autoCapitalize="words"
         autoCorrect={false}

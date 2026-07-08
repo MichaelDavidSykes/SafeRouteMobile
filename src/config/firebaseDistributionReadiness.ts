@@ -8,7 +8,9 @@ export type FirebaseDistributionBlockerCode =
   | 'release-notes-missing'
   | 'production-env-missing'
   | 'production-api-url-missing'
+  | 'production-api-url-invalid'
   | 'production-api-url-insecure'
+  | 'production-api-url-local'
   | 'google-maps-ios-key-missing'
   | 'ios-build-number-missing'
   | 'ios-build-number-invalid';
@@ -66,6 +68,26 @@ function normalizeApiUrl(value: string | null | undefined): string | null {
 
 function isValidIosBuildNumber(value: string): boolean {
   return /^\d+(?:\.\d+){0,2}$/.test(value);
+}
+
+function parseApiUrl(value: string): URL | null {
+  try {
+    return new URL(value);
+  } catch {
+    return null;
+  }
+}
+
+function isLoopbackApiHost(hostname: string): boolean {
+  const normalizedHost = hostname.toLowerCase().replace(/^\[(.*)]$/, '$1');
+
+  return (
+    normalizedHost === 'localhost' ||
+    normalizedHost === '0.0.0.0' ||
+    normalizedHost === '::1' ||
+    normalizedHost === '127.0.0.1' ||
+    normalizedHost.startsWith('127.')
+  );
 }
 
 function normalizeTesterGroups(groups: Array<string | null | undefined> | null | undefined): string[] {
@@ -190,11 +212,29 @@ export function resolveFirebaseIosDistributionReadiness(
       code: 'production-api-url-missing',
       message: 'Set the HTTPS SafeRoute production API URL used by the signed iOS artifact.'
     });
-  } else if (!normalized.productionApiUrl.startsWith('https://')) {
-    blockers.push({
-      code: 'production-api-url-insecure',
-      message: 'Use an HTTPS SafeRoute production API URL for iOS distribution.'
-    });
+  } else {
+    const productionApiUrl = parseApiUrl(normalized.productionApiUrl);
+
+    if (!productionApiUrl) {
+      blockers.push({
+        code: 'production-api-url-invalid',
+        message: 'Use a valid HTTPS SafeRoute production API URL for iOS distribution.'
+      });
+    } else {
+      if (productionApiUrl.protocol !== 'https:') {
+        blockers.push({
+          code: 'production-api-url-insecure',
+          message: 'Use an HTTPS SafeRoute production API URL for iOS distribution.'
+        });
+      }
+
+      if (isLoopbackApiHost(productionApiUrl.hostname)) {
+        blockers.push({
+          code: 'production-api-url-local',
+          message: 'Use the hosted SafeRoute API URL, not localhost or a loopback host, for iOS distribution.'
+        });
+      }
+    }
   }
 
   if (!normalized.googleMapsIosApiKeyConfigured) {

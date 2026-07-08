@@ -101,6 +101,36 @@ describe('Firebase iOS distribution readiness', () => {
     assert.equal(result.distributionCommand, null);
   });
 
+  it('blocks malformed production API URLs before Firebase distribution', () => {
+    const result = resolveFirebaseIosDistributionReadiness({
+      ...readyReleaseInputs,
+      productionApiUrl: 'api.lunarchain.net'
+    });
+
+    assert.equal(result.ready, false);
+    assert.deepEqual(result.blockers.map((blocker) => blocker.code), ['production-api-url-invalid']);
+    assert.equal(result.distributionCommand, null);
+  });
+
+  it('blocks localhost or loopback production API URLs before Firebase distribution', () => {
+    const localHosts = ['https://localhost:8000', 'https://127.0.0.2:8000/', 'https://[::1]:8000'];
+
+    for (const productionApiUrl of localHosts) {
+      const result = resolveFirebaseIosDistributionReadiness({
+        ...readyReleaseInputs,
+        productionApiUrl
+      });
+
+      assert.equal(result.ready, false, productionApiUrl);
+      assert.deepEqual(
+        result.blockers.map((blocker) => blocker.code),
+        ['production-api-url-local'],
+        productionApiUrl
+      );
+      assert.equal(result.distributionCommand, null, productionApiUrl);
+    }
+  });
+
   it('returns a safe Firebase App Distribution command only when all inputs are ready', () => {
     const result = resolveFirebaseIosDistributionReadiness({
       ...readyReleaseInputs,

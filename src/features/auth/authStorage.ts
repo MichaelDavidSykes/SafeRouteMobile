@@ -1,6 +1,7 @@
 import * as SecureStore from 'expo-secure-store';
 
 import type { AuthSession } from './authTypes';
+import { createStoredAuthSession } from './authStorageCore';
 
 const ACCESS_TOKEN_KEY = 'saferoute_access_token';
 const EMAIL_KEY = 'saferoute_email';
@@ -14,14 +15,7 @@ export async function loadAuthSession(): Promise<AuthSession | null> {
   const accessToken = await SecureStore.getItemAsync(ACCESS_TOKEN_KEY);
   const email = await SecureStore.getItemAsync(EMAIL_KEY);
 
-  if (!accessToken || !email) {
-    return null;
-  }
-
-  return {
-    accessToken,
-    email
-  };
+  return createStoredAuthSession(accessToken, email);
 }
 
 export async function clearAuthSession(): Promise<void> {

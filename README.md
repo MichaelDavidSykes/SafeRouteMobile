@@ -26,7 +26,7 @@ npm run start
 
 Then open the app in Expo Go, an iOS simulator, or an Android emulator.
 
-For the no-build iOS Maestro smoke path, start the local Expo listener with `npm run start:maestro:ios` before running `npm run test:maestro:ios`. The start script now checks that port `8081` is free first; if another Metro/Expo server is already listening, stop it or intentionally reuse it with the test command only so Expo Go does not attach to a stale SafeRoute bundle. The iOS smoke flow uses `exp://localhost:8081` only; if Expo Go stays on its home screen, retry from a quiet simulator/server state rather than forcing an IPv4 loopback link that can time out before app assertions.
+For the no-build iOS Maestro smoke path, start the local Expo listener with `npm run start:maestro:ios` before running `npm run test:maestro:ios`. The start script checks that port `8081` is free first and, when a booted iOS simulator exposes Expo Go metadata, verifies the Expo Go SDK family matches this workspace. If another Metro/Expo server is already listening, stop it or intentionally reuse it with the test command only so Expo Go does not attach to a stale SafeRoute bundle. The iOS smoke flow uses `exp://localhost:8081` only; if Expo Go stays on its home screen, retry from a quiet simulator/server state rather than forcing an IPv4 loopback link that can time out before app assertions.
 
 ## Test
 

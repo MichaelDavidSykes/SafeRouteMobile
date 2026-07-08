@@ -6,8 +6,12 @@ import { join } from 'node:path';
 import { describe, it } from 'node:test';
 
 type MaestroPreflightModule = {
+  findExpoGoSdkMismatch: (expectedSdkMajor: number | null, expoGoVersions: string[]) => string | null;
+  formatExpoGoMismatchMessage: (options: { expectedSdkMajor: number; installedVersion: string }) => string;
   formatPortInUseMessage: (port: number, processDetails: string) => string;
   isTcpPortListening: (options: { host?: string; port: number; timeoutMs?: number }) => Promise<boolean>;
+  parseExpoGoVersionsFromListApps: (output: string) => string[];
+  parseExpoSdkMajor: (versionRange: string) => number | null;
 };
 
 const packageJson = () =>
@@ -44,6 +48,7 @@ describe('Maestro iOS runtime preflight', () => {
 
     assert.match(source, /no-build iOS Maestro smoke path/);
     assert.match(source, /port `8081` is free/);
+    assert.match(source, /Expo Go SDK family/);
     assert.match(source, /stale SafeRoute bundle/);
   });
 
@@ -57,6 +62,50 @@ describe('Maestro iOS runtime preflight', () => {
     assert.match(message, /npm run test:maestro:ios/);
     assert.match(message, /stale or wrong SafeRoute bundle/);
     assert.match(message, /node 1234/);
+  });
+
+  it('extracts SDK major versions from Expo package and Expo Go versions', async () => {
+    const { parseExpoSdkMajor } = await loadPreflightModule();
+
+    assert.equal(parseExpoSdkMajor('~56.0.15'), 56);
+    assert.equal(parseExpoSdkMajor('56.0.4'), 56);
+    assert.equal(parseExpoSdkMajor('^55.0.0'), 55);
+    assert.equal(parseExpoSdkMajor('latest'), null);
+  });
+
+  it('parses the booted simulator Expo Go version from simctl listapps output', async () => {
+    const { parseExpoGoVersionsFromListApps } = await loadPreflightModule();
+    const output = `
+      "com.apple.Preferences" = {
+        CFBundleVersion = "1";
+      };
+      "host.exp.Exponent" = {
+        CFBundleDisplayName = "Expo Go";
+        CFBundleIdentifier = "host.exp.Exponent";
+        CFBundleVersion = "56.0.4";
+      };
+    `;
+
+    assert.deepEqual(parseExpoGoVersionsFromListApps(output), ['56.0.4']);
+    assert.deepEqual(parseExpoGoVersionsFromListApps('"other.app" = { CFBundleVersion = "56.0.4"; };'), []);
+  });
+
+  it('fails fast when a booted Expo Go runtime cannot load the workspace SDK family', async () => {
+    const { findExpoGoSdkMismatch, formatExpoGoMismatchMessage } = await loadPreflightModule();
+
+    assert.equal(findExpoGoSdkMismatch(56, ['56.0.4']), null);
+    assert.equal(findExpoGoSdkMismatch(56, []), null);
+    assert.equal(findExpoGoSdkMismatch(56, ['54.0.2']), '54.0.2');
+
+    const message = formatExpoGoMismatchMessage({
+      expectedSdkMajor: 56,
+      installedVersion: '54.0.2'
+    });
+
+    assert.match(message, /Expo Go 54\.0\.2/);
+    assert.match(message, /targets Expo SDK 56/);
+    assert.match(message, /no-build smoke flow/);
+    assert.match(message, /false Maestro failures/);
   });
 
   it('detects whether a localhost TCP port is listening', async () => {

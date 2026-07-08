@@ -50,7 +50,7 @@ For iOS production readiness, confirm:
 
 - Bundle identifier: `com.lunarchain.saferoute`
 - URL scheme: `saferoute`
-- Foreground location permission copy is approved for App Store review
+- Foreground location permission copy is approved for App Store review: "Shows your position on the map and guides active SafeRoute trips."
 - `SAFEROUTE_APP_ENV=production` is used for release artifacts
 - `SAFEROUTE_IOS_BUILD_NUMBER` is set and incremented for every signed iOS artifact
 - the production API URL uses HTTPS
@@ -83,7 +83,7 @@ Set `SAFEROUTE_ENABLE_PREVIEW_MODE=true` only in non-production simulator/dev ru
 
 - Bundle identifier: `com.lunarchain.saferoute`.
 - URL scheme: `saferoute`.
-- Location permission copy is configured for foreground route guidance.
+- Location permission copy is concise and map-first: "Shows your position on the map and guides active SafeRoute trips."
 - Production runtime config should set `SAFEROUTE_APP_ENV=production`, an HTTPS production API URL/version, an incremented `SAFEROUTE_IOS_BUILD_NUMBER`, and `GOOGLE_MAPS_IOS_API_KEY` through the build environment.
 - Demo drive is intended for development/preview only; the production app config disables it even if `SAFEROUTE_ENABLE_DEMO_DRIVE` is set.
 - Preview mode is intended for simulator/dev authenticated UI smoke only; production config disables it even if `SAFEROUTE_ENABLE_PREVIEW_MODE` is set.

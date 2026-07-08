@@ -37,6 +37,9 @@ type ExpoConfig = {
   ios: {
     buildNumber: string;
     bundleIdentifier: string;
+    infoPlist?: {
+      NSLocationWhenInUseUsageDescription?: string;
+    };
     config?: {
       googleMapsApiKey?: string;
       usesNonExemptEncryption?: boolean;
@@ -95,6 +98,25 @@ describe('Expo production configuration', () => {
       resizeMode: 'contain',
       backgroundColor: '#000000'
     });
+  });
+
+  it('keeps iOS foreground location permission copy concise and map-first', () => {
+    const expo = loadExpoConfig();
+    const expectedCopy = 'Shows your position on the map and guides active SafeRoute trips.';
+    const locationPlugin = expo.plugins.find(
+      (plugin) => Array.isArray(plugin) && plugin[0] === 'expo-location'
+    );
+
+    assert.equal(
+      expo.ios.infoPlist?.NSLocationWhenInUseUsageDescription,
+      expectedCopy
+    );
+    assert.deepEqual(locationPlugin, [
+      'expo-location',
+      {
+        locationWhenInUsePermission: expectedCopy
+      }
+    ]);
   });
 
   it('requires a supported SafeRoute app environment', () => {

@@ -1,4 +1,5 @@
 const supportedEnvironments = ['development', 'staging', 'production'];
+const iosLocationPurposeCopy = 'Shows your position on the map and guides active SafeRoute trips.';
 
 function trimmedEnv(name) {
   const value = process.env[name];
@@ -113,7 +114,7 @@ module.exports = {
           : {})
       },
       infoPlist: {
-        NSLocationWhenInUseUsageDescription: 'Allow SafeRoute to use your location for live route guidance.'
+        NSLocationWhenInUseUsageDescription: iosLocationPurposeCopy
       }
     },
     android: {
@@ -128,7 +129,7 @@ module.exports = {
       [
         'expo-location',
         {
-          locationWhenInUsePermission: 'Allow SafeRoute to use your location for live route guidance.'
+          locationWhenInUsePermission: iosLocationPurposeCopy
         }
       ],
       'expo-secure-store',

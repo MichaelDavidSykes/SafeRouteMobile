@@ -2,7 +2,7 @@ import { LUNARCHAIN_API_BASE } from '../../config/env';
 import { fetchWithTimeout, type SafeRouteRequestOptions } from '../api/apiClientCore';
 import type { AuthSession, AuthenticatedUser, PasswordLoginResult } from './authTypes';
 import { assertAuthResponseOk } from './authApiCore';
-import { buildMobileAuthHeaders, buildPasswordLoginBody, normalizeEmail, unwrapAuthData } from './authPayload';
+import { buildMobileAuthHeaders, buildMobileClientHeaders, buildPasswordLoginBody, normalizeEmail, unwrapAuthData } from './authPayload';
 
 async function fetchAuthResponse(url: string, options: SafeRouteRequestOptions): Promise<Response> {
   return fetchWithTimeout(url, options);
@@ -77,9 +77,9 @@ export async function verifyLoginCode(email: string, challengeToken: string, cod
 
 export async function getCurrentUser(accessToken: string): Promise<AuthenticatedUser> {
   const response = await fetchAuthResponse(`${LUNARCHAIN_API_BASE}/users/me`, {
-    headers: {
+    headers: buildMobileClientHeaders({
       Authorization: `Bearer ${accessToken}`
-    }
+    })
   });
 
   const body = await assertAuthResponseOk(response, 'Unable to validate the saved session.');

@@ -99,6 +99,7 @@ The app expects:
 
 - `POST /api/v1/auth/login` with form-encoded credentials and `X-SafeRoute-Client: saferoute-mobile` so hosted auth can recognize native app requests.
 - `POST /api/v1/auth/verify-login-code` with JSON verification data and the same mobile client header.
+- `GET /api/v1/users/me` with the LunarChain bearer token and the same mobile client header for session restore validation.
 - `GET /api/v1/mobile/safe-route/routes?client_id={optional}`
 - `GET /api/v1/mobile/safe-route/routes/{route_id}`
 

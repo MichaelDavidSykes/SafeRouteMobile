@@ -7,6 +7,7 @@ import {
   SAFEROUTE_MOBILE_AUTH_CLIENT,
   SAFEROUTE_MOBILE_AUTH_CLIENT_HEADER,
   buildMobileAuthHeaders,
+  buildMobileClientHeaders,
   buildPasswordLoginBody,
   getAuthErrorMessage,
   normalizeEmail,
@@ -36,6 +37,15 @@ describe('LunarChain auth payload helpers', () => {
 
     assert.match(source, /headers: buildMobileAuthHeaders\('application\/x-www-form-urlencoded'\)/);
     assert.match(source, /headers: buildMobileAuthHeaders\('application\/json'\)/);
+  });
+
+  it('marks bearer session validation requests for the mobile client path', () => {
+    const headers = buildMobileClientHeaders({
+      Authorization: 'Bearer token-1'
+    });
+
+    assert.equal(headers.Authorization, 'Bearer token-1');
+    assert.equal(headers[SAFEROUTE_MOBILE_AUTH_CLIENT_HEADER], SAFEROUTE_MOBILE_AUTH_CLIENT);
   });
 
   it('unwraps API data envelopes', () => {

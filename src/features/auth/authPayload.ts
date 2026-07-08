@@ -14,11 +14,17 @@ export function normalizeEmail(email: string): string {
   return String(email || '').trim().toLowerCase();
 }
 
-export function buildMobileAuthHeaders(contentType: string): Record<string, string> {
+export function buildMobileClientHeaders(headers: Record<string, string> = {}): Record<string, string> {
   return {
-    'Content-Type': contentType,
+    ...headers,
     [SAFEROUTE_MOBILE_AUTH_CLIENT_HEADER]: SAFEROUTE_MOBILE_AUTH_CLIENT
   };
+}
+
+export function buildMobileAuthHeaders(contentType: string): Record<string, string> {
+  return buildMobileClientHeaders({
+    'Content-Type': contentType
+  });
 }
 
 export function buildPasswordLoginBody(email: string, password: string): string {

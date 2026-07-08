@@ -204,6 +204,56 @@ describe('SafeRoute mobile DTO mapper', () => {
     assert.equal(plan.riskZones[0].radiusMeters, 640);
   });
 
+  it('keeps malformed and oversized risk radii within safe map bounds', () => {
+    const plan = mapRouteDtoToSavedPlan({
+      id: 'route-risk-radius',
+      name: 'Risk radius route',
+      risk_overlays: [
+        {
+          id: 'negative-radius',
+          title: 'Negative radius',
+          coordinate: { latitude: 51.51, longitude: -0.06 },
+          radius_meters: -100
+        },
+        {
+          id: 'string-radius',
+          title: 'String radius',
+          coordinate: { latitude: 51.52, longitude: -0.05 },
+          radius_m: '375'
+        },
+        {
+          id: 'blank-radius',
+          title: 'Blank radius',
+          coordinate: { latitude: 51.525, longitude: -0.045 },
+          radius_meters: '   '
+        },
+        {
+          id: 'zero-radius',
+          title: 'Zero radius',
+          coordinate: { latitude: 51.53, longitude: -0.04 },
+          radiusMeters: 0
+        },
+        {
+          id: 'oversized-radius',
+          title: 'Oversized radius',
+          coordinate: { latitude: 51.54, longitude: -0.03 },
+          radius_meters: 250000
+        }
+      ]
+    } as any);
+
+    assert.deepEqual(
+      plan.riskZones.map((zone) => [zone.id, zone.radiusMeters]),
+      [
+        ['negative-radius', 250],
+        ['string-radius', 375],
+        ['blank-radius', 250],
+        ['zero-radius', 0],
+        ['oversized-radius', 50000]
+      ]
+    );
+  });
+
   it('maps platform polygon risk overlays as tappable risk areas rather than route lines', () => {
     const polygon = [
       { latitude: 51.501, longitude: -0.101 },

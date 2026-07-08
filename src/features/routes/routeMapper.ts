@@ -122,6 +122,9 @@ const DEFAULT_REGION: Region = {
   longitudeDelta: 0.08
 };
 
+const DEFAULT_RISK_RADIUS_METERS = 250;
+const MAX_RISK_RADIUS_METERS = 50000;
+
 const severityColors: Record<RiskSeverity, { marker: string; stroke: string; fill: string }> = {
   low: {
     marker: '#5c8df6',
@@ -475,11 +478,25 @@ function mapRiskOverlay(overlay: MobileRiskOverlayDto): RiskZone | null {
       : [],
     polygonCoordinates,
     shape: cleanOptionalText(overlay.shape) || undefined,
-    radiusMeters: toFiniteNumber(overlay.radius_meters ?? overlay.radius_m ?? overlay.radiusMeters, 250),
+    radiusMeters: normalizeRiskRadiusMeters(overlay.radius_meters ?? overlay.radius_m ?? overlay.radiusMeters),
     markerColor: colors.marker,
     strokeColor: colors.stroke,
     fillColor: colors.fill
   };
+}
+
+function normalizeRiskRadiusMeters(value: unknown): number {
+  if (typeof value === 'string' && !value.trim()) {
+    return DEFAULT_RISK_RADIUS_METERS;
+  }
+
+  const radiusMeters = toFiniteNumber(value, DEFAULT_RISK_RADIUS_METERS);
+
+  if (radiusMeters < 0) {
+    return DEFAULT_RISK_RADIUS_METERS;
+  }
+
+  return Math.min(radiusMeters, MAX_RISK_RADIUS_METERS);
 }
 
 function firstCoordinateList(...values: unknown[]): LatLng[] {

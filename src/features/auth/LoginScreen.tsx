@@ -223,13 +223,15 @@ export function LoginScreen({
               <View style={[styles.inputShell, loading ? styles.inputShellDisabled : null]}>
                 <TextInput
                   autoCapitalize="none"
-                  autoComplete="email"
+                  autoComplete="username"
                   autoCorrect={false}
                   editable={!loading}
                   keyboardType="email-address"
                   placeholder="Email"
+                  returnKeyType="next"
                   placeholderTextColor={colors.muted}
                   style={styles.input}
+                  textContentType="username"
                   value={email}
                   accessibilityLabel="LunarChain email"
                   accessibilityHint="Enter the email address for your LunarChain account."
@@ -245,12 +247,14 @@ export function LoginScreen({
               <View style={[styles.inputShell, loading ? styles.inputShellDisabled : null]}>
                 <TextInput
                   autoCapitalize="none"
-                  autoComplete="password"
+                  autoComplete="current-password"
                   editable={!loading}
                   placeholder="Password"
                   placeholderTextColor={colors.muted}
+                  returnKeyType="go"
                   secureTextEntry={!passwordVisible}
                   style={styles.input}
+                  textContentType="password"
                   value={password}
                   accessibilityLabel="LunarChain password"
                   accessibilityHint="Enter your LunarChain account password."
@@ -260,6 +264,7 @@ export function LoginScreen({
                       setErrorMessage('');
                     }
                   }}
+                  onSubmitEditing={submitCredentials}
                 />
                 <Pressable
                   accessibilityRole="button"
@@ -287,6 +292,7 @@ export function LoginScreen({
                   keyboardType="number-pad"
                   placeholder="6-digit code"
                   placeholderTextColor={colors.muted}
+                  returnKeyType="done"
                   style={styles.input}
                   textContentType="oneTimeCode"
                   value={code}
@@ -298,6 +304,7 @@ export function LoginScreen({
                       setErrorMessage('');
                     }
                   }}
+                  onSubmitEditing={submitCode}
                 />
               </View>
               {challengeState ? (

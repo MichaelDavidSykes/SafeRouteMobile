@@ -1,7 +1,7 @@
 import type { LatLng, Region } from 'react-native-maps';
 
 import { densifyRouteCoordinates } from '../live-map/routeGeometry';
-import type { SavedSafeRoutePlan } from '../live-map/liveMapTypes';
+import type { RiskZone, SavedSafeRoutePlan } from '../live-map/liveMapTypes';
 
 export type GuestFullAccessFeature = 'saved-routes' | 'planned-trips' | 'convoy-management';
 
@@ -47,9 +47,9 @@ const GUEST_ROUTE_SIMULATION_MAX_SEGMENT_METERS = 330;
 const GUEST_ROUTE_ANCHORS: LatLng[] = [
   { latitude: 51.5099, longitude: -0.1479 },
   { latitude: 51.5126, longitude: -0.1266 },
-  { latitude: 51.5144, longitude: -0.1032 },
-  { latitude: 51.5148, longitude: -0.0732 },
-  { latitude: 51.5136, longitude: -0.0445 },
+  { latitude: 51.5178, longitude: -0.1032 },
+  { latitude: 51.5206, longitude: -0.0732 },
+  { latitude: 51.5172, longitude: -0.0445 },
   { latitude: 51.5088, longitude: -0.0182 }
 ];
 
@@ -57,6 +57,45 @@ const GUEST_ROUTE_COORDINATES: LatLng[] = densifyRouteCoordinates(
   GUEST_ROUTE_ANCHORS,
   GUEST_ROUTE_SIMULATION_MAX_SEGMENT_METERS
 );
+
+const GUEST_ROUTE_RISK_ZONES: RiskZone[] = [
+  {
+    id: 'guest-event-traffic',
+    title: 'Event traffic',
+    description: 'Local event traffic near the current corridor',
+    severity: 'medium',
+    category: 'Traffic',
+    coordinate: { latitude: 51.5127, longitude: -0.1433 },
+    radiusMeters: 210,
+    markerColor: '#f3a32b',
+    strokeColor: 'rgba(243, 163, 43, 0.72)',
+    fillColor: 'rgba(243, 163, 43, 0.18)'
+  },
+  {
+    id: 'guest-bank-crowd',
+    title: 'Crowd activity',
+    description: 'Route preview keeps clear of a crowd-risk area near Bank',
+    severity: 'high',
+    category: 'Crowd',
+    coordinate: { latitude: 51.5134, longitude: -0.089 },
+    radiusMeters: 380,
+    markerColor: '#d84a3f',
+    strokeColor: 'rgba(216, 74, 63, 0.72)',
+    fillColor: 'rgba(216, 74, 63, 0.18)'
+  },
+  {
+    id: 'guest-roadworks',
+    title: 'Roadworks',
+    description: 'Lane works are monitored from the safer preview corridor',
+    severity: 'low',
+    category: 'Works',
+    coordinate: { latitude: 51.5108, longitude: -0.038 },
+    radiusMeters: 260,
+    markerColor: '#5c8df6',
+    strokeColor: 'rgba(92, 141, 246, 0.72)',
+    fillColor: 'rgba(92, 141, 246, 0.16)'
+  }
+];
 
 export function normalizeGuestRouteLabel(value: string, fallback: string): string {
   const trimmed = value.trim().replace(/\s+/g, ' ');
@@ -167,7 +206,7 @@ export function createGuestRoutePlan({
       nextDistance: 'Preview',
       coordinates: GUEST_ROUTE_COORDINATES
     },
-    riskZones: [],
+    riskZones: GUEST_ROUTE_RISK_ZONES,
     checkpoints: [
       {
         id: 'guest-origin',

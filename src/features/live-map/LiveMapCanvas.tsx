@@ -3,7 +3,7 @@ import { StyleSheet } from "react-native";
 import MapView, { Polyline, type LatLng } from "react-native-maps";
 
 import type { PermissionStatus } from "./liveLocationState";
-import type { SavedSafeRoutePlan } from "./liveMapTypes";
+import type { RiskZone, SavedSafeRoutePlan } from "./liveMapTypes";
 import type { NavigationLifecycle } from "./liveMapUiState";
 import { shouldShowNativeUserLocation } from "./liveMapUiState";
 import { CheckpointMarker, RiskOverlay, VehicleMarker } from "./LiveMapMarkers";
@@ -12,30 +12,36 @@ import { colors } from "../../theme";
 
 interface LiveMapCanvasProps {
   activeNavigationState: NavigationLifecycle;
-  alertsVisible: boolean;
+  activeRiskZoneId?: string | null;
   demoDriveActive: boolean;
   heading: number;
   mapRef: RefObject<MapView | null>;
   onMapReady: () => void;
   onPanDrag: () => void;
+  onRiskZonePress: (zone: RiskZone) => void;
   permissionStatus: PermissionStatus;
   progressCoordinates: LatLng[];
   routePlan: SavedSafeRoutePlan;
+  selectedRiskZoneId?: string | null;
   vehicleCoordinate: LatLng | null;
+  visibleRiskZones: RiskZone[];
 }
 
 export function LiveMapCanvas({
   activeNavigationState,
-  alertsVisible,
+  activeRiskZoneId,
   demoDriveActive,
   heading,
   mapRef,
   onMapReady,
   onPanDrag,
+  onRiskZonePress,
   permissionStatus,
   progressCoordinates,
   routePlan,
+  selectedRiskZoneId,
   vehicleCoordinate,
+  visibleRiskZones,
 }: LiveMapCanvasProps) {
   const routeCoordinates = routePlan.route.coordinates;
   const showRouteCheckpoints =
@@ -107,11 +113,15 @@ export function LiveMapCanvas({
         />
       ) : null}
 
-      {alertsVisible
-        ? routePlan.riskZones.map((zone) => (
-            <RiskOverlay key={zone.id} zone={zone} />
-          ))
-        : null}
+      {visibleRiskZones.map((zone) => (
+        <RiskOverlay
+          key={zone.id}
+          active={zone.id === activeRiskZoneId}
+          selected={zone.id === selectedRiskZoneId}
+          zone={zone}
+          onPress={onRiskZonePress}
+        />
+      ))}
 
       {showRouteCheckpoints
         ? routePlan.checkpoints.map((checkpoint) => (

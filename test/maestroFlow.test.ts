@@ -84,14 +84,20 @@ describe("Maestro iOS preview smoke flow", () => {
     const primaryActionIndex = flow.indexOf('id: "safe-route-primary-action"');
     const fitControlIndex = flow.indexOf('id: "safe-route-control-fit"');
     const followControlIndex = flow.indexOf('id: "safe-route-control-follow"');
+    const riskAlertIndex = flow.indexOf('id: "safe-route-risk-alert"');
+    const riskDetailIndex = flow.indexOf('id: "safe-route-risk-detail"');
     const stopActionIndex = flow.indexOf('id: "safe-route-stop-action"');
 
     assert.match(flow, /assertVisible:\s*\n\s+id:\s*"safe-route-control-fit"/);
     assert.match(flow, /assertVisible:\s*\n\s+id:\s*"safe-route-control-follow"/);
+    assert.match(flow, /assertVisible:\s*\n\s+id:\s*"safe-route-risk-alert"/);
+    assert.match(flow, /assertVisible:\s*\n\s+id:\s*"safe-route-risk-detail"/);
     assert.ok(primaryActionIndex >= 0);
     assert.ok(stopActionIndex > primaryActionIndex);
     assert.ok(fitControlIndex > primaryActionIndex);
     assert.ok(followControlIndex > fitControlIndex);
+    assert.ok(riskAlertIndex > followControlIndex);
+    assert.ok(riskDetailIndex > riskAlertIndex);
     assert.ok(stopActionIndex < fitControlIndex);
   });
 
@@ -115,6 +121,8 @@ describe("Maestro iOS preview smoke flow", () => {
 
     assert.match(flow, /id:\s*"safe-route-demo-action"\s*\n\s+waitToSettleTimeoutMs:\s*1000/);
     assert.match(flow, /id:\s*"safe-route-primary-action"\s*\n\s+waitToSettleTimeoutMs:\s*1000/);
+    assert.match(flow, /id:\s*"safe-route-risk-alert"\s*\n\s+waitToSettleTimeoutMs:\s*1000/);
+    assert.match(flow, /id:\s*"safe-route-risk-detail-dismiss"\s*\n\s+waitToSettleTimeoutMs:\s*1000/);
     assert.match(flow, /id:\s*"safe-route-stop-action"\s*\n\s+waitToSettleTimeoutMs:\s*1000/);
   });
 });

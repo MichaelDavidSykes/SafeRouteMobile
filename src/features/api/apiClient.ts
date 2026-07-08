@@ -3,11 +3,13 @@ import {
   ApiRequestError,
   ApiSessionExpiredError,
   createNetworkRequestError,
+  fetchWithTimeout,
   getApiErrorMessage,
-  unwrapApiEnvelope
+  unwrapApiEnvelope,
+  type SafeRouteRequestOptions
 } from './apiClientCore';
 
-export { ApiRequestError, ApiSessionExpiredError, createNetworkRequestError, getApiErrorMessage, unwrapApiEnvelope };
+export { ApiRequestError, ApiSessionExpiredError, createNetworkRequestError, fetchWithTimeout, getApiErrorMessage, unwrapApiEnvelope };
 
 export async function parseJsonResponse(response: Response): Promise<unknown> {
   const text = await response.text();
@@ -25,12 +27,12 @@ export async function parseJsonResponse(response: Response): Promise<unknown> {
 export async function apiRequest<T>(
   path: string,
   accessToken: string,
-  options: RequestInit = {}
+  options: SafeRouteRequestOptions = {}
 ): Promise<T> {
   let response: Response;
 
   try {
-    response = await fetch(`${LUNARCHAIN_API_BASE}${path}`, {
+    response = await fetchWithTimeout(`${LUNARCHAIN_API_BASE}${path}`, {
       ...options,
       headers: {
         Accept: 'application/json',

@@ -118,7 +118,7 @@ describe('route traversal progress', () => {
 
   it('snaps a live coordinate to the nearest route segment', () => {
     const progress = calculateRouteProgress(route.coordinates, {
-      latitude: 51.514,
+      latitude: 51.5186,
       longitude: -0.099
     });
 

@@ -23,6 +23,11 @@ export const uiTestIds = {
   liveMapPrimaryAction: "safe-route-primary-action",
   liveMapStopAction: "safe-route-stop-action",
   liveMapDemoDriveAction: "safe-route-demo-action",
+  liveMapRiskAlert: "safe-route-risk-alert",
+  liveMapRiskDetail: "safe-route-risk-detail",
+  liveMapRiskDetailDismiss: "safe-route-risk-detail-dismiss",
+  liveMapRiskZone: (riskZoneId: string) =>
+    `safe-route-risk-zone-${normalizeTestIdSegment(riskZoneId)}`,
 };
 
 export function normalizeTestIdSegment(value: string): string {

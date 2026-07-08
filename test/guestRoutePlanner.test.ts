@@ -104,7 +104,7 @@ describe('guest route planner helpers', () => {
     assert.equal(route.operation, 'Unsaved route');
     assert.equal(route.convoyCallsign, 'Guest mode');
     assert.equal(route.route.coordinates.length >= 2, true);
-    assert.equal(route.riskZones.length, 0);
+    assert.equal(route.riskZones.length, 3);
     assert.equal(route.checkpoints.length, 2);
     assert.equal(route.route.description, 'Local preview. Sign in to save.');
     assert.equal(route.route.nextInstruction, 'Review the route, then sign in to save it.');
@@ -130,7 +130,7 @@ describe('guest route planner helpers', () => {
       destination: 'Airport Terminal'
     });
 
-    assert.equal(route.route.coordinates.length, 31);
+    assert.equal(route.route.coordinates.length, 33);
     assert.deepEqual(route.checkpoints[0].coordinate, route.route.coordinates[0]);
     assert.deepEqual(
       route.checkpoints[1].coordinate,

@@ -7,7 +7,7 @@ import {
 } from "react-native";
 import type MapView from "react-native-maps";
 
-import type { SavedSafeRoutePlan } from "./liveMapTypes";
+import type { RiskZone, SavedSafeRoutePlan } from "./liveMapTypes";
 import {
   DEFAULT_ROUTE_INTELLIGENCE_VISIBLE,
   liveLocationNotice,
@@ -17,6 +17,12 @@ import {
 import { resolveLiveMapOverlayLayout } from "./liveMapLayout";
 import { LiveMapCanvas } from "./LiveMapCanvas";
 import { LiveMapOverlay } from "./LiveMapOverlay";
+import { createRouteRiskAdvisory } from "./liveRouteRiskAdvisory";
+import {
+  calculateRiskZoneRouteProximity,
+  resolveLiveRouteRiskAlert,
+  resolveVisibleRiskZones,
+} from "./routeRisk";
 import {
   DEFAULT_SPEED_METERS_PER_SECOND,
   DEMO_DRIVE_STEP_INTERVAL_MS,
@@ -69,6 +75,9 @@ export function LiveMapScreen({
     useState<NavigationLifecycle>("loaded");
   const [routeStep, setRouteStep] = useState(0);
   const [progressFloorMeters, setProgressFloorMeters] = useState(0);
+  const [selectedRiskZoneId, setSelectedRiskZoneId] = useState<string | null>(
+    null,
+  );
   const demoDriveActive = SAFEROUTE_DEMO_DRIVE_ENABLED && demoDriveEnabled;
   const navigationLocationTrackingActive =
     !demoDriveActive &&
@@ -157,6 +166,34 @@ export function LiveMapScreen({
     progress,
     activeNavigationState,
   );
+  const riskAdvisory = createRouteRiskAdvisory({
+    progress,
+    riskZones: routePlan.riskZones,
+    routeCoordinates: routePlan.route.coordinates,
+  });
+  const liveRiskAlert = resolveLiveRouteRiskAlert({
+    navigationState: activeNavigationState,
+    progress,
+    routePlan,
+  });
+  const visibleRiskZones = resolveVisibleRiskZones({
+    alertsVisible,
+    liveRiskAlert,
+    navigationState: activeNavigationState,
+    riskZones: routePlan.riskZones,
+  });
+  const selectedRiskZone = useMemo(
+    () =>
+      routePlan.riskZones.find((zone) => zone.id === selectedRiskZoneId) ||
+      null,
+    [routePlan.riskZones, selectedRiskZoneId],
+  );
+  const selectedRiskProximity = selectedRiskZone
+    ? calculateRiskZoneRouteProximity(
+        routePlan.route.coordinates,
+        selectedRiskZone,
+      )
+    : null;
   const heading = resolveVehicleHeading(
     routePlan.route.coordinates,
     progress,
@@ -170,6 +207,7 @@ export function LiveMapScreen({
     setRouteStep(0);
     setProgressFloorMeters(0);
     setFollowModeEnabled(true);
+    setSelectedRiskZoneId(null);
     const timer = setTimeout(() => fitRoute(), 120);
     return () => clearTimeout(timer);
   }, [routePlan.id]);
@@ -417,20 +455,41 @@ export function LiveMapScreen({
     setNavigationState("loaded");
   };
 
+  const handleRiskZonePress = (zone: RiskZone) => {
+    setSelectedRiskZoneId(zone.id);
+    setAlertsVisible(true);
+  };
+
+  const handleOpenRiskAlert = () => {
+    if (!liveRiskAlert) {
+      return;
+    }
+
+    setSelectedRiskZoneId(liveRiskAlert.zone.id);
+    setAlertsVisible(true);
+  };
+
+  const handleDismissRiskDetail = () => {
+    setSelectedRiskZoneId(null);
+  };
+
   return (
     <View testID={uiTestIds.liveMapScreen} style={styles.screen}>
       <LiveMapCanvas
         activeNavigationState={activeNavigationState}
-        alertsVisible={alertsVisible}
+        activeRiskZoneId={liveRiskAlert?.zone.id}
         demoDriveActive={demoDriveActive}
         heading={heading}
         mapRef={mapRef}
         onMapReady={fitRoute}
         onPanDrag={suspendDriveAlongCameraForMapReview}
+        onRiskZonePress={handleRiskZonePress}
         permissionStatus={permissionStatus}
         progressCoordinates={progressCoordinates}
         routePlan={routePlan}
+        selectedRiskZoneId={selectedRiskZoneId}
         vehicleCoordinate={vehicleCoordinate}
+        visibleRiskZones={visibleRiskZones}
       />
 
       <LiveMapOverlay
@@ -445,7 +504,9 @@ export function LiveMapScreen({
         locationNotice={locationNotice}
         onCenterVehicle={centerOnVehicle}
         onChangeRoute={onChangeRoute}
+        onDismissRiskDetail={handleDismissRiskDetail}
         onFitRoute={fitRouteFromControl}
+        onOpenRiskAlert={handleOpenRiskAlert}
         onPrimaryAction={handlePrimaryNavigationAction}
         returnAccessibilityLabel={returnAccessibilityLabel}
         returnLabel={returnLabel}
@@ -456,7 +517,11 @@ export function LiveMapScreen({
         onToggleDemoDrive={toggleDemoDrive}
         primaryDisabledReason={liveNavigationBlockedReason}
         progress={progress}
+        liveRiskAlert={liveRiskAlert}
+        riskAdvisory={riskAdvisory}
         routePlan={routePlan}
+        selectedRiskProximity={selectedRiskProximity}
+        selectedRiskZone={selectedRiskZone}
         trackingLabel={trackingLabel}
       />
     </View>

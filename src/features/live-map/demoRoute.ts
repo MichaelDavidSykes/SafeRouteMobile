@@ -71,10 +71,10 @@ export const SAVED_ROUTE_PLANS: SavedSafeRoutePlan[] = [
       coordinates: [
         { latitude: 51.5099, longitude: -0.1479 },
         { latitude: 51.5117, longitude: -0.1277 },
-        { latitude: 51.5139, longitude: -0.1001 },
-        { latitude: 51.5148, longitude: -0.0732 },
-        { latitude: 51.5142, longitude: -0.0413 },
-        { latitude: 51.5137, longitude: 0.0087 },
+        { latitude: 51.5188, longitude: -0.1015 },
+        { latitude: 51.5225, longitude: -0.0718 },
+        { latitude: 51.5193, longitude: -0.0413 },
+        { latitude: 51.5177, longitude: 0.0095 },
         { latitude: 51.5053, longitude: 0.0553 }
       ]
     },
@@ -126,9 +126,9 @@ export const SAVED_ROUTE_PLANS: SavedSafeRoutePlan[] = [
       nextDistance: '800 m',
       coordinates: [
         { latitude: 51.5308, longitude: -0.1238 },
-        { latitude: 51.5268, longitude: -0.0999 },
-        { latitude: 51.525, longitude: -0.0745 },
-        { latitude: 51.5203, longitude: -0.0513 },
+        { latitude: 51.5322, longitude: -0.1015 },
+        { latitude: 51.5328, longitude: -0.0745 },
+        { latitude: 51.5233, longitude: -0.0495 },
         { latitude: 51.5134, longitude: -0.026 },
         { latitude: 51.5055, longitude: -0.0195 }
       ]
@@ -195,8 +195,8 @@ export const SAVED_ROUTE_PLANS: SavedSafeRoutePlan[] = [
       coordinates: [
         { latitude: 51.4995, longitude: -0.1248 },
         { latitude: 51.4934, longitude: -0.1672 },
-        { latitude: 51.4927, longitude: -0.2241 },
-        { latitude: 51.4892, longitude: -0.289 },
+        { latitude: 51.4979, longitude: -0.2241 },
+        { latitude: 51.4938, longitude: -0.289 },
         { latitude: 51.4817, longitude: -0.3724 },
         { latitude: 51.4706, longitude: -0.4874 }
       ]
@@ -209,7 +209,7 @@ export const SAVED_ROUTE_PLANS: SavedSafeRoutePlan[] = [
         severity: 'medium',
         category: 'Traffic',
         coordinate: { latitude: 51.4927, longitude: -0.2241 },
-        radiusMeters: 680,
+        radiusMeters: 420,
         markerColor: '#f3a32b',
         strokeColor: 'rgba(243, 163, 43, 0.72)',
         fillColor: 'rgba(243, 163, 43, 0.18)'

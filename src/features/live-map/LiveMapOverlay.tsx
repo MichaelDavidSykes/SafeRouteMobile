@@ -1,14 +1,20 @@
 import { SafeAreaView } from "react-native";
 
-import type { SavedSafeRoutePlan } from "./liveMapTypes";
+import type { RiskZone, SavedSafeRoutePlan } from "./liveMapTypes";
 import type { LiveMapOverlayLayout } from "./liveMapLayout";
+import type { RouteRiskAdvisory } from "./liveRouteRiskAdvisory";
 import {
   shouldShowGuidanceCard,
   type NavigationLifecycle,
 } from "./liveMapUiState";
 import type { RouteProgressSnapshot } from "./routeProgress";
+import type { LiveRouteRiskAlert, RouteRiskProximity } from "./routeRisk";
 import { LiveMapControls } from "./LiveMapControls";
 import { LiveMapGuidanceCard } from "./LiveMapGuidanceCard";
+import {
+  LiveRouteRiskAlertCard,
+  LiveRouteRiskDetailCard,
+} from "./LiveMapRiskCard";
 import { styles } from "./LiveMapOverlay.styles";
 import { LiveMapRouteHeader } from "./LiveMapRouteHeader";
 import { LiveMapRouteSummarySheet } from "./LiveMapRouteSummarySheet";
@@ -33,10 +39,16 @@ interface LiveMapOverlayProps {
   onToggleDemoDrive: () => void;
   primaryDisabledReason?: string | null;
   progress: RouteProgressSnapshot | null;
+  liveRiskAlert: LiveRouteRiskAlert | null;
+  onDismissRiskDetail: () => void;
+  onOpenRiskAlert: () => void;
+  riskAdvisory?: RouteRiskAdvisory | null;
   returnAccessibilityLabel: string;
   returnLabel: string;
   routeContext: "guest" | "saved";
   routePlan: SavedSafeRoutePlan;
+  selectedRiskProximity: RouteRiskProximity | null;
+  selectedRiskZone: RiskZone | null;
   trackingLabel: string;
 }
 
@@ -60,10 +72,16 @@ export function LiveMapOverlay({
   onToggleDemoDrive,
   primaryDisabledReason,
   progress,
+  liveRiskAlert,
+  onDismissRiskDetail,
+  onOpenRiskAlert,
+  riskAdvisory,
   returnAccessibilityLabel,
   returnLabel,
   routeContext,
   routePlan,
+  selectedRiskProximity,
+  selectedRiskZone,
   trackingLabel,
 }: LiveMapOverlayProps) {
   return (
@@ -97,7 +115,25 @@ export function LiveMapOverlay({
           guidance={guidance}
           layout={layout}
           progress={progress}
+          riskAdvisory={riskAdvisory}
           state={activeNavigationState}
+        />
+      ) : null}
+
+      {selectedRiskZone ? (
+        <LiveRouteRiskDetailCard
+          layout={layout}
+          navigationState={activeNavigationState}
+          proximity={selectedRiskProximity}
+          zone={selectedRiskZone}
+          onDismiss={onDismissRiskDetail}
+        />
+      ) : liveRiskAlert ? (
+        <LiveRouteRiskAlertCard
+          alert={liveRiskAlert}
+          layout={layout}
+          navigationState={activeNavigationState}
+          onPress={onOpenRiskAlert}
         />
       ) : null}
 

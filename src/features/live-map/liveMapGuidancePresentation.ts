@@ -3,18 +3,22 @@ import {
   formatEta,
   type RouteProgressSnapshot,
 } from "./routeProgress";
+import type { RouteRiskAdvisory } from "./liveRouteRiskAdvisory";
 
 export interface GuidanceCardPresentation {
   accessibilityLabel: string;
   metaLabel: string;
+  riskAdvisory?: RouteRiskAdvisory | null;
 }
 
 export function createGuidanceCardPresentation({
   guidance,
   progress,
+  riskAdvisory,
 }: {
   guidance: { instruction: string; distance: string };
   progress: RouteProgressSnapshot | null;
+  riskAdvisory?: RouteRiskAdvisory | null;
 }): GuidanceCardPresentation {
   const instruction =
     normalizeGuidanceCopy(guidance.instruction) || "Continue on saved route";
@@ -25,18 +29,25 @@ export function createGuidanceCardPresentation({
   const remainingLabel = formatDistance(progress?.remainingDistanceMeters || 0);
   const maneuverDistance = normalizeGuidanceCopy(guidance.distance);
 
-  return {
+  const presentation: GuidanceCardPresentation = {
     accessibilityLabel: [
       "Current instruction.",
       `${instruction}.`,
       `${spokenEtaLabel}.`,
       `${remainingLabel} left.`,
       maneuverDistance ? `Next maneuver in ${maneuverDistance}.` : "",
+      riskAdvisory?.accessibilityLabel,
     ]
       .filter(Boolean)
       .join(" "),
     metaLabel: `${etaLabel} · ${remainingLabel} left`,
   };
+
+  if (riskAdvisory) {
+    presentation.riskAdvisory = riskAdvisory;
+  }
+
+  return presentation;
 }
 
 function normalizeGuidanceCopy(value: string): string {

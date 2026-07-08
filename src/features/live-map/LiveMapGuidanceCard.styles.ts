@@ -49,6 +49,20 @@ export const guidanceCardStyles = StyleSheet.create({
     fontSize: typeScale.xs,
     fontWeight: "700",
   },
+  guidanceRiskMeta: {
+    marginTop: 1,
+    fontSize: typeScale.xs,
+    fontWeight: "800",
+  },
+  guidanceRiskMetaDanger: {
+    color: "#FFB8AD",
+  },
+  guidanceRiskMetaWarning: {
+    color: "#FFE1A8",
+  },
+  guidanceRiskMetaInfo: {
+    color: "rgba(255, 255, 255, 0.78)",
+  },
   guidanceDistance: {
     color: colors.surface,
     fontSize: typeScale.lg,

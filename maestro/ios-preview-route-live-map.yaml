@@ -136,6 +136,16 @@ appId: host.exp.Exponent
     id: "safe-route-control-fit"
 - assertVisible:
     id: "safe-route-control-follow"
+- assertVisible:
+    id: "safe-route-risk-alert"
+- tapOn:
+    id: "safe-route-risk-alert"
+    waitToSettleTimeoutMs: 1000
+- assertVisible:
+    id: "safe-route-risk-detail"
+- tapOn:
+    id: "safe-route-risk-detail-dismiss"
+    waitToSettleTimeoutMs: 1000
 - tapOn:
     id: "safe-route-stop-action"
     waitToSettleTimeoutMs: 1000

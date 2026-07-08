@@ -2,6 +2,10 @@ import { Text, View } from "react-native";
 
 import type { LiveMapOverlayLayout } from "./liveMapLayout";
 import { createGuidanceCardPresentation } from "./liveMapGuidancePresentation";
+import type {
+  RouteRiskAdvisory,
+  RouteRiskAdvisoryTone,
+} from "./liveRouteRiskAdvisory";
 import type { NavigationLifecycle } from "./liveMapUiState";
 import type { RouteProgressSnapshot } from "./routeProgress";
 import { guidanceCardStyles as styles } from "./LiveMapGuidanceCard.styles";
@@ -10,6 +14,7 @@ interface LiveMapGuidanceCardProps {
   guidance: { instruction: string; distance: string };
   layout: LiveMapOverlayLayout;
   progress: RouteProgressSnapshot | null;
+  riskAdvisory?: RouteRiskAdvisory | null;
   state: NavigationLifecycle;
 }
 
@@ -17,9 +22,14 @@ export function LiveMapGuidanceCard({
   guidance,
   layout,
   progress,
+  riskAdvisory,
   state,
 }: LiveMapGuidanceCardProps) {
-  const presentation = createGuidanceCardPresentation({ guidance, progress });
+  const presentation = createGuidanceCardPresentation({
+    guidance,
+    progress,
+    riskAdvisory,
+  });
 
   return (
     <View
@@ -45,6 +55,17 @@ export function LiveMapGuidanceCard({
         <Text numberOfLines={1} style={styles.guidanceMeta}>
           {presentation.metaLabel}
         </Text>
+        {presentation.riskAdvisory ? (
+          <Text
+            numberOfLines={1}
+            style={[
+              styles.guidanceRiskMeta,
+              guidanceRiskMetaStyle(presentation.riskAdvisory.tone),
+            ]}
+          >
+            {presentation.riskAdvisory.visibleLabel}
+          </Text>
+        ) : null}
       </View>
       {layout.guidanceDistanceVisible ? (
         <Text
@@ -58,4 +79,16 @@ export function LiveMapGuidanceCard({
       ) : null}
     </View>
   );
+}
+
+function guidanceRiskMetaStyle(tone: RouteRiskAdvisoryTone) {
+  if (tone === "danger") {
+    return styles.guidanceRiskMetaDanger;
+  }
+
+  if (tone === "warning") {
+    return styles.guidanceRiskMetaWarning;
+  }
+
+  return styles.guidanceRiskMetaInfo;
 }

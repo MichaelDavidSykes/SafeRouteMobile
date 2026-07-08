@@ -1,14 +1,10 @@
 import { LUNARCHAIN_API_BASE } from '../../config/env';
-import { ApiSessionExpiredError, createNetworkRequestError } from '../api/apiClientCore';
+import { ApiSessionExpiredError, fetchWithTimeout, type SafeRouteRequestOptions } from '../api/apiClientCore';
 import type { AuthSession, AuthenticatedUser, PasswordLoginResult } from './authTypes';
 import { buildPasswordLoginBody, getAuthErrorMessage, normalizeEmail, unwrapAuthData } from './authPayload';
 
-async function fetchAuthResponse(url: string, options: RequestInit): Promise<Response> {
-  try {
-    return await fetch(url, options);
-  } catch {
-    throw createNetworkRequestError();
-  }
+async function fetchAuthResponse(url: string, options: SafeRouteRequestOptions): Promise<Response> {
+  return fetchWithTimeout(url, options);
 }
 
 async function parseJson(response: Response): Promise<unknown> {

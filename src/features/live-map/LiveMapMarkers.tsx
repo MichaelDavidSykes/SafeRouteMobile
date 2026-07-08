@@ -2,11 +2,24 @@ import { StyleSheet, View } from 'react-native';
 import { Circle, Marker, Polyline } from 'react-native-maps';
 
 import type { RiskSeverity, RiskZone, RouteCheckpoint } from './liveMapTypes';
+import { createRiskZoneAccessibilityLabel } from './routeRisk';
+import { uiTestIds } from '../../testing/uiTestIds';
 import { colors, radius } from '../../theme';
 
-export function RiskOverlay({ zone }: { zone: RiskZone }) {
+export function RiskOverlay({
+  active,
+  onPress,
+  selected,
+  zone
+}: {
+  active?: boolean;
+  onPress?: (zone: RiskZone) => void;
+  selected?: boolean;
+  zone: RiskZone;
+}) {
   const routeSegmentCoordinates = zone.routeSegmentCoordinates || [];
   const connectorCoordinates = zone.connectorCoordinates || [];
+  const handlePress = () => onPress?.(zone);
 
   return (
     <>
@@ -15,16 +28,20 @@ export function RiskOverlay({ zone }: { zone: RiskZone }) {
           <Polyline
             coordinates={routeSegmentCoordinates}
             strokeColor="rgba(255, 255, 255, 0.78)"
-            strokeWidth={10}
+            strokeWidth={selected || active ? 12 : 10}
             lineCap="round"
             lineJoin="round"
+            tappable={Boolean(onPress)}
+            onPress={handlePress}
           />
           <Polyline
             coordinates={routeSegmentCoordinates}
             strokeColor={zone.markerColor}
-            strokeWidth={5}
+            strokeWidth={selected || active ? 7 : 5}
             lineCap="round"
             lineJoin="round"
+            tappable={Boolean(onPress)}
+            onPress={handlePress}
           />
         </>
       ) : null}
@@ -36,6 +53,8 @@ export function RiskOverlay({ zone }: { zone: RiskZone }) {
           lineDashPattern={[3, 9]}
           lineCap="round"
           lineJoin="round"
+          tappable={Boolean(onPress)}
+          onPress={handlePress}
         />
       ) : null}
       <Circle
@@ -43,9 +62,9 @@ export function RiskOverlay({ zone }: { zone: RiskZone }) {
         radius={zone.radiusMeters}
         strokeColor={zone.strokeColor}
         fillColor={zone.fillColor}
-        strokeWidth={2}
+        strokeWidth={selected || active ? 3 : 2}
       />
-      <RiskMarker zone={zone} />
+      <RiskMarker active={active} onPress={handlePress} selected={selected} zone={zone} />
     </>
   );
 }
@@ -75,10 +94,39 @@ export function CheckpointMarker({ checkpoint }: { checkpoint: RouteCheckpoint }
   );
 }
 
-function RiskMarker({ zone }: { zone: RiskZone }) {
+function RiskMarker({
+  active,
+  onPress,
+  selected,
+  zone
+}: {
+  active?: boolean;
+  onPress?: () => void;
+  selected?: boolean;
+  zone: RiskZone;
+}) {
   return (
-    <Marker coordinate={zone.coordinate} anchor={{ x: 0.5, y: 0.5 }} title={zone.title} description={zone.description}>
-      <View style={[styles.riskMarker, severityMarkerStyle(zone.severity)]}>
+    <Marker
+      coordinate={zone.coordinate}
+      anchor={{ x: 0.5, y: 0.5 }}
+      title={zone.title}
+      description={zone.description}
+      testID={uiTestIds.liveMapRiskZone(zone.id)}
+      tappable={Boolean(onPress)}
+      zIndex={selected || active ? 20 : 10}
+      onPress={onPress}
+    >
+      <View
+        accessibilityLabel={createRiskZoneAccessibilityLabel(zone, Boolean(selected))}
+        accessibilityRole="button"
+        testID={uiTestIds.liveMapRiskZone(zone.id)}
+        style={[
+          styles.riskMarker,
+          active ? styles.riskMarkerActive : null,
+          selected ? styles.riskMarkerSelected : null,
+          severityMarkerStyle(zone.severity)
+        ]}
+      >
         <View style={styles.riskMarkerCore} />
       </View>
     </Marker>
@@ -166,6 +214,15 @@ const styles = StyleSheet.create({
     height: 8,
     borderRadius: radius.pill,
     backgroundColor: colors.surface
+  },
+  riskMarkerActive: {
+    width: 28,
+    height: 28
+  },
+  riskMarkerSelected: {
+    width: 32,
+    height: 32,
+    borderWidth: 3
   },
   riskMarkerHigh: {
     backgroundColor: colors.danger

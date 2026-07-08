@@ -1,4 +1,9 @@
 export const LUNARCHAIN_NETWORK_ERROR_MESSAGE = 'Unable to reach LunarChain. Check your connection and retry.';
+export const LUNARCHAIN_REQUEST_TIMEOUT_MS = 15000;
+
+export type SafeRouteRequestOptions = RequestInit & {
+  timeoutMs?: number;
+};
 
 export class ApiSessionExpiredError extends Error {
   constructor(message = 'Your LunarChain session expired. Sign in again.') {
@@ -19,6 +24,58 @@ export class ApiRequestError extends Error {
 
 export function createNetworkRequestError(): ApiRequestError {
   return new ApiRequestError(LUNARCHAIN_NETWORK_ERROR_MESSAGE, 0);
+}
+
+export async function fetchWithTimeout(
+  input: Parameters<typeof fetch>[0],
+  options: SafeRouteRequestOptions = {}
+): Promise<Response> {
+  const {
+    signal: callerSignal,
+    timeoutMs = LUNARCHAIN_REQUEST_TIMEOUT_MS,
+    ...requestOptions
+  } = options;
+  const normalizedTimeoutMs = normalizeRequestTimeoutMs(timeoutMs);
+
+  if (typeof AbortController === 'undefined') {
+    try {
+      return await fetch(input, {
+        ...requestOptions,
+        ...(callerSignal ? { signal: callerSignal } : {})
+      });
+    } catch {
+      throw createNetworkRequestError();
+    }
+  }
+
+  const controller = new AbortController();
+  const timeout = setTimeout(() => {
+    controller.abort();
+  }, normalizedTimeoutMs);
+
+  const abortFromCaller = () => {
+    controller.abort();
+  };
+
+  if (callerSignal) {
+    if (callerSignal.aborted) {
+      controller.abort();
+    } else {
+      callerSignal.addEventListener('abort', abortFromCaller, { once: true });
+    }
+  }
+
+  try {
+    return await fetch(input, {
+      ...requestOptions,
+      signal: controller.signal
+    });
+  } catch {
+    throw createNetworkRequestError();
+  } finally {
+    clearTimeout(timeout);
+    callerSignal?.removeEventListener('abort', abortFromCaller);
+  }
 }
 
 export function unwrapApiEnvelope<T>(responseBody: unknown): T {
@@ -53,4 +110,10 @@ function firstNonEmptyMessage(...candidates: Array<string | undefined>): string 
   }
 
   return candidates[candidates.length - 1] || 'Unable to reach LunarChain.';
+}
+
+function normalizeRequestTimeoutMs(timeoutMs: number): number {
+  return Number.isFinite(timeoutMs) && timeoutMs > 0
+    ? timeoutMs
+    : LUNARCHAIN_REQUEST_TIMEOUT_MS;
 }

@@ -20,8 +20,9 @@ This checklist documents the SafeRoute Mobile inputs needed to distribute an alr
 4. Tester group alias(es) or tester email list for the initial iOS distribution cohort.
 5. A valid, signed iOS `.ipa` produced outside routine no-build automation, using the approved Apple team, signing certificate, provisioning profile, and bundle id.
 6. An incremented `SAFEROUTE_IOS_BUILD_NUMBER` for the signed artifact so Firebase/TestFlight testers can distinguish releases.
-7. Release notes text that identifies the SafeRoute Mobile source state, API environment, and any known limitations.
-8. Confirmation that production secrets are present in the build/distribution environment and not committed to the repository.
+7. `SAFEROUTE_APP_ENV=production`, HTTPS `SAFEROUTE_PROD_API_URL`, `GOOGLE_MAPS_IOS_API_KEY`, and the exact `SAFEROUTE_IOS_BUILD_NUMBER` used by the signed artifact.
+8. Release notes text that identifies the SafeRoute Mobile source state, API environment, build number, and any known limitations.
+9. Confirmation that production secrets are present in the build/distribution environment and not committed to the repository.
 
 ## Pre-distribution verification
 
@@ -49,7 +50,7 @@ Do not proceed if the app id, project id, tester group, artifact path, or releas
 
 ## Local readiness helper
 
-The pure helper at `src/config/firebaseDistributionReadiness.ts` maps local distribution inputs into explicit blockers and produces a Firebase upload command only when every required input is present. It is covered by `test/firebaseDistributionReadiness.test.ts` and is intended for no-build release planning, not for generating artifacts.
+The pure helper at `src/config/firebaseDistributionReadiness.ts` maps local distribution inputs into explicit blockers and produces a Firebase upload command only when every required input is present. It also checks the production iOS release environment (`SAFEROUTE_APP_ENV=production`, HTTPS API URL, iOS Google Maps key presence, and valid build number) without exposing secret values in its normalized output. It is covered by `test/firebaseDistributionReadiness.test.ts` and is intended for no-build release planning, not for generating artifacts.
 
 ## Upload command template
 
@@ -71,4 +72,5 @@ Record the Firebase release URL, tester group, artifact filename/checksum, CLI a
 - Provide the Firebase project id and iOS app id for `com.lunarchain.saferoute`.
 - Provide a signed `.ipa` artifact from an authorized iOS build process.
 - Confirm tester groups and release notes owner.
+- Confirm the signed artifact was produced with production app config, an HTTPS API URL, a present iOS Google Maps key, and the recorded build number.
 - Confirm Apple signing/provisioning ownership and the build-number increment policy for the first production-ready iOS artifact.

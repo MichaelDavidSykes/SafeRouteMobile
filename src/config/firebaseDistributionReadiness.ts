@@ -5,7 +5,13 @@ export type FirebaseDistributionBlockerCode =
   | 'firebase-ios-app-id-missing'
   | 'ios-artifact-missing'
   | 'tester-groups-missing'
-  | 'release-notes-missing';
+  | 'release-notes-missing'
+  | 'production-env-missing'
+  | 'production-api-url-missing'
+  | 'production-api-url-insecure'
+  | 'google-maps-ios-key-missing'
+  | 'ios-build-number-missing'
+  | 'ios-build-number-invalid';
 
 export type FirebaseDistributionBlocker = {
   code: FirebaseDistributionBlockerCode;
@@ -13,12 +19,16 @@ export type FirebaseDistributionBlocker = {
 };
 
 export type FirebaseIosDistributionInputs = {
+  appEnvironment?: string | null;
   firebaseCliAvailable?: boolean;
   firebaseAuthenticated?: boolean;
   firebaseProjectId?: string | null;
   firebaseIosAppId?: string | null;
+  googleMapsIosApiKey?: string | null;
   iosArtifactPath?: string | null;
   iosArtifactExists?: boolean;
+  iosBuildNumber?: string | null;
+  productionApiUrl?: string | null;
   releaseNotes?: string | null;
   testerGroups?: Array<string | null | undefined> | null;
 };
@@ -27,9 +37,13 @@ export type FirebaseIosDistributionReadiness = {
   blockers: FirebaseDistributionBlocker[];
   distributionCommand: string | null;
   normalized: {
+    appEnvironment: string | null;
     firebaseProjectId: string | null;
     firebaseIosAppId: string | null;
+    googleMapsIosApiKeyConfigured: boolean;
     iosArtifactPath: string | null;
+    iosBuildNumber: string | null;
+    productionApiUrl: string | null;
     releaseNotes: string | null;
     testerGroups: string[];
   };
@@ -39,6 +53,19 @@ export type FirebaseIosDistributionReadiness = {
 function normalizeText(value: string | null | undefined): string | null {
   const normalized = value?.trim();
   return normalized ? normalized : null;
+}
+
+function normalizeEnvironment(value: string | null | undefined): string | null {
+  const normalized = normalizeText(value);
+  return normalized ? normalized.toLowerCase() : null;
+}
+
+function normalizeApiUrl(value: string | null | undefined): string | null {
+  return normalizeText(value)?.replace(/\/+$/, '') || null;
+}
+
+function isValidIosBuildNumber(value: string): boolean {
+  return /^\d+(?:\.\d+){0,2}$/.test(value);
 }
 
 function normalizeTesterGroups(groups: Array<string | null | undefined> | null | undefined): string[] {
@@ -90,9 +117,13 @@ export function resolveFirebaseIosDistributionReadiness(
   inputs: FirebaseIosDistributionInputs
 ): FirebaseIosDistributionReadiness {
   const normalized = {
+    appEnvironment: normalizeEnvironment(inputs.appEnvironment),
     firebaseProjectId: normalizeText(inputs.firebaseProjectId),
     firebaseIosAppId: normalizeText(inputs.firebaseIosAppId),
+    googleMapsIosApiKeyConfigured: Boolean(normalizeText(inputs.googleMapsIosApiKey)),
     iosArtifactPath: normalizeText(inputs.iosArtifactPath),
+    iosBuildNumber: normalizeText(inputs.iosBuildNumber),
+    productionApiUrl: normalizeApiUrl(inputs.productionApiUrl),
     releaseNotes: normalizeText(inputs.releaseNotes),
     testerGroups: normalizeTesterGroups(inputs.testerGroups)
   };
@@ -144,6 +175,44 @@ export function resolveFirebaseIosDistributionReadiness(
     blockers.push({
       code: 'release-notes-missing',
       message: 'Prepare concise release notes for Firebase testers.'
+    });
+  }
+
+  if (normalized.appEnvironment !== 'production') {
+    blockers.push({
+      code: 'production-env-missing',
+      message: 'Set SAFEROUTE_APP_ENV=production for the iOS artifact before distribution.'
+    });
+  }
+
+  if (!normalized.productionApiUrl) {
+    blockers.push({
+      code: 'production-api-url-missing',
+      message: 'Set the HTTPS SafeRoute production API URL used by the signed iOS artifact.'
+    });
+  } else if (!normalized.productionApiUrl.startsWith('https://')) {
+    blockers.push({
+      code: 'production-api-url-insecure',
+      message: 'Use an HTTPS SafeRoute production API URL for iOS distribution.'
+    });
+  }
+
+  if (!normalized.googleMapsIosApiKeyConfigured) {
+    blockers.push({
+      code: 'google-maps-ios-key-missing',
+      message: 'Set GOOGLE_MAPS_IOS_API_KEY in the release environment before producing the iOS artifact.'
+    });
+  }
+
+  if (!normalized.iosBuildNumber) {
+    blockers.push({
+      code: 'ios-build-number-missing',
+      message: 'Set SAFEROUTE_IOS_BUILD_NUMBER for the signed iOS artifact.'
+    });
+  } else if (!isValidIosBuildNumber(normalized.iosBuildNumber)) {
+    blockers.push({
+      code: 'ios-build-number-invalid',
+      message: 'Use one to three dot-separated numeric components for SAFEROUTE_IOS_BUILD_NUMBER.'
     });
   }
 

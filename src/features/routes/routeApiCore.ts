@@ -14,6 +14,8 @@ export interface SavedRouteSyncResult {
 
 export type RouteApiRequester = <T>(path: string, accessToken: string) => Promise<T>;
 
+const MALFORMED_ROUTE_DETAIL_MESSAGE = 'Saved route details were unavailable. Retry.';
+
 function normalizeRouteId(routeId: unknown): string {
   if (routeId === null || routeId === undefined) {
     return '';
@@ -55,11 +57,27 @@ function requireAccessToken(accessToken: string): string {
 }
 
 function hasUsableRouteId(route: unknown): route is MobileSafeRouteDto {
-  if (!route || typeof route !== 'object') {
+  if (!isRoutePayloadObject(route)) {
     return false;
   }
 
   return Boolean(normalizeRouteId((route as { id?: unknown }).id));
+}
+
+function isRoutePayloadObject(payload: unknown): payload is Record<string, unknown> {
+  return Boolean(payload && typeof payload === 'object' && !Array.isArray(payload));
+}
+
+function normalizeRouteListPayload(payload: unknown): Partial<MobileRouteListResponse> {
+  return isRoutePayloadObject(payload) ? payload as Partial<MobileRouteListResponse> : {};
+}
+
+function requireRouteDetailPayload(payload: unknown): MobileSafeRouteDto {
+  if (!isRoutePayloadObject(payload)) {
+    throw new Error(MALFORMED_ROUTE_DETAIL_MESSAGE);
+  }
+
+  return payload as unknown as MobileSafeRouteDto;
 }
 
 function withRequestedRouteIdFallback(
@@ -86,7 +104,9 @@ export async function loadSavedRoutes(
   accessToken: string,
   clientId?: string
 ): Promise<SavedRouteSyncResult> {
-  const payload = await request<MobileRouteListResponse>(buildSavedRoutesPath(clientId), requireAccessToken(accessToken));
+  const payload = normalizeRouteListPayload(
+    await request<unknown>(buildSavedRoutesPath(clientId), requireAccessToken(accessToken))
+  );
 
   return {
     clients: normalizeMobileClients(payload.clients),
@@ -102,9 +122,11 @@ export async function loadRouteDetail(
   routeId: string
 ): Promise<SavedSafeRoutePlan> {
   const normalizedRouteId = normalizeRouteId(routeId);
-  const payload = await request<MobileSafeRouteDto>(
-    buildRouteDetailPath(normalizedRouteId),
-    requireAccessToken(accessToken)
+  const payload = requireRouteDetailPayload(
+    await request<unknown>(
+      buildRouteDetailPath(normalizedRouteId),
+      requireAccessToken(accessToken)
+    )
   );
   return mapRouteDtoToSavedPlan(withRequestedRouteIdFallback(payload, normalizedRouteId));
 }

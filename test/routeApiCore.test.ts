@@ -60,6 +60,18 @@ describe('SafeRoute route API core', () => {
     assert.equal(result.routes[0].route.eta, '10 min');
   });
 
+  it('treats malformed saved-route list payloads as an empty picker state', async () => {
+    const responses: unknown[] = [null, 'maintenance page'];
+
+    for (const response of responses) {
+      const request: RouteApiRequester = async () => response as never;
+      const result = await loadSavedRoutes(request, 'token-1');
+
+      assert.deepEqual(result.clients, []);
+      assert.deepEqual(result.routes, []);
+    }
+  });
+
   it('drops saved-route cards without stable route identifiers', async () => {
     const request: RouteApiRequester = async () =>
       ({
@@ -166,6 +178,15 @@ describe('SafeRoute route API core', () => {
 
     assert.equal(plan.id, 'route-without-id');
     assert.equal(plan.name, 'Airport escort');
+  });
+
+  it('surfaces a safe retryable detail error when a route detail payload is malformed', async () => {
+    const request: RouteApiRequester = async () => null as never;
+
+    await assert.rejects(
+      () => loadRouteDetail(request, 'token-2', 'route-2'),
+      /Saved route details were unavailable\. Retry\./
+    );
   });
 
   it('lets session-expired errors propagate to the route list UX', async () => {

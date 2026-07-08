@@ -42,4 +42,23 @@ describe('LunarChain auth payload helpers', () => {
     assert.equal(getAuthErrorMessage({ details: '   ', message: '  Too many attempts. ' }, 'fallback'), 'Too many attempts.');
     assert.equal(getAuthErrorMessage({ detail: { details: '', message: '  Code does not match.  ' } }, 'fallback'), 'Code does not match.');
   });
+
+  it('uses backend validation and nested error copy for auth failures', () => {
+    assert.equal(
+      getAuthErrorMessage(
+        {
+          detail: [
+            {
+              loc: ['body', 'username'],
+              msg: 'Please enter a valid email address.',
+              type: 'value_error'
+            }
+          ]
+        },
+        'fallback'
+      ),
+      'Please enter a valid email address.'
+    );
+    assert.equal(getAuthErrorMessage({ error: { details: '  Verification is temporarily unavailable.  ' } }, 'fallback'), 'Verification is temporarily unavailable.');
+  });
 });

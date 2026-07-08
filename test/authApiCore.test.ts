@@ -1,0 +1,57 @@
+import assert from 'node:assert/strict';
+import { describe, it } from 'node:test';
+
+import { ApiRequestError, ApiSessionExpiredError } from '../src/features/api/apiClientCore';
+import { assertAuthResponseOk } from '../src/features/auth/authApiCore';
+
+function jsonResponse(status: number, body: unknown): Response {
+  return new Response(JSON.stringify(body), {
+    status,
+    headers: {
+      'Content-Type': 'application/json'
+    }
+  });
+}
+
+describe('LunarChain auth API core', () => {
+  it('throws typed request errors for non-auth service failures', async () => {
+    await assert.rejects(
+      () =>
+        assertAuthResponseOk(
+          jsonResponse(503, {
+            detail: {
+              message: 'Internal Server Error'
+            }
+          }),
+          'Unable to sign in.'
+        ),
+      (error) =>
+        error instanceof ApiRequestError &&
+        error.statusCode === 503 &&
+        error.message === 'Internal Server Error'
+    );
+  });
+
+  it('keeps credential rejections as session/auth failures', async () => {
+    await assert.rejects(
+      () =>
+        assertAuthResponseOk(
+          jsonResponse(401, {
+            detail: {
+              details: 'Invalid username or password.'
+            }
+          }),
+          'Unable to sign in.'
+        ),
+      (error) => error instanceof ApiSessionExpiredError && error.message === 'Invalid username or password.'
+    );
+  });
+
+  it('ignores malformed JSON and returns an empty body for successful empty responses', async () => {
+    const malformed = new Response('not-json', { status: 200 });
+    assert.deepEqual(await assertAuthResponseOk(malformed, 'fallback'), {});
+
+    const empty = new Response('', { status: 200 });
+    assert.deepEqual(await assertAuthResponseOk(empty, 'fallback'), {});
+  });
+});

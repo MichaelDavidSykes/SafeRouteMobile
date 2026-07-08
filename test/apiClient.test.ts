@@ -11,7 +11,13 @@ import {
   getApiErrorMessage,
   unwrapApiEnvelope
 } from '../src/features/api/apiClientCore';
-import { getUserFacingErrorMessage, isLikelyNetworkErrorMessage } from '../src/features/api/userFacingErrors';
+import {
+  LUNARCHAIN_RATE_LIMIT_ERROR,
+  LUNARCHAIN_SERVER_ERROR,
+  getUserFacingErrorMessage,
+  isLikelyNetworkErrorMessage,
+  isUnsafeDiagnosticMessage
+} from '../src/features/api/userFacingErrors';
 
 describe('mobile API helpers', () => {
   it('unwraps standard LunarChain response envelopes', () => {
@@ -34,6 +40,34 @@ describe('mobile API helpers', () => {
     assert.equal(getApiErrorMessage({ detail: '  Forbidden route.  ' }, 'fallback'), 'Forbidden route.');
   });
 
+  it('extracts validation and alternate backend API error shapes', () => {
+    assert.equal(
+      getApiErrorMessage(
+        {
+          detail: [
+            {
+              loc: ['query', 'client_id'],
+              msg: 'Input should be a valid string',
+              type: 'string_type'
+            }
+          ]
+        },
+        'fallback'
+      ),
+      'Input should be a valid string'
+    );
+    assert.equal(
+      getApiErrorMessage(
+        {
+          detail: [{ message: '   ' }, { details: 'Route filter is unavailable.' }]
+        },
+        'fallback'
+      ),
+      'Route filter is unavailable.'
+    );
+    assert.equal(getApiErrorMessage({ error: { message: '  Route sync paused.  ' } }, 'fallback'), 'Route sync paused.');
+  });
+
   it('maps native fetch/network failures to safe connection copy', () => {
     assert.equal(isLikelyNetworkErrorMessage('Network request failed'), true);
     assert.equal(isLikelyNetworkErrorMessage('The request timed out.'), true);
@@ -43,6 +77,23 @@ describe('mobile API helpers', () => {
     );
     assert.equal(getUserFacingErrorMessage('  Hosted API unavailable  ', 'fallback'), 'Hosted API unavailable');
     assert.equal(getUserFacingErrorMessage({}, 'fallback'), 'fallback');
+  });
+
+  it('maps request status diagnostics to production-safe user copy', () => {
+    assert.equal(
+      getUserFacingErrorMessage(new ApiRequestError('Internal Server Error', 503), 'fallback'),
+      LUNARCHAIN_SERVER_ERROR
+    );
+    assert.equal(
+      getUserFacingErrorMessage(new ApiRequestError('Too many attempts', 429), 'fallback'),
+      LUNARCHAIN_RATE_LIMIT_ERROR
+    );
+    assert.equal(
+      getUserFacingErrorMessage(new ApiRequestError('Network request failed', 0), 'fallback', 'offline copy'),
+      'offline copy'
+    );
+    assert.equal(isUnsafeDiagnosticMessage('Traceback: stack trace'), true);
+    assert.equal(getUserFacingErrorMessage(new Error('Internal Server Error'), 'fallback'), 'fallback');
   });
 
   it('exposes a typed session-expired error for auth failures', () => {

@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict';
 import { describe, it } from 'node:test';
 
+import { ApiRequestError } from '../src/features/api/apiClientCore';
 import { createRouteDetailErrorState, createRouteSyncErrorState } from '../src/features/routes/routeListErrors';
 
 describe('route list error states', () => {
@@ -38,6 +39,17 @@ describe('route list error states', () => {
     assert.equal(
       createRouteDetailErrorState(new Error('Failed to fetch'), 'Evening escort').message,
       'Could not load Evening escort. Unable to reach LunarChain. Check your connection and retry.'
+    );
+  });
+
+  it('keeps server and rate-limit diagnostics concise for saved routes', () => {
+    assert.equal(
+      createRouteSyncErrorState(new ApiRequestError('Internal Server Error', 503)).message,
+      'LunarChain is having trouble. Try again soon.'
+    );
+    assert.equal(
+      createRouteDetailErrorState(new ApiRequestError('Too many requests', 429), 'Evening escort').message,
+      'Could not load Evening escort. Too many attempts. Wait a moment and try again.'
     );
   });
 

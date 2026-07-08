@@ -25,23 +25,22 @@ export function unwrapAuthData(responseBody: unknown): AuthResponseData {
 
 export function getAuthErrorMessage(responseBody: unknown, fallback: string): string {
   const body = responseBody as {
-    detail?: { details?: string; message?: string } | string;
+    detail?: { details?: string; message?: string; msg?: string } | unknown[] | string;
     details?: string;
+    error?: { details?: string; message?: string; msg?: string } | string;
     message?: string;
   } | null | undefined;
 
-  if (typeof body?.detail === 'string') {
-    return firstNonEmptyMessage(body.detail, fallback);
-  }
-
-  if (body?.detail && typeof body.detail === 'object') {
-    return firstNonEmptyMessage(body.detail.details, body.detail.message, fallback);
-  }
-
-  return firstNonEmptyMessage(body?.details, body?.message, fallback);
+  return firstNonEmptyMessage(
+    extractErrorMessage(body?.detail),
+    body?.details,
+    body?.message,
+    extractErrorMessage(body?.error),
+    fallback
+  ) || fallback;
 }
 
-function firstNonEmptyMessage(...candidates: Array<string | undefined>): string {
+function firstNonEmptyMessage(...candidates: Array<string | undefined>): string | undefined {
   for (const candidate of candidates) {
     const message = typeof candidate === 'string' ? candidate.trim() : '';
     if (message) {
@@ -49,5 +48,40 @@ function firstNonEmptyMessage(...candidates: Array<string | undefined>): string 
     }
   }
 
-  return candidates[candidates.length - 1] || 'Unable to complete LunarChain authentication.';
+  return candidates[candidates.length - 1];
+}
+
+function extractErrorMessage(value: unknown): string | undefined {
+  if (typeof value === 'string') {
+    return value;
+  }
+
+  if (Array.isArray(value)) {
+    for (const item of value) {
+      const message = extractErrorMessage(item);
+      if (message?.trim()) {
+        return message;
+      }
+    }
+
+    return undefined;
+  }
+
+  if (!value || typeof value !== 'object') {
+    return undefined;
+  }
+
+  const error = value as {
+    details?: unknown;
+    error?: unknown;
+    message?: unknown;
+    msg?: unknown;
+  };
+
+  return firstNonEmptyMessage(
+    typeof error.details === 'string' ? error.details : extractErrorMessage(error.details),
+    typeof error.message === 'string' ? error.message : extractErrorMessage(error.message),
+    typeof error.msg === 'string' ? error.msg : extractErrorMessage(error.msg),
+    typeof error.error === 'string' ? error.error : extractErrorMessage(error.error)
+  );
 }

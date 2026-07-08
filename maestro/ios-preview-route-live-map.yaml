@@ -54,19 +54,33 @@ appId: host.exp.Exponent
     commands:
       - assertVisible:
           id: "guest-map-primary-action"
-      # Expo Go's floating Tools button can cover the authenticated top Saved
-      # capsule in development. Use the lower authenticated Trips entry instead;
-      # it reaches the same route picker in preview mode without coordinate taps
-      # near Expo chrome.
       - assertVisible:
-          id: "guest-map-gate-planned-trips"
+          id: "guest-map-destination-input"
       - tapOn:
-          id: "guest-map-gate-planned-trips"
+          id: "guest-map-destination-input"
+      - inputText: "London City Airport"
+      - tapOn: "done"
       - waitForAnimationToEnd:
           timeout: 5000
+      - assertVisible:
+          id: "guest-map-route-preview"
+      - assertVisible:
+          id: "guest-map-plot-action"
+      - tapOn:
+          id: "guest-map-plot-action"
+          waitToSettleTimeoutMs: 1000
+      - waitForAnimationToEnd:
+          timeout: 5000
+      - runFlow:
+          when:
+            visible: "Allow While Using App"
+          commands:
+            - tapOn: "Allow While Using App"
+            - waitForAnimationToEnd:
+                timeout: 3000
       - extendedWaitUntil:
           visible:
-            id: "safe-route-picker"
+            id: "safe-route-live-map"
           timeout: 30000
 - runFlow:
     when:

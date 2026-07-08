@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
-import { Pressable, SafeAreaView, Text, TextInput, View } from 'react-native';
+import { Keyboard, Pressable, SafeAreaView, Text, TextInput, View } from 'react-native';
 import MapView, { Marker, Polyline } from 'react-native-maps';
 
 import { colors } from '../../theme';
@@ -72,6 +72,7 @@ export function GuestMapScreen({
       return;
     }
 
+    Keyboard.dismiss();
     const nextRoutePlan = createGuestRoutePlan({
       authenticated,
       origin,
@@ -85,6 +86,7 @@ export function GuestMapScreen({
       return;
     }
 
+    Keyboard.dismiss();
     if (!routePlan) {
       handlePlotRoute();
       return;
@@ -218,6 +220,7 @@ export function GuestMapScreen({
               testID={uiTestIds.guestMapDestinationInput}
               value={destination}
               onChangeText={handleDestinationChange}
+              onSubmitEditing={routePlan ? handleOpenPreview : handlePlotRoute}
             />
           </View>
 
@@ -259,6 +262,7 @@ export function GuestMapScreen({
 function RouteInput({
   label,
   onChangeText,
+  onSubmitEditing,
   placeholder,
   testID,
   value,
@@ -267,6 +271,7 @@ function RouteInput({
   divided?: boolean;
   label: string;
   onChangeText: (value: string) => void;
+  onSubmitEditing?: () => void;
   placeholder: string;
   testID: string;
   value: string;
@@ -279,10 +284,13 @@ function RouteInput({
         autoCorrect={false}
         placeholder={placeholder}
         placeholderTextColor={colors.muted}
+        returnKeyType={onSubmitEditing ? 'done' : 'default'}
         style={styles.input}
+        submitBehavior={onSubmitEditing ? 'blurAndSubmit' : 'blurAndSubmit'}
         testID={testID}
         value={value}
         onChangeText={onChangeText}
+        onSubmitEditing={onSubmitEditing}
       />
     </View>
   );

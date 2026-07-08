@@ -88,6 +88,24 @@ describe('saved LunarChain session restore', () => {
     assert.equal(result.message, 'Saved token is no longer valid.');
   });
 
+  it('normalizes generic hosted auth rejections to calm session recovery copy', async () => {
+    const result = await restoreSavedSession(storedSession, async () => {
+      throw new ApiSessionExpiredError('  Could not validate credentials  ');
+    });
+
+    assert.equal(result.status, 'expired');
+    assert.equal(result.message, 'Your LunarChain session expired. Sign in again.');
+  });
+
+  it('hides unsafe hosted auth diagnostics during session restore', async () => {
+    const result = await restoreSavedSession(storedSession, async () => {
+      throw new ApiSessionExpiredError('Traceback: token validator exception');
+    });
+
+    assert.equal(result.status, 'expired');
+    assert.equal(result.message, 'Your LunarChain session expired. Sign in again.');
+  });
+
   it('keeps a non-expired saved session through transient validation failures', async () => {
     const result = await restoreSavedSession(storedSession, async () => {
       throw new Error('Network request failed');

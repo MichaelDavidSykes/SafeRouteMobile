@@ -23,6 +23,28 @@ const DEFAULT_EXPIRED_MESSAGE = 'Your LunarChain session expired. Sign in again.
 const OFFLINE_RESTORE_MESSAGE = 'Using your saved LunarChain session. Some SafeRoute data may need a network refresh.';
 const ONLINE_VALIDATION_REQUIRED_MESSAGE = 'Your saved LunarChain session needs online validation. Sign in again to unlock saved routes.';
 
+const GENERIC_SESSION_REJECTION_PATTERNS = [
+  /^not authenticated$/i,
+  /^unauthorized$/i,
+  /^forbidden$/i,
+  /^invalid token$/i,
+  /^token expired$/i,
+  /^signature has expired$/i,
+  /^could not validate credentials$/i,
+  /^authentication credentials were not provided$/i,
+  /^missing authorization/i
+];
+
+const UNSAFE_SESSION_REJECTION_PATTERNS = [
+  /internal server error/i,
+  /traceback/i,
+  /stack trace/i,
+  /exception/i,
+  /<html/i,
+  /<!doctype/i,
+  /\[object object\]/i
+];
+
 export async function restoreSavedSession(
   storedSession: AuthSession | null,
   getUser: GetCurrentUser
@@ -69,7 +91,7 @@ export async function restoreSavedSession(
     if (error instanceof ApiSessionExpiredError) {
       return {
         status: 'expired',
-        message: error.message || DEFAULT_EXPIRED_MESSAGE
+        message: getSessionRestoreExpiredMessage(error.message)
       };
     }
 
@@ -87,4 +109,18 @@ export async function restoreSavedSession(
       session: normalizedStoredSession
     };
   }
+}
+
+function getSessionRestoreExpiredMessage(message: string | undefined): string {
+  const normalizedMessage = String(message || '').trim();
+
+  if (
+    !normalizedMessage ||
+    GENERIC_SESSION_REJECTION_PATTERNS.some((pattern) => pattern.test(normalizedMessage)) ||
+    UNSAFE_SESSION_REJECTION_PATTERNS.some((pattern) => pattern.test(normalizedMessage))
+  ) {
+    return DEFAULT_EXPIRED_MESSAGE;
+  }
+
+  return normalizedMessage;
 }

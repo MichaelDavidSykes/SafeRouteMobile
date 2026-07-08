@@ -37,6 +37,7 @@ type ExpoConfig = {
     bundleIdentifier: string;
     config?: {
       googleMapsApiKey?: string;
+      usesNonExemptEncryption?: boolean;
     };
   };
   plugins: Array<string | [string, Record<string, string>]>;
@@ -84,6 +85,7 @@ describe('Expo production configuration', () => {
     assert.equal(expo.extra.safeRouteDemoDriveEnabled, true);
     assert.equal(expo.extra.safeRoutePreviewModeEnabled, false);
     assert.equal(expo.ios.bundleIdentifier, 'com.lunarchain.saferoute');
+    assert.equal(expo.ios.config?.usesNonExemptEncryption, false);
     assert.equal(expo.icon, './assets/icon.png');
     assert.deepEqual(expo.splash, {
       image: './assets/splash.png',
@@ -156,6 +158,7 @@ describe('Expo production configuration', () => {
 
     assert.equal(expo.extra.safeRouteEnvironment, 'production');
     assert.equal(expo.extra.safeRouteDemoDriveEnabled, false);
+    assert.equal(expo.ios.config?.usesNonExemptEncryption, false);
     assert.equal(expo.ios.config?.googleMapsApiKey, 'ios-key');
 
     const mapsPlugin = expo.plugins.find((plugin) => Array.isArray(plugin) && plugin[0] === 'react-native-maps');

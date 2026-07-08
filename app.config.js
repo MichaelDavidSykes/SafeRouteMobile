@@ -85,11 +85,14 @@ module.exports = {
     ios: {
       supportsTablet: false,
       bundleIdentifier: 'com.lunarchain.saferoute',
-      config: googleMapsIosApiKey
-        ? {
-            googleMapsApiKey: googleMapsIosApiKey
-          }
-        : undefined,
+      config: {
+        usesNonExemptEncryption: false,
+        ...(googleMapsIosApiKey
+          ? {
+              googleMapsApiKey: googleMapsIosApiKey
+            }
+          : {})
+      },
       infoPlist: {
         NSLocationWhenInUseUsageDescription: 'Allow SafeRoute to use your location for live route guidance.'
       }

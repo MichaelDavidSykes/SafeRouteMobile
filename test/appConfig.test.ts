@@ -22,11 +22,16 @@ type SafeRouteEnvKey = (typeof ENV_KEYS)[number];
 
 type ExpoConfig = {
   icon: string;
+  name: string;
+  orientation: string;
+  scheme: string;
+  slug: string;
   splash: {
     backgroundColor: string;
     image: string;
     resizeMode: string;
   };
+  userInterfaceStyle: string;
   extra: {
     safeRouteEnvironment: string;
     safeRouteApiUrl: string;
@@ -37,6 +42,7 @@ type ExpoConfig = {
   ios: {
     buildNumber: string;
     bundleIdentifier: string;
+    supportsTablet: boolean;
     infoPlist?: {
       NSLocationWhenInUseUsageDescription?: string;
     };
@@ -89,7 +95,13 @@ describe('Expo production configuration', () => {
     assert.equal(expo.extra.safeRouteApiUrl, 'https://api.lunarchain.net');
     assert.equal(expo.extra.safeRouteDemoDriveEnabled, true);
     assert.equal(expo.extra.safeRoutePreviewModeEnabled, false);
+    assert.equal(expo.name, 'SafeRoute');
+    assert.equal(expo.slug, 'saferoute-mobile');
+    assert.equal(expo.scheme, 'saferoute');
+    assert.equal(expo.orientation, 'portrait');
+    assert.equal(expo.userInterfaceStyle, 'light');
     assert.equal(expo.ios.bundleIdentifier, 'com.lunarchain.saferoute');
+    assert.equal(expo.ios.supportsTablet, false);
     assert.equal(expo.ios.buildNumber, '1');
     assert.equal(expo.ios.config?.usesNonExemptEncryption, false);
     assert.equal(expo.icon, './assets/icon.png');
@@ -98,6 +110,23 @@ describe('Expo production configuration', () => {
       resizeMode: 'contain',
       backgroundColor: '#000000'
     });
+  });
+
+  it('keeps iOS release identity and URL scheme stable in production config', () => {
+    const expo = loadExpoConfig({
+      SAFEROUTE_APP_ENV: 'production',
+      SAFEROUTE_PROD_API_URL: 'https://api.lunarchain.net',
+      SAFEROUTE_IOS_BUILD_NUMBER: '57',
+      GOOGLE_MAPS_IOS_API_KEY: 'ios-key'
+    });
+
+    assert.equal(expo.name, 'SafeRoute');
+    assert.equal(expo.slug, 'saferoute-mobile');
+    assert.equal(expo.scheme, 'saferoute');
+    assert.equal(expo.orientation, 'portrait');
+    assert.equal(expo.userInterfaceStyle, 'light');
+    assert.equal(expo.ios.bundleIdentifier, 'com.lunarchain.saferoute');
+    assert.equal(expo.ios.supportsTablet, false);
   });
 
   it('keeps iOS foreground location permission copy concise and map-first', () => {

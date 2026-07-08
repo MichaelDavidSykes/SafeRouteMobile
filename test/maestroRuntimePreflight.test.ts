@@ -6,12 +6,31 @@ import { join } from 'node:path';
 import { describe, it } from 'node:test';
 
 type MaestroPreflightModule = {
+  evaluateMaestroRuntimePreflight: (inputs: Record<string, unknown>) => {
+    blockers: string[];
+    checks: string[];
+    ready: boolean;
+  };
   findExpoGoSdkMismatch: (expectedSdkMajor: number | null, expoGoVersions: string[]) => string | null;
   formatExpoGoMismatchMessage: (options: { expectedSdkMajor: number; installedVersion: string }) => string;
   formatPortInUseMessage: (port: number, processDetails: string) => string;
+  formatRuntimeReadinessReport: (result: { blockers: string[]; checks: string[]; ready: boolean }) => string;
   isTcpPortListening: (options: { host?: string; port: number; timeoutMs?: number }) => Promise<boolean>;
   parseExpoGoVersionsFromListApps: (output: string) => string[];
   parseExpoSdkMajor: (versionRange: string) => number | null;
+};
+
+const readyInputs = {
+  bootedSimulatorAvailable: true,
+  expoGoVersions: ['56.0.4'],
+  installedExpoVersion: '56.0.15',
+  installedReactNativeVersion: '0.85.3',
+  maestroCliVersion: '2.6.1',
+  packageExpoVersionRange: '~56.0.15',
+  packageReactNativeVersion: '0.85.3',
+  port: 8081,
+  portAvailable: true,
+  portProcessDetails: ''
 };
 
 const packageJson = () =>
@@ -43,34 +62,51 @@ describe('Maestro iOS runtime preflight', () => {
     );
   });
 
-  it('documents the port discipline for the Expo Go smoke path', () => {
+  it('documents the full Expo Go smoke preflight', () => {
     const source = readme();
 
     assert.match(source, /no-build iOS Maestro smoke path/);
-    assert.match(source, /port `8081` is free/);
-    assert.match(source, /Expo Go SDK family/);
+    assert.match(source, /SDK 56 dependency install/);
+    assert.match(source, /Maestro CLI/);
+    assert.match(source, /matching Expo Go SDK family/);
+    assert.match(source, /port `8081`/);
     assert.match(source, /stale SafeRoute bundle/);
   });
 
-
-  it('explains how to avoid stale Expo Go bundles when the port is busy', async () => {
-    const { formatPortInUseMessage } = await loadPreflightModule();
-    const message = formatPortInUseMessage(8081, 'node 1234 TCP *:8081 (LISTEN)');
-
-    assert.match(message, /port 8081 already in use/);
-    assert.match(message, /npm run start:maestro:ios/);
-    assert.match(message, /npm run test:maestro:ios/);
-    assert.match(message, /stale or wrong SafeRoute bundle/);
-    assert.match(message, /node 1234/);
-  });
-
-  it('extracts SDK major versions from Expo package and Expo Go versions', async () => {
-    const { parseExpoSdkMajor } = await loadPreflightModule();
+  it('passes when SDK, simulator, Expo Go, Maestro, dependencies, and port line up', async () => {
+    const { evaluateMaestroRuntimePreflight, formatRuntimeReadinessReport, parseExpoSdkMajor } =
+      await loadPreflightModule();
+    const result = evaluateMaestroRuntimePreflight(readyInputs);
 
     assert.equal(parseExpoSdkMajor('~56.0.15'), 56);
     assert.equal(parseExpoSdkMajor('56.0.4'), 56);
     assert.equal(parseExpoSdkMajor('^55.0.0'), 55);
     assert.equal(parseExpoSdkMajor('latest'), null);
+    assert.equal(result.ready, true);
+    assert.deepEqual(result.blockers, []);
+    assert.ok(result.checks.some((check) => check.includes('Expo Go 56.0.4 matches SDK 56')));
+    assert.match(formatRuntimeReadinessReport(result), /SafeRoute Maestro preflight passed/);
+  });
+
+  it('blocks mismatched Expo Go, incomplete dependencies, missing simulator, and a busy port', async () => {
+    const { evaluateMaestroRuntimePreflight, formatRuntimeReadinessReport } = await loadPreflightModule();
+    const result = evaluateMaestroRuntimePreflight({
+      ...readyInputs,
+      bootedSimulatorAvailable: false,
+      expoGoVersions: ['54.0.2'],
+      installedReactNativeVersion: null,
+      portAvailable: false,
+      portProcessDetails: 'node 1234 TCP *:8081 (LISTEN)'
+    });
+    const report = formatRuntimeReadinessReport(result);
+
+    assert.equal(result.ready, false);
+    assert.match(report, /required node_modules packages are missing/);
+    assert.match(report, /Boot an iOS simulator/);
+    assert.match(report, /Expo Go 54\.0\.2/);
+    assert.match(report, /targets Expo SDK 56/);
+    assert.match(report, /port 8081 already in use/);
+    assert.match(report, /node 1234/);
   });
 
   it('parses the booted simulator Expo Go version from simctl listapps output', async () => {
@@ -106,6 +142,17 @@ describe('Maestro iOS runtime preflight', () => {
     assert.match(message, /targets Expo SDK 56/);
     assert.match(message, /no-build smoke flow/);
     assert.match(message, /false Maestro failures/);
+  });
+
+  it('explains how to avoid stale Expo Go bundles when the port is busy', async () => {
+    const { formatPortInUseMessage } = await loadPreflightModule();
+    const message = formatPortInUseMessage(8081, 'node 1234 TCP *:8081 (LISTEN)');
+
+    assert.match(message, /port 8081 already in use/);
+    assert.match(message, /npm run start:maestro:ios/);
+    assert.match(message, /npm run test:maestro:ios/);
+    assert.match(message, /stale or wrong SafeRoute bundle/);
+    assert.match(message, /node 1234/);
   });
 
   it('detects whether a localhost TCP port is listening', async () => {

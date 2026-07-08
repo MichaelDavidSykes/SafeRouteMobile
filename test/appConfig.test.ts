@@ -10,6 +10,7 @@ const ENV_KEYS = [
   'SAFEROUTE_API_VERSION',
   'SAFEROUTE_ENABLE_DEMO_DRIVE',
   'SAFEROUTE_ENABLE_PREVIEW_MODE',
+  'SAFEROUTE_IOS_BUILD_NUMBER',
   'SAFEROUTE_DEV_API_URL',
   'SAFEROUTE_STAGING_API_URL',
   'SAFEROUTE_PROD_API_URL',
@@ -34,6 +35,7 @@ type ExpoConfig = {
     safeRoutePreviewModeEnabled: boolean;
   };
   ios: {
+    buildNumber: string;
     bundleIdentifier: string;
     config?: {
       googleMapsApiKey?: string;
@@ -85,6 +87,7 @@ describe('Expo production configuration', () => {
     assert.equal(expo.extra.safeRouteDemoDriveEnabled, true);
     assert.equal(expo.extra.safeRoutePreviewModeEnabled, false);
     assert.equal(expo.ios.bundleIdentifier, 'com.lunarchain.saferoute');
+    assert.equal(expo.ios.buildNumber, '1');
     assert.equal(expo.ios.config?.usesNonExemptEncryption, false);
     assert.equal(expo.icon, './assets/icon.png');
     assert.deepEqual(expo.splash, {
@@ -114,9 +117,32 @@ describe('Expo production configuration', () => {
         loadExpoConfig({
           SAFEROUTE_APP_ENV: 'production',
           SAFEROUTE_PROD_API_URL: 'http://api.example.test',
+          SAFEROUTE_IOS_BUILD_NUMBER: '42',
           GOOGLE_MAPS_IOS_API_KEY: 'ios-key'
         }),
       /Production SafeRoute API URL must use HTTPS/
+    );
+  });
+
+  it('requires an explicit iOS build number for production configuration', () => {
+    assert.throws(
+      () =>
+        loadExpoConfig({
+          SAFEROUTE_APP_ENV: 'production',
+          SAFEROUTE_PROD_API_URL: 'https://api.lunarchain.net',
+          GOOGLE_MAPS_IOS_API_KEY: 'ios-key'
+        }),
+      /SAFEROUTE_IOS_BUILD_NUMBER is required/
+    );
+  });
+
+  it('requires a valid Expo iOS build number format', () => {
+    assert.throws(
+      () =>
+        loadExpoConfig({
+          SAFEROUTE_IOS_BUILD_NUMBER: '2026.07.08.1'
+        }),
+      /SAFEROUTE_IOS_BUILD_NUMBER must be one to three dot-separated numeric components/
     );
   });
 
@@ -124,12 +150,14 @@ describe('Expo production configuration', () => {
     const expo = loadExpoConfig({
       SAFEROUTE_APP_ENV: 'production',
       SAFEROUTE_ENABLE_DEMO_DRIVE: 'true',
+      SAFEROUTE_IOS_BUILD_NUMBER: '42',
       SAFEROUTE_PROD_API_URL: 'https://api.lunarchain.net',
       GOOGLE_MAPS_IOS_API_KEY: 'ios-key'
     });
 
     assert.equal(expo.extra.safeRouteEnvironment, 'production');
     assert.equal(expo.extra.safeRouteDemoDriveEnabled, false);
+    assert.equal(expo.ios.buildNumber, '42');
   });
 
   it('allows preview mode only when explicitly enabled outside production', () => {
@@ -140,6 +168,7 @@ describe('Expo production configuration', () => {
     const productionExpo = loadExpoConfig({
       SAFEROUTE_APP_ENV: 'production',
       SAFEROUTE_ENABLE_PREVIEW_MODE: 'true',
+      SAFEROUTE_IOS_BUILD_NUMBER: '43',
       SAFEROUTE_PROD_API_URL: 'https://api.lunarchain.net',
       GOOGLE_MAPS_IOS_API_KEY: 'ios-key'
     });
@@ -152,12 +181,14 @@ describe('Expo production configuration', () => {
     const expo = loadExpoConfig({
       SAFEROUTE_APP_ENV: 'production',
       SAFEROUTE_PROD_API_URL: 'https://api.lunarchain.net',
+      SAFEROUTE_IOS_BUILD_NUMBER: '  44  ',
       GOOGLE_MAPS_IOS_API_KEY: '  ios-key  ',
       GOOGLE_MAPS_ANDROID_API_KEY: '  android-key  '
     });
 
     assert.equal(expo.extra.safeRouteEnvironment, 'production');
     assert.equal(expo.extra.safeRouteDemoDriveEnabled, false);
+    assert.equal(expo.ios.buildNumber, '44');
     assert.equal(expo.ios.config?.usesNonExemptEncryption, false);
     assert.equal(expo.ios.config?.googleMapsApiKey, 'ios-key');
 
@@ -177,6 +208,7 @@ describe('Expo production configuration', () => {
       SAFEROUTE_PROD_API_URL: '  https://prod-api.lunarchain.net/  ',
       SAFEROUTE_API_VERSION: ' /v2/ ',
       SAFEROUTE_ENABLE_DEMO_DRIVE: ' TRUE ',
+      SAFEROUTE_IOS_BUILD_NUMBER: '45.1',
       GOOGLE_MAPS_IOS_API_KEY: ' ios-key '
     });
 
@@ -184,6 +216,7 @@ describe('Expo production configuration', () => {
     assert.equal(expo.extra.safeRouteApiUrl, 'https://prod-api.lunarchain.net');
     assert.equal(expo.extra.safeRouteApiVersion, 'v2');
     assert.equal(expo.extra.safeRouteDemoDriveEnabled, false);
+    assert.equal(expo.ios.buildNumber, '45.1');
   });
 
   it('prefers environment-specific API URLs over the generic fallback', () => {

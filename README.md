@@ -50,6 +50,7 @@ For iOS production readiness, confirm:
 - URL scheme: `saferoute`
 - Foreground location permission copy is approved for App Store review
 - `SAFEROUTE_APP_ENV=production` is used for release artifacts
+- `SAFEROUTE_IOS_BUILD_NUMBER` is set and incremented for every signed iOS artifact
 - the production API URL uses HTTPS
 - `GOOGLE_MAPS_IOS_API_KEY` is set in the release environment
 - Firebase App Distribution has a project, iOS app id, authenticated CLI, tester group, and an already-produced `.ipa` artifact before distribution
@@ -64,11 +65,12 @@ SAFEROUTE_API_VERSION=v1
 SAFEROUTE_APP_ENV=development
 SAFEROUTE_ENABLE_DEMO_DRIVE=true
 SAFEROUTE_ENABLE_PREVIEW_MODE=false
+SAFEROUTE_IOS_BUILD_NUMBER=1
 GOOGLE_MAPS_ANDROID_API_KEY=...
 GOOGLE_MAPS_IOS_API_KEY=...
 ```
 
-`SAFEROUTE_APP_ENV` must be `development`, `staging`, or `production`. The map works in Expo Go for early iteration. Production iOS config now fails fast unless the production API URL uses HTTPS and `GOOGLE_MAPS_IOS_API_KEY` is present.
+`SAFEROUTE_APP_ENV` must be `development`, `staging`, or `production`. The map works in Expo Go for early iteration. Production iOS config now fails fast unless the production API URL uses HTTPS, `GOOGLE_MAPS_IOS_API_KEY` is present, and `SAFEROUTE_IOS_BUILD_NUMBER` is explicitly set to a valid App Store/TestFlight build number.
 
 Packaged runtime config also defaults to the hosted HTTPS API if a production manifest ever contains a missing or non-HTTPS API URL; local HTTP API URLs remain available for non-production simulator/dev runs.
 
@@ -80,7 +82,7 @@ Set `SAFEROUTE_ENABLE_PREVIEW_MODE=true` only in non-production simulator/dev ru
 - Bundle identifier: `com.lunarchain.saferoute`.
 - URL scheme: `saferoute`.
 - Location permission copy is configured for foreground route guidance.
-- Production runtime config should set `SAFEROUTE_APP_ENV=production`, an HTTPS production API URL/version, and `GOOGLE_MAPS_IOS_API_KEY` through the build environment.
+- Production runtime config should set `SAFEROUTE_APP_ENV=production`, an HTTPS production API URL/version, an incremented `SAFEROUTE_IOS_BUILD_NUMBER`, and `GOOGLE_MAPS_IOS_API_KEY` through the build environment.
 - Demo drive is intended for development/preview only; the production app config disables it even if `SAFEROUTE_ENABLE_DEMO_DRIVE` is set.
 - Preview mode is intended for simulator/dev authenticated UI smoke only; production config disables it even if `SAFEROUTE_ENABLE_PREVIEW_MODE` is set.
 - Firebase App Distribution still needs a valid iOS build artifact plus Firebase auth/project/app id before distribution.

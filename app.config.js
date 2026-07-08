@@ -18,6 +18,18 @@ function normalizeApiUrl(value) {
   return value.trim().replace(/\/+$/, '');
 }
 
+function normalizeIosBuildNumber(value) {
+  const normalized = (value || '1').trim();
+
+  if (!/^\d+(?:\.\d+){0,2}$/.test(normalized)) {
+    throw new Error(
+      'SAFEROUTE_IOS_BUILD_NUMBER must be one to three dot-separated numeric components.'
+    );
+  }
+
+  return normalized;
+}
+
 const appEnvironment = trimmedEnv('SAFEROUTE_APP_ENV') || 'development';
 
 if (!supportedEnvironments.includes(appEnvironment)) {
@@ -41,6 +53,8 @@ const apiUrls = {
 };
 const safeRouteApiUrl = normalizeApiUrl(firstConfiguredValue(apiUrls[appEnvironment], apiUrls.development));
 const safeRouteApiVersion = normalizeApiVersion(trimmedEnv('SAFEROUTE_API_VERSION'));
+const iosBuildNumberOverride = trimmedEnv('SAFEROUTE_IOS_BUILD_NUMBER');
+const iosBuildNumber = normalizeIosBuildNumber(iosBuildNumberOverride);
 const mapsPluginOptions = {};
 const googleMapsAndroidApiKey = trimmedEnv('GOOGLE_MAPS_ANDROID_API_KEY');
 const googleMapsIosApiKey = trimmedEnv('GOOGLE_MAPS_IOS_API_KEY');
@@ -65,6 +79,10 @@ if (appEnvironment === 'production') {
   if (!googleMapsIosApiKey) {
     throw new Error('GOOGLE_MAPS_IOS_API_KEY is required for production iOS builds.');
   }
+
+  if (!iosBuildNumberOverride) {
+    throw new Error('SAFEROUTE_IOS_BUILD_NUMBER is required for production iOS builds.');
+  }
 }
 
 module.exports = {
@@ -85,6 +103,7 @@ module.exports = {
     ios: {
       supportsTablet: false,
       bundleIdentifier: 'com.lunarchain.saferoute',
+      buildNumber: iosBuildNumber,
       config: {
         usesNonExemptEncryption: false,
         ...(googleMapsIosApiKey

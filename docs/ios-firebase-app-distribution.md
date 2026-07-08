@@ -9,7 +9,7 @@ This checklist documents the SafeRoute Mobile inputs needed to distribute an alr
 - Firebase project config: no `firebase.json` or `.firebaserc` found in the SafeRoute Mobile workspace.
 - Firebase iOS app config: no `GoogleService-Info.plist` found in the SafeRoute Mobile workspace.
 - iOS distribution artifact: no `.ipa` found in the SafeRoute Mobile workspace.
-- Release environment: production iOS config requires `SAFEROUTE_APP_ENV=production`, an HTTPS production API URL, and `GOOGLE_MAPS_IOS_API_KEY`.
+- Release environment: production iOS config requires `SAFEROUTE_APP_ENV=production`, an HTTPS production API URL, `GOOGLE_MAPS_IOS_API_KEY`, and an explicit `SAFEROUTE_IOS_BUILD_NUMBER`.
 - Runtime/build tooling note: Expo CLI checks require Node 22.13+; the default shell currently reports Node 18.15.0.
 
 ## Required inputs before distribution
@@ -19,8 +19,9 @@ This checklist documents the SafeRoute Mobile inputs needed to distribute an alr
 3. Firebase authentication for the CLI, preferably a scoped CI token or service account process approved by the project owner.
 4. Tester group alias(es) or tester email list for the initial iOS distribution cohort.
 5. A valid, signed iOS `.ipa` produced outside routine no-build automation, using the approved Apple team, signing certificate, provisioning profile, and bundle id.
-6. Release notes text that identifies the SafeRoute Mobile source state, API environment, and any known limitations.
-7. Confirmation that production secrets are present in the build/distribution environment and not committed to the repository.
+6. An incremented `SAFEROUTE_IOS_BUILD_NUMBER` for the signed artifact so Firebase/TestFlight testers can distinguish releases.
+7. Release notes text that identifies the SafeRoute Mobile source state, API environment, and any known limitations.
+8. Confirmation that production secrets are present in the build/distribution environment and not committed to the repository.
 
 ## Pre-distribution verification
 
@@ -37,6 +38,11 @@ firebase apps:list --project <firebase-project-id>
 # Confirm the artifact exists and is an iOS package.
 ls -lh /path/to/SafeRoute.ipa
 file /path/to/SafeRoute.ipa
+
+# Confirm the production config has the exact iOS build number intended for this artifact.
+SAFEROUTE_APP_ENV=production SAFEROUTE_IOS_BUILD_NUMBER=<build-number> \
+  SAFEROUTE_PROD_API_URL=https://api.lunarchain.net GOOGLE_MAPS_IOS_API_KEY=<redacted> \
+  npx expo config --type public
 ```
 
 Do not proceed if the app id, project id, tester group, artifact path, or release environment is unknown.
@@ -65,4 +71,4 @@ Record the Firebase release URL, tester group, artifact filename/checksum, CLI a
 - Provide the Firebase project id and iOS app id for `com.lunarchain.saferoute`.
 - Provide a signed `.ipa` artifact from an authorized iOS build process.
 - Confirm tester groups and release notes owner.
-- Confirm Apple signing/provisioning ownership for the first production-ready iOS artifact.
+- Confirm Apple signing/provisioning ownership and the build-number increment policy for the first production-ready iOS artifact.

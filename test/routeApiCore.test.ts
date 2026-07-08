@@ -60,6 +60,36 @@ describe('SafeRoute route API core', () => {
     assert.equal(result.routes[0].route.eta, '10 min');
   });
 
+  it('drops saved-route cards without stable route identifiers', async () => {
+    const request: RouteApiRequester = async () =>
+      ({
+        clients: [],
+        routes: [
+          {
+            id: ' route-ready ',
+            name: 'Ready route',
+            route: {
+              distance_meters: 1200
+            }
+          },
+          {
+            id: '   ',
+            name: 'Blank identifier'
+          },
+          {
+            name: 'Missing identifier'
+          },
+          null
+        ]
+      }) as never;
+
+    const result = await loadSavedRoutes(request, 'token-1');
+
+    assert.equal(result.routes.length, 1);
+    assert.equal(result.routes[0].id, 'route-ready');
+    assert.equal(result.routes[0].name, 'Ready route');
+  });
+
   it('normalizes saved-route client filters before exposing route-picker copy', async () => {
     const request: RouteApiRequester = async () =>
       ({
@@ -115,6 +145,27 @@ describe('SafeRoute route API core', () => {
     assert.equal(plan.id, 'route-2');
     assert.equal(plan.name, 'Airport escort');
     assert.equal(plan.route.distance, '1.2 km');
+  });
+
+  it('keeps the requested route id when detail payloads omit their identifier', async () => {
+    const request: RouteApiRequester = async (path, accessToken) => {
+      assert.equal(accessToken, 'token-2');
+      assert.equal(path, '/mobile/safe-route/routes/route-without-id');
+
+      return {
+        id: '   ',
+        name: 'Airport escort',
+        route: {
+          eta_seconds: 300,
+          distance_meters: 1200
+        }
+      } as never;
+    };
+
+    const plan = await loadRouteDetail(request, 'token-2', ' route-without-id ');
+
+    assert.equal(plan.id, 'route-without-id');
+    assert.equal(plan.name, 'Airport escort');
   });
 
   it('lets session-expired errors propagate to the route list UX', async () => {

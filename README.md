@@ -102,7 +102,7 @@ The app expects:
 - `GET /api/v1/mobile/safe-route/routes?client_id={optional}`
 - `GET /api/v1/mobile/safe-route/routes/{route_id}`
 
-Saved-route endpoints require the LunarChain bearer token and return the standard LunarChain response envelope. Hosted auth remains authoritative for credentials, two-factor challenges, and session validation.
+Saved-route endpoints require the LunarChain bearer token and return the standard LunarChain response envelope. Route list rows must include stable non-empty `id` values before they are shown in the picker; route detail payloads should echo that id, and the app falls back to the requested id if the detail response omits it. Hosted auth remains authoritative for credentials, two-factor challenges, and session validation.
 
 ## Manual smoke
 

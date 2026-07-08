@@ -1,4 +1,6 @@
 import assert from 'node:assert/strict';
+import { readFileSync } from 'node:fs';
+import { join } from 'node:path';
 import { describe, it } from 'node:test';
 
 import {
@@ -6,9 +8,11 @@ import {
   ApiSessionExpiredError,
   LUNARCHAIN_NETWORK_ERROR_MESSAGE,
   LUNARCHAIN_REQUEST_TIMEOUT_MS,
+  LUNARCHAIN_SESSION_EXPIRED_MESSAGE,
   createNetworkRequestError,
   fetchWithTimeout,
   getApiErrorMessage,
+  getApiSessionExpiredMessage,
   unwrapApiEnvelope
 } from '../src/features/api/apiClientCore';
 import {
@@ -77,6 +81,38 @@ describe('mobile API helpers', () => {
     );
     assert.equal(getUserFacingErrorMessage('  Hosted API unavailable  ', 'fallback'), 'Hosted API unavailable');
     assert.equal(getUserFacingErrorMessage({}, 'fallback'), 'fallback');
+  });
+
+  it('uses session recovery copy for protected API auth failures', () => {
+    const apiClientSource = readFileSync(
+      join(process.cwd(), 'src/features/api/apiClient.ts'),
+      'utf8'
+    );
+
+    assert.match(apiClientSource, /getApiSessionExpiredMessage\(body\)/);
+    assert.doesNotMatch(
+      apiClientSource,
+      /new ApiSessionExpiredError\(getApiErrorMessage/
+    );
+  });
+
+  it('normalizes generic protected-route auth failures to session recovery copy', () => {
+    assert.equal(
+      getApiSessionExpiredMessage({ detail: 'Not authenticated' }),
+      LUNARCHAIN_SESSION_EXPIRED_MESSAGE
+    );
+    assert.equal(
+      getApiSessionExpiredMessage({ error: { message: '  Could not validate credentials  ' } }),
+      LUNARCHAIN_SESSION_EXPIRED_MESSAGE
+    );
+    assert.equal(
+      getApiSessionExpiredMessage({ detail: 'Traceback: token decoder stack trace' }),
+      LUNARCHAIN_SESSION_EXPIRED_MESSAGE
+    );
+    assert.equal(
+      getApiSessionExpiredMessage({ detail: { message: 'Password changed. Sign in again.' } }),
+      'Password changed. Sign in again.'
+    );
   });
 
   it('maps request status diagnostics to production-safe user copy', () => {

@@ -1,4 +1,5 @@
 export const LUNARCHAIN_NETWORK_ERROR_MESSAGE = 'Unable to reach LunarChain. Check your connection and retry.';
+export const LUNARCHAIN_SESSION_EXPIRED_MESSAGE = 'Your LunarChain session expired. Sign in again.';
 export const LUNARCHAIN_REQUEST_TIMEOUT_MS = 15000;
 
 export type SafeRouteRequestOptions = RequestInit & {
@@ -6,7 +7,7 @@ export type SafeRouteRequestOptions = RequestInit & {
 };
 
 export class ApiSessionExpiredError extends Error {
-  constructor(message = 'Your LunarChain session expired. Sign in again.') {
+  constructor(message = LUNARCHAIN_SESSION_EXPIRED_MESSAGE) {
     super(message);
     this.name = 'ApiSessionExpiredError';
   }
@@ -100,6 +101,23 @@ export function getApiErrorMessage(responseBody: unknown, fallback: string): str
   ) || fallback;
 }
 
+export function getApiSessionExpiredMessage(
+  responseBody: unknown,
+  fallback = LUNARCHAIN_SESSION_EXPIRED_MESSAGE
+): string {
+  const message = getApiErrorMessage(responseBody, fallback).trim();
+
+  if (
+    !message ||
+    isGenericAuthFailureMessage(message) ||
+    isUnsafeSessionFailureMessage(message)
+  ) {
+    return fallback;
+  }
+
+  return message;
+}
+
 function firstNonEmptyMessage(...candidates: Array<string | undefined>): string | undefined {
   for (const candidate of candidates) {
     const message = typeof candidate === 'string' ? candidate.trim() : '';
@@ -144,6 +162,32 @@ function extractErrorMessage(value: unknown): string | undefined {
     typeof error.msg === 'string' ? error.msg : extractErrorMessage(error.msg),
     typeof error.error === 'string' ? error.error : extractErrorMessage(error.error)
   );
+}
+
+function isUnsafeSessionFailureMessage(message: string): boolean {
+  return [
+    /internal server error/i,
+    /traceback/i,
+    /stack trace/i,
+    /exception/i,
+    /<html/i,
+    /<!doctype/i,
+    /\[object object\]/i
+  ].some((pattern) => pattern.test(message.trim()));
+}
+
+function isGenericAuthFailureMessage(message: string): boolean {
+  return [
+    /^not authenticated$/i,
+    /^unauthorized$/i,
+    /^forbidden$/i,
+    /^invalid token$/i,
+    /^token expired$/i,
+    /^signature has expired$/i,
+    /^could not validate credentials$/i,
+    /^authentication credentials were not provided$/i,
+    /^missing authorization/i
+  ].some((pattern) => pattern.test(message.trim()));
 }
 
 function normalizeRequestTimeoutMs(timeoutMs: number): number {

@@ -5,11 +5,20 @@ import {
   createNetworkRequestError,
   fetchWithTimeout,
   getApiErrorMessage,
+  getApiSessionExpiredMessage,
   unwrapApiEnvelope,
   type SafeRouteRequestOptions
 } from './apiClientCore';
 
-export { ApiRequestError, ApiSessionExpiredError, createNetworkRequestError, fetchWithTimeout, getApiErrorMessage, unwrapApiEnvelope };
+export {
+  ApiRequestError,
+  ApiSessionExpiredError,
+  createNetworkRequestError,
+  fetchWithTimeout,
+  getApiErrorMessage,
+  getApiSessionExpiredMessage,
+  unwrapApiEnvelope
+};
 
 export async function parseJsonResponse(response: Response): Promise<unknown> {
   const text = await response.text();
@@ -48,7 +57,7 @@ export async function apiRequest<T>(
   const body = await parseJsonResponse(response);
 
   if (response.status === 401 || response.status === 403) {
-    throw new ApiSessionExpiredError(getApiErrorMessage(body, 'Your LunarChain session expired. Sign in again.'));
+    throw new ApiSessionExpiredError(getApiSessionExpiredMessage(body));
   }
 
   if (!response.ok) {

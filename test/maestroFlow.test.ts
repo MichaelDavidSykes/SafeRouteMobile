@@ -19,17 +19,22 @@ describe("Maestro iOS preview smoke flow", () => {
 
     assert.doesNotMatch(flow, /-\s*clearState/);
     assert.match(flow, /openLink:\s*exp:\/\/localhost:8081/);
-    assert.doesNotMatch(flow, /openLink:\s*exp:\/\/127\.0\.0\.1:8081/);
+    assert.match(flow, /openLink:\s*exp:\/\/127\.0\.0\.1:8081/);
     assert.match(flow, /visible:\s*"Open"/);
     assert.match(flow, /tapOn:\s*"Open"/);
   });
 
-  it("uses the localhost Expo Go deep link for no-build simulator previews", () => {
+  it("keeps localhost primary with one IPv4 loopback fallback for no-build simulator previews", () => {
     const flow = previewFlowSource();
     const scripts = packageJson().scripts;
     const localhostOpenCount = (flow.match(/openLink: exp:\/\/localhost:8081/g) ?? []).length;
+    const loopbackOpenCount = (flow.match(/openLink: exp:\/\/127\.0\.0\.1:8081/g) ?? []).length;
+    const firstLocalhostIndex = flow.indexOf("openLink: exp://localhost:8081");
+    const loopbackIndex = flow.indexOf("openLink: exp://127.0.0.1:8081");
+    const lastLocalhostIndex = flow.lastIndexOf("openLink: exp://localhost:8081");
 
-    assert.equal(localhostOpenCount, 2);
+    assert.equal(localhostOpenCount, 3);
+    assert.equal(loopbackOpenCount, 1);
     assert.match(flow, /expo start --localhost/);
     assert.equal(
       scripts["start:maestro:ios"],
@@ -39,7 +44,9 @@ describe("Maestro iOS preview smoke flow", () => {
       scripts["test:maestro:ios"],
       "maestro test maestro/ios-preview-route-live-map.yaml",
     );
-    assert.doesNotMatch(flow, /openLink: exp:\/\/127\.0\.0\.1:8081/);
+    assert.ok(firstLocalhostIndex >= 0);
+    assert.ok(loopbackIndex > firstLocalhostIndex);
+    assert.ok(lastLocalhostIndex > loopbackIndex);
   });
 
   it("plots a guest route before opening the live map", () => {

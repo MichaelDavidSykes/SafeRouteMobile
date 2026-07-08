@@ -9,6 +9,7 @@ import {
   type NavigationLifecycle,
 } from "./liveMapUiState";
 import { styles } from "./LiveMapOverlay.styles";
+import { uiTestIds } from "../../testing/uiTestIds";
 
 interface LiveMapControlsProps {
   activeNavigationState: NavigationLifecycle;
@@ -122,6 +123,7 @@ function MapControlButton({
       accessibilityRole="button"
       accessibilityState={accessibility.state}
       disabled={disabled}
+      testID={uiTestIds.liveMapControl(control)}
       style={({ pressed }) => [
         styles.controlButton,
         compact ? styles.controlButtonCompact : null,

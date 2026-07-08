@@ -34,6 +34,12 @@ export interface DriveAlongCameraPose {
   state: NavigationLifecycle;
 }
 
+export interface NavigationVehicleCoordinateOptions {
+  fallbackCoordinate?: LatLng | null;
+  progress: RouteProgressSnapshot | null;
+  rawVehicleCoordinate?: LatLng | null;
+}
+
 export function resolveActiveNavigationState(
   state: NavigationLifecycle,
   progress: RouteProgressSnapshot | null,
@@ -100,6 +106,23 @@ export function shouldSuspendDriveAlongCamera(
   return Boolean(
     followModeEnabled &&
       (state === "navigating" || state === "off-route"),
+  );
+}
+
+export function resolveNavigationVehicleCoordinate({
+  fallbackCoordinate,
+  progress,
+  rawVehicleCoordinate,
+}: NavigationVehicleCoordinateOptions): LatLng | null {
+  if (progress?.isOffRoute && rawVehicleCoordinate) {
+    return rawVehicleCoordinate;
+  }
+
+  return (
+    progress?.snappedCoordinate ||
+    rawVehicleCoordinate ||
+    fallbackCoordinate ||
+    null
   );
 }
 

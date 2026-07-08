@@ -1,7 +1,7 @@
 appId: host.exp.Exponent
 ---
 - stopApp
-- openLink: exp://127.0.0.1:8081
+- openLink: exp://localhost:8081
 - runFlow:
     when:
       visible: "Open"
@@ -11,7 +11,9 @@ appId: host.exp.Exponent
     timeout: 3000
 # Re-open the deep link once Expo Go is foregrounded; local simulator runs can
 # otherwise land on the Expo Go home screen even with the dev server available.
-- openLink: exp://127.0.0.1:8081
+# `localhost` matches Expo's no-build `expo start --localhost` listener, which
+# may bind only to IPv6 loopback on macOS while the simulator still resolves it.
+- openLink: exp://localhost:8081
 - runFlow:
     when:
       visible: "Open"
@@ -116,6 +118,10 @@ appId: host.exp.Exponent
     timeout: 3000
 - assertVisible:
     id: "safe-route-stop-action"
+- assertVisible:
+    id: "safe-route-control-fit"
+- assertVisible:
+    id: "safe-route-control-follow"
 - tapOn:
     id: "safe-route-stop-action"
     waitToSettleTimeoutMs: 1000

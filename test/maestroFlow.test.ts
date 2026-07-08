@@ -14,8 +14,19 @@ describe("Maestro iOS preview smoke flow", () => {
     const flow = previewFlowSource();
 
     assert.doesNotMatch(flow, /-\s*clearState/);
+    assert.match(flow, /openLink:\s*exp:\/\/localhost:8081/);
+    assert.doesNotMatch(flow, /openLink:\s*exp:\/\/127\.0\.0\.1:8081/);
     assert.match(flow, /visible:\s*"Open"/);
     assert.match(flow, /tapOn:\s*"Open"/);
+  });
+
+  it("uses the localhost Expo Go deep link for no-build simulator previews", () => {
+    const flow = previewFlowSource();
+    const localhostOpenCount = (flow.match(/openLink: exp:\/\/localhost:8081/g) ?? []).length;
+
+    assert.equal(localhostOpenCount, 2);
+    assert.match(flow, /expo start --localhost/);
+    assert.doesNotMatch(flow, /openLink: exp:\/\/127\.0\.0\.1:8081/);
   });
 
   it("continues when Expo Go restores directly into the live map", () => {
@@ -43,6 +54,22 @@ describe("Maestro iOS preview smoke flow", () => {
     assert.match(flow, /tapOn:\s*\n\s+id:\s*"safe-route-demo-action"/);
     assert.match(flow, /assertVisible:\s*\n\s+id:\s*"safe-route-demo-action"/);
     assert.doesNotMatch(flow, /text:\s*"Simulation"/);
+  });
+
+  it("asserts active drive-along map controls through stable ids", () => {
+    const flow = previewFlowSource();
+    const primaryActionIndex = flow.indexOf('id: "safe-route-primary-action"');
+    const fitControlIndex = flow.indexOf('id: "safe-route-control-fit"');
+    const followControlIndex = flow.indexOf('id: "safe-route-control-follow"');
+    const stopActionIndex = flow.indexOf('id: "safe-route-stop-action"');
+
+    assert.match(flow, /assertVisible:\s*\n\s+id:\s*"safe-route-control-fit"/);
+    assert.match(flow, /assertVisible:\s*\n\s+id:\s*"safe-route-control-follow"/);
+    assert.ok(primaryActionIndex >= 0);
+    assert.ok(stopActionIndex > primaryActionIndex);
+    assert.ok(fitControlIndex > primaryActionIndex);
+    assert.ok(followControlIndex > fitControlIndex);
+    assert.ok(stopActionIndex < fitControlIndex);
   });
 
   it("handles the iOS foreground-location prompt before live-map assertions", () => {

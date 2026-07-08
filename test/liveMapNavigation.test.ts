@@ -5,6 +5,7 @@ import type { RouteProgressSnapshot } from "../src/features/live-map/routeProgre
 import {
   resolveDriveAlongCamera,
   resolveActiveNavigationState,
+  resolveNavigationVehicleCoordinate,
   resolveOverviewCameraReset,
   resolveVehicleHeading,
   shouldAnimateDriveAlongCamera,
@@ -99,6 +100,45 @@ describe("live map navigation helpers", () => {
     assert.equal(shouldUseDriveAlongCamera("paused", true, routeCoordinates[0]), false);
     assert.equal(shouldUseDriveAlongCamera("navigating", false, routeCoordinates[0]), false);
     assert.equal(shouldUseDriveAlongCamera("navigating", true, null), false);
+  });
+
+  it("keeps the vehicle puck on the live coordinate while off route", () => {
+    const rawVehicleCoordinate = {
+      latitude: routeCoordinates[0].latitude + 0.01,
+      longitude: routeCoordinates[0].longitude + 0.01,
+    };
+    const snappedCoordinate = routeCoordinates[1];
+
+    assert.deepEqual(
+      resolveNavigationVehicleCoordinate({
+        fallbackCoordinate: routeCoordinates[0],
+        progress: progressSnapshot({
+          isOffRoute: true,
+          snappedCoordinate,
+        }),
+        rawVehicleCoordinate,
+      }),
+      rawVehicleCoordinate,
+    );
+    assert.deepEqual(
+      resolveNavigationVehicleCoordinate({
+        fallbackCoordinate: routeCoordinates[0],
+        progress: progressSnapshot({
+          isOffRoute: false,
+          snappedCoordinate,
+        }),
+        rawVehicleCoordinate,
+      }),
+      snappedCoordinate,
+    );
+    assert.deepEqual(
+      resolveNavigationVehicleCoordinate({
+        fallbackCoordinate: routeCoordinates[0],
+        progress: null,
+        rawVehicleCoordinate: null,
+      }),
+      routeCoordinates[0],
+    );
   });
 
   it("suspends drive-along follow mode only for active map review gestures", () => {

@@ -391,6 +391,23 @@ export function shouldShowRouteIntelligenceControl(
   return Number.isFinite(routeIntelCount) && routeIntelCount > 0;
 }
 
+export function shouldShowNativeUserLocation({
+  demoDriveActive,
+  permissionStatus,
+  state
+}: {
+  demoDriveActive: boolean;
+  permissionStatus: LiveLocationPermissionStatus;
+  state: NavigationLifecycle;
+}): boolean {
+  return Boolean(
+    permissionStatus === 'granted' &&
+      !demoDriveActive &&
+      state !== 'navigating' &&
+      state !== 'off-route'
+  );
+}
+
 export function resolveVisibleMapControls({
   routeIntelCount,
   state

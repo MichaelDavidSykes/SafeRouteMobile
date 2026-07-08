@@ -30,6 +30,7 @@ import {
   type DriveAlongCameraPose,
   resolveDriveAlongCamera,
   resolveActiveNavigationState,
+  resolveNavigationVehicleCoordinate,
   resolveOverviewCameraReset,
   resolveVehicleHeading,
   shouldAnimateDriveAlongCamera,
@@ -127,11 +128,11 @@ export function LiveMapScreen({
     navigationState,
     progress,
   );
-  const vehicleCoordinate =
-    progress?.snappedCoordinate ||
-    rawVehicleCoordinate ||
-    routePlan.route.coordinates[0] ||
-    null;
+  const vehicleCoordinate = resolveNavigationVehicleCoordinate({
+    fallbackCoordinate: routePlan.route.coordinates[0],
+    progress,
+    rawVehicleCoordinate,
+  });
   const progressCoordinates =
     progress?.completedCoordinates ||
     (demoDriveActive
@@ -244,6 +245,7 @@ export function LiveMapScreen({
 
   useEffect(() => {
     if (
+      !vehicleCoordinate ||
       !shouldUseDriveAlongCamera(
         activeNavigationState,
         followModeEnabled,

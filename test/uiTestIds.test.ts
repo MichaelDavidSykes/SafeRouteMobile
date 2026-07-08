@@ -31,6 +31,8 @@ describe("UI test identifiers", () => {
     assert.equal(uiTestIds.routeListScreen, "safe-route-picker");
     assert.equal(uiTestIds.liveMapScreen, "safe-route-live-map");
     assert.equal(uiTestIds.liveMapCanvas, "safe-route-map-view");
+    assert.equal(uiTestIds.liveMapControl("follow"), "safe-route-control-follow");
+    assert.equal(uiTestIds.liveMapControl("route intelligence"), "safe-route-control-route-intelligence");
     assert.equal(
       uiTestIds.liveMapRouteSummarySheet,
       "safe-route-summary-sheet",

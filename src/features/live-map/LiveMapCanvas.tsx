@@ -5,6 +5,7 @@ import MapView, { Polyline, type LatLng } from "react-native-maps";
 import type { PermissionStatus } from "./liveLocationState";
 import type { SavedSafeRoutePlan } from "./liveMapTypes";
 import type { NavigationLifecycle } from "./liveMapUiState";
+import { shouldShowNativeUserLocation } from "./liveMapUiState";
 import { CheckpointMarker, RiskOverlay, VehicleMarker } from "./LiveMapMarkers";
 import { uiTestIds } from "../../testing/uiTestIds";
 import { colors } from "../../theme";
@@ -40,6 +41,11 @@ export function LiveMapCanvas({
   const showRouteCheckpoints =
     activeNavigationState !== "navigating" &&
     activeNavigationState !== "off-route";
+  const showNativeUserLocation = shouldShowNativeUserLocation({
+    demoDriveActive,
+    permissionStatus,
+    state: activeNavigationState,
+  });
 
   return (
     <MapView
@@ -47,7 +53,7 @@ export function LiveMapCanvas({
       testID={uiTestIds.liveMapCanvas}
       style={StyleSheet.absoluteFill}
       initialRegion={routePlan.region}
-      showsUserLocation={permissionStatus === "granted" && !demoDriveActive}
+      showsUserLocation={showNativeUserLocation}
       showsMyLocationButton={false}
       showsCompass={false}
       showsBuildings={false}

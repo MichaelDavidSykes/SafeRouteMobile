@@ -15,6 +15,7 @@ import {
   resolveVisibleMapControls,
   routeStartBlockedReason,
   routeStatusPillPresentation,
+  shouldShowNativeUserLocation,
   shouldShowDriveAlongControl,
   shouldShowGuidanceCard,
   shouldShowRouteIntelligenceControl,
@@ -271,6 +272,49 @@ describe('live map UI state helpers', () => {
     assert.deepEqual(
       resolveVisibleMapControls({ routeIntelCount: 3, state: 'paused' }),
       ['center', 'fit', 'intelligence']
+    );
+  });
+
+  it('hides the native user dot during active custom drive-along guidance', () => {
+    assert.equal(
+      shouldShowNativeUserLocation({
+        demoDriveActive: false,
+        permissionStatus: 'granted',
+        state: 'loaded'
+      }),
+      true
+    );
+    assert.equal(
+      shouldShowNativeUserLocation({
+        demoDriveActive: false,
+        permissionStatus: 'granted',
+        state: 'navigating'
+      }),
+      false
+    );
+    assert.equal(
+      shouldShowNativeUserLocation({
+        demoDriveActive: false,
+        permissionStatus: 'granted',
+        state: 'off-route'
+      }),
+      false
+    );
+    assert.equal(
+      shouldShowNativeUserLocation({
+        demoDriveActive: true,
+        permissionStatus: 'granted',
+        state: 'loaded'
+      }),
+      false
+    );
+    assert.equal(
+      shouldShowNativeUserLocation({
+        demoDriveActive: false,
+        permissionStatus: 'denied',
+        state: 'loaded'
+      }),
+      false
     );
   });
 

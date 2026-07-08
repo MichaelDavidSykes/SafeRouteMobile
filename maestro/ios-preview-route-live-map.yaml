@@ -1,7 +1,6 @@
 appId: host.exp.Exponent
 ---
 - stopApp
-- clearState
 - openLink: exp://127.0.0.1:8081
 - runFlow:
     when:
@@ -86,18 +85,21 @@ appId: host.exp.Exponent
     id: "safe-route-demo-action"
 - tapOn:
     id: "safe-route-demo-action"
+    waitToSettleTimeoutMs: 1000
 - waitForAnimationToEnd:
     timeout: 3000
 - assertVisible:
     id: "safe-route-demo-action"
 - tapOn:
     id: "safe-route-primary-action"
+    waitToSettleTimeoutMs: 1000
 - waitForAnimationToEnd:
     timeout: 3000
 - assertVisible:
     id: "safe-route-stop-action"
 - tapOn:
     id: "safe-route-stop-action"
+    waitToSettleTimeoutMs: 1000
 - waitForAnimationToEnd:
     timeout: 3000
 - assertVisible:

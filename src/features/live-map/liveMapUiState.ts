@@ -391,6 +391,26 @@ export function shouldShowRouteIntelligenceControl(
   return Number.isFinite(routeIntelCount) && routeIntelCount > 0;
 }
 
+export function resolveVisibleMapControls({
+  routeIntelCount,
+  state
+}: {
+  routeIntelCount: number;
+  state: NavigationLifecycle;
+}): LiveMapControlId[] {
+  if (shouldShowDriveAlongControl(state)) {
+    return ['fit', 'follow'];
+  }
+
+  return [
+    'center',
+    'fit',
+    ...(shouldShowRouteIntelligenceControl(routeIntelCount)
+      ? (['intelligence'] as LiveMapControlId[])
+      : [])
+  ];
+}
+
 export function shouldUseCompactRouteHeader(state: NavigationLifecycle): boolean {
   return state === 'navigating' || state === 'off-route' || state === 'paused';
 }

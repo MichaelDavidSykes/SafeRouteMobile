@@ -5,13 +5,20 @@ import {
   LIVE_LOCATION_UNAVAILABLE_MESSAGE,
   LOCATION_PERMISSION_DENIED_MESSAGE,
   permissionStatusFromForegroundPermission,
+  resolveLiveLocationTrackingCadence,
   trackingLabelForPermissionStatus,
   type PermissionStatus
 } from './liveLocationState';
 
 export type { PermissionStatus } from './liveLocationState';
 
-export function useLiveLocation() {
+interface UseLiveLocationOptions {
+  navigationActive?: boolean;
+}
+
+export function useLiveLocation({
+  navigationActive = false
+}: UseLiveLocationOptions = {}) {
   const [coordinate, setCoordinate] = useState<Location.LocationObjectCoords | null>(null);
   const [permissionStatus, setPermissionStatus] = useState<PermissionStatus>('checking');
   const [errorMessage, setErrorMessage] = useState('');
@@ -19,6 +26,7 @@ export function useLiveLocation() {
   useEffect(() => {
     let mounted = true;
     let subscription: Location.LocationSubscription | undefined;
+    const trackingCadence = resolveLiveLocationTrackingCadence(navigationActive);
 
     const startTracking = async () => {
       let permission: Location.PermissionResponse;
@@ -50,7 +58,10 @@ export function useLiveLocation() {
       setErrorMessage('');
 
       try {
-        const lastKnown = await Location.getLastKnownPositionAsync();
+        const lastKnown = await Location.getLastKnownPositionAsync({
+          maxAge: trackingCadence.lastKnownMaxAgeMs,
+          requiredAccuracy: trackingCadence.lastKnownRequiredAccuracyMeters
+        });
         if (mounted && lastKnown?.coords) {
           setCoordinate(lastKnown.coords);
         }
@@ -59,11 +70,13 @@ export function useLiveLocation() {
       }
 
       try {
-        subscription = await Location.watchPositionAsync(
+        const nextSubscription = await Location.watchPositionAsync(
           {
-            accuracy: Location.Accuracy.Balanced,
-            distanceInterval: 12,
-            timeInterval: 5000
+            accuracy: navigationActive
+              ? Location.Accuracy.BestForNavigation
+              : Location.Accuracy.Balanced,
+            distanceInterval: trackingCadence.distanceIntervalMeters,
+            timeInterval: trackingCadence.timeIntervalMs
           },
           (nextLocation) => {
             if (mounted) {
@@ -72,6 +85,11 @@ export function useLiveLocation() {
             }
           }
         );
+        if (!mounted) {
+          nextSubscription.remove();
+          return;
+        }
+        subscription = nextSubscription;
       } catch {
         if (mounted) {
           setErrorMessage(LIVE_LOCATION_UNAVAILABLE_MESSAGE);
@@ -91,7 +109,7 @@ export function useLiveLocation() {
       mounted = false;
       subscription?.remove();
     };
-  }, []);
+  }, [navigationActive]);
 
   return {
     coordinate,

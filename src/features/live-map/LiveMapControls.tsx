@@ -4,8 +4,8 @@ import type { LiveMapOverlayLayout } from "./liveMapLayout";
 import {
   mapControlAccessibility,
   mapControlDisplayLabel,
+  resolveVisibleMapControls,
   shouldShowDriveAlongControl,
-  shouldShowRouteIntelligenceControl,
   type NavigationLifecycle,
 } from "./liveMapUiState";
 import { styles } from "./LiveMapOverlay.styles";
@@ -36,9 +36,11 @@ export function LiveMapControls({
   routeIntelCount,
 }: LiveMapControlsProps) {
   const driveAlongActive = shouldShowDriveAlongControl(activeNavigationState);
-  const showRouteIntelligenceControl =
-    shouldShowRouteIntelligenceControl(routeIntelCount);
   const compactControls = layout.mapControlsDirection === "row";
+  const visibleControls = resolveVisibleMapControls({
+    routeIntelCount,
+    state: activeNavigationState,
+  });
 
   return (
     <View
@@ -50,19 +52,23 @@ export function LiveMapControls({
           : null,
       ]}
     >
-      <MapControlButton
-        control="center"
-        compact={compactControls}
-        driveAlongActive={driveAlongActive}
-        hasLiveLocation={hasVehicleCoordinate}
-        onPress={onCenterVehicle}
-      />
-      <MapControlButton
-        compact={compactControls}
-        control="fit"
-        onPress={onFitRoute}
-      />
-      {driveAlongActive ? (
+      {visibleControls.includes("center") ? (
+        <MapControlButton
+          control="center"
+          compact={compactControls}
+          driveAlongActive={driveAlongActive}
+          hasLiveLocation={hasVehicleCoordinate}
+          onPress={onCenterVehicle}
+        />
+      ) : null}
+      {visibleControls.includes("fit") ? (
+        <MapControlButton
+          compact={compactControls}
+          control="fit"
+          onPress={onFitRoute}
+        />
+      ) : null}
+      {visibleControls.includes("follow") ? (
         <MapControlButton
           control="follow"
           active={followModeEnabled}
@@ -71,7 +77,7 @@ export function LiveMapControls({
           onPress={() => onSetFollowModeEnabled((value) => !value)}
         />
       ) : null}
-      {showRouteIntelligenceControl ? (
+      {visibleControls.includes("intelligence") ? (
         <MapControlButton
           control="intelligence"
           active={alertsVisible}

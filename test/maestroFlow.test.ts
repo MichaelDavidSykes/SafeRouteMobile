@@ -13,7 +13,7 @@ describe("Maestro iOS preview smoke flow", () => {
   it("accepts the iOS Expo Go deep-link confirmation when it appears", () => {
     const flow = previewFlowSource();
 
-    assert.match(flow, /-\s*clearState/);
+    assert.doesNotMatch(flow, /-\s*clearState/);
     assert.match(flow, /visible:\s*"Open"/);
     assert.match(flow, /tapOn:\s*"Open"/);
   });
@@ -43,5 +43,13 @@ describe("Maestro iOS preview smoke flow", () => {
     assert.match(flow, /tapOn:\s*\n\s+id:\s*"safe-route-demo-action"/);
     assert.match(flow, /assertVisible:\s*\n\s+id:\s*"safe-route-demo-action"/);
     assert.doesNotMatch(flow, /text:\s*"Simulation"/);
+  });
+
+  it("limits action tap settling so map animations do not stall the smoke run", () => {
+    const flow = previewFlowSource();
+
+    assert.match(flow, /id:\s*"safe-route-demo-action"\s*\n\s+waitToSettleTimeoutMs:\s*1000/);
+    assert.match(flow, /id:\s*"safe-route-primary-action"\s*\n\s+waitToSettleTimeoutMs:\s*1000/);
+    assert.match(flow, /id:\s*"safe-route-stop-action"\s*\n\s+waitToSettleTimeoutMs:\s*1000/);
   });
 });

@@ -12,6 +12,7 @@ import {
   mapControlAccessibility,
   mapControlDisplayLabel,
   primaryRouteActionAccessibility,
+  resolveVisibleMapControls,
   routeStartBlockedReason,
   routeStatusPillPresentation,
   shouldShowDriveAlongControl,
@@ -248,6 +249,29 @@ describe('live map UI state helpers', () => {
     assert.equal(shouldShowRouteIntelligenceControl(Number.NaN), false);
     assert.equal(shouldShowRouteIntelligenceControl(1), true);
     assert.equal(shouldShowRouteIntelligenceControl(4), true);
+  });
+
+  it('keeps active drive-along controls minimal like a navigation app', () => {
+    assert.deepEqual(
+      resolveVisibleMapControls({ routeIntelCount: 3, state: 'loaded' }),
+      ['center', 'fit', 'intelligence']
+    );
+    assert.deepEqual(
+      resolveVisibleMapControls({ routeIntelCount: 0, state: 'loaded' }),
+      ['center', 'fit']
+    );
+    assert.deepEqual(
+      resolveVisibleMapControls({ routeIntelCount: 3, state: 'navigating' }),
+      ['fit', 'follow']
+    );
+    assert.deepEqual(
+      resolveVisibleMapControls({ routeIntelCount: 3, state: 'off-route' }),
+      ['fit', 'follow']
+    );
+    assert.deepEqual(
+      resolveVisibleMapControls({ routeIntelCount: 3, state: 'paused' }),
+      ['center', 'fit', 'intelligence']
+    );
   });
 
   it('builds VoiceOver-friendly route header status copy', () => {

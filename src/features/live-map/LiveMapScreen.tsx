@@ -68,8 +68,12 @@ export function LiveMapScreen({
     useState<NavigationLifecycle>("loaded");
   const [routeStep, setRouteStep] = useState(0);
   const [progressFloorMeters, setProgressFloorMeters] = useState(0);
+  const demoDriveActive = SAFEROUTE_DEMO_DRIVE_ENABLED && demoDriveEnabled;
+  const navigationLocationTrackingActive =
+    !demoDriveActive &&
+    (navigationState === "navigating" || navigationState === "off-route");
   const { coordinate, errorMessage, permissionStatus, trackingLabel } =
-    useLiveLocation();
+    useLiveLocation({ navigationActive: navigationLocationTrackingActive });
   const layout = useMemo(
     () =>
       resolveLiveMapOverlayLayout({
@@ -94,7 +98,6 @@ export function LiveMapScreen({
     };
   }, [coordinate]);
 
-  const demoDriveActive = SAFEROUTE_DEMO_DRIVE_ENABLED && demoDriveEnabled;
   const demoCoordinate = coordinateForInterpolatedStep(
     routePlan.route.coordinates,
     routeStep,

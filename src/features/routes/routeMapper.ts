@@ -153,33 +153,62 @@ export function mapRouteDtoToSavedPlan(dto: MobileSafeRouteDto): SavedSafeRouteP
   const color = normalizeRouteColor(route.color, riskLevel);
 
   return {
-    id: String(dto.id || ''),
-    name: dto.name || 'SafeRoute plan',
-    operation: dto.operation || dto.client_name || dto.client?.name || 'SafeRoute plan',
+    id: cleanText(dto.id, 'safe-route-plan'),
+    name: cleanText(dto.name, 'SafeRoute plan'),
+    operation: firstCleanText(dto.operation, dto.client_name, dto.client?.name, 'SafeRoute plan'),
     status: normalizeStatus(dto.mobile_status || dto.status),
-    convoyCallsign: dto.convoy_callsign || 'Convoy',
+    convoyCallsign: cleanText(dto.convoy_callsign, 'Convoy'),
     updatedAtLabel: formatUpdatedAt(dto.updated_at),
-    origin: dto.origin?.label || 'Origin',
-    destination: dto.destination?.label || 'Destination',
+    origin: cleanText(dto.origin?.label, 'Origin'),
+    destination: cleanText(dto.destination?.label, 'Destination'),
     region: buildRegion(coordinates),
     route: {
-      id: route.id || dto.id || 'primary',
-      label: route.label || 'Primary route',
-      eta: route.eta_label || formatEta(route.eta_seconds),
-      distance: route.distance_label || formatDistance(toFiniteNumber(route.distance_meters, 0)),
+      id: firstCleanText(route.id, dto.id, 'primary'),
+      label: cleanText(route.label, 'Primary route'),
+      eta: cleanText(route.eta_label, formatEta(route.eta_seconds)),
+      distance: cleanText(route.distance_label, formatDistance(toFiniteNumber(route.distance_meters, 0))),
       safeScore,
       riskLabel: toTitleCase(riskLevel),
       tone: riskLevel === 'high' || safeScore >= 65 ? 'amber' : riskLevel === 'medium' ? 'blue' : 'safe',
       color,
       mutedColor: toMutedRouteColor(color),
-      description: route.description || dto.description || 'Follow the saved SafeRoute geometry with live position guidance.',
-      nextInstruction: route.next_instruction || 'Continue on saved route',
+      description: firstCleanText(route.description, dto.description, 'Follow the saved SafeRoute geometry with live position guidance.'),
+      nextInstruction: cleanText(route.next_instruction, 'Continue on saved route'),
       nextDistance: formatDistance(toFiniteNumber(route.next_distance_meters, 0)),
       coordinates
     },
     riskZones: mapRiskOverlays(dto),
     checkpoints: mapCheckpoints(toArray<MobileCheckpointDto>(dto.checkpoints), dto.origin, dto.destination, coordinates)
   };
+}
+
+export function normalizeMobileClients(clients: unknown): MobileSafeRouteClient[] {
+  if (!Array.isArray(clients)) {
+    return [];
+  }
+
+  const seenClientIds = new Set<string>();
+  const normalizedClients: MobileSafeRouteClient[] = [];
+
+  for (const client of clients) {
+    if (!client || typeof client !== 'object') {
+      continue;
+    }
+
+    const record = client as { id?: unknown; name?: unknown };
+    const id = cleanText(record.id, '');
+    if (!id || seenClientIds.has(id)) {
+      continue;
+    }
+
+    seenClientIds.add(id);
+    normalizedClients.push({
+      id,
+      name: cleanText(record.name, 'Client')
+    });
+  }
+
+  return normalizedClients;
 }
 
 function normalizeCoordinates(coordinates: unknown): LatLng[] {
@@ -382,7 +411,8 @@ function severityRank(severity: RiskSeverity): number {
 function mapRiskOverlay(overlay: MobileRiskOverlayDto): RiskZone | null {
   const severity = normalizeSeverity(overlay.severity);
   const colors = severityColors[severity];
-  const category = String(overlay.category || 'Risk').replace(/[-_]+/g, ' ');
+  const category = cleanText(overlay.category, 'Risk').replace(/[-_]+/g, ' ');
+  const title = cleanText(overlay.title, 'Route risk');
   const explicitPolygonCoordinates = firstCoordinateList(
     overlay.polygon_coordinates,
     overlay.polygonCoordinates
@@ -433,9 +463,9 @@ function mapRiskOverlay(overlay: MobileRiskOverlayDto): RiskZone | null {
       ? overlayCoordinates
       : [];
   return {
-    id: overlay.id || `${overlay.title || 'risk'}-${coordinate.latitude}-${coordinate.longitude}`,
-    title: overlay.title || 'Route risk',
-    description: overlay.description || 'SafeRoute risk note',
+    id: cleanText(overlay.id, `${title}-${coordinate.latitude}-${coordinate.longitude}`),
+    title,
+    description: cleanText(overlay.description, 'SafeRoute risk note'),
     severity,
     category: toTitleCase(category),
     coordinate,
@@ -444,7 +474,7 @@ function mapRiskOverlay(overlay: MobileRiskOverlayDto): RiskZone | null {
       ? firstCoordinateList(overlay.connector_coordinates, overlay.connectorCoordinates)
       : [],
     polygonCoordinates,
-    shape: overlay.shape,
+    shape: cleanOptionalText(overlay.shape) || undefined,
     radiusMeters: toFiniteNumber(overlay.radius_meters ?? overlay.radius_m ?? overlay.radiusMeters, 250),
     markerColor: colors.marker,
     strokeColor: colors.stroke,
@@ -579,9 +609,9 @@ function mapCheckpoints(
         return null;
       }
       return {
-        id: checkpoint.id || checkpoint.kind || checkpoint.label || 'checkpoint',
-        label: checkpoint.label || (checkpoint.kind === 'destination' ? 'B' : 'A'),
-        caption: checkpoint.caption || checkpoint.kind || 'Checkpoint',
+        id: firstCleanText(checkpoint.id, checkpoint.kind, checkpoint.label, 'checkpoint'),
+        label: cleanText(checkpoint.label, checkpoint.kind === 'destination' ? 'B' : 'A'),
+        caption: firstCleanText(checkpoint.caption, checkpoint.kind, 'Checkpoint'),
         coordinate,
         kind: checkpoint.kind === 'destination' ? 'destination' as const : 'origin' as const
       };
@@ -599,7 +629,7 @@ function mapCheckpoints(
       ? {
           id: 'origin',
           label: 'A',
-          caption: origin?.label || 'Origin',
+          caption: cleanText(origin?.label, 'Origin'),
           coordinate: originCoordinate,
           kind: 'origin' as const
         }
@@ -608,7 +638,7 @@ function mapCheckpoints(
       ? {
           id: 'destination',
           label: 'B',
-          caption: destination?.label || 'Destination',
+          caption: cleanText(destination?.label, 'Destination'),
           coordinate: destinationCoordinate,
           kind: 'destination' as const
         }
@@ -634,4 +664,29 @@ function buildRegion(coordinates: LatLng[]): Region {
     latitudeDelta: Math.max(0.018, (maxLatitude - minLatitude) * 1.6),
     longitudeDelta: Math.max(0.018, (maxLongitude - minLongitude) * 1.6)
   };
+}
+
+function cleanText(value: unknown, fallback: string): string {
+  const normalized = cleanOptionalText(value);
+  return normalized || fallback;
+}
+
+function firstCleanText(...values: unknown[]): string {
+  for (let index = 0; index < values.length; index += 1) {
+    const normalized = cleanOptionalText(values[index]);
+    if (normalized) {
+      return normalized;
+    }
+  }
+
+  const fallback = values[values.length - 1];
+  return typeof fallback === 'string' ? fallback : '';
+}
+
+function cleanOptionalText(value: unknown): string {
+  if (value === null || value === undefined) {
+    return '';
+  }
+
+  return String(value).trim();
 }

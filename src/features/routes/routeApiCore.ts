@@ -1,6 +1,11 @@
 import { ApiSessionExpiredError } from '../api/apiClientCore';
 import type { SavedSafeRoutePlan } from '../live-map/liveMapTypes';
-import { mapRouteDtoToSavedPlan, type MobileRouteListResponse, type MobileSafeRouteDto } from './routeMapper';
+import {
+  mapRouteDtoToSavedPlan,
+  normalizeMobileClients,
+  type MobileRouteListResponse,
+  type MobileSafeRouteDto
+} from './routeMapper';
 
 export interface SavedRouteSyncResult {
   clients: MobileRouteListResponse['clients'];
@@ -49,7 +54,7 @@ export async function loadSavedRoutes(
   const payload = await request<MobileRouteListResponse>(buildSavedRoutesPath(clientId), requireAccessToken(accessToken));
 
   return {
-    clients: Array.isArray(payload.clients) ? payload.clients : [],
+    clients: normalizeMobileClients(payload.clients),
     routes: Array.isArray(payload.routes) ? payload.routes.map(mapRouteDtoToSavedPlan) : []
   };
 }

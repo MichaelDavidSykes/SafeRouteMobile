@@ -60,6 +60,27 @@ describe('SafeRoute route API core', () => {
     assert.equal(result.routes[0].route.eta, '10 min');
   });
 
+  it('normalizes saved-route client filters before exposing route-picker copy', async () => {
+    const request: RouteApiRequester = async () =>
+      ({
+        clients: [
+          { id: ' client-1 ', name: ' Acme Security ' },
+          { id: '   ', name: 'Blank client' },
+          { id: 'client-1', name: 'Duplicate Acme' },
+          { id: 'client-2', name: '   ' },
+          null
+        ],
+        routes: []
+      }) as never;
+
+    const result = await loadSavedRoutes(request, 'token-1');
+
+    assert.deepEqual(result.clients, [
+      { id: 'client-1', name: 'Acme Security' },
+      { id: 'client-2', name: 'Client' }
+    ]);
+  });
+
   it('requires a non-empty access token before loading protected routes', async () => {
     let requested = false;
     const request: RouteApiRequester = async () => {

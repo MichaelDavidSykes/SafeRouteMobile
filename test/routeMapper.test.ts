@@ -98,6 +98,74 @@ describe('SafeRoute mobile DTO mapper', () => {
     assert.equal(plan.region.latitude, 51.5072);
   });
 
+  it('trims saved-route labels and keeps blank backend copy off route cards', () => {
+    const plan = mapRouteDtoToSavedPlan({
+      id: ' route-labels ',
+      name: '   ',
+      description: '   ',
+      client_name: '  Acme Security  ',
+      operation: '   ',
+      convoy_callsign: '   ',
+      origin: {
+        label: '  Depot  ',
+        coordinate: { latitude: 51.5, longitude: -0.1 }
+      },
+      destination: {
+        label: '   ',
+        coordinate: { latitude: 51.52, longitude: -0.02 }
+      },
+      route: {
+        id: ' primary-route ',
+        label: '   ',
+        eta_label: '  12 min  ',
+        distance_label: '   ',
+        distance_meters: 450,
+        description: '   ',
+        next_instruction: '   '
+      },
+      risk_overlays: [
+        {
+          id: ' risk-1 ',
+          title: '   ',
+          description: '   ',
+          category: ' security-cordon ',
+          shape: '   ',
+          coordinate: { latitude: 51.51, longitude: -0.06 }
+        }
+      ],
+      checkpoints: [
+        {
+          id: ' checkpoint-1 ',
+          label: '  Alpha  ',
+          caption: '  Start gate  ',
+          coordinate: { latitude: 51.5, longitude: -0.1 },
+          kind: 'origin'
+        }
+      ]
+    });
+
+    assert.equal(plan.id, 'route-labels');
+    assert.equal(plan.name, 'SafeRoute plan');
+    assert.equal(plan.operation, 'Acme Security');
+    assert.equal(plan.convoyCallsign, 'Convoy');
+    assert.equal(plan.origin, 'Depot');
+    assert.equal(plan.destination, 'Destination');
+    assert.equal(plan.route.id, 'primary-route');
+    assert.equal(plan.route.label, 'Primary route');
+    assert.equal(plan.route.eta, '12 min');
+    assert.equal(plan.route.distance, '450 m');
+    assert.equal(plan.route.description, 'Follow the saved SafeRoute geometry with live position guidance.');
+    assert.equal(plan.route.nextInstruction, 'Continue on saved route');
+    assert.equal(plan.riskZones[0].id, 'risk-1');
+    assert.equal(plan.riskZones[0].title, 'Route risk');
+    assert.equal(plan.riskZones[0].description, 'SafeRoute risk note');
+    assert.equal(plan.riskZones[0].category, 'Security Cordon');
+    assert.equal(plan.riskZones[0].shape, undefined);
+    assert.equal(plan.checkpoints[0].id, 'checkpoint-1');
+    assert.equal(plan.checkpoints[0].label, 'Alpha');
+    assert.equal(plan.checkpoints[0].caption, 'Start gate');
+  });
+
   it('maps structure sightline overlays with route segment and connector geometry', () => {
     const plan = mapRouteDtoToSavedPlan({
       id: 'route-structure',

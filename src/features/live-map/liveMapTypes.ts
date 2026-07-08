@@ -28,6 +28,7 @@ export interface RiskZone {
   coordinate: LatLng;
   routeSegmentCoordinates?: LatLng[];
   connectorCoordinates?: LatLng[];
+  polygonCoordinates?: LatLng[];
   shape?: string;
   radiusMeters: number;
   markerColor: string;

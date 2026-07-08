@@ -1,5 +1,5 @@
 import { StyleSheet, View } from 'react-native';
-import { Circle, Marker, Polyline } from 'react-native-maps';
+import { Circle, Marker, Polygon, Polyline } from 'react-native-maps';
 
 import type { RiskSeverity, RiskZone, RouteCheckpoint } from './liveMapTypes';
 import { createRiskZoneAccessibilityLabel } from './routeRisk';
@@ -19,6 +19,7 @@ export function RiskOverlay({
 }) {
   const routeSegmentCoordinates = zone.routeSegmentCoordinates || [];
   const connectorCoordinates = zone.connectorCoordinates || [];
+  const polygonCoordinates = zone.polygonCoordinates || [];
   const handlePress = () => onPress?.(zone);
 
   return (
@@ -57,13 +58,24 @@ export function RiskOverlay({
           onPress={handlePress}
         />
       ) : null}
-      <Circle
-        center={zone.coordinate}
-        radius={zone.radiusMeters}
-        strokeColor={zone.strokeColor}
-        fillColor={zone.fillColor}
-        strokeWidth={selected || active ? 3 : 2}
-      />
+      {polygonCoordinates.length > 2 ? (
+        <Polygon
+          coordinates={polygonCoordinates}
+          strokeColor={zone.strokeColor}
+          fillColor={zone.fillColor}
+          strokeWidth={selected || active ? 3 : 2}
+          tappable={Boolean(onPress)}
+          onPress={handlePress}
+        />
+      ) : (
+        <Circle
+          center={zone.coordinate}
+          radius={zone.radiusMeters}
+          strokeColor={zone.strokeColor}
+          fillColor={zone.fillColor}
+          strokeWidth={selected || active ? 3 : 2}
+        />
+      )}
       <RiskMarker active={active} onPress={handlePress} selected={selected} zone={zone} />
     </>
   );

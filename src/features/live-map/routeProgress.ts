@@ -8,6 +8,7 @@ import {
   haversineDistanceMeters,
   nearestSegmentProjection,
   normalizeRouteCoordinates,
+  projectCoordinateToSegment,
   projectCoordinateToRoute
 } from './routeGeometry';
 
@@ -18,6 +19,7 @@ export {
   haversineDistanceMeters,
   nearestSegmentProjection,
   normalizeRouteCoordinates,
+  projectCoordinateToSegment,
   projectCoordinateToRoute
 } from './routeGeometry';
 

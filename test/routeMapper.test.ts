@@ -136,6 +136,42 @@ describe('SafeRoute mobile DTO mapper', () => {
     assert.equal(plan.riskZones[0].radiusMeters, 640);
   });
 
+  it('maps platform polygon risk overlays as tappable risk areas rather than route lines', () => {
+    const polygon = [
+      { latitude: 51.501, longitude: -0.101 },
+      { latitude: 51.501, longitude: -0.099 },
+      { latitude: 51.503, longitude: -0.099 },
+      { latitude: 51.503, longitude: -0.101 },
+      { latitude: 51.501, longitude: -0.101 }
+    ];
+    const plan = mapRouteDtoToSavedPlan({
+      id: 'route-polygon-risk',
+      name: 'Polygon risk route',
+      route: {
+        coordinates: [
+          { latitude: 51.5, longitude: -0.105 },
+          { latitude: 51.5, longitude: -0.095 }
+        ]
+      },
+      risk_overlays: [
+        {
+          id: 'risk-polygon-1',
+          title: 'Security cordon',
+          severity: 'high',
+          category: 'security-cordon',
+          shape: 'polygon',
+          coordinate: { latitude: 51.502, longitude: -0.1 },
+          coordinates: polygon
+        }
+      ]
+    });
+
+    assert.equal(plan.riskZones[0].shape, 'polygon');
+    assert.equal(plan.riskZones[0].category, 'Security Cordon');
+    assert.deepEqual(plan.riskZones[0].polygonCoordinates, polygon);
+    assert.deepEqual(plan.riskZones[0].routeSegmentCoordinates, []);
+  });
+
 
   it('keeps malformed route payload collections from crashing the importer', () => {
     const plan = mapRouteDtoToSavedPlan({

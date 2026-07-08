@@ -193,8 +193,16 @@ function mapRiskOverlay(overlay: MobileRiskOverlayDto): RiskZone | null {
   const severity = normalizeSeverity(overlay.severity);
   const colors = severityColors[severity];
   const category = String(overlay.category || 'Risk').replace(/[-_]+/g, ' ');
+  const overlayCoordinates = normalizeCoordinates(overlay.coordinates);
+  const normalizedShape = normalizeEnumToken(overlay.shape);
   const isStructureSightline = normalizeEnumToken(overlay.category) === 'structure-exposure' ||
-    normalizeEnumToken(overlay.shape) === 'sightline';
+    normalizedShape === 'sightline';
+  const polygonCoordinates = shouldTreatOverlayAsPolygon(overlayCoordinates, normalizedShape)
+    ? overlayCoordinates
+    : [];
+  const routeSegmentCoordinates = !polygonCoordinates.length && (isStructureSightline || overlayCoordinates.length > 1)
+    ? overlayCoordinates
+    : [];
   return {
     id: overlay.id || `${overlay.title || 'risk'}-${coordinate.latitude}-${coordinate.longitude}`,
     title: overlay.title || 'Route risk',
@@ -202,14 +210,35 @@ function mapRiskOverlay(overlay: MobileRiskOverlayDto): RiskZone | null {
     severity,
     category: toTitleCase(category),
     coordinate,
-    routeSegmentCoordinates: isStructureSightline ? normalizeCoordinates(overlay.coordinates) : [],
+    routeSegmentCoordinates,
     connectorCoordinates: isStructureSightline ? normalizeCoordinates(overlay.connector_coordinates) : [],
+    polygonCoordinates,
     shape: overlay.shape,
     radiusMeters: toFiniteNumber(overlay.radius_meters, 250),
     markerColor: colors.marker,
     strokeColor: colors.stroke,
     fillColor: colors.fill
   };
+}
+
+function shouldTreatOverlayAsPolygon(coordinates: LatLng[], normalizedShape: string): boolean {
+  if (coordinates.length < 3) {
+    return false;
+  }
+
+  if (
+    normalizedShape === 'polygon' ||
+    normalizedShape === 'area' ||
+    normalizedShape === 'risk-area' ||
+    normalizedShape === 'hot-zone' ||
+    normalizedShape === 'geofence'
+  ) {
+    return true;
+  }
+
+  const first = coordinates[0];
+  const last = coordinates[coordinates.length - 1];
+  return Boolean(first && last && first.latitude === last.latitude && first.longitude === last.longitude);
 }
 
 function mapCheckpoints(

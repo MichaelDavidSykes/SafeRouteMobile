@@ -10,9 +10,11 @@ import {
   createRiskZoneDetailPresentation,
   resolveLiveRouteRiskAlert,
   resolveVisibleRiskZones,
+  routeRiskStartBlockedReason,
   ROUTE_RISK_AVOIDANCE_CLEARANCE_METERS,
 } from "../src/features/live-map/routeRisk";
 import { calculateRouteProgress } from "../src/features/live-map/routeProgress";
+import { mapRouteDtoToSavedPlan } from "../src/features/routes/routeMapper";
 
 describe("SafeRoute risk-aware route behavior", () => {
   it("keeps saved and guest routes outside mapped risk areas", () => {
@@ -148,5 +150,124 @@ describe("SafeRoute risk-aware route behavior", () => {
     assert.match(presentation.metaLabel, /Medium risk · Traffic · \d+ m radius/);
     assert.match(presentation.clearanceLabel, /Route clears by/);
     assert.match(presentation.accessibilityLabel, /Risk area\. Event traffic\./);
+  });
+
+  it("audits polygon risk areas from the SafeRoute platform, not just circular overlays", () => {
+    const clearPlan = mapRouteDtoToSavedPlan({
+      id: "polygon-clear-route",
+      name: "Polygon clear route",
+      route: {
+        coordinates: [
+          { latitude: 51.5, longitude: -0.105 },
+          { latitude: 51.5, longitude: -0.095 },
+        ],
+      },
+      risk_overlays: [
+        {
+          id: "security-cordon",
+          title: "Security cordon",
+          severity: "high",
+          category: "security-cordon",
+          shape: "polygon",
+          coordinate: { latitude: 51.502, longitude: -0.1 },
+          coordinates: [
+            { latitude: 51.501, longitude: -0.101 },
+            { latitude: 51.501, longitude: -0.099 },
+            { latitude: 51.503, longitude: -0.099 },
+            { latitude: 51.503, longitude: -0.101 },
+            { latitude: 51.501, longitude: -0.101 },
+          ],
+        },
+      ],
+    });
+    const crossingPlan = mapRouteDtoToSavedPlan({
+      id: "polygon-crossing-route",
+      name: "Polygon crossing route",
+      route: {
+        coordinates: [
+          { latitude: 51.502, longitude: -0.105 },
+          { latitude: 51.502, longitude: -0.095 },
+        ],
+      },
+      risk_overlays: [
+        {
+          id: "security-cordon",
+          title: "Security cordon",
+          severity: "high",
+          category: "security-cordon",
+          shape: "polygon",
+          coordinate: { latitude: 51.502, longitude: -0.1 },
+          coordinates: [
+            { latitude: 51.501, longitude: -0.101 },
+            { latitude: 51.501, longitude: -0.099 },
+            { latitude: 51.503, longitude: -0.099 },
+            { latitude: 51.503, longitude: -0.101 },
+            { latitude: 51.501, longitude: -0.101 },
+          ],
+        },
+      ],
+    });
+
+    const clearProximity = calculateRiskZoneRouteProximity(
+      clearPlan.route.coordinates,
+      clearPlan.riskZones[0],
+    );
+    assert.ok(clearProximity);
+    assert.equal(clearProximity.areaShape, "polygon");
+    assert.ok(clearProximity.clearanceMeters > ROUTE_RISK_AVOIDANCE_CLEARANCE_METERS);
+    assert.equal(routeRiskStartBlockedReason(clearPlan), null);
+
+    const crossingAudit = auditRouteRiskAvoidance(crossingPlan);
+    assert.equal(crossingAudit.violations.length, 1);
+    assert.match(
+      routeRiskStartBlockedReason(crossingPlan) || "",
+      /Route intersects Security cordon\. Re-sync route in SafeRoute planner/,
+    );
+  });
+
+  it("keeps polygon risk alerts live as the convoy approaches mapped platform areas", () => {
+    const routePlan = mapRouteDtoToSavedPlan({
+      id: "polygon-alert-route",
+      name: "Polygon alert route",
+      route: {
+        coordinates: [
+          { latitude: 51.5, longitude: -0.105 },
+          { latitude: 51.5, longitude: -0.095 },
+        ],
+      },
+      risk_overlays: [
+        {
+          id: "platform-risk-area",
+          title: "Platform risk area",
+          severity: "medium",
+          category: "public-order",
+          shape: "polygon",
+          coordinate: { latitude: 51.5008, longitude: -0.1 },
+          coordinates: [
+            { latitude: 51.5007, longitude: -0.101 },
+            { latitude: 51.5007, longitude: -0.099 },
+            { latitude: 51.502, longitude: -0.099 },
+            { latitude: 51.502, longitude: -0.101 },
+          ],
+        },
+      ],
+    });
+    const progress = calculateRouteProgress(
+      routePlan.route.coordinates,
+      routePlan.route.coordinates[0],
+    );
+    const alert = resolveLiveRouteRiskAlert({
+      navigationState: "navigating",
+      progress,
+      routePlan,
+    });
+
+    assert.ok(alert);
+    assert.equal(alert.proximity.areaShape, "polygon");
+    assert.equal(alert.zone.id, "platform-risk-area");
+    assert.match(
+      createLiveRouteRiskAlertPresentation(alert).accessibilityLabel,
+      /mapped area/,
+    );
   });
 });

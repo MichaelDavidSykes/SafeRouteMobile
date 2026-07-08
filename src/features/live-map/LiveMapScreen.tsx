@@ -20,6 +20,7 @@ import { LiveMapOverlay } from "./LiveMapOverlay";
 import { createRouteRiskAdvisory } from "./liveRouteRiskAdvisory";
 import {
   calculateRiskZoneRouteProximity,
+  routeRiskStartBlockedReason,
   resolveLiveRouteRiskAlert,
   resolveVisibleRiskZones,
 } from "./routeRisk";
@@ -147,13 +148,17 @@ export function LiveMapScreen({
     (demoDriveActive
       ? buildInterpolatedProgressCoordinates(routePlan.route.coordinates, routeStep)
       : []);
-  const navigationBlockedReason = routeStartBlockedReason({
+  const riskStartBlockedReason = useMemo(
+    () => routeRiskStartBlockedReason(routePlan),
+    [routePlan],
+  );
+  const navigationBlockedReason = riskStartBlockedReason || routeStartBlockedReason({
     demoDriveActive,
     hasLiveCoordinate: Boolean(rawVehicleCoordinate),
     permissionStatus,
     routeCoordinateCount: routePlan.route.coordinates.length,
   });
-  const locationNotice = liveLocationNotice({
+  const locationNotice = riskStartBlockedReason || liveLocationNotice({
     demoDriveActive,
     demoDriveAvailable: SAFEROUTE_DEMO_DRIVE_ENABLED,
     errorMessage,
@@ -171,29 +176,49 @@ export function LiveMapScreen({
     riskZones: routePlan.riskZones,
     routeCoordinates: routePlan.route.coordinates,
   });
-  const liveRiskAlert = resolveLiveRouteRiskAlert({
-    navigationState: activeNavigationState,
-    progress,
-    routePlan,
-  });
-  const visibleRiskZones = resolveVisibleRiskZones({
-    alertsVisible,
-    liveRiskAlert,
-    navigationState: activeNavigationState,
-    riskZones: routePlan.riskZones,
-  });
+  const liveRiskAlert = useMemo(
+    () =>
+      resolveLiveRouteRiskAlert({
+        navigationState: activeNavigationState,
+        progress,
+        routePlan,
+      }),
+    [
+      activeNavigationState,
+      progress?.isArrived,
+      progress?.isOffRoute,
+      progress?.snappedCoordinate.latitude,
+      progress?.snappedCoordinate.longitude,
+      progress?.travelledDistanceMeters,
+      routePlan,
+    ],
+  );
+  const visibleRiskZones = useMemo(
+    () =>
+      resolveVisibleRiskZones({
+        alertsVisible,
+        liveRiskAlert,
+        navigationState: activeNavigationState,
+        riskZones: routePlan.riskZones,
+      }),
+    [activeNavigationState, alertsVisible, liveRiskAlert, routePlan.riskZones],
+  );
   const selectedRiskZone = useMemo(
     () =>
       routePlan.riskZones.find((zone) => zone.id === selectedRiskZoneId) ||
       null,
     [routePlan.riskZones, selectedRiskZoneId],
   );
-  const selectedRiskProximity = selectedRiskZone
-    ? calculateRiskZoneRouteProximity(
-        routePlan.route.coordinates,
-        selectedRiskZone,
-      )
-    : null;
+  const selectedRiskProximity = useMemo(
+    () =>
+      selectedRiskZone
+        ? calculateRiskZoneRouteProximity(
+            routePlan.route.coordinates,
+            selectedRiskZone,
+          )
+        : null,
+    [routePlan.route.coordinates, selectedRiskZone],
+  );
   const heading = resolveVehicleHeading(
     routePlan.route.coordinates,
     progress,

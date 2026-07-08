@@ -3,9 +3,11 @@ import type { LatLng } from "react-native-maps";
 import type { RiskSeverity, RiskZone, SavedSafeRoutePlan } from "./liveMapTypes";
 import type { NavigationLifecycle } from "./liveMapUiState";
 import {
+  densifyRouteCoordinates,
   formatDistance,
   haversineDistanceMeters,
   projectCoordinateToRoute,
+  projectCoordinateToSegment,
   type RouteProgressSnapshot,
 } from "./routeProgress";
 
@@ -18,6 +20,7 @@ export const LIVE_RISK_PASSED_GRACE_METERS = 160;
 export type LiveRouteRiskAlertStatus = "inside" | "nearby" | "approaching";
 
 export interface RouteRiskProximity {
+  areaShape: "circle" | "polygon";
   clearanceMeters: number;
   nearestRouteCoordinate: LatLng;
   radiusMeters: number;
@@ -33,6 +36,7 @@ export interface RouteRiskAvoidanceAudit {
 
 export interface LiveRouteRiskAlert {
   distanceToVehicleMeters: number;
+  vehicleInsideRiskArea: boolean;
   routeDistanceAheadMeters: number;
   status: LiveRouteRiskAlertStatus;
   proximity: RouteRiskProximity;
@@ -60,6 +64,11 @@ export function calculateRiskZoneRouteProximity(
   routeCoordinates: LatLng[],
   zone: RiskZone
 ): RouteRiskProximity | null {
+  const polygonCoordinates = normalizeRiskPolygon(zone.polygonCoordinates);
+  if (polygonCoordinates.length >= 3) {
+    return calculatePolygonRiskZoneRouteProximity(routeCoordinates, zone, polygonCoordinates);
+  }
+
   const projection = projectCoordinateToRoute(routeCoordinates, zone.coordinate);
   if (!projection) {
     return null;
@@ -68,6 +77,7 @@ export function calculateRiskZoneRouteProximity(
   const radiusMeters = normalizeRadiusMeters(zone.radiusMeters);
 
   return {
+    areaShape: "circle",
     clearanceMeters: projection.distanceMeters - radiusMeters,
     nearestRouteCoordinate: projection.snappedCoordinate,
     radiusMeters,
@@ -103,10 +113,32 @@ export function routeRiskAvoidanceLabel(
   }
 
   if (proximity.clearanceMeters < 0) {
-    return `Route enters area by ${formatDistance(Math.abs(proximity.clearanceMeters))}`;
+    return proximity.areaShape === "polygon"
+      ? "Route enters mapped area"
+      : `Route enters area by ${formatDistance(Math.abs(proximity.clearanceMeters))}`;
   }
 
-  return `Route clears by ${formatDistance(proximity.clearanceMeters)}`;
+  return proximity.areaShape === "polygon"
+    ? `Route clears mapped area by ${formatDistance(proximity.clearanceMeters)}`
+    : `Route clears by ${formatDistance(proximity.clearanceMeters)}`;
+}
+
+export function routeRiskStartBlockedReason(
+  routePlan: SavedSafeRoutePlan
+): string | null {
+  const audit = auditRouteRiskAvoidance(routePlan);
+  const [firstViolation] = audit.violations.sort((first, second) => {
+    const severityDelta =
+      severityPriority(second.zone.severity) - severityPriority(first.zone.severity);
+    return severityDelta || first.clearanceMeters - second.clearanceMeters;
+  });
+
+  if (!firstViolation) {
+    return null;
+  }
+
+  const zoneTitle = normalizeCopy(firstViolation.zone.title) || "a mapped risk area";
+  return `Route intersects ${zoneTitle}. Re-sync route in SafeRoute planner before starting guidance.`;
 }
 
 export function resolveLiveRouteRiskAlert({
@@ -134,22 +166,24 @@ export function resolveLiveRouteRiskAlert({
 
       const routeDistanceAheadMeters =
         proximity.routeDistanceAlongMeters - progress.travelledDistanceMeters;
-      const distanceToVehicleMeters = haversineDistanceMeters(
+      const vehicleProximity = calculateRiskZoneCoordinateProximity(
         progress.snappedCoordinate,
-        zone.coordinate
+        zone
       );
       const status = resolveLiveRouteRiskAlertStatus({
-        distanceToVehicleMeters,
+        distanceToVehicleMeters: vehicleProximity.distanceMeters,
         proximity,
         routeDistanceAheadMeters,
+        vehicleInsideRiskArea: vehicleProximity.inside,
       });
 
       return status
         ? {
-            distanceToVehicleMeters,
+            distanceToVehicleMeters: vehicleProximity.distanceMeters,
             proximity,
             routeDistanceAheadMeters,
             status,
+            vehicleInsideRiskArea: vehicleProximity.inside,
             zone,
           }
         : null;
@@ -213,10 +247,13 @@ export function createRiskZoneDetailPresentation({
   zone: RiskZone;
 }): RiskZoneDetailPresentation {
   const body = normalizeCopy(zone.description) || "SafeRoute risk note";
+  const areaLabel = zone.polygonCoordinates?.length
+    ? "mapped area"
+    : `${formatDistance(normalizeRadiusMeters(zone.radiusMeters))} radius`;
   const metaLabel = [
     severityLabel(zone.severity),
     normalizeCopy(zone.category) || "Route risk",
-    `${formatDistance(normalizeRadiusMeters(zone.radiusMeters))} radius`,
+    areaLabel,
   ].join(" · ");
   const clearanceLabel = routeRiskAvoidanceLabel(proximity);
 
@@ -242,24 +279,26 @@ function resolveLiveRouteRiskAlertStatus({
   distanceToVehicleMeters,
   proximity,
   routeDistanceAheadMeters,
+  vehicleInsideRiskArea,
 }: {
   distanceToVehicleMeters: number;
   proximity: RouteRiskProximity;
   routeDistanceAheadMeters: number;
+  vehicleInsideRiskArea: boolean;
 }): LiveRouteRiskAlertStatus | null {
-  const alertCorridorMeters =
-    proximity.radiusMeters + LIVE_RISK_LATERAL_BUFFER_METERS;
+  const alertCorridorMeters = proximity.areaShape === "polygon"
+    ? LIVE_RISK_LATERAL_BUFFER_METERS
+    : proximity.radiusMeters + LIVE_RISK_LATERAL_BUFFER_METERS;
   if (proximity.routeDistanceMeters > alertCorridorMeters) {
     return null;
   }
 
-  if (distanceToVehicleMeters <= proximity.radiusMeters) {
+  if (vehicleInsideRiskArea) {
     return "inside";
   }
 
   if (
-    distanceToVehicleMeters <=
-    proximity.radiusMeters + LIVE_RISK_ACTIVE_BUFFER_METERS
+    distanceToVehicleMeters <= LIVE_RISK_ACTIVE_BUFFER_METERS
   ) {
     return "nearby";
   }
@@ -319,11 +358,13 @@ function liveRiskAlertTitle(status: LiveRouteRiskAlertStatus): string {
 
 function liveRiskAlertDetail(alert: LiveRouteRiskAlert): string {
   if (alert.status === "inside") {
-    return "Inside this SafeRoute risk area";
+    return alert.proximity.areaShape === "polygon"
+      ? "Inside this mapped SafeRoute area"
+      : "Inside this SafeRoute risk area";
   }
 
   if (alert.status === "nearby") {
-    return `${formatDistance(alert.distanceToVehicleMeters)} from convoy`;
+    return `${formatDistance(alert.distanceToVehicleMeters)} from risk area`;
   }
 
   return `${formatDistance(Math.max(0, alert.routeDistanceAheadMeters))} ahead`;
@@ -335,6 +376,195 @@ function isLiveRiskState(state: NavigationLifecycle): boolean {
 
 function normalizeRadiusMeters(radiusMeters: number): number {
   return Number.isFinite(radiusMeters) && radiusMeters > 0 ? radiusMeters : 0;
+}
+
+function calculatePolygonRiskZoneRouteProximity(
+  routeCoordinates: LatLng[],
+  zone: RiskZone,
+  polygonCoordinates: LatLng[]
+): RouteRiskProximity | null {
+  if (!routeCoordinates.length) {
+    return null;
+  }
+
+  const normalizedRoute = densifyRouteCoordinates(routeCoordinates, 25);
+  if (!normalizedRoute.length) {
+    return null;
+  }
+
+  let best: { coordinate: LatLng; distanceMeters: number } | null = null;
+
+  for (const coordinate of normalizedRoute) {
+    const distanceMeters = distanceToPolygonMeters(coordinate, polygonCoordinates);
+    if (!best || distanceMeters < best.distanceMeters) {
+      best = { coordinate, distanceMeters };
+    }
+
+    if (distanceMeters === 0) {
+      break;
+    }
+  }
+
+  for (let index = 0; index < routeCoordinates.length - 1; index += 1) {
+    if (routeSegmentIntersectsPolygon(routeCoordinates[index], routeCoordinates[index + 1], polygonCoordinates)) {
+      best = { coordinate: routeCoordinates[index], distanceMeters: 0 };
+      break;
+    }
+  }
+
+  if (!best) {
+    return null;
+  }
+
+  const projection = projectCoordinateToRoute(routeCoordinates, best.coordinate);
+  if (!projection) {
+    return null;
+  }
+
+  return {
+    areaShape: "polygon",
+    clearanceMeters: best.distanceMeters,
+    nearestRouteCoordinate: projection.snappedCoordinate,
+    radiusMeters: 0,
+    routeDistanceAlongMeters: projection.distanceAlongMeters,
+    routeDistanceMeters: best.distanceMeters,
+    zone,
+  };
+}
+
+function calculateRiskZoneCoordinateProximity(
+  coordinate: LatLng,
+  zone: RiskZone
+): { distanceMeters: number; inside: boolean } {
+  const polygonCoordinates = normalizeRiskPolygon(zone.polygonCoordinates);
+  if (polygonCoordinates.length >= 3) {
+    const distanceMeters = distanceToPolygonMeters(coordinate, polygonCoordinates);
+    return {
+      distanceMeters,
+      inside: distanceMeters === 0 && isCoordinateInsidePolygon(coordinate, polygonCoordinates),
+    };
+  }
+
+  const distanceToCenterMeters = haversineDistanceMeters(coordinate, zone.coordinate);
+  const radiusMeters = normalizeRadiusMeters(zone.radiusMeters);
+  return {
+    distanceMeters: Math.max(0, distanceToCenterMeters - radiusMeters),
+    inside: distanceToCenterMeters <= radiusMeters,
+  };
+}
+
+function distanceToPolygonMeters(coordinate: LatLng, polygonCoordinates: LatLng[]): number {
+  if (isCoordinateInsidePolygon(coordinate, polygonCoordinates)) {
+    return 0;
+  }
+
+  let nearestDistanceMeters = Number.POSITIVE_INFINITY;
+  for (let index = 0; index < polygonCoordinates.length; index += 1) {
+    const start = polygonCoordinates[index];
+    const end = polygonCoordinates[(index + 1) % polygonCoordinates.length];
+    const projection = projectCoordinateToSegment(coordinate, start, end);
+    nearestDistanceMeters = Math.min(nearestDistanceMeters, projection.distanceMeters);
+  }
+
+  return Number.isFinite(nearestDistanceMeters) ? nearestDistanceMeters : 0;
+}
+
+function routeSegmentIntersectsPolygon(
+  start: LatLng,
+  end: LatLng,
+  polygonCoordinates: LatLng[]
+): boolean {
+  if (
+    isCoordinateInsidePolygon(start, polygonCoordinates) ||
+    isCoordinateInsidePolygon(end, polygonCoordinates)
+  ) {
+    return true;
+  }
+
+  for (let index = 0; index < polygonCoordinates.length; index += 1) {
+    const polygonStart = polygonCoordinates[index];
+    const polygonEnd = polygonCoordinates[(index + 1) % polygonCoordinates.length];
+    if (segmentsIntersect(start, end, polygonStart, polygonEnd)) {
+      return true;
+    }
+  }
+
+  return false;
+}
+
+function isCoordinateInsidePolygon(coordinate: LatLng, polygonCoordinates: LatLng[]): boolean {
+  let inside = false;
+  for (let index = 0, previousIndex = polygonCoordinates.length - 1; index < polygonCoordinates.length; previousIndex = index, index += 1) {
+    const current = polygonCoordinates[index];
+    const previous = polygonCoordinates[previousIndex];
+    const intersects =
+      current.longitude > coordinate.longitude !== previous.longitude > coordinate.longitude &&
+      coordinate.latitude <
+        ((previous.latitude - current.latitude) * (coordinate.longitude - current.longitude)) /
+          (previous.longitude - current.longitude) +
+          current.latitude;
+
+    if (intersects) {
+      inside = !inside;
+    }
+  }
+
+  return inside;
+}
+
+function segmentsIntersect(
+  firstStart: LatLng,
+  firstEnd: LatLng,
+  secondStart: LatLng,
+  secondEnd: LatLng
+): boolean {
+  const firstOrientation = orientation(firstStart, firstEnd, secondStart);
+  const secondOrientation = orientation(firstStart, firstEnd, secondEnd);
+  const thirdOrientation = orientation(secondStart, secondEnd, firstStart);
+  const fourthOrientation = orientation(secondStart, secondEnd, firstEnd);
+
+  return firstOrientation !== secondOrientation && thirdOrientation !== fourthOrientation;
+}
+
+function orientation(first: LatLng, second: LatLng, third: LatLng): number {
+  const value =
+    (second.longitude - first.longitude) * (third.latitude - first.latitude) -
+    (second.latitude - first.latitude) * (third.longitude - first.longitude);
+
+  if (Math.abs(value) < 1e-12) {
+    return 0;
+  }
+
+  return value > 0 ? 1 : 2;
+}
+
+function normalizeRiskPolygon(coordinates: LatLng[] | undefined): LatLng[] {
+  const polygon = (coordinates || []).filter(isValidCoordinate);
+  return polygon.length >= 3 ? polygon : [];
+}
+
+function isValidCoordinate(coordinate?: LatLng | null): coordinate is LatLng {
+  return Boolean(
+    coordinate &&
+      Number.isFinite(Number(coordinate.latitude)) &&
+      Number.isFinite(Number(coordinate.longitude)) &&
+      coordinate.latitude >= -90 &&
+      coordinate.latitude <= 90 &&
+      coordinate.longitude >= -180 &&
+      coordinate.longitude <= 180
+  );
+}
+
+function severityPriority(severity: RiskSeverity): number {
+  if (severity === "high") {
+    return 3;
+  }
+
+  if (severity === "medium") {
+    return 2;
+  }
+
+  return 1;
 }
 
 function severityLabel(severity: RiskSeverity): string {

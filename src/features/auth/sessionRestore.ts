@@ -73,7 +73,7 @@ export async function restoreSavedSession(
       };
     }
 
-    if (expirySeconds === null) {
+    if (expirySeconds === null || !normalizedStoredSession.email) {
       return {
         status: 'expired',
         message: ONLINE_VALIDATION_REQUIRED_MESSAGE

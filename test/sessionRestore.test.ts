@@ -28,6 +28,24 @@ describe('saved LunarChain session restore', () => {
     assert.equal(result.session.user?.name, 'Fresh User');
   });
 
+  it('allows online validation to repair a saved session with missing local email', async () => {
+    const result = await restoreSavedSession(
+      {
+        accessToken: storedSession.accessToken,
+        email: '   '
+      },
+      async () => ({
+        email: 'fresh@example.com',
+        name: 'Fresh User'
+      })
+    );
+
+    assert.equal(result.status, 'restored');
+    assert.equal(result.validatedOnline, true);
+    assert.equal(result.session.email, 'fresh@example.com');
+    assert.equal(result.session.user?.name, 'Fresh User');
+  });
+
   it('expires stored sessions when the token is already stale', async () => {
     const result = await restoreSavedSession(
       {
@@ -86,6 +104,21 @@ describe('saved LunarChain session restore', () => {
       {
         accessToken: 'opaque-token',
         email: 'opaque@example.com'
+      },
+      async () => {
+        throw new Error('Network request failed');
+      }
+    );
+
+    assert.equal(result.status, 'expired');
+    assert.match(result.message, /online validation/i);
+  });
+
+  it('requires online validation before offline-restoring sessions without an email identity', async () => {
+    const result = await restoreSavedSession(
+      {
+        accessToken: storedSession.accessToken,
+        email: '   '
       },
       async () => {
         throw new Error('Network request failed');

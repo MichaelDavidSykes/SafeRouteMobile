@@ -15,7 +15,7 @@ Standalone mobile app shell for SafeRoute live mapping.
 
 ## Requirements
 
-This scaffold targets Expo SDK 56. Use the Node `22` runtime from `.nvmrc` before installing dependencies. The package engine requires Node `22.13.0` or newer.
+This scaffold targets Expo SDK 56, matching the Expo Go 56.x runtime used for local iOS simulator/device smoke testing. Use the Node `22` runtime from `.nvmrc` before installing dependencies. The package engine requires Node `22.13.0` or newer.
 
 ```bash
 cd SafeRouteMobile

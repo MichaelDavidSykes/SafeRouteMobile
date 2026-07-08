@@ -14,13 +14,15 @@ export type { PermissionStatus } from './liveLocationState';
 
 interface UseLiveLocationOptions {
   navigationActive?: boolean;
+  permissionRequested?: boolean;
 }
 
 export function useLiveLocation({
-  navigationActive = false
+  navigationActive = false,
+  permissionRequested = false
 }: UseLiveLocationOptions = {}) {
   const [coordinate, setCoordinate] = useState<Location.LocationObjectCoords | null>(null);
-  const [permissionStatus, setPermissionStatus] = useState<PermissionStatus>('checking');
+  const [permissionStatus, setPermissionStatus] = useState<PermissionStatus>('idle');
   const [errorMessage, setErrorMessage] = useState('');
 
   useEffect(() => {
@@ -31,7 +33,9 @@ export function useLiveLocation({
     const startTracking = async () => {
       let permission: Location.PermissionResponse;
       try {
-        permission = await Location.requestForegroundPermissionsAsync();
+        permission = permissionRequested
+          ? await Location.requestForegroundPermissionsAsync()
+          : await Location.getForegroundPermissionsAsync();
       } catch {
         if (mounted) {
           setPermissionStatus('denied');
@@ -45,12 +49,15 @@ export function useLiveLocation({
       }
 
       const nextPermissionStatus = permissionStatusFromForegroundPermission(
-        permission.status === Location.PermissionStatus.GRANTED
+        permission.status === Location.PermissionStatus.GRANTED,
+        permission.status === Location.PermissionStatus.UNDETERMINED
       );
 
       if (nextPermissionStatus !== 'granted') {
         setPermissionStatus(nextPermissionStatus);
-        setErrorMessage(LOCATION_PERMISSION_DENIED_MESSAGE);
+        setErrorMessage(
+          nextPermissionStatus === 'denied' ? LOCATION_PERMISSION_DENIED_MESSAGE : ''
+        );
         return;
       }
 
@@ -109,7 +116,7 @@ export function useLiveLocation({
       mounted = false;
       subscription?.remove();
     };
-  }, [navigationActive]);
+  }, [navigationActive, permissionRequested]);
 
   return {
     coordinate,

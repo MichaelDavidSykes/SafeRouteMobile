@@ -13,9 +13,11 @@ describe('live location state helpers', () => {
   it('keeps permission status decisions explicit for foreground tracking', () => {
     assert.equal(permissionStatusFromForegroundPermission(true), 'granted');
     assert.equal(permissionStatusFromForegroundPermission(false), 'denied');
+    assert.equal(permissionStatusFromForegroundPermission(false, true), 'idle');
   });
 
   it('uses short production copy for iOS location states', () => {
+    assert.equal(trackingLabelForPermissionStatus('idle'), 'Ready');
     assert.equal(trackingLabelForPermissionStatus('checking'), 'Checking');
     assert.equal(trackingLabelForPermissionStatus('granted'), 'Live');
     assert.equal(trackingLabelForPermissionStatus('denied'), 'Location off');

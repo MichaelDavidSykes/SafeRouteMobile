@@ -1,4 +1,4 @@
-export type PermissionStatus = 'checking' | 'granted' | 'denied';
+export type PermissionStatus = 'idle' | 'checking' | 'granted' | 'denied';
 
 export const LOCATION_PERMISSION_DENIED_MESSAGE =
   'Location permission is off. Live route guidance needs foreground location access.';
@@ -31,8 +31,15 @@ export function resolveLiveLocationTrackingCadence(
   };
 }
 
-export function permissionStatusFromForegroundPermission(granted: boolean): PermissionStatus {
-  return granted ? 'granted' : 'denied';
+export function permissionStatusFromForegroundPermission(
+  granted: boolean,
+  requestable = false
+): PermissionStatus {
+  if (granted) {
+    return 'granted';
+  }
+
+  return requestable ? 'idle' : 'denied';
 }
 
 export function trackingLabelForPermissionStatus(status: PermissionStatus): string {
@@ -42,6 +49,10 @@ export function trackingLabelForPermissionStatus(status: PermissionStatus): stri
 
   if (status === 'checking') {
     return 'Checking';
+  }
+
+  if (status === 'idle') {
+    return 'Ready';
   }
 
   return 'Location off';

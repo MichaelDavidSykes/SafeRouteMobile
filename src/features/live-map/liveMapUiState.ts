@@ -111,6 +111,10 @@ export function routeStartBlockedReason({
     return 'Turn on foreground location access to start live guidance.';
   }
 
+  if (permissionStatus === 'idle') {
+    return null;
+  }
+
   if (permissionStatus === 'checking') {
     return 'Checking foreground location access before live guidance can start.';
   }

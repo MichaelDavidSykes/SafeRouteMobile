@@ -50,6 +50,10 @@ describe('live map UI state helpers', () => {
       'Turn on foreground location access to start live guidance.'
     );
     assert.equal(
+      routeStartBlockedReason({ demoDriveActive: false, hasLiveCoordinate: false, permissionStatus: 'idle' }),
+      null
+    );
+    assert.equal(
       routeStartBlockedReason({ demoDriveActive: false, hasLiveCoordinate: false, permissionStatus: 'checking' }),
       'Checking foreground location access before live guidance can start.'
     );
@@ -86,6 +90,16 @@ describe('live map UI state helpers', () => {
         permissionStatus: 'denied'
       }),
       'Location access is off. Enable it in iOS Settings for live guidance, or use route simulation for review.'
+    );
+    assert.equal(
+      liveLocationNotice({
+        demoDriveActive: false,
+        demoDriveAvailable: true,
+        errorMessage: '',
+        hasLiveCoordinate: false,
+        permissionStatus: 'idle'
+      }),
+      null
     );
     assert.equal(
       liveLocationNotice({

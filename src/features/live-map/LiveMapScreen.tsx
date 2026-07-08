@@ -74,6 +74,8 @@ export function LiveMapScreen({
   const [demoDriveEnabled, setDemoDriveEnabled] = useState(false);
   const [navigationState, setNavigationState] =
     useState<NavigationLifecycle>("loaded");
+  const [liveLocationRequested, setLiveLocationRequested] = useState(false);
+  const [pendingNavigationStart, setPendingNavigationStart] = useState(false);
   const [routeStep, setRouteStep] = useState(0);
   const [progressFloorMeters, setProgressFloorMeters] = useState(0);
   const [selectedRiskZoneId, setSelectedRiskZoneId] = useState<string | null>(
@@ -83,8 +85,13 @@ export function LiveMapScreen({
   const navigationLocationTrackingActive =
     !demoDriveActive &&
     (navigationState === "navigating" || navigationState === "off-route");
+  const locationTrackingRequested =
+    liveLocationRequested || navigationLocationTrackingActive;
   const { coordinate, errorMessage, permissionStatus, trackingLabel } =
-    useLiveLocation({ navigationActive: navigationLocationTrackingActive });
+    useLiveLocation({
+      navigationActive: navigationLocationTrackingActive,
+      permissionRequested: locationTrackingRequested,
+    });
   const layout = useMemo(
     () =>
       resolveLiveMapOverlayLayout({
@@ -235,6 +242,7 @@ export function LiveMapScreen({
     setRouteStep(0);
     setProgressFloorMeters(0);
     setFollowModeEnabled(true);
+    setPendingNavigationStart(false);
     setSelectedRiskZoneId(null);
     const timer = setTimeout(() => fitRoute(), 120);
     return () => clearTimeout(timer);
@@ -453,6 +461,12 @@ export function LiveMapScreen({
       return;
     }
 
+    if (!demoDriveActive && permissionStatus === "idle") {
+      setLiveLocationRequested(true);
+      setPendingNavigationStart(true);
+      return;
+    }
+
     setNavigationState("navigating");
     setFollowModeEnabled(true);
   };
@@ -463,6 +477,39 @@ export function LiveMapScreen({
     activeNavigationState === "arrived"
       ? null
       : navigationBlockedReason;
+
+  useEffect(() => {
+    if (!pendingNavigationStart) {
+      return;
+    }
+
+    if (demoDriveActive) {
+      setPendingNavigationStart(false);
+      setNavigationState("navigating");
+      setFollowModeEnabled(true);
+      return;
+    }
+
+    if (permissionStatus === "denied" || riskStartBlockedReason) {
+      setPendingNavigationStart(false);
+      return;
+    }
+
+    if (permissionStatus !== "granted" || !rawVehicleCoordinate || navigationBlockedReason) {
+      return;
+    }
+
+    setPendingNavigationStart(false);
+    setNavigationState("navigating");
+    setFollowModeEnabled(true);
+  }, [
+    demoDriveActive,
+    navigationBlockedReason,
+    pendingNavigationStart,
+    permissionStatus,
+    rawVehicleCoordinate,
+    riskStartBlockedReason,
+  ]);
 
   const handleStopRoute = () => {
     setNavigationState("stopped");

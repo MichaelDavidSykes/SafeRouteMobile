@@ -71,13 +71,6 @@ appId: host.exp.Exponent
           waitToSettleTimeoutMs: 1000
       - waitForAnimationToEnd:
           timeout: 5000
-      - runFlow:
-          when:
-            visible: "Allow While Using App"
-          commands:
-            - tapOn: "Allow While Using App"
-            - waitForAnimationToEnd:
-                timeout: 3000
       - extendedWaitUntil:
           visible:
             id: "safe-route-live-map"
@@ -97,15 +90,8 @@ appId: host.exp.Exponent
           id: "safe-route-card-sr-city-airport-alpha"
       - waitForAnimationToEnd:
           timeout: 5000
-# Some runs do not ask for location until the native map/live route screen is
-# presented. Handle the same iOS prompt again before asserting live-map chrome.
-- runFlow:
-    when:
-      visible: "Allow While Using App"
-    commands:
-      - tapOn: "Allow While Using App"
-      - waitForAnimationToEnd:
-          timeout: 3000
+# Live location permission is requested only after the user starts guidance,
+# so the map can render first without extra system-prompt hierarchy polling.
 - extendedWaitUntil:
     visible:
       id: "safe-route-live-map"

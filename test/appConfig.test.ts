@@ -155,9 +155,27 @@ describe('Expo production configuration', () => {
     );
   });
 
+  it('requires an explicit production API URL for production configuration', () => {
+    assert.throws(
+      () =>
+        loadExpoConfig({
+          SAFEROUTE_APP_ENV: 'production',
+          SAFEROUTE_API_URL: 'https://generic-api.lunarchain.net',
+          SAFEROUTE_IOS_BUILD_NUMBER: '42',
+          GOOGLE_MAPS_IOS_API_KEY: 'ios-key'
+        }),
+      /SAFEROUTE_PROD_API_URL is required/
+    );
+  });
+
   it('requires an iOS Google Maps key for production configuration', () => {
     assert.throws(
-      () => loadExpoConfig({ SAFEROUTE_APP_ENV: 'production' }),
+      () =>
+        loadExpoConfig({
+          SAFEROUTE_APP_ENV: 'production',
+          SAFEROUTE_PROD_API_URL: 'https://api.lunarchain.net',
+          SAFEROUTE_IOS_BUILD_NUMBER: '42'
+        }),
       /GOOGLE_MAPS_IOS_API_KEY is required/
     );
   });
@@ -172,6 +190,19 @@ describe('Expo production configuration', () => {
           GOOGLE_MAPS_IOS_API_KEY: 'ios-key'
         }),
       /Production SafeRoute API URL must use HTTPS/
+    );
+  });
+
+  it('rejects local loopback hosts for the production API URL', () => {
+    assert.throws(
+      () =>
+        loadExpoConfig({
+          SAFEROUTE_APP_ENV: 'production',
+          SAFEROUTE_PROD_API_URL: 'https://127.0.0.1:8000',
+          SAFEROUTE_IOS_BUILD_NUMBER: '42',
+          GOOGLE_MAPS_IOS_API_KEY: 'ios-key'
+        }),
+      /Production SafeRoute API URL must not point to localhost or loopback hosts/
     );
   });
 

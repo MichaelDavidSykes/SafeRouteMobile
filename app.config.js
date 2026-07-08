@@ -19,6 +19,35 @@ function normalizeApiUrl(value) {
   return value.trim().replace(/\/+$/, '');
 }
 
+function isLocalOrLoopbackHost(hostname) {
+  const normalized = hostname.toLowerCase();
+
+  return (
+    normalized === 'localhost' ||
+    normalized === '0.0.0.0' ||
+    normalized === '::1' ||
+    normalized.startsWith('127.')
+  );
+}
+
+function assertProductionApiUrl(value) {
+  let parsedUrl;
+
+  try {
+    parsedUrl = new URL(value);
+  } catch (_error) {
+    throw new Error('Production SafeRoute API URL must be a valid HTTPS URL.');
+  }
+
+  if (parsedUrl.protocol !== 'https:') {
+    throw new Error('Production SafeRoute API URL must use HTTPS.');
+  }
+
+  if (isLocalOrLoopbackHost(parsedUrl.hostname)) {
+    throw new Error('Production SafeRoute API URL must not point to localhost or loopback hosts.');
+  }
+}
+
 function normalizeIosBuildNumber(value) {
   const normalized = (value || '1').trim();
 
@@ -47,10 +76,11 @@ const safeRouteDemoDriveEnabled =
 const safeRoutePreviewModeEnabled =
   appEnvironment !== 'production' &&
   (enablePreviewModeOverride ? enablePreviewModeOverride.toLowerCase() === 'true' : false);
+const productionApiUrlOverride = trimmedEnv('SAFEROUTE_PROD_API_URL');
 const apiUrls = {
   development: firstConfiguredValue(trimmedEnv('SAFEROUTE_DEV_API_URL'), trimmedEnv('SAFEROUTE_API_URL'), 'https://api.lunarchain.net'),
   staging: firstConfiguredValue(trimmedEnv('SAFEROUTE_STAGING_API_URL'), trimmedEnv('SAFEROUTE_API_URL'), 'https://api.lunarchain.net'),
-  production: firstConfiguredValue(trimmedEnv('SAFEROUTE_PROD_API_URL'), trimmedEnv('SAFEROUTE_API_URL'), 'https://api.lunarchain.net')
+  production: firstConfiguredValue(productionApiUrlOverride, trimmedEnv('SAFEROUTE_API_URL'), 'https://api.lunarchain.net')
 };
 const safeRouteApiUrl = normalizeApiUrl(firstConfiguredValue(apiUrls[appEnvironment], apiUrls.development));
 const safeRouteApiVersion = normalizeApiVersion(trimmedEnv('SAFEROUTE_API_VERSION'));
@@ -69,13 +99,11 @@ if (googleMapsIosApiKey) {
 }
 
 if (appEnvironment === 'production') {
-  if (!safeRouteApiUrl || !safeRouteApiUrl.trim()) {
-    throw new Error('SAFEROUTE_PROD_API_URL or SAFEROUTE_API_URL is required for production builds.');
+  if (!productionApiUrlOverride) {
+    throw new Error('SAFEROUTE_PROD_API_URL is required for production builds.');
   }
 
-  if (!safeRouteApiUrl.startsWith('https://')) {
-    throw new Error('Production SafeRoute API URL must use HTTPS.');
-  }
+  assertProductionApiUrl(safeRouteApiUrl);
 
   if (!googleMapsIosApiKey) {
     throw new Error('GOOGLE_MAPS_IOS_API_KEY is required for production iOS builds.');

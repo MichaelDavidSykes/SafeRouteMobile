@@ -54,7 +54,7 @@ For iOS production readiness, confirm:
 - Release identity is covered by local config tests: app name `SafeRoute`, slug `saferoute-mobile`, bundle id `com.lunarchain.saferoute`, URL scheme `saferoute`, portrait orientation, light UI style, and phone-only support.
 - `SAFEROUTE_APP_ENV=production` is used for release artifacts
 - `SAFEROUTE_IOS_BUILD_NUMBER` is set and incremented for every signed iOS artifact
-- the production API URL uses HTTPS
+- `SAFEROUTE_PROD_API_URL` is set to the hosted HTTPS API, not a generic/local fallback
 - `GOOGLE_MAPS_IOS_API_KEY` is set in the release environment
 - Firebase App Distribution has a project, iOS app id, authenticated CLI, tester group, and an already-produced `.ipa` artifact before distribution
 
@@ -64,6 +64,7 @@ Copy `.env.example` to `.env` when you are ready to wire real services.
 
 ```bash
 SAFEROUTE_API_URL=https://your-api.example.com
+SAFEROUTE_PROD_API_URL=https://api.lunarchain.net
 SAFEROUTE_API_VERSION=v1
 SAFEROUTE_APP_ENV=development
 SAFEROUTE_ENABLE_DEMO_DRIVE=true
@@ -73,7 +74,7 @@ GOOGLE_MAPS_ANDROID_API_KEY=...
 GOOGLE_MAPS_IOS_API_KEY=...
 ```
 
-`SAFEROUTE_APP_ENV` must be `development`, `staging`, or `production`. The map works in Expo Go for early iteration. Production iOS config now fails fast unless the production API URL uses HTTPS, `GOOGLE_MAPS_IOS_API_KEY` is present, and `SAFEROUTE_IOS_BUILD_NUMBER` is explicitly set to a valid App Store/TestFlight build number.
+`SAFEROUTE_APP_ENV` must be `development`, `staging`, or `production`. The map works in Expo Go for early iteration. Production iOS config now fails fast unless `SAFEROUTE_PROD_API_URL` is explicitly set to a valid hosted HTTPS URL, `GOOGLE_MAPS_IOS_API_KEY` is present, and `SAFEROUTE_IOS_BUILD_NUMBER` is explicitly set to a valid App Store/TestFlight build number. Production releases intentionally do not accept a generic `SAFEROUTE_API_URL`, `localhost`, or `127.0.0.1` fallback.
 
 Packaged runtime config also defaults to the hosted HTTPS API if a production manifest ever contains a missing or non-HTTPS API URL; local HTTP API URLs remain available for non-production simulator/dev runs.
 
@@ -86,7 +87,7 @@ Set `SAFEROUTE_ENABLE_PREVIEW_MODE=true` only in non-production simulator/dev ru
 - URL scheme: `saferoute`.
 - The iOS release identity and phone-first display shape are guarded by `test/appConfig.test.ts`; update the tests and this checklist together if the bundle id, scheme, portrait orientation, light style, or phone-only target changes intentionally.
 - Location permission copy is concise and map-first: "Shows your position on the map and guides active SafeRoute trips."
-- Production runtime config should set `SAFEROUTE_APP_ENV=production`, an HTTPS production API URL/version, an incremented `SAFEROUTE_IOS_BUILD_NUMBER`, and `GOOGLE_MAPS_IOS_API_KEY` through the build environment.
+- Production runtime config should set `SAFEROUTE_APP_ENV=production`, `SAFEROUTE_PROD_API_URL` for the hosted API URL/version, an incremented `SAFEROUTE_IOS_BUILD_NUMBER`, and `GOOGLE_MAPS_IOS_API_KEY` through the build environment.
 - Demo drive is intended for development/preview only; the production app config disables it even if `SAFEROUTE_ENABLE_DEMO_DRIVE` is set.
 - Preview mode is intended for simulator/dev authenticated UI smoke only; production config disables it even if `SAFEROUTE_ENABLE_PREVIEW_MODE` is set.
 - Firebase App Distribution still needs a valid iOS build artifact plus Firebase auth/project/app id before distribution.

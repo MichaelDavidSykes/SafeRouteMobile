@@ -94,10 +94,12 @@ Set `SAFEROUTE_ENABLE_PREVIEW_MODE=true` only in non-production simulator/dev ru
 
 The app expects:
 
+- `POST /api/v1/auth/login` with form-encoded credentials and `X-SafeRoute-Client: saferoute-mobile` so hosted auth can recognize native app requests.
+- `POST /api/v1/auth/verify-login-code` with JSON verification data and the same mobile client header.
 - `GET /api/v1/mobile/safe-route/routes?client_id={optional}`
 - `GET /api/v1/mobile/safe-route/routes/{route_id}`
 
-Both endpoints require the LunarChain bearer token and return the standard LunarChain response envelope.
+Saved-route endpoints require the LunarChain bearer token and return the standard LunarChain response envelope. Hosted auth remains authoritative for credentials, two-factor challenges, and session validation.
 
 ## Manual smoke
 

@@ -7,8 +7,18 @@ interface AuthResponseData {
   expires_at?: string;
 }
 
+export const SAFEROUTE_MOBILE_AUTH_CLIENT = 'saferoute-mobile';
+export const SAFEROUTE_MOBILE_AUTH_CLIENT_HEADER = 'X-SafeRoute-Client';
+
 export function normalizeEmail(email: string): string {
   return String(email || '').trim().toLowerCase();
+}
+
+export function buildMobileAuthHeaders(contentType: string): Record<string, string> {
+  return {
+    'Content-Type': contentType,
+    [SAFEROUTE_MOBILE_AUTH_CLIENT_HEADER]: SAFEROUTE_MOBILE_AUTH_CLIENT
+  };
 }
 
 export function buildPasswordLoginBody(email: string, password: string): string {

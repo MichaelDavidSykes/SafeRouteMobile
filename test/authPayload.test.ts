@@ -1,7 +1,17 @@
 import assert from 'node:assert/strict';
+import { readFileSync } from 'node:fs';
+import { join } from 'node:path';
 import { describe, it } from 'node:test';
 
-import { buildPasswordLoginBody, getAuthErrorMessage, normalizeEmail, unwrapAuthData } from '../src/features/auth/authPayload';
+import {
+  SAFEROUTE_MOBILE_AUTH_CLIENT,
+  SAFEROUTE_MOBILE_AUTH_CLIENT_HEADER,
+  buildMobileAuthHeaders,
+  buildPasswordLoginBody,
+  getAuthErrorMessage,
+  normalizeEmail,
+  unwrapAuthData
+} from '../src/features/auth/authPayload';
 
 describe('LunarChain auth payload helpers', () => {
   it('normalizes email addresses for login', () => {
@@ -12,6 +22,20 @@ describe('LunarChain auth payload helpers', () => {
     const body = buildPasswordLoginBody(' user@example.com ', 'secret pass');
 
     assert.equal(body, 'username=user%40example.com&password=secret+pass');
+  });
+
+  it('marks SafeRoute Mobile auth requests for the backend mobile client path', () => {
+    assert.deepEqual(buildMobileAuthHeaders('application/x-www-form-urlencoded'), {
+      'Content-Type': 'application/x-www-form-urlencoded',
+      [SAFEROUTE_MOBILE_AUTH_CLIENT_HEADER]: SAFEROUTE_MOBILE_AUTH_CLIENT
+    });
+  });
+
+  it('uses the mobile client header for password and verification requests', () => {
+    const source = readFileSync(join(process.cwd(), 'src/features/auth/authApi.ts'), 'utf8');
+
+    assert.match(source, /headers: buildMobileAuthHeaders\('application\/x-www-form-urlencoded'\)/);
+    assert.match(source, /headers: buildMobileAuthHeaders\('application\/json'\)/);
   });
 
   it('unwraps API data envelopes', () => {

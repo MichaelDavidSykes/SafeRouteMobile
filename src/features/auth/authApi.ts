@@ -2,7 +2,7 @@ import { LUNARCHAIN_API_BASE } from '../../config/env';
 import { fetchWithTimeout, type SafeRouteRequestOptions } from '../api/apiClientCore';
 import type { AuthSession, AuthenticatedUser, PasswordLoginResult } from './authTypes';
 import { assertAuthResponseOk } from './authApiCore';
-import { buildPasswordLoginBody, normalizeEmail, unwrapAuthData } from './authPayload';
+import { buildMobileAuthHeaders, buildPasswordLoginBody, normalizeEmail, unwrapAuthData } from './authPayload';
 
 async function fetchAuthResponse(url: string, options: SafeRouteRequestOptions): Promise<Response> {
   return fetchWithTimeout(url, options);
@@ -12,9 +12,7 @@ export async function loginWithPassword(email: string, password: string): Promis
   const normalizedEmail = normalizeEmail(email);
   const response = await fetchAuthResponse(`${LUNARCHAIN_API_BASE}/auth/login`, {
     method: 'POST',
-    headers: {
-      'Content-Type': 'application/x-www-form-urlencoded'
-    },
+    headers: buildMobileAuthHeaders('application/x-www-form-urlencoded'),
     body: buildPasswordLoginBody(normalizedEmail, password)
   });
 
@@ -55,9 +53,7 @@ export async function loginWithPassword(email: string, password: string): Promis
 export async function verifyLoginCode(email: string, challengeToken: string, code: string): Promise<AuthSession> {
   const response = await fetchAuthResponse(`${LUNARCHAIN_API_BASE}/auth/verify-login-code`, {
     method: 'POST',
-    headers: {
-      'Content-Type': 'application/json'
-    },
+    headers: buildMobileAuthHeaders('application/json'),
     body: JSON.stringify({
       email: normalizeEmail(email),
       challenge_token: challengeToken,

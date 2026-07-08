@@ -47,9 +47,17 @@ describe("Maestro iOS preview smoke flow", () => {
 
   it("handles the iOS foreground-location prompt before live-map assertions", () => {
     const flow = previewFlowSource();
+    const permissionHandlerCount = (
+      flow.match(/visible:\s*"Allow While Using App"/g) ?? []
+    ).length;
+    const firstPermissionIndex = flow.indexOf('visible: "Allow While Using App"');
+    const liveMapWaitIndex = flow.indexOf('id: "safe-route-live-map"');
 
+    assert.equal(permissionHandlerCount, 2);
     assert.match(flow, /visible:\s*"Allow While Using App"/);
     assert.match(flow, /tapOn:\s*"Allow While Using App"/);
+    assert.ok(firstPermissionIndex >= 0);
+    assert.ok(liveMapWaitIndex > firstPermissionIndex);
   });
 
   it("limits action tap settling so map animations do not stall the smoke run", () => {

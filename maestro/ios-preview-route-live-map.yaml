@@ -31,6 +31,9 @@ appId: host.exp.Exponent
     point: "91%,49%"
 - waitForAnimationToEnd:
     timeout: 5000
+# Expo Go may request foreground location before the React tree settles. Accept
+# the prompt here so the app root/live-map probes are not hidden behind iOS
+# system chrome during no-build smoke runs.
 - runFlow:
     when:
       visible: "Allow While Using App"
@@ -78,6 +81,8 @@ appId: host.exp.Exponent
           id: "safe-route-card-sr-city-airport-alpha"
       - waitForAnimationToEnd:
           timeout: 5000
+# Some runs do not ask for location until the native map/live route screen is
+# presented. Handle the same iOS prompt again before asserting live-map chrome.
 - runFlow:
     when:
       visible: "Allow While Using App"

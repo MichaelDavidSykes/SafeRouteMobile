@@ -28,6 +28,8 @@ export const uiTestIds = {
   liveMapRiskDetailDismiss: "safe-route-risk-detail-dismiss",
   liveMapRiskZoneArea: (riskZoneId: string) =>
     `safe-route-risk-area-${normalizeTestIdSegment(riskZoneId)}`,
+  liveMapRouteRiskSegment: (riskZoneId: string) =>
+    `safe-route-risk-segment-${normalizeTestIdSegment(riskZoneId)}`,
   liveMapRiskZone: (riskZoneId: string) =>
     `safe-route-risk-zone-${normalizeTestIdSegment(riskZoneId)}`,
 };

@@ -117,6 +117,7 @@ export function LiveMapCanvas({
         <RiskOverlay
           key={zone.id}
           active={zone.id === activeRiskZoneId}
+          routeCoordinates={routeCoordinates}
           selected={zone.id === selectedRiskZoneId}
           zone={zone}
           onPress={onRiskZonePress}

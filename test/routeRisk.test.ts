@@ -5,6 +5,7 @@ import { createGuestRoutePlan } from "../src/features/guest-map/guestRoutePlanne
 import { SAVED_ROUTE_PLANS } from "../src/features/live-map/demoRoute";
 import {
   auditRouteRiskAvoidance,
+  buildRouteRiskAlertSegment,
   calculateRiskZoneRouteProximity,
   createLiveRouteRiskAlertPresentation,
   createRiskZoneDetailPresentation,
@@ -269,5 +270,158 @@ describe("SafeRoute risk-aware route behavior", () => {
       createLiveRouteRiskAlertPresentation(alert).accessibilityLabel,
       /mapped area/,
     );
+  });
+
+  it("draws route-alert segments on the route line for nearby SafeRoute risks", () => {
+    const routePlan = createGuestRoutePlan({
+      origin: "HQ",
+      destination: "London City Airport",
+    });
+    const nearSegment = buildRouteRiskAlertSegment(
+      routePlan.route.coordinates,
+      routePlan.riskZones[0],
+    );
+    const distantSegment = buildRouteRiskAlertSegment(
+      routePlan.route.coordinates,
+      {
+        ...routePlan.riskZones[0],
+        id: "distant-risk",
+        coordinate: { latitude: 51.56, longitude: -0.1433 },
+      },
+    );
+
+    assert.ok(nearSegment.length > 1);
+    assert.deepEqual(distantSegment, []);
+  });
+
+  it("keeps platform route-alert segments advisory instead of blocking route start", () => {
+    const routePlan = mapRouteDtoToSavedPlan({
+      id: "route-segment-alert-route",
+      name: "Route segment alert route",
+      route: {
+        coordinates: [
+          { latitude: 51.5, longitude: -0.12 },
+          { latitude: 51.5, longitude: -0.1 },
+        ],
+      },
+      route_alerts: [
+        {
+          id: "provider-road-alert",
+          title: "Road suitability",
+          severity: "medium",
+          category: "road-suitability",
+          shape: "route-alert",
+          route_segment_coordinates: [
+            { lat: 51.5, lon: -0.116 },
+            { lat: 51.5, lon: -0.112 },
+          ],
+        },
+      ],
+    } as any);
+    const zone = routePlan.riskZones[0];
+    const proximity = calculateRiskZoneRouteProximity(
+      routePlan.route.coordinates,
+      zone,
+    );
+
+    assert.equal(routeRiskStartBlockedReason(routePlan), null);
+    assert.ok(proximity);
+    assert.equal(proximity.radiusMeters, 0);
+
+    const detail = createRiskZoneDetailPresentation({ proximity, zone });
+    assert.match(detail.metaLabel, /route segment/);
+    assert.equal(detail.clearanceLabel, "Route alert on saved line");
+  });
+
+  it("uses the raw live vehicle coordinate for risk alerts when off the snapped route", () => {
+    const routePlan = mapRouteDtoToSavedPlan({
+      id: "off-route-risk-route",
+      name: "Off route risk route",
+      route: {
+        coordinates: [
+          { latitude: 51.5, longitude: -0.12 },
+          { latitude: 51.5, longitude: -0.1 },
+        ],
+      },
+      risk_overlays: [
+        {
+          id: "off-route-risk",
+          title: "Off-route incident",
+          severity: "high",
+          category: "incident",
+          coordinate: { latitude: 51.506, longitude: -0.12 },
+          radius_meters: 120,
+        },
+      ],
+    });
+    const rawVehicleCoordinate = { latitude: 51.506, longitude: -0.12 };
+    const progress = calculateRouteProgress(
+      routePlan.route.coordinates,
+      rawVehicleCoordinate,
+    );
+
+    assert.ok(progress?.isOffRoute);
+    assert.equal(
+      resolveLiveRouteRiskAlert({
+        navigationState: "off-route",
+        progress,
+        routePlan,
+      }),
+      null,
+    );
+
+    const alert = resolveLiveRouteRiskAlert({
+      navigationState: "off-route",
+      progress,
+      routePlan,
+      vehicleCoordinate: rawVehicleCoordinate,
+    });
+
+    assert.ok(alert);
+    assert.equal(alert.status, "inside");
+    assert.equal(alert.vehicleInsideRiskArea, true);
+  });
+
+  it("treats polygon boundaries as active risk area contact during live guidance", () => {
+    const routePlan = mapRouteDtoToSavedPlan({
+      id: "polygon-boundary-route",
+      name: "Polygon boundary route",
+      route: {
+        coordinates: [
+          { latitude: 51.5, longitude: -0.12 },
+          { latitude: 51.5, longitude: -0.1 },
+        ],
+      },
+      risk_overlays: [
+        {
+          id: "boundary-area",
+          title: "Boundary area",
+          severity: "medium",
+          category: "area-risk",
+          shape: "polygon",
+          coordinates: [
+            { latitude: 51.5, longitude: -0.116 },
+            { latitude: 51.501, longitude: -0.116 },
+            { latitude: 51.501, longitude: -0.114 },
+            { latitude: 51.5, longitude: -0.114 },
+          ],
+        },
+      ],
+    });
+    const boundaryCoordinate = { latitude: 51.5, longitude: -0.115 };
+    const progress = calculateRouteProgress(
+      routePlan.route.coordinates,
+      boundaryCoordinate,
+    );
+    const alert = resolveLiveRouteRiskAlert({
+      navigationState: "navigating",
+      progress,
+      routePlan,
+      vehicleCoordinate: boundaryCoordinate,
+    });
+
+    assert.ok(alert);
+    assert.equal(alert.status, "inside");
+    assert.equal(routeRiskStartBlockedReason(routePlan)?.includes("Boundary area"), true);
   });
 });

@@ -38,7 +38,7 @@ interface MobileRoutePathDto {
   id?: string;
   label?: string;
   color?: string;
-  coordinates?: LatLng[];
+  coordinates?: unknown;
   distance_meters?: number;
   distance_label?: string;
   eta_seconds?: number | null;
@@ -59,10 +59,25 @@ interface MobileRiskOverlayDto {
   shape?: string;
   area_shape?: string;
   areaShape?: string;
-  coordinate?: LatLng | null;
-  coordinates?: LatLng[];
-  connector_coordinates?: LatLng[];
+  coordinate?: unknown;
+  center?: unknown;
+  geometry?: unknown;
+  geojson?: unknown;
+  latitude?: unknown;
+  longitude?: unknown;
+  lat?: unknown;
+  lon?: unknown;
+  lng?: unknown;
+  coordinates?: unknown;
+  polygon_coordinates?: unknown;
+  polygonCoordinates?: unknown;
+  route_segment_coordinates?: unknown;
+  routeSegmentCoordinates?: unknown;
+  connector_coordinates?: unknown;
+  connectorCoordinates?: unknown;
   radius_meters?: number;
+  radius_m?: number;
+  radiusMeters?: number;
 }
 
 interface MobileCheckpointDto {
@@ -89,6 +104,8 @@ export interface MobileSafeRouteDto {
   destination?: MobileEndpointDto;
   route?: MobileRoutePathDto;
   risk_overlays?: MobileRiskOverlayDto[];
+  route_alerts?: MobileRiskOverlayDto[];
+  alerts?: MobileRiskOverlayDto[];
   checkpoints?: MobileCheckpointDto[];
 }
 
@@ -160,22 +177,42 @@ export function mapRouteDtoToSavedPlan(dto: MobileSafeRouteDto): SavedSafeRouteP
       nextDistance: formatDistance(toFiniteNumber(route.next_distance_meters, 0)),
       coordinates
     },
-    riskZones: toArray<MobileRiskOverlayDto>(dto.risk_overlays).map(mapRiskOverlay).filter((zone): zone is RiskZone => Boolean(zone)),
+    riskZones: mapRiskOverlays(dto),
     checkpoints: mapCheckpoints(toArray<MobileCheckpointDto>(dto.checkpoints), dto.origin, dto.destination, coordinates)
   };
 }
 
 function normalizeCoordinates(coordinates: unknown): LatLng[] {
-  return toArray<LatLng>(coordinates).map(normalizeCoordinate).filter((coordinate): coordinate is LatLng => Boolean(coordinate));
+  return coordinateCandidatesFrom(coordinates)
+    .map(normalizeCoordinate)
+    .filter((coordinate): coordinate is LatLng => Boolean(coordinate));
 }
 
-function normalizeCoordinate(coordinate?: LatLng | null): LatLng | null {
+function normalizeCoordinate(coordinate?: unknown): LatLng | null {
   if (!coordinate) {
     return null;
   }
 
-  const latitude = Number(coordinate.latitude);
-  const longitude = Number(coordinate.longitude);
+  if (Array.isArray(coordinate)) {
+    return normalizeCoordinateTuple(coordinate);
+  }
+
+  if (typeof coordinate !== 'object') {
+    return null;
+  }
+
+  const coordinateRecord = coordinate as Record<string, unknown>;
+  if (
+    !hasCoordinateFields(coordinateRecord) &&
+    Array.isArray(coordinateRecord.coordinates)
+  ) {
+    return normalizeCoordinate(coordinateRecord.coordinates);
+  }
+
+  const latitude = Number(coordinateRecord.latitude ?? coordinateRecord.lat);
+  const longitude = Number(
+    coordinateRecord.longitude ?? coordinateRecord.lon ?? coordinateRecord.lng
+  );
   if (!Number.isFinite(latitude) || !Number.isFinite(longitude)) {
     return null;
   }
@@ -186,27 +223,215 @@ function normalizeCoordinate(coordinate?: LatLng | null): LatLng | null {
   return { latitude, longitude };
 }
 
+function normalizeCoordinateTuple(coordinate: unknown[]): LatLng | null {
+  if (coordinate.length < 2) {
+    return null;
+  }
+
+  const longitude = Number(coordinate[0]);
+  const latitude = Number(coordinate[1]);
+  if (!Number.isFinite(latitude) || !Number.isFinite(longitude)) {
+    return null;
+  }
+  if (latitude < -90 || latitude > 90 || longitude < -180 || longitude > 180) {
+    return null;
+  }
+
+  return { latitude, longitude };
+}
+
+function coordinateCandidatesFrom(value: unknown): unknown[] {
+  if (!value) {
+    return [];
+  }
+
+  if (Array.isArray(value)) {
+    if (isCoordinateTuple(value)) {
+      return [value];
+    }
+
+    return value.flatMap((entry) => coordinateCandidatesFrom(entry));
+  }
+
+  if (typeof value === 'object') {
+    const record = value as Record<string, unknown>;
+    if (hasCoordinateFields(record)) {
+      return [record];
+    }
+
+    if (record.geometry) {
+      return coordinateCandidatesFrom(record.geometry);
+    }
+
+    if (record.geojson) {
+      return coordinateCandidatesFrom(record.geojson);
+    }
+
+    if (record.center) {
+      return coordinateCandidatesFrom(record.center);
+    }
+
+    if (record.type === 'Feature' && record.properties) {
+      return coordinateCandidatesFrom(record.geometry);
+    }
+
+    if (Array.isArray(record.coordinates)) {
+      return coordinateCandidatesFrom(record.coordinates);
+    }
+  }
+
+  return [];
+}
+
+function isCoordinateTuple(value: unknown[]): boolean {
+  return value.length >= 2 &&
+    typeof value[0] !== 'object' &&
+    typeof value[1] !== 'object';
+}
+
+function hasCoordinateFields(record: Record<string, unknown>): boolean {
+  return (
+    (record.latitude !== undefined || record.lat !== undefined) &&
+    (
+      record.longitude !== undefined ||
+      record.lon !== undefined ||
+      record.lng !== undefined
+    )
+  );
+}
+
+function mapRiskOverlays(dto: MobileSafeRouteDto): RiskZone[] {
+  const overlays = [
+    ...toArray<MobileRiskOverlayDto>(dto.route_alerts),
+    ...toArray<MobileRiskOverlayDto>(dto.alerts),
+    ...toArray<MobileRiskOverlayDto>(dto.risk_overlays)
+  ];
+  const mapped = overlays
+    .map(mapRiskOverlay)
+    .filter((zone): zone is RiskZone => Boolean(zone));
+  const zonesById = new Map<string, RiskZone>();
+
+  for (const zone of mapped) {
+    const existing = zonesById.get(zone.id);
+    if (!existing) {
+      zonesById.set(zone.id, zone);
+      continue;
+    }
+
+    zonesById.set(zone.id, mergeRiskZones(existing, zone));
+  }
+
+  return Array.from(zonesById.values());
+}
+
+function mergeRiskZones(primary: RiskZone, incoming: RiskZone): RiskZone {
+  const severity = severityRank(incoming.severity) > severityRank(primary.severity)
+    ? incoming.severity
+    : primary.severity;
+  const colors = severityColors[severity];
+
+  return {
+    ...primary,
+    description: preferSpecificCopy(primary.description, incoming.description, 'SafeRoute risk note'),
+    severity,
+    category: preferSpecificCopy(primary.category, incoming.category, 'Risk'),
+    coordinate: primary.coordinate || incoming.coordinate,
+    routeSegmentCoordinates: hasMultipleCoordinates(primary.routeSegmentCoordinates)
+      ? primary.routeSegmentCoordinates
+      : incoming.routeSegmentCoordinates,
+    connectorCoordinates: hasMultipleCoordinates(primary.connectorCoordinates)
+      ? primary.connectorCoordinates
+      : incoming.connectorCoordinates,
+    polygonCoordinates: hasMultipleCoordinates(primary.polygonCoordinates)
+      ? primary.polygonCoordinates
+      : incoming.polygonCoordinates,
+    shape: primary.shape || incoming.shape,
+    radiusMeters: Math.max(primary.radiusMeters || 0, incoming.radiusMeters || 0),
+    markerColor: colors.marker,
+    strokeColor: colors.stroke,
+    fillColor: colors.fill
+  };
+}
+
+function hasMultipleCoordinates(coordinates: LatLng[] | undefined): boolean {
+  return Boolean(coordinates && coordinates.length > 1);
+}
+
+function preferSpecificCopy(primary: string, incoming: string, fallback: string): string {
+  const normalizedPrimary = primary.trim();
+  const normalizedIncoming = incoming.trim();
+  if (normalizedPrimary && normalizedPrimary !== fallback) {
+    return normalizedPrimary;
+  }
+
+  return normalizedIncoming || normalizedPrimary || fallback;
+}
+
+function severityRank(severity: RiskSeverity): number {
+  if (severity === 'high') {
+    return 3;
+  }
+
+  if (severity === 'medium') {
+    return 2;
+  }
+
+  return 1;
+}
+
 function mapRiskOverlay(overlay: MobileRiskOverlayDto): RiskZone | null {
   const severity = normalizeSeverity(overlay.severity);
   const colors = severityColors[severity];
   const category = String(overlay.category || 'Risk').replace(/[-_]+/g, ' ');
-  const overlayCoordinates = normalizeCoordinates(overlay.coordinates);
+  const explicitPolygonCoordinates = firstCoordinateList(
+    overlay.polygon_coordinates,
+    overlay.polygonCoordinates
+  );
+  const explicitRouteSegmentCoordinates = firstCoordinateList(
+    overlay.route_segment_coordinates,
+    overlay.routeSegmentCoordinates
+  );
+  const overlayCoordinates = firstCoordinateList(
+    overlay.coordinates,
+    overlay.geometry,
+    overlay.geojson
+  );
   const normalizedShape = normalizeEnumToken(overlay.shape);
   const normalizedAreaShape = normalizeEnumToken(firstNonEmptyString(overlay.area_shape, overlay.areaShape));
+  const normalizedGeometryShape = normalizeEnumToken(
+    geometryType(overlay.geometry) || geometryType(overlay.geojson)
+  );
   const isStructureSightline = normalizeEnumToken(overlay.category) === 'structure-exposure' ||
     normalizedShape === 'sightline';
-  const polygonCoordinates = shouldTreatOverlayAsPolygon(overlayCoordinates, normalizedShape, normalizedAreaShape)
-    ? overlayCoordinates
+  const polygonCandidateCoordinates = explicitPolygonCoordinates.length
+    ? explicitPolygonCoordinates
+    : overlayCoordinates;
+  const polygonCoordinates = shouldTreatOverlayAsPolygon(
+    polygonCandidateCoordinates,
+    normalizedShape,
+    normalizedAreaShape,
+    normalizedGeometryShape,
+    explicitPolygonCoordinates.length > 0
+  )
+    ? polygonCandidateCoordinates
     : [];
   const coordinate = normalizeCoordinate(overlay.coordinate) ||
-    deriveRiskOverlayCoordinate(polygonCoordinates, overlayCoordinates);
+    normalizeCoordinate(overlay.center) ||
+    normalizeCoordinate(overlay) ||
+    deriveRiskOverlayCoordinate(
+      polygonCoordinates,
+      overlayCoordinates,
+      explicitRouteSegmentCoordinates
+    );
   if (!coordinate) {
     return null;
   }
 
-  const routeSegmentCoordinates = !polygonCoordinates.length && (isStructureSightline || overlayCoordinates.length > 1)
-    ? overlayCoordinates
-    : [];
+  const routeSegmentCoordinates = explicitRouteSegmentCoordinates.length
+    ? explicitRouteSegmentCoordinates
+    : !polygonCoordinates.length && (isStructureSightline || shouldTreatOverlayAsRouteSegment(overlayCoordinates, normalizedShape))
+      ? overlayCoordinates
+      : [];
   return {
     id: overlay.id || `${overlay.title || 'risk'}-${coordinate.latitude}-${coordinate.longitude}`,
     title: overlay.title || 'Route risk',
@@ -215,31 +440,49 @@ function mapRiskOverlay(overlay: MobileRiskOverlayDto): RiskZone | null {
     category: toTitleCase(category),
     coordinate,
     routeSegmentCoordinates,
-    connectorCoordinates: isStructureSightline ? normalizeCoordinates(overlay.connector_coordinates) : [],
+    connectorCoordinates: isStructureSightline
+      ? firstCoordinateList(overlay.connector_coordinates, overlay.connectorCoordinates)
+      : [],
     polygonCoordinates,
     shape: overlay.shape,
-    radiusMeters: toFiniteNumber(overlay.radius_meters, 250),
+    radiusMeters: toFiniteNumber(overlay.radius_meters ?? overlay.radius_m ?? overlay.radiusMeters, 250),
     markerColor: colors.marker,
     strokeColor: colors.stroke,
     fillColor: colors.fill
   };
 }
 
+function firstCoordinateList(...values: unknown[]): LatLng[] {
+  for (const value of values) {
+    const coordinates = normalizeCoordinates(value);
+    if (coordinates.length) {
+      return coordinates;
+    }
+  }
+
+  return [];
+}
+
 function shouldTreatOverlayAsPolygon(
   coordinates: LatLng[],
   normalizedShape: string,
-  normalizedAreaShape = ''
+  normalizedAreaShape = '',
+  normalizedGeometryShape = '',
+  explicitPolygonCoordinates = false
 ): boolean {
   if (coordinates.length < 3) {
     return false;
   }
 
   if (
+    explicitPolygonCoordinates ||
     normalizedShape === 'polygon' ||
     normalizedShape === 'area' ||
     normalizedShape === 'risk-area' ||
     normalizedShape === 'hot-zone' ||
     normalizedShape === 'geofence' ||
+    normalizedGeometryShape === 'polygon' ||
+    normalizedGeometryShape === 'multi-polygon' ||
     normalizedAreaShape === 'polygon' ||
     normalizedAreaShape === 'rectangle'
   ) {
@@ -251,9 +494,35 @@ function shouldTreatOverlayAsPolygon(
   return Boolean(first && last && first.latitude === last.latitude && first.longitude === last.longitude);
 }
 
-function deriveRiskOverlayCoordinate(polygonCoordinates: LatLng[], overlayCoordinates: LatLng[]): LatLng | null {
+function shouldTreatOverlayAsRouteSegment(coordinates: LatLng[], normalizedShape: string): boolean {
+  return coordinates.length > 1 &&
+    normalizedShape !== 'polygon' &&
+    normalizedShape !== 'area' &&
+    normalizedShape !== 'risk-area' &&
+    normalizedShape !== 'hot-zone' &&
+    normalizedShape !== 'geofence';
+}
+
+function geometryType(value: unknown): string | undefined {
+  if (!value || typeof value !== 'object') {
+    return undefined;
+  }
+
+  const record = value as Record<string, unknown>;
+  return typeof record.type === 'string' ? record.type : undefined;
+}
+
+function deriveRiskOverlayCoordinate(
+  polygonCoordinates: LatLng[],
+  overlayCoordinates: LatLng[],
+  routeSegmentCoordinates: LatLng[] = []
+): LatLng | null {
   if (polygonCoordinates.length >= 3) {
     return centroidCoordinate(polygonCoordinates);
+  }
+
+  if (routeSegmentCoordinates.length) {
+    return centroidCoordinate(routeSegmentCoordinates);
   }
 
   return overlayCoordinates[0] || null;

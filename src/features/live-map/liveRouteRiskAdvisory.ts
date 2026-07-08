@@ -3,10 +3,12 @@ import type { LatLng } from "react-native-maps";
 import type { RiskSeverity, RiskZone } from "./liveMapTypes";
 import {
   formatDistance,
-  projectCoordinateToRoute,
   type RouteProgressSnapshot,
 } from "./routeProgress";
-import { LIVE_RISK_LATERAL_BUFFER_METERS } from "./routeRisk";
+import {
+  calculateRiskZoneRouteProximity,
+  LIVE_RISK_LATERAL_BUFFER_METERS,
+} from "./routeRisk";
 
 export type RouteRiskAdvisoryTone = "danger" | "warning" | "info";
 
@@ -92,21 +94,22 @@ function createRiskCandidate({
   zone: RiskZone;
   lookaheadMeters: number;
 }): CandidateRouteRiskAdvisory | null {
-  const projection = projectCoordinateToRoute(routeCoordinates, zone.coordinate);
-  if (!projection) {
+  const proximity = calculateRiskZoneRouteProximity(routeCoordinates, zone);
+  if (!proximity) {
     return null;
   }
 
-  const routeAlertCorridorMeters =
-    Math.max(0, zone.radiusMeters || 0) + LIVE_RISK_LATERAL_BUFFER_METERS;
-  if (projection.distanceMeters > routeAlertCorridorMeters) {
+  const routeAlertCorridorMeters = proximity.areaShape === "polygon"
+    ? LIVE_RISK_LATERAL_BUFFER_METERS
+    : Math.max(0, proximity.radiusMeters || 0) + LIVE_RISK_LATERAL_BUFFER_METERS;
+  if (proximity.routeDistanceMeters > routeAlertCorridorMeters) {
     return null;
   }
 
   const rawDistanceAheadMeters =
-    projection.distanceAlongMeters - progress.travelledDistanceMeters;
+    proximity.routeDistanceAlongMeters - progress.travelledDistanceMeters;
   const currentRiskBufferMeters = Math.max(
-    zone.radiusMeters || 0,
+    proximity.radiusMeters || 0,
     CURRENT_RISK_BUFFER_METERS,
   );
 

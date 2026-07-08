@@ -182,6 +182,7 @@ export function LiveMapScreen({
         navigationState: activeNavigationState,
         progress,
         routePlan,
+        vehicleCoordinate: rawVehicleCoordinate,
       }),
     [
       activeNavigationState,
@@ -190,6 +191,8 @@ export function LiveMapScreen({
       progress?.snappedCoordinate.latitude,
       progress?.snappedCoordinate.longitude,
       progress?.travelledDistanceMeters,
+      rawVehicleCoordinate?.latitude,
+      rawVehicleCoordinate?.longitude,
       routePlan,
     ],
   );

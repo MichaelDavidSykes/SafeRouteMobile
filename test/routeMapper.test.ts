@@ -241,6 +241,102 @@ describe('SafeRoute mobile DTO mapper', () => {
     });
   });
 
+  it('normalizes provider lat/lon route points and GeoJSON polygon risk areas', () => {
+    const plan = mapRouteDtoToSavedPlan({
+      id: 'route-provider-geojson',
+      name: 'Provider GeoJSON route',
+      route: {
+        coordinates: [
+          { lat: 51.5, lon: -0.12 },
+          { lat: 51.5, lon: -0.1 }
+        ]
+      },
+      risk_overlays: [
+        {
+          id: 'geojson-risk-area',
+          title: 'Provider risk area',
+          severity: 'high',
+          category: 'provider-risk',
+          geometry: {
+            type: 'Polygon',
+            coordinates: [[
+              [-0.119, 51.501],
+              [-0.117, 51.501],
+              [-0.117, 51.503],
+              [-0.119, 51.503],
+              [-0.119, 51.501]
+            ]]
+          }
+        }
+      ]
+    } as any);
+
+    assert.deepEqual(plan.route.coordinates, [
+      { latitude: 51.5, longitude: -0.12 },
+      { latitude: 51.5, longitude: -0.1 }
+    ]);
+    assert.equal(plan.riskZones.length, 1);
+    assert.equal(plan.riskZones[0].shape, undefined);
+    assert.equal(plan.riskZones[0].category, 'Provider Risk');
+    assert.deepEqual(plan.riskZones[0].polygonCoordinates, [
+      { latitude: 51.501, longitude: -0.119 },
+      { latitude: 51.501, longitude: -0.117 },
+      { latitude: 51.503, longitude: -0.117 },
+      { latitude: 51.503, longitude: -0.119 },
+      { latitude: 51.501, longitude: -0.119 }
+    ]);
+    assertCoordinateNear(plan.riskZones[0].coordinate, {
+      latitude: 51.502,
+      longitude: -0.118
+    });
+  });
+
+  it('imports platform route-alert segments alongside risk overlays', () => {
+    const plan = mapRouteDtoToSavedPlan({
+      id: 'route-alerts',
+      name: 'Route alert route',
+      route: {
+        coordinates: [
+          { latitude: 51.5, longitude: -0.12 },
+          { latitude: 51.5, longitude: -0.1 }
+        ]
+      },
+      route_alerts: [
+        {
+          id: 'road-suitability-alert',
+          title: 'Road suitability',
+          severity: 'medium',
+          category: 'road-suitability',
+          shape: 'route-alert',
+          route_segment_coordinates: [
+            { lat: 51.5, lon: -0.116 },
+            { lat: 51.5, lon: -0.112 }
+          ]
+        }
+      ],
+      risk_overlays: [
+        {
+          id: 'road-suitability-alert',
+          title: 'Duplicate risk overlay',
+          coordinate: { latitude: 51.5, longitude: -0.114 }
+        }
+      ]
+    } as any);
+
+    assert.equal(plan.riskZones.length, 1);
+    assert.equal(plan.riskZones[0].id, 'road-suitability-alert');
+    assert.equal(plan.riskZones[0].title, 'Road suitability');
+    assert.equal(plan.riskZones[0].category, 'Road Suitability');
+    assert.deepEqual(plan.riskZones[0].routeSegmentCoordinates, [
+      { latitude: 51.5, longitude: -0.116 },
+      { latitude: 51.5, longitude: -0.112 }
+    ]);
+    assertCoordinateNear(plan.riskZones[0].coordinate, {
+      latitude: 51.5,
+      longitude: -0.114
+    });
+  });
+
 
   it('keeps malformed route payload collections from crashing the importer', () => {
     const plan = mapRouteDtoToSavedPlan({

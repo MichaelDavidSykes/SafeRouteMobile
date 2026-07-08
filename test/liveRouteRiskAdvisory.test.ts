@@ -191,6 +191,37 @@ describe("live route risk advisory", () => {
 
     assert.equal(advisory, null);
   });
+
+  it("uses polygon geometry, not just the polygon centroid, for live route notes", () => {
+    const progress = calculateRouteProgress(routeCoordinates, routeCoordinates[0]);
+    const advisory = createRouteRiskAdvisory({
+      progress,
+      routeCoordinates,
+      riskZones: [
+        {
+          ...createRiskZone({
+            id: "long-platform-area",
+            longitude: -0.118,
+            radiusMeters: 10,
+            severity: "high",
+            title: "Long platform area",
+          }),
+          coordinate: { latitude: 51.5063, longitude: -0.118 },
+          polygonCoordinates: [
+            { latitude: 51.50045, longitude: -0.119 },
+            { latitude: 51.50045, longitude: -0.117 },
+            { latitude: 51.512, longitude: -0.117 },
+            { latitude: 51.512, longitude: -0.119 },
+          ],
+        },
+      ],
+      lookaheadMeters: 900,
+    });
+
+    assert.ok(advisory);
+    assert.equal(advisory.title, "Long platform area");
+    assert.match(advisory.visibleLabel, /High risk ahead|High risk here/);
+  });
 });
 
 function createRiskZone({

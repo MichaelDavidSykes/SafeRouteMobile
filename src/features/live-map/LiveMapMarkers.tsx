@@ -3,7 +3,10 @@ import { StyleSheet, View } from 'react-native';
 import { Circle, Marker, Polygon, Polyline } from 'react-native-maps';
 
 import type { RiskSeverity, RiskZone, RouteCheckpoint } from './liveMapTypes';
-import { createRiskZoneAccessibilityLabel } from './routeRisk';
+import {
+  buildRouteRiskAlertSegment,
+  createRiskZoneAccessibilityLabel
+} from './routeRisk';
 import { uiTestIds } from '../../testing/uiTestIds';
 import { colors, radius } from '../../theme';
 
@@ -17,21 +20,49 @@ const TappableCircle = Circle as ComponentType<TappableCircleProps>;
 export function RiskOverlay({
   active,
   onPress,
+  routeCoordinates,
   selected,
   zone
 }: {
   active?: boolean;
   onPress?: (zone: RiskZone) => void;
+  routeCoordinates?: Array<{ latitude: number; longitude: number }>;
   selected?: boolean;
   zone: RiskZone;
 }) {
   const routeSegmentCoordinates = zone.routeSegmentCoordinates || [];
   const connectorCoordinates = zone.connectorCoordinates || [];
   const polygonCoordinates = zone.polygonCoordinates || [];
+  const routeAlertCoordinates = routeSegmentCoordinates.length > 1
+    ? []
+    : buildRouteRiskAlertSegment(routeCoordinates || [], zone);
   const handlePress = () => onPress?.(zone);
 
   return (
     <>
+      {routeAlertCoordinates.length > 1 ? (
+        <>
+          <Polyline
+            coordinates={routeAlertCoordinates}
+            strokeColor="rgba(255, 255, 255, 0.82)"
+            strokeWidth={selected || active ? 14 : 11}
+            lineCap="round"
+            lineJoin="round"
+            tappable={Boolean(onPress)}
+            onPress={handlePress}
+          />
+          <Polyline
+            coordinates={routeAlertCoordinates}
+            strokeColor={zone.markerColor}
+            strokeWidth={selected || active ? 8 : 6}
+            lineCap="round"
+            lineJoin="round"
+            testID={uiTestIds.liveMapRouteRiskSegment(zone.id)}
+            tappable={Boolean(onPress)}
+            onPress={handlePress}
+          />
+        </>
+      ) : null}
       {routeSegmentCoordinates.length > 1 ? (
         <>
           <Polyline
@@ -49,6 +80,7 @@ export function RiskOverlay({
             strokeWidth={selected || active ? 7 : 5}
             lineCap="round"
             lineJoin="round"
+            testID={uiTestIds.liveMapRouteRiskSegment(zone.id)}
             tappable={Boolean(onPress)}
             onPress={handlePress}
           />

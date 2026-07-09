@@ -163,12 +163,18 @@ describe("rounded visual language", () => {
       join(process.cwd(), "src/features/live-map/LiveMapCanvas.tsx"),
       "utf8",
     );
+    const routeLinePresentationSource = readFileSync(
+      join(process.cwd(), "src/features/live-map/routeLinePresentation.ts"),
+      "utf8",
+    );
     const guestMapSource = readFileSync(
       join(process.cwd(), "src/features/guest-map/GuestMapScreen.tsx"),
       "utf8",
     );
 
-    for (const source of [liveMapCanvasSource, guestMapSource]) {
+    assert.match(liveMapCanvasSource, /resolveRouteLinePresentation/);
+
+    for (const source of [routeLinePresentationSource, guestMapSource]) {
       assert.match(source, /colors\.routePrimary/);
     }
   });

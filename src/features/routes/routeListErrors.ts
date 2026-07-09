@@ -13,6 +13,7 @@ export interface RouteListErrorState {
 const SYNC_FALLBACK = 'Unable to sync saved SafeRoute plans. Check your connection and retry.';
 const DETAIL_FALLBACK = 'Retry before starting guidance.';
 const CONNECTION_FALLBACK = 'Unable to reach LunarChain. Check your connection and retry.';
+export const ROUTE_DETAIL_ERROR_ROUTE_NAME_MAX_LENGTH = 56;
 
 export function createRouteSyncErrorState(error: unknown): RouteListErrorState {
   return {
@@ -26,11 +27,12 @@ export function createRouteSyncErrorState(error: unknown): RouteListErrorState {
 
 export function createRouteDetailErrorState(error: unknown, routeName: string): RouteListErrorState {
   const safeRouteName = cleanRouteName(routeName);
+  const compactRouteName = createCompactRouteErrorName(safeRouteName);
   const reason = cleanMessage(error, DETAIL_FALLBACK);
 
   return {
     action: 'detail',
-    message: `Could not load ${safeRouteName}. ${reason}`,
+    message: `Could not load ${compactRouteName}. ${reason}`,
     retryAccessibilityLabel: `Retry loading ${safeRouteName}`,
     retryLabel: 'Retry',
     title: 'Route unavailable'
@@ -42,5 +44,13 @@ function cleanMessage(error: unknown, fallback: string): string {
 }
 
 function cleanRouteName(routeName: string): string {
-  return routeName.trim() || 'that route';
+  return routeName.trim().replace(/\s+/g, ' ') || 'that route';
+}
+
+function createCompactRouteErrorName(routeName: string): string {
+  if (routeName === 'that route' || routeName.length <= ROUTE_DETAIL_ERROR_ROUTE_NAME_MAX_LENGTH) {
+    return routeName;
+  }
+
+  return `${routeName.slice(0, ROUTE_DETAIL_ERROR_ROUTE_NAME_MAX_LENGTH - 1).trimEnd()}…`;
 }

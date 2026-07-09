@@ -1201,6 +1201,16 @@ describe("rounded visual language", () => {
     assert.match(routeListErrorsSource, /retryLabel:\s*["']Retry["']/);
     assert.doesNotMatch(routeListErrorsSource, /retryLabel:\s*["']Retry sync["']/);
     assert.doesNotMatch(routeListErrorsSource, /retryLabel:\s*["']Retry route["']/);
+    assert.match(routeListErrorsSource, /ROUTE_DETAIL_ERROR_ROUTE_NAME_MAX_LENGTH\s*=\s*56/);
+    assert.match(routeListErrorsSource, /createCompactRouteErrorName/);
+    assert.match(
+      routeListErrorsSource,
+      /message:\s*`Could not load \$\{compactRouteName\}\. \$\{reason\}`/,
+    );
+    assert.match(
+      routeListErrorsSource,
+      /retryAccessibilityLabel:\s*`Retry loading \$\{safeRouteName\}`/,
+    );
     assert.match(routeListStateSource, /title:\s*"No matches"/);
     assert.match(routeListStateSource, /No saved routes match/);
     assert.match(routeListStateSource, /copy:\s*"Save a plan, then open it here\."/);

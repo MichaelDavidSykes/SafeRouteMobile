@@ -2,7 +2,11 @@ import assert from 'node:assert/strict';
 import { describe, it } from 'node:test';
 
 import { ApiRequestError } from '../src/features/api/apiClientCore';
-import { createRouteDetailErrorState, createRouteSyncErrorState } from '../src/features/routes/routeListErrors';
+import {
+  ROUTE_DETAIL_ERROR_ROUTE_NAME_MAX_LENGTH,
+  createRouteDetailErrorState,
+  createRouteSyncErrorState
+} from '../src/features/routes/routeListErrors';
 
 describe('route list error states', () => {
   it('uses concise retry copy for saved-route sync failures', () => {
@@ -29,7 +33,24 @@ describe('route list error states', () => {
     });
   });
 
+  it('bounds visible route detail error names while preserving retry context', () => {
+    const longRouteName = `${'Airport transfer '.repeat(6)}north service entrance`;
+    const state = createRouteDetailErrorState(
+      new Error('  Details are temporarily unavailable.  '),
+      `  ${longRouteName}  `
+    );
+    const compactRouteName = /^Could not load (.*)\. Details are temporarily unavailable\.$/.exec(
+      state.message
+    )?.[1];
 
+    assert.ok(compactRouteName);
+    assert.equal(compactRouteName.length, ROUTE_DETAIL_ERROR_ROUTE_NAME_MAX_LENGTH);
+    assert.match(compactRouteName, /…$/);
+    assert.equal(
+      state.retryAccessibilityLabel,
+      `Retry loading ${longRouteName.trim().replace(/\s+/g, ' ')}`
+    );
+  });
 
   it('replaces native network errors with production-friendly retry copy', () => {
     assert.equal(

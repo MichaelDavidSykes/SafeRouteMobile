@@ -6,6 +6,7 @@ import {
   GUEST_ROUTE_PREVIEW_METRIC_MAX_LENGTH,
   GUEST_ROUTE_PREVIEW_SUMMARY_FALLBACK,
   createGuestMapHomeCopy,
+  createGuestRoadSnappedRoutePlan,
   createGuestRouteActionState,
   createGuestRouteInputCopy,
   createGuestRouteMetrics,
@@ -225,6 +226,38 @@ describe('guest route planner helpers', () => {
         'Unsaved route preview from Paddington to London City Airport. 38 min, 16.5 km. Sign in to save it.',
       summaryLabel: '38 min · 16.5 km'
     });
+  });
+
+  it('accepts only risk-safe road-snapped route upgrades for guest previews', () => {
+    const safeLocalRoute = createGuestRoutePlan({
+      origin: 'HQ',
+      destination: 'London City Airport'
+    });
+    const safeRoadPreview = createGuestRoadSnappedRoutePlan({
+      origin: 'HQ',
+      destination: 'London City Airport',
+      roadSnappedCoordinates: safeLocalRoute.route.coordinates,
+      routeDistanceMeters: 9400,
+      routeDurationSeconds: 1440
+    });
+
+    assert.ok(safeRoadPreview);
+    assert.equal(safeRoadPreview.updatedAtLabel, 'Road preview');
+    assert.equal(safeRoadPreview.route.distance, '9.4 km');
+
+    const unsafeRoadPreview = createGuestRoadSnappedRoutePlan({
+      origin: 'HQ',
+      destination: 'London City Airport',
+      roadSnappedCoordinates: [
+        { latitude: 51.5099, longitude: -0.1479 },
+        { latitude: 51.5134, longitude: -0.089 },
+        { latitude: 51.5088, longitude: -0.0182 }
+      ],
+      routeDistanceMeters: 10563,
+      routeDurationSeconds: 1585.3
+    });
+
+    assert.equal(unsafeRoadPreview, null);
   });
 
   it('falls back to local preview geometry when provider route data is incomplete', () => {

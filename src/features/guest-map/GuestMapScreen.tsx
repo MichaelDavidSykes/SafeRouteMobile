@@ -10,6 +10,7 @@ import {
   GUEST_MAP_REGION,
   GUEST_ROUTE_LABEL_MAX_LENGTH,
   createGuestMapHomeCopy,
+  createGuestRoadSnappedRoutePlan,
   createGuestRouteActionState,
   createGuestRouteInputCopy,
   createGuestRoutePlan,
@@ -148,14 +149,18 @@ export function GuestMapScreen({
           return;
         }
 
-        setRoutePlan(createGuestRoutePlan({
+        const roadRoutePlan = createGuestRoadSnappedRoutePlan({
           authenticated: authenticatedSnapshot,
           destination: destinationSnapshot,
           origin: originSnapshot,
           roadSnappedCoordinates: roadPreview.coordinates,
           routeDistanceMeters: roadPreview.distanceMeters,
           routeDurationSeconds: roadPreview.durationSeconds
-        }));
+        });
+
+        if (roadRoutePlan) {
+          setRoutePlan(roadRoutePlan);
+        }
       })
       .catch(() => {
         // The local route is already visible. Keep the map-first experience calm

@@ -113,11 +113,11 @@ describe("Maestro iOS preview smoke flow", () => {
     assert.match(flow, /assertVisible:\s*\n\s+id:\s*"safe-route-control-follow"/);
     assert.match(flow, /assertVisible:\s*\n\s+id:\s*"safe-route-control-intelligence"/);
     assert.ok(primaryActionIndex >= 0);
-    assert.ok(stopActionIndex > primaryActionIndex);
+    assert.ok(intelligenceControlIndex > primaryActionIndex);
+    assert.ok(stopActionIndex > intelligenceControlIndex);
     assert.ok(remainingMetricsIndex > stopActionIndex);
     assert.ok(fitControlIndex > remainingMetricsIndex);
     assert.ok(followControlIndex > fitControlIndex);
-    assert.ok(intelligenceControlIndex > followControlIndex);
     assert.ok(stopActionIndex < fitControlIndex);
   });
 

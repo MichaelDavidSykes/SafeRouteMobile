@@ -41,9 +41,10 @@ describe("Maestro iOS preview operations flow", () => {
     assert.match(flow, /assertVisible: "Planned routes"/);
     assert.match(flow, /assertVisible: "Calendar"/);
     assert.match(flow, /assertVisible: "Convoys"/);
-    assert.match(flow, /assertVisible: "Airport transfer window"/);
-    assert.match(flow, /assertVisible: "Lead Alpha lead"/);
-    assert.match(flow, /assertVisible: "View only"/);
+    assert.match(flow, /id: "safe-route-operations-route-trip-airport-transfer-sr-city-airport-alpha-0"/);
+    assert.match(flow, /id: "safe-route-operations-route-trip-docklands-low-profile-sr-docklands-low-profile-0"/);
+    assert.match(flow, /id: "safe-route-operations-convoy-trip-airport-transfer"/);
+    assert.match(flow, /id: "safe-route-operations-convoy-trip-docklands-low-profile"/);
     assert.doesNotMatch(flow, /Edit|Save schedule|Create convoy|Delete/);
     assert.ok(plannedGateIndex >= 0);
     assert.ok(operationsIndex > plannedGateIndex);

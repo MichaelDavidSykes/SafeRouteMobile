@@ -54,6 +54,26 @@ appId: host.exp.Exponent
 - runFlow:
     when:
       visible:
+        id: "safe-route-return"
+    commands:
+      - tapOn:
+          id: "safe-route-return"
+          waitToSettleTimeoutMs: 1000
+      - waitForAnimationToEnd:
+          timeout: 3000
+- runFlow:
+    when:
+      visible:
+        id: "safe-route-operations-map-return"
+    commands:
+      - tapOn:
+          id: "safe-route-operations-map-return"
+          waitToSettleTimeoutMs: 1000
+      - waitForAnimationToEnd:
+          timeout: 3000
+- runFlow:
+    when:
+      visible:
         id: "guest-map-primary-action"
     commands:
       - assertVisible:
@@ -110,6 +130,8 @@ appId: host.exp.Exponent
     id: "safe-route-primary-action"
 - assertVisible:
     id: "safe-route-demo-action"
+- assertVisible:
+    id: "safe-route-control-intelligence"
 - runFlow:
     when:
       visible: "Turn route simulation on"
@@ -135,8 +157,6 @@ appId: host.exp.Exponent
     id: "safe-route-control-fit"
 - assertVisible:
     id: "safe-route-control-follow"
-- assertVisible:
-    id: "safe-route-control-intelligence"
 - tapOn:
     id: "safe-route-stop-action"
     waitToSettleTimeoutMs: 1000

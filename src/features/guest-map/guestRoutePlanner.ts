@@ -6,6 +6,7 @@ import {
   normalizeRouteCoordinates
 } from '../live-map/routeGeometry';
 import type { RiskZone, SavedSafeRoutePlan } from '../live-map/liveMapTypes';
+import { routeRiskStartBlockedReason } from '../live-map/routeRisk';
 import { formatDistance, formatEta } from '../routes/routeMapperNormalization';
 
 export type GuestFullAccessFeature = 'saved-routes' | 'planned-trips' | 'calendar' | 'convoy-management';
@@ -49,6 +50,15 @@ export type GuestRouteMetrics = {
 export type GuestRouteMetricsOptions = {
   distanceMeters?: number | null;
   durationSeconds?: number | null;
+};
+
+export type GuestRoutePlanOptions = {
+  authenticated?: boolean;
+  destination: string;
+  origin: string;
+  roadSnappedCoordinates?: LatLng[] | null;
+  routeDistanceMeters?: number | null;
+  routeDurationSeconds?: number | null;
 };
 
 export type GuestMapHomeCopy = {
@@ -262,14 +272,7 @@ export function createGuestRoutePlan({
   roadSnappedCoordinates,
   routeDistanceMeters,
   routeDurationSeconds
-}: {
-  authenticated?: boolean;
-  destination: string;
-  origin: string;
-  roadSnappedCoordinates?: LatLng[] | null;
-  routeDistanceMeters?: number | null;
-  routeDurationSeconds?: number | null;
-}): SavedSafeRoutePlan {
+}: GuestRoutePlanOptions): SavedSafeRoutePlan {
   const originLabel = normalizeGuestRouteLabel(origin, 'Current location');
   const destinationLabel = normalizeGuestRouteLabel(destination, '');
 
@@ -332,6 +335,19 @@ export function createGuestRoutePlan({
       routeCoordinates
     })
   };
+}
+
+export function createGuestRoadSnappedRoutePlan(
+  options: GuestRoutePlanOptions
+): SavedSafeRoutePlan | null {
+  const candidateRoutePlan = createGuestRoutePlan(options);
+  const acceptedRoadPreview = candidateRoutePlan.updatedAtLabel === 'Road preview';
+
+  if (!acceptedRoadPreview || routeRiskStartBlockedReason(candidateRoutePlan)) {
+    return null;
+  }
+
+  return candidateRoutePlan;
 }
 
 function normalizeGuestRouteCoordinates(coordinates: LatLng[] | null | undefined): LatLng[] {

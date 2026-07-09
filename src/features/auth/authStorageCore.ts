@@ -1,5 +1,17 @@
 import type { AuthSession } from './authTypes';
 
+export type AuthSecureStoreOptions = {
+  keychainAccessible?: number;
+};
+
+export function createDeviceOnlySecureStoreOptions(
+  deviceOnlyAccessibility: unknown
+): AuthSecureStoreOptions {
+  return typeof deviceOnlyAccessibility === 'number' && Number.isFinite(deviceOnlyAccessibility)
+    ? { keychainAccessible: deviceOnlyAccessibility }
+    : {};
+}
+
 export function createStoredAuthSession(
   accessTokenValue: string | null,
   emailValue: string | null

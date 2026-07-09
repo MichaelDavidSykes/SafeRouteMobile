@@ -4,13 +4,17 @@ import { join } from 'node:path';
 import { describe, it } from 'node:test';
 
 import {
+  ApiAuthorizationError,
   ApiRequestError,
   ApiSessionExpiredError,
+  LUNARCHAIN_AUTHORIZATION_ERROR_MESSAGE,
   LUNARCHAIN_NETWORK_ERROR_MESSAGE,
   LUNARCHAIN_REQUEST_TIMEOUT_MS,
   LUNARCHAIN_SESSION_EXPIRED_MESSAGE,
+  createApiResponseError,
   createNetworkRequestError,
   fetchWithTimeout,
+  getApiAuthorizationMessage,
   getApiErrorMessage,
   getApiSessionExpiredMessage,
   unwrapApiEnvelope
@@ -83,17 +87,31 @@ describe('mobile API helpers', () => {
     assert.equal(getUserFacingErrorMessage({}, 'fallback'), 'fallback');
   });
 
-  it('uses session recovery copy for protected API auth failures', () => {
+  it('routes protected API failures through the status-aware error classifier', () => {
     const apiClientSource = readFileSync(
       join(process.cwd(), 'src/features/api/apiClient.ts'),
       'utf8'
     );
 
-    assert.match(apiClientSource, /getApiSessionExpiredMessage\(body\)/);
-    assert.doesNotMatch(
-      apiClientSource,
-      /new ApiSessionExpiredError\(getApiErrorMessage/
-    );
+    assert.match(apiClientSource, /throw createApiResponseError\(response\.status, body\)/);
+    assert.doesNotMatch(apiClientSource, /response\.status === 401 \|\| response\.status === 403/);
+  });
+
+  it('treats only 401 responses as session expiry', () => {
+    const error = createApiResponseError(401, { detail: 'Not authenticated' });
+
+    assert.equal(error instanceof ApiSessionExpiredError, true);
+    assert.equal(error instanceof ApiAuthorizationError, false);
+    assert.equal(error.message, LUNARCHAIN_SESSION_EXPIRED_MESSAGE);
+  });
+
+  it('exposes a typed authorization error for 403 responses', () => {
+    const error = createApiResponseError(403, { detail: 'Route belongs to another account.' });
+
+    assert.equal(error instanceof ApiAuthorizationError, true);
+    assert.equal(error instanceof ApiSessionExpiredError, false);
+    assert.equal(error.statusCode, 403);
+    assert.equal(error.message, 'Route belongs to another account.');
   });
 
   it('normalizes generic protected-route auth failures to session recovery copy', () => {
@@ -120,6 +138,17 @@ describe('mobile API helpers', () => {
     assert.equal(
       getApiSessionExpiredMessage({ detail: { message: 'Password changed. Sign in again.' } }),
       'Password changed. Sign in again.'
+    );
+  });
+
+  it('normalizes generic or unsafe authorization failures to safe permission copy', () => {
+    assert.equal(
+      getApiAuthorizationMessage({ detail: 'Forbidden' }),
+      LUNARCHAIN_AUTHORIZATION_ERROR_MESSAGE
+    );
+    assert.equal(
+      getApiAuthorizationMessage({ detail: 'Traceback: authorization query failed' }),
+      LUNARCHAIN_AUTHORIZATION_ERROR_MESSAGE
     );
   });
 
@@ -151,6 +180,14 @@ describe('mobile API helpers', () => {
 
     assert.equal(error.name, 'ApiSessionExpiredError');
     assert.match(error.message, /session expired/i);
+  });
+
+  it('exposes a typed permission error with a fixed 403 status', () => {
+    const error = new ApiAuthorizationError();
+
+    assert.equal(error.name, 'ApiAuthorizationError');
+    assert.equal(error.statusCode, 403);
+    assert.equal(error.message, LUNARCHAIN_AUTHORIZATION_ERROR_MESSAGE);
   });
 
   it('exposes status code on request errors', () => {

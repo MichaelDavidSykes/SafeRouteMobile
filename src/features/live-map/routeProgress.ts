@@ -13,7 +13,6 @@ export {
   calculateCumulativeDistances,
   densifyRouteCoordinates,
   haversineDistanceMeters,
-  nearestSegmentProjection,
   normalizeRouteCoordinates,
   projectCoordinateToSegment,
   projectCoordinateToRoute

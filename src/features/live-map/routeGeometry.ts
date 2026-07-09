@@ -88,10 +88,6 @@ export function normalizeRouteCoordinates(coordinates: LatLng[]): LatLng[] {
   return normalized;
 }
 
-export function nearestSegmentProjection(coordinates: LatLng[], currentCoordinate: LatLng): SegmentProjection | null {
-  return projectCoordinateToRoute(coordinates, currentCoordinate);
-}
-
 export function projectCoordinateToRoute(
   coordinates: LatLng[],
   currentCoordinate: LatLng,

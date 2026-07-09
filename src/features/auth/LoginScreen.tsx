@@ -216,6 +216,7 @@ export function LoginScreen({
             {loginHeaderState.subtitle ? (
               <Text
                 accessibilityLabel={loginHeaderState.subtitleAccessibilityLabel || undefined}
+                numberOfLines={2}
                 style={[styles.subtitle, loginLayout.compact ? styles.subtitleCompact : null]}
               >
                 {loginHeaderState.subtitle}

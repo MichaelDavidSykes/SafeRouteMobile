@@ -135,6 +135,7 @@ function MapControlButton({
       onPress={onPress}
     >
       <Text
+        numberOfLines={1}
         style={[
           styles.controlButtonText,
           active ? styles.controlButtonTextActive : null,

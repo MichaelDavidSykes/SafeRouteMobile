@@ -45,7 +45,7 @@ export function RouteListHeader({
             ]}
             onPress={onBackToMap}
           >
-            <Text style={styles.mapReturnButtonText}>
+            <Text numberOfLines={1} style={styles.mapReturnButtonText}>
               {mapReturnState.label}
             </Text>
           </Pressable>
@@ -60,7 +60,9 @@ export function RouteListHeader({
             ]}
             onPress={onSignOut}
           >
-            <Text style={styles.signOutButtonText}>{signOutState.label}</Text>
+            <Text numberOfLines={1} style={styles.signOutButtonText}>
+              {signOutState.label}
+            </Text>
           </Pressable>
         </View>
       </View>

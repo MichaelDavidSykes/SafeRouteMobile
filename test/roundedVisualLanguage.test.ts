@@ -1138,6 +1138,10 @@ describe("rounded visual language", () => {
     assert.match(controlsSource, /driveAlongActive=\{driveAlongActive && followModeEnabled\}/);
     assert.match(controlsSource, /compact=\{compactControls\}/);
     assert.match(controlsSource, /styles\.controlButtonText/);
+    assert.match(
+      controlsSource,
+      /<Text[\s\S]*numberOfLines=\{1\}[\s\S]*styles\.controlButtonText/,
+    );
     assert.match(controlsSource, /\{displayLabel\}/);
     assert.doesNotMatch(controlsSource, /Ionicons/);
     assert.doesNotMatch(controlsSource, /icon=/);
@@ -1232,6 +1236,14 @@ describe("rounded visual language", () => {
     assert.match(routeListHeaderSource, /mapReturnState\.label/);
     assert.match(routeListHeaderSource, /signOutState\.label/);
     assert.match(routeListHeaderSource, /styles\.signOutButtonText/);
+    assert.match(
+      routeListHeaderSource,
+      /<Text numberOfLines=\{1\} style=\{styles\.mapReturnButtonText\}>/,
+    );
+    assert.match(
+      routeListHeaderSource,
+      /<Text numberOfLines=\{1\} style=\{styles\.signOutButtonText\}>/,
+    );
     assert.doesNotMatch(routeListHeaderSource, /SafeRouteLogo/);
     assert.doesNotMatch(routeListHeaderSource, /styles\.brandCluster/);
     assert.doesNotMatch(routeListHeaderSource, /styles\.brandCopy/);

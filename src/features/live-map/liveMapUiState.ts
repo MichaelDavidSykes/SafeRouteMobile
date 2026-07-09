@@ -259,10 +259,18 @@ export function createRouteTitleAccessibilityLabel({
   const convoyLabel = convoyCallsign.trim().replace(/\s+/g, ' ');
   const details = [
     operationLabel ? `Operation ${operationLabel}.` : null,
-    convoyLabel ? `Convoy ${convoyLabel}.` : null
+    convoyLabel && convoyLabel !== operationLabel
+      ? `${createConvoyAccessibilityLabel(convoyLabel)}.`
+      : null
   ].filter(Boolean);
 
   return [`Route ${routeName}.`, ...details].join(' ');
+}
+
+function createConvoyAccessibilityLabel(convoyLabel: string): string {
+  return /^convoy\b/i.test(convoyLabel.trim())
+    ? convoyLabel
+    : `Convoy ${convoyLabel}`;
 }
 
 function normalizeRouteEndpointLabel(value: string, fallback: string): string {

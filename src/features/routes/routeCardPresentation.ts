@@ -232,14 +232,34 @@ function createRouteCardMetaAccessibilityLabel(
     : normalizedConvoy;
 
   if (operationLabel && convoyLabel) {
-    return `${operationLabel}, convoy ${convoyLabel}`;
+    if (operationLabel === convoyLabel) {
+      return operationLabel;
+    }
+
+    return `${operationLabel}, ${createInlineConvoyAccessibilityLabel(convoyLabel)}`;
+  }
+
+  if (operationLabel) {
+    return operationLabel;
   }
 
   if (convoyLabel) {
-    return `Convoy ${convoyLabel}`;
+    return createStandaloneConvoyAccessibilityLabel(convoyLabel);
   }
 
-  return operationLabel || null;
+  return null;
+}
+
+function createInlineConvoyAccessibilityLabel(convoyLabel: string): string {
+  return startsWithConvoyLabel(convoyLabel) ? convoyLabel : `convoy ${convoyLabel}`;
+}
+
+function createStandaloneConvoyAccessibilityLabel(convoyLabel: string): string {
+  return startsWithConvoyLabel(convoyLabel) ? convoyLabel : `Convoy ${convoyLabel}`;
+}
+
+function startsWithConvoyLabel(value: string): boolean {
+  return /^convoy\b/i.test(value.trim());
 }
 
 function normalizeRouteCardMetaValue(value: string): string {

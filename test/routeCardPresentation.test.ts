@@ -245,6 +245,42 @@ describe("route card presentation", () => {
       ).accessibilityLabel,
       "Morning embassy transfer. Ready route. Convoy Bravo 2. From Hotel to Embassy. 18 min ETA, 8.0 km distance, Low risk. Updated today",
     );
+
+    assert.equal(
+      createRouteCardPresentation(
+        {
+          ...baseRoute,
+          operation: "SafeRoute plan",
+          convoyCallsign: "Convoy 12",
+        },
+        false,
+      ).accessibilityLabel,
+      "Morning embassy transfer. Ready route. Convoy 12. From Hotel to Embassy. 18 min ETA, 8.0 km distance, Low risk. Updated today",
+    );
+
+    assert.equal(
+      createRouteCardPresentation(
+        {
+          ...baseRoute,
+          operation: "Diplomatic move",
+          convoyCallsign: "Convoy 12",
+        },
+        false,
+      ).accessibilityLabel,
+      "Morning embassy transfer. Ready route. Diplomatic move, Convoy 12. From Hotel to Embassy. 18 min ETA, 8.0 km distance, Low risk. Updated today",
+    );
+
+    assert.equal(
+      createRouteCardPresentation(
+        {
+          ...baseRoute,
+          operation: "Airport transfer",
+          convoyCallsign: "Airport transfer",
+        },
+        false,
+      ).accessibilityLabel,
+      "Morning embassy transfer. Ready route. Airport transfer. From Hotel to Embassy. 18 min ETA, 8.0 km distance, Low risk. Updated today",
+    );
   });
 
   it("maps supported saved-route statuses to concise visible labels", () => {

@@ -572,7 +572,7 @@ describe('live map UI state helpers', () => {
         name: 'North Loop',
         operation: 'Market escort'
       }),
-      'Route North Loop. Operation Market escort. Convoy Convoy 12.'
+      'Route North Loop. Operation Market escort. Convoy 12.'
     );
 
     assert.equal(
@@ -582,6 +582,24 @@ describe('live map UI state helpers', () => {
         operation: '  Night   check  '
       }),
       'Route Saved route. Operation Night check.'
+    );
+
+    assert.equal(
+      createRouteTitleAccessibilityLabel({
+        convoyCallsign: '  Convoy   Alpha  ',
+        name: 'West Loop',
+        operation: '  '
+      }),
+      'Route West Loop. Convoy Alpha.'
+    );
+
+    assert.equal(
+      createRouteTitleAccessibilityLabel({
+        convoyCallsign: 'Night check',
+        name: 'South Loop',
+        operation: 'Night check'
+      }),
+      'Route South Loop. Operation Night check.'
     );
   });
 

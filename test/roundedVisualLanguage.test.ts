@@ -322,9 +322,11 @@ describe("rounded visual language", () => {
     const inputRowDividerBlock =
       /inputRowDivider:\s*\{([\s\S]*?)\n  \},\n  input:/.exec(guestMapStylesSource)?.[1] || "";
 
+    assert.match(guestPlannerSource, /GUEST_ROUTE_LABEL_MAX_LENGTH\s*=\s*80/);
     assert.match(guestPlannerSource, /placeholder:\s*['"]Start point['"]/);
     assert.match(guestPlannerSource, /placeholder:\s*['"]Where to\?['"]/);
     assert.match(guestPlannerSource, /accessibilityHint:/);
+    assert.match(guestMapSource, /maxLength=\{GUEST_ROUTE_LABEL_MAX_LENGTH\}/);
     assert.match(guestMapSource, /placeholder=\{originInputCopy\.placeholder\}/);
     assert.match(guestMapSource, /placeholder=\{destinationInputCopy\.placeholder\}/);
     assert.match(guestMapSource, /accessibilityHint=\{accessibilityHint\}/);

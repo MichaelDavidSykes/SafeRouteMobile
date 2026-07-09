@@ -8,6 +8,7 @@ import { uiTestIds } from '../../testing/uiTestIds';
 import type { SavedSafeRoutePlan } from '../live-map/liveMapTypes';
 import {
   GUEST_MAP_REGION,
+  GUEST_ROUTE_LABEL_MAX_LENGTH,
   createGuestMapHomeCopy,
   createGuestRouteActionState,
   createGuestRouteInputCopy,
@@ -297,6 +298,7 @@ function RouteInput({
         accessibilityLabel={label}
         autoCapitalize="words"
         autoCorrect={false}
+        maxLength={GUEST_ROUTE_LABEL_MAX_LENGTH}
         placeholder={placeholder}
         placeholderTextColor={colors.muted}
         returnKeyType={onSubmitEditing ? 'done' : 'default'}

@@ -2,6 +2,7 @@ import assert from 'node:assert/strict';
 import { describe, it } from 'node:test';
 
 import {
+  GUEST_ROUTE_LABEL_MAX_LENGTH,
   createGuestMapHomeCopy,
   createGuestRouteActionState,
   createGuestRouteInputCopy,
@@ -32,9 +33,17 @@ describe('guest route planner helpers', () => {
     });
   });
 
-  it('normalizes blank and padded guest route labels', () => {
+  it('normalizes blank, padded, and overlong guest route labels', () => {
     assert.equal(normalizeGuestRouteLabel('  Current   location ', 'Fallback'), 'Current location');
-    assert.equal(normalizeGuestRouteLabel('   ', 'Fallback'), 'Fallback');
+    assert.equal(normalizeGuestRouteLabel('  Heathrow\n Terminal\t5 ', 'Fallback'), 'Heathrow Terminal 5');
+    assert.equal(normalizeGuestRouteLabel('   ', '  Fallback   point '), 'Fallback point');
+    assert.equal(normalizeGuestRouteLabel('   ', ''), '');
+
+    const longLabel = `${'A'.repeat(GUEST_ROUTE_LABEL_MAX_LENGTH)} extra destination detail`;
+    const normalized = normalizeGuestRouteLabel(longLabel, 'Fallback');
+
+    assert.equal(normalized.length, GUEST_ROUTE_LABEL_MAX_LENGTH);
+    assert.match(normalized, /…$/);
   });
 
   it('hides the map-home helper subtitle once route context is visible', () => {

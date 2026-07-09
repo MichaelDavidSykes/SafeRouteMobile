@@ -50,6 +50,8 @@ export const GUEST_MAP_REGION: Region = {
   longitudeDelta: 0.14
 };
 
+export const GUEST_ROUTE_LABEL_MAX_LENGTH = 80;
+
 const GUEST_ROUTE_SIMULATION_MAX_SEGMENT_METERS = 330;
 
 const GUEST_ROUTE_ANCHORS: LatLng[] = [
@@ -106,8 +108,21 @@ const GUEST_ROUTE_RISK_ZONES: RiskZone[] = [
 ];
 
 export function normalizeGuestRouteLabel(value: string, fallback: string): string {
-  const trimmed = value.trim().replace(/\s+/g, ' ');
-  return trimmed || fallback;
+  const normalizedValue = normalizeGuestRouteLabelText(value);
+  const normalizedFallback = normalizeGuestRouteLabelText(fallback);
+  return truncateGuestRouteLabel(normalizedValue || normalizedFallback);
+}
+
+function normalizeGuestRouteLabelText(value: string): string {
+  return value.trim().replace(/\s+/g, ' ');
+}
+
+function truncateGuestRouteLabel(label: string): string {
+  if (label.length <= GUEST_ROUTE_LABEL_MAX_LENGTH) {
+    return label;
+  }
+
+  return `${label.slice(0, GUEST_ROUTE_LABEL_MAX_LENGTH - 1).trimEnd()}…`;
 }
 
 export function hasGuestRouteDestination(destination: string): boolean {

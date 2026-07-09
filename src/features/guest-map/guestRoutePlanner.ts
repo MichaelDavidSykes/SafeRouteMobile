@@ -1,6 +1,10 @@
 import type { LatLng, Region } from 'react-native-maps';
 
-import { calculateCumulativeDistances, densifyRouteCoordinates } from '../live-map/routeGeometry';
+import {
+  calculateCumulativeDistances,
+  densifyRouteCoordinates,
+  normalizeRouteCoordinates
+} from '../live-map/routeGeometry';
 import type { RiskZone, SavedSafeRoutePlan } from '../live-map/liveMapTypes';
 import { formatDistance, formatEta } from '../routes/routeMapperNormalization';
 
@@ -35,6 +39,11 @@ export type GuestRoutePreviewState = {
 export type GuestRouteMetrics = {
   distance: string;
   eta: string;
+};
+
+export type GuestRouteMetricsOptions = {
+  distanceMeters?: number | null;
+  durationSeconds?: number | null;
 };
 
 export type GuestMapHomeCopy = {
@@ -219,14 +228,19 @@ export function createGuestMapHomeCopy(authenticated: boolean): GuestMapHomeCopy
   };
 }
 
-export function createGuestRouteMetrics(coordinates: LatLng[]): GuestRouteMetrics {
+export function createGuestRouteMetrics(
+  coordinates: LatLng[],
+  { distanceMeters: providedDistanceMeters, durationSeconds: providedDurationSeconds }: GuestRouteMetricsOptions = {}
+): GuestRouteMetrics {
   const cumulativeDistances = calculateCumulativeDistances(coordinates);
-  const distanceMeters = cumulativeDistances.length
+  const measuredDistanceMeters = cumulativeDistances.length
     ? cumulativeDistances[cumulativeDistances.length - 1]
     : 0;
-  const durationSeconds = distanceMeters > 0
-    ? distanceMeters / GUEST_ROUTE_PREVIEW_SPEED_METERS_PER_SECOND
-    : null;
+  const distanceMeters = normalizePositiveRouteMetric(providedDistanceMeters) ?? measuredDistanceMeters;
+  const durationSeconds = normalizePositiveRouteMetric(providedDurationSeconds) ??
+    (distanceMeters > 0
+      ? distanceMeters / GUEST_ROUTE_PREVIEW_SPEED_METERS_PER_SECOND
+      : null);
 
   return {
     distance: formatDistance(distanceMeters),
@@ -237,11 +251,17 @@ export function createGuestRouteMetrics(coordinates: LatLng[]): GuestRouteMetric
 export function createGuestRoutePlan({
   authenticated = false,
   destination,
-  origin
+  origin,
+  roadSnappedCoordinates,
+  routeDistanceMeters,
+  routeDurationSeconds
 }: {
   authenticated?: boolean;
   destination: string;
   origin: string;
+  roadSnappedCoordinates?: LatLng[] | null;
+  routeDistanceMeters?: number | null;
+  routeDurationSeconds?: number | null;
 }): SavedSafeRoutePlan {
   const originLabel = normalizeGuestRouteLabel(origin, 'Current location');
   const destinationLabel = normalizeGuestRouteLabel(destination, '');
@@ -250,7 +270,15 @@ export function createGuestRoutePlan({
     throw new Error('A destination is required before plotting a guest route.');
   }
 
-  const routeMetrics = createGuestRouteMetrics(GUEST_ROUTE_COORDINATES);
+  const normalizedRoadSnappedCoordinates = normalizeGuestRouteCoordinates(roadSnappedCoordinates);
+  const hasRoadSnappedCoordinates = normalizedRoadSnappedCoordinates.length >= 2;
+  const routeCoordinates = hasRoadSnappedCoordinates
+    ? normalizedRoadSnappedCoordinates
+    : GUEST_ROUTE_COORDINATES;
+  const routeMetrics = createGuestRouteMetrics(routeCoordinates, {
+    distanceMeters: routeDistanceMeters,
+    durationSeconds: routeDurationSeconds
+  });
 
   return {
     id: 'guest-plotted-route',
@@ -261,7 +289,7 @@ export function createGuestRoutePlan({
     updatedAtLabel: 'Local preview',
     origin: originLabel,
     destination: destinationLabel,
-    region: GUEST_MAP_REGION,
+    region: buildGuestRouteRegion(routeCoordinates),
     route: {
       id: 'guest-route-preview',
       label: 'Preview route',
@@ -273,31 +301,85 @@ export function createGuestRoutePlan({
       color: '#15b981',
       mutedColor: 'rgba(21, 185, 129, 0.22)',
       description: authenticated
-        ? 'Local preview. Saved plans stay in Saved.'
-        : 'Local preview. Sign in to save.',
+        ? hasRoadSnappedCoordinates
+          ? 'Road-snapped preview. Saved plans stay in Saved.'
+          : 'Local preview. Saved plans stay in Saved.'
+        : hasRoadSnappedCoordinates
+          ? 'Road-snapped preview. Sign in to save.'
+          : 'Local preview. Sign in to save.',
       nextInstruction: authenticated
         ? 'Review the route, then open Saved for synced plans.'
         : 'Review the route, then sign in to save it.',
       nextDistance: 'Preview',
-      coordinates: GUEST_ROUTE_COORDINATES
+      coordinates: routeCoordinates
     },
     riskZones: GUEST_ROUTE_RISK_ZONES,
-    checkpoints: [
-      {
-        id: 'guest-origin',
-        label: 'A',
-        caption: originLabel,
-        coordinate: GUEST_ROUTE_COORDINATES[0],
-        kind: 'origin'
-      },
-      {
-        id: 'guest-destination',
-        label: 'B',
-        caption: destinationLabel,
-        coordinate: GUEST_ROUTE_COORDINATES[GUEST_ROUTE_COORDINATES.length - 1],
-        kind: 'destination'
-      }
-    ]
+    checkpoints: createGuestRouteCheckpoints({
+      destinationLabel,
+      originLabel,
+      routeCoordinates
+    })
+  };
+}
+
+function normalizeGuestRouteCoordinates(coordinates: LatLng[] | null | undefined): LatLng[] {
+  if (!Array.isArray(coordinates)) {
+    return [];
+  }
+
+  return normalizeRouteCoordinates(coordinates);
+}
+
+function normalizePositiveRouteMetric(value: number | null | undefined): number | null {
+  return Number.isFinite(Number(value)) && Number(value) > 0 ? Number(value) : null;
+}
+
+function createGuestRouteCheckpoints({
+  destinationLabel,
+  originLabel,
+  routeCoordinates
+}: {
+  destinationLabel: string;
+  originLabel: string;
+  routeCoordinates: LatLng[];
+}): SavedSafeRoutePlan['checkpoints'] {
+  const finalIndex = Math.max(0, routeCoordinates.length - 1);
+
+  return [
+    {
+      id: 'guest-origin',
+      label: 'A',
+      caption: originLabel,
+      coordinate: routeCoordinates[0],
+      kind: 'origin'
+    },
+    {
+      id: 'guest-destination',
+      label: 'B',
+      caption: destinationLabel,
+      coordinate: routeCoordinates[finalIndex],
+      kind: 'destination'
+    }
+  ];
+}
+
+function buildGuestRouteRegion(coordinates: LatLng[]): Region {
+  if (!coordinates.length) {
+    return GUEST_MAP_REGION;
+  }
+
+  const latitudes = coordinates.map((coordinate) => coordinate.latitude);
+  const longitudes = coordinates.map((coordinate) => coordinate.longitude);
+  const minLatitude = Math.min(...latitudes);
+  const maxLatitude = Math.max(...latitudes);
+  const minLongitude = Math.min(...longitudes);
+  const maxLongitude = Math.max(...longitudes);
+
+  return {
+    latitude: (minLatitude + maxLatitude) / 2,
+    longitude: (minLongitude + maxLongitude) / 2,
+    latitudeDelta: Math.max(0.025, (maxLatitude - minLatitude) * 1.8),
+    longitudeDelta: Math.max(0.025, (maxLongitude - minLongitude) * 1.8)
   };
 }
 

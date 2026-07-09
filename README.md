@@ -9,6 +9,7 @@ Standalone mobile app shell for SafeRoute live mapping.
 - LunarChain credential sign in before route access
 - Full-screen live map screen for the selected saved route
 - Foreground location permission and live position watch with on-device route snapping
+- Guest route previews can consume a fail-closed road-snapped route geometry before opening live guidance
 - Demo drive mode as an explicit developer/testing toggle
 - Route summary, next movement card, convoy marker, and intelligence overlay controls
 - Navigation lifecycle controls for start, pause, resume, stop, off-route, and arrival states
@@ -104,6 +105,8 @@ The app expects:
 - `GET /api/v1/mobile/safe-route/routes/{route_id}`
 
 Saved-route endpoints require the LunarChain bearer token and return the standard LunarChain response envelope. Route list rows must include stable non-empty `id` values before they are shown in the picker; malformed list payloads fall back to the empty picker state instead of crashing. Route detail payloads should echo that id, and the app falls back to the requested id if the detail response omits it; malformed detail payloads surface concise retry copy instead of opening a broken map. Risk overlay radii should be expressed in meters; the mobile mapper treats malformed/negative radii as a compact 250 m overlay and caps imported circular overlays at 50 km so bad hosted data cannot flood the map. Hosted auth remains authoritative for credentials, two-factor challenges, and session validation.
+
+Guest route preview road snapping is intentionally fail-closed: the mobile OSRM adapter only accepts valid GeoJSON route geometry that stays near the requested endpoints, down-samples very dense routes, preserves exact endpoint connectors for map markers, and returns `null` for network errors, malformed payloads, or mismatched routes so the map can keep using the local preview path.
 
 ## Manual smoke
 

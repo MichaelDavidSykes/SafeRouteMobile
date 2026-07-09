@@ -189,6 +189,59 @@ describe('guest route planner helpers', () => {
     assert.equal(route.route.nextDistance, 'Preview');
   });
 
+  it('accepts road-snapped preview coordinates and provider metrics without adding sheet clutter', () => {
+    const roadSnappedCoordinates = [
+      { latitude: 51.5115, longitude: -0.1478 },
+      { latitude: 51.5115, longitude: -0.1478 },
+      { latitude: 51.5093, longitude: -0.1184 },
+      { latitude: 51.5131, longitude: -0.084 },
+      { latitude: 51.5053, longitude: 0.0553 }
+    ];
+    const route = createGuestRoutePlan({
+      origin: 'Paddington',
+      destination: 'London City Airport',
+      roadSnappedCoordinates,
+      routeDistanceMeters: 16497,
+      routeDurationSeconds: 2304.9
+    });
+
+    assert.equal(route.route.distance, '16.5 km');
+    assert.equal(route.route.eta, '38 min');
+    assert.equal(route.route.description, 'Road-snapped preview. Sign in to save.');
+    assert.equal(route.route.coordinates.length, 4);
+    assert.deepEqual(route.route.coordinates[0], roadSnappedCoordinates[0]);
+    assert.deepEqual(route.route.coordinates[route.route.coordinates.length - 1], roadSnappedCoordinates[4]);
+    assert.deepEqual(route.checkpoints[0].coordinate, route.route.coordinates[0]);
+    assert.deepEqual(
+      route.checkpoints[1].coordinate,
+      route.route.coordinates[route.route.coordinates.length - 1]
+    );
+    assert.deepEqual(createGuestRoutePreviewState(route), {
+      accessibilityLabel:
+        'Unsaved route preview from Paddington to London City Airport. 38 min, 16.5 km. Sign in to save it.',
+      summaryLabel: '38 min · 16.5 km'
+    });
+  });
+
+  it('falls back to local preview geometry when provider route data is incomplete', () => {
+    const route = createGuestRoutePlan({
+      authenticated: true,
+      origin: 'HQ',
+      destination: 'Airport Terminal',
+      roadSnappedCoordinates: [
+        { latitude: Number.NaN, longitude: -0.1478 },
+        { latitude: 51.5115, longitude: -200 }
+      ],
+      routeDistanceMeters: -1,
+      routeDurationSeconds: 0
+    });
+
+    assert.equal(route.route.coordinates.length, 33);
+    assert.equal(route.route.distance, '9.4 km');
+    assert.equal(route.route.eta, '24 min');
+    assert.equal(route.route.description, 'Local preview. Saved plans stay in Saved.');
+  });
+
   it('creates signed-in local route previews without guest sign-in copy', () => {
     const route = createGuestRoutePlan({
       authenticated: true,

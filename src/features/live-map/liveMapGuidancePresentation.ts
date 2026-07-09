@@ -7,6 +7,8 @@ import type { RouteRiskAdvisory } from "./liveRouteRiskAdvisory";
 
 export interface GuidanceCardPresentation {
   accessibilityLabel: string;
+  distanceLabel: string;
+  instructionLabel: string;
   metaLabel: string;
   riskAdvisory?: RouteRiskAdvisory | null;
 }
@@ -30,6 +32,8 @@ export function createGuidanceCardPresentation({
   const maneuverDistance = normalizeGuidanceCopy(guidance.distance);
 
   const presentation: GuidanceCardPresentation = {
+    distanceLabel: maneuverDistance,
+    instructionLabel: instruction,
     accessibilityLabel: [
       "Current instruction.",
       `${instruction}.`,

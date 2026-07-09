@@ -50,7 +50,7 @@ export function LiveMapGuidanceCard({
             layout.isCompact ? styles.guidanceTitleCompact : null,
           ]}
         >
-          {guidance.instruction}
+          {presentation.instructionLabel}
         </Text>
         <Text numberOfLines={1} style={styles.guidanceMeta}>
           {presentation.metaLabel}
@@ -67,14 +67,14 @@ export function LiveMapGuidanceCard({
           </Text>
         ) : null}
       </View>
-      {layout.guidanceDistanceVisible ? (
+      {layout.guidanceDistanceVisible && presentation.distanceLabel ? (
         <Text
           style={[
             styles.guidanceDistance,
             layout.isCompact ? styles.guidanceDistanceCompact : null,
           ]}
         >
-          {guidance.distance}
+          {presentation.distanceLabel}
         </Text>
       ) : null}
     </View>

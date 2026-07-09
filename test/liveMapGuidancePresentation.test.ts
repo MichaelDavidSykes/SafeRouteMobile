@@ -20,6 +20,8 @@ describe("live map guidance card presentation", () => {
     assert.deepEqual(presentation, {
       accessibilityLabel:
         "Current instruction. Turn right onto Market Street. ETA 4 min. 1.2 km left. Next maneuver in 120 m.",
+      distanceLabel: "120 m",
+      instructionLabel: "Turn right onto Market Street",
       metaLabel: "4 min · 1.2 km left",
     });
   });
@@ -36,6 +38,8 @@ describe("live map guidance card presentation", () => {
     assert.deepEqual(presentation, {
       accessibilityLabel:
         "Current instruction. Continue on saved route. ETA pending. 0 m left.",
+      distanceLabel: "",
+      instructionLabel: "Continue on saved route",
       metaLabel: "ETA pending · 0 m left",
     });
   });

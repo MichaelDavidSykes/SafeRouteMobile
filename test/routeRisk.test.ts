@@ -326,6 +326,63 @@ describe("SafeRoute risk-aware route behavior", () => {
     );
   });
 
+  it("keeps blocked-start risk copy punctuation-clean for VoiceOver", () => {
+    const crossingRoute = {
+      coordinates: [
+        { latitude: 51.502, longitude: -0.105 },
+        { latitude: 51.502, longitude: -0.095 },
+      ],
+    };
+    const crossingPolygon = [
+      { latitude: 51.501, longitude: -0.101 },
+      { latitude: 51.501, longitude: -0.099 },
+      { latitude: 51.503, longitude: -0.099 },
+      { latitude: 51.503, longitude: -0.101 },
+      { latitude: 51.501, longitude: -0.101 },
+    ];
+    const punctuatedPlan = mapRouteDtoToSavedPlan({
+      id: "punctuated-risk-route",
+      name: "Punctuated risk route",
+      route: crossingRoute,
+      risk_overlays: [
+        {
+          id: "punctuated-risk-area",
+          title: "  Security cordon.  ",
+          severity: "high",
+          category: "security-cordon",
+          shape: "polygon",
+          coordinate: { latitude: 51.502, longitude: -0.1 },
+          coordinates: crossingPolygon,
+        },
+      ],
+    });
+    const punctuationOnlyPlan = mapRouteDtoToSavedPlan({
+      id: "fallback-risk-route",
+      name: "Fallback risk route",
+      route: crossingRoute,
+      risk_overlays: [
+        {
+          id: "fallback-risk-area",
+          title: " !!! ",
+          severity: "high",
+          category: "security-cordon",
+          shape: "polygon",
+          coordinate: { latitude: 51.502, longitude: -0.1 },
+          coordinates: crossingPolygon,
+        },
+      ],
+    });
+
+    assert.equal(
+      routeRiskStartBlockedReason(punctuatedPlan),
+      "Route intersects Security cordon. Re-sync route in SafeRoute planner before starting guidance.",
+    );
+    assert.equal(
+      routeRiskStartBlockedReason(punctuationOnlyPlan),
+      "Route intersects a mapped risk area. Re-sync route in SafeRoute planner before starting guidance.",
+    );
+  });
+
   it("keeps polygon risk alerts live as the convoy approaches mapped platform areas", () => {
     const routePlan = mapRouteDtoToSavedPlan({
       id: "polygon-alert-route",

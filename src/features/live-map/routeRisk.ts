@@ -160,8 +160,13 @@ export function routeRiskStartBlockedReason(
     return null;
   }
 
-  const zoneTitle = normalizeCopy(firstViolation.zone.title) || "a mapped risk area";
+  const zoneTitle = normalizeRouteStartBlockedRiskTitle(firstViolation.zone.title);
   return `Route intersects ${zoneTitle}. Re-sync route in SafeRoute planner before starting guidance.`;
+}
+
+function normalizeRouteStartBlockedRiskTitle(title: string): string {
+  const normalizedTitle = normalizeCopy(title).replace(/[.!?]+$/g, "").trim();
+  return normalizedTitle || "a mapped risk area";
 }
 
 export function resolveLiveRouteRiskAlert({

@@ -12,6 +12,8 @@ import {
   createRouteListSummaryState,
   filterSavedRoutes,
   findSelectedClient,
+  ROUTE_LIST_CLIENT_DISPLAY_MAX_LENGTH,
+  ROUTE_LIST_QUERY_DISPLAY_MAX_LENGTH,
   reconcileSelectedClientId,
   shouldShowClientFilters,
   shouldShowRouteEmptyState,
@@ -354,6 +356,29 @@ describe("route list UI state helpers", () => {
     ]);
   });
 
+  it("bounds client filter chips while preserving full accessible client names", () => {
+    const clientName =
+      " Metropolitan Diplomatic Protection Group Northern Corridor Operations Team ";
+    const option = createRouteListClientFilterOptions(
+      [{ id: "client-long", name: clientName }],
+      "client-long",
+    )[1];
+
+    assert.ok(
+      option.label.length <= ROUTE_LIST_CLIENT_DISPLAY_MAX_LENGTH,
+      "Expected visible client chip copy to stay compact",
+    );
+    assert.match(option.label, /…$/);
+    assert.equal(
+      option.accessibilityHint,
+      "Shows saved routes for Metropolitan Diplomatic Protection Group Northern Corridor Operations Team.",
+    );
+    assert.equal(
+      option.accessibilityLabel,
+      "Show routes for Metropolitan Diplomatic Protection Group Northern Corridor Operations Team, selected",
+    );
+  });
+
   it("hides redundant client filters unless a real filter choice is useful", () => {
     assert.equal(
       shouldShowClientFilters(createRouteListClientFilterOptions([], null)),
@@ -476,5 +501,52 @@ describe("route list UI state helpers", () => {
       title: "No matches",
       copy: "Try another filter.",
     });
+  });
+
+  it("bounds visible search and client empty-state copy without hiding VoiceOver context", () => {
+    const query =
+      " airport corridor with multiple checkpoint terms that should not fill the picker ";
+    const selectedClientName =
+      " Metropolitan Diplomatic Protection Group Northern Corridor Operations Team ";
+    const emptyState = createRouteListEmptyState({
+      query,
+      routeCount: 4,
+      selectedClientName,
+    });
+
+    assert.equal(emptyState.title, "No matches");
+    assert.match(emptyState.copy, /… routes for .+…\./);
+    assert.ok(
+      emptyState.copy.includes(
+        "airport corridor with multiple".slice(
+          0,
+          ROUTE_LIST_QUERY_DISPLAY_MAX_LENGTH - 1,
+        ),
+      ),
+    );
+    assert.ok(
+      emptyState.copy.length < emptyState.accessibilityLabel.length,
+      "Expected visible empty-state copy to be shorter than the spoken context",
+    );
+    assert.equal(
+      emptyState.accessibilityLabel,
+      "No saved routes match airport corridor with multiple checkpoint terms that should not fill the picker for Metropolitan Diplomatic Protection Group Northern Corridor Operations Team. Try another search or client.",
+    );
+
+    const clientOnlyState = createRouteListEmptyState({
+      query: "",
+      routeCount: 0,
+      selectedClientName,
+    });
+
+    assert.ok(
+      clientOnlyState.title.length <=
+        "No routes for ".length + ROUTE_LIST_CLIENT_DISPLAY_MAX_LENGTH,
+    );
+    assert.match(clientOnlyState.title, /…$/);
+    assert.equal(
+      clientOnlyState.accessibilityLabel,
+      "No saved routes are available for Metropolitan Diplomatic Protection Group Northern Corridor Operations Team. Switch clients or refresh after saving a plan.",
+    );
   });
 });

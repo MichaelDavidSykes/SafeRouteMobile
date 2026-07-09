@@ -1049,6 +1049,9 @@ describe("rounded visual language", () => {
       )?.[1] || "";
 
     assert.match(routeListStateSource, /ROUTE_SEARCH_MINIMUM_COUNT = 4/);
+    assert.match(routeListStateSource, /ROUTE_LIST_QUERY_DISPLAY_MAX_LENGTH = 32/);
+    assert.match(routeListStateSource, /ROUTE_LIST_CLIENT_DISPLAY_MAX_LENGTH = 28/);
+    assert.match(routeListStateSource, /createCompactRouteListLabel/);
     assert.match(routeListStateSource, /label: "All"/);
     assert.doesNotMatch(routeListStateSource, /label: "All clients"/);
     assert.doesNotMatch(routeListStateSource, /totalRouteCount > 1/);

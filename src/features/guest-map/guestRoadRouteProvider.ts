@@ -139,13 +139,45 @@ function normalizeOsrmGeometryCoordinates(coordinates: unknown): LatLng[] {
 }
 
 function normalizeRouteStops(stops: LatLng[]): LatLng[] {
-  const normalizedStops = stops.filter(isValidLatLng);
-  return normalizedStops
-    .filter((stop, index) => {
-      const previous = normalizedStops[index - 1];
-      return !previous || haversineDistanceMeters(previous, stop) >= 15;
-    })
-    .slice(0, GUEST_ROUTE_PROVIDER_MAX_STOPS);
+  const validStops = stops.filter(isValidLatLng);
+  const compactStops: LatLng[] = [];
+
+  for (const [index, stop] of validStops.entries()) {
+    const isEndpoint = index === 0 || index === validStops.length - 1;
+    const previousStop = compactStops[compactStops.length - 1];
+
+    if (isEndpoint || !previousStop || haversineDistanceMeters(previousStop, stop) >= 15) {
+      compactStops.push(stop);
+    }
+  }
+
+  return limitRouteStops(compactStops);
+}
+
+function limitRouteStops(stops: LatLng[]): LatLng[] {
+  if (stops.length <= GUEST_ROUTE_PROVIDER_MAX_STOPS) {
+    return stops;
+  }
+
+  const origin = stops[0];
+  const destination = stops[stops.length - 1];
+  const intermediateStops = stops.slice(1, -1);
+  const intermediateBudget = GUEST_ROUTE_PROVIDER_MAX_STOPS - 2;
+  const selectedIntermediateStops: LatLng[] = [];
+  const selectedIndexes = new Set<number>();
+
+  for (let index = 0; index < intermediateBudget; index += 1) {
+    const sourceIndex = Math.round(
+      (index * (intermediateStops.length - 1)) / Math.max(1, intermediateBudget - 1)
+    );
+
+    if (!selectedIndexes.has(sourceIndex)) {
+      selectedIndexes.add(sourceIndex);
+      selectedIntermediateStops.push(intermediateStops[sourceIndex]);
+    }
+  }
+
+  return [origin, ...selectedIntermediateStops, destination];
 }
 
 function routeCoversRequestedEndpoints(coordinates: LatLng[], stops: LatLng[]): boolean {

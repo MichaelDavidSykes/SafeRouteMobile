@@ -66,6 +66,23 @@ describe('guest road route provider', () => {
     assert.ok((preview?.coordinates.length || 0) >= 5);
   });
 
+  it('caps dense waypoint requests without dropping the requested destination', () => {
+    const stops = Array.from({ length: 32 }, (_, index) => ({
+      latitude: 51.45 + index * 0.012,
+      longitude: -0.22 + index * 0.011
+    }));
+    const url = new URL(buildOsrmRouteUrl(stops));
+    const requestedCoordinates = url.pathname.split('/').pop()?.split(';') || [];
+
+    assert.equal(requestedCoordinates.length, 25);
+    assert.equal(requestedCoordinates[0], '-0.22,51.45');
+    assert.equal(requestedCoordinates[requestedCoordinates.length - 1], '0.121,51.822');
+    assert.ok(
+      requestedCoordinates.includes('-0.088,51.594'),
+      'expected capped requests to retain representative intermediate waypoints'
+    );
+  });
+
   it('returns null instead of accepting invalid or endpoint-mismatched provider geometry', async () => {
     const request = async () => ({
       ok: true,

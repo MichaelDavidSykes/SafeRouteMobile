@@ -477,6 +477,10 @@ describe("rounded visual language", () => {
       join(process.cwd(), "src/features/auth/loginErrorState.ts"),
       "utf8",
     );
+    const loginNoticeStateSource = readFileSync(
+      join(process.cwd(), "src/features/auth/loginNoticeState.ts"),
+      "utf8",
+    );
     const formCardBlock =
       /formCard:\s*\{([\s\S]*?)\n  \},\n  formCardCompact:/.exec(
         loginStylesSource,
@@ -516,10 +520,17 @@ describe("rounded visual language", () => {
     assert.match(loginSource, /createLoginErrorState/);
     assert.match(loginSource, /loginErrorState\.message/);
     assert.match(loginSource, /accessibilityLabel=\{loginErrorState\.accessibilityLabel \|\| undefined\}/);
+    assert.match(loginSource, /createLoginNoticeState/);
+    assert.match(loginSource, /loginNoticeState\.message/);
+    assert.match(loginSource, /accessibilityLabel=\{loginNoticeState\.accessibilityLabel \|\| undefined\}/);
+    assert.doesNotMatch(loginSource, /<Text style=\{styles\.noticeText\}>\{sessionMessage\}<\/Text>/);
     assert.match(loginSource, /numberOfLines=\{2\}/);
     assert.match(loginErrorStateSource, /LOGIN_ERROR_MESSAGE_MAX_LENGTH\s*=\s*84/);
     assert.match(loginErrorStateSource, /createCompactLoginErrorText/);
     assert.match(loginErrorStateSource, /accessibilityLabel:\s*compactMessage === normalizedMessage \? null : normalizedMessage/);
+    assert.match(loginNoticeStateSource, /LOGIN_NOTICE_MESSAGE_MAX_LENGTH\s*=\s*72/);
+    assert.match(loginNoticeStateSource, /createCompactLoginNoticeText/);
+    assert.match(loginNoticeStateSource, /accessibilityLabel:\s*compactMessage === normalizedMessage \? null : normalizedMessage/);
     assert.doesNotMatch(loginSource, /Ionicons/);
     assert.doesNotMatch(loginSource, /name="mail"|name="lock-closed"|name="keypad"|name="alert-circle"|name="time"|name="timer"|eye-off|name="eye"/);
     assert.doesNotMatch(loginSource, /<FieldLabel/);

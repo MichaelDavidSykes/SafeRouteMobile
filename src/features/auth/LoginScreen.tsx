@@ -18,6 +18,7 @@ import { SafeRouteLogo } from '../../brand/SafeRouteLogo';
 import { loginWithPassword, verifyLoginCode } from './authApi';
 import { createLoginErrorState } from './loginErrorState';
 import { createLoginHeaderState } from './loginHeaderState';
+import { createLoginNoticeState } from './loginNoticeState';
 import { styles } from './LoginScreen.styles';
 import type { AuthSession, TwoFactorChallenge } from './authTypes';
 import {
@@ -84,6 +85,10 @@ export function LoginScreen({
   const loginErrorState = useMemo(
     () => (challengeExpired ? null : createLoginErrorState(errorMessage)),
     [challengeExpired, errorMessage]
+  );
+  const loginNoticeState = useMemo(
+    () => createLoginNoticeState(sessionMessage || ''),
+    [sessionMessage]
   );
   const primaryActionState = getLoginPrimaryActionState({
     challengeActive: Boolean(challenge),
@@ -219,9 +224,15 @@ export function LoginScreen({
           </View>
 
           <View style={[styles.formCard, loginLayout.compact ? styles.formCardCompact : null]}>
-            {sessionMessage ? (
+            {loginNoticeState ? (
               <View style={styles.noticeBox}>
-                <Text style={styles.noticeText}>{sessionMessage}</Text>
+                <Text
+                  accessibilityLabel={loginNoticeState.accessibilityLabel || undefined}
+                  numberOfLines={2}
+                  style={styles.noticeText}
+                >
+                  {loginNoticeState.message}
+                </Text>
               </View>
             ) : null}
 

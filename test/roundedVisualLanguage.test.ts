@@ -449,8 +449,12 @@ describe("rounded visual language", () => {
     assert.doesNotMatch(loginSource, /\belevated\b/);
     assert.match(loginSource, /createLoginHeaderState/);
     assert.match(loginSource, /loginHeaderState\.titleAccessibilityLabel/);
+    assert.match(loginSource, /loginHeaderState\.subtitleAccessibilityLabel/);
     assert.match(loginSource, /loginHeaderState\.subtitle \? \(/);
     assert.match(loginHeaderStateSource, /subtitle:\s*compact \? null : SIGN_IN_SUBTITLE/);
+    assert.match(loginHeaderStateSource, /LOGIN_CHALLENGE_SUBTITLE_MAX_LENGTH\s*=\s*64/);
+    assert.match(loginHeaderStateSource, /createCompactLoginHeaderCopy/);
+    assert.match(loginHeaderStateSource, /subtitleAccessibilityLabel/);
     assert.match(loginHeaderStateSource, /title:\s*["']Enter code["']/);
     assert.match(loginHeaderStateSource, /Sync saved routes to the map\./);
     assert.doesNotMatch(loginSource, /Map first\. Save after sign-in\./);

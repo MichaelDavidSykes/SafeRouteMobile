@@ -1,7 +1,10 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 
-import { createLoginHeaderState } from "../src/features/auth/loginHeaderState";
+import {
+  createLoginHeaderState,
+  LOGIN_CHALLENGE_SUBTITLE_MAX_LENGTH,
+} from "../src/features/auth/loginHeaderState";
 
 describe("login header state", () => {
   it("keeps regular sign-in header context visible", () => {
@@ -12,6 +15,7 @@ describe("login header state", () => {
       }),
       {
         subtitle: "Sync saved routes to the map.",
+        subtitleAccessibilityLabel: null,
         title: "Sign in",
         titleAccessibilityLabel: "Sign in",
       },
@@ -26,6 +30,7 @@ describe("login header state", () => {
       }),
       {
         subtitle: null,
+        subtitleAccessibilityLabel: null,
         title: "Sign in",
         titleAccessibilityLabel: "Sign in. Sync saved routes to the map.",
       },
@@ -41,6 +46,7 @@ describe("login header state", () => {
       }),
       {
         subtitle: "Code sent to driver@example.com.",
+        subtitleAccessibilityLabel: null,
         title: "Enter code",
         titleAccessibilityLabel: "Enter LunarChain login code",
       },
@@ -56,6 +62,29 @@ describe("login header state", () => {
       }),
       {
         subtitle: "Enter the six-digit LunarChain login code.",
+        subtitleAccessibilityLabel: null,
+        title: "Enter code",
+        titleAccessibilityLabel: "Enter LunarChain login code",
+      },
+    );
+  });
+
+  it("bounds long two-factor subtitles while keeping full delivery context accessible", () => {
+    const subtitle =
+      "Code sent to a.very.long.safe-route-operator.alias@example-security-operations.invalid.";
+    const compactSubtitle = `${subtitle
+      .slice(0, LOGIN_CHALLENGE_SUBTITLE_MAX_LENGTH - 1)
+      .trimEnd()}…`;
+
+    assert.deepEqual(
+      createLoginHeaderState({
+        challengeActive: true,
+        challengeSubtitle: `  ${subtitle}  `,
+        compact: true,
+      }),
+      {
+        subtitle: compactSubtitle,
+        subtitleAccessibilityLabel: subtitle,
         title: "Enter code",
         titleAccessibilityLabel: "Enter LunarChain login code",
       },

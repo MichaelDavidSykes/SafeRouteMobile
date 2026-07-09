@@ -9,6 +9,9 @@ import {
   calculateRiskZoneRouteProximity,
   createLiveRouteRiskAlertPresentation,
   createRiskZoneDetailPresentation,
+  LIVE_RISK_VISIBLE_BODY_MAX_LENGTH,
+  LIVE_RISK_VISIBLE_CATEGORY_MAX_LENGTH,
+  LIVE_RISK_VISIBLE_TITLE_MAX_LENGTH,
   resolveLiveRouteRiskAlert,
   resolveVisibleRiskZones,
   routeRiskStartBlockedReason,
@@ -125,6 +128,63 @@ describe("SafeRoute risk-aware route behavior", () => {
     });
     assert.equal(detailPresentation.title, "Route risk");
     assert.match(detailPresentation.accessibilityLabel, /^Risk area\. Route risk\./);
+  });
+
+  it("bounds verbose live risk card copy while preserving full risk context for VoiceOver", () => {
+    const verboseTitle =
+      "Temporary controlled checkpoint with extended inspection delays";
+    const verboseCategory = "Operational checkpoint advisory";
+    const verboseDescription =
+      "Expect intermittent closures and queueing near the checkpoint while SafeRoute keeps the route outside the mapped area.";
+    const baseRoutePlan = createGuestRoutePlan({
+      origin: "HQ",
+      destination: "London City Airport",
+    });
+    const routePlan = {
+      ...baseRoutePlan,
+      riskZones: [
+        {
+          ...baseRoutePlan.riskZones[0],
+          title: `  ${verboseTitle}  `,
+          category: `  ${verboseCategory}  `,
+          description: `  ${verboseDescription}  `,
+        },
+      ],
+    };
+    const progress = calculateRouteProgress(
+      routePlan.route.coordinates,
+      routePlan.route.coordinates[0],
+    );
+    const alert = resolveLiveRouteRiskAlert({
+      navigationState: "navigating",
+      progress,
+      routePlan,
+    });
+
+    assert.ok(alert);
+    const alertPresentation = createLiveRouteRiskAlertPresentation(alert);
+    assert.ok(alertPresentation.zoneTitle.length <= LIVE_RISK_VISIBLE_TITLE_MAX_LENGTH);
+    assert.ok(alertPresentation.zoneTitle.endsWith("…"));
+    assert.ok(alertPresentation.metaLabel.includes("Operational checkpoint…"));
+    assert.ok(alertPresentation.metaLabel.length <= (
+      "Medium risk · ".length + LIVE_RISK_VISIBLE_CATEGORY_MAX_LENGTH
+    ));
+    assert.ok(alertPresentation.accessibilityLabel.includes(verboseTitle));
+    assert.ok(!alertPresentation.accessibilityLabel.includes(alertPresentation.zoneTitle));
+
+    const detailPresentation = createRiskZoneDetailPresentation({
+      proximity: alert.proximity,
+      zone: alert.zone,
+    });
+
+    assert.ok(detailPresentation.title.length <= LIVE_RISK_VISIBLE_TITLE_MAX_LENGTH);
+    assert.ok(detailPresentation.title.endsWith("…"));
+    assert.ok(detailPresentation.body.length <= LIVE_RISK_VISIBLE_BODY_MAX_LENGTH);
+    assert.ok(detailPresentation.body.endsWith("…"));
+    assert.ok(detailPresentation.metaLabel.includes("Operational checkpoint…"));
+    assert.ok(detailPresentation.accessibilityLabel.includes(verboseTitle));
+    assert.ok(detailPresentation.accessibilityLabel.includes(verboseCategory));
+    assert.ok(detailPresentation.accessibilityLabel.includes(verboseDescription));
   });
 
   it("keeps the live overlay minimal by showing only active risk unless the user expands all risks", () => {

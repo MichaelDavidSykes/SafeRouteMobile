@@ -978,9 +978,18 @@ describe("rounded visual language", () => {
       join(process.cwd(), "src/features/live-map/LiveMapRiskCard.tsx"),
       "utf8",
     );
+    const routeRiskSource = readFileSync(
+      join(process.cwd(), "src/features/live-map/routeRisk.ts"),
+      "utf8",
+    );
 
     assert.match(riskCardSource, /createLiveRouteRiskAlertPresentation/);
     assert.match(riskCardSource, /presentation\.zoneTitle/);
+    assert.match(routeRiskSource, /LIVE_RISK_VISIBLE_TITLE_MAX_LENGTH/);
+    assert.match(routeRiskSource, /LIVE_RISK_VISIBLE_CATEGORY_MAX_LENGTH/);
+    assert.match(routeRiskSource, /LIVE_RISK_VISIBLE_BODY_MAX_LENGTH/);
+    assert.match(routeRiskSource, /createCompactRiskCopy/);
+    assert.match(routeRiskSource, /accessibilityMetaLabel/);
     assert.doesNotMatch(riskCardSource, /\{alert\.zone\.title\}/);
   });
 

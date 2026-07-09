@@ -19,6 +19,9 @@ export const LIVE_RISK_ACTIVE_BUFFER_METERS = 380;
 export const LIVE_RISK_PASSED_GRACE_METERS = 160;
 export const ROUTE_ALERT_SEGMENT_MIN_HALF_LENGTH_METERS = 140;
 export const ROUTE_ALERT_SEGMENT_MAX_HALF_LENGTH_METERS = 720;
+export const LIVE_RISK_VISIBLE_TITLE_MAX_LENGTH = 40;
+export const LIVE_RISK_VISIBLE_CATEGORY_MAX_LENGTH = 24;
+export const LIVE_RISK_VISIBLE_BODY_MAX_LENGTH = 96;
 
 export type LiveRouteRiskAlertStatus = "inside" | "nearby" | "approaching";
 
@@ -300,10 +303,11 @@ export function createLiveRouteRiskAlertPresentation(
   const zone = alert.zone;
   const title = liveRiskAlertTitle(alert.status);
   const zoneTitle = normalizeRiskTitle(zone.title);
+  const categoryLabel = normalizeRiskCategory(zone.category);
   const detailLabel = liveRiskAlertDetail(alert);
   const metaLabel = [
     severityLabel(zone.severity),
-    normalizeCopy(zone.category) || "Route risk",
+    createCompactRiskCopy(categoryLabel, LIVE_RISK_VISIBLE_CATEGORY_MAX_LENGTH),
   ].join(" · ");
 
   return {
@@ -312,7 +316,7 @@ export function createLiveRouteRiskAlertPresentation(
     metaLabel,
     title,
     tone: zone.severity,
-    zoneTitle,
+    zoneTitle: createCompactRiskCopy(zoneTitle, LIVE_RISK_VISIBLE_TITLE_MAX_LENGTH),
   };
 }
 
@@ -325,6 +329,7 @@ export function createRiskZoneDetailPresentation({
 }): RiskZoneDetailPresentation {
   const title = normalizeRiskTitle(zone.title);
   const body = normalizeCopy(zone.description) || "SafeRoute risk note";
+  const categoryLabel = normalizeRiskCategory(zone.category);
   const areaLabel = isRouteSegmentRiskZone(zone)
     ? "route segment"
     : zone.polygonCoordinates?.length
@@ -332,17 +337,22 @@ export function createRiskZoneDetailPresentation({
       : `${formatDistance(normalizeRadiusMeters(zone.radiusMeters))} radius`;
   const metaLabel = [
     severityLabel(zone.severity),
-    normalizeCopy(zone.category) || "Route risk",
+    createCompactRiskCopy(categoryLabel, LIVE_RISK_VISIBLE_CATEGORY_MAX_LENGTH),
+    areaLabel,
+  ].join(" · ");
+  const accessibilityMetaLabel = [
+    severityLabel(zone.severity),
+    categoryLabel,
     areaLabel,
   ].join(" · ");
   const clearanceLabel = routeRiskAvoidanceLabel(proximity);
 
   return {
-    accessibilityLabel: `Risk area. ${title}. ${metaLabel}. ${body}. ${clearanceLabel}.`,
-    body,
+    accessibilityLabel: `Risk area. ${title}. ${accessibilityMetaLabel}. ${body}. ${clearanceLabel}.`,
+    body: createCompactRiskCopy(body, LIVE_RISK_VISIBLE_BODY_MAX_LENGTH),
     clearanceLabel,
     metaLabel,
-    title,
+    title: createCompactRiskCopy(title, LIVE_RISK_VISIBLE_TITLE_MAX_LENGTH),
     tone: zone.severity,
   };
 }
@@ -847,6 +857,18 @@ function normalizeRiskTitle(value: string): string {
   return normalizeCopy(value) || "Route risk";
 }
 
+function normalizeRiskCategory(value: string): string {
+  return normalizeCopy(value) || "Route risk";
+}
+
 function normalizeCopy(value: string): string {
   return value.trim().replace(/\s+/g, " ");
+}
+
+function createCompactRiskCopy(label: string, maxLength: number): string {
+  if (label.length <= maxLength) {
+    return label;
+  }
+
+  return `${label.slice(0, Math.max(0, maxLength - 1)).trimEnd()}…`;
 }

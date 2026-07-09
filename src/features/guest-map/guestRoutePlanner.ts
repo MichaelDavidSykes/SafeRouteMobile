@@ -55,7 +55,10 @@ export type GuestRouteMetricsOptions = {
 export type GuestRoutePlanOptions = {
   authenticated?: boolean;
   destination: string;
+  destinationCoordinate?: LatLng | null;
   origin: string;
+  originCoordinate?: LatLng | null;
+  riskZones?: RiskZone[];
   roadSnappedCoordinates?: LatLng[] | null;
   routeDistanceMeters?: number | null;
   routeDurationSeconds?: number | null;
@@ -299,7 +302,10 @@ export function createGuestRouteMetrics(
 export function createGuestRoutePlan({
   authenticated = false,
   destination,
+  destinationCoordinate,
   origin,
+  originCoordinate,
+  riskZones,
   roadSnappedCoordinates,
   routeDistanceMeters,
   routeDurationSeconds
@@ -313,7 +319,17 @@ export function createGuestRoutePlan({
 
   const normalizedRoadSnappedCoordinates = normalizeGuestRouteCoordinates(roadSnappedCoordinates);
   const hasRoadSnappedCoordinates = normalizedRoadSnappedCoordinates.length >= 2;
-  const localRouteCoordinates = resolveGuestRouteCoordinates(destinationLabel);
+  const selectedEndpointCoordinates = normalizeGuestRouteCoordinates([
+    originCoordinate as LatLng,
+    destinationCoordinate as LatLng
+  ]);
+  const hasSelectedEndpointCoordinates = selectedEndpointCoordinates.length === 2;
+  const localRouteCoordinates = hasSelectedEndpointCoordinates
+    ? densifyRouteCoordinates(
+        selectedEndpointCoordinates,
+        GUEST_ROUTE_SIMULATION_MAX_SEGMENT_METERS
+      )
+    : resolveGuestRouteCoordinates(destinationLabel);
   const routeCoordinates = hasRoadSnappedCoordinates
     ? normalizedRoadSnappedCoordinates
     : localRouteCoordinates;
@@ -360,7 +376,11 @@ export function createGuestRoutePlan({
       nextDistance: 'Preview',
       coordinates: routeCoordinates
     },
-    riskZones: GUEST_ROUTE_RISK_ZONES,
+    riskZones: riskZones
+      ? [...riskZones]
+      : hasSelectedEndpointCoordinates
+        ? []
+        : GUEST_ROUTE_RISK_ZONES,
     checkpoints: createGuestRouteCheckpoints({
       destinationLabel,
       originLabel,

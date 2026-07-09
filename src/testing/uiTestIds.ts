@@ -6,6 +6,9 @@ export const uiTestIds = {
   guestMapPlotAction: "guest-map-plot-action",
   guestMapOriginInput: "guest-map-origin-input",
   guestMapDestinationInput: "guest-map-destination-input",
+  guestMapSearchResults: "guest-map-search-results",
+  guestMapSearchResult: (resultId: string) =>
+    `guest-map-search-${normalizeTestIdSegment(resultId)}`,
   guestMapRoutePreview: "guest-map-route-preview",
   guestMapGateAction: (feature: string) =>
     `guest-map-gate-${normalizeTestIdSegment(feature)}`,

@@ -1,11 +1,22 @@
 import { useEffect, useRef, useState } from 'react';
-import { Keyboard, Pressable, Text, TextInput, View } from 'react-native';
-import MapView, { Marker, Polyline } from 'react-native-maps';
+import {
+  ActivityIndicator,
+  Keyboard,
+  KeyboardAvoidingView,
+  Platform,
+  Pressable,
+  Text,
+  TextInput,
+  View
+} from 'react-native';
+import MapView, { Marker, Polyline, type LatLng, type Region } from 'react-native-maps';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
+import { SAFEROUTE_PREVIEW_MODE_ENABLED } from '../../config/env';
 import { colors } from '../../theme';
 import { uiTestIds } from '../../testing/uiTestIds';
 import type { SavedSafeRoutePlan } from '../live-map/liveMapTypes';
+import { useLiveLocation } from '../live-map/useLiveLocation';
 import {
   GUEST_MAP_REGION,
   GUEST_ROUTE_LABEL_MAX_LENGTH,
@@ -26,9 +37,16 @@ import {
   type GuestRoadRoutePreview,
   type GuestRoadRoutePreviewOptions
 } from './guestRoadRouteProvider';
+import {
+  parseCoordinateSearch,
+  searchGuestLocations,
+  type GuestLocationSearchResult
+} from './guestLocationSearch';
 import { guestMapStyles as styles } from './GuestMapScreen.styles';
 
 const GUEST_ROUTE_PROVIDER_UI_TIMEOUT_MS = 3500;
+const GUEST_LOCATION_SEARCH_DEBOUNCE_MS = 320;
+const GUEST_LOCATION_SEARCH_MIN_LENGTH = 2;
 
 type GuestRoadRoutePreviewFetcher = (
   options: GuestRoadRoutePreviewOptions
@@ -51,12 +69,30 @@ export function GuestMapScreen({
 }: GuestMapScreenProps) {
   const mapRef = useRef<MapView | null>(null);
   const activeRoadRouteRequestRef = useRef<AbortController | null>(null);
+  const activeLocationSearchRef = useRef<AbortController | null>(null);
+  const hasCenteredOnLocationRef = useRef(false);
   const pendingOpenPreviewRef = useRef(false);
   const roadRouteRequestIdRef = useRef(0);
   const [origin, setOrigin] = useState('Current location');
   const [destination, setDestination] = useState('');
+  const [originSelection, setOriginSelection] = useState<GuestLocationSearchResult | null>(null);
+  const [destinationSelection, setDestinationSelection] = useState<GuestLocationSearchResult | null>(null);
+  const [activeInput, setActiveInput] = useState<'origin' | 'destination' | null>(null);
+  const [locationSearchResults, setLocationSearchResults] = useState<GuestLocationSearchResult[]>([]);
+  const [locationSearchPending, setLocationSearchPending] = useState(false);
+  const [locationSearchMessage, setLocationSearchMessage] = useState('');
+  const [mapRegion, setMapRegion] = useState<Region>(GUEST_MAP_REGION);
+  const [routeMessage, setRouteMessage] = useState('');
   const [routePlan, setRoutePlan] = useState<SavedSafeRoutePlan | null>(null);
   const [roadPreviewPending, setRoadPreviewPending] = useState(false);
+  const {
+    coordinate: liveLocation,
+    errorMessage: locationErrorMessage,
+    permissionStatus
+  } = useLiveLocation({ permissionRequested: true });
+  const liveCoordinate = liveLocation
+    ? { latitude: liveLocation.latitude, longitude: liveLocation.longitude }
+    : null;
   const routePlotted = Boolean(routePlan);
   const mapHomeCopy = createGuestMapHomeCopy(authenticated);
   const showSheetSubtitle = shouldShowGuestMapSubtitle(routePlotted);
@@ -76,6 +112,79 @@ export function GuestMapScreen({
     authenticated,
     routePlotted
   });
+
+  useEffect(() => {
+    if (!liveCoordinate || hasCenteredOnLocationRef.current || routePlan) {
+      return;
+    }
+
+    hasCenteredOnLocationRef.current = true;
+    const nextRegion = regionAroundCoordinate(liveCoordinate);
+    setMapRegion(nextRegion);
+    mapRef.current?.animateToRegion(nextRegion, 650);
+  }, [liveCoordinate?.latitude, liveCoordinate?.longitude, routePlan]);
+
+  useEffect(() => {
+    activeLocationSearchRef.current?.abort();
+    setLocationSearchResults([]);
+    setLocationSearchMessage('');
+
+    if (!activeInput) {
+      setLocationSearchPending(false);
+      return;
+    }
+
+    const query = activeInput === 'origin' ? origin : destination;
+    const selected = activeInput === 'origin' ? originSelection : destinationSelection;
+    if (
+      query.trim().length < GUEST_LOCATION_SEARCH_MIN_LENGTH ||
+      query.trim() === selected?.displayName ||
+      (activeInput === 'origin' && isCurrentLocationLabel(query))
+    ) {
+      setLocationSearchPending(false);
+      return;
+    }
+
+    const controller = new AbortController();
+    activeLocationSearchRef.current = controller;
+    const timer = setTimeout(() => {
+      setLocationSearchPending(true);
+      void searchGuestLocations(query, {
+        bias: {
+          center: liveCoordinate,
+          region: mapRegion
+        },
+        signal: controller.signal
+      }).then((results) => {
+        if (controller.signal.aborted) {
+          return;
+        }
+        setLocationSearchResults(results);
+        setLocationSearchMessage(results.length ? '' : 'No matching places found.');
+      }).finally(() => {
+        if (!controller.signal.aborted) {
+          setLocationSearchPending(false);
+        }
+      });
+    }, GUEST_LOCATION_SEARCH_DEBOUNCE_MS);
+
+    return () => {
+      clearTimeout(timer);
+      controller.abort();
+    };
+  }, [
+    activeInput,
+    destination,
+    destinationSelection,
+    liveCoordinate?.latitude,
+    liveCoordinate?.longitude,
+    mapRegion.latitude,
+    mapRegion.longitude,
+    mapRegion.latitudeDelta,
+    mapRegion.longitudeDelta,
+    origin,
+    originSelection
+  ]);
 
   useEffect(() => {
     if (!routePlan?.route.coordinates.length) {
@@ -99,6 +208,7 @@ export function GuestMapScreen({
 
   useEffect(() => () => {
     cancelRoadRouteUpgrade();
+    activeLocationSearchRef.current?.abort();
   }, []);
 
   const cancelRoadRouteUpgrade = () => {
@@ -109,17 +219,52 @@ export function GuestMapScreen({
     setRoadPreviewPending(false);
   };
 
-  const handlePlotRoute = () => {
+  const handlePlotRoute = async () => {
     if (routeAction.disabled) {
       return;
     }
 
     Keyboard.dismiss();
     cancelRoadRouteUpgrade();
+    setRouteMessage('');
+    setActiveInput(null);
+
+    const resolvedOriginCoordinate = resolveOriginCoordinate({
+      liveCoordinate,
+      origin,
+      originSelection
+    });
+    if (!resolvedOriginCoordinate) {
+      setRouteMessage(
+        permissionStatus === 'denied'
+          ? 'Choose a start point or enable location access.'
+          : 'Finding your current location…'
+      );
+      return;
+    }
+
+    const resolvedDestination = destinationSelection ||
+      parseCoordinateSearch(destination) ||
+      (SAFEROUTE_PREVIEW_MODE_ENABLED
+        ? await resolveTypedLocation(destination, mapRegion, liveCoordinate)
+        : null);
+    if (!resolvedDestination) {
+      setRouteMessage('Choose a destination from the search results.');
+      setActiveInput('destination');
+      return;
+    }
+    if (!destinationSelection) {
+      setDestinationSelection(resolvedDestination);
+      setDestination(resolvedDestination.displayName);
+    }
+
     const localRoutePlan = createGuestRoutePlan({
       authenticated,
+      destinationCoordinate: resolvedDestination.coordinate,
       origin,
-      destination
+      originCoordinate: resolvedOriginCoordinate,
+      destination: resolvedDestination.displayName,
+      riskZones: []
     });
     setRoutePlan(localRoutePlan);
     upgradeGuestRouteWithRoadPreview(localRoutePlan);
@@ -137,8 +282,11 @@ export function GuestMapScreen({
     const controller = new AbortController();
     activeRoadRouteRequestRef.current = controller;
     setRoadPreviewPending(true);
-    const originSnapshot = origin;
-    const destinationSnapshot = destination;
+    const originSnapshot = localRoutePlan.origin;
+    const destinationSnapshot = localRoutePlan.destination;
+    const originCoordinateSnapshot = localRoutePlan.checkpoints[0]?.coordinate;
+    const destinationCoordinateSnapshot = localRoutePlan.checkpoints.at(-1)?.coordinate;
+    const riskZonesSnapshot = localRoutePlan.riskZones;
     const authenticatedSnapshot = authenticated;
 
     const openPendingPreview = (nextRoutePlan: SavedSafeRoutePlan) => {
@@ -167,7 +315,10 @@ export function GuestMapScreen({
         const roadRoutePlan = createGuestRoadSnappedRoutePlan({
           authenticated: authenticatedSnapshot,
           destination: destinationSnapshot,
+          destinationCoordinate: destinationCoordinateSnapshot,
           origin: originSnapshot,
+          originCoordinate: originCoordinateSnapshot,
+          riskZones: riskZonesSnapshot,
           roadSnappedCoordinates: roadPreview.coordinates,
           routeDistanceMeters: roadPreview.distanceMeters,
           routeDurationSeconds: roadPreview.durationSeconds
@@ -198,7 +349,7 @@ export function GuestMapScreen({
 
     Keyboard.dismiss();
     if (!routePlan) {
-      handlePlotRoute();
+      void handlePlotRoute();
       return;
     }
 
@@ -212,14 +363,38 @@ export function GuestMapScreen({
 
   const handleOriginChange = (value: string) => {
     cancelRoadRouteUpgrade();
+    setOriginSelection(null);
     setOrigin(value);
     setRoutePlan(null);
+    setRouteMessage('');
   };
 
   const handleDestinationChange = (value: string) => {
     cancelRoadRouteUpgrade();
+    setDestinationSelection(null);
     setDestination(value);
     setRoutePlan(null);
+    setRouteMessage('');
+  };
+
+  const handleSelectLocation = (result: GuestLocationSearchResult) => {
+    cancelRoadRouteUpgrade();
+    if (activeInput === 'origin') {
+      setOrigin(result.displayName);
+      setOriginSelection(result);
+    } else {
+      setDestination(result.displayName);
+      setDestinationSelection(result);
+    }
+    setRoutePlan(null);
+    setRouteMessage('');
+    setLocationSearchResults([]);
+    setLocationSearchMessage('');
+    setActiveInput(null);
+    Keyboard.dismiss();
+    const nextRegion = regionAroundCoordinate(result.coordinate);
+    setMapRegion(nextRegion);
+    mapRef.current?.animateToRegion(nextRegion, 500);
   };
 
   return (
@@ -233,10 +408,12 @@ export function GuestMapScreen({
         showsIndoors={false}
         showsIndoorLevelPicker={false}
         showsMyLocationButton={false}
+        showsUserLocation={permissionStatus === 'granted'}
         showsScale={false}
         showsTraffic={false}
         toolbarEnabled={false}
         userInterfaceStyle="light"
+        onRegionChangeComplete={setMapRegion}
       >
         {routePlan ? (
           <>
@@ -285,6 +462,12 @@ export function GuestMapScreen({
         ) : null}
       </MapView>
 
+      <KeyboardAvoidingView
+        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+        keyboardVerticalOffset={0}
+        pointerEvents="box-none"
+        style={styles.overlay}
+      >
       <SafeAreaView pointerEvents="box-none" style={styles.overlay}>
         <View style={styles.topBar}>
           <Pressable
@@ -332,6 +515,7 @@ export function GuestMapScreen({
               testID={uiTestIds.guestMapOriginInput}
               value={origin}
               onChangeText={handleOriginChange}
+              onFocus={() => setActiveInput('origin')}
             />
             <RouteInput
               accessibilityHint={destinationInputCopy.accessibilityHint}
@@ -340,9 +524,25 @@ export function GuestMapScreen({
               testID={uiTestIds.guestMapDestinationInput}
               value={destination}
               onChangeText={handleDestinationChange}
-              onSubmitEditing={routePlan ? handleOpenPreview : handlePlotRoute}
+              onFocus={() => setActiveInput('destination')}
+              onSubmitEditing={routePlan ? handleOpenPreview : () => void handlePlotRoute()}
             />
           </View>
+
+          {activeInput ? (
+            <LocationSearchResults
+              message={locationSearchMessage}
+              pending={locationSearchPending}
+              results={locationSearchResults}
+              onSelect={handleSelectLocation}
+            />
+          ) : null}
+
+          {routeMessage || (locationErrorMessage && isCurrentLocationLabel(origin)) ? (
+            <Text accessibilityRole="alert" style={styles.routeMessage}>
+              {routeMessage || locationErrorMessage}
+            </Text>
+          ) : null}
 
           <Pressable
             accessibilityHint={routeAction.accessibilityHint}
@@ -356,7 +556,7 @@ export function GuestMapScreen({
               routeAction.disabled ? styles.primaryButtonDisabled : null,
               pressed && !routeAction.disabled ? styles.primaryButtonPressed : null
             ]}
-            onPress={routePlan ? handleOpenPreview : handlePlotRoute}
+            onPress={routePlan ? handleOpenPreview : () => void handlePlotRoute()}
           >
             <Text numberOfLines={1} style={styles.primaryButtonText}>{routeAction.label}</Text>
           </Pressable>
@@ -375,11 +575,19 @@ export function GuestMapScreen({
           ) : null}
         </View>
       </SafeAreaView>
+      </KeyboardAvoidingView>
     </View>
   );
 }
 
 function resolveRoadPreviewStops(routePlan: SavedSafeRoutePlan) {
+  if (!routePlan.riskZones.length) {
+    const checkpointCoordinates = routePlan.checkpoints.map((checkpoint) => checkpoint.coordinate);
+    if (checkpointCoordinates.length >= 2) {
+      return checkpointCoordinates;
+    }
+  }
+
   const coordinates = resolveGuestRoadPreviewStops(routePlan.destination);
   const origin = coordinates[0];
   const destination = coordinates[coordinates.length - 1];
@@ -395,6 +603,7 @@ function RouteInput({
   accessibilityHint,
   label,
   onChangeText,
+  onFocus,
   onSubmitEditing,
   placeholder,
   testID,
@@ -405,6 +614,7 @@ function RouteInput({
   divided?: boolean;
   label: string;
   onChangeText: (value: string) => void;
+  onFocus?: () => void;
   onSubmitEditing?: () => void;
   placeholder: string;
   testID: string;
@@ -426,10 +636,115 @@ function RouteInput({
         testID={testID}
         value={value}
         onChangeText={onChangeText}
+        onFocus={onFocus}
         onSubmitEditing={onSubmitEditing}
       />
     </View>
   );
+}
+
+function LocationSearchResults({
+  message,
+  onSelect,
+  pending,
+  results
+}: {
+  message: string;
+  onSelect: (result: GuestLocationSearchResult) => void;
+  pending: boolean;
+  results: GuestLocationSearchResult[];
+}) {
+  if (!pending && !message && !results.length) {
+    return null;
+  }
+
+  return (
+    <View style={styles.searchResults} testID={uiTestIds.guestMapSearchResults}>
+      {pending ? (
+        <View
+          accessible
+          accessibilityLabel="Searching nearby places"
+          accessibilityRole="progressbar"
+          style={styles.searchStateRow}
+        >
+          <ActivityIndicator color={colors.appleBlue} size="small" />
+          <Text style={styles.searchStateText}>Searching nearby…</Text>
+        </View>
+      ) : null}
+      {!pending ? results.map((result) => (
+        <Pressable
+          key={result.id}
+          accessibilityHint="Selects this place for the active route field."
+          accessibilityLabel={result.displayName}
+          accessibilityRole="button"
+          testID={uiTestIds.guestMapSearchResult(result.id)}
+          style={({ pressed }) => [
+            styles.searchResultRow,
+            pressed ? styles.searchResultRowPressed : null
+          ]}
+          onPress={() => onSelect(result)}
+        >
+          <Text numberOfLines={1} style={styles.searchResultTitle}>{result.label}</Text>
+          <Text numberOfLines={1} style={styles.searchResultSubtitle}>{result.displayName}</Text>
+        </Pressable>
+      )) : null}
+      {!pending && message ? (
+        <Text accessible accessibilityLiveRegion="polite" style={styles.searchStateText}>
+          {message}
+        </Text>
+      ) : null}
+    </View>
+  );
+}
+
+async function resolveTypedLocation(
+  query: string,
+  region: Region,
+  liveCoordinate: LatLng | null
+): Promise<GuestLocationSearchResult | null> {
+  const results = await searchGuestLocations(query, {
+    bias: {
+      center: liveCoordinate,
+      region
+    }
+  });
+  return results[0] || null;
+}
+
+function resolveOriginCoordinate({
+  liveCoordinate,
+  origin,
+  originSelection
+}: {
+  liveCoordinate: LatLng | null;
+  origin: string;
+  originSelection: GuestLocationSearchResult | null;
+}): LatLng | null {
+  if (originSelection) {
+    return originSelection.coordinate;
+  }
+  if (isCurrentLocationLabel(origin)) {
+    if (liveCoordinate) {
+      return liveCoordinate;
+    }
+    return SAFEROUTE_PREVIEW_MODE_ENABLED
+      ? { latitude: GUEST_MAP_REGION.latitude, longitude: GUEST_MAP_REGION.longitude }
+      : null;
+  }
+  return null;
+}
+
+function isCurrentLocationLabel(value: string): boolean {
+  return value.trim().toLowerCase() === 'current location';
+}
+
+function regionAroundCoordinate(coordinate: LatLng): Region {
+  return {
+    latitude: coordinate.latitude,
+    longitude: coordinate.longitude,
+    latitudeDelta: 0.045,
+    longitudeDelta: 0.055
+  };
 }
 
 function RoutePreview({

@@ -408,7 +408,8 @@ describe("rounded visual language", () => {
     assert.match(guestMapSource, /roadSnappedCoordinates:\s*roadPreview\.coordinates/);
     assert.match(guestMapSource, /routeDistanceMeters:\s*roadPreview\.distanceMeters/);
     assert.match(guestMapSource, /routeDurationSeconds:\s*roadPreview\.durationSeconds/);
-    assert.doesNotMatch(guestMapSource, /roadPreviewLoading|roadPreviewStatus|ActivityIndicator/);
+    assert.doesNotMatch(guestMapSource, /roadPreviewLoading|roadPreviewStatus/);
+    assert.match(guestMapSource, /accessibilityLabel="Searching nearby places"/);
   });
 
   it("keeps route endpoint markers compact, geometric, and text-free", () => {

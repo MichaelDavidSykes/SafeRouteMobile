@@ -195,6 +195,24 @@ describe('guest route planner helpers', () => {
     assert.equal(route.route.nextDistance, 'Preview');
   });
 
+  it('uses selected real-world endpoints instead of London preview geometry', () => {
+    const originCoordinate = { latitude: -33.9249, longitude: 18.4241 };
+    const destinationCoordinate = { latitude: -33.9696, longitude: 18.5972 };
+    const route = createGuestRoutePlan({
+      origin: 'Cape Town City Centre',
+      originCoordinate,
+      destination: 'Cape Town International Airport',
+      destinationCoordinate
+    });
+
+    assert.deepEqual(route.route.coordinates[0], originCoordinate);
+    assert.deepEqual(route.route.coordinates.at(-1), destinationCoordinate);
+    assert.deepEqual(route.checkpoints[0].coordinate, originCoordinate);
+    assert.deepEqual(route.checkpoints.at(-1)?.coordinate, destinationCoordinate);
+    assert.equal(route.riskZones.length, 0);
+    assert.equal(route.route.coordinates.length > 2, true);
+  });
+
   it('uses destination-aware geometry for London City Airport instead of the placeholder corridor', () => {
     const route = createGuestRoutePlan({
       origin: 'Current location',

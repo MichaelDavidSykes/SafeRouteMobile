@@ -6,6 +6,7 @@ import {
   createGuestMapHomeCopy,
   createGuestRouteActionState,
   createGuestRouteInputCopy,
+  createGuestRouteMetrics,
   createGuestRoutePlan,
   createGuestRoutePreviewState,
   getGuestFullAccessCopy,
@@ -175,6 +176,12 @@ describe('guest route planner helpers', () => {
     assert.equal(route.operation, 'Unsaved route');
     assert.equal(route.convoyCallsign, 'Guest mode');
     assert.equal(route.route.coordinates.length >= 2, true);
+    assert.deepEqual(createGuestRouteMetrics(route.route.coordinates), {
+      distance: '9.4 km',
+      eta: '24 min'
+    });
+    assert.equal(route.route.distance, '9.4 km');
+    assert.equal(route.route.eta, '24 min');
     assert.equal(route.riskZones.length, 3);
     assert.equal(route.checkpoints.length, 2);
     assert.equal(route.route.description, 'Local preview. Sign in to save.');
@@ -217,14 +224,14 @@ describe('guest route planner helpers', () => {
 
     assert.deepEqual(createGuestRoutePreviewState(route), {
       accessibilityLabel:
-        'Unsaved route preview from HQ to Airport Terminal. 24 min, 8.6 km. Sign in to save it.',
-      summaryLabel: '24 min · 8.6 km'
+        'Unsaved route preview from HQ to Airport Terminal. 24 min, 9.4 km. Sign in to save it.',
+      summaryLabel: '24 min · 9.4 km'
     });
 
     assert.deepEqual(createGuestRoutePreviewState(route, { authenticated: true }), {
       accessibilityLabel:
-        'Local route preview from HQ to Airport Terminal. 24 min, 8.6 km. Open the preview map for guidance. Saved plans are available from Saved.',
-      summaryLabel: '24 min · 8.6 km'
+        'Local route preview from HQ to Airport Terminal. 24 min, 9.4 km. Open the preview map for guidance. Saved plans are available from Saved.',
+      summaryLabel: '24 min · 9.4 km'
     });
   });
 

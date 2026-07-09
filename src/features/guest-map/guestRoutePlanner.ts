@@ -1,7 +1,8 @@
 import type { LatLng, Region } from 'react-native-maps';
 
-import { densifyRouteCoordinates } from '../live-map/routeGeometry';
+import { calculateCumulativeDistances, densifyRouteCoordinates } from '../live-map/routeGeometry';
 import type { RiskZone, SavedSafeRoutePlan } from '../live-map/liveMapTypes';
+import { formatDistance, formatEta } from '../routes/routeMapperNormalization';
 
 export type GuestFullAccessFeature = 'saved-routes' | 'planned-trips' | 'convoy-management';
 
@@ -31,6 +32,11 @@ export type GuestRoutePreviewState = {
   summaryLabel: string;
 };
 
+export type GuestRouteMetrics = {
+  distance: string;
+  eta: string;
+};
+
 export type GuestMapHomeCopy = {
   primaryActionAccessibilityLabel: string;
   primaryActionLabel: string;
@@ -53,6 +59,7 @@ export const GUEST_MAP_REGION: Region = {
 export const GUEST_ROUTE_LABEL_MAX_LENGTH = 80;
 
 const GUEST_ROUTE_SIMULATION_MAX_SEGMENT_METERS = 330;
+const GUEST_ROUTE_PREVIEW_SPEED_METERS_PER_SECOND = 6.5;
 
 const GUEST_ROUTE_ANCHORS: LatLng[] = [
   { latitude: 51.5099, longitude: -0.1479 },
@@ -212,6 +219,21 @@ export function createGuestMapHomeCopy(authenticated: boolean): GuestMapHomeCopy
   };
 }
 
+export function createGuestRouteMetrics(coordinates: LatLng[]): GuestRouteMetrics {
+  const cumulativeDistances = calculateCumulativeDistances(coordinates);
+  const distanceMeters = cumulativeDistances.length
+    ? cumulativeDistances[cumulativeDistances.length - 1]
+    : 0;
+  const durationSeconds = distanceMeters > 0
+    ? distanceMeters / GUEST_ROUTE_PREVIEW_SPEED_METERS_PER_SECOND
+    : null;
+
+  return {
+    distance: formatDistance(distanceMeters),
+    eta: formatEta(durationSeconds)
+  };
+}
+
 export function createGuestRoutePlan({
   authenticated = false,
   destination,
@@ -228,6 +250,8 @@ export function createGuestRoutePlan({
     throw new Error('A destination is required before plotting a guest route.');
   }
 
+  const routeMetrics = createGuestRouteMetrics(GUEST_ROUTE_COORDINATES);
+
   return {
     id: 'guest-plotted-route',
     name: 'Route preview',
@@ -241,8 +265,8 @@ export function createGuestRoutePlan({
     route: {
       id: 'guest-route-preview',
       label: 'Preview route',
-      eta: '24 min',
-      distance: '8.6 km',
+      eta: routeMetrics.eta,
+      distance: routeMetrics.distance,
       safeScore: 0,
       riskLabel: 'Preview',
       tone: 'blue',

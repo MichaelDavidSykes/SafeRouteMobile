@@ -4,15 +4,20 @@ import { describe, it } from 'node:test';
 import { ApiRequestError } from '../src/features/api/apiClientCore';
 import {
   ROUTE_DETAIL_ERROR_ROUTE_NAME_MAX_LENGTH,
+  ROUTE_LIST_ERROR_REASON_MAX_LENGTH,
+  ROUTE_SYNC_ERROR_MESSAGE_MAX_LENGTH,
   createRouteDetailErrorState,
   createRouteSyncErrorState
 } from '../src/features/routes/routeListErrors';
 
 describe('route list error states', () => {
   it('uses concise retry copy for saved-route sync failures', () => {
+    const message = 'Unable to sync saved SafeRoute plans. Check your connection and retry.';
+
     assert.deepEqual(createRouteSyncErrorState({}), {
       action: 'sync',
-      message: 'Unable to sync saved SafeRoute plans. Check your connection and retry.',
+      message,
+      messageAccessibilityLabel: message,
       retryAccessibilityLabel: 'Retry syncing saved SafeRoute plans',
       retryLabel: 'Retry',
       title: 'Routes unavailable'
@@ -20,13 +25,27 @@ describe('route list error states', () => {
   });
 
   it('trims backend sync errors when present', () => {
-    assert.equal(createRouteSyncErrorState(new Error('  Hosted API unavailable  ')).message, 'Hosted API unavailable');
+    const state = createRouteSyncErrorState(new Error('  Hosted API unavailable  '));
+
+    assert.equal(state.message, 'Hosted API unavailable');
+    assert.equal(state.messageAccessibilityLabel, 'Hosted API unavailable');
+  });
+
+  it('bounds visible sync error copy while preserving full accessible context', () => {
+    const hostedMessage =
+      'Hosted route sync paused because the operations workspace is processing a large SafeRoute import for the northern corridor and will be available shortly.';
+    const state = createRouteSyncErrorState(new Error(`  ${hostedMessage}  `));
+
+    assert.equal(state.message.length, ROUTE_SYNC_ERROR_MESSAGE_MAX_LENGTH);
+    assert.match(state.message, /…$/);
+    assert.equal(state.messageAccessibilityLabel, hostedMessage);
   });
 
   it('adds route context to detail-load failures', () => {
     assert.deepEqual(createRouteDetailErrorState(new Error('  Details are temporarily unavailable.  '), ' Morning convoy '), {
       action: 'detail',
       message: 'Could not load Morning convoy. Details are temporarily unavailable.',
+      messageAccessibilityLabel: 'Could not load Morning convoy. Details are temporarily unavailable.',
       retryAccessibilityLabel: 'Retry loading Morning convoy',
       retryLabel: 'Retry',
       title: 'Route unavailable'
@@ -47,8 +66,27 @@ describe('route list error states', () => {
     assert.equal(compactRouteName.length, ROUTE_DETAIL_ERROR_ROUTE_NAME_MAX_LENGTH);
     assert.match(compactRouteName, /…$/);
     assert.equal(
+      state.messageAccessibilityLabel,
+      `Could not load ${longRouteName.trim().replace(/\s+/g, ' ')}. Details are temporarily unavailable.`
+    );
+    assert.equal(
       state.retryAccessibilityLabel,
       `Retry loading ${longRouteName.trim().replace(/\s+/g, ' ')}`
+    );
+  });
+
+  it('bounds visible route detail reasons while preserving VoiceOver context', () => {
+    const hostedReason =
+      'Hosted route detail is temporarily unavailable while LunarChain recalculates a verbose checkpoint and risk annotation payload for this saved plan.';
+    const state = createRouteDetailErrorState(new Error(hostedReason), 'Morning convoy');
+    const visibleReason = /^Could not load Morning convoy\. (.*)$/.exec(state.message)?.[1];
+
+    assert.ok(visibleReason);
+    assert.equal(visibleReason.length, ROUTE_LIST_ERROR_REASON_MAX_LENGTH);
+    assert.match(visibleReason, /…$/);
+    assert.equal(
+      state.messageAccessibilityLabel,
+      `Could not load Morning convoy. ${hostedReason}`
     );
   });
 

@@ -211,7 +211,13 @@ export function RouteListScreen({
         <View accessibilityRole="alert" style={styles.errorBox}>
           <View style={styles.errorCopy}>
             <Text style={styles.errorTitle}>{errorState.title}</Text>
-            <Text style={styles.errorText}>{errorState.message}</Text>
+            <Text
+              accessibilityLabel={errorState.messageAccessibilityLabel}
+              numberOfLines={2}
+              style={styles.errorText}
+            >
+              {errorState.message}
+            </Text>
           </View>
           <Pressable
             accessibilityLabel={errorState.retryAccessibilityLabel}

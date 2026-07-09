@@ -1217,6 +1217,8 @@ describe("rounded visual language", () => {
       /style=\{\(\{ pressed \}\) => \[\s*styles\.retryButton,\s*pressed \? styles\.retryButtonPressed : null,/,
     );
     assert.match(routeListScreenSource, /styles\.errorTitle/);
+    assert.match(routeListScreenSource, /accessibilityLabel=\{errorState\.messageAccessibilityLabel\}/);
+    assert.match(routeListScreenSource, /numberOfLines=\{2\}/);
     assert.match(routeListScreenSource, /styles\.emptyTitle/);
     assert.doesNotMatch(routeListScreenSource, /Ionicons/);
     assert.doesNotMatch(routeListScreenSource, /alert-circle/);
@@ -1243,10 +1245,22 @@ describe("rounded visual language", () => {
     assert.doesNotMatch(routeListErrorsSource, /retryLabel:\s*["']Retry sync["']/);
     assert.doesNotMatch(routeListErrorsSource, /retryLabel:\s*["']Retry route["']/);
     assert.match(routeListErrorsSource, /ROUTE_DETAIL_ERROR_ROUTE_NAME_MAX_LENGTH\s*=\s*56/);
+    assert.match(routeListErrorsSource, /ROUTE_LIST_ERROR_REASON_MAX_LENGTH\s*=\s*72/);
+    assert.match(routeListErrorsSource, /ROUTE_SYNC_ERROR_MESSAGE_MAX_LENGTH\s*=\s*96/);
     assert.match(routeListErrorsSource, /createCompactRouteErrorName/);
+    assert.match(routeListErrorsSource, /createCompactRouteErrorText/);
+    assert.match(routeListErrorsSource, /messageAccessibilityLabel:\s*message/);
     assert.match(
       routeListErrorsSource,
-      /message:\s*`Could not load \$\{compactRouteName\}\. \$\{reason\}`/,
+      /const compactReason = createCompactRouteErrorText\(reason, ROUTE_LIST_ERROR_REASON_MAX_LENGTH\)/,
+    );
+    assert.match(
+      routeListErrorsSource,
+      /message:\s*`Could not load \$\{compactRouteName\}\. \$\{compactReason\}`/,
+    );
+    assert.match(
+      routeListErrorsSource,
+      /messageAccessibilityLabel:\s*`Could not load \$\{safeRouteName\}\. \$\{reason\}`/,
     );
     assert.match(
       routeListErrorsSource,

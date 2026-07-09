@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 
 import {
+  ROUTE_SUMMARY_DETAIL_METRIC_MAX_LENGTH,
   ROUTE_SUMMARY_DISTANCE_FALLBACK,
   ROUTE_SUMMARY_HEADLINE_MAX_LENGTH,
   createRouteSummaryDemoAction,
@@ -212,6 +213,52 @@ describe("live route summary presentation", () => {
     });
     assert.equal(createRouteSummaryRemainingMetric("   "), null);
     assert.equal(createRouteSummaryRemainingMetric(null), null);
+  });
+
+  it("bounds visible route summary distance metrics while preserving VoiceOver detail", () => {
+    const hostedRemainingDistance =
+      "Provider reported 4.123 kilometres remaining via convoy telemetry";
+    const hostedRouteDistance =
+      "Provider reported 12.876 kilometres total along the protected corridor";
+
+    const remainingMetric = createRouteSummaryRemainingMetric(
+      `  ${hostedRemainingDistance.replace(/ /g, "   ")}  `,
+    );
+    assert.ok(remainingMetric);
+    assert.equal(remainingMetric.accessibilityLabel, `${hostedRemainingDistance} remaining.`);
+    assert.ok(remainingMetric.text.startsWith("Provider reported 4.12"));
+    assert.match(remainingMetric.text, /… left$/);
+    assert.ok(
+      remainingMetric.text.length <= ROUTE_SUMMARY_DETAIL_METRIC_MAX_LENGTH + " left".length,
+    );
+
+    const guestDetail = createRouteSummaryDetail({
+      remainingDistance: null,
+      routeContext: "guest",
+      routeDistance: ` ${hostedRouteDistance.replace(/ /g, "   ")} `,
+      routeIntelCount: 0,
+    });
+    assert.equal(
+      guestDetail.accessibilityLabel,
+      `${hostedRouteDistance} route distance.`,
+    );
+    assert.match(guestDetail.text, /…$/);
+    assert.ok(guestDetail.text.length <= ROUTE_SUMMARY_DETAIL_METRIC_MAX_LENGTH);
+
+    const savedDetail = createRouteSummaryDetail({
+      remainingDistance: ` ${hostedRemainingDistance} `,
+      routeContext: "saved",
+      routeDescription: "Uses monitored corridors near the destination.",
+      routeDistance: ` ${hostedRouteDistance} `,
+      routeIntelCount: 3,
+    });
+    assert.equal(
+      savedDetail.accessibilityLabel,
+      `${hostedRemainingDistance} remaining. 3 risk notes. Route note: Uses monitored corridors near the destination.`,
+    );
+    assert.match(savedDetail.text, /… left · 3 risk notes$/);
+    assert.ok(savedDetail.text.includes("Provider reported"));
+    assert.ok(savedDetail.text.length < savedDetail.accessibilityLabel.length);
   });
 
   it("keeps guest preview detail to the single action-relevant distance", () => {

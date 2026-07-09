@@ -4,6 +4,7 @@ export type RouteSummaryContext = "guest" | "saved";
 
 export const ROUTE_SUMMARY_DISTANCE_FALLBACK = "Distance unavailable";
 export const ROUTE_SUMMARY_HEADLINE_MAX_LENGTH = 24;
+export const ROUTE_SUMMARY_DETAIL_METRIC_MAX_LENGTH = 24;
 export const ROUTE_SUMMARY_SAFETY_BADGE_MAX_LENGTH = 18;
 
 export type RouteSummaryPrimaryAction = {
@@ -215,7 +216,7 @@ export function createRouteSummaryRemainingMetric(
 
   return {
     accessibilityLabel: `${distance} remaining.`,
-    text: `${distance} left`,
+    text: `${createRouteSummaryVisibleDistanceLabel(distance)} left`,
   };
 }
 
@@ -239,13 +240,13 @@ export function createRouteSummaryDetail({
   if (routeContext === "guest") {
     return {
       accessibilityLabel: createRouteDistanceAccessibilityLabel(routeDistanceLabel),
-      text: routeDistanceLabel,
+      text: createRouteSummaryVisibleDistanceLabel(routeDistanceLabel),
     };
   }
 
   const distanceText = remainingDistanceLabel
-    ? `${remainingDistanceLabel} left`
-    : routeDistanceLabel;
+    ? `${createRouteSummaryVisibleDistanceLabel(remainingDistanceLabel)} left`
+    : createRouteSummaryVisibleDistanceLabel(routeDistanceLabel);
   const distanceAccessibilityLabel = remainingDistanceLabel
     ? `${remainingDistanceLabel} remaining.`
     : createRouteDistanceAccessibilityLabel(routeDistanceLabel);
@@ -283,6 +284,10 @@ function createSafetyBadgeSpokenRiskLabel(riskLabel: string): string {
   }
 
   return `${riskLabel} risk`;
+}
+
+function createRouteSummaryVisibleDistanceLabel(label: string): string {
+  return createCompactInlineLabel(label, ROUTE_SUMMARY_DETAIL_METRIC_MAX_LENGTH);
 }
 
 function createCompactInlineLabel(label: string, maxLength: number): string {

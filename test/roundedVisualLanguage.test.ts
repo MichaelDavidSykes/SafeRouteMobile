@@ -963,6 +963,8 @@ describe("rounded visual language", () => {
     assert.match(routeSummarySource, /Route note:/);
     assert.match(routeSummarySource, /ROUTE_SUMMARY_DISTANCE_FALLBACK/);
     assert.match(routeSummarySource, /ROUTE_SUMMARY_HEADLINE_MAX_LENGTH/);
+    assert.match(routeSummarySource, /ROUTE_SUMMARY_DETAIL_METRIC_MAX_LENGTH/);
+    assert.match(routeSummarySource, /createRouteSummaryVisibleDistanceLabel/);
     assert.match(routeSummarySource, /label:\s*"Start"/);
     assert.match(routeSummarySource, /label:\s*"Pause"/);
     assert.match(routeSummarySource, /label:\s*"Resume"/);

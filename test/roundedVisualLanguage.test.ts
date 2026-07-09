@@ -1277,7 +1277,14 @@ describe("rounded visual language", () => {
     assert.match(routeListScreenSource, /styles\.errorTitle/);
     assert.match(routeListScreenSource, /accessibilityLabel=\{errorState\.messageAccessibilityLabel\}/);
     assert.match(routeListScreenSource, /numberOfLines=\{2\}/);
-    assert.match(routeListScreenSource, /styles\.emptyTitle/);
+    assert.match(
+      routeListScreenSource,
+      /<Text numberOfLines=\{1\} style=\{styles\.emptyTitle\}>/,
+    );
+    assert.match(
+      routeListScreenSource,
+      /<Text numberOfLines=\{2\} style=\{styles\.emptyCopy\}>/,
+    );
     assert.doesNotMatch(routeListScreenSource, /Ionicons/);
     assert.doesNotMatch(routeListScreenSource, /alert-circle/);
     assert.doesNotMatch(routeListScreenSource, /file-tray-outline/);

@@ -272,8 +272,12 @@ export function RouteListScreen({
               accessibilityLabel={emptyState.accessibilityLabel}
               style={styles.emptyState}
             >
-              <Text style={styles.emptyTitle}>{emptyState.title}</Text>
-              <Text style={styles.emptyCopy}>{emptyState.copy}</Text>
+              <Text numberOfLines={1} style={styles.emptyTitle}>
+                {emptyState.title}
+              </Text>
+              <Text numberOfLines={2} style={styles.emptyCopy}>
+                {emptyState.copy}
+              </Text>
             </View>
           ) : null}
         </ScrollView>

@@ -207,6 +207,7 @@ describe('guest route planner helpers', () => {
 
     assert.equal(route.route.distance, '16.5 km');
     assert.equal(route.route.eta, '38 min');
+    assert.equal(route.updatedAtLabel, 'Road preview');
     assert.equal(route.route.description, 'Road-snapped preview. Sign in to save.');
     assert.equal(route.route.coordinates.length, 4);
     assert.deepEqual(route.route.coordinates[0], roadSnappedCoordinates[0]);
@@ -232,13 +233,14 @@ describe('guest route planner helpers', () => {
         { latitude: Number.NaN, longitude: -0.1478 },
         { latitude: 51.5115, longitude: -200 }
       ],
-      routeDistanceMeters: -1,
-      routeDurationSeconds: 0
+      routeDistanceMeters: 16497,
+      routeDurationSeconds: 2304.9
     });
 
     assert.equal(route.route.coordinates.length, 33);
     assert.equal(route.route.distance, '9.4 km');
     assert.equal(route.route.eta, '24 min');
+    assert.equal(route.updatedAtLabel, 'Local preview');
     assert.equal(route.route.description, 'Local preview. Saved plans stay in Saved.');
   });
 

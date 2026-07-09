@@ -275,10 +275,15 @@ export function createGuestRoutePlan({
   const routeCoordinates = hasRoadSnappedCoordinates
     ? normalizedRoadSnappedCoordinates
     : GUEST_ROUTE_COORDINATES;
-  const routeMetrics = createGuestRouteMetrics(routeCoordinates, {
-    distanceMeters: routeDistanceMeters,
-    durationSeconds: routeDurationSeconds
-  });
+  const routeMetrics = createGuestRouteMetrics(
+    routeCoordinates,
+    hasRoadSnappedCoordinates
+      ? {
+          distanceMeters: routeDistanceMeters,
+          durationSeconds: routeDurationSeconds
+        }
+      : {}
+  );
 
   return {
     id: 'guest-plotted-route',
@@ -286,7 +291,7 @@ export function createGuestRoutePlan({
     operation: authenticated ? 'Local route' : 'Unsaved route',
     status: 'ready',
     convoyCallsign: authenticated ? 'Map preview' : 'Guest mode',
-    updatedAtLabel: 'Local preview',
+    updatedAtLabel: hasRoadSnappedCoordinates ? 'Road preview' : 'Local preview',
     origin: originLabel,
     destination: destinationLabel,
     region: buildGuestRouteRegion(routeCoordinates),

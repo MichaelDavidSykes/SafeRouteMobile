@@ -1,6 +1,7 @@
 import type { LatLng } from 'react-native-maps';
 
 import { haversineDistanceMeters } from '../live-map/routeGeometry';
+import { normalizeRouteNavigationSteps } from '../live-map/routeGuidance';
 import {
   type GuestRoadRoutePreview,
   type GuestRouteAvoidRectangle
@@ -106,7 +107,10 @@ export function normalizeSafeRoutePreviewResponse(
     distanceMeters,
     durationSeconds,
     provider,
-    snapped: true
+    snapped: true,
+    guidanceSteps: normalizeRouteNavigationSteps(
+      record.guidance_steps ?? record.guidanceSteps
+    )
   };
 }
 

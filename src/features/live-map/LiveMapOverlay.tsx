@@ -10,7 +10,10 @@ import {
 import type { RouteProgressSnapshot } from "./routeProgress";
 import type { LiveRouteRiskAlert, RouteRiskProximity } from "./routeRisk";
 import { LiveMapControls } from "./LiveMapControls";
-import { LiveMapGuidanceCard } from "./LiveMapGuidanceCard";
+import {
+  LiveMapGuidanceCard,
+  type LiveReroutePresentation,
+} from "./LiveMapGuidanceCard";
 import {
   LiveRouteRiskAlertCard,
   LiveRouteRiskDetailCard,
@@ -33,6 +36,7 @@ interface LiveMapOverlayProps {
   onChangeRoute: () => void;
   onFitRoute: () => void;
   onPrimaryAction: () => void;
+  onRetryReroute: () => void;
   onSetAlertsVisible: (updater: (value: boolean) => boolean) => void;
   onSetFollowModeEnabled: (updater: (value: boolean) => boolean) => void;
   onStopRoute: () => void;
@@ -43,6 +47,7 @@ interface LiveMapOverlayProps {
   onDismissRiskDetail: () => void;
   onOpenRiskAlert: () => void;
   riskAdvisory?: RouteRiskAdvisory | null;
+  reroutePresentation?: LiveReroutePresentation | null;
   returnAccessibilityLabel: string;
   returnLabel: string;
   routeContext: "guest" | "saved";
@@ -66,6 +71,7 @@ export function LiveMapOverlay({
   onChangeRoute,
   onFitRoute,
   onPrimaryAction,
+  onRetryReroute,
   onSetAlertsVisible,
   onSetFollowModeEnabled,
   onStopRoute,
@@ -76,6 +82,7 @@ export function LiveMapOverlay({
   onDismissRiskDetail,
   onOpenRiskAlert,
   riskAdvisory,
+  reroutePresentation,
   returnAccessibilityLabel,
   returnLabel,
   routeContext,
@@ -115,8 +122,10 @@ export function LiveMapOverlay({
           guidance={guidance}
           layout={layout}
           progress={progress}
+          reroutePresentation={reroutePresentation}
           riskAdvisory={riskAdvisory}
           state={activeNavigationState}
+          onRetryReroute={onRetryReroute}
         />
       ) : null}
 

@@ -9,6 +9,7 @@ describe('SafeRoute mobile DTO mapper', () => {
       id: 'route-1',
       name: 'Airport transfer',
       mobile_status: 'ready',
+      client_id: 'client-1',
       client_name: 'Acme',
       operation: 'Executive move',
       convoy_callsign: 'Lead 1',
@@ -32,7 +33,14 @@ describe('SafeRoute mobile DTO mapper', () => {
         distance_meters: 8000,
         eta_label: '18 min',
         risk_score: 22,
-        risk_level: 'low'
+        risk_level: 'low',
+        guidance_steps: [{
+          id: 'step-1',
+          instruction: 'Turn left onto Airport Road',
+          maneuver_type: 'turn',
+          distance_along_meters: 800,
+          coordinate: { lat: 51.505, lon: -0.08 }
+        }]
       },
       risk_overlays: [
         {
@@ -52,6 +60,8 @@ describe('SafeRoute mobile DTO mapper', () => {
     assert.equal(plan.origin, 'Hotel');
     assert.equal(plan.route.eta, '18 min');
     assert.equal(plan.route.distance, '8.0 km');
+    assert.equal(plan.clientId, 'client-1');
+    assert.equal(plan.route.navigationSteps?.[0].instruction, 'Turn left onto Airport Road');
     assert.equal(plan.riskZones[0].severity, 'high');
     assert.equal(plan.checkpoints.length, 2);
   });

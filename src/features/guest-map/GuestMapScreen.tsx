@@ -19,7 +19,9 @@ import type { SavedSafeRoutePlan } from '../live-map/liveMapTypes';
 import type { RiskZone } from '../live-map/liveMapTypes';
 import { RiskOverlay } from '../live-map/LiveMapMarkers';
 import { useViewportRiskAreas } from '../live-map/useViewportRiskAreas';
-import { deriveRiskZoneAvoidRectangles } from '../live-map/areaRiskApiCore';
+import { mergeRiskZonesById } from '../live-map/areaRiskApiCore';
+import { fetchAreaRiskAlongRoute } from '../live-map/routeRiskCorridorApi';
+import { buildLiveRerouteAvoidRectangles } from '../live-map/liveReroutePlan';
 import { useLiveLocation } from '../live-map/useLiveLocation';
 import { isPreviewAccessToken } from '../auth/previewSession';
 import { fetchSavedRoutes } from '../routes/routeApi';
@@ -50,7 +52,7 @@ import {
 } from './guestLocationSearch';
 import { guestMapStyles as styles } from './GuestMapScreen.styles';
 
-const GUEST_ROUTE_PROVIDER_UI_TIMEOUT_MS = 3500;
+const GUEST_ROUTE_PROVIDER_UI_TIMEOUT_MS = 15000;
 const GUEST_LOCATION_SEARCH_DEBOUNCE_MS = 320;
 const GUEST_LOCATION_SEARCH_MIN_LENGTH = 2;
 
@@ -357,13 +359,11 @@ export function GuestMapScreen({
         clientId: routingClientId
       }));
 
-    const avoidRectangles = deriveRiskZoneAvoidRectangles(riskZonesSnapshot).map((rectangle) => ({
-      label: rectangle.label,
-      maxLatitude: rectangle.max_lat,
-      maxLongitude: rectangle.max_lon,
-      minLatitude: rectangle.min_lat,
-      minLongitude: rectangle.min_lon
-    }));
+    const avoidRectangles = buildLiveRerouteAvoidRectangles(
+      riskZonesSnapshot,
+      localRoutePlan.route.coordinates,
+      stops
+    );
 
     void routePreviewFetcher({
       avoidRectangles,
@@ -371,9 +371,63 @@ export function GuestMapScreen({
       stops,
       timeoutMs: GUEST_ROUTE_PROVIDER_UI_TIMEOUT_MS
     })
-      .then((roadPreview) => {
+      .then(async (roadPreview) => {
         if (
           !roadPreview ||
+          controller.signal.aborted ||
+          roadRouteRequestIdRef.current !== requestId
+        ) {
+          return;
+        }
+
+        let finalRoadPreview = roadPreview;
+        let finalRiskZones = riskZonesSnapshot;
+        try {
+          const corridorRiskZones = await fetchAreaRiskAlongRoute(
+            roadPreview.coordinates,
+            {
+              accessToken: accessToken && !isPreviewAccessToken(accessToken)
+                ? accessToken
+                : null,
+              clientId: routingClientId || undefined,
+              maxChunks: 8,
+              signal: controller.signal,
+              timeoutMs: 9000
+            }
+          );
+          if (
+            controller.signal.aborted ||
+            roadRouteRequestIdRef.current !== requestId
+          ) {
+            return;
+          }
+          finalRiskZones = mergeRiskZonesById(riskZonesSnapshot, corridorRiskZones);
+          const corridorAvoidRectangles = buildLiveRerouteAvoidRectangles(
+            finalRiskZones,
+            roadPreview.coordinates,
+            stops
+          );
+          if (
+            JSON.stringify(corridorAvoidRectangles) !== JSON.stringify(avoidRectangles)
+          ) {
+            const riskAwarePreview = await routePreviewFetcher({
+              avoidRectangles: corridorAvoidRectangles,
+              signal: controller.signal,
+              stops,
+              timeoutMs: GUEST_ROUTE_PROVIDER_UI_TIMEOUT_MS
+            });
+            if (!riskAwarePreview) {
+              return;
+            }
+            finalRoadPreview = riskAwarePreview;
+          }
+        } catch {
+          if (!SAFEROUTE_PREVIEW_MODE_ENABLED) {
+            return;
+          }
+        }
+
+        if (
           controller.signal.aborted ||
           roadRouteRequestIdRef.current !== requestId
         ) {
@@ -386,13 +440,17 @@ export function GuestMapScreen({
           destinationCoordinate: destinationCoordinateSnapshot,
           origin: originSnapshot,
           originCoordinate: originCoordinateSnapshot,
-          riskZones: riskZonesSnapshot,
-          roadSnappedCoordinates: roadPreview.coordinates,
-          routeDistanceMeters: roadPreview.distanceMeters,
-          routeDurationSeconds: roadPreview.durationSeconds
+          riskZones: finalRiskZones,
+          roadSnappedCoordinates: finalRoadPreview.coordinates,
+          routeDistanceMeters: finalRoadPreview.distanceMeters,
+          routeDurationSeconds: finalRoadPreview.durationSeconds,
+          routeGuidanceSteps: finalRoadPreview.guidanceSteps
         });
 
         if (roadRoutePlan) {
+          if (routingClientId) {
+            roadRoutePlan.clientId = routingClientId;
+          }
           acceptedRoadPreview = true;
           setRoutePlan(roadRoutePlan);
           openPendingPreview(roadRoutePlan);

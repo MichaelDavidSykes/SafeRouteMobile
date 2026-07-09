@@ -1,6 +1,7 @@
 import type { LatLng } from 'react-native-maps';
 
 import { haversineDistanceMeters } from '../live-map/routeGeometry';
+import type { RouteNavigationStep } from '../live-map/liveMapTypes';
 
 export type GuestRoadRouteProvider = 'osrm' | 'tomtom';
 
@@ -10,6 +11,7 @@ export type GuestRoadRoutePreview = {
   durationSeconds: number | null;
   provider: GuestRoadRouteProvider;
   snapped: boolean;
+  guidanceSteps?: RouteNavigationStep[];
 };
 
 export type GuestRoadRoutePreviewOptions = {

@@ -46,6 +46,17 @@ describe('SafeRoute road route provider', () => {
       avoid_area_count: 1,
       distance_meters: 17000,
       duration_seconds: 1800,
+      guidance_steps: [{
+        id: 'step-1',
+        instruction: 'Turn right onto Airport Approach',
+        maneuver_type: 'turn',
+        modifier: 'right',
+        road_name: 'Airport Approach',
+        distance_along_meters: 1200,
+        distance_meters: 800,
+        duration_seconds: 90,
+        coordinate: { lat: -33.94, lon: 18.5 }
+      }],
       coordinates: [
         { lat: -33.9249, lon: 18.4241 },
         { lat: -33.94, lon: 18.5 },
@@ -58,6 +69,8 @@ describe('SafeRoute road route provider', () => {
     assert.equal(result?.durationSeconds, 1800);
     assert.deepEqual(result?.coordinates[0], stops[0]);
     assert.deepEqual(result?.coordinates.at(-1), stops.at(-1));
+    assert.equal(result?.guidanceSteps?.[0].instruction, 'Turn right onto Airport Approach');
+    assert.equal(result?.guidanceSteps?.[0].distanceAlongMeters, 1200);
   });
 
   it('rejects manual, unsnapped, endpoint-mismatched, and unconstrained responses', () => {

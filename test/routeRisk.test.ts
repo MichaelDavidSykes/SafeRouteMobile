@@ -324,6 +324,15 @@ describe("SafeRoute risk-aware route behavior", () => {
       routeRiskStartBlockedReason(crossingPlan) || "",
       /Route intersects Security cordon\. Re-sync route in SafeRoute planner/,
     );
+    const advisoryPlan = {
+      ...crossingPlan,
+      riskZones: crossingPlan.riskZones.map((zone) => ({
+        ...zone,
+        severity: "medium" as const,
+      })),
+    };
+    assert.equal(auditRouteRiskAvoidance(advisoryPlan).violations.length, 1);
+    assert.equal(routeRiskStartBlockedReason(advisoryPlan), null);
   });
 
   it("keeps blocked-start risk copy punctuation-clean for VoiceOver", () => {
@@ -579,6 +588,10 @@ describe("SafeRoute risk-aware route behavior", () => {
 
     assert.ok(alert);
     assert.equal(alert.status, "inside");
-    assert.equal(routeRiskStartBlockedReason(routePlan)?.includes("Boundary area"), true);
+    assert.equal(
+      routeRiskStartBlockedReason(routePlan),
+      null,
+      "medium-severity boundary contact should remain a live advisory rather than blocking navigation",
+    );
   });
 });

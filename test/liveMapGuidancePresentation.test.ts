@@ -38,7 +38,7 @@ describe("live map guidance card presentation", () => {
     assert.deepEqual(presentation, {
       accessibilityLabel:
         "Current instruction. Continue on saved route. ETA pending. 0 m left.",
-      distanceLabel: "",
+      distanceLabel: null,
       instructionLabel: "Continue on saved route",
       metaLabel: "ETA pending · 0 m left",
     });

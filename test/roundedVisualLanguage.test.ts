@@ -709,6 +709,10 @@ describe("rounded visual language", () => {
       )?.[1] || "";
 
     assert.match(guidanceSource, /accessibilityLabel=\{presentation\.accessibilityLabel\}/);
+    assert.match(guidanceSource, /presentation\.instructionLabel/);
+    assert.match(guidanceSource, /presentation\.distanceLabel/);
+    assert.doesNotMatch(guidanceSource, /\{guidance\.instruction\}/);
+    assert.doesNotMatch(guidanceSource, /\{guidance\.distance\}/);
     assert.doesNotMatch(guidanceSource, /Ionicons/);
     assert.doesNotMatch(guidanceSource, /name=\{icon\}|name="navigate"|name="alert"|name="flag"/);
     assert.doesNotMatch(guidanceSource, /styles\.guidanceIcon/);

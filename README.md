@@ -52,6 +52,7 @@ For iOS production readiness, confirm:
 - Bundle identifier: `com.lunarchain.saferoute`
 - URL scheme: `saferoute`
 - Foreground location permission copy is approved for App Store review: "Shows your position on the map and guides active SafeRoute trips."
+- Launch splash uses the light iOS grouped background (`#f2f2f7`) with a quiet SafeRoute mark so startup matches the map-first UI.
 - Release identity is covered by local config tests: app name `SafeRoute`, slug `saferoute-mobile`, bundle id `com.lunarchain.saferoute`, URL scheme `saferoute`, portrait orientation, light UI style, and phone-only support.
 - `SAFEROUTE_APP_ENV=production` is used for release artifacts
 - `SAFEROUTE_IOS_BUILD_NUMBER` is set and incremented for every signed iOS artifact

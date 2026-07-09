@@ -108,7 +108,7 @@ describe('Expo production configuration', () => {
     assert.deepEqual(expo.splash, {
       image: './assets/splash.png',
       resizeMode: 'contain',
-      backgroundColor: '#000000'
+      backgroundColor: '#f2f2f7'
     });
   });
 

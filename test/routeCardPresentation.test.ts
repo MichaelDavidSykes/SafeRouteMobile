@@ -147,6 +147,30 @@ describe("route card presentation", () => {
     assert.match(presentation.accessibilityLabel, new RegExp(verboseRiskLabel));
   });
 
+  it("preserves the risk suffix when compacting advisory labels", () => {
+    const advisoryLabel =
+      "Elevated checkpoint security posture near the destination corridor";
+    const presentation = createRouteCardPresentation(
+      {
+        ...baseRoute,
+        route: {
+          ...baseRoute.route,
+          riskLabel: advisoryLabel,
+        },
+      },
+      false,
+    );
+    const summaryParts = presentation.summaryLabel.split(" · ");
+    const riskSummary = summaryParts[summaryParts.length - 1];
+
+    assert.match(riskSummary, /… risk$/);
+    assert.ok(riskSummary.length <= ROUTE_CARD_RISK_MAX_LENGTH);
+    assert.match(
+      presentation.accessibilityLabel,
+      new RegExp(`${advisoryLabel} risk`),
+    );
+  });
+
   it("hides generic route metadata while keeping meaningful convoy context", () => {
     assert.equal(
       createRouteCardMetaLabel("Diplomatic move", "Lead 1"),

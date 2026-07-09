@@ -75,12 +75,10 @@ export function createRouteCardTestID(routeId: string): string {
 export function createRouteCardSummaryLabel(
   route: SavedSafeRoutePlan,
 ): string {
-  const riskLabel = createRouteCardRiskSummaryLabel(route.route.riskLabel);
-
   return [
     normalizeRouteCardMetaValue(route.route.eta),
     normalizeRouteCardMetaValue(route.route.distance),
-    createCompactRouteCardLabel(riskLabel, ROUTE_CARD_RISK_MAX_LENGTH),
+    createRouteCardVisibleRiskSummaryLabel(route.route.riskLabel),
   ]
     .filter(Boolean)
     .join(" · ");
@@ -156,6 +154,29 @@ function createRouteCardRiskSummaryLabel(riskLabel: string): string {
   }
 
   return `${normalizedRiskLabel} risk`;
+}
+
+function createRouteCardVisibleRiskSummaryLabel(riskLabel: string): string {
+  const normalizedRiskLabel = normalizeRouteCardMetaValue(riskLabel);
+
+  if (!normalizedRiskLabel) {
+    return "Risk";
+  }
+
+  if (/\brisk\b/i.test(normalizedRiskLabel)) {
+    return createCompactRouteCardLabel(
+      normalizedRiskLabel,
+      ROUTE_CARD_RISK_MAX_LENGTH,
+    );
+  }
+
+  const riskSuffix = " risk";
+  const compactRiskLabel = createCompactRouteCardLabel(
+    normalizedRiskLabel,
+    ROUTE_CARD_RISK_MAX_LENGTH - riskSuffix.length,
+  );
+
+  return `${compactRiskLabel}${riskSuffix}`;
 }
 
 export function createRouteCardMetaLabel(

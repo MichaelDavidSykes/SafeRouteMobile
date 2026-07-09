@@ -1,4 +1,5 @@
 import { ApiSessionExpiredError } from '../api/apiClientCore';
+import { isUnsafeDiagnosticMessage } from '../api/userFacingErrors';
 import { getJwtExpirySeconds, isJwtExpired } from './jwt';
 import type { AuthenticatedUser, AuthSession } from './authTypes';
 
@@ -33,16 +34,6 @@ const GENERIC_SESSION_REJECTION_PATTERNS = [
   /^could not validate credentials$/i,
   /^authentication credentials were not provided$/i,
   /^missing authorization/i
-];
-
-const UNSAFE_SESSION_REJECTION_PATTERNS = [
-  /internal server error/i,
-  /traceback/i,
-  /stack trace/i,
-  /exception/i,
-  /<html/i,
-  /<!doctype/i,
-  /\[object object\]/i
 ];
 
 export async function restoreSavedSession(
@@ -117,7 +108,7 @@ function getSessionRestoreExpiredMessage(message: string | undefined): string {
   if (
     !normalizedMessage ||
     GENERIC_SESSION_REJECTION_PATTERNS.some((pattern) => pattern.test(normalizedMessage)) ||
-    UNSAFE_SESSION_REJECTION_PATTERNS.some((pattern) => pattern.test(normalizedMessage))
+    isUnsafeDiagnosticMessage(normalizedMessage)
   ) {
     return DEFAULT_EXPIRED_MESSAGE;
   }

@@ -98,12 +98,21 @@ describe('saved LunarChain session restore', () => {
   });
 
   it('hides unsafe hosted auth diagnostics during session restore', async () => {
-    const result = await restoreSavedSession(storedSession, async () => {
-      throw new ApiSessionExpiredError('Traceback: token validator exception');
-    });
+    const unsafeMessages = [
+      'Traceback: token validator exception',
+      'SQLSTATE 23505 database error from users where id = $1',
+      '{"error":"token validator failed"}',
+      'TypeError: Cannot read properties of undefined'
+    ];
 
-    assert.equal(result.status, 'expired');
-    assert.equal(result.message, 'Your LunarChain session expired. Sign in again.');
+    for (const message of unsafeMessages) {
+      const result = await restoreSavedSession(storedSession, async () => {
+        throw new ApiSessionExpiredError(message);
+      });
+
+      assert.equal(result.status, 'expired');
+      assert.equal(result.message, 'Your LunarChain session expired. Sign in again.');
+    }
   });
 
   it('keeps a non-expired saved session through transient validation failures', async () => {

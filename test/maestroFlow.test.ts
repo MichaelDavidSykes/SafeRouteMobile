@@ -40,15 +40,35 @@ describe("Maestro iOS preview smoke flow", () => {
     assert.match(flow, /previous IPv4 loopback retry could time\s*\n?#?\s*out in iOS/);
     assert.equal(
       scripts["start:maestro:ios"],
-      "NODE_OPTIONS=--dns-result-order=ipv4first expo start --localhost --port 8081",
+      "SAFEROUTE_ENABLE_PREVIEW_MODE=true NODE_OPTIONS=--dns-result-order=ipv4first expo start --localhost --port 8081",
     );
     assert.equal(
       scripts["test:maestro:ios"],
-      "maestro test maestro/ios-preview-route-live-map.yaml",
+      "node scripts/run-maestro.mjs test maestro/ios-preview-route-live-map.yaml",
     );
     assert.ok(firstLocalhostIndex >= 0);
     assert.ok(lastLocalhostIndex > firstLocalhostIndex);
     assert.ok(appRootWaitIndex > lastLocalhostIndex);
+  });
+
+  it("opens preview saved routes before falling back to guest plotting", () => {
+    const flow = previewFlowSource();
+    const scripts = packageJson().scripts;
+    const appRootWaitIndex = flow.indexOf('id: "saferoute-app-root"');
+    const savedPreviewIndex = flow.indexOf('visible: "Saved"');
+    const savedTapIndex = flow.indexOf('id: "guest-map-primary-action"\n          waitToSettleTimeoutMs: 1000');
+    const routePickerWaitIndex = flow.indexOf('id: "safe-route-picker"\n          timeout: 15000');
+    const guestGateIndex = flow.indexOf('id: "guest-map-primary-action"', savedTapIndex + 1);
+
+    assert.match(scripts["start:maestro:ios"], /SAFEROUTE_ENABLE_PREVIEW_MODE=true/);
+    assert.match(flow, /visible:\s*"Saved"/);
+    assert.match(flow, /tapOn:\s*\n\s+id:\s*"guest-map-primary-action"\s*\n\s+waitToSettleTimeoutMs:\s*1000/);
+    assert.match(flow, /extendedWaitUntil:\s*\n\s+visible:\s*\n\s+id:\s*"safe-route-picker"\s*\n\s+timeout:\s*15000/);
+    assert.ok(appRootWaitIndex >= 0);
+    assert.ok(savedPreviewIndex > appRootWaitIndex);
+    assert.ok(savedTapIndex > savedPreviewIndex);
+    assert.ok(routePickerWaitIndex > savedTapIndex);
+    assert.ok(guestGateIndex > routePickerWaitIndex);
   });
 
   it("plots a guest route before opening the live map", () => {
@@ -110,6 +130,7 @@ describe("Maestro iOS preview smoke flow", () => {
     const stopActionIndex = flow.indexOf('id: "safe-route-stop-action"');
     const activeControlBlock = flow.slice(primaryTapIndex, stopActionIndex);
 
+    assert.match(flow, /extendedWaitUntil:\s*\n\s+visible:\s*\n\s+id:\s*"safe-route-stop-action"\s*\n\s+timeout:\s*5000/);
     assert.match(flow, /assertVisible:\s*\n\s+id:\s*"safe-route-remaining-metrics"/);
     assert.match(flow, /assertVisible:\s*\n\s+id:\s*"safe-route-control-fit"/);
     assert.match(flow, /assertVisible:\s*\n\s+id:\s*"safe-route-control-follow"/);

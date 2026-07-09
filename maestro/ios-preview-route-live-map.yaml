@@ -53,6 +53,17 @@ appId: host.exp.Exponent
     timeout: 45000
 - runFlow:
     when:
+      visible: "Saved"
+    commands:
+      - tapOn:
+          id: "guest-map-primary-action"
+          waitToSettleTimeoutMs: 1000
+      - extendedWaitUntil:
+          visible:
+            id: "safe-route-picker"
+          timeout: 15000
+- runFlow:
+    when:
       visible:
         id: "guest-map-primary-action"
     commands:
@@ -130,10 +141,10 @@ appId: host.exp.Exponent
 - tapOn:
     id: "safe-route-primary-action"
     waitToSettleTimeoutMs: 1000
-- waitForAnimationToEnd:
-    timeout: 3000
-- assertVisible:
-    id: "safe-route-stop-action"
+- extendedWaitUntil:
+    visible:
+      id: "safe-route-stop-action"
+    timeout: 5000
 - assertVisible:
     id: "safe-route-remaining-metrics"
 - assertVisible:

@@ -60,11 +60,11 @@ describe('Maestro iOS runtime preflight', () => {
     );
     assert.equal(
       scripts['start:maestro:ios'],
-      'NODE_OPTIONS=--dns-result-order=ipv4first expo start --localhost --port 8081'
+      'SAFEROUTE_ENABLE_PREVIEW_MODE=true NODE_OPTIONS=--dns-result-order=ipv4first expo start --localhost --port 8081'
     );
     assert.equal(
       scripts['test:maestro:ios'],
-      'maestro test maestro/ios-preview-route-live-map.yaml'
+      'node scripts/run-maestro.mjs test maestro/ios-preview-route-live-map.yaml'
     );
   });
 

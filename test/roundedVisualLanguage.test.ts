@@ -473,6 +473,10 @@ describe("rounded visual language", () => {
       join(process.cwd(), "src/features/auth/LoginScreen.styles.ts"),
       "utf8",
     );
+    const loginErrorStateSource = readFileSync(
+      join(process.cwd(), "src/features/auth/loginErrorState.ts"),
+      "utf8",
+    );
     const formCardBlock =
       /formCard:\s*\{([\s\S]*?)\n  \},\n  formCardCompact:/.exec(
         loginStylesSource,
@@ -509,6 +513,13 @@ describe("rounded visual language", () => {
     assert.match(loginSource, /styles\.formCardCompact/);
     assert.match(loginSource, /styles\.passwordToggle/);
     assert.match(loginSource, /passwordVisible \? 'Hide' : 'Show'/);
+    assert.match(loginSource, /createLoginErrorState/);
+    assert.match(loginSource, /loginErrorState\.message/);
+    assert.match(loginSource, /accessibilityLabel=\{loginErrorState\.accessibilityLabel \|\| undefined\}/);
+    assert.match(loginSource, /numberOfLines=\{2\}/);
+    assert.match(loginErrorStateSource, /LOGIN_ERROR_MESSAGE_MAX_LENGTH\s*=\s*84/);
+    assert.match(loginErrorStateSource, /createCompactLoginErrorText/);
+    assert.match(loginErrorStateSource, /accessibilityLabel:\s*compactMessage === normalizedMessage \? null : normalizedMessage/);
     assert.doesNotMatch(loginSource, /Ionicons/);
     assert.doesNotMatch(loginSource, /name="mail"|name="lock-closed"|name="keypad"|name="alert-circle"|name="time"|name="timer"|eye-off|name="eye"/);
     assert.doesNotMatch(loginSource, /<FieldLabel/);

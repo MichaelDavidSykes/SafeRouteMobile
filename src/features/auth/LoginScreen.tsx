@@ -16,6 +16,7 @@ import { getUserFacingErrorMessage } from '../api/userFacingErrors';
 import { colors } from '../../theme';
 import { SafeRouteLogo } from '../../brand/SafeRouteLogo';
 import { loginWithPassword, verifyLoginCode } from './authApi';
+import { createLoginErrorState } from './loginErrorState';
 import { createLoginHeaderState } from './loginHeaderState';
 import { styles } from './LoginScreen.styles';
 import type { AuthSession, TwoFactorChallenge } from './authTypes';
@@ -80,7 +81,10 @@ export function LoginScreen({
     ? getTwoFactorSecondaryActionState(challengeExpired)
     : null;
   const mapReturnAction = getLoginMapReturnActionState();
-  const visibleErrorMessage = challengeExpired ? '' : errorMessage;
+  const loginErrorState = useMemo(
+    () => (challengeExpired ? null : createLoginErrorState(errorMessage)),
+    [challengeExpired, errorMessage]
+  );
   const primaryActionState = getLoginPrimaryActionState({
     challengeActive: Boolean(challenge),
     challengeExpired,
@@ -331,9 +335,15 @@ export function LoginScreen({
             </>
           )}
 
-          {visibleErrorMessage ? (
+          {loginErrorState ? (
             <View accessibilityRole="alert" style={styles.errorBox}>
-              <Text style={styles.errorText}>{visibleErrorMessage}</Text>
+              <Text
+                accessibilityLabel={loginErrorState.accessibilityLabel || undefined}
+                numberOfLines={2}
+                style={styles.errorText}
+              >
+                {loginErrorState.message}
+              </Text>
             </View>
           ) : null}
 

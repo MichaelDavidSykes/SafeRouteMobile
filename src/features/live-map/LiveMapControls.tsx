@@ -66,6 +66,7 @@ export function LiveMapControls({
         <MapControlButton
           compact={compactControls}
           control="fit"
+          driveAlongActive={driveAlongActive && followModeEnabled}
           onPress={onFitRoute}
         />
       ) : null}

@@ -1135,6 +1135,7 @@ describe("rounded visual language", () => {
 
     assert.match(controlsSource, /mapControlDisplayLabel/);
     assert.match(controlsSource, /compactControls/);
+    assert.match(controlsSource, /driveAlongActive=\{driveAlongActive && followModeEnabled\}/);
     assert.match(controlsSource, /compact=\{compactControls\}/);
     assert.match(controlsSource, /styles\.controlButtonText/);
     assert.match(controlsSource, /\{displayLabel\}/);

@@ -247,6 +247,11 @@ describe('live map UI state helpers', () => {
       hint: 'Returns to the route-facing navigation camera.',
       state: { disabled: false }
     });
+    assert.deepEqual(mapControlAccessibility('fit', { driveAlongActive: true }), {
+      label: 'Show full route',
+      hint: 'Shows the full route and pauses drive-along follow for map review.',
+      state: { disabled: false }
+    });
     assert.deepEqual(mapControlAccessibility('follow', { active: true }), {
       label: 'Turn follow mode off',
       hint: 'Stops the map from following convoy movement.',

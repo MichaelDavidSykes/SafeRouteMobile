@@ -311,6 +311,14 @@ export function mapControlAccessibility(
         state: { disabled }
       };
     case 'fit':
+      if (driveAlongActive) {
+        return {
+          label: 'Show full route',
+          hint: 'Shows the full route and pauses drive-along follow for map review.',
+          state: { disabled }
+        };
+      }
+
       return {
         label: 'Show full route',
         hint: 'Zooms the map to show the saved route.',

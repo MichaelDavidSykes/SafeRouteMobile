@@ -11,6 +11,7 @@ const styledSourceFiles = [
   "src/features/live-map/LiveMapGuidanceCard.styles.ts",
   "src/features/live-map/LiveMapMarkers.tsx",
   "src/features/live-map/LiveMapOverlay.styles.ts",
+  "src/features/live-map/LiveMapRiskCard.styles.ts",
   "src/features/live-map/LiveMapRouteHeader.styles.ts",
   "src/features/live-map/LiveMapRouteSummarySheet.styles.ts",
 ];
@@ -437,6 +438,38 @@ describe("rounded visual language", () => {
     assert.match(liveMarkerSource, /checkpointMarkerDestination:[\s\S]*borderRadius:\s*radius\.pill/);
     assert.doesNotMatch(liveMarkerSource, /checkpoint\.label/);
     assert.doesNotMatch(liveMarkerSource, /checkpointMarkerText/);
+  });
+
+  it("keeps live risk card status and detail actions bounded", () => {
+    const riskCardSource = readFileSync(
+      join(process.cwd(), "src/features/live-map/LiveMapRiskCard.tsx"),
+      "utf8",
+    );
+    const riskCardStylesSource = readFileSync(
+      join(process.cwd(), "src/features/live-map/LiveMapRiskCard.styles.ts"),
+      "utf8",
+    );
+    const riskEyebrowBlock =
+      /riskEyebrow:\s*\{([\s\S]*?)\n  \},\n  riskTitle:/.exec(
+        riskCardStylesSource,
+      )?.[1] || "";
+    const riskDismissButtonBlock =
+      /riskDismissButton:\s*\{([\s\S]*?)\n  \},\n  riskDismissButtonPressed:/.exec(
+        riskCardStylesSource,
+      )?.[1] || "";
+    const riskDismissTextBlock =
+      /riskDismissText:\s*\{([\s\S]*?)\n  \},\n  riskCardHigh:/.exec(
+        riskCardStylesSource,
+      )?.[1] || "";
+
+    assert.match(riskCardSource, /<Text numberOfLines=\{1\} style=\{styles\.riskEyebrow\}>/);
+    assert.match(riskCardSource, /<Text numberOfLines=\{1\} style=\{styles\.riskDismissText\}>/);
+    assert.match(riskEyebrowBlock, /maxWidth:\s*["']100%["']/);
+    assert.match(riskDismissButtonBlock, /maxWidth:\s*96/);
+    assert.match(riskDismissButtonBlock, /flexShrink:\s*0/);
+    assert.match(riskDismissTextBlock, /maxWidth:\s*64/);
+    assert.match(riskDismissTextBlock, /flexShrink:\s*1/);
+    assert.match(riskDismissTextBlock, /textAlign:\s*["']center["']/);
   });
 
   it("keeps the login header logo-first without duplicate brand text", () => {

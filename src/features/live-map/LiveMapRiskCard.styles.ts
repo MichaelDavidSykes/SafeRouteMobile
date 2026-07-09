@@ -60,6 +60,7 @@ export const riskCardStyles = StyleSheet.create({
     minWidth: 0,
   },
   riskEyebrow: {
+    maxWidth: "100%",
     color: colors.inkSoft,
     fontSize: typeScale.xs,
     fontWeight: "900",
@@ -96,6 +97,8 @@ export const riskCardStyles = StyleSheet.create({
     fontWeight: "900",
   },
   riskDismissButton: {
+    maxWidth: 96,
+    flexShrink: 0,
     minHeight: 34,
     alignItems: "center",
     justifyContent: "center",
@@ -107,9 +110,12 @@ export const riskCardStyles = StyleSheet.create({
     backgroundColor: colors.appleBlueSoft,
   },
   riskDismissText: {
+    maxWidth: 64,
+    flexShrink: 1,
     color: colors.ink,
     fontSize: typeScale.xs,
     fontWeight: "900",
+    textAlign: "center",
   },
   riskCardHigh: {
     borderColor: "rgba(216, 74, 63, 0.34)",

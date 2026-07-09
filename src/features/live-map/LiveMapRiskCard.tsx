@@ -53,7 +53,9 @@ export function LiveRouteRiskAlertCard({
       onPress={onPress}
     >
       <View style={styles.riskCopy}>
-        <Text style={styles.riskEyebrow}>{presentation.title}</Text>
+        <Text numberOfLines={1} style={styles.riskEyebrow}>
+          {presentation.title}
+        </Text>
         <Text numberOfLines={1} style={styles.riskTitle}>
           {presentation.zoneTitle}
         </Text>
@@ -93,7 +95,9 @@ export function LiveRouteRiskDetailCard({
     >
       <View style={styles.riskDetailHeader}>
         <View style={styles.riskCopy}>
-          <Text style={styles.riskEyebrow}>Risk area</Text>
+          <Text numberOfLines={1} style={styles.riskEyebrow}>
+            Risk area
+          </Text>
           <Text numberOfLines={1} style={styles.riskTitle}>
             {presentation.title}
           </Text>
@@ -108,7 +112,9 @@ export function LiveRouteRiskDetailCard({
           ]}
           onPress={onDismiss}
         >
-          <Text style={styles.riskDismissText}>Done</Text>
+          <Text numberOfLines={1} style={styles.riskDismissText}>
+            Done
+          </Text>
         </Pressable>
       </View>
 

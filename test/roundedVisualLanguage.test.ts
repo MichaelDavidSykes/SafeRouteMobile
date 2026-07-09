@@ -925,6 +925,7 @@ describe("rounded visual language", () => {
     assert.doesNotMatch(routeSheetStylesSource, /,\s*shadow,/);
     assert.doesNotMatch(routeSummarySource, /RouteSummaryMetric/);
     assert.match(routeSummarySource, /Route note:/);
+    assert.match(routeSummarySource, /ROUTE_SUMMARY_DISTANCE_FALLBACK/);
     assert.match(routeSummarySource, /label:\s*"Start"/);
     assert.match(routeSummarySource, /label:\s*"Pause"/);
     assert.match(routeSummarySource, /label:\s*"Resume"/);

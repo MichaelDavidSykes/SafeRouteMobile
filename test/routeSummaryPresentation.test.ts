@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 
 import {
+  ROUTE_SUMMARY_DISTANCE_FALLBACK,
   createRouteSummaryDemoAction,
   createRouteSummaryDetail,
   createRouteSummaryHeadline,
@@ -200,12 +201,25 @@ describe("live route summary presentation", () => {
       createRouteSummaryDetail({
         remainingDistance: "4.1 km",
         routeContext: "guest",
-        routeDistance: "8.6 km",
+        routeDistance: " 8.6   km ",
         routeIntelCount: 0,
       }),
       {
         accessibilityLabel: "8.6 km route distance.",
         text: "8.6 km",
+      },
+    );
+
+    assert.deepEqual(
+      createRouteSummaryDetail({
+        remainingDistance: "4.1 km",
+        routeContext: "guest",
+        routeDistance: "  ",
+        routeIntelCount: 0,
+      }),
+      {
+        accessibilityLabel: "Route distance unavailable.",
+        text: ROUTE_SUMMARY_DISTANCE_FALLBACK,
       },
     );
   });
@@ -277,10 +291,24 @@ describe("live route summary presentation", () => {
 
     assert.deepEqual(
       createRouteSummaryDetail({
-        remainingDistance: "3.2 km",
+        remainingDistance: "",
+        routeContext: "saved",
+        routeDescription: " ",
+        routeDistance: " ",
+        routeIntelCount: 2,
+      }),
+      {
+        accessibilityLabel: "Route distance unavailable. 2 risk notes.",
+        text: `${ROUTE_SUMMARY_DISTANCE_FALLBACK} · 2 risk notes`,
+      },
+    );
+
+    assert.deepEqual(
+      createRouteSummaryDetail({
+        remainingDistance: " 3.2   km ",
         routeContext: "saved",
         routeDescription: "Uses monitored corridors near the destination.",
-        routeDistance: "12 km",
+        routeDistance: " 12   km ",
         routeIntelCount: 4,
       }),
       {

@@ -2,6 +2,7 @@ import type { NavigationLifecycle } from "./liveMapUiState";
 
 export type RouteSummaryContext = "guest" | "saved";
 
+export const ROUTE_SUMMARY_DISTANCE_FALLBACK = "Distance unavailable";
 export const ROUTE_SUMMARY_SAFETY_BADGE_MAX_LENGTH = 18;
 
 export type RouteSummaryPrimaryAction = {
@@ -225,17 +226,23 @@ export function createRouteSummaryDetail({
   routeDistance: string;
   routeIntelCount: number;
 }): RouteSummaryDetail {
+  const routeDistanceLabel =
+    normalizeInlineCopy(routeDistance) || ROUTE_SUMMARY_DISTANCE_FALLBACK;
+  const remainingDistanceLabel = normalizeInlineCopy(remainingDistance);
+
   if (routeContext === "guest") {
     return {
-      accessibilityLabel: `${routeDistance} route distance.`,
-      text: routeDistance,
+      accessibilityLabel: createRouteDistanceAccessibilityLabel(routeDistanceLabel),
+      text: routeDistanceLabel,
     };
   }
 
-  const distanceText = remainingDistance ? `${remainingDistance} left` : routeDistance;
-  const distanceAccessibilityLabel = remainingDistance
-    ? `${remainingDistance} remaining.`
-    : `${routeDistance} route distance.`;
+  const distanceText = remainingDistanceLabel
+    ? `${remainingDistanceLabel} left`
+    : routeDistanceLabel;
+  const distanceAccessibilityLabel = remainingDistanceLabel
+    ? `${remainingDistanceLabel} remaining.`
+    : createRouteDistanceAccessibilityLabel(routeDistanceLabel);
   const riskNoteText = createRouteRiskNoteText(routeIntelCount);
   const routeNote = createRouteNoteAccessibilityText(routeDescription);
   const detailAccessibilityLabel = riskNoteText
@@ -252,6 +259,12 @@ export function createRouteSummaryDetail({
 
 function normalizeInlineCopy(value?: string | null): string {
   return value?.trim().replace(/\s+/g, " ") || "";
+}
+
+function createRouteDistanceAccessibilityLabel(routeDistanceLabel: string): string {
+  return routeDistanceLabel === ROUTE_SUMMARY_DISTANCE_FALLBACK
+    ? "Route distance unavailable."
+    : `${routeDistanceLabel} route distance.`;
 }
 
 function createSafetyBadgeSpokenRiskLabel(riskLabel: string): string {

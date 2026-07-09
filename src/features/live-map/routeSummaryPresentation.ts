@@ -6,6 +6,7 @@ export const ROUTE_SUMMARY_DISTANCE_FALLBACK = "Distance unavailable";
 export const ROUTE_SUMMARY_HEADLINE_MAX_LENGTH = 24;
 export const ROUTE_SUMMARY_DETAIL_METRIC_MAX_LENGTH = 24;
 export const ROUTE_SUMMARY_SAFETY_BADGE_MAX_LENGTH = 18;
+export const ROUTE_SUMMARY_VISIBLE_RISK_NOTE_LIMIT = 9;
 
 export type RouteSummaryPrimaryAction = {
   label: string;
@@ -26,6 +27,11 @@ export type RouteSummaryHeadline = {
 };
 
 export type RouteSummaryRemainingMetric = {
+  accessibilityLabel: string;
+  text: string;
+};
+
+type RouteSummaryRiskNote = {
   accessibilityLabel: string;
   text: string;
 };
@@ -247,17 +253,17 @@ export function createRouteSummaryDetail({
   const distanceAccessibilityLabel = remainingDistanceLabel
     ? `${remainingDistanceLabel} remaining.`
     : createRouteDistanceAccessibilityLabel(routeDistanceLabel);
-  const riskNoteText = createRouteRiskNoteText(routeIntelCount);
+  const riskNote = createRouteRiskNotePresentation(routeIntelCount);
   const routeNote = createRouteNoteAccessibilityText(routeDescription);
-  const detailAccessibilityLabel = riskNoteText
-    ? `${distanceAccessibilityLabel} ${riskNoteText}.`
+  const detailAccessibilityLabel = riskNote
+    ? `${distanceAccessibilityLabel} ${riskNote.accessibilityLabel}.`
     : distanceAccessibilityLabel;
 
   return {
     accessibilityLabel: routeNote
       ? `${detailAccessibilityLabel} ${routeNote}`
       : detailAccessibilityLabel,
-    text: riskNoteText ? `${distanceText} · ${riskNoteText}` : distanceText,
+    text: riskNote ? `${distanceText} · ${riskNote.text}` : distanceText,
   };
 }
 
@@ -316,12 +322,32 @@ function createCompactInlineLabel(label: string, maxLength: number): string {
   return `${label.slice(0, Math.max(0, maxLength - 1)).trimEnd()}…`;
 }
 
-function createRouteRiskNoteText(routeIntelCount: number): string | null {
-  if (routeIntelCount <= 0) {
+function createRouteRiskNotePresentation(
+  routeIntelCount: number,
+): RouteSummaryRiskNote | null {
+  if (!Number.isFinite(routeIntelCount) || routeIntelCount <= 0) {
     return null;
   }
 
-  return `${routeIntelCount} risk ${routeIntelCount === 1 ? "note" : "notes"}`;
+  const noteCount = Math.floor(routeIntelCount);
+  if (noteCount <= 0) {
+    return null;
+  }
+
+  const accessibilityNoteLabel = createRouteRiskNoteLabel(noteCount);
+  const visibleNoteCount =
+    noteCount > ROUTE_SUMMARY_VISIBLE_RISK_NOTE_LIMIT
+      ? `${ROUTE_SUMMARY_VISIBLE_RISK_NOTE_LIMIT}+`
+      : `${noteCount}`;
+
+  return {
+    accessibilityLabel: accessibilityNoteLabel,
+    text: createRouteRiskNoteLabel(visibleNoteCount),
+  };
+}
+
+function createRouteRiskNoteLabel(count: number | string): string {
+  return `${count} risk ${count === 1 || count === "1" ? "note" : "notes"}`;
 }
 
 function createRouteNoteAccessibilityText(routeDescription?: string | null): string | null {

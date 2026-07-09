@@ -15,6 +15,7 @@ import {
   createRouteSummarySafetyBadge,
   createRouteSummaryTitle,
   ROUTE_SUMMARY_SAFETY_BADGE_MAX_LENGTH,
+  ROUTE_SUMMARY_VISIBLE_RISK_NOTE_LIMIT,
   shouldInlineRouteSummaryDemoAction,
   shouldShowRouteSummarySafetyBadge,
   shouldUseCompactRouteSummary,
@@ -380,6 +381,48 @@ describe("live route summary presentation", () => {
         accessibilityLabel:
           "3.2 km remaining. 4 risk notes. Route note: Uses monitored corridors near the destination.",
         text: "3.2 km left · 4 risk notes",
+      },
+    );
+  });
+
+  it("caps visible risk note counts while preserving exact VoiceOver context", () => {
+    const detail = createRouteSummaryDetail({
+      remainingDistance: null,
+      routeContext: "saved",
+      routeDistance: "14 km",
+      routeIntelCount: ROUTE_SUMMARY_VISIBLE_RISK_NOTE_LIMIT + 7,
+    });
+
+    assert.deepEqual(detail, {
+      accessibilityLabel: `14 km route distance. ${
+        ROUTE_SUMMARY_VISIBLE_RISK_NOTE_LIMIT + 7
+      } risk notes.`,
+      text: `14 km · ${ROUTE_SUMMARY_VISIBLE_RISK_NOTE_LIMIT}+ risk notes`,
+    });
+
+    assert.deepEqual(
+      createRouteSummaryDetail({
+        remainingDistance: null,
+        routeContext: "saved",
+        routeDistance: "14 km",
+        routeIntelCount: 1,
+      }),
+      {
+        accessibilityLabel: "14 km route distance. 1 risk note.",
+        text: "14 km · 1 risk note",
+      },
+    );
+
+    assert.deepEqual(
+      createRouteSummaryDetail({
+        remainingDistance: null,
+        routeContext: "saved",
+        routeDistance: "14 km",
+        routeIntelCount: Number.NaN,
+      }),
+      {
+        accessibilityLabel: "14 km route distance.",
+        text: "14 km",
       },
     );
   });

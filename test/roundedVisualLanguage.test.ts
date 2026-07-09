@@ -306,6 +306,25 @@ describe("rounded visual language", () => {
     assert.match(guestMapStylesSource, /signInButtonTextAuthenticated:[\s\S]*colors\.appleBlue/);
   });
 
+  it("keeps saved-route picker session notices bounded and accessible", () => {
+    const routeListHeaderSource = readFileSync(
+      join(process.cwd(), "src/features/routes/RouteListHeader.tsx"),
+      "utf8",
+    );
+    const sessionNoticeSource = readFileSync(
+      join(process.cwd(), "src/features/auth/sessionNoticeState.ts"),
+      "utf8",
+    );
+
+    assert.match(sessionNoticeSource, /SESSION_NOTICE_MESSAGE_MAX_LENGTH\s*=\s*84/);
+    assert.match(sessionNoticeSource, /accessibilityLabel:[\s\S]*normalizedMessage/);
+    assert.match(routeListHeaderSource, /createSessionNoticeState\(sessionNotice\)/);
+    assert.match(routeListHeaderSource, /sessionNoticeState\.message/);
+    assert.match(routeListHeaderSource, /accessibilityLabel=\{sessionNoticeState\.accessibilityLabel \|\| undefined\}/);
+    assert.match(routeListHeaderSource, /numberOfLines=\{2\}/);
+    assert.doesNotMatch(routeListHeaderSource, /<Text style=\{styles\.noticeText\}>\{sessionNotice\}<\/Text>/);
+  });
+
   it("keeps map-home route inputs grouped, placeholder-led, and icon-free", () => {
     const guestMapSource = readFileSync(
       join(process.cwd(), "src/features/guest-map/GuestMapScreen.tsx"),

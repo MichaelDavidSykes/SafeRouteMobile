@@ -1,5 +1,6 @@
 import { Pressable, Text, View } from "react-native";
 
+import { createSessionNoticeState } from "../auth/sessionNoticeState";
 import { uiTestIds } from "../../testing/uiTestIds";
 import { routeListStyles as styles } from "./RouteListScreen.styles";
 import {
@@ -23,6 +24,7 @@ export function RouteListHeader({
 }: RouteListHeaderProps) {
   const headerCopy = createRouteListHeaderCopy();
   const mapReturnState = createRouteListMapReturnState();
+  const sessionNoticeState = createSessionNoticeState(sessionNotice);
   const signOutState = createRouteListSignOutState(userEmail);
 
   return (
@@ -63,9 +65,15 @@ export function RouteListHeader({
         </View>
       </View>
 
-      {sessionNotice ? (
+      {sessionNoticeState ? (
         <View accessibilityRole="alert" style={styles.noticeBox}>
-          <Text style={styles.noticeText}>{sessionNotice}</Text>
+          <Text
+            accessibilityLabel={sessionNoticeState.accessibilityLabel || undefined}
+            numberOfLines={2}
+            style={styles.noticeText}
+          >
+            {sessionNoticeState.message}
+          </Text>
         </View>
       ) : null}
     </>

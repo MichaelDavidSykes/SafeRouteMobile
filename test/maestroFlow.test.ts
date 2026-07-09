@@ -99,25 +99,30 @@ describe("Maestro iOS preview smoke flow", () => {
     assert.match(flow, /assertVisible:\s*\n\s+id:\s*"safe-route-control-intelligence"/);
   });
 
-  it("asserts active drive-along map controls through stable ids", () => {
+  it("asserts review-time risk and active drive-along map controls through stable ids", () => {
     const flow = previewFlowSource();
     const primaryActionIndex = flow.indexOf('id: "safe-route-primary-action"');
+    const primaryTapIndex = flow.indexOf('id: "safe-route-primary-action"\n    waitToSettleTimeoutMs: 1000');
     const remainingMetricsIndex = flow.indexOf('id: "safe-route-remaining-metrics"');
     const fitControlIndex = flow.indexOf('id: "safe-route-control-fit"');
     const followControlIndex = flow.indexOf('id: "safe-route-control-follow"');
     const intelligenceControlIndex = flow.indexOf('id: "safe-route-control-intelligence"');
     const stopActionIndex = flow.indexOf('id: "safe-route-stop-action"');
+    const activeControlBlock = flow.slice(primaryTapIndex, stopActionIndex);
 
     assert.match(flow, /assertVisible:\s*\n\s+id:\s*"safe-route-remaining-metrics"/);
     assert.match(flow, /assertVisible:\s*\n\s+id:\s*"safe-route-control-fit"/);
     assert.match(flow, /assertVisible:\s*\n\s+id:\s*"safe-route-control-follow"/);
     assert.match(flow, /assertVisible:\s*\n\s+id:\s*"safe-route-control-intelligence"/);
     assert.ok(primaryActionIndex >= 0);
-    assert.ok(stopActionIndex > primaryActionIndex);
+    assert.ok(primaryTapIndex > primaryActionIndex);
+    assert.ok(intelligenceControlIndex > 0);
+    assert.ok(intelligenceControlIndex < primaryTapIndex);
+    assert.ok(stopActionIndex > primaryTapIndex);
     assert.ok(remainingMetricsIndex > stopActionIndex);
     assert.ok(fitControlIndex > remainingMetricsIndex);
     assert.ok(followControlIndex > fitControlIndex);
-    assert.ok(intelligenceControlIndex > followControlIndex);
+    assert.doesNotMatch(activeControlBlock, /safe-route-control-intelligence/);
     assert.ok(stopActionIndex < fitControlIndex);
   });
 

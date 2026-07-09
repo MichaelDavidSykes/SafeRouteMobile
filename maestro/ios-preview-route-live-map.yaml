@@ -122,6 +122,11 @@ appId: host.exp.Exponent
 - assertVisible: "Turn route simulation off"
 - assertVisible:
     id: "safe-route-demo-action"
+# Route-risk notes are review-time chrome. Active drive-along guidance keeps
+# map controls minimal, so assert the risk control before guidance starts and
+# then only the active camera controls after the route is running.
+- assertVisible:
+    id: "safe-route-control-intelligence"
 - tapOn:
     id: "safe-route-primary-action"
     waitToSettleTimeoutMs: 1000
@@ -135,8 +140,6 @@ appId: host.exp.Exponent
     id: "safe-route-control-fit"
 - assertVisible:
     id: "safe-route-control-follow"
-- assertVisible:
-    id: "safe-route-control-intelligence"
 - tapOn:
     id: "safe-route-stop-action"
     waitToSettleTimeoutMs: 1000

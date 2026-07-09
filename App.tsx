@@ -205,6 +205,7 @@ export default function App() {
           />
         ) : screen === 'route-preview' && selectedRoute ? (
           <LiveMapScreen
+            accessToken={session?.accessToken || null}
             returnAccessibilityLabel={returnCopy.accessibilityLabel}
             returnLabel={returnCopy.label}
             routeContext={routePreviewSource}

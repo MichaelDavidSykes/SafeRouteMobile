@@ -7,6 +7,7 @@ import {
   evaluateOffRouteSample,
   extractRemainingCheckpoints,
   getManualRerouteRetryEligibility,
+  requestImmediateLiveReroute,
   resolveLiveRerouteFailure,
   resolveLiveRerouteSuccess,
   retryFailedLiveReroute,
@@ -606,6 +607,38 @@ describe("remaining reroute checkpoints", () => {
 });
 
 describe("explicit live reroute states", () => {
+  it("starts a proactive safety reroute without waiting for off-route evidence", () => {
+    const monitoring = monitoringState("route-a", 1_000);
+    const transition = requestImmediateLiveReroute(
+      monitoring,
+      locationSample(2_000, 0, 8),
+      2_000,
+      TEST_CONFIG,
+    );
+
+    assert.equal(transition.reason, "accepted");
+    assert.equal(transition.request?.trigger, "safety");
+    assert.equal(transition.state.status, "pending");
+  });
+
+  it("does not duplicate proactive safety reroutes while pending or cooling down", () => {
+    const cooling = monitoringState("route-a", 1_000, 5_000);
+    const cooldown = requestImmediateLiveReroute(
+      cooling,
+      locationSample(2_000, 0, 8),
+      2_000,
+      TEST_CONFIG,
+    );
+    assert.equal(cooldown.reason, "cooldown");
+    const pending = requestImmediateLiveReroute(
+      automaticRequest(),
+      locationSample(4_000, 0, 8),
+      4_000,
+      TEST_CONFIG,
+    );
+    assert.equal(pending.reason, "not-monitoring");
+  });
+
   it("moves from idle to monitoring and back to idle without resetting counters", () => {
     const idle = createLiveRerouteState();
     const inactiveSample = applyLiveRerouteSample(

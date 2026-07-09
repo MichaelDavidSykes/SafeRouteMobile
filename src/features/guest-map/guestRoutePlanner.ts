@@ -5,7 +5,7 @@ import {
   densifyRouteCoordinates,
   normalizeRouteCoordinates
 } from '../live-map/routeGeometry';
-import type { RiskZone, SavedSafeRoutePlan } from '../live-map/liveMapTypes';
+import type { RiskZone, RouteNavigationStep, SavedSafeRoutePlan } from '../live-map/liveMapTypes';
 import { routeRiskStartBlockedReason } from '../live-map/routeRisk';
 import { formatDistance, formatEta } from '../routes/routeMapperNormalization';
 
@@ -62,6 +62,7 @@ export type GuestRoutePlanOptions = {
   roadSnappedCoordinates?: LatLng[] | null;
   routeDistanceMeters?: number | null;
   routeDurationSeconds?: number | null;
+  routeGuidanceSteps?: RouteNavigationStep[];
 };
 
 export type GuestMapHomeCopy = {
@@ -308,7 +309,8 @@ export function createGuestRoutePlan({
   riskZones,
   roadSnappedCoordinates,
   routeDistanceMeters,
-  routeDurationSeconds
+  routeDurationSeconds,
+  routeGuidanceSteps
 }: GuestRoutePlanOptions): SavedSafeRoutePlan {
   const originLabel = normalizeGuestRouteLabel(origin, 'Current location');
   const destinationLabel = normalizeGuestRouteLabel(destination, '');
@@ -374,7 +376,10 @@ export function createGuestRoutePlan({
         ? 'Review the route, then open Saved for synced plans.'
         : 'Review the route, then sign in to save it.',
       nextDistance: 'Preview',
-      coordinates: routeCoordinates
+      coordinates: routeCoordinates,
+      ...(routeGuidanceSteps?.length
+        ? { navigationSteps: [...routeGuidanceSteps] }
+        : {})
     },
     riskZones: riskZones
       ? [...riskZones]

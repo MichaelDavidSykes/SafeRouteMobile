@@ -405,11 +405,11 @@ describe("rounded visual language", () => {
     assert.match(guestMapSource, /pendingOpenPreviewRef/);
     assert.match(guestMapSource, /openPendingPreview\(roadRoutePlan\)/);
     assert.match(guestMapSource, /openPendingPreview\(localRoutePlan\)/);
-    assert.match(guestMapSource, /GUEST_ROUTE_PROVIDER_UI_TIMEOUT_MS\s*=\s*3500/);
+    assert.match(guestMapSource, /GUEST_ROUTE_PROVIDER_UI_TIMEOUT_MS\s*=\s*15000/);
     assert.match(guestMapSource, /timeoutMs:\s*GUEST_ROUTE_PROVIDER_UI_TIMEOUT_MS/);
-    assert.match(guestMapSource, /roadSnappedCoordinates:\s*roadPreview\.coordinates/);
-    assert.match(guestMapSource, /routeDistanceMeters:\s*roadPreview\.distanceMeters/);
-    assert.match(guestMapSource, /routeDurationSeconds:\s*roadPreview\.durationSeconds/);
+    assert.match(guestMapSource, /roadSnappedCoordinates:\s*finalRoadPreview\.coordinates/);
+    assert.match(guestMapSource, /routeDistanceMeters:\s*finalRoadPreview\.distanceMeters/);
+    assert.match(guestMapSource, /routeDurationSeconds:\s*finalRoadPreview\.durationSeconds/);
     assert.doesNotMatch(guestMapSource, /roadPreviewLoading|roadPreviewStatus/);
     assert.match(guestMapSource, /accessibilityLabel="Searching nearby places"/);
   });
@@ -791,7 +791,8 @@ describe("rounded visual language", () => {
         guidanceStylesSource,
       )?.[1] || "";
 
-    assert.match(guidanceSource, /accessibilityLabel=\{presentation\.accessibilityLabel\}/);
+    assert.match(guidanceSource, /accessibilityLabel=\{accessibilityLabel\}/);
+    assert.match(guidanceSource, /:\s*presentation\.accessibilityLabel/);
     assert.match(guidanceSource, /presentation\.instructionLabel/);
     assert.match(guidanceSource, /presentation\.distanceLabel/);
     assert.match(guidanceSource, /<Text\s+numberOfLines=\{1\}[\s\S]*styles\.guidanceDistance/);

@@ -74,7 +74,7 @@ export interface RerouteEvidence {
   lastTimestampMs: number | null;
 }
 
-export type LiveRerouteTrigger = "automatic" | "manual";
+export type LiveRerouteTrigger = "automatic" | "manual" | "safety";
 
 /**
  * Both revisions are required when completing a request. Route revisions
@@ -202,6 +202,12 @@ export type ManualRerouteRetryEligibility =
 
 export interface ManualRerouteRetryTransition {
   eligibility: ManualRerouteRetryEligibility;
+  request: LiveRerouteRequest | null;
+  state: LiveRerouteState;
+}
+
+export interface ImmediateLiveRerouteTransition {
+  reason: "accepted" | "cooldown" | "invalid-sample" | "not-monitoring";
   request: LiveRerouteRequest | null;
   state: LiveRerouteState;
 }
@@ -612,6 +618,39 @@ export function retryFailedLiveReroute(
 
   return {
     eligibility,
+    request: pendingState.request,
+    state: pendingState,
+  };
+}
+
+/** Requests a proactive reroute when newly downloaded severe risk intersects the active road. */
+export function requestImmediateLiveReroute(
+  state: LiveRerouteState,
+  sample: LiveRerouteLocationSample,
+  nowMs: number,
+  configOverrides: Partial<LiveRerouteConfig> = {},
+): ImmediateLiveRerouteTransition {
+  if (state.status !== "monitoring") {
+    return { reason: "not-monitoring", request: null, state };
+  }
+  if (
+    !isFiniteTimestamp(nowMs) ||
+    evaluateOffRouteSample(sample, configOverrides).classification === "invalid"
+  ) {
+    return { reason: "invalid-sample", request: null, state };
+  }
+  if (nowMs < state.cooldownUntilMs) {
+    return { reason: "cooldown", request: null, state };
+  }
+  const pendingState = beginRequest(
+    state,
+    sample,
+    "safety",
+    nowMs,
+    resolveLiveRerouteConfig(configOverrides),
+  );
+  return {
+    reason: "accepted",
     request: pendingState.request,
     state: pendingState,
   };

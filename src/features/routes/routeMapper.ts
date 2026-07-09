@@ -6,6 +6,7 @@ import type {
   RouteCheckpoint,
   SavedSafeRoutePlan
 } from '../live-map/liveMapTypes';
+import { normalizeRouteNavigationSteps } from '../live-map/routeGuidance';
 import {
   clampNumber,
   formatDistance,
@@ -48,6 +49,8 @@ interface MobileRoutePathDto {
   description?: string;
   next_instruction?: string;
   next_distance_meters?: number | null;
+  guidance_steps?: unknown;
+  navigation_steps?: unknown;
 }
 
 interface MobileRiskOverlayDto {
@@ -162,6 +165,9 @@ export function mapRouteDtoToSavedPlan(dto: MobileSafeRouteDto): SavedSafeRouteP
 
   return {
     id: cleanText(dto.id, 'safe-route-plan'),
+    ...(firstCleanText(dto.client_id, dto.client?.id, '')
+      ? { clientId: firstCleanText(dto.client_id, dto.client?.id, '') }
+      : {}),
     name: cleanText(dto.name, 'SafeRoute plan'),
     operation: firstCleanText(dto.operation, dto.client_name, dto.client?.name, 'SafeRoute plan'),
     status: normalizeStatus(dto.mobile_status || dto.status),
@@ -183,7 +189,10 @@ export function mapRouteDtoToSavedPlan(dto: MobileSafeRouteDto): SavedSafeRouteP
       description: firstCleanText(route.description, dto.description, 'Follow the saved SafeRoute geometry with live position guidance.'),
       nextInstruction: cleanText(route.next_instruction, 'Continue on saved route'),
       nextDistance: formatDistance(toFiniteNumber(route.next_distance_meters, 0)),
-      coordinates
+      coordinates,
+      navigationSteps: normalizeRouteNavigationSteps(
+        route.guidance_steps ?? route.navigation_steps
+      )
     },
     riskZones: mapRiskOverlays(dto),
     checkpoints: mapCheckpoints(

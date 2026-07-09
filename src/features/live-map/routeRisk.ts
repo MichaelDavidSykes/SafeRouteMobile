@@ -150,11 +150,13 @@ export function routeRiskStartBlockedReason(
   routePlan: SavedSafeRoutePlan
 ): string | null {
   const audit = auditRouteRiskAvoidance(routePlan);
-  const [firstViolation] = audit.violations.sort((first, second) => {
-    const severityDelta =
-      severityPriority(second.zone.severity) - severityPriority(first.zone.severity);
-    return severityDelta || first.clearanceMeters - second.clearanceMeters;
-  });
+  const [firstViolation] = audit.violations
+    .filter((violation) => violation.zone.severity === "high")
+    .sort((first, second) => {
+      const severityDelta =
+        severityPriority(second.zone.severity) - severityPriority(first.zone.severity);
+      return severityDelta || first.clearanceMeters - second.clearanceMeters;
+    });
 
   if (!firstViolation) {
     return null;

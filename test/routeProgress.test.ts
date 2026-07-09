@@ -116,6 +116,30 @@ describe('route traversal progress', () => {
     assert.equal(guidance.distance, '0 m');
   });
 
+  it('shows the next provider maneuver and distance during live guidance', () => {
+    const progress = calculateRouteProgress(route.coordinates, route.coordinates[0]);
+    assert.ok(progress);
+    const guidedRoute = {
+      ...route,
+      navigationSteps: [{
+        id: 'turn-1',
+        instruction: 'Turn right onto Airport Approach',
+        maneuverType: 'turn',
+        modifier: 'right',
+        roadName: 'Airport Approach',
+        distanceAlongMeters: 420,
+        distanceMeters: 700,
+        durationSeconds: 80,
+        coordinate: route.coordinates[1]
+      }]
+    };
+
+    assert.deepEqual(resolveGuidance(guidedRoute, progress, 'navigating'), {
+      instruction: 'Turn right onto Airport Approach',
+      distance: '420 m'
+    });
+  });
+
   it('snaps a live coordinate to the nearest route segment', () => {
     const progress = calculateRouteProgress(route.coordinates, {
       latitude: 51.5186,

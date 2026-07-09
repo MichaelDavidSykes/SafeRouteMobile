@@ -23,6 +23,7 @@ export function useLiveLocation({
   permissionRequested = false
 }: UseLiveLocationOptions = {}) {
   const [coordinate, setCoordinate] = useState<Location.LocationObjectCoords | null>(null);
+  const [timestampMs, setTimestampMs] = useState<number | null>(null);
   const [permissionStatus, setPermissionStatus] = useState<PermissionStatus>('idle');
   const [errorMessage, setErrorMessage] = useState('');
 
@@ -78,6 +79,7 @@ export function useLiveLocation({
         });
         if (mounted && lastKnown?.coords) {
           setCoordinate(lastKnown.coords);
+          setTimestampMs(Number.isFinite(lastKnown.timestamp) ? lastKnown.timestamp : Date.now());
         }
       } catch {
         // Keep foreground permission granted; the live watcher below may still return a fresh fix.
@@ -95,6 +97,9 @@ export function useLiveLocation({
           (nextLocation) => {
             if (mounted) {
               setCoordinate(nextLocation.coords);
+              setTimestampMs(
+                Number.isFinite(nextLocation.timestamp) ? nextLocation.timestamp : Date.now()
+              );
               setErrorMessage('');
             }
           }
@@ -129,6 +134,7 @@ export function useLiveLocation({
     coordinate,
     errorMessage,
     permissionStatus,
+    timestampMs,
     trackingLabel: trackingLabelForPermissionStatus(permissionStatus)
   };
 }

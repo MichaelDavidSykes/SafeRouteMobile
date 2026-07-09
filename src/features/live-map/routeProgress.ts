@@ -2,13 +2,9 @@ import type { LatLng } from 'react-native-maps';
 
 import type { RoutePath } from './liveMapTypes';
 import {
-  bearingBetween,
   calculateCumulativeDistances,
-  densifyRouteCoordinates,
   haversineDistanceMeters,
-  nearestSegmentProjection,
   normalizeRouteCoordinates,
-  projectCoordinateToSegment,
   projectCoordinateToRoute
 } from './routeGeometry';
 

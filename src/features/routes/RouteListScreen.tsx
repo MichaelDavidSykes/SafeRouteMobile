@@ -215,7 +215,9 @@ export function RouteListScreen({
       {errorState ? (
         <View accessibilityRole="alert" style={styles.errorBox}>
           <View style={styles.errorCopy}>
-            <Text style={styles.errorTitle}>{errorState.title}</Text>
+            <Text numberOfLines={1} style={styles.errorTitle}>
+              {errorState.title}
+            </Text>
             <Text
               accessibilityLabel={errorState.messageAccessibilityLabel}
               numberOfLines={2}
@@ -233,7 +235,9 @@ export function RouteListScreen({
             ]}
             onPress={handleRetry}
           >
-            <Text style={styles.retryText}>{errorState.retryLabel}</Text>
+            <Text numberOfLines={1} style={styles.retryText}>
+              {errorState.retryLabel}
+            </Text>
           </Pressable>
         </View>
       ) : null}
@@ -247,7 +251,9 @@ export function RouteListScreen({
             style={styles.loadingCard}
           >
             <ActivityIndicator color={colors.appleBlue} />
-            <Text style={styles.loadingTitle}>{loadingState.title}</Text>
+            <Text numberOfLines={1} style={styles.loadingTitle}>
+              {loadingState.title}
+            </Text>
           </View>
         </View>
       ) : (

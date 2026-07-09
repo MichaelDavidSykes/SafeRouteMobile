@@ -1332,6 +1332,14 @@ describe("rounded visual language", () => {
     assert.match(routeListScreenSource, /numberOfLines=\{2\}/);
     assert.match(
       routeListScreenSource,
+      /<Text numberOfLines=\{1\} style=\{styles\.errorTitle\}>/,
+    );
+    assert.match(
+      routeListScreenSource,
+      /<Text numberOfLines=\{1\} style=\{styles\.retryText\}>/,
+    );
+    assert.match(
+      routeListScreenSource,
       /<Text numberOfLines=\{1\} style=\{styles\.emptyTitle\}>/,
     );
     assert.match(
@@ -1422,6 +1430,10 @@ describe("rounded visual language", () => {
     assert.match(routeListScreenSource, /accessibilityRole="progressbar"/);
     assert.match(routeListScreenSource, /styles\.loadingCard/);
     assert.match(routeListScreenSource, /loadingState\.title/);
+    assert.match(
+      routeListScreenSource,
+      /<Text numberOfLines=\{1\} style=\{styles\.loadingTitle\}>/,
+    );
     assert.doesNotMatch(routeListScreenSource, /loadingState\.copy/);
     assert.doesNotMatch(routeListScreenSource, /styles\.loadingCopy/);
     assert.doesNotMatch(routeListStylesSource, /\bloadingCopy:/);

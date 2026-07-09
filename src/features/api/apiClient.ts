@@ -1,9 +1,12 @@
 import { LUNARCHAIN_API_BASE } from '../../config/env';
 import {
+  ApiAuthorizationError,
   ApiRequestError,
   ApiSessionExpiredError,
+  createApiResponseError,
   createNetworkRequestError,
   fetchWithTimeout,
+  getApiAuthorizationMessage,
   getApiErrorMessage,
   getApiSessionExpiredMessage,
   unwrapApiEnvelope,
@@ -11,10 +14,13 @@ import {
 } from './apiClientCore';
 
 export {
+  ApiAuthorizationError,
   ApiRequestError,
   ApiSessionExpiredError,
+  createApiResponseError,
   createNetworkRequestError,
   fetchWithTimeout,
+  getApiAuthorizationMessage,
   getApiErrorMessage,
   getApiSessionExpiredMessage,
   unwrapApiEnvelope
@@ -56,12 +62,8 @@ export async function apiRequest<T>(
 
   const body = await parseJsonResponse(response);
 
-  if (response.status === 401 || response.status === 403) {
-    throw new ApiSessionExpiredError(getApiSessionExpiredMessage(body));
-  }
-
   if (!response.ok) {
-    throw new ApiRequestError(getApiErrorMessage(body, 'Unable to reach LunarChain.'), response.status);
+    throw createApiResponseError(response.status, body);
   }
 
   return unwrapApiEnvelope<T>(body);

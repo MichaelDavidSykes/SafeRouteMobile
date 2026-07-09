@@ -15,6 +15,11 @@ export type RouteSummaryDetail = {
   text: string;
 };
 
+export type RouteSummaryRemainingMetric = {
+  accessibilityLabel: string;
+  text: string;
+};
+
 export type RouteSummarySafetyBadge = {
   accessibilityLabel: string;
   text: string;
@@ -164,6 +169,20 @@ export function shouldInlineRouteSummaryDemoAction(
   return !shouldUseCompactRouteSummary(state);
 }
 
+export function createRouteSummaryRemainingMetric(
+  remainingDistance?: string | null,
+): RouteSummaryRemainingMetric | null {
+  const distance = normalizeInlineCopy(remainingDistance);
+  if (!distance) {
+    return null;
+  }
+
+  return {
+    accessibilityLabel: `${distance} remaining.`,
+    text: `${distance} left`,
+  };
+}
+
 export function createRouteSummaryDetail({
   remainingDistance,
   routeContext,
@@ -200,6 +219,10 @@ export function createRouteSummaryDetail({
       : detailAccessibilityLabel,
     text: riskNoteText ? `${distanceText} · ${riskNoteText}` : distanceText,
   };
+}
+
+function normalizeInlineCopy(value?: string | null): string {
+  return value?.trim().replace(/\s+/g, " ") || "";
 }
 
 function createRouteRiskNoteText(routeIntelCount: number): string | null {

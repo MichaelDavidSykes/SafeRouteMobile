@@ -18,6 +18,7 @@ export const uiTestIds = {
   liveMapCanvas: "safe-route-map-view",
   liveMapReturn: "safe-route-return",
   liveMapRouteSummarySheet: "safe-route-summary-sheet",
+  liveMapRemainingMetrics: "safe-route-remaining-metrics",
   liveMapControl: (control: string) =>
     `safe-route-control-${normalizeTestIdSegment(control)}`,
   liveMapPrimaryAction: "safe-route-primary-action",

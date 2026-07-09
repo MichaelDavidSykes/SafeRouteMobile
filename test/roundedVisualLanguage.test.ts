@@ -838,8 +838,11 @@ describe("rounded visual language", () => {
 
     assert.match(routeSheetSource, /createRouteSummaryDetail/);
     assert.match(routeSheetSource, /createRouteSummaryHeadlineAccessibilityLabel/);
+    assert.match(routeSheetSource, /createRouteSummaryRemainingMetric/);
     assert.match(routeSheetSource, /routeDescription:\s*route\.description/);
     assert.match(routeSheetSource, /styles\.routeDetailLine/);
+    assert.match(routeSheetSource, /styles\.remainingMetricLine/);
+    assert.match(routeSheetSource, /uiTestIds\.liveMapRemainingMetrics/);
     assert.match(routeSheetSource, /shouldInlineRouteSummaryDemoAction/);
     assert.match(routeSheetSource, /inlineDemoAction/);
     assert.match(routeSheetSource, /styles\.demoButtonInline/);
@@ -860,6 +863,7 @@ describe("rounded visual language", () => {
     assert.doesNotMatch(routeSheetStylesSource, /\brouteDescription:/);
     assert.doesNotMatch(routeSheetStylesSource, /\bcardLabel:/);
     assert.doesNotMatch(routeSheetStylesSource, /\bcardLabelCompactNavigation:/);
+    assert.match(routeSheetStylesSource, /\bremainingMetricLine:/);
     assert.match(routeSheetStylesSource, /\bsummaryCopyCompactNavigation:\s*\{[\s\S]*justifyContent:\s*"center"/);
     assert.match(routeSheetStylesSource, /\bdemoButtonInline:\s*\{[\s\S]*marginTop:\s*0/);
     assert.match(demoButtonBlock, /minHeight:\s*controlSizes\.compact/);

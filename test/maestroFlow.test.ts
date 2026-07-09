@@ -102,17 +102,20 @@ describe("Maestro iOS preview smoke flow", () => {
   it("asserts active drive-along map controls through stable ids", () => {
     const flow = previewFlowSource();
     const primaryActionIndex = flow.indexOf('id: "safe-route-primary-action"');
+    const remainingMetricsIndex = flow.indexOf('id: "safe-route-remaining-metrics"');
     const fitControlIndex = flow.indexOf('id: "safe-route-control-fit"');
     const followControlIndex = flow.indexOf('id: "safe-route-control-follow"');
     const intelligenceControlIndex = flow.indexOf('id: "safe-route-control-intelligence"');
     const stopActionIndex = flow.indexOf('id: "safe-route-stop-action"');
 
+    assert.match(flow, /assertVisible:\s*\n\s+id:\s*"safe-route-remaining-metrics"/);
     assert.match(flow, /assertVisible:\s*\n\s+id:\s*"safe-route-control-fit"/);
     assert.match(flow, /assertVisible:\s*\n\s+id:\s*"safe-route-control-follow"/);
     assert.match(flow, /assertVisible:\s*\n\s+id:\s*"safe-route-control-intelligence"/);
     assert.ok(primaryActionIndex >= 0);
     assert.ok(stopActionIndex > primaryActionIndex);
-    assert.ok(fitControlIndex > primaryActionIndex);
+    assert.ok(remainingMetricsIndex > stopActionIndex);
+    assert.ok(fitControlIndex > remainingMetricsIndex);
     assert.ok(followControlIndex > fitControlIndex);
     assert.ok(intelligenceControlIndex > followControlIndex);
     assert.ok(stopActionIndex < fitControlIndex);

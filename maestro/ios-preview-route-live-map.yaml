@@ -128,6 +128,8 @@ appId: host.exp.Exponent
 - assertVisible:
     id: "safe-route-stop-action"
 - assertVisible:
+    id: "safe-route-remaining-metrics"
+- assertVisible:
     id: "safe-route-control-fit"
 - assertVisible:
     id: "safe-route-control-follow"

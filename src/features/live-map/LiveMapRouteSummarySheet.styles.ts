@@ -60,6 +60,12 @@ export const routeSummaryStyles = StyleSheet.create({
     fontSize: typeScale.xs,
     fontWeight: "800",
   },
+  remainingMetricLine: {
+    marginTop: 2,
+    color: colors.inkSoft,
+    fontSize: typeScale.xs,
+    fontWeight: "800",
+  },
   safetyBadge: {
     minWidth: 64,
     minHeight: 34,

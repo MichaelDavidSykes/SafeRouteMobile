@@ -20,6 +20,7 @@ import {
   createRouteSummaryDetail,
   createRouteSummaryHeadlineAccessibilityLabel,
   createRouteSummaryPrimaryAction,
+  createRouteSummaryRemainingMetric,
   createRouteSummarySafetyBadge,
   shouldInlineRouteSummaryDemoAction,
   shouldShowRouteSummarySafetyBadge,
@@ -80,6 +81,12 @@ export function LiveMapRouteSummarySheet({
       : progress
         ? formatEta(progress.etaSeconds)
         : route.eta;
+  const compactRemainingMetric =
+    compactRouteSummary && progress
+      ? createRouteSummaryRemainingMetric(
+          formatDistance(progress.remainingDistanceMeters),
+        )
+      : null;
   const routeDetail = createRouteSummaryDetail({
     remainingDistance: progress
       ? formatDistance(progress.remainingDistanceMeters)
@@ -131,7 +138,16 @@ export function LiveMapRouteSummarySheet({
           >
             {headline}
           </Text>
-          {compactRouteSummary ? null : (
+          {compactRemainingMetric ? (
+            <Text
+              accessibilityLabel={compactRemainingMetric.accessibilityLabel}
+              numberOfLines={1}
+              testID={uiTestIds.liveMapRemainingMetrics}
+              style={styles.remainingMetricLine}
+            >
+              {compactRemainingMetric.text}
+            </Text>
+          ) : compactRouteSummary ? null : (
             <Text
               accessibilityLabel={routeDetail.accessibilityLabel}
               numberOfLines={1}

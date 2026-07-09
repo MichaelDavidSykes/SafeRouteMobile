@@ -37,6 +37,7 @@ describe("UI test identifiers", () => {
       uiTestIds.liveMapRouteSummarySheet,
       "safe-route-summary-sheet",
     );
+    assert.equal(uiTestIds.liveMapRemainingMetrics, "safe-route-remaining-metrics");
     assert.equal(uiTestIds.liveMapPrimaryAction, "safe-route-primary-action");
     assert.equal(uiTestIds.liveMapDemoDriveAction, "safe-route-demo-action");
     assert.equal(uiTestIds.liveMapRiskAlert, "safe-route-risk-alert");

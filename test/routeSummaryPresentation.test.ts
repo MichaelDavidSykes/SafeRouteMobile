@@ -7,6 +7,7 @@ import {
   createRouteSummaryHeadlineAccessibilityLabel,
   createRouteSummaryLabel,
   createRouteSummaryPrimaryAction,
+  createRouteSummaryRemainingMetric,
   createRouteSummarySafetyBadge,
   createRouteSummaryTitle,
   shouldInlineRouteSummaryDemoAction,
@@ -143,6 +144,15 @@ describe("live route summary presentation", () => {
   it("keeps guest live-map previews free of duplicate explanatory chrome", () => {
     assert.equal(shouldShowRouteSummarySafetyBadge("guest"), false);
     assert.equal(shouldShowRouteSummarySafetyBadge("saved"), true);
+  });
+
+  it("keeps compact active guidance remaining context to one quiet line", () => {
+    assert.deepEqual(createRouteSummaryRemainingMetric("  4.1   km "), {
+      accessibilityLabel: "4.1 km remaining.",
+      text: "4.1 km left",
+    });
+    assert.equal(createRouteSummaryRemainingMetric("   "), null);
+    assert.equal(createRouteSummaryRemainingMetric(null), null);
   });
 
   it("keeps guest preview detail to the single action-relevant distance", () => {

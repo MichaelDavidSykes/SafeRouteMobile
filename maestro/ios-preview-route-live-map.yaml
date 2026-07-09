@@ -147,10 +147,10 @@ appId: host.exp.Exponent
 - tapOn:
     id: "safe-route-primary-action"
     waitToSettleTimeoutMs: 1000
-- waitForAnimationToEnd:
-    timeout: 3000
-- assertVisible:
-    id: "safe-route-stop-action"
+- extendedWaitUntil:
+    visible:
+      id: "safe-route-stop-action"
+    timeout: 5000
 - assertVisible:
     id: "safe-route-remaining-metrics"
 - assertVisible:

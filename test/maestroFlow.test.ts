@@ -44,7 +44,7 @@ describe("Maestro iOS preview smoke flow", () => {
     );
     assert.equal(
       scripts["test:maestro:ios"],
-      "maestro test maestro/ios-preview-route-live-map.yaml",
+      "node scripts/run-maestro.mjs test maestro/ios-preview-route-live-map.yaml",
     );
     assert.ok(firstLocalhostIndex >= 0);
     assert.ok(lastLocalhostIndex > firstLocalhostIndex);

@@ -21,7 +21,7 @@ describe("Maestro iOS preview operations flow", () => {
     );
     assert.equal(
       scripts["test:maestro:ios:operations"],
-      "maestro test maestro/ios-preview-operations.yaml"
+      "node scripts/run-maestro.mjs test maestro/ios-preview-operations.yaml"
     );
     assert.match(flow, /SAFEROUTE_ENABLE_PREVIEW_MODE=true/);
     assert.match(flow, /openLink: exp:\/\/localhost:8081/);

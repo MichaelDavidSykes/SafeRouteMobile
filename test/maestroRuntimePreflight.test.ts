@@ -64,7 +64,7 @@ describe('Maestro iOS runtime preflight', () => {
     );
     assert.equal(
       scripts['test:maestro:ios'],
-      'maestro test maestro/ios-preview-route-live-map.yaml'
+      'node scripts/run-maestro.mjs test maestro/ios-preview-route-live-map.yaml'
     );
   });
 

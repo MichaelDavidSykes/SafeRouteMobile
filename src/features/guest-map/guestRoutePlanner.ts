@@ -403,8 +403,8 @@ export function createGuestRoutePreviewState(
   const guidanceCopy = authenticated
     ? 'Open the preview map for guidance. Saved plans are available from Saved.'
     : 'Sign in to save it.';
-  const originLabel = normalizeGuestRouteLabel(routePlan.origin, 'Start point');
-  const destinationLabel = normalizeGuestRouteLabel(routePlan.destination, 'Destination');
+  const originLabel = normalizeGuestRouteAccessibilityLabel(routePlan.origin, 'Start point');
+  const destinationLabel = normalizeGuestRouteAccessibilityLabel(routePlan.destination, 'Destination');
   const metricPresentation = createGuestRoutePreviewMetricPresentation({
     distance: routePlan.route.distance,
     eta: routePlan.route.eta
@@ -414,6 +414,10 @@ export function createGuestRoutePreviewState(
     accessibilityLabel: `${modeValue} route preview from ${originLabel} to ${destinationLabel}. ${metricPresentation.accessibilityLabel}. ${guidanceCopy}`,
     summaryLabel: metricPresentation.summaryLabel
   };
+}
+
+function normalizeGuestRouteAccessibilityLabel(value: string, fallback: string): string {
+  return normalizeGuestRouteLabelText(value) || normalizeGuestRouteLabelText(fallback);
 }
 
 export function createGuestRoutePreviewMetricPresentation({

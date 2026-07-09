@@ -293,6 +293,30 @@ describe('guest route planner helpers', () => {
     });
   });
 
+  it('preserves full guest preview endpoints for VoiceOver without expanding visible metrics', () => {
+    const route = createGuestRoutePlan({
+      origin: 'HQ',
+      destination: 'Airport Terminal'
+    });
+    const verboseOrigin = `${'Operations staging '.repeat(5)}west gate`;
+    const verboseDestination = `${'International terminal '.repeat(5)}north entrance`;
+    const previewState = createGuestRoutePreviewState({
+      ...route,
+      origin: `  ${verboseOrigin}  `,
+      destination: `  ${verboseDestination}  `
+    });
+
+    assert.equal(previewState.summaryLabel, '24 min · 9.4 km');
+    assert.ok(verboseOrigin.length > GUEST_ROUTE_LABEL_MAX_LENGTH);
+    assert.ok(verboseDestination.length > GUEST_ROUTE_LABEL_MAX_LENGTH);
+    assert.ok(
+      previewState.accessibilityLabel.includes(
+        `from ${verboseOrigin} to ${verboseDestination}.`
+      )
+    );
+    assert.doesNotMatch(previewState.accessibilityLabel, /…/);
+  });
+
   it('keeps guest route preview metrics compact when provider labels are sparse', () => {
     assert.deepEqual(
       createGuestRoutePreviewMetricPresentation({

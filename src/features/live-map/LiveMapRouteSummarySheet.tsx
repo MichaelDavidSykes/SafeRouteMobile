@@ -189,6 +189,7 @@ export function LiveMapRouteSummarySheet({
           onPress={onPrimaryAction}
         >
           <Text
+            numberOfLines={1}
             style={[
               styles.startButtonText,
               primaryDisabled ? styles.startButtonTextDisabled : null,
@@ -210,7 +211,9 @@ export function LiveMapRouteSummarySheet({
             ]}
             onPress={onStopRoute}
           >
-            <Text style={styles.stopButtonText}>End</Text>
+            <Text numberOfLines={1} style={styles.stopButtonText}>
+              End
+            </Text>
           </Pressable>
         ) : null}
         {inlineDemoAction ? (
@@ -267,6 +270,7 @@ function DemoDriveButton({
       onPress={onPress}
     >
       <Text
+        numberOfLines={1}
         style={[
           styles.demoButtonText,
           enabled ? styles.demoButtonTextActive : null,

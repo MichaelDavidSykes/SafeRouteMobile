@@ -973,6 +973,15 @@ describe("rounded visual language", () => {
     assert.match(routeSheetSource, /pressed \? styles\.demoButtonPressed : null/);
     assert.match(
       routeSheetSource,
+      /<Text[\s\S]*numberOfLines=\{1\}[\s\S]*styles\.startButtonText/,
+    );
+    assert.match(routeSheetSource, /<Text numberOfLines=\{1\} style=\{styles\.stopButtonText\}>/);
+    assert.match(
+      routeSheetSource,
+      /<Text[\s\S]*numberOfLines=\{1\}[\s\S]*styles\.demoButtonText/,
+    );
+    assert.match(
+      routeSheetSource,
       /accessibilityLabel=\{headlinePresentation\.accessibilityLabel\}[\s\S]*numberOfLines=\{1\}[\s\S]*\{headlinePresentation\.text\}/,
     );
     assert.doesNotMatch(routeSheetSource, /styles\.cardLabel/);

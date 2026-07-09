@@ -604,7 +604,10 @@ describe("rounded visual language", () => {
     assert.doesNotMatch(liveHeaderSource, /radio-button-on|name="location"|arrow-forward/);
     assert.doesNotMatch(liveHeaderSource, /icon=/);
     assert.match(liveHeaderSource, /createRouteTitleAccessibilityLabel/);
+    assert.match(liveHeaderSource, /createRouteTitleDisplayText/);
     assert.match(liveHeaderSource, /accessibilityLabel=\{routeTitleAccessibilityLabel\}/);
+    assert.match(liveHeaderSource, /routeTitleDisplayText/);
+    assert.doesNotMatch(liveHeaderSource, /{routePlan\.name}\s*<\/Text>/);
     assert.doesNotMatch(liveHeaderSource, /styles\.routeSubtitle/);
     assert.doesNotMatch(liveHeaderStylesSource, /\brouteSubtitle:/);
     assert.match(liveHeaderSource, /presentation\.displayText/);
@@ -645,6 +648,10 @@ describe("rounded visual language", () => {
       join(process.cwd(), "src/features/live-map/LiveMapRouteHeader.styles.ts"),
       "utf8",
     );
+    const liveUiStateSource = readFileSync(
+      join(process.cwd(), "src/features/live-map/liveMapUiState.ts"),
+      "utf8",
+    );
     const routeEndpointLineBlock =
       /routeEndpointLine:\s*\{([\s\S]*?)\n  \},\n  routeEndpointLineExpanded/.exec(
         liveHeaderStylesSource,
@@ -652,6 +659,9 @@ describe("rounded visual language", () => {
 
     assert.match(liveHeaderSource, /createRouteEndpointLinePresentation/);
     assert.match(liveHeaderSource, /presentation\.displayText/);
+    assert.match(liveUiStateSource, /LIVE_ROUTE_ENDPOINT_LABEL_MAX_LENGTH\s*=\s*36/);
+    assert.match(liveUiStateSource, /LIVE_ROUTE_TITLE_MAX_LENGTH\s*=\s*64/);
+    assert.match(liveUiStateSource, /createCompactLiveRouteLabel/);
     assert.doesNotMatch(liveHeaderSource, /RouteFieldInline/);
     assert.doesNotMatch(liveHeaderSource, /styles\.routeFields/);
     assert.doesNotMatch(liveHeaderSource, /styles\.routeFieldCompact/);

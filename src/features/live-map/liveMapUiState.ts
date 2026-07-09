@@ -31,6 +31,9 @@ export interface RouteEndpointLinePresentation {
   displayText: string;
 }
 
+export const LIVE_ROUTE_TITLE_MAX_LENGTH = 64;
+export const LIVE_ROUTE_ENDPOINT_LABEL_MAX_LENGTH = 36;
+
 interface RouteStatusPillOptions {
   state: NavigationLifecycle;
   trackingLabel: string;
@@ -224,8 +227,21 @@ export function createRouteEndpointLinePresentation({
 
   return {
     accessibilityLabel: `Route from ${originLabel} to ${destinationLabel}.`,
-    displayText: `${originLabel} → ${destinationLabel}`
+    displayText: `${createCompactLiveRouteLabel(
+      originLabel,
+      LIVE_ROUTE_ENDPOINT_LABEL_MAX_LENGTH
+    )} → ${createCompactLiveRouteLabel(
+      destinationLabel,
+      LIVE_ROUTE_ENDPOINT_LABEL_MAX_LENGTH
+    )}`
   };
+}
+
+export function createRouteTitleDisplayText(name: string): string {
+  return createCompactLiveRouteLabel(
+    normalizeRouteEndpointLabel(name, 'Saved route'),
+    LIVE_ROUTE_TITLE_MAX_LENGTH
+  );
 }
 
 export function createRouteTitleAccessibilityLabel({
@@ -251,6 +267,14 @@ export function createRouteTitleAccessibilityLabel({
 function normalizeRouteEndpointLabel(value: string, fallback: string): string {
   const trimmed = value.trim().replace(/\s+/g, ' ');
   return trimmed || fallback;
+}
+
+function createCompactLiveRouteLabel(label: string, maxLength: number): string {
+  if (label.length <= maxLength) {
+    return label;
+  }
+
+  return `${label.slice(0, Math.max(0, maxLength - 1)).trimEnd()}…`;
 }
 
 export function mapControlAccessibility(

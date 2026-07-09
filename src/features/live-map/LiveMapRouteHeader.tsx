@@ -7,6 +7,7 @@ import {
   createRouteEndpointLinePresentation,
   createRouteHeaderPresentation,
   createRouteTitleAccessibilityLabel,
+  createRouteTitleDisplayText,
   routeStatusPillPresentation,
   type NavigationLifecycle,
   type RouteStatusPillPresentation,
@@ -52,6 +53,7 @@ export function LiveMapRouteHeader({
     name: routePlan.name,
     operation: routePlan.operation,
   });
+  const routeTitleDisplayText = createRouteTitleDisplayText(routePlan.name);
 
   return (
     <View pointerEvents="box-none" style={styles.topStack}>
@@ -107,7 +109,7 @@ export function LiveMapRouteHeader({
                 numberOfLines={1}
                 style={styles.routeTitleCompactNavigation}
               >
-                {routePlan.name}
+                {routeTitleDisplayText}
               </Text>
             ) : null}
             <StatusPill
@@ -140,7 +142,7 @@ export function LiveMapRouteHeader({
               numberOfLines={1}
               style={styles.routeTitle}
             >
-              {routePlan.name}
+              {routeTitleDisplayText}
             </Text>
           </>
         )}

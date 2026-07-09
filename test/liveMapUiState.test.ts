@@ -3,10 +3,13 @@ import { describe, it } from 'node:test';
 
 import {
   DEFAULT_ROUTE_INTELLIGENCE_VISIBLE,
+  LIVE_ROUTE_ENDPOINT_LABEL_MAX_LENGTH,
+  LIVE_ROUTE_TITLE_MAX_LENGTH,
   createLiveLocationNoticePresentation,
   createRouteEndpointLinePresentation,
   createRouteHeaderPresentation,
   createRouteTitleAccessibilityLabel,
+  createRouteTitleDisplayText,
   demoDriveAccessibility,
   liveLocationNotice,
   mapControlAccessibility,
@@ -196,6 +199,39 @@ describe('live map UI state helpers', () => {
         accessibilityLabel: 'Route from Route start to Destination.',
         displayText: 'Route start → Destination'
       }
+    );
+  });
+
+  it('bounds live route header labels while preserving full VoiceOver context', () => {
+    const longOrigin = 'O'.repeat(60);
+    const longDestination = 'D'.repeat(60);
+    const longRouteName = 'R'.repeat(90);
+
+    assert.deepEqual(
+      createRouteEndpointLinePresentation({
+        origin: longOrigin,
+        destination: longDestination
+      }),
+      {
+        accessibilityLabel: `Route from ${longOrigin} to ${longDestination}.`,
+        displayText: `${'O'.repeat(LIVE_ROUTE_ENDPOINT_LABEL_MAX_LENGTH - 1)}… → ${'D'.repeat(
+          LIVE_ROUTE_ENDPOINT_LABEL_MAX_LENGTH - 1
+        )}…`
+      }
+    );
+
+    assert.equal(
+      createRouteTitleDisplayText(longRouteName),
+      `${'R'.repeat(LIVE_ROUTE_TITLE_MAX_LENGTH - 1)}…`
+    );
+    assert.equal(createRouteTitleDisplayText('   '), 'Saved route');
+    assert.equal(
+      createRouteTitleAccessibilityLabel({
+        convoyCallsign: '  Eagle   One ',
+        name: longRouteName,
+        operation: '  Night   Watch '
+      }),
+      `Route ${longRouteName}. Operation Night Watch. Convoy Eagle One.`
     );
   });
 

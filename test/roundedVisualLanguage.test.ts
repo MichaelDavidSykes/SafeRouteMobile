@@ -205,6 +205,7 @@ describe("rounded visual language", () => {
     assert.match(guestMapSource, /<SupportButton/);
     assert.match(guestMapSource, /styles\.supportRow/);
     assert.match(guestMapSource, /styles\.supportButton/);
+    assert.match(guestMapSource, /<Text numberOfLines=\{1\} style=\{styles\.supportLabel\}>/);
     assert.doesNotMatch(guestMapSource, /GATE_FEATURE_ICONS/);
     assert.doesNotMatch(guestMapSource, /styles\.gateButton/);
     assert.doesNotMatch(guestMapSource, /styles\.gateRow/);
@@ -249,6 +250,8 @@ describe("rounded visual language", () => {
     assert.match(guestMapSource, /showSheetSubtitle/);
     assert.match(guestMapSource, /showSheetSubtitle \? \(/);
     assert.match(guestMapSource, /styles\.sheetTitleBlock/);
+    assert.match(guestMapSource, /<Text numberOfLines=\{1\} style=\{styles\.sheetTitle\}>/);
+    assert.match(guestMapSource, /<Text numberOfLines=\{1\} style=\{styles\.sheetSubtitle\}>/);
     assert.match(guestMapSource, /styles\.routePreviewSummary/);
     assert.doesNotMatch(guestPlannerSource, /routePlan\.route\.eta\} ·/);
     assert.match(guestMapSource, /routePlan \? \(\s*<RoutePreview[\s\S]*inline/);
@@ -288,6 +291,7 @@ describe("rounded visual language", () => {
     assert.doesNotMatch(guestMapSource, /accessibilityLabel="SafeRoute map"/);
     assert.doesNotMatch(guestMapSource, /styles\.brandRow/);
     assert.match(guestMapSource, /testID=\{uiTestIds\.guestMapPrimaryAction\}/);
+    assert.match(guestMapSource, /<Text[\s\S]*numberOfLines=\{1\}[\s\S]*styles\.signInButtonText/);
     assert.match(guestMapSource, /authenticated \? styles\.signInButtonAuthenticated : null/);
     assert.match(guestMapSource, /authenticated \? styles\.signInButtonTextAuthenticated : null/);
     assert.doesNotMatch(guestMapSource, /modeBadgeLabel/);
@@ -358,6 +362,7 @@ describe("rounded visual language", () => {
     assert.match(guestMapSource, /accessibilityLabel=\{label\}/);
     assert.match(guestMapSource, /<RouteInput\s+divided/);
     assert.match(guestMapSource, /styles\.inputRowDivider/);
+    assert.match(guestMapSource, /<Text numberOfLines=\{1\} style=\{styles\.primaryButtonText\}>/);
     assert.doesNotMatch(guestMapSource, /Ionicons/);
     assert.doesNotMatch(guestMapSource, /radio-button-on|name="location"|icon=/);
     assert.match(inputStackBlock, /overflow:\s*['"]hidden['"]/);

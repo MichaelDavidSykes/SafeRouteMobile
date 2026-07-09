@@ -271,6 +271,7 @@ export function GuestMapScreen({
             onPress={() => (authenticated ? onOpenFullAccessFeature('saved-routes') : onSignIn())}
           >
             <Text
+              numberOfLines={1}
               style={[
                 styles.signInButtonText,
                 authenticated ? styles.signInButtonTextAuthenticated : null
@@ -284,9 +285,9 @@ export function GuestMapScreen({
         <View pointerEvents="box-none" style={styles.sheet}>
           <View style={styles.sheetHeaderRow}>
             <View style={styles.sheetTitleBlock}>
-              <Text style={styles.sheetTitle}>{mapHomeCopy.sheetTitle}</Text>
+              <Text numberOfLines={1} style={styles.sheetTitle}>{mapHomeCopy.sheetTitle}</Text>
               {showSheetSubtitle ? (
-                <Text style={styles.sheetSubtitle}>{mapHomeCopy.sheetSubtitle}</Text>
+                <Text numberOfLines={1} style={styles.sheetSubtitle}>{mapHomeCopy.sheetSubtitle}</Text>
               ) : null}
             </View>
             {routePlan ? (
@@ -329,7 +330,7 @@ export function GuestMapScreen({
             ]}
             onPress={routePlan ? handleOpenPreview : handlePlotRoute}
           >
-            <Text style={styles.primaryButtonText}>{routeAction.label}</Text>
+            <Text numberOfLines={1} style={styles.primaryButtonText}>{routeAction.label}</Text>
           </Pressable>
 
           {gateFeatures.length ? (
@@ -449,7 +450,7 @@ function SupportButton({
       style={({ pressed }) => [styles.supportButton, pressed ? styles.supportButtonPressed : null]}
       onPress={() => onPress(feature)}
     >
-      <Text style={styles.supportLabel}>{copy.title}</Text>
+      <Text numberOfLines={1} style={styles.supportLabel}>{copy.title}</Text>
     </Pressable>
   );
 }

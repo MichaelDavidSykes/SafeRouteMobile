@@ -187,10 +187,7 @@ export function createRouteSummarySafetyBadge({
 
   return {
     accessibilityLabel: `${spokenRiskLabel}. SafeRoute score ${safeScore}.`,
-    text: createCompactInlineLabel(
-      riskLabel,
-      ROUTE_SUMMARY_SAFETY_BADGE_MAX_LENGTH,
-    ),
+    text: createRouteSummaryVisibleRiskLabel(riskLabel),
   };
 }
 
@@ -284,6 +281,27 @@ function createSafetyBadgeSpokenRiskLabel(riskLabel: string): string {
   }
 
   return `${riskLabel} risk`;
+}
+
+function createRouteSummaryVisibleRiskLabel(riskLabel: string): string {
+  if (riskLabel === "Risk") {
+    return riskLabel;
+  }
+
+  if (/\brisk\b/i.test(riskLabel)) {
+    return createCompactInlineLabel(
+      riskLabel,
+      ROUTE_SUMMARY_SAFETY_BADGE_MAX_LENGTH,
+    );
+  }
+
+  const riskSuffix = " risk";
+  const compactRiskLabel = createCompactInlineLabel(
+    riskLabel,
+    ROUTE_SUMMARY_SAFETY_BADGE_MAX_LENGTH - riskSuffix.length,
+  );
+
+  return `${compactRiskLabel}${riskSuffix}`;
 }
 
 function createRouteSummaryVisibleDistanceLabel(label: string): string {

@@ -297,7 +297,7 @@ describe("live route summary presentation", () => {
       }),
       {
         accessibilityLabel: "Guarded risk. SafeRoute score 42.",
-        text: "Guarded",
+        text: "Guarded risk",
       },
     );
 
@@ -336,7 +336,7 @@ describe("live route summary presentation", () => {
       badge.accessibilityLabel,
       `${riskLabel} risk. SafeRoute score 81.`,
     );
-    assert.ok(badge.text.endsWith("…"));
+    assert.match(badge.text, /… risk$/);
     assert.ok(badge.text.length <= ROUTE_SUMMARY_SAFETY_BADGE_MAX_LENGTH);
   });
 

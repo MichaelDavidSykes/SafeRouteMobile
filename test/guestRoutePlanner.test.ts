@@ -3,6 +3,7 @@ import { describe, it } from 'node:test';
 
 import {
   GUEST_ROUTE_LABEL_MAX_LENGTH,
+  GUEST_ROUTE_PREVIEW_METRIC_MAX_LENGTH,
   GUEST_ROUTE_PREVIEW_SUMMARY_FALLBACK,
   createGuestMapHomeCopy,
   createGuestRouteActionState,
@@ -325,6 +326,27 @@ describe('guest route planner helpers', () => {
         summaryLabel: GUEST_ROUTE_PREVIEW_SUMMARY_FALLBACK
       }
     );
+  });
+
+  it('bounds verbose guest route preview metrics while preserving full VoiceOver context', () => {
+    const verboseEta = '  Travel time approximately twenty six minutes with traffic signal delay  ';
+    const verboseDistance = '  Route distance approximately twelve point four kilometres  ';
+    const presentation = createGuestRoutePreviewMetricPresentation({
+      eta: verboseEta,
+      distance: verboseDistance
+    });
+
+    const [etaSummary, distanceSummary] = presentation.summaryLabel.split(' · ');
+
+    assert.equal(
+      presentation.accessibilityLabel,
+      'Travel time approximately twenty six minutes with traffic signal delay, Route distance approximately twelve point four kilometres'
+    );
+    assert.ok(etaSummary.length <= GUEST_ROUTE_PREVIEW_METRIC_MAX_LENGTH);
+    assert.ok(distanceSummary.length <= GUEST_ROUTE_PREVIEW_METRIC_MAX_LENGTH);
+    assert.ok(etaSummary.endsWith('…'));
+    assert.ok(distanceSummary.endsWith('…'));
+    assert.notEqual(presentation.summaryLabel, presentation.accessibilityLabel);
   });
 
   it('falls back to calm guest preview copy when route metrics are blank', () => {

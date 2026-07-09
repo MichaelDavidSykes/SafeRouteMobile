@@ -242,8 +242,10 @@ describe("rounded visual language", () => {
     assert.match(guestPlannerSource, /shouldShowGuestMapSubtitle/);
     assert.match(guestPlannerSource, /return !routePlotted/);
     assert.match(guestPlannerSource, /GUEST_ROUTE_PREVIEW_SUMMARY_FALLBACK/);
+    assert.match(guestPlannerSource, /GUEST_ROUTE_PREVIEW_METRIC_MAX_LENGTH\s*=\s*24/);
     assert.match(guestPlannerSource, /createGuestRoutePreviewMetricPresentation/);
     assert.match(guestPlannerSource, /normalizeGuestRouteMetricLabel/);
+    assert.match(guestPlannerSource, /createCompactGuestRoutePreviewMetricLabel/);
     assert.match(guestMapSource, /showSheetSubtitle/);
     assert.match(guestMapSource, /showSheetSubtitle \? \(/);
     assert.match(guestMapSource, /styles\.sheetTitleBlock/);

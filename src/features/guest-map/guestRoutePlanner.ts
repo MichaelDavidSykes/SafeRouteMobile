@@ -72,6 +72,7 @@ export const GUEST_MAP_REGION: Region = {
 
 export const GUEST_ROUTE_LABEL_MAX_LENGTH = 80;
 export const GUEST_ROUTE_PREVIEW_SUMMARY_FALLBACK = 'Preview ready';
+export const GUEST_ROUTE_PREVIEW_METRIC_MAX_LENGTH = 24;
 
 const GUEST_ROUTE_SIMULATION_MAX_SEGMENT_METERS = 330;
 const GUEST_ROUTE_PREVIEW_SPEED_METERS_PER_SECOND = 6.5;
@@ -424,19 +425,22 @@ export function createGuestRoutePreviewMetricPresentation({
 }): GuestRoutePreviewMetricPresentation {
   const etaLabel = normalizeGuestRouteMetricLabel(eta);
   const distanceLabel = normalizeGuestRouteMetricLabel(distance);
+  const etaSummaryLabel = createCompactGuestRoutePreviewMetricLabel(etaLabel);
+  const distanceSummaryLabel = createCompactGuestRoutePreviewMetricLabel(distanceLabel);
 
   if (etaLabel && distanceLabel) {
     return {
       accessibilityLabel: `${etaLabel}, ${distanceLabel}`,
-      summaryLabel: `${etaLabel} · ${distanceLabel}`
+      summaryLabel: `${etaSummaryLabel} · ${distanceSummaryLabel}`
     };
   }
 
   if (etaLabel || distanceLabel) {
     const metricLabel = etaLabel || distanceLabel;
+    const summaryMetricLabel = etaSummaryLabel || distanceSummaryLabel;
     return {
       accessibilityLabel: metricLabel,
-      summaryLabel: metricLabel
+      summaryLabel: summaryMetricLabel
     };
   }
 
@@ -448,6 +452,14 @@ export function createGuestRoutePreviewMetricPresentation({
 
 function normalizeGuestRouteMetricLabel(value?: string | null): string {
   return value?.trim().replace(/\s+/g, ' ') || '';
+}
+
+function createCompactGuestRoutePreviewMetricLabel(label: string): string {
+  if (label.length <= GUEST_ROUTE_PREVIEW_METRIC_MAX_LENGTH) {
+    return label;
+  }
+
+  return `${label.slice(0, GUEST_ROUTE_PREVIEW_METRIC_MAX_LENGTH - 1).trimEnd()}…`;
 }
 
 export function shouldShowGuestMapGateRow({

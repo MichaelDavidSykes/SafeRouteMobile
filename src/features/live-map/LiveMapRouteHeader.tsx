@@ -93,6 +93,7 @@ export function LiveMapRouteHeader({
               onPress={onChangeRoute}
             >
               <Text
+                numberOfLines={1}
                 style={[
                   styles.routeListButtonText,
                   headerPresentation.minimalActiveNavigation
@@ -132,7 +133,9 @@ export function LiveMapRouteHeader({
                 ]}
                 onPress={onChangeRoute}
               >
-                <Text style={styles.routeListButtonText}>{returnLabel}</Text>
+                <Text numberOfLines={1} style={styles.routeListButtonText}>
+                  {returnLabel}
+                </Text>
               </Pressable>
               <StatusPill presentation={statusPresentation} />
             </View>

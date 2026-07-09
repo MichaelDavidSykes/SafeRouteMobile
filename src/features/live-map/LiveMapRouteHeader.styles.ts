@@ -51,6 +51,7 @@ export const styles = StyleSheet.create({
   },
   routeListButton: {
     minHeight: controlSizes.secondary,
+    maxWidth: 132,
     flexDirection: "row",
     alignItems: "center",
     gap: 2,
@@ -72,9 +73,12 @@ export const styles = StyleSheet.create({
     backgroundColor: "transparent",
   },
   routeListButtonText: {
+    maxWidth: "100%",
+    flexShrink: 1,
     color: colors.ink,
     fontSize: typeScale.sm,
     fontWeight: "800",
+    textAlign: "center",
   },
   routeListButtonTextMinimalActiveNavigation: {
     color: colors.appleBlue,

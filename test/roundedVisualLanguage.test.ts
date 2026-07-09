@@ -686,6 +686,10 @@ describe("rounded visual language", () => {
       /routeListButtonMinimalActiveNavigation:\s*\{([\s\S]*?)\n  \},\n  routeListButtonText/.exec(
         liveHeaderStylesSource,
       )?.[1] || "";
+    const routeListButtonTextBlock =
+      /routeListButtonText:\s*\{([\s\S]*?)\n  \},\n  routeListButtonTextMinimalActiveNavigation/.exec(
+        liveHeaderStylesSource,
+      )?.[1] || "";
     const minimalHeaderBlock =
       /headerPanelMinimalActiveNavigation:\s*\{([\s\S]*?)\n  \},\n  compactNavigationRow:/.exec(
         liveHeaderStylesSource,
@@ -724,6 +728,14 @@ describe("rounded visual language", () => {
     assert.match(routeListButtonBlock, /borderRadius:\s*radius\.pill/);
     assert.match(routeListButtonBlock, /borderWidth:\s*0/);
     assert.match(routeListButtonBlock, /backgroundColor:\s*["']transparent["']/);
+    assert.match(routeListButtonBlock, /maxWidth:\s*132/);
+    assert.match(routeListButtonTextBlock, /maxWidth:\s*["']100%["']/);
+    assert.match(routeListButtonTextBlock, /flexShrink:\s*1/);
+    assert.match(routeListButtonTextBlock, /textAlign:\s*["']center["']/);
+    assert.equal(
+      (liveHeaderSource.match(/<Text\s+numberOfLines=\{1\}[\s\S]*?\{returnLabel\}/g) || []).length,
+      2,
+    );
     assert.doesNotMatch(routeListButtonBlock, /surfaceElevated/);
     assert.match(routeListButtonPressedBlock, /backgroundColor:\s*colors\.appleBlueSoft/);
     assert.match(minimalHeaderBlock, /borderRadius:\s*radius\.pill/);

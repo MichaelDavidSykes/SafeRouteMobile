@@ -35,6 +35,8 @@ export const LIVE_ROUTE_TITLE_MAX_LENGTH = 64;
 export const LIVE_ROUTE_ENDPOINT_LABEL_MAX_LENGTH = 36;
 export const LIVE_ROUTE_STATUS_LABEL_MAX_LENGTH = 18;
 
+const TERMINAL_SENTENCE_PUNCTUATION_PATTERN = /[.!?…]$/;
+
 interface RouteStatusPillOptions {
   state: NavigationLifecycle;
   trackingLabel: string;
@@ -170,7 +172,7 @@ export function createLiveLocationNoticePresentation(
   }
 
   return {
-    accessibilityLabel: `Location status. ${trimmedNotice}`,
+    accessibilityLabel: `Location status. ${createLiveMapAccessibilitySentence(trimmedNotice)}`,
     displayText: liveLocationNoticeDisplayText(trimmedNotice)
   };
 }
@@ -227,7 +229,7 @@ export function createRouteEndpointLinePresentation({
   const destinationLabel = normalizeRouteEndpointLabel(destination, 'Destination');
 
   return {
-    accessibilityLabel: `Route from ${originLabel} to ${destinationLabel}.`,
+    accessibilityLabel: createLiveMapAccessibilitySentence(`Route from ${originLabel} to ${destinationLabel}`),
     displayText: `${createCompactLiveRouteLabel(
       originLabel,
       LIVE_ROUTE_ENDPOINT_LABEL_MAX_LENGTH
@@ -276,7 +278,7 @@ function createConvoyAccessibilityLabel(convoyLabel: string): string {
 function createLiveMapAccessibilitySentence(label: string): string {
   const normalizedLabel = label.trim().replace(/\s+/g, ' ');
 
-  return `${normalizedLabel}${/[.!?]$/.test(normalizedLabel) ? '' : '.'}`;
+  return `${normalizedLabel}${TERMINAL_SENTENCE_PUNCTUATION_PATTERN.test(normalizedLabel) ? '' : '.'}`;
 }
 
 function normalizeRouteEndpointLabel(value: string, fallback: string): string {
@@ -560,7 +562,7 @@ function normalizeRouteStatusLabel(value: string, fallback: string): string {
 }
 
 function createRouteStatusSentence(label: string): string {
-  return `Route status: ${label}${/[.!?]$/.test(label) ? '' : '.'}`;
+  return `Route status: ${label}${TERMINAL_SENTENCE_PUNCTUATION_PATTERN.test(label) ? '' : '.'}`;
 }
 
 function normalizeRouteActionDisabledReason(reason?: string | null): string | null {

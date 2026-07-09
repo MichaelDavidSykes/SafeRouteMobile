@@ -177,6 +177,14 @@ describe('live map UI state helpers', () => {
         displayText: 'Location unavailable'
       }
     );
+    assert.deepEqual(createLiveLocationNoticePresentation('  GPS fix delayed  '), {
+      accessibilityLabel: 'Location status. GPS fix delayed.',
+      displayText: 'Location unavailable'
+    });
+    assert.deepEqual(createLiveLocationNoticePresentation('Provider retry pending…'), {
+      accessibilityLabel: 'Location status. Provider retry pending…',
+      displayText: 'Location unavailable'
+    });
   });
 
   it('keeps route endpoint chrome as one normalized text line', () => {
@@ -199,6 +207,17 @@ describe('live map UI state helpers', () => {
       {
         accessibilityLabel: 'Route from Route start to Destination.',
         displayText: 'Route start → Destination'
+      }
+    );
+
+    assert.deepEqual(
+      createRouteEndpointLinePresentation({
+        origin: 'North Gate',
+        destination: 'Harbor Depot…'
+      }),
+      {
+        accessibilityLabel: 'Route from North Gate to Harbor Depot…',
+        displayText: 'North Gate → Harbor Depot…'
       }
     );
   });
@@ -252,6 +271,14 @@ describe('live map UI state helpers', () => {
         operation: '  '
       }),
       'Route Saved route. Convoy Eagle One!'
+    );
+    assert.equal(
+      createRouteTitleAccessibilityLabel({
+        convoyCallsign: '  Provider   convoy… ',
+        name: '  River detour… ',
+        operation: '  '
+      }),
+      'Route River detour… Convoy Provider convoy…'
     );
   });
 
@@ -465,6 +492,17 @@ describe('live map UI state helpers', () => {
         label: 'Stopped',
         accessibilityLabel: 'Route status: Stopped.',
         tone: 'demo'
+      }
+    );
+    assert.deepEqual(
+      routeStatusPillPresentation({
+        state: 'navigating',
+        trackingLabel: 'GPS pending…'
+      }),
+      {
+        label: 'GPS pending…',
+        accessibilityLabel: 'Route status: GPS pending…',
+        tone: 'live'
       }
     );
   });

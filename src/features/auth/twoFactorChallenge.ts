@@ -1,6 +1,6 @@
 import type { TwoFactorChallenge } from './authTypes';
 
-export const LOGIN_CODE_LENGTH = 6;
+const LOGIN_CODE_LENGTH = 6;
 
 export interface TwoFactorChallengeState {
   expired: boolean;
@@ -11,8 +11,6 @@ export interface TwoFactorChallengeState {
 export function sanitizeLoginCode(value: string): string {
   return String(value || '').replace(/\D/g, '').slice(0, LOGIN_CODE_LENGTH);
 }
-
-export const normalizeLoginCode = sanitizeLoginCode;
 
 export function isTwoFactorChallengeExpired(expiresAt?: string, nowMs = Date.now()): boolean {
   if (!expiresAt) {

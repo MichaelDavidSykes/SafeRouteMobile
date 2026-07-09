@@ -6,7 +6,6 @@ import {
   getTwoFactorExpiryDelayMs,
   getTwoFactorSubtitle,
   isTwoFactorChallengeExpired,
-  normalizeLoginCode,
   sanitizeLoginCode
 } from '../src/features/auth/twoFactorChallenge';
 
@@ -15,7 +14,7 @@ describe('two-factor challenge helpers', () => {
 
   it('sanitizes pasted login codes to six digits', () => {
     assert.equal(sanitizeLoginCode(' 12 3-45a678 '), '123456');
-    assert.equal(normalizeLoginCode('code: 123456789'), '123456');
+    assert.equal(sanitizeLoginCode('code: 123456789'), '123456');
     assert.equal(sanitizeLoginCode('abc'), '');
   });
 

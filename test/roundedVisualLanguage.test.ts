@@ -162,12 +162,18 @@ describe("rounded visual language", () => {
       join(process.cwd(), "src/features/live-map/LiveMapCanvas.tsx"),
       "utf8",
     );
+    const routeLinePresentationSource = readFileSync(
+      join(process.cwd(), "src/features/live-map/routeLinePresentation.ts"),
+      "utf8",
+    );
     const guestMapSource = readFileSync(
       join(process.cwd(), "src/features/guest-map/GuestMapScreen.tsx"),
       "utf8",
     );
 
-    for (const source of [liveMapCanvasSource, guestMapSource]) {
+    assert.match(liveMapCanvasSource, /resolveRouteLinePresentation/);
+
+    for (const source of [routeLinePresentationSource, guestMapSource]) {
       assert.match(source, /colors\.routePrimary/);
     }
   });
@@ -393,6 +399,10 @@ describe("rounded visual language", () => {
     assert.match(guestMapSource, /setRoutePlan\(localRoutePlan\)/);
     assert.match(guestMapSource, /upgradeGuestRouteWithRoadPreview\(localRoutePlan\)/);
     assert.match(guestMapSource, /new AbortController\(\)/);
+    assert.match(guestMapSource, /roadPreviewPending/);
+    assert.match(guestMapSource, /pendingOpenPreviewRef/);
+    assert.match(guestMapSource, /openPendingPreview\(roadRoutePlan\)/);
+    assert.match(guestMapSource, /openPendingPreview\(localRoutePlan\)/);
     assert.match(guestMapSource, /GUEST_ROUTE_PROVIDER_UI_TIMEOUT_MS\s*=\s*3500/);
     assert.match(guestMapSource, /timeoutMs:\s*GUEST_ROUTE_PROVIDER_UI_TIMEOUT_MS/);
     assert.match(guestMapSource, /roadSnappedCoordinates:\s*roadPreview\.coordinates/);

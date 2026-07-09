@@ -33,6 +33,7 @@ export interface RouteEndpointLinePresentation {
 
 export const LIVE_ROUTE_TITLE_MAX_LENGTH = 64;
 export const LIVE_ROUTE_ENDPOINT_LABEL_MAX_LENGTH = 36;
+export const LIVE_ROUTE_STATUS_LABEL_MAX_LENGTH = 18;
 
 interface RouteStatusPillOptions {
   state: NavigationLifecycle;
@@ -486,9 +487,10 @@ export function routeStatusPillPresentation({
   trackingLabel
 }: RouteStatusPillOptions): RouteStatusPillPresentation {
   const label = routeStatusLabel(state, trackingLabel);
+  const accessibilityLabel = routeStatusAccessibilityLabel(state, trackingLabel);
 
   return {
-    accessibilityLabel: `Route status: ${label}.`,
+    accessibilityLabel: createRouteStatusSentence(accessibilityLabel),
     label,
     tone: routeStatusTone(state)
   };
@@ -496,7 +498,10 @@ export function routeStatusPillPresentation({
 
 function routeStatusLabel(state: NavigationLifecycle, trackingLabel: string): string {
   if (state === 'navigating') {
-    return trackingLabel.trim() || 'Live guidance';
+    return createCompactLiveRouteLabel(
+      normalizeRouteStatusLabel(trackingLabel, 'Live guidance'),
+      LIVE_ROUTE_STATUS_LABEL_MAX_LENGTH
+    );
   }
 
   if (state === 'off-route') {
@@ -516,6 +521,23 @@ function routeStatusLabel(state: NavigationLifecycle, trackingLabel: string): st
   }
 
   return 'Ready';
+}
+
+function routeStatusAccessibilityLabel(state: NavigationLifecycle, trackingLabel: string): string {
+  if (state === 'navigating') {
+    return normalizeRouteStatusLabel(trackingLabel, 'Live guidance');
+  }
+
+  return routeStatusLabel(state, trackingLabel);
+}
+
+function normalizeRouteStatusLabel(value: string, fallback: string): string {
+  const normalized = value.trim().replace(/\s+/g, ' ');
+  return normalized || fallback;
+}
+
+function createRouteStatusSentence(label: string): string {
+  return `Route status: ${label}${/[.!?]$/.test(label) ? '' : '.'}`;
 }
 
 function routeStatusTone(state: NavigationLifecycle): RouteStatusTone {

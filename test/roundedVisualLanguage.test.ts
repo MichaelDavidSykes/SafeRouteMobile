@@ -607,6 +607,10 @@ describe("rounded visual language", () => {
       join(process.cwd(), "src/features/live-map/LiveMapRouteHeader.styles.ts"),
       "utf8",
     );
+    const liveUiStateSource = readFileSync(
+      join(process.cwd(), "src/features/live-map/liveMapUiState.ts"),
+      "utf8",
+    );
     const noticeBlock =
       /permissionNotice:\s*\{([\s\S]*?)\n  \},\n  permissionNoticeCompactNavigation/.exec(
         liveHeaderStylesSource,
@@ -650,6 +654,9 @@ describe("rounded visual language", () => {
     assert.doesNotMatch(liveHeaderStylesSource, /\brouteSubtitle:/);
     assert.match(liveHeaderSource, /presentation\.displayText/);
     assert.match(liveHeaderSource, /minimal \? null : \(/);
+    assert.match(liveHeaderSource, /presentation\.label/);
+    assert.match(liveHeaderSource, /presentation\.accessibilityLabel/);
+    assert.match(liveHeaderStylesSource, /statusTextCompactNavigation/);
     assert.match(liveHeaderSource, /style=\{\(\{ pressed \}\) => \[/);
     assert.doesNotMatch(liveHeaderStylesSource, /\bbrandCluster:/);
     assert.match(headerPanelBlock, /backgroundColor:\s*colors\.surfaceGlass/);
@@ -672,6 +679,8 @@ describe("rounded visual language", () => {
     assert.match(minimalReturnBlock, /backgroundColor:\s*["']transparent["']/);
     assert.match(minimalStatusBlock, /paddingHorizontal:\s*spacing\.xs/);
     assert.match(minimalStatusBlock, /backgroundColor:\s*["']transparent["']/);
+    assert.match(liveUiStateSource, /LIVE_ROUTE_STATUS_LABEL_MAX_LENGTH\s*=\s*18/);
+    assert.match(liveUiStateSource, /routeStatusAccessibilityLabel/);
     assert.match(noticeBlock, /alignSelf:\s*"flex-start"/);
     assert.match(noticeBlock, /borderRadius:\s*radius\.pill/);
     assert.match(noticeBlock, /backgroundColor:\s*colors\.amberSoft/);

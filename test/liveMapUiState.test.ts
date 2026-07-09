@@ -4,6 +4,7 @@ import { describe, it } from 'node:test';
 import {
   DEFAULT_ROUTE_INTELLIGENCE_VISIBLE,
   LIVE_ROUTE_ENDPOINT_LABEL_MAX_LENGTH,
+  LIVE_ROUTE_STATUS_LABEL_MAX_LENGTH,
   LIVE_ROUTE_TITLE_MAX_LENGTH,
   createLiveLocationNoticePresentation,
   createRouteEndpointLinePresentation,
@@ -442,6 +443,22 @@ describe('live map UI state helpers', () => {
         tone: 'demo'
       }
     );
+  });
+
+  it('bounds live tracking status pills while preserving full VoiceOver context', () => {
+    const trackingLabel = '  Live   GPS connected through extended convoy telemetry  ';
+    const presentation = routeStatusPillPresentation({
+      state: 'navigating',
+      trackingLabel
+    });
+
+    assert.equal(presentation.label, 'Live GPS connecte…');
+    assert.equal(presentation.label.length, LIVE_ROUTE_STATUS_LABEL_MAX_LENGTH);
+    assert.equal(
+      presentation.accessibilityLabel,
+      'Route status: Live GPS connected through extended convoy telemetry.'
+    );
+    assert.equal(presentation.tone, 'live');
   });
 
   it('adds disabled guidance context to primary route action', () => {

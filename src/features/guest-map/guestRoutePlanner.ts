@@ -36,6 +36,11 @@ export type GuestRoutePreviewState = {
   summaryLabel: string;
 };
 
+export type GuestRoutePreviewMetricPresentation = {
+  accessibilityLabel: string;
+  summaryLabel: string;
+};
+
 export type GuestRouteMetrics = {
   distance: string;
   eta: string;
@@ -66,6 +71,7 @@ export const GUEST_MAP_REGION: Region = {
 };
 
 export const GUEST_ROUTE_LABEL_MAX_LENGTH = 80;
+export const GUEST_ROUTE_PREVIEW_SUMMARY_FALLBACK = 'Preview ready';
 
 const GUEST_ROUTE_SIMULATION_MAX_SEGMENT_METERS = 330;
 const GUEST_ROUTE_PREVIEW_SPEED_METERS_PER_SECOND = 6.5;
@@ -396,11 +402,52 @@ export function createGuestRoutePreviewState(
   const guidanceCopy = authenticated
     ? 'Open the preview map for guidance. Saved plans are available from Saved.'
     : 'Sign in to save it.';
+  const originLabel = normalizeGuestRouteLabel(routePlan.origin, 'Start point');
+  const destinationLabel = normalizeGuestRouteLabel(routePlan.destination, 'Destination');
+  const metricPresentation = createGuestRoutePreviewMetricPresentation({
+    distance: routePlan.route.distance,
+    eta: routePlan.route.eta
+  });
 
   return {
-    accessibilityLabel: `${modeValue} route preview from ${routePlan.origin} to ${routePlan.destination}. ${routePlan.route.eta}, ${routePlan.route.distance}. ${guidanceCopy}`,
-    summaryLabel: `${routePlan.route.eta} · ${routePlan.route.distance}`,
+    accessibilityLabel: `${modeValue} route preview from ${originLabel} to ${destinationLabel}. ${metricPresentation.accessibilityLabel}. ${guidanceCopy}`,
+    summaryLabel: metricPresentation.summaryLabel
   };
+}
+
+export function createGuestRoutePreviewMetricPresentation({
+  distance,
+  eta
+}: {
+  distance?: string | null;
+  eta?: string | null;
+}): GuestRoutePreviewMetricPresentation {
+  const etaLabel = normalizeGuestRouteMetricLabel(eta);
+  const distanceLabel = normalizeGuestRouteMetricLabel(distance);
+
+  if (etaLabel && distanceLabel) {
+    return {
+      accessibilityLabel: `${etaLabel}, ${distanceLabel}`,
+      summaryLabel: `${etaLabel} · ${distanceLabel}`
+    };
+  }
+
+  if (etaLabel || distanceLabel) {
+    const metricLabel = etaLabel || distanceLabel;
+    return {
+      accessibilityLabel: metricLabel,
+      summaryLabel: metricLabel
+    };
+  }
+
+  return {
+    accessibilityLabel: 'Preview ready; route metrics unavailable',
+    summaryLabel: GUEST_ROUTE_PREVIEW_SUMMARY_FALLBACK
+  };
+}
+
+function normalizeGuestRouteMetricLabel(value?: string | null): string {
+  return value?.trim().replace(/\s+/g, ' ') || '';
 }
 
 export function shouldShowGuestMapGateRow({

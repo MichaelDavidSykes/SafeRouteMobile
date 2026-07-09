@@ -3,11 +3,13 @@ import { describe, it } from 'node:test';
 
 import {
   GUEST_ROUTE_LABEL_MAX_LENGTH,
+  GUEST_ROUTE_PREVIEW_SUMMARY_FALLBACK,
   createGuestMapHomeCopy,
   createGuestRouteActionState,
   createGuestRouteInputCopy,
   createGuestRouteMetrics,
   createGuestRoutePlan,
+  createGuestRoutePreviewMetricPresentation,
   createGuestRoutePreviewState,
   getGuestFullAccessCopy,
   getGuestMapGateFeatures,
@@ -287,6 +289,65 @@ describe('guest route planner helpers', () => {
       accessibilityLabel:
         'Local route preview from HQ to Airport Terminal. 24 min, 9.4 km. Open the preview map for guidance. Saved plans are available from Saved.',
       summaryLabel: '24 min · 9.4 km'
+    });
+  });
+
+  it('keeps guest route preview metrics compact when provider labels are sparse', () => {
+    assert.deepEqual(
+      createGuestRoutePreviewMetricPresentation({
+        eta: '  16   min ',
+        distance: '  7.5   km '
+      }),
+      {
+        accessibilityLabel: '16 min, 7.5 km',
+        summaryLabel: '16 min · 7.5 km'
+      }
+    );
+
+    assert.deepEqual(
+      createGuestRoutePreviewMetricPresentation({
+        eta: '  ',
+        distance: ' 7.5 km '
+      }),
+      {
+        accessibilityLabel: '7.5 km',
+        summaryLabel: '7.5 km'
+      }
+    );
+
+    assert.deepEqual(
+      createGuestRoutePreviewMetricPresentation({
+        eta: '',
+        distance: '  '
+      }),
+      {
+        accessibilityLabel: 'Preview ready; route metrics unavailable',
+        summaryLabel: GUEST_ROUTE_PREVIEW_SUMMARY_FALLBACK
+      }
+    );
+  });
+
+  it('falls back to calm guest preview copy when route metrics are blank', () => {
+    const route = createGuestRoutePlan({
+      origin: '  HQ  ',
+      destination: '  Airport   Terminal  '
+    });
+
+    const sparseMetricRoute = {
+      ...route,
+      origin: ' ',
+      destination: '',
+      route: {
+        ...route.route,
+        distance: ' ',
+        eta: ''
+      }
+    };
+
+    assert.deepEqual(createGuestRoutePreviewState(sparseMetricRoute), {
+      accessibilityLabel:
+        'Unsaved route preview from Start point to Destination. Preview ready; route metrics unavailable. Sign in to save it.',
+      summaryLabel: 'Preview ready'
     });
   });
 

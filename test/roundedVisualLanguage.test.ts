@@ -241,10 +241,14 @@ describe("rounded visual language", () => {
 
     assert.match(guestPlannerSource, /shouldShowGuestMapSubtitle/);
     assert.match(guestPlannerSource, /return !routePlotted/);
+    assert.match(guestPlannerSource, /GUEST_ROUTE_PREVIEW_SUMMARY_FALLBACK/);
+    assert.match(guestPlannerSource, /createGuestRoutePreviewMetricPresentation/);
+    assert.match(guestPlannerSource, /normalizeGuestRouteMetricLabel/);
     assert.match(guestMapSource, /showSheetSubtitle/);
     assert.match(guestMapSource, /showSheetSubtitle \? \(/);
     assert.match(guestMapSource, /styles\.sheetTitleBlock/);
     assert.match(guestMapSource, /styles\.routePreviewSummary/);
+    assert.doesNotMatch(guestPlannerSource, /routePlan\.route\.eta\} ·/);
     assert.match(guestMapSource, /routePlan \? \(\s*<RoutePreview[\s\S]*inline/);
     assert.doesNotMatch(guestMapSource, /routePreviewTitle/);
     assert.doesNotMatch(guestMapSource, /<\/Pressable>\s*\n\s*\{routePlan \? <RoutePreview/);

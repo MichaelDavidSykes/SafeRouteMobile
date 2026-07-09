@@ -66,7 +66,7 @@ describe("Maestro iOS preview smoke flow", () => {
     assert.match(flow, /tapOn:\s*"done"/);
     assert.doesNotMatch(flow, /hideKeyboard/);
     assert.match(flow, /tapOn:\s*\n\s+id:\s*"guest-map-plot-action"/);
-    assert.match(flow, /assertVisible:\s*\n\s+id:\s*"guest-map-route-preview"/);
+    assert.match(flow, /extendedWaitUntil:\s*\n\s+visible:\s*\n\s+id:\s*"guest-map-route-preview"\s*\n\s+timeout:\s*12000/);
     assert.match(flow, /when:\s*\n\s+visible:\s*\n\s+id:\s*"safe-route-picker"/);
     assert.match(flow, /extendedWaitUntil:\s*\n\s+visible:\s*\n\s+id:\s*"safe-route-live-map"/);
     assert.match(flow, /assertVisible:\s*\n\s+id:\s*"safe-route-demo-action"/);

@@ -26,6 +26,8 @@ import {
 } from './guestRoadRouteProvider';
 import { guestMapStyles as styles } from './GuestMapScreen.styles';
 
+const GUEST_ROUTE_PROVIDER_UI_TIMEOUT_MS = 3500;
+
 type GuestRoadRoutePreviewFetcher = (
   options: GuestRoadRoutePreviewOptions
 ) => Promise<GuestRoadRoutePreview | null>;
@@ -134,7 +136,8 @@ export function GuestMapScreen({
 
     void roadRoutePreviewFetcher({
       signal: controller.signal,
-      stops
+      stops,
+      timeoutMs: GUEST_ROUTE_PROVIDER_UI_TIMEOUT_MS
     })
       .then((roadPreview) => {
         if (

@@ -66,8 +66,10 @@ appId: host.exp.Exponent
       - tapOn: "done"
       - waitForAnimationToEnd:
           timeout: 5000
-      - assertVisible:
-          id: "guest-map-route-preview"
+      - extendedWaitUntil:
+          visible:
+            id: "guest-map-route-preview"
+          timeout: 12000
       - assertVisible:
           id: "guest-map-plot-action"
       - tapOn:

@@ -363,6 +363,8 @@ describe("rounded visual language", () => {
     assert.match(guestMapSource, /setRoutePlan\(localRoutePlan\)/);
     assert.match(guestMapSource, /upgradeGuestRouteWithRoadPreview\(localRoutePlan\)/);
     assert.match(guestMapSource, /new AbortController\(\)/);
+    assert.match(guestMapSource, /GUEST_ROUTE_PROVIDER_UI_TIMEOUT_MS\s*=\s*3500/);
+    assert.match(guestMapSource, /timeoutMs:\s*GUEST_ROUTE_PROVIDER_UI_TIMEOUT_MS/);
     assert.match(guestMapSource, /roadSnappedCoordinates:\s*roadPreview\.coordinates/);
     assert.match(guestMapSource, /routeDistanceMeters:\s*roadPreview\.distanceMeters/);
     assert.match(guestMapSource, /routeDurationSeconds:\s*roadPreview\.durationSeconds/);

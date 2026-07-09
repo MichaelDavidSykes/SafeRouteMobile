@@ -267,21 +267,15 @@ function normalizeRouteCardMetaValue(value: string): string {
 function createRouteCardAccessibilityLabel(
   phrases: Array<string | null>,
 ): string {
-  const normalizedPhrases = phrases
+  return phrases
     .map((phrase) => phrase?.trim().replace(/\s+/g, " ") || "")
-    .filter(Boolean);
-
-  return normalizedPhrases
-    .map((phrase, index) => {
-      const isLastPhrase = index === normalizedPhrases.length - 1;
-
-      if (isLastPhrase || /[.!?…]$/.test(phrase)) {
-        return phrase;
-      }
-
-      return `${phrase}.`;
-    })
+    .filter(Boolean)
+    .map(createRouteCardAccessibilitySentence)
     .join(" ");
+}
+
+function createRouteCardAccessibilitySentence(phrase: string): string {
+  return /[.!?…]$/.test(phrase) ? phrase : `${phrase}.`;
 }
 
 function createCompactRouteCardLabel(label: string, maxLength: number): string {

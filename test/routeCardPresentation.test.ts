@@ -57,7 +57,7 @@ describe("route card presentation", () => {
     assert.deepEqual(createRouteCardPresentation(baseRoute, false), {
       accessibilityHint: "Opens live map guidance for this route",
       accessibilityLabel:
-        "Morning embassy transfer. Ready route. Diplomatic move, convoy Lead 1. From Hotel to Embassy. 18 min ETA, 8.0 km distance, Low risk. Updated today",
+        "Morning embassy transfer. Ready route. Diplomatic move, convoy Lead 1. From Hotel to Embassy. 18 min ETA, 8.0 km distance, Low risk. Updated today.",
       actionLabel: "Map",
       endpointLabel: "Hotel → Embassy",
       metaLabel: "Diplomatic move • Lead 1",
@@ -81,7 +81,7 @@ describe("route card presentation", () => {
       {
         accessibilityHint: "Live map is opening",
         accessibilityLabel:
-          "Morning embassy transfer. Live route. Diplomatic move, convoy Lead 1. From Hotel to Embassy. 18 min ETA, 8.0 km distance, Low risk. Updated today",
+          "Morning embassy transfer. Live route. Diplomatic move, convoy Lead 1. From Hotel to Embassy. 18 min ETA, 8.0 km distance, Low risk. Updated today.",
         actionLabel: "Opening",
         endpointLabel: "Hotel → Embassy",
         metaLabel: "Diplomatic move • Lead 1",
@@ -246,7 +246,7 @@ describe("route card presentation", () => {
       {
         accessibilityHint: "Opens live map guidance for this route",
         accessibilityLabel:
-          "Morning embassy transfer. Ready route. From Hotel to Embassy. 18 min ETA, 8.0 km distance, Low risk. Updated today",
+          "Morning embassy transfer. Ready route. From Hotel to Embassy. 18 min ETA, 8.0 km distance, Low risk. Updated today.",
         actionLabel: "Map",
         endpointLabel: "Hotel → Embassy",
         metaLabel: null,
@@ -267,7 +267,7 @@ describe("route card presentation", () => {
         },
         false,
       ).accessibilityLabel,
-      "Morning embassy transfer. Ready route. Convoy Bravo 2. From Hotel to Embassy. 18 min ETA, 8.0 km distance, Low risk. Updated today",
+      "Morning embassy transfer. Ready route. Convoy Bravo 2. From Hotel to Embassy. 18 min ETA, 8.0 km distance, Low risk. Updated today.",
     );
 
     assert.equal(
@@ -279,7 +279,7 @@ describe("route card presentation", () => {
         },
         false,
       ).accessibilityLabel,
-      "Morning embassy transfer. Ready route. Convoy 12. From Hotel to Embassy. 18 min ETA, 8.0 km distance, Low risk. Updated today",
+      "Morning embassy transfer. Ready route. Convoy 12. From Hotel to Embassy. 18 min ETA, 8.0 km distance, Low risk. Updated today.",
     );
 
     assert.equal(
@@ -291,7 +291,7 @@ describe("route card presentation", () => {
         },
         false,
       ).accessibilityLabel,
-      "Morning embassy transfer. Ready route. Diplomatic move, Convoy 12. From Hotel to Embassy. 18 min ETA, 8.0 km distance, Low risk. Updated today",
+      "Morning embassy transfer. Ready route. Diplomatic move, Convoy 12. From Hotel to Embassy. 18 min ETA, 8.0 km distance, Low risk. Updated today.",
     );
 
     assert.equal(
@@ -303,7 +303,7 @@ describe("route card presentation", () => {
         },
         false,
       ).accessibilityLabel,
-      "Morning embassy transfer. Ready route. Airport transfer. From Hotel to Embassy. 18 min ETA, 8.0 km distance, Low risk. Updated today",
+      "Morning embassy transfer. Ready route. Airport transfer. From Hotel to Embassy. 18 min ETA, 8.0 km distance, Low risk. Updated today.",
     );
   });
 
@@ -328,7 +328,7 @@ describe("route card presentation", () => {
         },
         false,
       ).accessibilityLabel,
-      "Morning embassy transfer. Ready route. Diplomatic move, convoy Lead 1. From City depot to Embassy gate. 18 min ETA, 8.0 km distance, Low risk. Updated today",
+      "Morning embassy transfer. Ready route. Diplomatic move, convoy Lead 1. From City depot to Embassy gate. 18 min ETA, 8.0 km distance, Low risk. Updated today.",
     );
   });
 

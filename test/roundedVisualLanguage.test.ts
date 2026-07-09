@@ -757,6 +757,10 @@ describe("rounded visual language", () => {
       join(process.cwd(), "src/features/live-map/LiveMapGuidanceCard.tsx"),
       "utf8",
     );
+    const guidancePresentationSource = readFileSync(
+      join(process.cwd(), "src/features/live-map/liveMapGuidancePresentation.ts"),
+      "utf8",
+    );
     const guidanceStylesSource = readFileSync(
       join(process.cwd(), "src/features/live-map/LiveMapGuidanceCard.styles.ts"),
       "utf8",
@@ -769,6 +773,10 @@ describe("rounded visual language", () => {
     assert.match(guidanceSource, /accessibilityLabel=\{presentation\.accessibilityLabel\}/);
     assert.match(guidanceSource, /presentation\.instructionLabel/);
     assert.match(guidanceSource, /presentation\.distanceLabel/);
+    assert.match(guidanceSource, /<Text\s+numberOfLines=\{1\}[\s\S]*styles\.guidanceDistance/);
+    assert.match(guidancePresentationSource, /GUIDANCE_INSTRUCTION_MAX_LENGTH\s*=\s*72/);
+    assert.match(guidancePresentationSource, /GUIDANCE_DISTANCE_MAX_LENGTH\s*=\s*24/);
+    assert.match(guidancePresentationSource, /createCompactGuidanceLabel/);
     assert.doesNotMatch(guidanceSource, /\{guidance\.instruction\}/);
     assert.doesNotMatch(guidanceSource, /\{guidance\.distance\}/);
     assert.doesNotMatch(guidanceSource, /Ionicons/);

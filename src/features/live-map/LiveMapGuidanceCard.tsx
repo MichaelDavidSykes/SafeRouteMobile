@@ -69,6 +69,7 @@ export function LiveMapGuidanceCard({
       </View>
       {layout.guidanceDistanceVisible && presentation.distanceLabel ? (
         <Text
+          numberOfLines={1}
           style={[
             styles.guidanceDistance,
             layout.isCompact ? styles.guidanceDistanceCompact : null,

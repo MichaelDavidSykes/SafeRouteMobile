@@ -13,6 +13,9 @@ export interface GuidanceCardPresentation {
   riskAdvisory?: RouteRiskAdvisory | null;
 }
 
+export const GUIDANCE_INSTRUCTION_MAX_LENGTH = 72;
+export const GUIDANCE_DISTANCE_MAX_LENGTH = 24;
+
 export function createGuidanceCardPresentation({
   guidance,
   progress,
@@ -22,24 +25,36 @@ export function createGuidanceCardPresentation({
   progress: RouteProgressSnapshot | null;
   riskAdvisory?: RouteRiskAdvisory | null;
 }): GuidanceCardPresentation {
-  const instruction =
+  const instructionAccessibilityLabel =
     normalizeGuidanceCopy(guidance.instruction) || "Continue on saved route";
   const etaLabel = formatEta(progress?.etaSeconds);
   const spokenEtaLabel = etaLabel.toLowerCase().startsWith("eta ")
     ? etaLabel
     : `ETA ${etaLabel}`;
   const remainingLabel = formatDistance(progress?.remainingDistanceMeters || 0);
-  const maneuverDistance = normalizeGuidanceCopy(guidance.distance);
+  const maneuverDistanceAccessibilityLabel = normalizeGuidanceCopy(
+    guidance.distance,
+  );
 
   const presentation: GuidanceCardPresentation = {
-    distanceLabel: maneuverDistance || null,
-    instructionLabel: instruction,
+    distanceLabel: maneuverDistanceAccessibilityLabel
+      ? createCompactGuidanceLabel(
+          maneuverDistanceAccessibilityLabel,
+          GUIDANCE_DISTANCE_MAX_LENGTH,
+        )
+      : null,
+    instructionLabel: createCompactGuidanceLabel(
+      instructionAccessibilityLabel,
+      GUIDANCE_INSTRUCTION_MAX_LENGTH,
+    ),
     accessibilityLabel: [
       "Current instruction.",
-      `${instruction}.`,
+      `${instructionAccessibilityLabel}.`,
       `${spokenEtaLabel}.`,
       `${remainingLabel} left.`,
-      maneuverDistance ? `Next maneuver in ${maneuverDistance}.` : "",
+      maneuverDistanceAccessibilityLabel
+        ? `Next maneuver in ${maneuverDistanceAccessibilityLabel}.`
+        : "",
       riskAdvisory?.accessibilityLabel,
     ]
       .filter(Boolean)
@@ -56,4 +71,12 @@ export function createGuidanceCardPresentation({
 
 function normalizeGuidanceCopy(value: string): string {
   return value.trim().replace(/\s+/g, " ");
+}
+
+function createCompactGuidanceLabel(label: string, maxLength: number): string {
+  if (label.length <= maxLength) {
+    return label;
+  }
+
+  return `${label.slice(0, Math.max(0, maxLength - 1)).trimEnd()}…`;
 }

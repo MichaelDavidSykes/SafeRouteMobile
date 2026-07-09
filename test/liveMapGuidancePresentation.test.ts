@@ -1,7 +1,11 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 
-import { createGuidanceCardPresentation } from "../src/features/live-map/liveMapGuidancePresentation";
+import {
+  GUIDANCE_DISTANCE_MAX_LENGTH,
+  GUIDANCE_INSTRUCTION_MAX_LENGTH,
+  createGuidanceCardPresentation,
+} from "../src/features/live-map/liveMapGuidancePresentation";
 import type { RouteProgressSnapshot } from "../src/features/live-map/routeProgress";
 
 describe("live map guidance card presentation", () => {
@@ -42,5 +46,35 @@ describe("live map guidance card presentation", () => {
       instructionLabel: "Continue on saved route",
       metaLabel: "ETA pending · 0 m left",
     });
+  });
+
+  it("bounds hosted guidance chrome while preserving full VoiceOver context", () => {
+    const longInstruction =
+      "Continue through the north security checkpoint and prepare for a controlled convoy merge after the second barrier";
+    const longDistance =
+      "Provider reported 420 metres to the next restricted turn corridor";
+    const presentation = createGuidanceCardPresentation({
+      guidance: {
+        instruction: ` ${longInstruction.replace(/ /g, "   ")} `,
+        distance: ` ${longDistance.replace(/ /g, "   ")} `,
+      },
+      progress: {
+        etaSeconds: 80,
+        remainingDistanceMeters: 987,
+      } as RouteProgressSnapshot,
+    });
+
+    assert.equal(
+      presentation.accessibilityLabel,
+      `Current instruction. ${longInstruction}. ETA 1 min. 987 m left. Next maneuver in ${longDistance}.`,
+    );
+    assert.match(presentation.instructionLabel, /…$/);
+    assert.ok(
+      presentation.instructionLabel.length <= GUIDANCE_INSTRUCTION_MAX_LENGTH,
+    );
+    assert.match(presentation.distanceLabel || "", /…$/);
+    assert.ok(
+      (presentation.distanceLabel || "").length <= GUIDANCE_DISTANCE_MAX_LENGTH,
+    );
   });
 });

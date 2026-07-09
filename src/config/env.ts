@@ -8,9 +8,6 @@ import {
 const extra = resolveSafeRouteExtraFromConstants(Constants);
 const runtimeConfig = resolveSafeRouteRuntimeConfig(extra);
 
-export const SAFEROUTE_APP_ENV = runtimeConfig.appEnvironment;
 export const SAFEROUTE_DEMO_DRIVE_ENABLED = runtimeConfig.demoDriveEnabled;
 export const SAFEROUTE_PREVIEW_MODE_ENABLED = runtimeConfig.previewModeEnabled;
-export const LUNARCHAIN_API_URL = runtimeConfig.lunarchainApiUrl;
-export const LUNARCHAIN_API_VERSION = runtimeConfig.lunarchainApiVersion;
 export const LUNARCHAIN_API_BASE = runtimeConfig.lunarchainApiBase;

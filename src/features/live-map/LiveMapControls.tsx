@@ -11,6 +11,8 @@ import {
 import { styles } from "./LiveMapOverlay.styles";
 import { uiTestIds } from "../../testing/uiTestIds";
 
+const MAP_CONTROL_HIT_SLOP = 8;
+
 interface LiveMapControlsProps {
   activeNavigationState: NavigationLifecycle;
   alertsVisible: boolean;
@@ -124,6 +126,7 @@ function MapControlButton({
       accessibilityRole="button"
       accessibilityState={accessibility.state}
       disabled={disabled}
+      hitSlop={MAP_CONTROL_HIT_SLOP}
       testID={uiTestIds.liveMapControl(control)}
       style={({ pressed }) => [
         styles.controlButton,

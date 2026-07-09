@@ -202,6 +202,8 @@ describe("rounded visual language", () => {
       )?.[1] || "";
 
     assert.match(liveMapControlsSource, /<Text[\s\S]*numberOfLines=\{1\}[\s\S]*styles\.controlButtonText/);
+    assert.match(liveMapControlsSource, /const MAP_CONTROL_HIT_SLOP = 8/);
+    assert.match(liveMapControlsSource, /hitSlop=\{MAP_CONTROL_HIT_SLOP\}/);
     assert.match(controlButtonBlock, /maxWidth:\s*92/);
     assert.match(controlButtonBlock, /minHeight:\s*44/);
     assert.match(controlButtonBlock, /borderRadius:\s*radius\.pill/);

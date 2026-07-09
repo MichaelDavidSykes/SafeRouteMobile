@@ -16,7 +16,9 @@
     "typecheck": "tsc --noEmit",
     "test:logic": "tsx --test test/*.test.ts",
     "test:maestro:ios": "maestro test maestro/ios-preview-route-live-map.yaml",
-    "test": "npm run typecheck && npm run test:logic"
+    "test": "npm run typecheck && npm run test:logic",
+    "start:maestro:ios:preview": "SAFEROUTE_ENABLE_PREVIEW_MODE=true NODE_OPTIONS=--dns-result-order=ipv4first expo start --localhost --port 8081",
+    "test:maestro:ios:operations": "maestro test maestro/ios-preview-operations.yaml"
   },
   "dependencies": {
     "expo": "~56.0.15",

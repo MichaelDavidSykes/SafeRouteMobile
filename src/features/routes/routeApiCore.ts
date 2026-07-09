@@ -10,6 +10,7 @@ import {
 export interface SavedRouteSyncResult {
   clients: MobileRouteListResponse['clients'];
   routes: SavedSafeRoutePlan[];
+  selectedClientId: string | null;
 }
 
 export type RouteApiRequester = <T>(path: string, accessToken: string) => Promise<T>;
@@ -72,6 +73,12 @@ function normalizeRouteListPayload(payload: unknown): Partial<MobileRouteListRes
   return isRoutePayloadObject(payload) ? payload as Partial<MobileRouteListResponse> : {};
 }
 
+function normalizeOptionalClientId(clientId: unknown): string | null {
+  const normalizedClientId = typeof clientId === 'string' ? clientId.trim() : '';
+
+  return normalizedClientId || null;
+}
+
 function requireRouteDetailPayload(payload: unknown): MobileSafeRouteDto {
   if (!isRoutePayloadObject(payload)) {
     throw new Error(MALFORMED_ROUTE_DETAIL_MESSAGE);
@@ -112,7 +119,8 @@ export async function loadSavedRoutes(
     clients: normalizeMobileClients(payload.clients),
     routes: Array.isArray(payload.routes)
       ? payload.routes.filter(hasUsableRouteId).map(mapRouteDtoToSavedPlan)
-      : []
+      : [],
+    selectedClientId: normalizeOptionalClientId(payload.selected_client_id)
   };
 }
 

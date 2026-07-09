@@ -13,6 +13,7 @@ import { createSessionNoticeState } from "../auth/sessionNoticeState";
 import { ApiSessionExpiredError } from "../api/apiClient";
 import type { SavedSafeRoutePlan } from "../live-map/liveMapTypes";
 import { fetchSavedRoutes } from "../routes/routeApi";
+import type { MobileSafeRouteClient } from "../routes/routeMapper";
 import { createRouteSyncErrorState, type RouteListErrorState } from "../routes/routeListErrors";
 import {
   createRouteListMapReturnState,
@@ -21,15 +22,23 @@ import {
 import { colors } from "../../theme";
 import { uiTestIds } from "../../testing/uiTestIds";
 import { operationsStyles as styles } from "./OperationsScreen.styles";
+import { fetchOperationsState } from "./operationsApi";
+import { createEmptyOperationsState } from "./operationsApiCore";
+import type { SafeRouteOperationsState } from "./operationsTypes";
 import {
   createCalendarRows,
   createConvoyRows,
+  createOperationsClientFilterOptions,
   createOperationsEmptyState,
   createOperationsLoadingLabel,
   createOperationsSubtitle,
+  createOperationsSummaryState,
+  createOperationsSyncWarningState,
   createOperationsTabOptions,
   createOperationsTitle,
   createPlannedRouteRows,
+  resolveOperationsClientId,
+  shouldShowOperationsClientFilters,
   type OperationsConvoyRow,
   type OperationsRouteRow,
   type OperationsTab
@@ -55,7 +64,11 @@ export function OperationsScreen({
   userEmail
 }: OperationsScreenProps) {
   const [activeTab, setActiveTab] = useState<OperationsTab>(initialTab);
+  const [clients, setClients] = useState<MobileSafeRouteClient[]>([]);
+  const [selectedClientId, setSelectedClientId] = useState<string | null>(null);
   const [routes, setRoutes] = useState<SavedSafeRoutePlan[]>([]);
+  const [operationsState, setOperationsState] = useState<SafeRouteOperationsState | null>(null);
+  const [operationsWarning, setOperationsWarning] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [errorState, setErrorState] = useState<RouteListErrorState | null>(null);
@@ -72,10 +85,38 @@ export function OperationsScreen({
         setLoading(true);
       }
       setErrorState(null);
+      setOperationsWarning(null);
 
       try {
-        const result = await fetchSavedRoutes(accessToken);
+        const result = await fetchSavedRoutes(accessToken, selectedClientId || undefined);
+        const nextClientId = resolveOperationsClientId(
+          result.clients,
+          selectedClientId,
+          result.selectedClientId
+        );
+
+        setClients(result.clients);
+        setSelectedClientId(nextClientId);
         setRoutes(result.routes);
+
+        if (!nextClientId) {
+          setOperationsState(createEmptyOperationsState());
+          return;
+        }
+
+        try {
+          const nextOperationsState = await fetchOperationsState(accessToken, nextClientId);
+          setOperationsState(nextOperationsState);
+        } catch (operationsError) {
+          if (operationsError instanceof ApiSessionExpiredError) {
+            onSessionExpired(operationsError.message);
+            return;
+          }
+
+          const warning = createOperationsSyncWarningState(operationsError);
+          setOperationsWarning(warning.message);
+          setOperationsState(createEmptyOperationsState(nextClientId));
+        }
       } catch (error) {
         if (error instanceof ApiSessionExpiredError) {
           onSessionExpired(error.message);
@@ -87,7 +128,7 @@ export function OperationsScreen({
         setRefreshing(false);
       }
     },
-    [accessToken, onSessionExpired]
+    [accessToken, onSessionExpired, selectedClientId]
   );
 
   useEffect(() => {
@@ -95,9 +136,17 @@ export function OperationsScreen({
   }, [loadOperations]);
 
   const tabOptions = useMemo(() => createOperationsTabOptions(activeTab), [activeTab]);
-  const plannedRows = useMemo(() => createPlannedRouteRows(routes), [routes]);
-  const calendarRows = useMemo(() => createCalendarRows(routes), [routes]);
-  const convoyRows = useMemo(() => createConvoyRows(routes), [routes]);
+  const clientFilterOptions = useMemo(
+    () => createOperationsClientFilterOptions(clients, selectedClientId),
+    [clients, selectedClientId]
+  );
+  const plannedRows = useMemo(() => createPlannedRouteRows(routes, operationsState), [operationsState, routes]);
+  const calendarRows = useMemo(() => createCalendarRows(routes, operationsState), [operationsState, routes]);
+  const convoyRows = useMemo(() => createConvoyRows(routes, operationsState), [operationsState, routes]);
+  const summaryState = useMemo(
+    () => createOperationsSummaryState(routes, operationsState),
+    [operationsState, routes]
+  );
   const emptyState = createOperationsEmptyState(activeTab);
   const mapReturnState = createRouteListMapReturnState();
   const signOutState = createRouteListSignOutState(userEmail);
@@ -160,6 +209,38 @@ export function OperationsScreen({
         </View>
       ) : null}
 
+      {shouldShowOperationsClientFilters(clientFilterOptions) ? (
+        <ScrollView
+          horizontal
+          contentContainerStyle={styles.clientTabs}
+          showsHorizontalScrollIndicator={false}
+        >
+          {clientFilterOptions.map((client) => (
+            <Pressable
+              key={client.id}
+              accessibilityHint={client.accessibilityHint}
+              accessibilityLabel={client.accessibilityLabel}
+              accessibilityRole="button"
+              accessibilityState={{ selected: client.selected }}
+              testID={uiTestIds.operationsClientTab(client.id)}
+              style={({ pressed }) => [
+                styles.clientTab,
+                client.selected ? styles.clientTabSelected : null,
+                pressed ? styles.tabPressed : null
+              ]}
+              onPress={() => setSelectedClientId(client.id)}
+            >
+              <Text
+                numberOfLines={1}
+                style={[styles.clientTabText, client.selected ? styles.clientTabTextSelected : null]}
+              >
+                {client.label}
+              </Text>
+            </Pressable>
+          ))}
+        </ScrollView>
+      ) : null}
+
       <ScrollView
         horizontal
         contentContainerStyle={styles.tabs}
@@ -185,6 +266,33 @@ export function OperationsScreen({
           </Pressable>
         ))}
       </ScrollView>
+
+      {!loading ? (
+        <View
+          accessible
+          accessibilityLabel={summaryState.accessibilityLabel}
+          style={styles.summaryStrip}
+        >
+          {summaryState.metrics.map((metric) => (
+            <View key={metric.label} style={styles.summaryMetric}>
+              <Text style={styles.summaryValue}>{metric.value}</Text>
+              <Text style={styles.summaryLabel}>{metric.label}</Text>
+            </View>
+          ))}
+        </View>
+      ) : null}
+
+      {operationsWarning ? (
+        <View accessibilityRole="alert" style={styles.warningBox}>
+          <Text
+            accessibilityLabel={operationsWarning}
+            numberOfLines={2}
+            style={styles.warningText}
+          >
+            {operationsWarning}
+          </Text>
+        </View>
+      ) : null}
 
       {errorState ? (
         <View accessibilityRole="alert" style={styles.errorBox}>
@@ -283,6 +391,7 @@ function OperationsRouteCard({ calendar = false, row }: { calendar?: boolean; ro
       </View>
       <Text numberOfLines={1} style={styles.routeEndpoint}>{row.endpointLabel}</Text>
       <Text numberOfLines={2} style={styles.routeMeta}>{row.metaLabel}</Text>
+      <Text numberOfLines={2} style={styles.routeManifest}>{row.manifestLabel}</Text>
       {!calendar ? (
         <Text numberOfLines={1} style={styles.routeMeta}>{row.scheduleLabel}</Text>
       ) : null}
@@ -308,6 +417,7 @@ function OperationsConvoyCard({ row }: { row: OperationsConvoyRow }) {
         </View>
       </View>
       <Text style={styles.routeMeta}>{row.metaLabel}</Text>
+      <Text numberOfLines={2} style={styles.routeManifest}>{row.manifestLabel}</Text>
       <View style={styles.convoyRoutes}>
         {row.routeLabels.map((routeLabel) => (
           <View key={routeLabel} style={styles.convoyRoutePill}>

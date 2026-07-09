@@ -19,6 +19,8 @@ export const uiTestIds = {
     `safe-route-operations-tab-${normalizeTestIdSegment(tabId)}`,
   operationsRouteCard: (routeId: string) =>
     `safe-route-operations-route-${normalizeTestIdSegment(routeId)}`,
+  operationsClientTab: (clientId: string) =>
+    `safe-route-operations-client-${normalizeTestIdSegment(clientId)}`,
   operationsConvoyCard: (convoyId: string) =>
     `safe-route-operations-convoy-${normalizeTestIdSegment(convoyId)}`,
   savedRouteCard: (routeId: string) =>

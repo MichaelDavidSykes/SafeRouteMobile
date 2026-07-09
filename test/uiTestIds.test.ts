@@ -52,6 +52,10 @@ describe("UI test identifiers", () => {
       "safe-route-operations-route-sr-city-airport",
     );
     assert.equal(
+      uiTestIds.operationsClientTab("Client/Alpha"),
+      "safe-route-operations-client-client-alpha",
+    );
+    assert.equal(
       uiTestIds.operationsConvoyCard("Alpha convoy"),
       "safe-route-operations-convoy-alpha-convoy",
     );

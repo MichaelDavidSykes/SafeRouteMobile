@@ -99,6 +99,31 @@ export const operationsStyles = StyleSheet.create({
     lineHeight: 18,
     textAlign: "center"
   },
+  clientTabs: {
+    gap: spacing.sm,
+    paddingBottom: spacing.xs
+  },
+  clientTab: {
+    maxWidth: 170,
+    minHeight: controlSizes.compact,
+    justifyContent: "center",
+    paddingHorizontal: spacing.md,
+    borderWidth: 0.5,
+    borderColor: colors.borderSoft,
+    borderRadius: radius.pill,
+    backgroundColor: colors.surfaceGlass
+  },
+  clientTabSelected: {
+    backgroundColor: colors.ink
+  },
+  clientTabText: {
+    color: colors.ink,
+    fontSize: typeScale.xs,
+    fontWeight: "800"
+  },
+  clientTabTextSelected: {
+    color: colors.surface
+  },
   tabs: {
     gap: spacing.sm,
     paddingBottom: spacing.sm
@@ -125,6 +150,57 @@ export const operationsStyles = StyleSheet.create({
   },
   tabTextSelected: {
     color: colors.surface
+  },
+  summaryStrip: {
+    minHeight: controlSizes.secondary,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    gap: spacing.sm,
+    marginBottom: spacing.sm,
+    paddingHorizontal: spacing.md,
+    paddingVertical: spacing.xs,
+    borderWidth: 0.5,
+    borderColor: colors.borderSoft,
+    borderRadius: radius.xl,
+    backgroundColor: colors.surfaceGlass
+  },
+  summaryMetric: {
+    flex: 1,
+    alignItems: "center",
+    gap: 2
+  },
+  summaryValue: {
+    color: colors.ink,
+    fontSize: typeScale.lg,
+    fontWeight: "900",
+    lineHeight: 21
+  },
+  summaryLabel: {
+    color: colors.muted,
+    fontSize: typeScale.xs,
+    fontWeight: "800"
+  },
+  warningBox: {
+    alignSelf: "center",
+    maxWidth: "100%",
+    minHeight: controlSizes.compact,
+    alignItems: "center",
+    justifyContent: "center",
+    marginBottom: spacing.sm,
+    paddingHorizontal: spacing.md,
+    paddingVertical: spacing.xs,
+    borderWidth: 0.5,
+    borderColor: "rgba(243, 163, 43, 0.22)",
+    borderRadius: radius.pill,
+    backgroundColor: colors.amberSoft
+  },
+  warningText: {
+    color: colors.amberText,
+    fontSize: typeScale.xs,
+    fontWeight: "800",
+    lineHeight: 16,
+    textAlign: "center"
   },
   errorBox: {
     alignSelf: "center",
@@ -245,6 +321,13 @@ export const operationsStyles = StyleSheet.create({
     color: colors.inkSoft,
     fontSize: typeScale.xs,
     fontWeight: "800",
+    lineHeight: 16
+  },
+  routeManifest: {
+    marginTop: spacing.xs,
+    color: colors.muted,
+    fontSize: typeScale.xs,
+    fontWeight: "700",
     lineHeight: 16
   },
   readOnlyPill: {

@@ -110,6 +110,14 @@ describe('mobile API helpers', () => {
       LUNARCHAIN_SESSION_EXPIRED_MESSAGE
     );
     assert.equal(
+      getApiSessionExpiredMessage({ detail: 'SQLSTATE 23505 duplicate key value violates constraint' }),
+      LUNARCHAIN_SESSION_EXPIRED_MESSAGE
+    );
+    assert.equal(
+      getApiSessionExpiredMessage({ detail: '{"error":"token decoder stack trace"}' }),
+      LUNARCHAIN_SESSION_EXPIRED_MESSAGE
+    );
+    assert.equal(
       getApiSessionExpiredMessage({ detail: { message: 'Password changed. Sign in again.' } }),
       'Password changed. Sign in again.'
     );
@@ -129,7 +137,13 @@ describe('mobile API helpers', () => {
       'offline copy'
     );
     assert.equal(isUnsafeDiagnosticMessage('Traceback: stack trace'), true);
+    assert.equal(isUnsafeDiagnosticMessage('SQLSTATE 23505 duplicate key value violates constraint'), true);
+    assert.equal(isUnsafeDiagnosticMessage('File "/app/auth.py", line 42, in login'), true);
+    assert.equal(isUnsafeDiagnosticMessage('{"detail":"backend exception"}'), true);
     assert.equal(getUserFacingErrorMessage(new Error('Internal Server Error'), 'fallback'), 'fallback');
+    assert.equal(getUserFacingErrorMessage(new Error('SQLSTATE 23505 duplicate key'), 'fallback'), 'fallback');
+    assert.equal(getUserFacingErrorMessage(new Error('{"detail":"backend exception"}'), 'fallback'), 'fallback');
+    assert.equal(getUserFacingErrorMessage(new Error('Verification code expired.'), 'fallback'), 'Verification code expired.');
   });
 
   it('exposes a typed session-expired error for auth failures', () => {

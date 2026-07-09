@@ -170,8 +170,14 @@ function isUnsafeSessionFailureMessage(message: string): boolean {
     /traceback/i,
     /stack trace/i,
     /exception/i,
+    /syntaxerror|typeerror|referenceerror|valueerror/i,
+    /\b(?:sqlstate|postgres|sqlite|mysql|prisma|database error)\b/i,
+    /\b(?:select|insert|update|delete)\s+.+\bfrom\b/i,
+    /file\s+"[^"]+",\s+line\s+\d+/i,
+    /\bat\s+.+\(.+:\d+:\d+\)/i,
     /<html/i,
     /<!doctype/i,
+    /^\s*[{[]/,
     /\[object object\]/i
   ].some((pattern) => pattern.test(message.trim()));
 }

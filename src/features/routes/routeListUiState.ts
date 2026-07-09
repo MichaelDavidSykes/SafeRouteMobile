@@ -63,7 +63,7 @@ export const ROUTE_LIST_QUERY_DISPLAY_MAX_LENGTH = 32;
 export const ROUTE_LIST_CLIENT_DISPLAY_MAX_LENGTH = 28;
 
 function normalizeQuery(query: string): string {
-  return query.trim().toLowerCase();
+  return normalizeRouteListLabel(query).toLowerCase();
 }
 
 function normalizeRouteListLabel(value: string): string {
@@ -249,17 +249,17 @@ export function filterSavedRoutes(
   }
 
   return routes.filter((route) => {
-    const haystack = [
-      route.name,
-      route.operation,
-      route.convoyCallsign,
-      route.origin,
-      route.destination,
-      route.route.label,
-      route.route.riskLabel,
-    ]
-      .join(" ")
-      .toLowerCase();
+    const haystack = normalizeQuery(
+      [
+        route.name,
+        route.operation,
+        route.convoyCallsign,
+        route.origin,
+        route.destination,
+        route.route.label,
+        route.route.riskLabel,
+      ].join(" "),
+    );
 
     return haystack.includes(normalizedQuery);
   });

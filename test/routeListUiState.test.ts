@@ -284,6 +284,12 @@ describe("route list UI state helpers", () => {
       ["route-1"],
     );
     assert.deepEqual(
+      filterSavedRoutes(routes, " morning   embassy transfer ").map(
+        (route) => route.id,
+      ),
+      ["route-1"],
+    );
+    assert.deepEqual(
       filterSavedRoutes(routes, "BRAVO").map((route) => route.id),
       ["route-2"],
     );

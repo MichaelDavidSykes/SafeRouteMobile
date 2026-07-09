@@ -36,4 +36,31 @@ describe("live map risk overlay interactions", () => {
     assert.match(circleBlock, /tappable=\{Boolean\(onPress\)\}/);
     assert.match(circleBlock, /onPress=\{handlePress\}/);
   });
+
+  it("exposes the live vehicle marker position to VoiceOver", () => {
+    const source = markerSource();
+    const vehicleMarkerFunction =
+      /export function VehicleMarker[\s\S]*?export function createVehicleMarkerAccessibilityLabel/.exec(
+        source,
+      )?.[0] || "";
+    const vehicleMarkerBlock =
+      /<View[\s\S]*?style=\{styles\.vehicleMarker\}[\s\S]*?>/.exec(source)?.[0] || "";
+
+    assert.match(
+      vehicleMarkerFunction,
+      /const markerTitle = demoDriveEnabled \? 'Simulated convoy' : 'Current convoy'/,
+    );
+    assert.match(vehicleMarkerFunction, /title=\{markerTitle\}/);
+    assert.match(vehicleMarkerBlock, /accessible/);
+    assert.match(
+      vehicleMarkerBlock,
+      /accessibilityLabel=\{createVehicleMarkerAccessibilityLabel\(demoDriveEnabled\)\}/,
+    );
+    assert.match(vehicleMarkerBlock, /accessibilityRole="image"/);
+    assert.match(
+      source,
+      /return demoDriveEnabled \? 'Simulated convoy position' : 'Current convoy position'/,
+    );
+  });
+
 });

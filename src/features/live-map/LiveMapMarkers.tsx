@@ -213,18 +213,29 @@ export function VehicleMarker({
   demoDriveEnabled: boolean;
   heading: number;
 }) {
+  const markerTitle = demoDriveEnabled ? 'Simulated convoy' : 'Current convoy';
+
   return (
     <Marker
       coordinate={coordinate}
       anchor={{ x: 0.5, y: 0.5 }}
       rotation={heading}
-      title={demoDriveEnabled ? 'Simulated convoy' : 'Current convoy'}
+      title={markerTitle}
     >
-      <View style={styles.vehicleMarker}>
+      <View
+        accessible
+        accessibilityLabel={createVehicleMarkerAccessibilityLabel(demoDriveEnabled)}
+        accessibilityRole="image"
+        style={styles.vehicleMarker}
+      >
         <View style={styles.vehicleMarkerHeading} />
       </View>
     </Marker>
   );
+}
+
+export function createVehicleMarkerAccessibilityLabel(demoDriveEnabled: boolean): string {
+  return demoDriveEnabled ? 'Simulated convoy position' : 'Current convoy position';
 }
 
 function severityMarkerStyle(severity: RiskSeverity) {

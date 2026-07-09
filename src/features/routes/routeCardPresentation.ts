@@ -20,6 +20,7 @@ export type RouteCardPresentation = {
 export const ROUTE_CARD_TITLE_MAX_LENGTH = 72;
 export const ROUTE_CARD_ENDPOINT_MAX_LENGTH = 80;
 export const ROUTE_CARD_META_MAX_LENGTH = 64;
+export const ROUTE_CARD_RISK_MAX_LENGTH = 28;
 
 export function createRouteCardPresentation(
   route: SavedSafeRoutePlan,
@@ -74,10 +75,12 @@ export function createRouteCardTestID(routeId: string): string {
 export function createRouteCardSummaryLabel(
   route: SavedSafeRoutePlan,
 ): string {
+  const riskLabel = createRouteCardRiskSummaryLabel(route.route.riskLabel);
+
   return [
     normalizeRouteCardMetaValue(route.route.eta),
     normalizeRouteCardMetaValue(route.route.distance),
-    createRouteCardRiskSummaryLabel(route.route.riskLabel),
+    createCompactRouteCardLabel(riskLabel, ROUTE_CARD_RISK_MAX_LENGTH),
   ]
     .filter(Boolean)
     .join(" · ");

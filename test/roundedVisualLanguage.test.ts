@@ -786,6 +786,8 @@ describe("rounded visual language", () => {
     assert.match(routeCardPresentationSource, /ROUTE_CARD_TITLE_MAX_LENGTH\s*=\s*72/);
     assert.match(routeCardPresentationSource, /ROUTE_CARD_ENDPOINT_MAX_LENGTH\s*=\s*80/);
     assert.match(routeCardPresentationSource, /ROUTE_CARD_META_MAX_LENGTH\s*=\s*64/);
+    assert.match(routeCardPresentationSource, /ROUTE_CARD_RISK_MAX_LENGTH\s*=\s*28/);
+    assert.match(routeCardPresentationSource, /ROUTE_CARD_RISK_MAX_LENGTH\)/);
     assert.match(routeCardPresentationSource, /createCompactRouteCardLabel/);
   });
 

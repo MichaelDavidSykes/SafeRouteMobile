@@ -12,6 +12,7 @@ import {
   createRouteStatusLabel,
   ROUTE_CARD_ENDPOINT_MAX_LENGTH,
   ROUTE_CARD_META_MAX_LENGTH,
+  ROUTE_CARD_RISK_MAX_LENGTH,
   ROUTE_CARD_TITLE_MAX_LENGTH,
   shouldShowRouteStatusPill,
 } from "../src/features/routes/routeCardPresentation";
@@ -119,6 +120,31 @@ describe("route card presentation", () => {
       }),
       "18 min · 8.0 km · High risk",
     );
+  });
+
+  it("bounds verbose visible risk copy while preserving full accessibility context", () => {
+    const verboseRiskLabel =
+      "High risk near diplomatic staging checkpoint with repeated overnight reports";
+    const presentation = createRouteCardPresentation(
+      {
+        ...baseRoute,
+        route: {
+          ...baseRoute.route,
+          riskLabel: verboseRiskLabel,
+        },
+      },
+      false,
+    );
+    const summaryParts = presentation.summaryLabel.split(" · ");
+    const riskSummary = summaryParts[summaryParts.length - 1];
+
+    assert.ok(riskSummary.endsWith("…"));
+    assert.ok(riskSummary.length <= ROUTE_CARD_RISK_MAX_LENGTH);
+    assert.equal(
+      presentation.summaryLabel,
+      `18 min · 8.0 km · ${riskSummary}`,
+    );
+    assert.match(presentation.accessibilityLabel, new RegExp(verboseRiskLabel));
   });
 
   it("hides generic route metadata while keeping meaningful convoy context", () => {

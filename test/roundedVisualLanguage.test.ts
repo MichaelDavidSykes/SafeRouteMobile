@@ -352,6 +352,23 @@ describe("rounded visual language", () => {
     assert.match(inputRowDividerBlock, /borderBottomColor:\s*colors\.borderSoft/);
   });
 
+  it("upgrades guest route previews with road geometry without adding sheet chrome", () => {
+    const guestMapSource = readFileSync(
+      join(process.cwd(), "src/features/guest-map/GuestMapScreen.tsx"),
+      "utf8",
+    );
+
+    assert.match(guestMapSource, /fetchGuestRoadRoutePreview/);
+    assert.match(guestMapSource, /roadRoutePreviewFetcher = fetchGuestRoadRoutePreview/);
+    assert.match(guestMapSource, /setRoutePlan\(localRoutePlan\)/);
+    assert.match(guestMapSource, /upgradeGuestRouteWithRoadPreview\(localRoutePlan\)/);
+    assert.match(guestMapSource, /new AbortController\(\)/);
+    assert.match(guestMapSource, /roadSnappedCoordinates:\s*roadPreview\.coordinates/);
+    assert.match(guestMapSource, /routeDistanceMeters:\s*roadPreview\.distanceMeters/);
+    assert.match(guestMapSource, /routeDurationSeconds:\s*roadPreview\.durationSeconds/);
+    assert.doesNotMatch(guestMapSource, /roadPreviewLoading|roadPreviewStatus|ActivityIndicator/);
+  });
+
   it("keeps route endpoint markers compact, geometric, and text-free", () => {
     const guestMapSource = readFileSync(
       join(process.cwd(), "src/features/guest-map/GuestMapScreen.tsx"),

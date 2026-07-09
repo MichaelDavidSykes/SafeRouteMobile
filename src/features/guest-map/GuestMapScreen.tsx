@@ -19,12 +19,22 @@ import {
   shouldShowGuestMapSubtitle,
   type GuestFullAccessFeature
 } from './guestRoutePlanner';
+import {
+  fetchGuestRoadRoutePreview,
+  type GuestRoadRoutePreview,
+  type GuestRoadRoutePreviewOptions
+} from './guestRoadRouteProvider';
 import { guestMapStyles as styles } from './GuestMapScreen.styles';
+
+type GuestRoadRoutePreviewFetcher = (
+  options: GuestRoadRoutePreviewOptions
+) => Promise<GuestRoadRoutePreview | null>;
 
 interface GuestMapScreenProps {
   authenticated: boolean;
   onOpenFullAccessFeature: (feature: GuestFullAccessFeature) => void;
   onOpenRoutePreview?: (routePlan: SavedSafeRoutePlan) => void;
+  roadRoutePreviewFetcher?: GuestRoadRoutePreviewFetcher;
   onSignIn: () => void;
 }
 
@@ -32,9 +42,12 @@ export function GuestMapScreen({
   authenticated,
   onOpenFullAccessFeature,
   onOpenRoutePreview,
+  roadRoutePreviewFetcher = fetchGuestRoadRoutePreview,
   onSignIn
 }: GuestMapScreenProps) {
   const mapRef = useRef<MapView | null>(null);
+  const activeRoadRouteRequestRef = useRef<AbortController | null>(null);
+  const roadRouteRequestIdRef = useRef(0);
   const [origin, setOrigin] = useState('Current location');
   const [destination, setDestination] = useState('');
   const [routePlan, setRoutePlan] = useState<SavedSafeRoutePlan | null>(null);
@@ -76,7 +89,17 @@ export function GuestMapScreen({
     }, 120);
 
     return () => clearTimeout(timer);
-  }, [routePlan?.id, routePlan?.origin, routePlan?.destination]);
+  }, [routePlan]);
+
+  useEffect(() => () => {
+    cancelRoadRouteUpgrade();
+  }, []);
+
+  const cancelRoadRouteUpgrade = () => {
+    roadRouteRequestIdRef.current += 1;
+    activeRoadRouteRequestRef.current?.abort();
+    activeRoadRouteRequestRef.current = null;
+  };
 
   const handlePlotRoute = () => {
     if (routeAction.disabled) {
@@ -84,12 +107,62 @@ export function GuestMapScreen({
     }
 
     Keyboard.dismiss();
-    const nextRoutePlan = createGuestRoutePlan({
+    cancelRoadRouteUpgrade();
+    const localRoutePlan = createGuestRoutePlan({
       authenticated,
       origin,
       destination
     });
-    setRoutePlan(nextRoutePlan);
+    setRoutePlan(localRoutePlan);
+    upgradeGuestRouteWithRoadPreview(localRoutePlan);
+  };
+
+  const upgradeGuestRouteWithRoadPreview = (localRoutePlan: SavedSafeRoutePlan) => {
+    const stops = resolveRoadPreviewStops(localRoutePlan);
+
+    if (!stops) {
+      return;
+    }
+
+    const requestId = roadRouteRequestIdRef.current + 1;
+    roadRouteRequestIdRef.current = requestId;
+    const controller = new AbortController();
+    activeRoadRouteRequestRef.current = controller;
+    const originSnapshot = origin;
+    const destinationSnapshot = destination;
+    const authenticatedSnapshot = authenticated;
+
+    void roadRoutePreviewFetcher({
+      signal: controller.signal,
+      stops
+    })
+      .then((roadPreview) => {
+        if (
+          !roadPreview ||
+          controller.signal.aborted ||
+          roadRouteRequestIdRef.current !== requestId
+        ) {
+          return;
+        }
+
+        setRoutePlan(createGuestRoutePlan({
+          authenticated: authenticatedSnapshot,
+          destination: destinationSnapshot,
+          origin: originSnapshot,
+          roadSnappedCoordinates: roadPreview.coordinates,
+          routeDistanceMeters: roadPreview.distanceMeters,
+          routeDurationSeconds: roadPreview.durationSeconds
+        }));
+      })
+      .catch(() => {
+        // The local route is already visible. Keep the map-first experience calm
+        // if the road preview provider times out, aborts, or fails offline.
+      })
+      .finally(() => {
+        if (roadRouteRequestIdRef.current === requestId) {
+          activeRoadRouteRequestRef.current = null;
+        }
+      });
   };
 
   const handleOpenPreview = () => {
@@ -107,11 +180,13 @@ export function GuestMapScreen({
   };
 
   const handleOriginChange = (value: string) => {
+    cancelRoadRouteUpgrade();
     setOrigin(value);
     setRoutePlan(null);
   };
 
   const handleDestinationChange = (value: string) => {
+    cancelRoadRouteUpgrade();
     setDestination(value);
     setRoutePlan(null);
   };
@@ -270,6 +345,18 @@ export function GuestMapScreen({
       </SafeAreaView>
     </View>
   );
+}
+
+function resolveRoadPreviewStops(routePlan: SavedSafeRoutePlan) {
+  const coordinates = routePlan.route.coordinates;
+  const origin = coordinates[0];
+  const destination = coordinates[coordinates.length - 1];
+
+  if (!origin || !destination) {
+    return null;
+  }
+
+  return [origin, destination];
 }
 
 function RouteInput({

@@ -17,6 +17,8 @@ import {
   getGuestMapGateFeatures,
   hasGuestRouteDestination,
   normalizeGuestRouteLabel,
+  resolveGuestRoadPreviewStops,
+  resolveGuestRouteCoordinates,
   shouldShowGuestMapGateRow,
   shouldShowGuestMapSubtitle
 } from '../src/features/guest-map/guestRoutePlanner';
@@ -191,6 +193,35 @@ describe('guest route planner helpers', () => {
     assert.equal(route.route.description, 'Local preview. Sign in to save.');
     assert.equal(route.route.nextInstruction, 'Review the route, then sign in to save it.');
     assert.equal(route.route.nextDistance, 'Preview');
+  });
+
+  it('uses destination-aware geometry for London City Airport instead of the placeholder corridor', () => {
+    const route = createGuestRoutePlan({
+      origin: 'Current location',
+      destination: 'London City Airport'
+    });
+    const routeEnd = route.route.coordinates[route.route.coordinates.length - 1];
+    const airportGeometry = resolveGuestRouteCoordinates('LCY');
+    const roadPreviewStops = resolveGuestRoadPreviewStops('London City Airport');
+
+    assert.equal(route.destination, 'London City Airport');
+    assert.equal(route.route.coordinates.length > 40, true);
+    assert.deepEqual(routeEnd, { latitude: 51.5053, longitude: 0.0553 });
+    assert.deepEqual(route.checkpoints[1].coordinate, routeEnd);
+    assert.notDeepEqual(routeEnd, { latitude: 51.5088, longitude: -0.0182 });
+    assert.deepEqual(roadPreviewStops[0], { latitude: 51.5099, longitude: -0.1479 });
+    assert.deepEqual(roadPreviewStops[roadPreviewStops.length - 1], {
+      latitude: 51.5053,
+      longitude: 0.0553
+    });
+    assert.equal(
+      roadPreviewStops.some((stop) => stop.latitude < 51.495 && stop.longitude < -0.04),
+      true
+    );
+    assert.deepEqual(
+      airportGeometry[airportGeometry.length - 1],
+      { latitude: 51.5053, longitude: 0.0553 }
+    );
   });
 
   it('accepts road-snapped preview coordinates and provider metrics without adding sheet clutter', () => {

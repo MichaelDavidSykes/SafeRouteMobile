@@ -17,6 +17,7 @@ import {
   createGuestRoutePreviewState,
   getGuestFullAccessCopy,
   getGuestMapGateFeatures,
+  resolveGuestRoadPreviewStops,
   shouldShowGuestMapSubtitle,
   type GuestFullAccessFeature
 } from './guestRoutePlanner';
@@ -357,7 +358,7 @@ export function GuestMapScreen({
 }
 
 function resolveRoadPreviewStops(routePlan: SavedSafeRoutePlan) {
-  const coordinates = routePlan.route.coordinates;
+  const coordinates = resolveGuestRoadPreviewStops(routePlan.destination);
   const origin = coordinates[0];
   const destination = coordinates[coordinates.length - 1];
 
@@ -365,7 +366,7 @@ function resolveRoadPreviewStops(routePlan: SavedSafeRoutePlan) {
     return null;
   }
 
-  return [origin, destination];
+  return coordinates;
 }
 
 function RouteInput({

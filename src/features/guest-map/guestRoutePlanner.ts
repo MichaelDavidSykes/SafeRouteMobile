@@ -101,6 +101,37 @@ const GUEST_ROUTE_COORDINATES: LatLng[] = densifyRouteCoordinates(
   GUEST_ROUTE_SIMULATION_MAX_SEGMENT_METERS
 );
 
+const LONDON_CITY_AIRPORT_ROUTE_ANCHORS: LatLng[] = [
+  { latitude: 51.5099, longitude: -0.1479 },
+  { latitude: 51.5015, longitude: -0.135 },
+  { latitude: 51.5005, longitude: -0.1197 },
+  { latitude: 51.4935, longitude: -0.092 },
+  { latitude: 51.4917, longitude: -0.063 },
+  { latitude: 51.493, longitude: -0.047 },
+  { latitude: 51.484, longitude: -0.01 },
+  { latitude: 51.493, longitude: 0.003 },
+  { latitude: 51.509, longitude: 0.006 },
+  { latitude: 51.514, longitude: 0.03 },
+  { latitude: 51.5053, longitude: 0.0553 }
+];
+
+const LONDON_CITY_AIRPORT_ROUTE_COORDINATES: LatLng[] = densifyRouteCoordinates(
+  LONDON_CITY_AIRPORT_ROUTE_ANCHORS,
+  GUEST_ROUTE_SIMULATION_MAX_SEGMENT_METERS
+);
+
+const GUEST_ROUTE_DESTINATION_GEOMETRIES = [
+  {
+    aliases: [
+      'london city airport',
+      'city airport',
+      'lcy'
+    ],
+    coordinates: LONDON_CITY_AIRPORT_ROUTE_COORDINATES,
+    roadPreviewStops: LONDON_CITY_AIRPORT_ROUTE_ANCHORS
+  }
+];
+
 const GUEST_ROUTE_RISK_ZONES: RiskZone[] = [
   {
     id: 'guest-event-traffic',
@@ -282,9 +313,10 @@ export function createGuestRoutePlan({
 
   const normalizedRoadSnappedCoordinates = normalizeGuestRouteCoordinates(roadSnappedCoordinates);
   const hasRoadSnappedCoordinates = normalizedRoadSnappedCoordinates.length >= 2;
+  const localRouteCoordinates = resolveGuestRouteCoordinates(destinationLabel);
   const routeCoordinates = hasRoadSnappedCoordinates
     ? normalizedRoadSnappedCoordinates
-    : GUEST_ROUTE_COORDINATES;
+    : localRouteCoordinates;
   const routeMetrics = createGuestRouteMetrics(
     routeCoordinates,
     hasRoadSnappedCoordinates
@@ -356,6 +388,35 @@ function normalizeGuestRouteCoordinates(coordinates: LatLng[] | null | undefined
   }
 
   return normalizeRouteCoordinates(coordinates);
+}
+
+export function resolveGuestRouteCoordinates(destinationLabel: string): LatLng[] {
+  const destinationGeometry = resolveGuestRouteDestinationGeometry(destinationLabel);
+
+  return [...(destinationGeometry?.coordinates || GUEST_ROUTE_COORDINATES)];
+}
+
+export function resolveGuestRoadPreviewStops(destinationLabel: string): LatLng[] {
+  const destinationGeometry = resolveGuestRouteDestinationGeometry(destinationLabel);
+
+  return [...(destinationGeometry?.roadPreviewStops || GUEST_ROUTE_ANCHORS)];
+}
+
+function resolveGuestRouteDestinationGeometry(destinationLabel: string) {
+  const normalizedDestination = normalizeGuestDestinationSearchLabel(destinationLabel);
+
+  return GUEST_ROUTE_DESTINATION_GEOMETRIES.find((geometry) =>
+    geometry.aliases.some((alias) => normalizedDestination.includes(alias))
+  );
+}
+
+function normalizeGuestDestinationSearchLabel(value: string): string {
+  return value
+    .trim()
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
 }
 
 function normalizePositiveRouteMetric(value: number | null | undefined): number | null {

@@ -28,6 +28,8 @@ import {
   type RouteSummarySafetyBadge,
 } from "./routeSummaryPresentation";
 
+const ROUTE_SUMMARY_ACTION_HIT_SLOP = 6;
+
 interface LiveMapRouteSummarySheetProps {
   demoDriveAvailable: boolean;
   demoDriveEnabled: boolean;
@@ -179,6 +181,7 @@ export function LiveMapRouteSummarySheet({
           accessibilityRole="button"
           accessibilityState={primaryAccessibility.state}
           disabled={primaryDisabled}
+          hitSlop={ROUTE_SUMMARY_ACTION_HIT_SLOP}
           testID={uiTestIds.liveMapPrimaryAction}
           style={({ pressed }) => [
             styles.startButton,
@@ -204,6 +207,7 @@ export function LiveMapRouteSummarySheet({
             accessibilityLabel={stopAccessibility.label}
             accessibilityRole="button"
             accessibilityState={stopAccessibility.state}
+            hitSlop={ROUTE_SUMMARY_ACTION_HIT_SLOP}
             testID={uiTestIds.liveMapStopAction}
             style={[
               styles.stopButton,
@@ -260,6 +264,7 @@ function DemoDriveButton({
       accessibilityLabel={accessibility.label}
       accessibilityRole="button"
       accessibilityState={accessibility.state}
+      hitSlop={ROUTE_SUMMARY_ACTION_HIT_SLOP}
       testID={uiTestIds.liveMapDemoDriveAction}
       style={({ pressed }) => [
         styles.demoButton,

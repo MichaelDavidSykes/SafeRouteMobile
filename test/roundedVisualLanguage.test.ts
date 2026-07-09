@@ -1115,6 +1115,12 @@ describe("rounded visual language", () => {
     assert.match(routeSheetSource, /shouldInlineRouteSummaryDemoAction/);
     assert.match(routeSheetSource, /inlineDemoAction/);
     assert.match(routeSheetSource, /styles\.demoButtonInline/);
+    assert.match(routeSheetSource, /const ROUTE_SUMMARY_ACTION_HIT_SLOP = 6;/);
+    assert.equal(
+      routeSheetSource.match(/hitSlop=\{ROUTE_SUMMARY_ACTION_HIT_SLOP\}/g)
+        ?.length,
+      3,
+    );
     assert.match(routeSheetSource, /style=\{\(\{ pressed \}\) => \[/);
     assert.match(routeSheetSource, /pressed \? styles\.demoButtonPressed : null/);
     assert.match(

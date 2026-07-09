@@ -117,6 +117,59 @@ export const guestMapStyles = StyleSheet.create({
     fontSize: typeScale.sm,
     fontWeight: '600'
   },
+  searchResults: {
+    maxHeight: 252,
+    marginTop: spacing.xs,
+    overflow: 'hidden',
+    borderWidth: 0.5,
+    borderColor: colors.glassBorder,
+    borderRadius: radius.lg,
+    backgroundColor: colors.surfaceGlass
+  },
+  searchStateRow: {
+    minHeight: controlSizes.secondary,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.sm,
+    paddingHorizontal: spacing.md
+  },
+  searchStateText: {
+    paddingHorizontal: spacing.md,
+    paddingVertical: spacing.sm,
+    color: colors.muted,
+    fontSize: typeScale.sm,
+    fontWeight: '600'
+  },
+  searchResultRow: {
+    minHeight: 52,
+    justifyContent: 'center',
+    paddingHorizontal: spacing.md,
+    paddingVertical: spacing.xs,
+    borderBottomWidth: 0.5,
+    borderBottomColor: colors.borderSoft
+  },
+  searchResultRowPressed: {
+    backgroundColor: colors.appleBlueSoft
+  },
+  searchResultTitle: {
+    color: colors.ink,
+    fontSize: typeScale.sm,
+    fontWeight: '700'
+  },
+  searchResultSubtitle: {
+    marginTop: 2,
+    color: colors.muted,
+    fontSize: typeScale.xs,
+    fontWeight: '500'
+  },
+  routeMessage: {
+    marginTop: spacing.xs,
+    paddingHorizontal: spacing.sm,
+    color: colors.muted,
+    fontSize: typeScale.xs,
+    fontWeight: '600',
+    lineHeight: 17
+  },
   primaryButton: {
     minHeight: controlSizes.primary,
     flexDirection: 'row',

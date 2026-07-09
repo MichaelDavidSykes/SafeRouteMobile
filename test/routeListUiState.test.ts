@@ -198,7 +198,7 @@ describe("route list UI state helpers", () => {
         selectedClientName: "Acme Security",
         totalRouteCount: 0,
       }),
-      true,
+      false,
     );
   });
 
@@ -483,8 +483,8 @@ describe("route list UI state helpers", () => {
       {
         accessibilityLabel:
           "No saved routes are available for Blue Team. Switch clients or refresh after saving a plan.",
-        title: "No routes for Blue Team",
-        copy: "Switch clients or refresh after saving a plan.",
+        title: "No routes",
+        copy: "Switch clients or refresh.",
       },
     );
 
@@ -492,7 +492,7 @@ describe("route list UI state helpers", () => {
       accessibilityLabel:
         "No saved routes are available. Save a SafeRoute plan in LunarChain to open it on the map.",
       title: "No saved routes",
-      copy: "Save a plan, then open it here.",
+      copy: "Save a plan, then open it on the map.",
     });
 
     assert.deepEqual(createRouteListEmptyState({ query: "", routeCount: 2 }), {
@@ -539,11 +539,12 @@ describe("route list UI state helpers", () => {
       selectedClientName,
     });
 
+    assert.equal(clientOnlyState.title, "No routes");
+    assert.equal(clientOnlyState.copy, "Switch clients or refresh.");
     assert.ok(
-      clientOnlyState.title.length <=
-        "No routes for ".length + ROUTE_LIST_CLIENT_DISPLAY_MAX_LENGTH,
+      clientOnlyState.title.length < ROUTE_LIST_CLIENT_DISPLAY_MAX_LENGTH,
+      "Expected client-only empty title to avoid repeating the selected chip",
     );
-    assert.match(clientOnlyState.title, /…$/);
     assert.equal(
       clientOnlyState.accessibilityLabel,
       "No saved routes are available for Metropolitan Diplomatic Protection Group Northern Corridor Operations Team. Switch clients or refresh after saving a plan.",

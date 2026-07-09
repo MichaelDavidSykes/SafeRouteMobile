@@ -1254,7 +1254,9 @@ describe("rounded visual language", () => {
     );
     assert.match(routeListStateSource, /title:\s*"No matches"/);
     assert.match(routeListStateSource, /No saved routes match/);
-    assert.match(routeListStateSource, /copy:\s*"Save a plan, then open it here\."/);
+    assert.match(routeListStateSource, /title:\s*"No routes"/);
+    assert.doesNotMatch(routeListStateSource, /title:\s*`No routes for/);
+    assert.match(routeListStateSource, /copy:\s*"Save a plan, then open it on the map\."/);
     assert.match(routeListStateSource, /copy:\s*"Try another filter\."/);
 
     const visibleCopyLines = routeListStateSource

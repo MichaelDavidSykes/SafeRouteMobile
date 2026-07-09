@@ -135,10 +135,12 @@ export function shouldShowRouteSearch({
 export function shouldShowRouteSummary({
   query,
   selectedClientName,
+  totalRouteCount,
 }: RouteListSearchVisibilityInput): boolean {
   return (
     normalizeQuery(query).length > 0 ||
-    normalizeRouteListLabel(selectedClientName || "").length > 0
+    (totalRouteCount > 0 &&
+      normalizeRouteListLabel(selectedClientName || "").length > 0)
   );
 }
 
@@ -295,8 +297,8 @@ export function createRouteListEmptyState({
   if (clientName) {
     return {
       accessibilityLabel: `No saved routes are available for ${clientName}. Switch clients or refresh after saving a plan.`,
-      title: `No routes for ${clientLabel}`,
-      copy: "Switch clients or refresh after saving a plan.",
+      title: "No routes",
+      copy: "Switch clients or refresh.",
     };
   }
 
@@ -313,7 +315,7 @@ export function createRouteListEmptyState({
     accessibilityLabel:
       "No saved routes are available. Save a SafeRoute plan in LunarChain to open it on the map.",
     title: "No saved routes",
-    copy: "Save a plan, then open it here.",
+    copy: "Save a plan, then open it on the map.",
   };
 }
 

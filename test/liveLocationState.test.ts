@@ -4,6 +4,7 @@ import { describe, it } from 'node:test';
 import {
   LIVE_LOCATION_UNAVAILABLE_MESSAGE,
   LOCATION_PERMISSION_DENIED_MESSAGE,
+  pendingForegroundPermissionStatus,
   permissionStatusFromForegroundPermission,
   resolveLiveLocationTrackingCadence,
   trackingLabelForPermissionStatus
@@ -14,6 +15,11 @@ describe('live location state helpers', () => {
     assert.equal(permissionStatusFromForegroundPermission(true), 'granted');
     assert.equal(permissionStatusFromForegroundPermission(false), 'denied');
     assert.equal(permissionStatusFromForegroundPermission(false, true), 'idle');
+  });
+
+  it('marks requested foreground checks as pending for calm iOS guidance copy', () => {
+    assert.equal(pendingForegroundPermissionStatus(false), null);
+    assert.equal(pendingForegroundPermissionStatus(true), 'checking');
   });
 
   it('uses short production copy for iOS location states', () => {

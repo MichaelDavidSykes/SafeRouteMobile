@@ -42,6 +42,12 @@ export function permissionStatusFromForegroundPermission(
   return requestable ? 'idle' : 'denied';
 }
 
+export function pendingForegroundPermissionStatus(
+  permissionRequested: boolean
+): PermissionStatus | null {
+  return permissionRequested ? 'checking' : null;
+}
+
 export function trackingLabelForPermissionStatus(status: PermissionStatus): string {
   if (status === 'granted') {
     return 'Live';

@@ -4,6 +4,7 @@ import * as Location from 'expo-location';
 import {
   LIVE_LOCATION_UNAVAILABLE_MESSAGE,
   LOCATION_PERMISSION_DENIED_MESSAGE,
+  pendingForegroundPermissionStatus,
   permissionStatusFromForegroundPermission,
   resolveLiveLocationTrackingCadence,
   trackingLabelForPermissionStatus,
@@ -31,6 +32,12 @@ export function useLiveLocation({
     const trackingCadence = resolveLiveLocationTrackingCadence(navigationActive);
 
     const startTracking = async () => {
+      const pendingStatus = pendingForegroundPermissionStatus(permissionRequested);
+      if (mounted && pendingStatus) {
+        setPermissionStatus(pendingStatus);
+        setErrorMessage('');
+      }
+
       let permission: Location.PermissionResponse;
       try {
         permission = permissionRequested

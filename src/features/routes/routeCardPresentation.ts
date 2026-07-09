@@ -20,6 +20,7 @@ export type RouteCardPresentation = {
 export const ROUTE_CARD_TITLE_MAX_LENGTH = 72;
 export const ROUTE_CARD_ENDPOINT_MAX_LENGTH = 80;
 export const ROUTE_CARD_META_MAX_LENGTH = 64;
+export const ROUTE_CARD_SUMMARY_METRIC_MAX_LENGTH = 24;
 export const ROUTE_CARD_RISK_MAX_LENGTH = 28;
 
 export function createRouteCardPresentation(
@@ -76,8 +77,8 @@ export function createRouteCardSummaryLabel(
   route: SavedSafeRoutePlan,
 ): string {
   return [
-    normalizeRouteCardMetaValue(route.route.eta),
-    normalizeRouteCardMetaValue(route.route.distance),
+    createRouteCardVisibleMetricLabel(route.route.eta),
+    createRouteCardVisibleMetricLabel(route.route.distance),
     createRouteCardVisibleRiskSummaryLabel(route.route.riskLabel),
   ]
     .filter(Boolean)
@@ -140,6 +141,17 @@ function createRouteCardAccessibilitySummary(
   ]
     .filter(Boolean)
     .join(", ");
+}
+
+function createRouteCardVisibleMetricLabel(value: string): string {
+  const normalizedValue = normalizeRouteCardMetaValue(value);
+
+  return normalizedValue
+    ? createCompactRouteCardLabel(
+        normalizedValue,
+        ROUTE_CARD_SUMMARY_METRIC_MAX_LENGTH,
+      )
+    : "";
 }
 
 function createRouteCardRiskSummaryLabel(riskLabel: string): string {

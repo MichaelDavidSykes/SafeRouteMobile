@@ -13,6 +13,7 @@ import {
   ROUTE_CARD_ENDPOINT_MAX_LENGTH,
   ROUTE_CARD_META_MAX_LENGTH,
   ROUTE_CARD_RISK_MAX_LENGTH,
+  ROUTE_CARD_SUMMARY_METRIC_MAX_LENGTH,
   ROUTE_CARD_TITLE_MAX_LENGTH,
   shouldShowRouteStatusPill,
 } from "../src/features/routes/routeCardPresentation";
@@ -120,6 +121,34 @@ describe("route card presentation", () => {
       }),
       "18 min · 8.0 km · High risk",
     );
+  });
+
+  it("bounds verbose visible ETA and distance copy while preserving accessibility context", () => {
+    const verboseEta =
+      "Estimated arrival in eighteen minutes after the diplomatic security checkpoint clears";
+    const verboseDistance =
+      "Eight point four kilometres via the north riverside service road detour";
+    const presentation = createRouteCardPresentation(
+      {
+        ...baseRoute,
+        route: {
+          ...baseRoute.route,
+          distance: verboseDistance,
+          eta: verboseEta,
+        },
+      },
+      false,
+    );
+    const [etaSummary, distanceSummary, riskSummary] =
+      presentation.summaryLabel.split(" · ");
+
+    assert.ok(etaSummary.endsWith("…"));
+    assert.ok(distanceSummary.endsWith("…"));
+    assert.ok(etaSummary.length <= ROUTE_CARD_SUMMARY_METRIC_MAX_LENGTH);
+    assert.ok(distanceSummary.length <= ROUTE_CARD_SUMMARY_METRIC_MAX_LENGTH);
+    assert.equal(riskSummary, "Low risk");
+    assert.ok(presentation.accessibilityLabel.includes(verboseEta));
+    assert.ok(presentation.accessibilityLabel.includes(verboseDistance));
   });
 
   it("bounds verbose visible risk copy while preserving full accessibility context", () => {

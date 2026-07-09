@@ -120,12 +120,12 @@ describe('guest route planner helpers', () => {
 
     assert.deepEqual(
       createGuestRouteActionState({
-        destination: 'London City Airport',
+        destination: '  London   City Airport  ',
         routePlotted: false
       }),
       {
-        accessibilityHint: 'Plots a local route on the map.',
-        accessibilityLabel: 'Plot local route on map',
+        accessibilityHint: 'Plots a local route to London City Airport on the map.',
+        accessibilityLabel: 'Plot local route to London City Airport',
         disabled: false,
         label: 'Plot route'
       }
@@ -137,12 +137,23 @@ describe('guest route planner helpers', () => {
         routePlotted: true
       }),
       {
-        accessibilityHint: 'Opens this plotted route in the live map preview.',
-        accessibilityLabel: 'Open route preview',
+        accessibilityHint: 'Opens this plotted route to London City Airport in the live map preview.',
+        accessibilityLabel: 'Open route preview to London City Airport',
         disabled: false,
         label: 'Preview map'
       }
     );
+
+    const longDestination = `${'Airport terminal '.repeat(8)}north entrance`;
+    const boundedState = createGuestRouteActionState({
+      destination: longDestination,
+      routePlotted: false
+    });
+
+    assert.equal(boundedState.label, 'Plot route');
+    assert.ok(boundedState.accessibilityLabel.startsWith('Plot local route to Airport terminal'));
+    assert.ok(boundedState.accessibilityLabel.endsWith('…'));
+    assert.ok(boundedState.accessibilityLabel.length <= 'Plot local route to '.length + GUEST_ROUTE_LABEL_MAX_LENGTH);
   });
 
   it('rejects blank guest destinations before creating local route data', () => {

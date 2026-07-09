@@ -145,18 +145,20 @@ export function createGuestRouteActionState({
     };
   }
 
+  const destinationLabel = normalizeGuestRouteLabel(destination, 'destination');
+
   if (routePlotted) {
     return {
-      accessibilityHint: 'Opens this plotted route in the live map preview.',
-      accessibilityLabel: 'Open route preview',
+      accessibilityHint: `Opens this plotted route to ${destinationLabel} in the live map preview.`,
+      accessibilityLabel: `Open route preview to ${destinationLabel}`,
       disabled: false,
       label: 'Preview map'
     };
   }
 
   return {
-    accessibilityHint: 'Plots a local route on the map.',
-    accessibilityLabel: 'Plot local route on map',
+    accessibilityHint: `Plots a local route to ${destinationLabel} on the map.`,
+    accessibilityLabel: `Plot local route to ${destinationLabel}`,
     disabled: false,
     label: 'Plot route'
   };

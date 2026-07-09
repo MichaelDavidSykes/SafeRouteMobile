@@ -173,6 +173,43 @@ describe("rounded visual language", () => {
     }
   });
 
+  it("keeps floating live-map controls capsule-sized and label-bounded", () => {
+    const liveMapControlsSource = readFileSync(
+      join(process.cwd(), "src/features/live-map/LiveMapControls.tsx"),
+      "utf8",
+    );
+    const liveMapOverlayStylesSource = readFileSync(
+      join(process.cwd(), "src/features/live-map/LiveMapOverlay.styles.ts"),
+      "utf8",
+    );
+    const controlButtonBlock =
+      /controlButton:\s*\{([\s\S]*?)\n  \},\n  controlButtonCompact:/.exec(
+        liveMapOverlayStylesSource,
+      )?.[1] || "";
+    const controlButtonCompactBlock =
+      /controlButtonCompact:\s*\{([\s\S]*?)\n  \},\n  controlButtonActive:/.exec(
+        liveMapOverlayStylesSource,
+      )?.[1] || "";
+    const controlButtonTextBlock =
+      /controlButtonText:\s*\{([\s\S]*?)\n  \},\n  controlButtonTextActive:/.exec(
+        liveMapOverlayStylesSource,
+      )?.[1] || "";
+
+    assert.match(liveMapControlsSource, /<Text[\s\S]*numberOfLines=\{1\}[\s\S]*styles\.controlButtonText/);
+    assert.match(controlButtonBlock, /maxWidth:\s*92/);
+    assert.match(controlButtonBlock, /minHeight:\s*44/);
+    assert.match(controlButtonBlock, /borderRadius:\s*radius\.pill/);
+    assert.match(controlButtonBlock, /backgroundColor:\s*colors\.surfaceGlass/);
+    assert.match(controlButtonBlock, /shadowOpacity:\s*0/);
+    assert.match(controlButtonBlock, /elevation:\s*0/);
+    assert.match(controlButtonCompactBlock, /maxWidth:\s*64/);
+    assert.match(controlButtonCompactBlock, /minHeight:\s*44/);
+    assert.match(controlButtonCompactBlock, /paddingHorizontal:\s*spacing\.xs/);
+    assert.match(controlButtonTextBlock, /maxWidth:\s*["']100%["']/);
+    assert.match(controlButtonTextBlock, /flexShrink:\s*1/);
+    assert.match(controlButtonTextBlock, /textAlign:\s*["']center["']/);
+  });
+
   it("keeps signed-in map support actions text-only and low-clutter", () => {
     const guestMapSource = readFileSync(
       join(process.cwd(), "src/features/guest-map/GuestMapScreen.tsx"),

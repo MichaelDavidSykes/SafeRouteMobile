@@ -24,6 +24,7 @@ export const styles = StyleSheet.create({
     gap: 6,
   },
   controlButton: {
+    maxWidth: 92,
     minWidth: 54,
     minHeight: 44,
     alignItems: "center",
@@ -39,6 +40,7 @@ export const styles = StyleSheet.create({
     elevation: 0,
   },
   controlButtonCompact: {
+    maxWidth: 64,
     minWidth: 50,
     minHeight: 44,
     paddingHorizontal: spacing.xs,
@@ -58,10 +60,13 @@ export const styles = StyleSheet.create({
     transform: [{ scale: 0.97 }],
   },
   controlButtonText: {
+    maxWidth: "100%",
+    flexShrink: 1,
     color: colors.ink,
     fontSize: typeScale.xs,
     fontWeight: "900",
     letterSpacing: 0.1,
+    textAlign: "center",
   },
   controlButtonTextActive: {
     color: colors.surface,

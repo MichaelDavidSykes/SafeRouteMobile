@@ -28,6 +28,7 @@ export const guestMapStyles = StyleSheet.create({
     gap: spacing.sm
   },
   signInButton: {
+    maxWidth: 144,
     minHeight: controlSizes.secondary,
     flexDirection: 'row',
     alignItems: 'center',
@@ -50,9 +51,12 @@ export const guestMapStyles = StyleSheet.create({
     transform: [{ scale: 0.985 }]
   },
   signInButtonText: {
+    maxWidth: '100%',
+    flexShrink: 1,
     color: colors.ink,
     fontSize: typeScale.sm,
-    fontWeight: '800'
+    fontWeight: '800',
+    textAlign: 'center'
   },
   signInButtonTextAuthenticated: {
     color: colors.appleBlue
@@ -135,11 +139,15 @@ export const guestMapStyles = StyleSheet.create({
     transform: [{ scale: 0.985 }]
   },
   primaryButtonText: {
+    maxWidth: '100%',
+    flexShrink: 1,
     color: colors.surface,
     fontSize: typeScale.md,
-    fontWeight: '800'
+    fontWeight: '800',
+    textAlign: 'center'
   },
   routePreview: {
+    maxWidth: 138,
     marginTop: spacing.sm,
     alignSelf: 'flex-start',
     paddingHorizontal: spacing.md,
@@ -154,10 +162,13 @@ export const guestMapStyles = StyleSheet.create({
     flexShrink: 0
   },
   routePreviewSummary: {
+    maxWidth: '100%',
+    flexShrink: 1,
     color: colors.inkSoft,
     fontSize: typeScale.xs,
     fontWeight: '800',
-    lineHeight: 16
+    lineHeight: 16,
+    textAlign: 'center'
   },
   supportRow: {
     flexDirection: 'row',
@@ -166,6 +177,8 @@ export const guestMapStyles = StyleSheet.create({
     marginTop: spacing.xs
   },
   supportButton: {
+    maxWidth: 112,
+    flexShrink: 1,
     minHeight: controlSizes.secondary,
     alignItems: 'center',
     justifyContent: 'center',
@@ -178,6 +191,8 @@ export const guestMapStyles = StyleSheet.create({
     transform: [{ scale: 0.985 }]
   },
   supportLabel: {
+    maxWidth: '100%',
+    flexShrink: 1,
     color: colors.appleBlue,
     fontSize: typeScale.xs,
     fontWeight: '800',

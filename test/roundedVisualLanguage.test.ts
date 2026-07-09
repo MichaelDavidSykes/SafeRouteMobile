@@ -248,12 +248,17 @@ describe("rounded visual language", () => {
     assert.doesNotMatch(guestMapSource, /styles\.gateButton/);
     assert.doesNotMatch(guestMapSource, /styles\.gateRow/);
     assert.match(supportRowBlock, /justifyContent:\s*'center'/);
+    assert.match(supportButtonBlock, /maxWidth:\s*112/);
+    assert.match(supportButtonBlock, /flexShrink:\s*1/);
     assert.match(supportButtonBlock, /minHeight:\s*controlSizes\.secondary/);
     assert.match(supportButtonBlock, /backgroundColor:\s*'transparent'/);
     assert.doesNotMatch(supportButtonBlock, /\bflex:\s*1/);
     assert.doesNotMatch(supportButtonBlock, /\bborderWidth/);
     assert.match(supportButtonPressedBlock, /backgroundColor:\s*colors\.appleBlueSoft/);
+    assert.match(supportLabelBlock, /maxWidth:\s*['"]100%['"]/);
+    assert.match(supportLabelBlock, /flexShrink:\s*1/);
     assert.match(supportLabelBlock, /color:\s*colors\.appleBlue/);
+    assert.match(supportLabelBlock, /textAlign:\s*'center'/);
     assert.doesNotMatch(guestMapStylesSource, /\bgateButton:/);
     assert.doesNotMatch(guestMapStylesSource, /\bgateRow:/);
     assert.doesNotMatch(guestPlannerSource, /eyebrow/);
@@ -275,6 +280,14 @@ describe("rounded visual language", () => {
     );
     const sheetBlock =
       /sheet:\s*\{([\s\S]*?)\n  \},\n  sheetHeaderRow:/.exec(
+        guestMapStylesSource,
+      )?.[1] || "";
+    const routePreviewBlock =
+      /routePreview:\s*\{([\s\S]*?)\n  \},\n  routePreviewInline:/.exec(
+        guestMapStylesSource,
+      )?.[1] || "";
+    const routePreviewSummaryBlock =
+      /routePreviewSummary:\s*\{([\s\S]*?)\n  \},\n  supportRow:/.exec(
         guestMapStylesSource,
       )?.[1] || "";
 
@@ -305,8 +318,12 @@ describe("rounded visual language", () => {
     assert.doesNotMatch(sheetBlock, /shadow\.sheet/);
     assert.doesNotMatch(sheetBlock, /surfaceElevated/);
     assert.doesNotMatch(guestMapStylesSource, /\broutePreviewTitle:/);
+    assert.match(routePreviewBlock, /maxWidth:\s*138/);
     assert.match(guestMapStylesSource, /\broutePreview:[\s\S]*borderRadius:\s*radius\.pill/);
     assert.match(guestMapStylesSource, /\broutePreviewInline:[\s\S]*marginTop:\s*2/);
+    assert.match(routePreviewSummaryBlock, /maxWidth:\s*['"]100%['"]/);
+    assert.match(routePreviewSummaryBlock, /flexShrink:\s*1/);
+    assert.match(routePreviewSummaryBlock, /textAlign:\s*'center'/);
   });
 
   it("keeps the map-home top chrome action-only and low-clutter", () => {
@@ -324,6 +341,10 @@ describe("rounded visual language", () => {
       /signInButton:\s*\{([\s\S]*?)\n  \},\n  signInButtonAuthenticated:/.exec(
         guestMapStylesSource,
       )?.[1] || "";
+    const signInButtonTextBlock =
+      /signInButtonText:\s*\{([\s\S]*?)\n  \},\n  signInButtonTextAuthenticated:/.exec(
+        guestMapStylesSource,
+      )?.[1] || "";
 
     assert.doesNotMatch(guestMapSource, /SafeRouteLogo/);
     assert.doesNotMatch(guestMapSource, /accessibilityLabel="SafeRoute map"/);
@@ -339,11 +360,15 @@ describe("rounded visual language", () => {
     assert.doesNotMatch(guestMapStylesSource, /\bbrandRow:/);
     assert.doesNotMatch(topBarBlock, /borderWidth|backgroundColor|shadow\.panel/);
     assert.match(topBarBlock, /justifyContent:\s*["']flex-end["']/);
+    assert.match(signInButtonBlock, /maxWidth:\s*144/);
     assert.match(signInButtonBlock, /backgroundColor:\s*colors\.surfaceGlass/);
     assert.match(signInButtonBlock, /borderRadius:\s*radius\.pill/);
     assert.match(signInButtonBlock, /shadowOpacity:\s*0/);
     assert.match(signInButtonBlock, /shadowRadius:\s*0/);
     assert.match(signInButtonBlock, /elevation:\s*0/);
+    assert.match(signInButtonTextBlock, /maxWidth:\s*['"]100%['"]/);
+    assert.match(signInButtonTextBlock, /flexShrink:\s*1/);
+    assert.match(signInButtonTextBlock, /textAlign:\s*'center'/);
     assert.doesNotMatch(signInButtonBlock, /shadow\.panel/);
     assert.doesNotMatch(guestMapStylesSource, /,\s*shadow,/);
     assert.match(guestMapStylesSource, /signInButtonAuthenticated:[\s\S]*colors\.appleBlueSoft/);
@@ -388,6 +413,10 @@ describe("rounded visual language", () => {
       /inputRow:\s*\{([\s\S]*?)\n  \},\n  inputRowDivider:/.exec(guestMapStylesSource)?.[1] || "";
     const inputRowDividerBlock =
       /inputRowDivider:\s*\{([\s\S]*?)\n  \},\n  input:/.exec(guestMapStylesSource)?.[1] || "";
+    const primaryButtonTextBlock =
+      /primaryButtonText:\s*\{([\s\S]*?)\n  \},\n  routePreview:/.exec(
+        guestMapStylesSource,
+      )?.[1] || "";
 
     assert.match(guestPlannerSource, /GUEST_ROUTE_LABEL_MAX_LENGTH\s*=\s*80/);
     assert.match(guestPlannerSource, /placeholder:\s*['"]Start point['"]/);
@@ -401,6 +430,9 @@ describe("rounded visual language", () => {
     assert.match(guestMapSource, /<RouteInput\s+divided/);
     assert.match(guestMapSource, /styles\.inputRowDivider/);
     assert.match(guestMapSource, /<Text numberOfLines=\{1\} style=\{styles\.primaryButtonText\}>/);
+    assert.match(primaryButtonTextBlock, /maxWidth:\s*['"]100%['"]/);
+    assert.match(primaryButtonTextBlock, /flexShrink:\s*1/);
+    assert.match(primaryButtonTextBlock, /textAlign:\s*'center'/);
     assert.doesNotMatch(guestMapSource, /Ionicons/);
     assert.doesNotMatch(guestMapSource, /radio-button-on|name="location"|icon=/);
     assert.match(inputStackBlock, /overflow:\s*['"]hidden['"]/);

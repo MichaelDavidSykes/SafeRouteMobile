@@ -152,34 +152,38 @@ describe('Maestro iOS runtime preflight', () => {
     assert.deepEqual(parseExpoGoVersionsFromListApps('"other.app" = { CFBundleVersion = "56.0.4"; };'), []);
   });
 
-  it('falls back to bounded simctl listapps lookup when the Expo Go container lookup is unavailable', async () => {
+  it('prefers bounded simctl listapps lookup before Expo Go container fallback', async () => {
     const { resolveBootedExpoGoVersions } = await loadPreflightModule();
-    let fallbackCalled = false;
+    let containerCalled = false;
 
     assert.deepEqual(
       await resolveBootedExpoGoVersions({
-        containerResolver: () => [],
         listAppsResolver: async () => {
-          fallbackCalled = true;
           return ['56.0.4'];
-        }
-      }),
-      ['56.0.4']
-    );
-    assert.equal(fallbackCalled, true);
-
-    fallbackCalled = false;
-    assert.deepEqual(
-      await resolveBootedExpoGoVersions({
-        containerResolver: () => ['56.0.4'],
-        listAppsResolver: async () => {
-          fallbackCalled = true;
+        },
+        containerResolver: () => {
+          containerCalled = true;
           return ['54.0.7'];
         }
       }),
       ['56.0.4']
     );
-    assert.equal(fallbackCalled, false);
+    assert.equal(containerCalled, false);
+
+    containerCalled = false;
+    assert.deepEqual(
+      await resolveBootedExpoGoVersions({
+        listAppsResolver: async () => {
+          return [];
+        },
+        containerResolver: () => {
+          containerCalled = true;
+          return ['56.0.4'];
+        }
+      }),
+      ['56.0.4']
+    );
+    assert.equal(containerCalled, true);
   });
 
   it('keeps simctl and Maestro process probes time-bounded for local preflight reliability', () => {

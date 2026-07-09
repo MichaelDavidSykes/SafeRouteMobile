@@ -258,13 +258,13 @@ export async function resolveBootedExpoGoVersions({
   containerResolver = resolveBootedExpoGoVersionsFromContainer,
   listAppsResolver = findBootedExpoGoVersions
 } = {}) {
-  const containerVersions = containerResolver();
+  const listAppsVersions = await listAppsResolver();
 
-  if (containerVersions.length) {
-    return containerVersions;
+  if (listAppsVersions.length) {
+    return listAppsVersions;
   }
 
-  return listAppsResolver();
+  return containerResolver();
 }
 
 export function formatExpoGoMismatchMessage({ expectedSdkMajor, installedVersion }) {

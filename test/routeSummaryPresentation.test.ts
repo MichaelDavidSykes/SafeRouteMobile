@@ -4,6 +4,7 @@ import { describe, it } from "node:test";
 import {
   createRouteSummaryDemoAction,
   createRouteSummaryDetail,
+  createRouteSummaryHeadline,
   createRouteSummaryHeadlineAccessibilityLabel,
   createRouteSummaryLabel,
   createRouteSummaryPrimaryAction,
@@ -130,6 +131,44 @@ describe("live route summary presentation", () => {
         state: "navigating",
       }),
       "Preview",
+    );
+  });
+
+  it("normalizes the visible route summary headline before falling back to state copy", () => {
+    assert.deepEqual(
+      createRouteSummaryHeadline({
+        headline: "  14   min ",
+        routeContext: "saved",
+        state: "loaded",
+      }),
+      {
+        accessibilityLabel: "Saved route. 14 min.",
+        text: "14 min",
+      },
+    );
+
+    assert.deepEqual(
+      createRouteSummaryHeadline({
+        headline: "  ",
+        routeContext: "guest",
+        state: "navigating",
+      }),
+      {
+        accessibilityLabel: "Preview",
+        text: "Preview",
+      },
+    );
+
+    assert.deepEqual(
+      createRouteSummaryHeadline({
+        headline: "",
+        routeContext: "saved",
+        state: "paused",
+      }),
+      {
+        accessibilityLabel: "Paused",
+        text: "Paused",
+      },
     );
   });
 

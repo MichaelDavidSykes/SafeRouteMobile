@@ -18,7 +18,7 @@ import { uiTestIds } from "../../testing/uiTestIds";
 import {
   createRouteSummaryDemoAction,
   createRouteSummaryDetail,
-  createRouteSummaryHeadlineAccessibilityLabel,
+  createRouteSummaryHeadline,
   createRouteSummaryPrimaryAction,
   createRouteSummaryRemainingMetric,
   createRouteSummarySafetyBadge,
@@ -75,12 +75,17 @@ export function LiveMapRouteSummarySheet({
     navigationState === "navigating" ||
     navigationState === "off-route" ||
     navigationState === "paused";
-  const headline =
+  const headlineSource =
     navigationState === "arrived"
       ? "Arrived"
       : progress
         ? formatEta(progress.etaSeconds)
         : route.eta;
+  const headlinePresentation = createRouteSummaryHeadline({
+    headline: headlineSource,
+    routeContext,
+    state: navigationState,
+  });
   const compactRemainingMetric =
     compactRouteSummary && progress
       ? createRouteSummaryRemainingMetric(
@@ -101,11 +106,6 @@ export function LiveMapRouteSummarySheet({
     safeScore: route.safeScore,
   });
   const demoAction = createRouteSummaryDemoAction(demoDriveEnabled);
-  const headlineAccessibilityLabel = createRouteSummaryHeadlineAccessibilityLabel({
-    headline,
-    routeContext,
-    state: navigationState,
-  });
 
   return (
     <View
@@ -130,13 +130,13 @@ export function LiveMapRouteSummarySheet({
           ]}
         >
           <Text
-            accessibilityLabel={headlineAccessibilityLabel}
+            accessibilityLabel={headlinePresentation.accessibilityLabel}
             style={[
               styles.etaText,
               compactRouteSummary ? styles.etaTextCompactNavigation : null,
             ]}
           >
-            {headline}
+            {headlinePresentation.text}
           </Text>
           {compactRemainingMetric ? (
             <Text

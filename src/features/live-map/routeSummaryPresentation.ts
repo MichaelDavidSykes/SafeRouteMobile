@@ -17,6 +17,11 @@ export type RouteSummaryDetail = {
   text: string;
 };
 
+export type RouteSummaryHeadline = {
+  accessibilityLabel: string;
+  text: string;
+};
+
 export type RouteSummaryRemainingMetric = {
   accessibilityLabel: string;
   text: string;
@@ -129,12 +134,31 @@ export function createRouteSummaryHeadlineAccessibilityLabel({
   routeContext: RouteSummaryContext;
   state: NavigationLifecycle;
 }): string {
-  const summaryLabel = createRouteSummaryLabel({ routeContext, state });
-  const trimmedHeadline = headline.trim().replace(/\s+/g, " ");
+  return createRouteSummaryHeadline({
+    headline,
+    routeContext,
+    state,
+  }).accessibilityLabel;
+}
 
-  return trimmedHeadline
-    ? `${summaryLabel}. ${trimmedHeadline}.`
-    : summaryLabel;
+export function createRouteSummaryHeadline({
+  headline,
+  routeContext,
+  state,
+}: {
+  headline: string;
+  routeContext: RouteSummaryContext;
+  state: NavigationLifecycle;
+}): RouteSummaryHeadline {
+  const summaryLabel = createRouteSummaryLabel({ routeContext, state });
+  const normalizedHeadline = normalizeInlineCopy(headline);
+
+  return {
+    accessibilityLabel: normalizedHeadline
+      ? `${summaryLabel}. ${normalizedHeadline}.`
+      : summaryLabel,
+    text: normalizedHeadline || summaryLabel,
+  };
 }
 
 export function shouldShowRouteSummarySafetyBadge(

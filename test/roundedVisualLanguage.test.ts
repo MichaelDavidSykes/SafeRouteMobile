@@ -880,7 +880,7 @@ describe("rounded visual language", () => {
       )?.[1] || "";
 
     assert.match(routeSheetSource, /createRouteSummaryDetail/);
-    assert.match(routeSheetSource, /createRouteSummaryHeadlineAccessibilityLabel/);
+    assert.match(routeSheetSource, /createRouteSummaryHeadline/);
     assert.match(routeSheetSource, /createRouteSummaryRemainingMetric/);
     assert.match(routeSheetSource, /routeDescription:\s*route\.description/);
     assert.match(routeSheetSource, /styles\.routeDetailLine/);
@@ -891,7 +891,8 @@ describe("rounded visual language", () => {
     assert.match(routeSheetSource, /styles\.demoButtonInline/);
     assert.match(routeSheetSource, /style=\{\(\{ pressed \}\) => \[/);
     assert.match(routeSheetSource, /pressed \? styles\.demoButtonPressed : null/);
-    assert.match(routeSheetSource, /accessibilityLabel=\{headlineAccessibilityLabel\}/);
+    assert.match(routeSheetSource, /accessibilityLabel=\{headlinePresentation\.accessibilityLabel\}/);
+    assert.match(routeSheetSource, /\{headlinePresentation\.text\}/);
     assert.doesNotMatch(routeSheetSource, /styles\.cardLabel/);
     assert.doesNotMatch(routeSheetSource, /summaryLabel/);
     assert.doesNotMatch(routeSheetSource, /<Metric/);
@@ -927,6 +928,7 @@ describe("rounded visual language", () => {
     assert.match(routeSummarySource, /label:\s*"Start"/);
     assert.match(routeSummarySource, /label:\s*"Pause"/);
     assert.match(routeSummarySource, /label:\s*"Resume"/);
+    assert.match(routeSummarySource, /createRouteSummaryHeadline/);
     assert.match(routeSummarySource, /createRouteSummaryHeadlineAccessibilityLabel/);
     assert.match(routeSummarySource, /shouldInlineRouteSummaryDemoAction/);
     assert.match(routeSummarySource, /return "Guidance"/);

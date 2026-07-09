@@ -373,10 +373,11 @@ export function primaryRouteActionAccessibility(
   state: NavigationLifecycle,
   disabledReason?: string | null
 ): ControlAccessibilityCopy {
-  if (disabledReason) {
+  const normalizedDisabledReason = normalizeRouteActionDisabledReason(disabledReason);
+  if (normalizedDisabledReason) {
     return {
-      label: `Start route. ${disabledReason}`,
-      hint: disabledReason,
+      label: `Start route. ${normalizedDisabledReason}`,
+      hint: normalizedDisabledReason,
       state: { disabled: true }
     };
   }
@@ -560,6 +561,15 @@ function normalizeRouteStatusLabel(value: string, fallback: string): string {
 
 function createRouteStatusSentence(label: string): string {
   return `Route status: ${label}${/[.!?]$/.test(label) ? '' : '.'}`;
+}
+
+function normalizeRouteActionDisabledReason(reason?: string | null): string | null {
+  const normalizedReason = reason?.trim().replace(/\s+/g, ' ');
+  if (!normalizedReason) {
+    return null;
+  }
+
+  return createLiveMapAccessibilitySentence(normalizedReason);
 }
 
 function routeStatusTone(state: NavigationLifecycle): RouteStatusTone {

@@ -485,11 +485,24 @@ describe('live map UI state helpers', () => {
     assert.equal(presentation.tone, 'live');
   });
 
-  it('adds disabled guidance context to primary route action', () => {
+  it('adds normalized disabled guidance context to primary route action', () => {
     assert.deepEqual(primaryRouteActionAccessibility('loaded', 'Waiting for a live location fix before guidance can start.'), {
       label: 'Start route. Waiting for a live location fix before guidance can start.',
       hint: 'Waiting for a live location fix before guidance can start.',
       state: { disabled: true }
+    });
+    assert.deepEqual(
+      primaryRouteActionAccessibility('loaded', '  Waiting   for a live location fix before guidance can start  '),
+      {
+        label: 'Start route. Waiting for a live location fix before guidance can start.',
+        hint: 'Waiting for a live location fix before guidance can start.',
+        state: { disabled: true }
+      }
+    );
+    assert.deepEqual(primaryRouteActionAccessibility('loaded', '   '), {
+      label: 'Start route guidance',
+      hint: 'Starts live route guidance for this saved route.',
+      state: { disabled: false }
     });
     assert.deepEqual(primaryRouteActionAccessibility('navigating'), {
       label: 'Pause route guidance',

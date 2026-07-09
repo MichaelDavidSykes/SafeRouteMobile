@@ -376,13 +376,15 @@ describe('guest route planner helpers', () => {
   it('keeps private feature sign-in prompts concise and specific', () => {
     const saved = getGuestFullAccessCopy('saved-routes');
     const trips = getGuestFullAccessCopy('planned-trips');
+    const calendar = getGuestFullAccessCopy('calendar');
     const convoys = getGuestFullAccessCopy('convoy-management');
 
     assert.equal(saved.title, 'Saved');
     assert.equal(trips.title, 'Trips');
+    assert.equal(calendar.title, 'Calendar');
     assert.equal(convoys.title, 'Convoys');
 
-    for (const copy of [saved, trips, convoys]) {
+    for (const copy of [saved, trips, calendar, convoys]) {
       assert.equal('eyebrow' in copy, false);
       assert.match(copy.action, /^Sign in/);
       assert.ok(copy.action.length <= 32, `${copy.action} should stay compact`);
@@ -411,7 +413,7 @@ describe('guest route planner helpers', () => {
         authenticated: true,
         routePlotted: false
       }),
-      ['planned-trips', 'convoy-management']
+      ['planned-trips', 'calendar', 'convoy-management']
     );
     assert.equal(
       shouldShowGuestMapGateRow({

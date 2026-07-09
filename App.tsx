@@ -29,6 +29,8 @@ import {
   type AppScreen,
   type RoutePreviewSource
 } from './src/features/navigation/appRouting';
+import { OperationsScreen } from './src/features/operations/OperationsScreen';
+import type { OperationsTab } from './src/features/operations/operationsUiState';
 import { RouteListScreen } from './src/features/routes/RouteListScreen';
 import { uiTestIds } from './src/testing/uiTestIds';
 import { colors } from './src/theme';
@@ -40,6 +42,7 @@ export default function App() {
   const [authPrompt, setAuthPrompt] = useState('');
   const [screen, setScreen] = useState<AppScreen>('guest-map');
   const [routePreviewSource, setRoutePreviewSource] = useState<RoutePreviewSource>('guest');
+  const [operationsTab, setOperationsTab] = useState<OperationsTab>('planned-routes');
   const authenticated = hasAuthenticatedSession(session);
 
   useEffect(() => {
@@ -114,6 +117,7 @@ export default function App() {
     setSelectedRoute(null);
     setSessionMessage('');
     setAuthPrompt('');
+    setOperationsTab('planned-routes');
     setSession(null);
     setScreen('guest-map');
   };
@@ -122,6 +126,7 @@ export default function App() {
     setSelectedRoute(null);
     setSessionMessage('');
     setAuthPrompt('');
+    setOperationsTab('planned-routes');
     setScreen('guest-map');
   };
 
@@ -130,6 +135,7 @@ export default function App() {
     setSelectedRoute(null);
     setSessionMessage(message);
     setAuthPrompt(message);
+    setOperationsTab('planned-routes');
     setSession(null);
     setScreen('login');
   };
@@ -147,6 +153,13 @@ export default function App() {
 
     if (nextNavigation.screen === 'login') {
       openSignIn(nextNavigation.prompt);
+      return;
+    }
+
+    if (nextNavigation.screen === 'operations') {
+      setSessionMessage('');
+      setOperationsTab(nextNavigation.tab);
+      setScreen('operations');
       return;
     }
 
@@ -205,6 +218,16 @@ export default function App() {
             userEmail={session.user?.email || session.email}
             onBackToMap={returnToMapHome}
             onSelectRoute={handleSelectSavedRoute}
+            onSessionExpired={handleSessionExpired}
+            onSignOut={handleSignOut}
+          />
+        ) : screen === 'operations' && session && authenticated ? (
+          <OperationsScreen
+            accessToken={session.accessToken}
+            initialTab={operationsTab}
+            sessionNotice={routeListSessionNotice}
+            userEmail={session.user?.email || session.email}
+            onBackToMap={returnToMapHome}
             onSessionExpired={handleSessionExpired}
             onSignOut={handleSignOut}
           />

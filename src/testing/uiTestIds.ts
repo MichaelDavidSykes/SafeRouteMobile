@@ -12,6 +12,15 @@ export const uiTestIds = {
   routeListScreen: "safe-route-picker",
   routeListMapReturn: "route-list-map-return",
   routeListSignOut: "route-list-sign-out",
+  operationsScreen: "safe-route-operations",
+  operationsMapReturn: "safe-route-operations-map-return",
+  operationsSignOut: "safe-route-operations-sign-out",
+  operationsTab: (tabId: string) =>
+    `safe-route-operations-tab-${normalizeTestIdSegment(tabId)}`,
+  operationsRouteCard: (routeId: string) =>
+    `safe-route-operations-route-${normalizeTestIdSegment(routeId)}`,
+  operationsConvoyCard: (convoyId: string) =>
+    `safe-route-operations-convoy-${normalizeTestIdSegment(convoyId)}`,
   savedRouteCard: (routeId: string) =>
     `safe-route-card-${normalizeTestIdSegment(routeId)}`,
   liveMapScreen: "safe-route-live-map",

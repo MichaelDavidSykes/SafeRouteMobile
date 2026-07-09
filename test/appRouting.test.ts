@@ -21,13 +21,29 @@ describe('app routing security gates', () => {
     });
     assert.match(savedPrompt, /^Sign in .+\.$/);
     assert.match(createSignInPrompt('planned-trips'), /^Sign in .+\.$/);
+    assert.match(createSignInPrompt('calendar'), /^Sign in .+\.$/);
     assert.match(createSignInPrompt('convoy-management'), /^Sign in .+\.$/);
   });
 
-  it('routes authenticated users to protected saved-route functionality', () => {
+  it('routes authenticated users to protected saved-route and operations functionality', () => {
     assert.deepEqual(resolveFullAccessNavigation({ authenticated: true, feature: 'saved-routes' }), {
       screen: 'routes',
       prompt: ''
+    });
+    assert.deepEqual(resolveFullAccessNavigation({ authenticated: true, feature: 'planned-trips' }), {
+      screen: 'operations',
+      prompt: '',
+      tab: 'planned-routes'
+    });
+    assert.deepEqual(resolveFullAccessNavigation({ authenticated: true, feature: 'calendar' }), {
+      screen: 'operations',
+      prompt: '',
+      tab: 'calendar'
+    });
+    assert.deepEqual(resolveFullAccessNavigation({ authenticated: true, feature: 'convoy-management' }), {
+      screen: 'operations',
+      prompt: '',
+      tab: 'convoy-management'
     });
   });
 

@@ -1,6 +1,7 @@
 import { getGuestFullAccessCopy, type GuestFullAccessFeature } from '../guest-map/guestRoutePlanner';
+import type { OperationsTab } from '../operations/operationsUiState';
 
-export type AppScreen = 'guest-map' | 'login' | 'routes' | 'route-preview';
+export type AppScreen = 'guest-map' | 'login' | 'operations' | 'routes' | 'route-preview';
 export type RoutePreviewSource = 'guest' | 'saved';
 
 export type FullAccessNavigation =
@@ -11,6 +12,11 @@ export type FullAccessNavigation =
   | {
       screen: 'routes';
       prompt: '';
+    }
+  | {
+      screen: 'operations';
+      prompt: '';
+      tab: OperationsTab;
     };
 
 export type RoutePreviewReturnCopy = {
@@ -40,6 +46,30 @@ export function resolveFullAccessNavigation({
     return {
       screen: 'login',
       prompt: createSignInPrompt(feature)
+    };
+  }
+
+  if (feature === 'planned-trips') {
+    return {
+      screen: 'operations',
+      prompt: '',
+      tab: 'planned-routes'
+    };
+  }
+
+  if (feature === 'calendar') {
+    return {
+      screen: 'operations',
+      prompt: '',
+      tab: 'calendar'
+    };
+  }
+
+  if (feature === 'convoy-management') {
+    return {
+      screen: 'operations',
+      prompt: '',
+      tab: 'convoy-management'
     };
   }
 

@@ -40,6 +40,21 @@ describe("UI test identifiers", () => {
     assert.equal(uiTestIds.liveMapRemainingMetrics, "safe-route-remaining-metrics");
     assert.equal(uiTestIds.liveMapPrimaryAction, "safe-route-primary-action");
     assert.equal(uiTestIds.liveMapDemoDriveAction, "safe-route-demo-action");
+    assert.equal(uiTestIds.operationsScreen, "safe-route-operations");
+    assert.equal(uiTestIds.operationsMapReturn, "safe-route-operations-map-return");
+    assert.equal(uiTestIds.operationsSignOut, "safe-route-operations-sign-out");
+    assert.equal(
+      uiTestIds.operationsTab("convoy management"),
+      "safe-route-operations-tab-convoy-management",
+    );
+    assert.equal(
+      uiTestIds.operationsRouteCard("SR City Airport"),
+      "safe-route-operations-route-sr-city-airport",
+    );
+    assert.equal(
+      uiTestIds.operationsConvoyCard("Alpha convoy"),
+      "safe-route-operations-convoy-alpha-convoy",
+    );
     assert.equal(uiTestIds.liveMapRiskAlert, "safe-route-risk-alert");
     assert.equal(uiTestIds.liveMapRiskDetail, "safe-route-risk-detail");
     assert.equal(

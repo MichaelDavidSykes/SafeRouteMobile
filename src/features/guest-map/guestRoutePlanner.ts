@@ -8,7 +8,7 @@ import {
 import type { RiskZone, SavedSafeRoutePlan } from '../live-map/liveMapTypes';
 import { formatDistance, formatEta } from '../routes/routeMapperNormalization';
 
-export type GuestFullAccessFeature = 'saved-routes' | 'planned-trips' | 'convoy-management';
+export type GuestFullAccessFeature = 'saved-routes' | 'planned-trips' | 'calendar' | 'convoy-management';
 
 export type GuestFullAccessCopy = {
   action: string;
@@ -477,7 +477,7 @@ export function getGuestMapGateFeatures({
     return [];
   }
 
-  return ['planned-trips', 'convoy-management'];
+  return ['planned-trips', 'calendar', 'convoy-management'];
 }
 
 export function getGuestFullAccessCopy(feature: GuestFullAccessFeature): GuestFullAccessCopy {
@@ -487,6 +487,12 @@ export function getGuestFullAccessCopy(feature: GuestFullAccessFeature): GuestFu
         title: 'Trips',
         body: 'View assigned trips after sign-in.',
         action: 'Sign in to view trips'
+      };
+    case 'calendar':
+      return {
+        title: 'Calendar',
+        body: 'View route windows after sign-in.',
+        action: 'Sign in to view calendar'
       };
     case 'convoy-management':
       return {

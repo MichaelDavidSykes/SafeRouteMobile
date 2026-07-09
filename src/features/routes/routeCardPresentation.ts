@@ -42,7 +42,7 @@ export function createRouteCardPresentation(
     accessibilityHint: loading
       ? "Live map is opening"
       : "Opens live map guidance for this route",
-    accessibilityLabel: [
+    accessibilityLabel: createRouteCardAccessibilityLabel([
       routeName,
       `${statusLabel} route`,
       createRouteCardMetaAccessibilityLabel(
@@ -52,9 +52,7 @@ export function createRouteCardPresentation(
       createRouteCardEndpointAccessibilityLabel(route.origin, route.destination),
       routeSummary,
       updatedAccessibilityLabel,
-    ]
-      .filter(Boolean)
-      .join(". "),
+    ]),
     actionLabel: loading ? "Opening" : "Map",
     endpointLabel: createRouteCardEndpointLabel(route.origin, route.destination),
     metaLabel,
@@ -264,6 +262,26 @@ function startsWithConvoyLabel(value: string): boolean {
 
 function normalizeRouteCardMetaValue(value: string): string {
   return value.trim().replace(/\s+/g, " ");
+}
+
+function createRouteCardAccessibilityLabel(
+  phrases: Array<string | null>,
+): string {
+  const normalizedPhrases = phrases
+    .map((phrase) => phrase?.trim().replace(/\s+/g, " ") || "")
+    .filter(Boolean);
+
+  return normalizedPhrases
+    .map((phrase, index) => {
+      const isLastPhrase = index === normalizedPhrases.length - 1;
+
+      if (isLastPhrase || /[.!?…]$/.test(phrase)) {
+        return phrase;
+      }
+
+      return `${phrase}.`;
+    })
+    .join(" ");
 }
 
 function createCompactRouteCardLabel(label: string, maxLength: number): string {

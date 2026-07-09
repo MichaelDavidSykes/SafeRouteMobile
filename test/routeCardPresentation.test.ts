@@ -94,6 +94,30 @@ describe("route card presentation", () => {
     );
   });
 
+  it("keeps route card accessibility sentences calm when metadata includes punctuation", () => {
+    const presentation = createRouteCardPresentation(
+      {
+        ...baseRoute,
+        name: " Embassy transfer. ",
+        operation: " Night Watch? ",
+        convoyCallsign: " Convoy Eagle One. ",
+        route: {
+          ...baseRoute.route,
+          riskLabel: "High risk.",
+        },
+        updatedAtLabel: "Updated today.",
+      },
+      false,
+    );
+
+    assert.equal(
+      presentation.accessibilityLabel,
+      "Embassy transfer. Ready route. Night Watch?, Convoy Eagle One. From Hotel to Embassy. 18 min ETA, 8.0 km distance, High risk. Updated today.",
+    );
+    assert.doesNotMatch(presentation.accessibilityLabel, /\.\./);
+    assert.doesNotMatch(presentation.accessibilityLabel, /\?\./);
+  });
+
   it("creates stable route card test identifiers for runtime smoke flows", () => {
     assert.equal(
       createRouteCardTestID(" SR/City Airport Alpha "),

@@ -1,9 +1,11 @@
 import { LUNARCHAIN_API_BASE } from '../../config/env';
 import {
+  ApiAuthorizationError,
   ApiRequestError,
   ApiSessionExpiredError,
   createNetworkRequestError,
   fetchWithTimeout,
+  getApiAuthorizationMessage,
   getApiErrorMessage,
   getApiSessionExpiredMessage,
   type SafeRouteRequestOptions
@@ -64,8 +66,11 @@ export async function fetchAreaRiskViewport(
   }
 
   const body = await parseJsonResponse(response);
-  if (response.status === 401 || response.status === 403) {
+  if (response.status === 401) {
     throw new ApiSessionExpiredError(getApiSessionExpiredMessage(body));
+  }
+  if (response.status === 403) {
+    throw new ApiAuthorizationError(getApiAuthorizationMessage(body));
   }
   if (!response.ok) {
     throw new ApiRequestError(

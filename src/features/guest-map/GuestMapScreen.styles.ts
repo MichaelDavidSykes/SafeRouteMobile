@@ -24,7 +24,7 @@ export const guestMapStyles = StyleSheet.create({
     marginTop: Platform.OS === 'android' ? spacing.lg : spacing.sm,
     flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'flex-end',
+    justifyContent: 'space-between',
     gap: spacing.sm
   },
   signInButton: {
@@ -56,6 +56,22 @@ export const guestMapStyles = StyleSheet.create({
   },
   signInButtonTextAuthenticated: {
     color: colors.appleBlue
+  },
+  riskLoadStatus: {
+    minHeight: controlSizes.secondary,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.xs,
+    paddingHorizontal: spacing.md,
+    borderWidth: 0.5,
+    borderColor: colors.glassBorder,
+    borderRadius: radius.pill,
+    backgroundColor: colors.surfaceGlass
+  },
+  riskLoadStatusText: {
+    color: colors.inkSoft,
+    fontSize: typeScale.xs,
+    fontWeight: '700'
   },
   sheet: {
     marginHorizontal: spacing.md,
@@ -169,6 +185,66 @@ export const guestMapStyles = StyleSheet.create({
     fontSize: typeScale.xs,
     fontWeight: '600',
     lineHeight: 17
+  },
+  guestRiskDetail: {
+    position: 'absolute',
+    right: spacing.md,
+    bottom: 286,
+    left: spacing.md,
+    padding: spacing.md,
+    borderWidth: 0.5,
+    borderColor: colors.glassBorder,
+    borderRadius: radius.xl,
+    backgroundColor: colors.surfaceTranslucent
+  },
+  guestRiskDetailHeader: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    justifyContent: 'space-between',
+    gap: spacing.md
+  },
+  guestRiskDetailCopy: {
+    flex: 1,
+    minWidth: 0
+  },
+  guestRiskEyebrow: {
+    color: colors.muted,
+    fontSize: typeScale.xs,
+    fontWeight: '800',
+    textTransform: 'uppercase'
+  },
+  guestRiskTitle: {
+    marginTop: 2,
+    color: colors.ink,
+    fontSize: typeScale.md,
+    fontWeight: '800'
+  },
+  guestRiskDismiss: {
+    minHeight: controlSizes.secondary,
+    minWidth: controlSizes.secondary,
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingHorizontal: spacing.sm,
+    borderRadius: radius.pill,
+    backgroundColor: colors.appleBlueSoft
+  },
+  guestRiskDismissText: {
+    color: colors.appleBlue,
+    fontSize: typeScale.xs,
+    fontWeight: '800'
+  },
+  guestRiskMeta: {
+    marginTop: spacing.sm,
+    color: colors.inkSoft,
+    fontSize: typeScale.xs,
+    fontWeight: '700'
+  },
+  guestRiskBody: {
+    marginTop: spacing.xs,
+    color: colors.muted,
+    fontSize: typeScale.sm,
+    fontWeight: '500',
+    lineHeight: 19
   },
   primaryButton: {
     minHeight: controlSizes.primary,

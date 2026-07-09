@@ -12,11 +12,17 @@ import {
 import MapView, { Marker, Polyline, type LatLng, type Region } from 'react-native-maps';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
-import { SAFEROUTE_PREVIEW_MODE_ENABLED } from '../../config/env';
+import { LUNARCHAIN_API_BASE, SAFEROUTE_PREVIEW_MODE_ENABLED } from '../../config/env';
 import { colors } from '../../theme';
 import { uiTestIds } from '../../testing/uiTestIds';
 import type { SavedSafeRoutePlan } from '../live-map/liveMapTypes';
+import type { RiskZone } from '../live-map/liveMapTypes';
+import { RiskOverlay } from '../live-map/LiveMapMarkers';
+import { useViewportRiskAreas } from '../live-map/useViewportRiskAreas';
+import { deriveRiskZoneAvoidRectangles } from '../live-map/areaRiskApiCore';
 import { useLiveLocation } from '../live-map/useLiveLocation';
+import { isPreviewAccessToken } from '../auth/previewSession';
+import { fetchSavedRoutes } from '../routes/routeApi';
 import {
   GUEST_MAP_REGION,
   GUEST_ROUTE_LABEL_MAX_LENGTH,
@@ -33,10 +39,10 @@ import {
   type GuestFullAccessFeature
 } from './guestRoutePlanner';
 import {
-  fetchGuestRoadRoutePreview,
   type GuestRoadRoutePreview,
   type GuestRoadRoutePreviewOptions
 } from './guestRoadRouteProvider';
+import { fetchSafeRouteRoadRoutePreview } from './safeRouteRoadRouteProvider';
 import {
   parseCoordinateSearch,
   searchGuestLocations,
@@ -53,6 +59,7 @@ type GuestRoadRoutePreviewFetcher = (
 ) => Promise<GuestRoadRoutePreview | null>;
 
 interface GuestMapScreenProps {
+  accessToken?: string | null;
   authenticated: boolean;
   onOpenFullAccessFeature: (feature: GuestFullAccessFeature) => void;
   onOpenRoutePreview?: (routePlan: SavedSafeRoutePlan) => void;
@@ -61,10 +68,11 @@ interface GuestMapScreenProps {
 }
 
 export function GuestMapScreen({
+  accessToken,
   authenticated,
   onOpenFullAccessFeature,
   onOpenRoutePreview,
-  roadRoutePreviewFetcher = fetchGuestRoadRoutePreview,
+  roadRoutePreviewFetcher,
   onSignIn
 }: GuestMapScreenProps) {
   const mapRef = useRef<MapView | null>(null);
@@ -83,6 +91,8 @@ export function GuestMapScreen({
   const [locationSearchMessage, setLocationSearchMessage] = useState('');
   const [mapRegion, setMapRegion] = useState<Region>(GUEST_MAP_REGION);
   const [routeMessage, setRouteMessage] = useState('');
+  const [routingClientId, setRoutingClientId] = useState<string | null>(null);
+  const [selectedRiskZone, setSelectedRiskZone] = useState<RiskZone | null>(null);
   const [routePlan, setRoutePlan] = useState<SavedSafeRoutePlan | null>(null);
   const [roadPreviewPending, setRoadPreviewPending] = useState(false);
   const {
@@ -100,6 +110,8 @@ export function GuestMapScreen({
     destination,
     routePlotted
   });
+  const routeActionDisabled = routeAction.disabled || roadPreviewPending;
+  const routeActionLabel = roadPreviewPending ? 'Finding safest route…' : routeAction.label;
   const originInputCopy = createGuestRouteInputCopy({
     field: 'origin',
     routePlotted
@@ -112,6 +124,44 @@ export function GuestMapScreen({
     authenticated,
     routePlotted
   });
+  const viewportRisk = useViewportRiskAreas({
+    accessToken: accessToken && !isPreviewAccessToken(accessToken) ? accessToken : null,
+    clientId: routingClientId,
+    region: mapRegion
+  });
+
+  useEffect(() => {
+    let active = true;
+    if (!authenticated || !accessToken?.trim()) {
+      setRoutingClientId(null);
+      return () => {
+        active = false;
+      };
+    }
+
+    void fetchSavedRoutes(accessToken).then((result) => {
+      if (active) {
+        setRoutingClientId(result.selectedClientId || result.clients[0]?.id || null);
+      }
+    }).catch(() => {
+      if (active) {
+        setRoutingClientId(null);
+      }
+    });
+
+    return () => {
+      active = false;
+    };
+  }, [accessToken, authenticated]);
+
+  useEffect(() => {
+    if (
+      selectedRiskZone &&
+      !viewportRisk.zones.some((zone) => zone.id === selectedRiskZone.id)
+    ) {
+      setSelectedRiskZone(null);
+    }
+  }, [selectedRiskZone, viewportRisk.zones]);
 
   useEffect(() => {
     if (!liveCoordinate || hasCenteredOnLocationRef.current || routePlan) {
@@ -154,6 +204,7 @@ export function GuestMapScreen({
           center: liveCoordinate,
           region: mapRegion
         },
+        serviceBaseUrl: LUNARCHAIN_API_BASE,
         signal: controller.signal
       }).then((results) => {
         if (controller.signal.aborted) {
@@ -220,7 +271,7 @@ export function GuestMapScreen({
   };
 
   const handlePlotRoute = async () => {
-    if (routeAction.disabled) {
+    if (routeActionDisabled) {
       return;
     }
 
@@ -264,9 +315,9 @@ export function GuestMapScreen({
       origin,
       originCoordinate: resolvedOriginCoordinate,
       destination: resolvedDestination.displayName,
-      riskZones: []
+      riskZones: viewportRisk.zones
     });
-    setRoutePlan(localRoutePlan);
+    setRoutePlan(SAFEROUTE_PREVIEW_MODE_ENABLED ? localRoutePlan : null);
     upgradeGuestRouteWithRoadPreview(localRoutePlan);
   };
 
@@ -288,6 +339,7 @@ export function GuestMapScreen({
     const destinationCoordinateSnapshot = localRoutePlan.checkpoints.at(-1)?.coordinate;
     const riskZonesSnapshot = localRoutePlan.riskZones;
     const authenticatedSnapshot = authenticated;
+    let acceptedRoadPreview = false;
 
     const openPendingPreview = (nextRoutePlan: SavedSafeRoutePlan) => {
       if (!pendingOpenPreviewRef.current) {
@@ -298,7 +350,23 @@ export function GuestMapScreen({
       onOpenRoutePreview?.(nextRoutePlan);
     };
 
-    void roadRoutePreviewFetcher({
+    const routePreviewFetcher = roadRoutePreviewFetcher || ((options: GuestRoadRoutePreviewOptions) =>
+      fetchSafeRouteRoadRoutePreview({
+        ...options,
+        accessToken,
+        clientId: routingClientId
+      }));
+
+    const avoidRectangles = deriveRiskZoneAvoidRectangles(riskZonesSnapshot).map((rectangle) => ({
+      label: rectangle.label,
+      maxLatitude: rectangle.max_lat,
+      maxLongitude: rectangle.max_lon,
+      minLatitude: rectangle.min_lat,
+      minLongitude: rectangle.min_lon
+    }));
+
+    void routePreviewFetcher({
+      avoidRectangles,
       signal: controller.signal,
       stops,
       timeoutMs: GUEST_ROUTE_PROVIDER_UI_TIMEOUT_MS
@@ -325,25 +393,34 @@ export function GuestMapScreen({
         });
 
         if (roadRoutePlan) {
+          acceptedRoadPreview = true;
           setRoutePlan(roadRoutePlan);
           openPendingPreview(roadRoutePlan);
         }
       })
       .catch(() => {
-        // The local route is already visible. Keep the map-first experience calm
-        // if the road preview provider times out, aborts, or fails offline.
+        // The finalizer keeps preview-mode fixtures usable while production fails
+        // closed instead of presenting straight-line geometry as a drivable route.
       })
       .finally(() => {
         if (roadRouteRequestIdRef.current === requestId) {
           activeRoadRouteRequestRef.current = null;
           setRoadPreviewPending(false);
-          openPendingPreview(localRoutePlan);
+          if (!acceptedRoadPreview) {
+            if (SAFEROUTE_PREVIEW_MODE_ENABLED) {
+              setRoutePlan(localRoutePlan);
+              openPendingPreview(localRoutePlan);
+            } else {
+              pendingOpenPreviewRef.current = false;
+              setRouteMessage('A road-snapped safe route is unavailable. Retry in a moment.');
+            }
+          }
         }
       });
   };
 
   const handleOpenPreview = () => {
-    if (routeAction.disabled) {
+    if (routeActionDisabled) {
       return;
     }
 
@@ -415,6 +492,14 @@ export function GuestMapScreen({
         userInterfaceStyle="light"
         onRegionChangeComplete={setMapRegion}
       >
+        {viewportRisk.zones.map((zone) => (
+          <RiskOverlay
+            key={zone.id}
+            selected={selectedRiskZone?.id === zone.id}
+            zone={zone}
+            onPress={setSelectedRiskZone}
+          />
+        ))}
         {routePlan ? (
           <>
             <Polyline
@@ -470,6 +555,24 @@ export function GuestMapScreen({
       >
       <SafeAreaView pointerEvents="box-none" style={styles.overlay}>
         <View style={styles.topBar}>
+          {viewportRisk.loading || viewportRisk.errorMessage ? (
+            <Pressable
+              accessibilityLabel={viewportRisk.loading
+                ? 'Risk areas are loading'
+                : 'Retry loading risk areas'}
+              accessibilityRole={viewportRisk.loading ? 'progressbar' : 'button'}
+              disabled={viewportRisk.loading}
+              style={styles.riskLoadStatus}
+              onPress={viewportRisk.retry}
+            >
+              {viewportRisk.loading ? (
+                <ActivityIndicator color={colors.appleBlue} size="small" />
+              ) : null}
+              <Text numberOfLines={1} style={styles.riskLoadStatusText}>
+                {viewportRisk.loading ? 'Loading risks…' : 'Retry risks'}
+              </Text>
+            </Pressable>
+          ) : <View />}
           <Pressable
             accessibilityRole="button"
             accessibilityLabel={mapHomeCopy.primaryActionAccessibilityLabel}
@@ -492,6 +595,10 @@ export function GuestMapScreen({
             </Text>
           </Pressable>
         </View>
+
+        {selectedRiskZone ? (
+          <GuestRiskDetail zone={selectedRiskZone} onDismiss={() => setSelectedRiskZone(null)} />
+        ) : null}
 
         <View pointerEvents="box-none" style={styles.sheet}>
           <View style={styles.sheetHeaderRow}>
@@ -548,17 +655,17 @@ export function GuestMapScreen({
             accessibilityHint={routeAction.accessibilityHint}
             accessibilityLabel={routeAction.accessibilityLabel}
             accessibilityRole="button"
-            accessibilityState={{ disabled: routeAction.disabled }}
-            disabled={routeAction.disabled}
+            accessibilityState={{ disabled: routeActionDisabled }}
+            disabled={routeActionDisabled}
             testID={uiTestIds.guestMapPlotAction}
             style={({ pressed }) => [
               styles.primaryButton,
-              routeAction.disabled ? styles.primaryButtonDisabled : null,
-              pressed && !routeAction.disabled ? styles.primaryButtonPressed : null
+              routeActionDisabled ? styles.primaryButtonDisabled : null,
+              pressed && !routeActionDisabled ? styles.primaryButtonPressed : null
             ]}
             onPress={routePlan ? handleOpenPreview : () => void handlePlotRoute()}
           >
-            <Text numberOfLines={1} style={styles.primaryButtonText}>{routeAction.label}</Text>
+            <Text numberOfLines={1} style={styles.primaryButtonText}>{routeActionLabel}</Text>
           </Pressable>
 
           {gateFeatures.length ? (
@@ -697,6 +804,42 @@ function LocationSearchResults({
   );
 }
 
+function GuestRiskDetail({
+  onDismiss,
+  zone
+}: {
+  onDismiss: () => void;
+  zone: RiskZone;
+}) {
+  return (
+    <View
+      accessible
+      accessibilityLabel={`${zone.title}. ${zone.severity} risk. ${zone.description}`}
+      style={styles.guestRiskDetail}
+      testID={uiTestIds.liveMapRiskDetail}
+    >
+      <View style={styles.guestRiskDetailHeader}>
+        <View style={styles.guestRiskDetailCopy}>
+          <Text style={styles.guestRiskEyebrow}>Risk area</Text>
+          <Text numberOfLines={1} style={styles.guestRiskTitle}>{zone.title}</Text>
+        </View>
+        <Pressable
+          accessibilityLabel="Close risk details"
+          accessibilityRole="button"
+          style={styles.guestRiskDismiss}
+          onPress={onDismiss}
+        >
+          <Text style={styles.guestRiskDismissText}>Done</Text>
+        </Pressable>
+      </View>
+      <Text numberOfLines={1} style={styles.guestRiskMeta}>
+        {zone.severity.charAt(0).toUpperCase() + zone.severity.slice(1)} · {zone.category}
+      </Text>
+      <Text numberOfLines={3} style={styles.guestRiskBody}>{zone.description}</Text>
+    </View>
+  );
+}
+
 async function resolveTypedLocation(
   query: string,
   region: Region,
@@ -706,7 +849,8 @@ async function resolveTypedLocation(
     bias: {
       center: liveCoordinate,
       region
-    }
+    },
+    serviceBaseUrl: LUNARCHAIN_API_BASE
   });
   return results[0] || null;
 }

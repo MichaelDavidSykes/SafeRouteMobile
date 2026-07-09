@@ -306,7 +306,9 @@ describe("rounded visual language", () => {
     assert.doesNotMatch(guestMapSource, /styles\.topTitle/);
     assert.doesNotMatch(guestMapStylesSource, /\bbrandRow:/);
     assert.doesNotMatch(topBarBlock, /borderWidth|backgroundColor|shadow\.panel/);
-    assert.match(topBarBlock, /justifyContent:\s*["']flex-end["']/);
+    assert.match(topBarBlock, /justifyContent:\s*["']space-between["']/);
+    assert.match(guestMapSource, /Loading risks…/);
+    assert.match(guestMapStylesSource, /riskLoadStatus:[\s\S]*borderRadius:\s*radius\.pill/);
     assert.match(signInButtonBlock, /backgroundColor:\s*colors\.surfaceGlass/);
     assert.match(signInButtonBlock, /borderRadius:\s*radius\.pill/);
     assert.match(signInButtonBlock, /shadowOpacity:\s*0/);
@@ -394,8 +396,8 @@ describe("rounded visual language", () => {
       "utf8",
     );
 
-    assert.match(guestMapSource, /fetchGuestRoadRoutePreview/);
-    assert.match(guestMapSource, /roadRoutePreviewFetcher = fetchGuestRoadRoutePreview/);
+    assert.match(guestMapSource, /fetchSafeRouteRoadRoutePreview/);
+    assert.match(guestMapSource, /roadRoutePreviewFetcher \|\|/);
     assert.match(guestMapSource, /setRoutePlan\(localRoutePlan\)/);
     assert.match(guestMapSource, /upgradeGuestRouteWithRoadPreview\(localRoutePlan\)/);
     assert.match(guestMapSource, /new AbortController\(\)/);

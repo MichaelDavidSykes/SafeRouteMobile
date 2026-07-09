@@ -101,6 +101,47 @@ describe('guest location search', () => {
     });
   });
 
+  it('uses the LunarChain mobile search proxy and normalizes its envelope', async () => {
+    const urls: string[] = [];
+    const results = await searchGuestLocations('Cape Town Airport', {
+      serviceBaseUrl: 'https://api.lunarchain.net/api/v1/',
+      bias: {
+        center: { latitude: -33.9249, longitude: 18.4241 },
+        region: {
+          latitude: -33.9249,
+          longitude: 18.4241,
+          latitudeDelta: 0.2,
+          longitudeDelta: 0.3
+        }
+      },
+      request: async (url) => {
+        urls.push(String(url));
+        return {
+          ok: true,
+          json: async () => ({
+            data: {
+              items: [{
+                id: 'tomtom-airport',
+                label: 'Cape Town International Airport',
+                displayName: 'Cape Town International Airport, Cape Town',
+                lat: -33.9696,
+                lon: 18.5972,
+                category: 'POI'
+              }]
+            }
+          })
+        } as Response;
+      }
+    });
+
+    const url = new URL(urls[0]);
+    assert.equal(url.pathname, '/api/v1/mobile/safe-route/locations/search');
+    assert.equal(url.searchParams.get('lat'), '-33.9249');
+    assert.equal(url.searchParams.get('bbox'), '-34.0249,18.2741,-33.8249,18.5741');
+    assert.equal(results[0]?.id, 'tomtom-airport');
+    assert.equal(results[0]?.category, 'POI');
+  });
+
   it('reverse geocodes valid dropped pins and fails quietly', async () => {
     const result = await reverseGeocodeGuestLocation(
       { latitude: -33.9249, longitude: 18.4241 },

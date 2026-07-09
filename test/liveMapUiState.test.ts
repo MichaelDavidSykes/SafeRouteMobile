@@ -236,6 +236,25 @@ describe('live map UI state helpers', () => {
     );
   });
 
+  it('keeps live route header accessibility sentences calm when labels include punctuation', () => {
+    assert.equal(
+      createRouteTitleAccessibilityLabel({
+        convoyCallsign: '  Convoy   Eagle One. ',
+        name: ' Embassy transfer. ',
+        operation: ' Night Watch? '
+      }),
+      'Route Embassy transfer. Operation Night Watch? Convoy Eagle One.'
+    );
+    assert.equal(
+      createRouteTitleAccessibilityLabel({
+        convoyCallsign: '  Eagle   One! ',
+        name: '  ',
+        operation: '  '
+      }),
+      'Route Saved route. Convoy Eagle One!'
+    );
+  });
+
   it('describes text-led map controls for VoiceOver', () => {
     assert.deepEqual(mapControlAccessibility('center', { hasLiveLocation: false }), {
       label: 'Center map on route start',

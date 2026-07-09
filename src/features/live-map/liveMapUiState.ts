@@ -258,19 +258,25 @@ export function createRouteTitleAccessibilityLabel({
   const operationLabel = operation.trim().replace(/\s+/g, ' ');
   const convoyLabel = convoyCallsign.trim().replace(/\s+/g, ' ');
   const details = [
-    operationLabel ? `Operation ${operationLabel}.` : null,
+    operationLabel ? createLiveMapAccessibilitySentence(`Operation ${operationLabel}`) : null,
     convoyLabel && convoyLabel !== operationLabel
-      ? `${createConvoyAccessibilityLabel(convoyLabel)}.`
+      ? createLiveMapAccessibilitySentence(createConvoyAccessibilityLabel(convoyLabel))
       : null
   ].filter(Boolean);
 
-  return [`Route ${routeName}.`, ...details].join(' ');
+  return [createLiveMapAccessibilitySentence(`Route ${routeName}`), ...details].join(' ');
 }
 
 function createConvoyAccessibilityLabel(convoyLabel: string): string {
   return /^convoy\b/i.test(convoyLabel.trim())
     ? convoyLabel
     : `Convoy ${convoyLabel}`;
+}
+
+function createLiveMapAccessibilitySentence(label: string): string {
+  const normalizedLabel = label.trim().replace(/\s+/g, ' ');
+
+  return `${normalizedLabel}${/[.!?]$/.test(normalizedLabel) ? '' : '.'}`;
 }
 
 function normalizeRouteEndpointLabel(value: string, fallback: string): string {

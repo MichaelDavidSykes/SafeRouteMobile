@@ -1,5 +1,6 @@
 export const LUNARCHAIN_NETWORK_ERROR_MESSAGE = 'Unable to reach LunarChain. Check your connection and retry.';
 export const LUNARCHAIN_SESSION_EXPIRED_MESSAGE = 'Your LunarChain session expired. Sign in again.';
+export const LUNARCHAIN_AUTHORIZATION_ERROR_MESSAGE = 'You do not have permission to perform this action.';
 export const LUNARCHAIN_REQUEST_TIMEOUT_MS = 15000;
 
 export type SafeRouteRequestOptions = RequestInit & {
@@ -23,8 +24,31 @@ export class ApiRequestError extends Error {
   }
 }
 
+export class ApiAuthorizationError extends ApiRequestError {
+  constructor(message = LUNARCHAIN_AUTHORIZATION_ERROR_MESSAGE) {
+    super(message, 403);
+    this.name = 'ApiAuthorizationError';
+  }
+}
+
 export function createNetworkRequestError(): ApiRequestError {
   return new ApiRequestError(LUNARCHAIN_NETWORK_ERROR_MESSAGE, 0);
+}
+
+export function createApiResponseError(
+  statusCode: number,
+  responseBody: unknown,
+  fallback = 'Unable to reach LunarChain.'
+): ApiSessionExpiredError | ApiRequestError {
+  if (statusCode === 401) {
+    return new ApiSessionExpiredError(getApiSessionExpiredMessage(responseBody));
+  }
+
+  if (statusCode === 403) {
+    return new ApiAuthorizationError(getApiAuthorizationMessage(responseBody));
+  }
+
+  return new ApiRequestError(getApiErrorMessage(responseBody, fallback), statusCode);
 }
 
 export async function fetchWithTimeout(
@@ -104,6 +128,23 @@ export function getApiErrorMessage(responseBody: unknown, fallback: string): str
 export function getApiSessionExpiredMessage(
   responseBody: unknown,
   fallback = LUNARCHAIN_SESSION_EXPIRED_MESSAGE
+): string {
+  const message = getApiErrorMessage(responseBody, fallback).trim();
+
+  if (
+    !message ||
+    isGenericAuthFailureMessage(message) ||
+    isUnsafeSessionFailureMessage(message)
+  ) {
+    return fallback;
+  }
+
+  return message;
+}
+
+export function getApiAuthorizationMessage(
+  responseBody: unknown,
+  fallback = LUNARCHAIN_AUTHORIZATION_ERROR_MESSAGE
 ): string {
   const message = getApiErrorMessage(responseBody, fallback).trim();
 

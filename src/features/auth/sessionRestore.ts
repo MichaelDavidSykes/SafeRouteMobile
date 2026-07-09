@@ -1,6 +1,6 @@
 import { ApiSessionExpiredError } from '../api/apiClientCore';
 import { isUnsafeDiagnosticMessage } from '../api/userFacingErrors';
-import { getJwtExpirySeconds, isJwtExpired } from './jwt';
+import { getOfflineAccessJwtClaims, isJwtExpired } from './jwt';
 import type { AuthenticatedUser, AuthSession } from './authTypes';
 
 export type SessionRestoreResult =
@@ -58,9 +58,10 @@ export async function restoreSavedSession(
     };
   }
 
-  const expirySeconds = getJwtExpirySeconds(accessToken);
+  const nowSeconds = Date.now() / 1000;
+  const offlineAccessClaims = getOfflineAccessJwtClaims(accessToken, nowSeconds);
 
-  if (isJwtExpired(accessToken)) {
+  if (offlineAccessClaims && isJwtExpired(accessToken, nowSeconds)) {
     return {
       status: 'expired',
       message: DEFAULT_EXPIRED_MESSAGE
@@ -86,7 +87,7 @@ export async function restoreSavedSession(
       };
     }
 
-    if (expirySeconds === null || !normalizedStoredSession.email) {
+    if (!offlineAccessClaims || !normalizedStoredSession.email) {
       return {
         status: 'expired',
         message: ONLINE_VALIDATION_REQUIRED_MESSAGE

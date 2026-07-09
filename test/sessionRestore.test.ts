@@ -1,18 +1,33 @@
 import assert from 'node:assert/strict';
 import { describe, it } from 'node:test';
 
-import { ApiSessionExpiredError } from '../src/features/api/apiClientCore';
+import {
+  ApiAuthorizationError,
+  ApiSessionExpiredError
+} from '../src/features/api/apiClientCore';
 import { restoreSavedSession } from '../src/features/auth/sessionRestore';
 import type { AuthSession } from '../src/features/auth/authTypes';
 
-function tokenWithPayload(payload: object): string {
+function tokenWithPayload(payload: object, header: object = { alg: 'HS256', typ: 'JWT' }): string {
+  const encodedHeader = Buffer.from(JSON.stringify(header)).toString('base64url');
   const encodedPayload = Buffer.from(JSON.stringify(payload)).toString('base64url');
-  return `header.${encodedPayload}.signature`;
+  return `${encodedHeader}.${encodedPayload}.signature`;
+}
+
+function accessToken(overrides: Record<string, unknown> = {}): string {
+  const nowSeconds = Math.floor(Date.now() / 1000);
+  return tokenWithPayload({
+    sub: 'saved@example.com',
+    typ: 'access',
+    iat: nowSeconds,
+    exp: nowSeconds + 3600,
+    ...overrides
+  });
 }
 
 describe('saved LunarChain session restore', () => {
   const storedSession: AuthSession = {
-    accessToken: tokenWithPayload({ exp: Math.floor(Date.now() / 1000) + 3600 }),
+    accessToken: accessToken(),
     email: 'saved@example.com'
   };
 
@@ -49,7 +64,7 @@ describe('saved LunarChain session restore', () => {
   it('expires stored sessions when the token is already stale', async () => {
     const result = await restoreSavedSession(
       {
-        accessToken: tokenWithPayload({ exp: 100 }),
+        accessToken: accessToken({ iat: 50, exp: 100 }),
         email: 'expired@example.com'
       },
       async () => {
@@ -126,6 +141,16 @@ describe('saved LunarChain session restore', () => {
     assert.match(result.message || '', /saved LunarChain session/i);
   });
 
+  it('does not expire a structurally valid session when online validation returns 403', async () => {
+    const result = await restoreSavedSession(storedSession, async () => {
+      throw new ApiAuthorizationError('This account cannot access that resource.');
+    });
+
+    assert.equal(result.status, 'restored');
+    assert.equal(result.validatedOnline, false);
+    assert.equal(result.session.email, storedSession.email);
+  });
+
   it('requires online validation before restoring opaque saved sessions', async () => {
     const result = await restoreSavedSession(
       {
@@ -139,6 +164,38 @@ describe('saved LunarChain session restore', () => {
 
     assert.equal(result.status, 'expired');
     assert.match(result.message, /online validation/i);
+  });
+
+  it('requires online validation before restoring structurally invalid JWTs offline', async () => {
+    const nowSeconds = Math.floor(Date.now() / 1000);
+    const invalidTokens = [
+      tokenWithPayload({
+        sub: 'saved@example.com',
+        typ: 'access',
+        iat: nowSeconds,
+        exp: nowSeconds + 3600
+      }, { alg: 'none' }),
+      accessToken({ typ: 'invite' }),
+      accessToken({ sub: '' }),
+      accessToken({ iat: undefined }),
+      accessToken({ exp: undefined }),
+      accessToken({ iat: nowSeconds + 3600, exp: nowSeconds + 7200 })
+    ];
+
+    for (const invalidToken of invalidTokens) {
+      const result = await restoreSavedSession(
+        {
+          accessToken: invalidToken,
+          email: 'saved@example.com'
+        },
+        async () => {
+          throw new Error('Network request failed');
+        }
+      );
+
+      assert.equal(result.status, 'expired');
+      assert.match(result.message, /online validation/i);
+    }
   });
 
   it('requires online validation before offline-restoring sessions without an email identity', async () => {

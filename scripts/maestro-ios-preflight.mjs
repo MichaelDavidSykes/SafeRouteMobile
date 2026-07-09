@@ -43,6 +43,70 @@ function normalizePackageVersion(value) {
   return normalized || null;
 }
 
+export function parseNodeVersion(value) {
+  const match = String(value ?? '').trim().match(/^v?(\d+)\.(\d+)\.(\d+)/);
+
+  if (!match) {
+    return null;
+  }
+
+  return {
+    major: Number.parseInt(match[1], 10),
+    minor: Number.parseInt(match[2], 10),
+    patch: Number.parseInt(match[3], 10)
+  };
+}
+
+export function parseMinimumNodeVersion(engineRange) {
+  const match = String(engineRange ?? '').trim().match(/>=\s*v?(\d+)\.(\d+)\.(\d+)/);
+
+  if (!match) {
+    return null;
+  }
+
+  return {
+    major: Number.parseInt(match[1], 10),
+    minor: Number.parseInt(match[2], 10),
+    patch: Number.parseInt(match[3], 10)
+  };
+}
+
+function formatNodeVersion(version) {
+  return `${version.major}.${version.minor}.${version.patch}`;
+}
+
+export function isNodeVersionAtLeast(currentVersion, minimumVersion) {
+  const current = typeof currentVersion === 'string' ? parseNodeVersion(currentVersion) : currentVersion;
+  const minimum = typeof minimumVersion === 'string' ? parseMinimumNodeVersion(minimumVersion) : minimumVersion;
+
+  if (!current || !minimum) {
+    return false;
+  }
+
+  if (current.major !== minimum.major) {
+    return current.major > minimum.major;
+  }
+
+  if (current.minor !== minimum.minor) {
+    return current.minor > minimum.minor;
+  }
+
+  return current.patch >= minimum.patch;
+}
+
+export function formatNodeVersionMismatchMessage({ currentVersion, packageNodeEngine }) {
+  const current = parseNodeVersion(currentVersion);
+  const minimum = parseMinimumNodeVersion(packageNodeEngine);
+  const currentLabel = current ? formatNodeVersion(current) : String(currentVersion || 'unknown');
+  const minimumLabel = minimum ? formatNodeVersion(minimum) : String(packageNodeEngine || 'the declared engine');
+
+  return [
+    `SafeRoute Maestro preflight found Node ${currentLabel}, but this workspace requires Node ${packageNodeEngine}.`,
+    `Run \`nvm use\` from SafeRouteMobile or launch the no-build iOS smoke with Node ${minimumLabel}+ before starting Expo.`,
+    'This prevents Expo/Metro from opening a stale or incompatible SafeRoute bundle during Maestro validation.'
+  ].join('\n');
+}
+
 function readPackageVersion(packageName) {
   const packageJsonPath = join(process.cwd(), 'node_modules', packageName, 'package.json');
   const packageJson = readJsonFile(packageJsonPath);
@@ -211,6 +275,20 @@ export function evaluateMaestroRuntimePreflight(inputs) {
     checks.push(`package.json targets Expo SDK ${expectedExpoSdkMajor} (${inputs.packageExpoVersionRange}).`);
   }
 
+  const minimumNodeVersion = parseMinimumNodeVersion(inputs.packageNodeEngine);
+  const currentNodeVersion = parseNodeVersion(inputs.nodeVersion);
+
+  if (!minimumNodeVersion) {
+    blockers.push('package.json must declare a minimum Node engine before running the no-build iOS smoke.');
+  } else if (!currentNodeVersion || !isNodeVersionAtLeast(currentNodeVersion, minimumNodeVersion)) {
+    blockers.push(formatNodeVersionMismatchMessage({
+      currentVersion: inputs.nodeVersion,
+      packageNodeEngine: inputs.packageNodeEngine
+    }));
+  } else {
+    checks.push(`Node ${formatNodeVersion(currentNodeVersion)} satisfies ${inputs.packageNodeEngine}.`);
+  }
+
   if (!inputs.installedExpoVersion || !inputs.installedReactNativeVersion) {
     blockers.push('Run npm install before the Maestro smoke; required node_modules packages are missing.');
   } else if (
@@ -335,7 +413,9 @@ export async function runPreflight({ stdout = process.stdout, stderr = process.s
     installedExpoVersion: readPackageVersion('expo'),
     installedReactNativeVersion: readPackageVersion('react-native'),
     maestroCliVersion: resolveMaestroVersion(),
+    nodeVersion: process.version,
     packageExpoVersionRange: packageJson?.dependencies?.expo,
+    packageNodeEngine: packageJson?.engines?.node,
     packageReactNativeVersion: packageJson?.dependencies?.['react-native'],
     port,
     portAvailable: portState.available,

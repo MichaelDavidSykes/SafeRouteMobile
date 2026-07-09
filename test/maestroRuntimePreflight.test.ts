@@ -13,11 +13,15 @@ type MaestroPreflightModule = {
   };
   findExpoGoSdkMismatch: (expectedSdkMajor: number | null, expoGoVersions: string[]) => string | null;
   formatExpoGoMismatchMessage: (options: { expectedSdkMajor: number; installedVersion: string }) => string;
+  formatNodeVersionMismatchMessage: (options: { currentVersion: string; packageNodeEngine: string }) => string;
   formatPortInUseMessage: (port: number, processDetails: string) => string;
   formatRuntimeReadinessReport: (result: { blockers: string[]; checks: string[]; ready: boolean }) => string;
+  isNodeVersionAtLeast: (currentVersion: string, minimumVersion: string) => boolean;
   isTcpPortListening: (options: { host?: string; port: number; timeoutMs?: number }) => Promise<boolean>;
   parseExpoGoVersionsFromListApps: (output: string) => string[];
   parseExpoSdkMajor: (versionRange: string) => number | null;
+  parseMinimumNodeVersion: (engineRange: string) => { major: number; minor: number; patch: number } | null;
+  parseNodeVersion: (version: string) => { major: number; minor: number; patch: number } | null;
 };
 
 const readyInputs = {
@@ -26,7 +30,9 @@ const readyInputs = {
   installedExpoVersion: '56.0.15',
   installedReactNativeVersion: '0.85.3',
   maestroCliVersion: '2.6.1',
+  nodeVersion: 'v22.13.1',
   packageExpoVersionRange: '~56.0.15',
+  packageNodeEngine: '>=22.13.0',
   packageReactNativeVersion: '0.85.3',
   port: 8081,
   portAvailable: true,
@@ -69,38 +75,54 @@ describe('Maestro iOS runtime preflight', () => {
     assert.match(source, /SDK 56 dependency install/);
     assert.match(source, /Maestro CLI/);
     assert.match(source, /matching Expo Go SDK family/);
+    assert.match(source, /Node 22\.13\+/);
     assert.match(source, /port `8081`/);
     assert.match(source, /stale SafeRoute bundle/);
   });
 
-  it('passes when SDK, simulator, Expo Go, Maestro, dependencies, and port line up', async () => {
-    const { evaluateMaestroRuntimePreflight, formatRuntimeReadinessReport, parseExpoSdkMajor } =
-      await loadPreflightModule();
+  it('passes when Node, SDK, simulator, Expo Go, Maestro, dependencies, and port line up', async () => {
+    const {
+      evaluateMaestroRuntimePreflight,
+      formatRuntimeReadinessReport,
+      isNodeVersionAtLeast,
+      parseExpoSdkMajor,
+      parseMinimumNodeVersion,
+      parseNodeVersion
+    } = await loadPreflightModule();
     const result = evaluateMaestroRuntimePreflight(readyInputs);
 
     assert.equal(parseExpoSdkMajor('~56.0.15'), 56);
     assert.equal(parseExpoSdkMajor('56.0.4'), 56);
     assert.equal(parseExpoSdkMajor('^55.0.0'), 55);
     assert.equal(parseExpoSdkMajor('latest'), null);
+    assert.deepEqual(parseNodeVersion('v22.13.1'), { major: 22, minor: 13, patch: 1 });
+    assert.deepEqual(parseMinimumNodeVersion('>=22.13.0'), { major: 22, minor: 13, patch: 0 });
+    assert.equal(isNodeVersionAtLeast('v22.13.1', '>=22.13.0'), true);
+    assert.equal(isNodeVersionAtLeast('v22.12.9', '>=22.13.0'), false);
     assert.equal(result.ready, true);
     assert.deepEqual(result.blockers, []);
+    assert.ok(result.checks.some((check) => check.includes('Node 22.13.1 satisfies >=22.13.0')));
     assert.ok(result.checks.some((check) => check.includes('Expo Go 56.0.4 matches SDK 56')));
     assert.match(formatRuntimeReadinessReport(result), /SafeRoute Maestro preflight passed/);
   });
 
-  it('blocks mismatched Expo Go, incomplete dependencies, missing simulator, and a busy port', async () => {
+  it('blocks mismatched Node, Expo Go, incomplete dependencies, missing simulator, and a busy port', async () => {
     const { evaluateMaestroRuntimePreflight, formatRuntimeReadinessReport } = await loadPreflightModule();
     const result = evaluateMaestroRuntimePreflight({
       ...readyInputs,
       bootedSimulatorAvailable: false,
       expoGoVersions: ['54.0.2'],
       installedReactNativeVersion: null,
+      nodeVersion: 'v18.15.0',
       portAvailable: false,
       portProcessDetails: 'node 1234 TCP *:8081 (LISTEN)'
     });
     const report = formatRuntimeReadinessReport(result);
 
     assert.equal(result.ready, false);
+    assert.match(report, /Node 18\.15\.0/);
+    assert.match(report, /requires Node >=22\.13\.0/);
+    assert.match(report, /nvm use/);
     assert.match(report, /required node_modules packages are missing/);
     assert.match(report, /Boot an iOS simulator/);
     assert.match(report, /Expo Go 54\.0\.2/);
@@ -124,6 +146,19 @@ describe('Maestro iOS runtime preflight', () => {
 
     assert.deepEqual(parseExpoGoVersionsFromListApps(output), ['56.0.4']);
     assert.deepEqual(parseExpoGoVersionsFromListApps('"other.app" = { CFBundleVersion = "56.0.4"; };'), []);
+  });
+
+  it('fails fast when the shell Node runtime is too old for Expo SDK 56', async () => {
+    const { formatNodeVersionMismatchMessage } = await loadPreflightModule();
+    const message = formatNodeVersionMismatchMessage({
+      currentVersion: 'v18.15.0',
+      packageNodeEngine: '>=22.13.0'
+    });
+
+    assert.match(message, /Node 18\.15\.0/);
+    assert.match(message, /requires Node >=22\.13\.0/);
+    assert.match(message, /nvm use/);
+    assert.match(message, /Expo\/Metro/);
   });
 
   it('fails fast when a booted Expo Go runtime cannot load the workspace SDK family', async () => {

@@ -13,14 +13,20 @@ export type RouteCardPresentation = {
   statusLabel: string;
   summaryLabel: string;
   testID: string;
+  titleLabel: string;
   updatedLabel: string;
 };
+
+export const ROUTE_CARD_TITLE_MAX_LENGTH = 72;
+export const ROUTE_CARD_ENDPOINT_MAX_LENGTH = 80;
+export const ROUTE_CARD_META_MAX_LENGTH = 64;
 
 export function createRouteCardPresentation(
   route: SavedSafeRoutePlan,
   loading: boolean,
 ): RouteCardPresentation {
   const statusLabel = createRouteStatusLabel(route.status);
+  const routeName = normalizeRouteCardMetaValue(route.name) || "Saved route";
   const metaLabel = createRouteCardMetaLabel(
     route.operation,
     route.convoyCallsign,
@@ -35,7 +41,7 @@ export function createRouteCardPresentation(
       ? "Live map is opening"
       : "Opens live map guidance for this route",
     accessibilityLabel: [
-      route.name,
+      routeName,
       `${statusLabel} route`,
       createRouteCardMetaAccessibilityLabel(
         route.operation,
@@ -53,6 +59,10 @@ export function createRouteCardPresentation(
     statusLabel,
     summaryLabel: createRouteCardSummaryLabel(route),
     testID: createRouteCardTestID(route.id),
+    titleLabel: createCompactRouteCardLabel(
+      routeName,
+      ROUTE_CARD_TITLE_MAX_LENGTH,
+    ),
     updatedLabel: createRouteUpdatedLabel(route.updatedAtLabel),
   };
 }
@@ -81,10 +91,16 @@ export function createRouteCardEndpointLabel(
   const normalizedDestination = normalizeRouteCardMetaValue(destination);
 
   if (normalizedOrigin && normalizedDestination) {
-    return `${normalizedOrigin} → ${normalizedDestination}`;
+    return createCompactRouteCardLabel(
+      `${normalizedOrigin} → ${normalizedDestination}`,
+      ROUTE_CARD_ENDPOINT_MAX_LENGTH,
+    );
   }
 
-  return normalizedOrigin || normalizedDestination || "Route endpoints pending";
+  return createCompactRouteCardLabel(
+    normalizedOrigin || normalizedDestination || "Route endpoints pending",
+    ROUTE_CARD_ENDPOINT_MAX_LENGTH,
+  );
 }
 
 function createRouteCardEndpointAccessibilityLabel(
@@ -153,10 +169,17 @@ export function createRouteCardMetaLabel(
     : normalizedConvoy;
 
   if (operationLabel && convoyLabel && operationLabel !== convoyLabel) {
-    return `${operationLabel} • ${convoyLabel}`;
+    return createCompactRouteCardLabel(
+      `${operationLabel} • ${convoyLabel}`,
+      ROUTE_CARD_META_MAX_LENGTH,
+    );
   }
 
-  return operationLabel || convoyLabel || null;
+  const label = operationLabel || convoyLabel;
+
+  return label
+    ? createCompactRouteCardLabel(label, ROUTE_CARD_META_MAX_LENGTH)
+    : null;
 }
 
 function createRouteCardMetaAccessibilityLabel(
@@ -185,6 +208,14 @@ function createRouteCardMetaAccessibilityLabel(
 
 function normalizeRouteCardMetaValue(value: string): string {
   return value.trim().replace(/\s+/g, " ");
+}
+
+function createCompactRouteCardLabel(label: string, maxLength: number): string {
+  if (label.length <= maxLength) {
+    return label;
+  }
+
+  return `${label.slice(0, Math.max(0, maxLength - 1)).trimEnd()}…`;
 }
 
 function isGenericRouteOperation(operation: string): boolean {

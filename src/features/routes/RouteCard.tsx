@@ -39,7 +39,7 @@ export function RouteCard({ loading, onPress, route }: RouteCardProps) {
       <View style={styles.cardCopy}>
         <View style={styles.routeTitleRow}>
           <Text numberOfLines={2} style={styles.routeName}>
-            {route.name}
+            {presentation.titleLabel}
           </Text>
           {shouldShowRouteStatusPill(route.status) ? (
             <StatusPill status={route.status} />

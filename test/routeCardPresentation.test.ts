@@ -10,6 +10,9 @@ import {
   createRouteCardTestID,
   createRouteUpdatedLabel,
   createRouteStatusLabel,
+  ROUTE_CARD_ENDPOINT_MAX_LENGTH,
+  ROUTE_CARD_META_MAX_LENGTH,
+  ROUTE_CARD_TITLE_MAX_LENGTH,
   shouldShowRouteStatusPill,
 } from "../src/features/routes/routeCardPresentation";
 
@@ -59,6 +62,7 @@ describe("route card presentation", () => {
       statusLabel: "Ready",
       summaryLabel: "18 min · 8.0 km · Low risk",
       testID: "safe-route-card-route-1",
+      titleLabel: "Morning embassy transfer",
       updatedLabel: "Today",
     });
   });
@@ -82,6 +86,7 @@ describe("route card presentation", () => {
         statusLabel: "Live",
         summaryLabel: "18 min · 8.0 km · Low risk",
         testID: "safe-route-card-route-1",
+        titleLabel: "Morning embassy transfer",
         updatedLabel: "Today",
       },
     );
@@ -145,6 +150,7 @@ describe("route card presentation", () => {
         statusLabel: "Ready",
         summaryLabel: "18 min · 8.0 km · Low risk",
         testID: "safe-route-card-route-1",
+        titleLabel: "Morning embassy transfer",
         updatedLabel: "Today",
       },
     );
@@ -184,6 +190,54 @@ describe("route card presentation", () => {
         false,
       ).accessibilityLabel,
       "Morning embassy transfer. Ready route. Diplomatic move, convoy Lead 1. From City depot to Embassy gate. 18 min ETA, 8.0 km distance, Low risk. Updated today",
+    );
+  });
+
+  it("bounds visible saved-route card copy while preserving full VoiceOver context", () => {
+    const routeName =
+      "Morning embassy transfer with multiple contingency waypoints and a very long VIP pickup note";
+    const operation =
+      "Diplomatic relocation corridor with extra staging notes for the field team";
+    const convoyCallsign =
+      "Lead convoy with a secondary protective detail and recovery vehicle";
+    const origin =
+      "Northwest logistics staging area beside the old riverside service entrance";
+    const destination =
+      "Embassy compound south gate reception lane with temporary checkpoint";
+
+    const presentation = createRouteCardPresentation(
+      {
+        ...baseRoute,
+        name: `  ${routeName}  `,
+        operation,
+        convoyCallsign,
+        origin,
+        destination,
+      },
+      false,
+    );
+
+    assert.ok(presentation.titleLabel.endsWith("…"));
+    assert.ok(presentation.endpointLabel.endsWith("…"));
+    assert.ok(presentation.metaLabel?.endsWith("…"));
+    assert.ok(presentation.titleLabel.length <= ROUTE_CARD_TITLE_MAX_LENGTH);
+    assert.ok(presentation.endpointLabel.length <= ROUTE_CARD_ENDPOINT_MAX_LENGTH);
+    assert.ok((presentation.metaLabel?.length || 0) <= ROUTE_CARD_META_MAX_LENGTH);
+    assert.match(presentation.accessibilityLabel, new RegExp(routeName));
+    assert.match(presentation.accessibilityLabel, new RegExp(origin));
+    assert.match(presentation.accessibilityLabel, new RegExp(destination));
+  });
+
+  it("falls back to a calm title when a saved-route name is blank", () => {
+    assert.equal(
+      createRouteCardPresentation({ ...baseRoute, name: "   " }, false)
+        .titleLabel,
+      "Saved route",
+    );
+    assert.match(
+      createRouteCardPresentation({ ...baseRoute, name: "   " }, false)
+        .accessibilityLabel,
+      /^Saved route\./,
     );
   });
 

@@ -701,6 +701,10 @@ describe("rounded visual language", () => {
       join(process.cwd(), "src/features/routes/RouteCard.tsx"),
       "utf8",
     );
+    const routeCardPresentationSource = readFileSync(
+      join(process.cwd(), "src/features/routes/routeCardPresentation.ts"),
+      "utf8",
+    );
     const routeCardStylesSource = readFileSync(
       join(process.cwd(), "src/features/routes/RouteCard.styles.ts"),
       "utf8",
@@ -712,6 +716,8 @@ describe("rounded visual language", () => {
 
     assert.match(routeCardSource, /presentation\.endpointLabel/);
     assert.match(routeCardSource, /presentation\.summaryLabel/);
+    assert.match(routeCardSource, /presentation\.titleLabel/);
+    assert.doesNotMatch(routeCardSource, /\{route\.name\}/);
     assert.match(routeCardSource, /styles\.routeTitleRow/);
     assert.doesNotMatch(routeCardSource, /presentation\.metaLabel/);
     assert.doesNotMatch(routeCardSource, /styles\.routeMeta/);
@@ -744,6 +750,10 @@ describe("rounded visual language", () => {
     assert.match(routeCardStylesSource, /\brouteEndpoint:/);
     assert.match(routeCardStylesSource, /\brouteSummary:/);
     assert.match(routeCardStylesSource, /\bopenButton:[\s\S]*minHeight:\s*controlSizes\.compact/);
+    assert.match(routeCardPresentationSource, /ROUTE_CARD_TITLE_MAX_LENGTH\s*=\s*72/);
+    assert.match(routeCardPresentationSource, /ROUTE_CARD_ENDPOINT_MAX_LENGTH\s*=\s*80/);
+    assert.match(routeCardPresentationSource, /ROUTE_CARD_META_MAX_LENGTH\s*=\s*64/);
+    assert.match(routeCardPresentationSource, /createCompactRouteCardLabel/);
   });
 
   it("keeps the saved-route picker header action-light and map-first", () => {

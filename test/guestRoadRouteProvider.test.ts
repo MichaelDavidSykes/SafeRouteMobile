@@ -19,6 +19,7 @@ describe('guest road route provider', () => {
     assert.match(url, /geometries=geojson/);
     assert.match(url, /overview=full/);
     assert.match(url, /steps=false/);
+    assert.match(url, /alternatives=true/);
   });
 
   it('normalizes provider-snapped geometry and preserves exact requested endpoints for markers', async () => {
@@ -108,6 +109,91 @@ describe('guest road route provider', () => {
         { latitude: 51.5053, longitude: 0.0553 }
       ],
       timeoutMs: 1000
+    });
+
+    assert.equal(preview, null);
+  });
+
+  it('selects a safe provider alternative when the fastest route crosses an avoid area', async () => {
+    const request = async () => ({
+      ok: true,
+      json: async () => ({
+        code: 'Ok',
+        routes: [
+          {
+            distance: 1000,
+            duration: 100,
+            geometry: {
+              coordinates: [
+                [18.4, -33.9],
+                [18.45, -33.95],
+                [18.5, -34]
+              ]
+            }
+          },
+          {
+            distance: 1400,
+            duration: 140,
+            geometry: {
+              coordinates: [
+                [18.4, -33.9],
+                [18.39, -34],
+                [18.5, -34]
+              ]
+            }
+          }
+        ]
+      })
+    }) as Response;
+
+    const preview = await fetchGuestRoadRoutePreview({
+      avoidRectangles: [{
+        minLatitude: -33.97,
+        maxLatitude: -33.93,
+        minLongitude: 18.43,
+        maxLongitude: 18.47
+      }],
+      request,
+      stops: [
+        { latitude: -33.9, longitude: 18.4 },
+        { latitude: -34, longitude: 18.5 }
+      ]
+    });
+
+    assert.ok(preview);
+    assert.equal(preview.durationSeconds, 140);
+    assert.deepEqual(preview.coordinates[1], { latitude: -34, longitude: 18.39 });
+  });
+
+  it('fails closed when every provider alternative crosses a mandatory avoid area', async () => {
+    const preview = await fetchGuestRoadRoutePreview({
+      avoidRectangles: [{
+        minLatitude: -33.97,
+        maxLatitude: -33.93,
+        minLongitude: 18.43,
+        maxLongitude: 18.47
+      }],
+      request: async () => ({
+        ok: true,
+        json: async () => ({
+          code: 'Ok',
+          routes: [{
+            distance: 1000,
+            duration: 100,
+            geometry: {
+              coordinates: [
+                [18.4, -33.9],
+                [18.45, -33.95],
+                [18.5, -34]
+              ]
+            }
+          }]
+        })
+      }) as Response,
+      stops: [
+        { latitude: -33.9, longitude: 18.4 },
+        { latitude: -34, longitude: 18.5 }
+      ]
     });
 
     assert.equal(preview, null);

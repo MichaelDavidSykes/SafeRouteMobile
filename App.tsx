@@ -233,6 +233,7 @@ export default function App() {
           />
         ) : (
           <GuestMapScreen
+            accessToken={session?.accessToken || null}
             authenticated={authenticated}
             onOpenFullAccessFeature={openFullAccessFeature}
             onOpenRoutePreview={openRoutePreview}

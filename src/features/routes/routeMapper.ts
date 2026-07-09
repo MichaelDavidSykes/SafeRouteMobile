@@ -88,6 +88,10 @@ interface MobileCheckpointDto {
   kind?: string;
 }
 
+interface MobileWaypointDto extends MobileCheckpointDto {
+  label?: string;
+}
+
 export interface MobileSafeRouteDto {
   id: string;
   name: string;
@@ -107,6 +111,7 @@ export interface MobileSafeRouteDto {
   route_alerts?: MobileRiskOverlayDto[];
   alerts?: MobileRiskOverlayDto[];
   checkpoints?: MobileCheckpointDto[];
+  waypoints?: MobileWaypointDto[];
 }
 
 export interface MobileRouteListResponse {
@@ -181,8 +186,30 @@ export function mapRouteDtoToSavedPlan(dto: MobileSafeRouteDto): SavedSafeRouteP
       coordinates
     },
     riskZones: mapRiskOverlays(dto),
-    checkpoints: mapCheckpoints(toArray<MobileCheckpointDto>(dto.checkpoints), dto.origin, dto.destination, coordinates)
+    checkpoints: mapCheckpoints(
+      preferredCheckpointDtos(dto.checkpoints, dto.waypoints),
+      dto.origin,
+      dto.destination,
+      coordinates
+    )
   };
+}
+
+function preferredCheckpointDtos(
+  checkpoints: MobileCheckpointDto[] | undefined,
+  waypoints: MobileWaypointDto[] | undefined
+): MobileCheckpointDto[] {
+  const normalizedWaypoints = toArray<MobileWaypointDto>(waypoints);
+  const hasIntermediateWaypoint = normalizedWaypoints.some((waypoint) => {
+    const kind = String(waypoint.kind || '').trim().toLowerCase();
+    return kind === 'checkpoint' || kind === 'stop' || kind === 'waypoint' || kind === 'via';
+  });
+  return hasIntermediateWaypoint
+    ? normalizedWaypoints.map((waypoint) => ({
+        ...waypoint,
+        caption: waypoint.caption || waypoint.label
+      }))
+    : toArray<MobileCheckpointDto>(checkpoints);
 }
 
 export function normalizeMobileClients(clients: unknown): MobileSafeRouteClient[] {

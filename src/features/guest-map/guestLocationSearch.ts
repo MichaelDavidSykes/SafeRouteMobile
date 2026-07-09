@@ -16,6 +16,7 @@ export type GuestLocationSearchBias = {
 export type GuestLocationSearchOptions = {
   bias?: GuestLocationSearchBias;
   request?: typeof fetch;
+  serviceBaseUrl?: string;
   signal?: AbortSignal;
   timeoutMs?: number;
 };
@@ -41,6 +42,7 @@ export async function searchGuestLocations(
   {
     bias,
     request = fetch,
+    serviceBaseUrl,
     signal,
     timeoutMs = LOCATION_SEARCH_TIMEOUT_MS
   }: GuestLocationSearchOptions = {}
@@ -65,7 +67,13 @@ export async function searchGuestLocations(
   const bounds = normalizedBias.region
     ? regionToBounds(normalizedBias.region)
     : null;
-  if (bounds) {
+  if (bounds && serviceBaseUrl) {
+    params.set('bbox', [bounds.south, bounds.west, bounds.north, bounds.east]
+      .map(formatCoordinate)
+      .join(','));
+    params.set('lat', formatCoordinate(normalizedBias.center?.latitude ?? normalizedBias.region?.latitude ?? 0));
+    params.set('lon', formatCoordinate(normalizedBias.center?.longitude ?? normalizedBias.region?.longitude ?? 0));
+  } else if (bounds) {
     params.set(
       'viewbox',
       [bounds.west, bounds.south, bounds.east, bounds.north]
@@ -77,7 +85,10 @@ export async function searchGuestLocations(
 
   const timeoutSignal = createTimeoutSignal(signal, timeoutMs);
   try {
-    const response = await request(`${NOMINATIM_SEARCH_URL}?${params.toString()}`, {
+    const searchUrl = serviceBaseUrl
+      ? `${serviceBaseUrl.replace(/\/+$/, '')}/mobile/safe-route/locations/search?${params.toString()}`
+      : `${NOMINATIM_SEARCH_URL}?${params.toString()}`;
+    const response = await request(searchUrl, {
       headers: {
         Accept: 'application/json',
         'Accept-Language': 'en-GB,en;q=0.8'
@@ -90,7 +101,7 @@ export async function searchGuestLocations(
 
     const payload = await response.json();
     return rankLocationResults(
-      normalizeLocationResults(payload),
+      normalizeLocationResults(unwrapLocationItems(payload)),
       normalizedBias
     );
   } catch {
@@ -104,6 +115,7 @@ export async function reverseGeocodeGuestLocation(
   coordinate: LatLng,
   {
     request = fetch,
+    serviceBaseUrl,
     signal,
     timeoutMs = LOCATION_SEARCH_TIMEOUT_MS
   }: Omit<GuestLocationSearchOptions, 'bias'> = {}
@@ -121,7 +133,10 @@ export async function reverseGeocodeGuestLocation(
   });
   const timeoutSignal = createTimeoutSignal(signal, timeoutMs);
   try {
-    const response = await request(`${NOMINATIM_REVERSE_URL}?${params.toString()}`, {
+    const reverseUrl = serviceBaseUrl
+      ? `${serviceBaseUrl.replace(/\/+$/, '')}/mobile/safe-route/locations/reverse?${params.toString()}`
+      : `${NOMINATIM_REVERSE_URL}?${params.toString()}`;
+    const response = await request(reverseUrl, {
       headers: {
         Accept: 'application/json',
         'Accept-Language': 'en-GB,en;q=0.8'
@@ -132,7 +147,9 @@ export async function reverseGeocodeGuestLocation(
       return null;
     }
 
-    return normalizeLocationResult(await response.json(), 0);
+    const payload = await response.json();
+    const items = unwrapLocationItems(payload);
+    return normalizeLocationResult(Array.isArray(items) ? items[0] : payload, 0);
   } catch {
     return null;
   } finally {
@@ -199,6 +216,17 @@ function normalizeLocationResults(payload: unknown): GuestLocationSearchResult[]
     .slice(0, LOCATION_RESULT_LIMIT);
 }
 
+function unwrapLocationItems(payload: unknown): unknown {
+  if (!payload || typeof payload !== 'object' || Array.isArray(payload)) {
+    return payload;
+  }
+  const envelope = payload as { data?: unknown; items?: unknown };
+  const data = envelope.data && typeof envelope.data === 'object'
+    ? envelope.data as { items?: unknown }
+    : null;
+  return data?.items ?? envelope.items ?? payload;
+}
+
 function normalizeLocationResult(
   payload: unknown,
   index: number
@@ -212,15 +240,16 @@ function normalizeLocationResult(
     latitude: Number(item.lat),
     longitude: Number(item.lon)
   };
-  const displayName = String(item.display_name ?? '').trim().replace(/\s+/g, ' ');
+  const itemRecord = item as NominatimSearchResult & Record<string, unknown>;
+  const displayName = String(item.display_name ?? itemRecord.displayName ?? '').trim().replace(/\s+/g, ' ');
   if (!displayName || !isValidCoordinate(coordinate)) {
     return null;
   }
 
-  const idParts = [item.place_id, item.osm_type, item.osm_id]
+  const idParts = [itemRecord.id, item.place_id, item.osm_type, item.osm_id]
     .map((value) => String(value ?? '').trim())
     .filter(Boolean);
-  const categoryParts = [item.class, item.type]
+  const categoryParts = [itemRecord.category, item.class, item.type]
     .map((value) => String(value ?? '').trim())
     .filter(Boolean);
   const label = displayName.split(',')[0]?.trim() || displayName;

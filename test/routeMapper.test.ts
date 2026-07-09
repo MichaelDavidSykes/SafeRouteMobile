@@ -99,6 +99,33 @@ describe('SafeRoute mobile DTO mapper', () => {
     assert.equal(plan.checkpoints[2].kind, 'destination');
   });
 
+  it('prefers detailed raw waypoints when the backend checkpoint summary contains only endpoints', () => {
+    const plan = mapRouteDtoToSavedPlan({
+      id: 'route-detail-waypoints',
+      name: 'Detailed route',
+      route: {
+        coordinates: [
+          { latitude: 51.5, longitude: -0.1 },
+          { latitude: 51.52, longitude: -0.08 },
+          { latitude: 51.54, longitude: -0.06 }
+        ]
+      },
+      checkpoints: [
+        { id: 'a', label: 'A', caption: 'Start', kind: 'origin', coordinate: { latitude: 51.5, longitude: -0.1 } },
+        { id: 'b', label: 'B', caption: 'End', kind: 'destination', coordinate: { latitude: 51.54, longitude: -0.06 } }
+      ],
+      waypoints: [
+        { id: 'a', label: 'Start', kind: 'origin', coordinate: { latitude: 51.5, longitude: -0.1 } },
+        { id: 'stop-1', label: 'Secure stop', kind: 'stop', coordinate: { latitude: 51.52, longitude: -0.08 } },
+        { id: 'b', label: 'End', kind: 'destination', coordinate: { latitude: 51.54, longitude: -0.06 } }
+      ]
+    });
+
+    assert.equal(plan.checkpoints.length, 3);
+    assert.equal(plan.checkpoints[1].kind, 'waypoint');
+    assert.equal(plan.checkpoints[1].caption, 'Secure stop');
+  });
+
   it('preserves provider-snapped route geometry instead of collapsing to endpoint waypoints', () => {
     const snappedGeometry = [
       { latitude: 51.5, longitude: -0.1 },

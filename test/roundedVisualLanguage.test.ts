@@ -857,6 +857,13 @@ describe("rounded visual language", () => {
     assert.match(routeCardStylesSource, /\brouteEndpoint:/);
     assert.match(routeCardStylesSource, /\brouteSummary:/);
     assert.match(routeCardStylesSource, /\bopenButton:[\s\S]*minHeight:\s*controlSizes\.compact/);
+    assert.match(routeCardSource, /<Text numberOfLines=\{1\} style=\{styles\.openButtonText\}>/);
+    assert.match(
+      routeCardSource,
+      /<Text\s+numberOfLines=\{1\}\s+style=\{\[styles\.statusText, statusTextStyle\]\}/,
+    );
+    assert.match(routeCardStylesSource, /openButtonText:[\s\S]*maxWidth:\s*72/);
+    assert.match(routeCardStylesSource, /statusText:[\s\S]*maxWidth:\s*68/);
     assert.match(routeCardPresentationSource, /ROUTE_CARD_TITLE_MAX_LENGTH\s*=\s*72/);
     assert.match(routeCardPresentationSource, /ROUTE_CARD_ENDPOINT_MAX_LENGTH\s*=\s*80/);
     assert.match(routeCardPresentationSource, /ROUTE_CARD_META_MAX_LENGTH\s*=\s*64/);
@@ -973,12 +980,12 @@ describe("rounded visual language", () => {
     assert.match(routeSheetSource, /pressed \? styles\.demoButtonPressed : null/);
     assert.match(
       routeSheetSource,
-      /<Text[\s\S]*numberOfLines=\{1\}[\s\S]*styles\.startButtonText/,
+      /<Text\s+numberOfLines=\{1\}\s+style=\{\[\s*styles\.startButtonText/,
     );
     assert.match(routeSheetSource, /<Text numberOfLines=\{1\} style=\{styles\.stopButtonText\}>/);
     assert.match(
       routeSheetSource,
-      /<Text[\s\S]*numberOfLines=\{1\}[\s\S]*styles\.demoButtonText/,
+      /<Text\s+numberOfLines=\{1\}\s+style=\{\[\s*styles\.demoButtonText/,
     );
     assert.match(
       routeSheetSource,
@@ -1001,6 +1008,10 @@ describe("rounded visual language", () => {
     assert.match(routeSheetStylesSource, /\bremainingMetricLine:/);
     assert.match(routeSheetStylesSource, /\bsummaryCopyCompactNavigation:\s*\{[\s\S]*justifyContent:\s*"center"/);
     assert.match(routeSheetStylesSource, /\bdemoButtonInline:\s*\{[\s\S]*marginTop:\s*0/);
+    assert.match(routeSheetStylesSource, /startButtonText:[\s\S]*maxWidth:\s*"100%"/);
+    assert.match(routeSheetStylesSource, /startButtonText:[\s\S]*flexShrink:\s*1/);
+    assert.match(routeSheetStylesSource, /demoButtonText:[\s\S]*maxWidth:\s*"100%"/);
+    assert.match(routeSheetStylesSource, /demoButtonText:[\s\S]*flexShrink:\s*1/);
     assert.match(demoButtonBlock, /minHeight:\s*controlSizes\.compact/);
     assert.match(demoButtonBlock, /borderRadius:\s*radius\.pill/);
     assert.match(demoButtonBlock, /backgroundColor:\s*"transparent"/);

@@ -45,8 +45,10 @@ export const styles = StyleSheet.create({
     backgroundColor: colors.infoSoft,
   },
   statusText: {
+    maxWidth: 68,
     fontSize: typeScale.xs,
     fontWeight: "800",
+    textAlign: "center",
   },
   statusTextReady: {
     color: colors.safeText,
@@ -89,8 +91,10 @@ export const styles = StyleSheet.create({
     backgroundColor: colors.appleBlue,
   },
   openButtonText: {
+    maxWidth: 72,
     color: colors.surface,
     fontSize: typeScale.xs,
     fontWeight: "800",
+    textAlign: "center",
   },
 });

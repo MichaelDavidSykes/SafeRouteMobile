@@ -48,7 +48,7 @@ export function RouteCard({ loading, onPress, route }: RouteCardProps) {
             {loading ? (
               <ActivityIndicator color={colors.surface} size="small" />
             ) : null}
-            <Text style={styles.openButtonText}>
+            <Text numberOfLines={1} style={styles.openButtonText}>
               {presentation.actionLabel}
             </Text>
           </View>
@@ -82,7 +82,9 @@ function StatusPill({ status }: { status: SavedRouteStatus }) {
 
   return (
     <View style={[styles.statusPill, statusStyle]}>
-      <Text style={[styles.statusText, statusTextStyle]}>{statusLabel}</Text>
+      <Text numberOfLines={1} style={[styles.statusText, statusTextStyle]}>
+        {statusLabel}
+      </Text>
     </View>
   );
 }

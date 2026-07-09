@@ -135,9 +135,12 @@ export const routeSummaryStyles = StyleSheet.create({
     transform: [{ scale: 0.985 }],
   },
   startButtonText: {
+    maxWidth: "100%",
+    flexShrink: 1,
     color: colors.surface,
     fontSize: typeScale.md,
     fontWeight: "800",
+    textAlign: "center",
   },
   startButtonTextDisabled: {
     color: colors.inkSoft,
@@ -157,9 +160,11 @@ export const routeSummaryStyles = StyleSheet.create({
     minWidth: 78,
   },
   stopButtonText: {
+    maxWidth: "100%",
     color: colors.dangerText,
     fontSize: typeScale.md,
     fontWeight: "800",
+    textAlign: "center",
   },
   demoButton: {
     alignSelf: "center",
@@ -186,9 +191,12 @@ export const routeSummaryStyles = StyleSheet.create({
     backgroundColor: colors.appleBlueSoft,
   },
   demoButtonText: {
+    maxWidth: "100%",
+    flexShrink: 1,
     color: colors.appleBlue,
     fontSize: typeScale.xs,
     fontWeight: "800",
+    textAlign: "center",
   },
   demoButtonTextActive: {
     color: colors.amberText,

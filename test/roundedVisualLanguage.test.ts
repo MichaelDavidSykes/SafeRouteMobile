@@ -960,6 +960,17 @@ describe("rounded visual language", () => {
     assert.doesNotMatch(routeSummarySource, /label:\s*"risk"/);
   });
 
+  it("keeps live risk alert titles presentation-normalized", () => {
+    const riskCardSource = readFileSync(
+      join(process.cwd(), "src/features/live-map/LiveMapRiskCard.tsx"),
+      "utf8",
+    );
+
+    assert.match(riskCardSource, /createLiveRouteRiskAlertPresentation/);
+    assert.match(riskCardSource, /presentation\.zoneTitle/);
+    assert.doesNotMatch(riskCardSource, /\{alert\.zone\.title\}/);
+  });
+
   it("keeps live-map markers geometric instead of decorative-icon heavy", () => {
     const markerSource = readFileSync(
       join(process.cwd(), "src/features/live-map/LiveMapMarkers.tsx"),

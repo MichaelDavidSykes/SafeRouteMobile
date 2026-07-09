@@ -87,6 +87,46 @@ describe("SafeRoute risk-aware route behavior", () => {
     assert.ok(presentation.detailLabel.length > 0);
   });
 
+  it("normalizes sparse risk alert titles before they reach the live overlay", () => {
+    const baseRoutePlan = createGuestRoutePlan({
+      origin: "HQ",
+      destination: "London City Airport",
+    });
+    const routePlan = {
+      ...baseRoutePlan,
+      riskZones: [
+        {
+          ...baseRoutePlan.riskZones[0],
+          title: " \n\t ",
+          category: "   ",
+          description: "   ",
+        },
+      ],
+    };
+    const progress = calculateRouteProgress(
+      routePlan.route.coordinates,
+      routePlan.route.coordinates[0],
+    );
+    const alert = resolveLiveRouteRiskAlert({
+      navigationState: "navigating",
+      progress,
+      routePlan,
+    });
+
+    assert.ok(alert);
+    const alertPresentation = createLiveRouteRiskAlertPresentation(alert);
+    assert.equal(alertPresentation.zoneTitle, "Route risk");
+    assert.equal(alertPresentation.metaLabel, "Medium risk · Route risk");
+    assert.doesNotMatch(alertPresentation.accessibilityLabel, /\.\s+\./);
+
+    const detailPresentation = createRiskZoneDetailPresentation({
+      proximity: alert.proximity,
+      zone: alert.zone,
+    });
+    assert.equal(detailPresentation.title, "Route risk");
+    assert.match(detailPresentation.accessibilityLabel, /^Risk area\. Route risk\./);
+  });
+
   it("keeps the live overlay minimal by showing only active risk unless the user expands all risks", () => {
     const routePlan = createGuestRoutePlan({
       origin: "HQ",

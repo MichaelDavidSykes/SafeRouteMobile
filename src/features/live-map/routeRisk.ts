@@ -52,6 +52,7 @@ export interface LiveRouteRiskAlertPresentation {
   metaLabel: string;
   title: string;
   tone: RiskSeverity;
+  zoneTitle: string;
 }
 
 export interface RiskZoneDetailPresentation {
@@ -298,6 +299,7 @@ export function createLiveRouteRiskAlertPresentation(
 ): LiveRouteRiskAlertPresentation {
   const zone = alert.zone;
   const title = liveRiskAlertTitle(alert.status);
+  const zoneTitle = normalizeRiskTitle(zone.title);
   const detailLabel = liveRiskAlertDetail(alert);
   const metaLabel = [
     severityLabel(zone.severity),
@@ -305,11 +307,12 @@ export function createLiveRouteRiskAlertPresentation(
   ].join(" · ");
 
   return {
-    accessibilityLabel: `${title}. ${zone.title}. ${detailLabel}. ${routeRiskAvoidanceLabel(alert.proximity)}.`,
+    accessibilityLabel: `${title}. ${zoneTitle}. ${detailLabel}. ${routeRiskAvoidanceLabel(alert.proximity)}.`,
     detailLabel,
     metaLabel,
     title,
     tone: zone.severity,
+    zoneTitle,
   };
 }
 
@@ -320,6 +323,7 @@ export function createRiskZoneDetailPresentation({
   proximity: RouteRiskProximity | null;
   zone: RiskZone;
 }): RiskZoneDetailPresentation {
+  const title = normalizeRiskTitle(zone.title);
   const body = normalizeCopy(zone.description) || "SafeRoute risk note";
   const areaLabel = isRouteSegmentRiskZone(zone)
     ? "route segment"
@@ -334,11 +338,11 @@ export function createRiskZoneDetailPresentation({
   const clearanceLabel = routeRiskAvoidanceLabel(proximity);
 
   return {
-    accessibilityLabel: `Risk area. ${zone.title}. ${metaLabel}. ${body}. ${clearanceLabel}.`,
+    accessibilityLabel: `Risk area. ${title}. ${metaLabel}. ${body}. ${clearanceLabel}.`,
     body,
     clearanceLabel,
     metaLabel,
-    title: normalizeCopy(zone.title) || "Route risk",
+    title,
     tone: zone.severity,
   };
 }
@@ -837,6 +841,10 @@ function severityLabel(severity: RiskSeverity): string {
   }
 
   return "Low risk";
+}
+
+function normalizeRiskTitle(value: string): string {
+  return normalizeCopy(value) || "Route risk";
 }
 
 function normalizeCopy(value: string): string {

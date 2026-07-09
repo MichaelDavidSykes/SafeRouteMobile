@@ -55,7 +55,7 @@ export function LiveRouteRiskAlertCard({
       <View style={styles.riskCopy}>
         <Text style={styles.riskEyebrow}>{presentation.title}</Text>
         <Text numberOfLines={1} style={styles.riskTitle}>
-          {alert.zone.title}
+          {presentation.zoneTitle}
         </Text>
         <Text numberOfLines={1} style={styles.riskMeta}>
           {presentation.metaLabel}

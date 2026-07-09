@@ -8,11 +8,9 @@ import {
   DEMO_DRIVE_STEP_INTERVAL_MS,
   OFF_ROUTE_THRESHOLD_METERS,
   buildInterpolatedProgressCoordinates,
-  buildProgressCoordinates,
   calculateRouteProgress,
   clampRouteStep,
   coordinateForInterpolatedStep,
-  coordinateForStep,
   densifyRouteCoordinates,
   formatEta,
   haversineDistanceMeters,
@@ -47,11 +45,6 @@ describe('route traversal progress', () => {
     assert.equal(clampRouteStep(route.coordinates.length, 999), route.coordinates.length - 1);
   });
 
-  it('returns the current convoy coordinate for a route step', () => {
-    assert.deepEqual(coordinateForStep(route.coordinates, 0), route.coordinates[0]);
-    assert.deepEqual(coordinateForStep(route.coordinates, 3), route.coordinates[3]);
-  });
-
   it('interpolates demo-drive positions between sparse route vertices', () => {
     const coordinate = coordinateForInterpolatedStep(route.coordinates, 1.5);
 
@@ -60,14 +53,6 @@ describe('route traversal progress', () => {
     assert.ok(coordinate.latitude < Math.max(route.coordinates[1].latitude, route.coordinates[2].latitude));
     assert.ok(coordinate.longitude > Math.min(route.coordinates[1].longitude, route.coordinates[2].longitude));
     assert.ok(coordinate.longitude < Math.max(route.coordinates[1].longitude, route.coordinates[2].longitude));
-  });
-
-  it('builds the completed route segment up to the convoy position', () => {
-    const progress = buildProgressCoordinates(route.coordinates, 3);
-
-    assert.equal(progress.length, 4);
-    assert.deepEqual(progress[0], route.coordinates[0]);
-    assert.deepEqual(progress[3], route.coordinates[3]);
   });
 
   it('builds a completed demo-drive route segment to the interpolated convoy position', () => {

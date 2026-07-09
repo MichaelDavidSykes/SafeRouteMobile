@@ -58,23 +58,6 @@ export function clampRouteStep(totalPoints: number, requestedStep: number): numb
   return Math.max(0, Math.min(totalPoints - 1, Math.floor(requestedStep)));
 }
 
-export function coordinateForStep(coordinates: LatLng[], requestedStep: number): LatLng | null {
-  if (!coordinates.length) {
-    return null;
-  }
-
-  return coordinates[clampRouteStep(coordinates.length, requestedStep)];
-}
-
-export function buildProgressCoordinates(coordinates: LatLng[], requestedStep: number): LatLng[] {
-  if (!coordinates.length) {
-    return [];
-  }
-
-  const step = clampRouteStep(coordinates.length, requestedStep);
-  return coordinates.slice(0, step + 1);
-}
-
 export function resolveDemoDriveStepIncrement(
   totalPoints: number,
   options: {

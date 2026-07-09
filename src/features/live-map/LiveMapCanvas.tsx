@@ -7,8 +7,8 @@ import type { RiskZone, SavedSafeRoutePlan } from "./liveMapTypes";
 import type { NavigationLifecycle } from "./liveMapUiState";
 import { shouldShowNativeUserLocation } from "./liveMapUiState";
 import { CheckpointMarker, RiskOverlay, VehicleMarker } from "./LiveMapMarkers";
+import { resolveRouteLinePresentation } from "./routeLinePresentation";
 import { uiTestIds } from "../../testing/uiTestIds";
-import { colors } from "../../theme";
 
 interface LiveMapCanvasProps {
   activeNavigationState: NavigationLifecycle;
@@ -44,6 +44,10 @@ export function LiveMapCanvas({
   visibleRiskZones,
 }: LiveMapCanvasProps) {
   const routeCoordinates = routePlan.route.coordinates;
+  const routeLinePresentation = resolveRouteLinePresentation({
+    progressCoordinateCount: progressCoordinates.length,
+    routeCoordinateCount: routeCoordinates.length,
+  });
   const showRouteCheckpoints =
     activeNavigationState !== "navigating" &&
     activeNavigationState !== "off-route";
@@ -95,19 +99,19 @@ export function LiveMapCanvas({
           />
           <Polyline
             coordinates={routeCoordinates}
-            strokeColor={colors.routeRemaining}
-            strokeWidth={7}
+            strokeColor={routeLinePresentation.remainingStrokeColor}
+            strokeWidth={routeLinePresentation.remainingStrokeWidth}
             lineCap="round"
             lineJoin="round"
           />
         </>
       ) : null}
 
-      {progressCoordinates.length > 1 ? (
+      {routeLinePresentation.showCompletedSegment ? (
         <Polyline
           coordinates={progressCoordinates}
-          strokeColor={colors.routePrimary}
-          strokeWidth={7}
+          strokeColor={routeLinePresentation.completedStrokeColor}
+          strokeWidth={routeLinePresentation.completedStrokeWidth}
           lineCap="round"
           lineJoin="round"
         />

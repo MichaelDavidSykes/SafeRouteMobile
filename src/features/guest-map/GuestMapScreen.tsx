@@ -51,10 +51,12 @@ export function GuestMapScreen({
 }: GuestMapScreenProps) {
   const mapRef = useRef<MapView | null>(null);
   const activeRoadRouteRequestRef = useRef<AbortController | null>(null);
+  const pendingOpenPreviewRef = useRef(false);
   const roadRouteRequestIdRef = useRef(0);
   const [origin, setOrigin] = useState('Current location');
   const [destination, setDestination] = useState('');
   const [routePlan, setRoutePlan] = useState<SavedSafeRoutePlan | null>(null);
+  const [roadPreviewPending, setRoadPreviewPending] = useState(false);
   const routePlotted = Boolean(routePlan);
   const mapHomeCopy = createGuestMapHomeCopy(authenticated);
   const showSheetSubtitle = shouldShowGuestMapSubtitle(routePlotted);
@@ -101,8 +103,10 @@ export function GuestMapScreen({
 
   const cancelRoadRouteUpgrade = () => {
     roadRouteRequestIdRef.current += 1;
+    pendingOpenPreviewRef.current = false;
     activeRoadRouteRequestRef.current?.abort();
     activeRoadRouteRequestRef.current = null;
+    setRoadPreviewPending(false);
   };
 
   const handlePlotRoute = () => {
@@ -132,9 +136,19 @@ export function GuestMapScreen({
     roadRouteRequestIdRef.current = requestId;
     const controller = new AbortController();
     activeRoadRouteRequestRef.current = controller;
+    setRoadPreviewPending(true);
     const originSnapshot = origin;
     const destinationSnapshot = destination;
     const authenticatedSnapshot = authenticated;
+
+    const openPendingPreview = (nextRoutePlan: SavedSafeRoutePlan) => {
+      if (!pendingOpenPreviewRef.current) {
+        return;
+      }
+
+      pendingOpenPreviewRef.current = false;
+      onOpenRoutePreview?.(nextRoutePlan);
+    };
 
     void roadRoutePreviewFetcher({
       signal: controller.signal,
@@ -161,6 +175,7 @@ export function GuestMapScreen({
 
         if (roadRoutePlan) {
           setRoutePlan(roadRoutePlan);
+          openPendingPreview(roadRoutePlan);
         }
       })
       .catch(() => {
@@ -170,6 +185,8 @@ export function GuestMapScreen({
       .finally(() => {
         if (roadRouteRequestIdRef.current === requestId) {
           activeRoadRouteRequestRef.current = null;
+          setRoadPreviewPending(false);
+          openPendingPreview(localRoutePlan);
         }
       });
   };
@@ -182,6 +199,11 @@ export function GuestMapScreen({
     Keyboard.dismiss();
     if (!routePlan) {
       handlePlotRoute();
+      return;
+    }
+
+    if (roadPreviewPending) {
+      pendingOpenPreviewRef.current = true;
       return;
     }
 

@@ -923,8 +923,10 @@ describe("rounded visual language", () => {
     assert.match(routeSheetSource, /styles\.demoButtonInline/);
     assert.match(routeSheetSource, /style=\{\(\{ pressed \}\) => \[/);
     assert.match(routeSheetSource, /pressed \? styles\.demoButtonPressed : null/);
-    assert.match(routeSheetSource, /accessibilityLabel=\{headlinePresentation\.accessibilityLabel\}/);
-    assert.match(routeSheetSource, /\{headlinePresentation\.text\}/);
+    assert.match(
+      routeSheetSource,
+      /accessibilityLabel=\{headlinePresentation\.accessibilityLabel\}[\s\S]*numberOfLines=\{1\}[\s\S]*\{headlinePresentation\.text\}/,
+    );
     assert.doesNotMatch(routeSheetSource, /styles\.cardLabel/);
     assert.doesNotMatch(routeSheetSource, /summaryLabel/);
     assert.doesNotMatch(routeSheetSource, /<Metric/);
@@ -958,6 +960,7 @@ describe("rounded visual language", () => {
     assert.doesNotMatch(routeSummarySource, /RouteSummaryMetric/);
     assert.match(routeSummarySource, /Route note:/);
     assert.match(routeSummarySource, /ROUTE_SUMMARY_DISTANCE_FALLBACK/);
+    assert.match(routeSummarySource, /ROUTE_SUMMARY_HEADLINE_MAX_LENGTH/);
     assert.match(routeSummarySource, /label:\s*"Start"/);
     assert.match(routeSummarySource, /label:\s*"Pause"/);
     assert.match(routeSummarySource, /label:\s*"Resume"/);

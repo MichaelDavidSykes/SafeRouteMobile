@@ -131,6 +131,7 @@ export function LiveMapRouteSummarySheet({
         >
           <Text
             accessibilityLabel={headlinePresentation.accessibilityLabel}
+            numberOfLines={1}
             style={[
               styles.etaText,
               compactRouteSummary ? styles.etaTextCompactNavigation : null,

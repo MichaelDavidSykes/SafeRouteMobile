@@ -3,6 +3,7 @@ import type { NavigationLifecycle } from "./liveMapUiState";
 export type RouteSummaryContext = "guest" | "saved";
 
 export const ROUTE_SUMMARY_DISTANCE_FALLBACK = "Distance unavailable";
+export const ROUTE_SUMMARY_HEADLINE_MAX_LENGTH = 24;
 export const ROUTE_SUMMARY_SAFETY_BADGE_MAX_LENGTH = 18;
 
 export type RouteSummaryPrimaryAction = {
@@ -158,7 +159,12 @@ export function createRouteSummaryHeadline({
     accessibilityLabel: normalizedHeadline
       ? `${summaryLabel}. ${normalizedHeadline}.`
       : summaryLabel,
-    text: normalizedHeadline || summaryLabel,
+    text: normalizedHeadline
+      ? createCompactInlineLabel(
+          normalizedHeadline,
+          ROUTE_SUMMARY_HEADLINE_MAX_LENGTH,
+        )
+      : summaryLabel,
   };
 }
 

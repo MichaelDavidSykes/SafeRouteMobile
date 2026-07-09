@@ -3,6 +3,7 @@ import { describe, it } from "node:test";
 
 import {
   ROUTE_SUMMARY_DISTANCE_FALLBACK,
+  ROUTE_SUMMARY_HEADLINE_MAX_LENGTH,
   createRouteSummaryDemoAction,
   createRouteSummaryDetail,
   createRouteSummaryHeadline,
@@ -171,6 +172,23 @@ describe("live route summary presentation", () => {
         text: "Paused",
       },
     );
+  });
+
+  it("bounds long route summary headlines while preserving full VoiceOver context", () => {
+    const hostedHeadline =
+      "Provider ETA delayed by checkpoint holding pattern near the river crossing";
+    const headline = createRouteSummaryHeadline({
+      headline: `  ${hostedHeadline.replace(/ /g, "   ")}  `,
+      routeContext: "saved",
+      state: "loaded",
+    });
+
+    assert.equal(
+      headline.accessibilityLabel,
+      `Saved route. ${hostedHeadline}.`,
+    );
+    assert.ok(headline.text.endsWith("…"));
+    assert.ok(headline.text.length <= ROUTE_SUMMARY_HEADLINE_MAX_LENGTH);
   });
 
   it("keeps route simulation inline only on idle map summaries", () => {

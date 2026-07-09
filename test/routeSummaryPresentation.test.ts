@@ -10,6 +10,7 @@ import {
   createRouteSummaryRemainingMetric,
   createRouteSummarySafetyBadge,
   createRouteSummaryTitle,
+  ROUTE_SUMMARY_SAFETY_BADGE_MAX_LENGTH,
   shouldInlineRouteSummaryDemoAction,
   shouldShowRouteSummarySafetyBadge,
   shouldUseCompactRouteSummary,
@@ -184,6 +185,17 @@ describe("live route summary presentation", () => {
 
     assert.deepEqual(
       createRouteSummarySafetyBadge({
+        routeRiskLabel: "High risk",
+        safeScore: 72,
+      }),
+      {
+        accessibilityLabel: "High risk. SafeRoute score 72.",
+        text: "High risk",
+      },
+    );
+
+    assert.deepEqual(
+      createRouteSummarySafetyBadge({
         routeRiskLabel: " ",
         safeScore: 0,
       }),
@@ -192,6 +204,22 @@ describe("live route summary presentation", () => {
         text: "Risk",
       },
     );
+  });
+
+  it("bounds long safety badge text while keeping full risk context accessible", () => {
+    const riskLabel =
+      "Elevated security posture near the destination checkpoint";
+    const badge = createRouteSummarySafetyBadge({
+      routeRiskLabel: `  ${riskLabel.replace(/ /g, "   ")}  `,
+      safeScore: 81,
+    });
+
+    assert.equal(
+      badge.accessibilityLabel,
+      `${riskLabel} risk. SafeRoute score 81.`,
+    );
+    assert.ok(badge.text.endsWith("…"));
+    assert.ok(badge.text.length <= ROUTE_SUMMARY_SAFETY_BADGE_MAX_LENGTH);
   });
 
   it("keeps saved-route sheet detail inline while risk lives in the badge", () => {

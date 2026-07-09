@@ -951,6 +951,8 @@ describe("rounded visual language", () => {
 
     assert.match(routeSheetSource, /<SafetyBadge/);
     assert.match(routeSheetSource, /badge\.text/);
+    assert.match(routeSummarySource, /ROUTE_SUMMARY_SAFETY_BADGE_MAX_LENGTH/);
+    assert.match(routeSummarySource, /createCompactInlineLabel/);
     assert.doesNotMatch(routeSheetSource, /badge\.label/);
     assert.doesNotMatch(routeSheetSource, /badge\.value/);
     assert.match(routeSheetStylesSource, /\bsafetyBadge:/);

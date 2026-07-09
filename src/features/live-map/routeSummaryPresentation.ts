@@ -2,6 +2,8 @@ import type { NavigationLifecycle } from "./liveMapUiState";
 
 export type RouteSummaryContext = "guest" | "saved";
 
+export const ROUTE_SUMMARY_SAFETY_BADGE_MAX_LENGTH = 18;
+
 export type RouteSummaryPrimaryAction = {
   label: string;
 };
@@ -148,12 +150,15 @@ export function createRouteSummarySafetyBadge({
   routeRiskLabel: string;
   safeScore: number;
 }): RouteSummarySafetyBadge {
-  const riskLabel = routeRiskLabel.trim() || "Risk";
-  const spokenRiskLabel = riskLabel === "Risk" ? "Route risk" : `${riskLabel} risk`;
+  const riskLabel = normalizeInlineCopy(routeRiskLabel) || "Risk";
+  const spokenRiskLabel = createSafetyBadgeSpokenRiskLabel(riskLabel);
 
   return {
     accessibilityLabel: `${spokenRiskLabel}. SafeRoute score ${safeScore}.`,
-    text: riskLabel,
+    text: createCompactInlineLabel(
+      riskLabel,
+      ROUTE_SUMMARY_SAFETY_BADGE_MAX_LENGTH,
+    ),
   };
 }
 
@@ -223,6 +228,26 @@ export function createRouteSummaryDetail({
 
 function normalizeInlineCopy(value?: string | null): string {
   return value?.trim().replace(/\s+/g, " ") || "";
+}
+
+function createSafetyBadgeSpokenRiskLabel(riskLabel: string): string {
+  if (riskLabel === "Risk") {
+    return "Route risk";
+  }
+
+  if (/\brisk\b/i.test(riskLabel)) {
+    return riskLabel;
+  }
+
+  return `${riskLabel} risk`;
+}
+
+function createCompactInlineLabel(label: string, maxLength: number): string {
+  if (label.length <= maxLength) {
+    return label;
+  }
+
+  return `${label.slice(0, Math.max(0, maxLength - 1)).trimEnd()}…`;
 }
 
 function createRouteRiskNoteText(routeIntelCount: number): string | null {

@@ -298,7 +298,7 @@ export function LoginScreen({
                   ]}
                   onPress={() => setPasswordVisible((value) => !value)}
                 >
-                  <Text style={styles.passwordToggleText}>{passwordVisible ? 'Hide' : 'Show'}</Text>
+                  <Text numberOfLines={1} style={styles.passwordToggleText}>{passwordVisible ? 'Hide' : 'Show'}</Text>
                 </Pressable>
               </View>
             </>
@@ -335,6 +335,7 @@ export function LoginScreen({
                   ]}
                 >
                   <Text
+                    numberOfLines={1}
                     style={[
                       styles.challengeHintText,
                       challengeState.tone === 'danger' ? styles.challengeHintTextDanger : null
@@ -373,7 +374,7 @@ export function LoginScreen({
             onPress={challenge ? submitCode : submitCredentials}
           >
             {loading ? <ActivityIndicator color={colors.surface} /> : null}
-            <Text style={styles.primaryButtonText}>{primaryActionState.text}</Text>
+            <Text numberOfLines={1} style={styles.primaryButtonText}>{primaryActionState.text}</Text>
           </Pressable>
 
           {challenge ? (
@@ -389,7 +390,7 @@ export function LoginScreen({
               ]}
               onPress={backToCredentials}
             >
-              <Text style={styles.secondaryButtonText}>{secondaryChallengeAction?.text}</Text>
+              <Text numberOfLines={1} style={styles.secondaryButtonText}>{secondaryChallengeAction?.text}</Text>
             </Pressable>
           ) : null}
 
@@ -406,7 +407,7 @@ export function LoginScreen({
               ]}
               onPress={onCancel}
             >
-              <Text style={styles.secondaryButtonText}>{mapReturnAction.text}</Text>
+              <Text numberOfLines={1} style={styles.secondaryButtonText}>{mapReturnAction.text}</Text>
             </Pressable>
           ) : null}
         </View>

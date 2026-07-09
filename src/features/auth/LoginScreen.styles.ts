@@ -110,7 +110,9 @@ export const styles = StyleSheet.create({
   passwordToggleText: {
     color: colors.appleBlue,
     fontSize: typeScale.sm,
-    fontWeight: '800'
+    fontWeight: '800',
+    maxWidth: 52,
+    textAlign: 'center'
   },
   errorBox: {
     alignSelf: 'center',
@@ -170,6 +172,7 @@ export const styles = StyleSheet.create({
     backgroundColor: colors.dangerSoft
   },
   challengeHintText: {
+    flexShrink: 1,
     color: colors.muted,
     fontSize: typeScale.sm,
     fontWeight: '700',
@@ -196,9 +199,12 @@ export const styles = StyleSheet.create({
     opacity: 0.68
   },
   primaryButtonText: {
+    flexShrink: 1,
     color: colors.surface,
     fontSize: typeScale.md,
-    fontWeight: '800'
+    fontWeight: '800',
+    maxWidth: 220,
+    textAlign: 'center'
   },
   secondaryButton: {
     minHeight: controlSizes.secondary,
@@ -217,8 +223,11 @@ export const styles = StyleSheet.create({
     opacity: 0.6
   },
   secondaryButtonText: {
+    flexShrink: 1,
     color: colors.appleBlue,
     fontSize: typeScale.sm,
-    fontWeight: '800'
+    fontWeight: '800',
+    maxWidth: 180,
+    textAlign: 'center'
   }
 });

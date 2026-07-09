@@ -543,6 +543,7 @@ describe("rounded visual language", () => {
     assert.match(loginSource, /accessibilityLabel="LunarChain login code"/);
     assert.match(loginSource, /styles\.formCardCompact/);
     assert.match(loginSource, /styles\.passwordToggle/);
+    assert.match(loginSource, /<Text numberOfLines=\{1\} style=\{styles\.passwordToggleText\}>/);
     assert.match(loginSource, /passwordVisible \? 'Hide' : 'Show'/);
     assert.match(loginSource, /createLoginErrorState/);
     assert.match(loginSource, /loginErrorState\.message/);
@@ -571,6 +572,7 @@ describe("rounded visual language", () => {
     assert.match(loginStylesSource, /passwordToggle:\s*\{[\s\S]*borderRadius:\s*radius\.pill/);
     assert.match(loginStylesSource, /passwordToggle:\s*\{[\s\S]*backgroundColor:\s*colors\.surfaceGlass/);
     assert.match(loginStylesSource, /passwordToggleText:\s*\{[\s\S]*color:\s*colors\.appleBlue/);
+    assert.match(loginStylesSource, /passwordToggleText:\s*\{[\s\S]*maxWidth:\s*52/);
     for (const statusBlock of [
       errorBoxBlock,
       noticeBoxBlock,
@@ -597,6 +599,8 @@ describe("rounded visual language", () => {
       assert.match(statusTextBlock, /lineHeight:\s*18/);
       assert.match(statusTextBlock, /textAlign:\s*['"]center['"]/);
     }
+    assert.match(loginSource, /<Text\s+numberOfLines=\{1\}\s+style=\{\[\s*styles\.challengeHintText/);
+    assert.match(challengeHintTextBlock, /flexShrink:\s*1/);
   });
 
   it("keeps auth secondary actions quiet and text-led", () => {
@@ -618,7 +622,15 @@ describe("rounded visual language", () => {
       )?.[1] || "";
     const secondaryTextBlock =
       /secondaryButtonText:\s*\{([\s\S]*?)\n  \}/.exec(loginStylesSource)?.[1] || "";
+    const primaryTextBlock =
+      /primaryButtonText:\s*\{([\s\S]*?)\n  \},\n  secondaryButton:/.exec(
+        loginStylesSource,
+      )?.[1] || "";
 
+    assert.match(loginSource, /<Text numberOfLines=\{1\} style=\{styles\.primaryButtonText\}>/);
+    assert.match(primaryTextBlock, /flexShrink:\s*1/);
+    assert.match(primaryTextBlock, /maxWidth:\s*220/);
+    assert.match(primaryTextBlock, /textAlign:\s*['"]center['"]/);
     assert.match(loginSource, /styles\.secondaryButtonPressed/);
     assert.match(secondaryButtonBlock, /alignSelf:\s*["']center["']/);
     assert.match(secondaryButtonBlock, /backgroundColor:\s*["']transparent["']/);
@@ -626,6 +638,11 @@ describe("rounded visual language", () => {
     assert.doesNotMatch(secondaryButtonBlock, /borderColor/);
     assert.match(loginStylesSource, /secondaryButtonPressed:\s*\{[\s\S]*colors\.appleBlueSoft/);
     assert.match(secondaryTextBlock, /color:\s*colors\.appleBlue/);
+    assert.match(secondaryTextBlock, /flexShrink:\s*1/);
+    assert.match(secondaryTextBlock, /maxWidth:\s*180/);
+    assert.match(secondaryTextBlock, /textAlign:\s*['"]center['"]/);
+    assert.match(loginSource, /<Text numberOfLines=\{1\} style=\{styles\.secondaryButtonText\}>\{secondaryChallengeAction\?\.text\}<\/Text>/);
+    assert.match(loginSource, /<Text numberOfLines=\{1\} style=\{styles\.secondaryButtonText\}>\{mapReturnAction\.text\}<\/Text>/);
     assert.match(loginSource, /getLoginMapReturnActionState/);
     assert.match(loginSource, /mapReturnAction\.text/);
     assert.match(loginFormStateSource, /text:\s*["']Edit sign-in["']/);

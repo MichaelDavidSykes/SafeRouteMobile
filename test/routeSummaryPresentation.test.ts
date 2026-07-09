@@ -138,6 +138,26 @@ describe("live route summary presentation", () => {
     );
   });
 
+  it("keeps route summary headline VoiceOver sentences punctuation-aware", () => {
+    assert.equal(
+      createRouteSummaryHeadlineAccessibilityLabel({
+        headline: "Checkpoint hold ready!",
+        routeContext: "saved",
+        state: "loaded",
+      }),
+      "Saved route. Checkpoint hold ready!",
+    );
+
+    assert.equal(
+      createRouteSummaryHeadlineAccessibilityLabel({
+        headline: "Provider ETA locked…",
+        routeContext: "guest",
+        state: "navigating",
+      }),
+      "Preview. Provider ETA locked…",
+    );
+  });
+
   it("normalizes the visible route summary headline before falling back to state copy", () => {
     assert.deepEqual(
       createRouteSummaryHeadline({
@@ -321,6 +341,30 @@ describe("live route summary presentation", () => {
       {
         accessibilityLabel: "Route risk. SafeRoute score 0.",
         text: "Risk",
+      },
+    );
+  });
+
+  it("keeps safety badge VoiceOver sentences punctuation-aware", () => {
+    assert.deepEqual(
+      createRouteSummarySafetyBadge({
+        routeRiskLabel: "High risk!",
+        safeScore: 72,
+      }),
+      {
+        accessibilityLabel: "High risk! SafeRoute score 72.",
+        text: "High risk!",
+      },
+    );
+
+    assert.deepEqual(
+      createRouteSummarySafetyBadge({
+        routeRiskLabel: "Elevated risk…",
+        safeScore: 81,
+      }),
+      {
+        accessibilityLabel: "Elevated risk… SafeRoute score 81.",
+        text: "Elevated risk…",
       },
     );
   });

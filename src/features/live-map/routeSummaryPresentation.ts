@@ -164,7 +164,9 @@ export function createRouteSummaryHeadline({
 
   return {
     accessibilityLabel: normalizedHeadline
-      ? `${summaryLabel}. ${normalizedHeadline}.`
+      ? `${createRouteSummaryAccessibilitySentence(
+          summaryLabel,
+        )} ${createRouteSummaryAccessibilitySentence(normalizedHeadline)}`
       : summaryLabel,
     text: normalizedHeadline
       ? createCompactInlineLabel(
@@ -192,7 +194,9 @@ export function createRouteSummarySafetyBadge({
   const spokenRiskLabel = createSafetyBadgeSpokenRiskLabel(riskLabel);
 
   return {
-    accessibilityLabel: `${spokenRiskLabel}. SafeRoute score ${safeScore}.`,
+    accessibilityLabel: `${createRouteSummaryAccessibilitySentence(
+      spokenRiskLabel,
+    )} SafeRoute score ${safeScore}.`,
     text: createRouteSummaryVisibleRiskLabel(riskLabel),
   };
 }
@@ -269,6 +273,10 @@ export function createRouteSummaryDetail({
 
 function normalizeInlineCopy(value?: string | null): string {
   return value?.trim().replace(/\s+/g, " ") || "";
+}
+
+function createRouteSummaryAccessibilitySentence(label: string): string {
+  return /[.!?…]$/.test(label) ? label : `${label}.`;
 }
 
 function createRouteDistanceAccessibilityLabel(routeDistanceLabel: string): string {

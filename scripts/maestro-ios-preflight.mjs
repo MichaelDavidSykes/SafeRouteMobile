@@ -9,6 +9,8 @@ import { fileURLToPath } from 'node:url';
 const MAESTRO_PORT = 8081;
 const DEFAULT_HOST = '127.0.0.1';
 const DEFAULT_TIMEOUT_MS = 450;
+const SIMCTL_COMMAND_TIMEOUT_MS = 8000;
+const MAESTRO_VERSION_TIMEOUT_MS = 20000;
 const EXPO_GO_BUNDLE_ID = 'host.exp.Exponent';
 
 function readJsonText(value) {
@@ -27,11 +29,12 @@ function readJsonFile(path) {
   }
 }
 
-function runText(command, args) {
+function runText(command, args, { timeoutMs = SIMCTL_COMMAND_TIMEOUT_MS } = {}) {
   try {
     return execFileSync(command, args, {
       encoding: 'utf8',
-      stdio: ['ignore', 'pipe', 'ignore']
+      stdio: ['ignore', 'pipe', 'ignore'],
+      timeout: timeoutMs
     }).trim();
   } catch {
     return null;
@@ -208,7 +211,7 @@ export function findBootedExpoGoVersions({ execFileImpl = execFile } = {}) {
     execFileImpl(
       'xcrun',
       ['simctl', 'listapps', 'booted'],
-      { timeout: 4000 },
+      { timeout: SIMCTL_COMMAND_TIMEOUT_MS },
       (error, stdout) => {
         if (error || !stdout.trim()) {
           resolve([]);
@@ -249,6 +252,19 @@ function resolveBootedExpoGoVersionsFromContainer() {
   const version = shortVersion || bundleVersion;
 
   return version ? [version] : [];
+}
+
+export async function resolveBootedExpoGoVersions({
+  containerResolver = resolveBootedExpoGoVersionsFromContainer,
+  listAppsResolver = findBootedExpoGoVersions
+} = {}) {
+  const containerVersions = containerResolver();
+
+  if (containerVersions.length) {
+    return containerVersions;
+  }
+
+  return listAppsResolver();
 }
 
 export function formatExpoGoMismatchMessage({ expectedSdkMajor, installedVersion }) {
@@ -367,7 +383,8 @@ function resolveMaestroVersion() {
 
     const result = spawnSync(candidate, ['--version'], {
       encoding: 'utf8',
-      stdio: ['ignore', 'pipe', 'ignore']
+      stdio: ['ignore', 'pipe', 'ignore'],
+      timeout: MAESTRO_VERSION_TIMEOUT_MS
     });
 
     if (result.status === 0) {
@@ -407,9 +424,10 @@ export async function runPreflight({ stdout = process.stdout, stderr = process.s
   const port = MAESTRO_PORT;
   const packageJson = readJsonFile(join(process.cwd(), 'package.json'));
   const portState = await resolvePortState(port);
+  const expoGoVersions = await resolveBootedExpoGoVersions();
   const result = evaluateMaestroRuntimePreflight({
     bootedSimulatorAvailable: isIosSimulatorBooted(),
-    expoGoVersions: resolveBootedExpoGoVersionsFromContainer(),
+    expoGoVersions,
     installedExpoVersion: readPackageVersion('expo'),
     installedReactNativeVersion: readPackageVersion('react-native'),
     maestroCliVersion: resolveMaestroVersion(),

@@ -22,6 +22,10 @@ type MaestroPreflightModule = {
   parseExpoSdkMajor: (versionRange: string) => number | null;
   parseMinimumNodeVersion: (engineRange: string) => { major: number; minor: number; patch: number } | null;
   parseNodeVersion: (version: string) => { major: number; minor: number; patch: number } | null;
+  resolveBootedExpoGoVersions: (options?: {
+    containerResolver?: () => string[];
+    listAppsResolver?: () => Promise<string[]>;
+  }) => Promise<string[]>;
 };
 
 const readyInputs = {
@@ -146,6 +150,47 @@ describe('Maestro iOS runtime preflight', () => {
 
     assert.deepEqual(parseExpoGoVersionsFromListApps(output), ['56.0.4']);
     assert.deepEqual(parseExpoGoVersionsFromListApps('"other.app" = { CFBundleVersion = "56.0.4"; };'), []);
+  });
+
+  it('falls back to bounded simctl listapps lookup when the Expo Go container lookup is unavailable', async () => {
+    const { resolveBootedExpoGoVersions } = await loadPreflightModule();
+    let fallbackCalled = false;
+
+    assert.deepEqual(
+      await resolveBootedExpoGoVersions({
+        containerResolver: () => [],
+        listAppsResolver: async () => {
+          fallbackCalled = true;
+          return ['56.0.4'];
+        }
+      }),
+      ['56.0.4']
+    );
+    assert.equal(fallbackCalled, true);
+
+    fallbackCalled = false;
+    assert.deepEqual(
+      await resolveBootedExpoGoVersions({
+        containerResolver: () => ['56.0.4'],
+        listAppsResolver: async () => {
+          fallbackCalled = true;
+          return ['54.0.7'];
+        }
+      }),
+      ['56.0.4']
+    );
+    assert.equal(fallbackCalled, false);
+  });
+
+  it('keeps simctl and Maestro process probes time-bounded for local preflight reliability', () => {
+    const source = readFileSync(join(process.cwd(), 'scripts/maestro-ios-preflight.mjs'), 'utf8');
+
+    assert.match(source, /SIMCTL_COMMAND_TIMEOUT_MS = 8000/);
+    assert.match(source, /timeout: timeoutMs/);
+    assert.match(source, /timeout: SIMCTL_COMMAND_TIMEOUT_MS/);
+    assert.match(source, /MAESTRO_VERSION_TIMEOUT_MS = 20000/);
+    assert.match(source, /timeout: MAESTRO_VERSION_TIMEOUT_MS/);
+    assert.match(source, /await resolveBootedExpoGoVersions\(\)/);
   });
 
   it('fails fast when the shell Node runtime is too old for Expo SDK 56', async () => {

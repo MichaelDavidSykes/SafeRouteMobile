@@ -58,6 +58,7 @@ export type RouteListEmptyVisibilityInput = {
 // Keep the saved-route picker lightweight for tiny route sets; the cards are
 // quicker to scan than an always-visible search field.
 const ROUTE_SEARCH_MINIMUM_COUNT = 4;
+export const ROUTE_LIST_QUERY_INPUT_MAX_LENGTH = 96;
 export const ROUTE_LIST_QUERY_DISPLAY_MAX_LENGTH = 32;
 export const ROUTE_LIST_CLIENT_DISPLAY_MAX_LENGTH = 28;
 
@@ -83,6 +84,10 @@ function createCompactRouteListLabel(
   }
 
   return `${label.slice(0, Math.max(0, maxLength - 1)).trimEnd()}…`;
+}
+
+export function createRouteListSearchQueryValue(query: string): string {
+  return query.slice(0, ROUTE_LIST_QUERY_INPUT_MAX_LENGTH);
 }
 
 export function createRouteListHeaderCopy(): RouteListHeaderCopy {

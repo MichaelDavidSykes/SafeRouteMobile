@@ -6,6 +6,7 @@ import {
   createRouteListHeaderCopy,
   createRouteListLoadingState,
   createRouteListMapReturnState,
+  createRouteListSearchQueryValue,
   createRouteListSignOutState,
   createRouteListClientFilterOptions,
   createRouteListEmptyState,
@@ -14,6 +15,7 @@ import {
   findSelectedClient,
   ROUTE_LIST_CLIENT_DISPLAY_MAX_LENGTH,
   ROUTE_LIST_QUERY_DISPLAY_MAX_LENGTH,
+  ROUTE_LIST_QUERY_INPUT_MAX_LENGTH,
   reconcileSelectedClientId,
   shouldShowClientFilters,
   shouldShowRouteEmptyState,
@@ -145,6 +147,23 @@ describe("route list UI state helpers", () => {
         totalRouteCount: 1,
       }),
       false,
+    );
+  });
+
+  it("bounds route search input before filtering saved routes", () => {
+    const longQuery = "checkpoint ".repeat(20);
+
+    assert.equal(
+      createRouteListSearchQueryValue(" airport corridor "),
+      " airport corridor ",
+    );
+    assert.equal(
+      createRouteListSearchQueryValue(longQuery),
+      longQuery.slice(0, ROUTE_LIST_QUERY_INPUT_MAX_LENGTH),
+    );
+    assert.equal(
+      createRouteListSearchQueryValue(longQuery).length,
+      ROUTE_LIST_QUERY_INPUT_MAX_LENGTH,
     );
   });
 

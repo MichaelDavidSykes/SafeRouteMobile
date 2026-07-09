@@ -1176,8 +1176,10 @@ describe("rounded visual language", () => {
       )?.[1] || "";
 
     assert.match(routeListStateSource, /ROUTE_SEARCH_MINIMUM_COUNT = 4/);
+    assert.match(routeListStateSource, /ROUTE_LIST_QUERY_INPUT_MAX_LENGTH = 96/);
     assert.match(routeListStateSource, /ROUTE_LIST_QUERY_DISPLAY_MAX_LENGTH = 32/);
     assert.match(routeListStateSource, /ROUTE_LIST_CLIENT_DISPLAY_MAX_LENGTH = 28/);
+    assert.match(routeListStateSource, /createRouteListSearchQueryValue/);
     assert.match(routeListStateSource, /createCompactRouteListLabel/);
     assert.match(routeListStateSource, /label: "All"/);
     assert.doesNotMatch(routeListStateSource, /label: "All clients"/);
@@ -1187,6 +1189,7 @@ describe("rounded visual language", () => {
     assert.match(clientTabBlock, /backgroundColor:\s*colors\.surfaceGlass/);
     assert.doesNotMatch(clientTabBlock, /surfaceElevated/);
     assert.match(routeListFiltersSource, /accessibilityLabel="Search saved routes"/);
+    assert.match(routeListFiltersSource, /maxLength=\{ROUTE_LIST_QUERY_INPUT_MAX_LENGTH\}/);
     assert.match(routeListFiltersSource, /placeholder="Find route"/);
     assert.doesNotMatch(routeListFiltersSource, /Ionicons/);
     assert.doesNotMatch(routeListFiltersSource, /name="search"/);
@@ -1195,6 +1198,7 @@ describe("rounded visual language", () => {
     assert.match(searchBoxBlock, /backgroundColor:\s*colors\.surfaceGlass/);
     assert.doesNotMatch(searchBoxBlock, /shadow\.panel/);
     assert.match(routeListFiltersSource, /pressed \? styles\.clearSearchButtonPressed/);
+    assert.match(routeListFiltersSource, /<Text numberOfLines=\{1\} style=\{styles\.clearSearchText\}>/);
     assert.match(clearSearchButtonBlock, /backgroundColor:\s*"transparent"/);
     assert.match(routeListStylesSource, /clearSearchButtonPressed:[\s\S]*backgroundColor:\s*colors\.appleBlueSoft/);
     assert.match(routeListStylesSource, /clearSearchText:[\s\S]*color:\s*colors\.appleBlue/);

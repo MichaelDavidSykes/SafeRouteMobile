@@ -25,6 +25,7 @@ import {
   createRouteListClientFilterOptions,
   createRouteListEmptyState,
   createRouteListLoadingState,
+  createRouteListSearchQueryValue,
   createRouteListSummaryState,
   filterSavedRoutes,
   findSelectedClient,
@@ -108,6 +109,10 @@ export function RouteListScreen({
   useEffect(() => {
     void loadRoutes();
   }, [loadRoutes]);
+
+  const handleChangeQuery = useCallback((nextQuery: string) => {
+    setQuery(createRouteListSearchQueryValue(nextQuery));
+  }, []);
 
   const selectedClient = useMemo(
     () => findSelectedClient(clients, selectedClientId),
@@ -203,7 +208,7 @@ export function RouteListScreen({
         showClientFilters={shouldShowClientFilters(clientFilterOptions)}
         showSearch={showRouteSearch}
         showSummary={!loading && showRouteSummary}
-        onChangeQuery={setQuery}
+        onChangeQuery={handleChangeQuery}
         onSelectClient={setSelectedClientId}
       />
 

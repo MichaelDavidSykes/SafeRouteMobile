@@ -2,9 +2,10 @@ import { Pressable, ScrollView, Text, TextInput, View } from "react-native";
 
 import { colors } from "../../theme";
 import { routeListStyles as styles } from "./RouteListScreen.styles";
-import type {
-  RouteListClientFilterOption,
-  RouteListSummaryState,
+import {
+  ROUTE_LIST_QUERY_INPUT_MAX_LENGTH,
+  type RouteListClientFilterOption,
+  type RouteListSummaryState,
 } from "./routeListUiState";
 
 interface RouteListFiltersProps {
@@ -56,6 +57,7 @@ export function RouteListFilters({
             autoCapitalize="none"
             autoCorrect={false}
             clearButtonMode="while-editing"
+            maxLength={ROUTE_LIST_QUERY_INPUT_MAX_LENGTH}
             placeholder="Find route"
             placeholderTextColor={colors.muted}
             returnKeyType="search"
@@ -88,7 +90,7 @@ export function RouteListFilters({
               ]}
               onPress={() => onChangeQuery("")}
             >
-              <Text style={styles.clearSearchText}>
+              <Text numberOfLines={1} style={styles.clearSearchText}>
                 {routeSummary.clearSearchLabel}
               </Text>
             </Pressable>

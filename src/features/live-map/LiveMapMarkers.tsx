@@ -126,8 +126,7 @@ export function RiskOverlay({
 }
 
 export function CheckpointMarker({ checkpoint }: { checkpoint: RouteCheckpoint }) {
-  const isOrigin = checkpoint.kind === 'origin';
-  const markerRole = isOrigin ? 'Route start' : 'Destination';
+  const markerRole = checkpointMarkerRole(checkpoint.kind);
 
   return (
     <Marker
@@ -141,13 +140,29 @@ export function CheckpointMarker({ checkpoint }: { checkpoint: RouteCheckpoint }
         accessibilityRole="image"
         style={[
           styles.checkpointMarker,
-          isOrigin ? styles.checkpointMarkerOrigin : styles.checkpointMarkerDestination
+          checkpoint.kind === 'origin'
+            ? styles.checkpointMarkerOrigin
+            : checkpoint.kind === 'waypoint'
+              ? styles.checkpointMarkerWaypoint
+              : styles.checkpointMarkerDestination
         ]}
       >
         <View style={styles.checkpointMarkerCore} />
       </View>
     </Marker>
   );
+}
+
+function checkpointMarkerRole(kind: RouteCheckpoint['kind']): string {
+  if (kind === 'origin') {
+    return 'Route start';
+  }
+
+  if (kind === 'waypoint') {
+    return 'Waypoint';
+  }
+
+  return 'Destination';
 }
 
 function RiskMarker({
@@ -240,6 +255,10 @@ const styles = StyleSheet.create({
   },
   checkpointMarkerOrigin: {
     backgroundColor: colors.appleBlue,
+    borderRadius: radius.pill
+  },
+  checkpointMarkerWaypoint: {
+    backgroundColor: colors.safe,
     borderRadius: radius.pill
   },
   checkpointMarkerDestination: {

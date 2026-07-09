@@ -625,12 +625,13 @@ function mapCheckpoints(
       if (!coordinate) {
         return null;
       }
+      const kind = checkpointKind(checkpoint.kind);
       return {
         id: firstCleanText(checkpoint.id, checkpoint.kind, checkpoint.label, 'checkpoint'),
-        label: cleanText(checkpoint.label, checkpoint.kind === 'destination' ? 'B' : 'A'),
+        label: cleanText(checkpoint.label, checkpointLabelForKind(kind)),
         caption: firstCleanText(checkpoint.caption, checkpoint.kind, 'Checkpoint'),
         coordinate,
-        kind: checkpoint.kind === 'destination' ? 'destination' as const : 'origin' as const
+        kind
       };
     })
     .filter((checkpoint): checkpoint is RouteCheckpoint => Boolean(checkpoint));
@@ -641,7 +642,7 @@ function mapCheckpoints(
 
   const originCoordinate = normalizeCoordinate(origin?.coordinate) || coordinates[0];
   const destinationCoordinate = normalizeCoordinate(destination?.coordinate) || coordinates[coordinates.length - 1];
-  return [
+  const fallbackCheckpoints: Array<RouteCheckpoint | null> = [
     originCoordinate
       ? {
           id: 'origin',
@@ -658,9 +659,42 @@ function mapCheckpoints(
           caption: cleanText(destination?.label, 'Destination'),
           coordinate: destinationCoordinate,
           kind: 'destination' as const
-        }
+      }
       : null
-  ].filter((checkpoint): checkpoint is RouteCheckpoint => Boolean(checkpoint));
+  ];
+
+  return fallbackCheckpoints.filter((checkpoint): checkpoint is RouteCheckpoint => Boolean(checkpoint));
+}
+
+function checkpointKind(kind: string | undefined): RouteCheckpoint['kind'] {
+  const normalizedKind = String(kind || '').trim().toLowerCase();
+
+  if (normalizedKind === 'destination') {
+    return 'destination';
+  }
+
+  if (
+    normalizedKind === 'waypoint' ||
+    normalizedKind === 'checkpoint' ||
+    normalizedKind === 'stop' ||
+    normalizedKind === 'via'
+  ) {
+    return 'waypoint';
+  }
+
+  return 'origin';
+}
+
+function checkpointLabelForKind(kind: RouteCheckpoint['kind']): string {
+  if (kind === 'destination') {
+    return 'B';
+  }
+
+  if (kind === 'waypoint') {
+    return 'Stop';
+  }
+
+  return 'A';
 }
 
 function buildRegion(coordinates: LatLng[]): Region {

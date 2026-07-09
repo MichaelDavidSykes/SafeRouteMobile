@@ -41,7 +41,7 @@ export interface RouteCheckpoint {
   label: string;
   caption: string;
   coordinate: LatLng;
-  kind: 'origin' | 'destination';
+  kind: 'origin' | 'waypoint' | 'destination';
 }
 
 export interface SavedSafeRoutePlan {

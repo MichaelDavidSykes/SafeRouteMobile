@@ -382,6 +382,7 @@ describe("rounded visual language", () => {
     assert.match(liveMarkerSource, /checkpointMarkerCore/);
     assert.match(liveMarkerSource, /description=\{markerRole\}/);
     assert.match(liveMarkerSource, /checkpointMarkerOrigin:[\s\S]*colors\.appleBlue/);
+    assert.match(liveMarkerSource, /checkpointMarkerWaypoint:[\s\S]*colors\.safe/);
     assert.match(liveMarkerSource, /checkpointMarkerDestination:[\s\S]*borderRadius:\s*radius\.pill/);
     assert.doesNotMatch(liveMarkerSource, /checkpoint\.label/);
     assert.doesNotMatch(liveMarkerSource, /checkpointMarkerText/);

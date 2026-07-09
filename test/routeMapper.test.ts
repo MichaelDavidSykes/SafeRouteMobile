@@ -56,6 +56,49 @@ describe('SafeRoute mobile DTO mapper', () => {
     assert.equal(plan.checkpoints.length, 2);
   });
 
+  it('preserves waypoint checkpoint kinds from mobile route DTOs', () => {
+    const plan = mapRouteDtoToSavedPlan({
+      id: 'route-waypoint',
+      name: 'Waypoint route',
+      route: {
+        coordinates: [
+          { latitude: 51.5, longitude: -0.1 },
+          { latitude: 51.51, longitude: -0.08 },
+          { latitude: 51.52, longitude: -0.02 }
+        ]
+      },
+      checkpoints: [
+        {
+          id: 'start',
+          label: 'A',
+          caption: 'Hotel',
+          kind: 'origin',
+          coordinate: { latitude: 51.5, longitude: -0.1 }
+        },
+        {
+          id: 'mid',
+          caption: 'Embassy stop',
+          kind: 'waypoint',
+          coordinate: { latitude: 51.51, longitude: -0.08 }
+        },
+        {
+          id: 'end',
+          label: 'B',
+          caption: 'Airport',
+          kind: 'destination',
+          coordinate: { latitude: 51.52, longitude: -0.02 }
+        }
+      ]
+    });
+
+    assert.equal(plan.checkpoints.length, 3);
+    assert.equal(plan.checkpoints[0].kind, 'origin');
+    assert.equal(plan.checkpoints[1].kind, 'waypoint');
+    assert.equal(plan.checkpoints[1].label, 'Stop');
+    assert.equal(plan.checkpoints[1].caption, 'Embassy stop');
+    assert.equal(plan.checkpoints[2].kind, 'destination');
+  });
+
   it('preserves provider-snapped route geometry instead of collapsing to endpoint waypoints', () => {
     const snappedGeometry = [
       { latitude: 51.5, longitude: -0.1 },

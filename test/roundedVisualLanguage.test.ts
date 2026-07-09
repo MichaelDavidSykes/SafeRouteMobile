@@ -1329,6 +1329,10 @@ describe("rounded visual language", () => {
       /clientTab:\s*\{([\s\S]*?)\n  \},\n  clientTabActive:/.exec(
         routeListStylesSource,
       )?.[1] || "";
+    const clientTabTextBlock =
+      /clientTabText:\s*\{([\s\S]*?)\n  \},\n  clientTabTextActive:/.exec(
+        routeListStylesSource,
+      )?.[1] || "";
     const searchBoxBlock =
       /searchBox:\s*\{([\s\S]*?)\n  \},\n  searchInput:/.exec(
         routeListStylesSource,
@@ -1348,8 +1352,14 @@ describe("rounded visual language", () => {
     assert.doesNotMatch(routeListStateSource, /label: "All clients"/);
     assert.doesNotMatch(routeListStateSource, /totalRouteCount > 1/);
     assert.match(clientTabBlock, /minHeight:\s*controlSizes\.compact/);
+    assert.match(clientTabBlock, /alignItems:\s*["']center["']/);
+    assert.match(clientTabBlock, /overflow:\s*["']hidden["']/);
     assert.match(clientTabBlock, /borderRadius:\s*radius\.pill/);
     assert.match(clientTabBlock, /backgroundColor:\s*colors\.surfaceGlass/);
+    assert.match(routeListFiltersSource, /<Text\s+numberOfLines=\{1\}\s+style=\{\[\s*styles\.clientTabText/);
+    assert.match(clientTabTextBlock, /maxWidth:\s*["']100%["']/);
+    assert.match(clientTabTextBlock, /flexShrink:\s*1/);
+    assert.match(clientTabTextBlock, /textAlign:\s*["']center["']/);
     assert.doesNotMatch(clientTabBlock, /surfaceElevated/);
     assert.match(routeListFiltersSource, /accessibilityLabel="Search saved routes"/);
     assert.match(routeListFiltersSource, /maxLength=\{ROUTE_LIST_QUERY_INPUT_MAX_LENGTH\}/);

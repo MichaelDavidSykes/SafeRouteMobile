@@ -92,7 +92,9 @@ export const routeListStyles = StyleSheet.create({
   clientTab: {
     maxWidth: 160,
     minHeight: controlSizes.compact,
+    alignItems: "center",
     justifyContent: "center",
+    overflow: "hidden",
     paddingHorizontal: spacing.md,
     borderWidth: 0.5,
     borderColor: colors.borderSoft,
@@ -106,9 +108,12 @@ export const routeListStyles = StyleSheet.create({
     transform: [{ scale: 0.985 }],
   },
   clientTabText: {
+    maxWidth: "100%",
+    flexShrink: 1,
     color: colors.ink,
     fontSize: typeScale.sm,
     fontWeight: "800",
+    textAlign: "center",
   },
   clientTabTextActive: {
     color: colors.surface,

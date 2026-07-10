@@ -9,6 +9,7 @@ import {
 } from './routeRisk';
 import { uiTestIds } from '../../testing/uiTestIds';
 import { colors, radius } from '../../theme';
+import { SAFE_ROUTE_DARK_ROUTE_CASING } from '../maps/safeRouteMapTheme';
 
 type TappableCircleProps = ComponentProps<typeof Circle> & {
   onPress?: () => void;
@@ -44,8 +45,8 @@ export function RiskOverlay({
         <>
           <Polyline
             coordinates={routeAlertCoordinates}
-            strokeColor="rgba(255, 255, 255, 0.82)"
-            strokeWidth={selected || active ? 14 : 11}
+            strokeColor={SAFE_ROUTE_DARK_ROUTE_CASING}
+            strokeWidth={selected || active ? 9 : 7}
             lineCap="round"
             lineJoin="round"
             tappable={Boolean(onPress)}
@@ -54,7 +55,7 @@ export function RiskOverlay({
           <Polyline
             coordinates={routeAlertCoordinates}
             strokeColor={zone.markerColor}
-            strokeWidth={selected || active ? 8 : 6}
+            strokeWidth={selected || active ? 5 : 4}
             lineCap="round"
             lineJoin="round"
             testID={uiTestIds.liveMapRouteRiskSegment(zone.id)}
@@ -67,8 +68,8 @@ export function RiskOverlay({
         <>
           <Polyline
             coordinates={routeSegmentCoordinates}
-            strokeColor="rgba(255, 255, 255, 0.78)"
-            strokeWidth={selected || active ? 12 : 10}
+            strokeColor={SAFE_ROUTE_DARK_ROUTE_CASING}
+            strokeWidth={selected || active ? 8 : 6}
             lineCap="round"
             lineJoin="round"
             tappable={Boolean(onPress)}
@@ -77,7 +78,7 @@ export function RiskOverlay({
           <Polyline
             coordinates={routeSegmentCoordinates}
             strokeColor={zone.markerColor}
-            strokeWidth={selected || active ? 7 : 5}
+            strokeWidth={selected || active ? 4 : 3}
             lineCap="round"
             lineJoin="round"
             testID={uiTestIds.liveMapRouteRiskSegment(zone.id)}
@@ -138,16 +139,20 @@ export function CheckpointMarker({ checkpoint }: { checkpoint: RouteCheckpoint }
       <View
         accessibilityLabel={`${markerRole}: ${checkpoint.caption}`}
         accessibilityRole="image"
-        style={[
-          styles.checkpointMarker,
-          checkpoint.kind === 'origin'
-            ? styles.checkpointMarkerOrigin
-            : checkpoint.kind === 'waypoint'
-              ? styles.checkpointMarkerWaypoint
-              : styles.checkpointMarkerDestination
-        ]}
+        style={styles.checkpointMarkerHitArea}
       >
-        <View style={styles.checkpointMarkerCore} />
+        <View
+          style={[
+            styles.checkpointMarker,
+            checkpoint.kind === 'origin'
+              ? styles.checkpointMarkerOrigin
+              : checkpoint.kind === 'waypoint'
+                ? styles.checkpointMarkerWaypoint
+                : styles.checkpointMarkerDestination
+          ]}
+        >
+          <View style={styles.checkpointMarkerCore} />
+        </View>
       </View>
     </Marker>
   );
@@ -191,14 +196,18 @@ function RiskMarker({
         accessibilityLabel={createRiskZoneAccessibilityLabel(zone, Boolean(selected))}
         accessibilityRole="button"
         testID={uiTestIds.liveMapRiskZone(zone.id)}
-        style={[
-          styles.riskMarker,
-          active ? styles.riskMarkerActive : null,
-          selected ? styles.riskMarkerSelected : null,
-          severityMarkerStyle(zone.severity)
-        ]}
+        style={styles.riskMarkerHitArea}
       >
-        <View style={styles.riskMarkerCore} />
+        <View
+          style={[
+            styles.riskMarker,
+            active ? styles.riskMarkerActive : null,
+            selected ? styles.riskMarkerSelected : null,
+            severityMarkerStyle(zone.severity)
+          ]}
+        >
+          <View style={styles.riskMarkerCore} />
+        </View>
       </View>
     </Marker>
   );
@@ -251,12 +260,18 @@ function severityMarkerStyle(severity: RiskSeverity) {
 }
 
 const styles = StyleSheet.create({
+  checkpointMarkerHitArea: {
+    width: 32,
+    height: 32,
+    alignItems: 'center',
+    justifyContent: 'center'
+  },
   checkpointMarker: {
-    width: 28,
-    height: 28,
+    width: 18,
+    height: 18,
     alignItems: 'center',
     justifyContent: 'center',
-    borderWidth: 3,
+    borderWidth: 2,
     borderColor: colors.surface,
     borderRadius: radius.pill,
     shadowOpacity: 0,
@@ -277,14 +292,20 @@ const styles = StyleSheet.create({
     borderRadius: radius.pill
   },
   checkpointMarkerCore: {
-    width: 8,
-    height: 8,
+    width: 5,
+    height: 5,
     borderRadius: radius.pill,
     backgroundColor: colors.surface
   },
+  riskMarkerHitArea: {
+    width: 40,
+    height: 40,
+    alignItems: 'center',
+    justifyContent: 'center'
+  },
   riskMarker: {
-    width: 24,
-    height: 24,
+    width: 20,
+    height: 20,
     alignItems: 'center',
     justifyContent: 'center',
     borderWidth: 2,
@@ -296,19 +317,19 @@ const styles = StyleSheet.create({
     elevation: 0
   },
   riskMarkerCore: {
-    width: 8,
-    height: 8,
+    width: 6,
+    height: 6,
     borderRadius: radius.pill,
     backgroundColor: colors.surface
   },
   riskMarkerActive: {
-    width: 28,
-    height: 28
+    width: 22,
+    height: 22
   },
   riskMarkerSelected: {
-    width: 32,
-    height: 32,
-    borderWidth: 3
+    width: 24,
+    height: 24,
+    borderWidth: 2
   },
   riskMarkerHigh: {
     backgroundColor: colors.danger
@@ -320,11 +341,11 @@ const styles = StyleSheet.create({
     backgroundColor: colors.info
   },
   vehicleMarker: {
-    width: 36,
-    height: 36,
+    width: 30,
+    height: 30,
     alignItems: 'center',
     justifyContent: 'center',
-    borderWidth: 3,
+    borderWidth: 2,
     borderColor: colors.surface,
     borderRadius: radius.pill,
     backgroundColor: colors.appleBlue,
@@ -336,9 +357,9 @@ const styles = StyleSheet.create({
   vehicleMarkerHeading: {
     width: 0,
     height: 0,
-    borderLeftWidth: 6,
-    borderRightWidth: 6,
-    borderBottomWidth: 14,
+    borderLeftWidth: 5,
+    borderRightWidth: 5,
+    borderBottomWidth: 11,
     borderLeftColor: 'transparent',
     borderRightColor: 'transparent',
     borderBottomColor: colors.surface,

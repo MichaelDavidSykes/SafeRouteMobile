@@ -507,12 +507,18 @@ export const guestMapStyles = StyleSheet.create({
     fontSize: typeScale.xs,
     fontWeight: '800'
   },
+  markerHitArea: {
+    width: 32,
+    height: 32,
+    alignItems: 'center',
+    justifyContent: 'center'
+  },
   marker: {
-    width: 28,
-    height: 28,
+    width: 18,
+    height: 18,
     alignItems: 'center',
     justifyContent: 'center',
-    borderWidth: 3,
+    borderWidth: 2,
     borderColor: colors.surface,
     borderRadius: radius.pill,
     shadowOpacity: 0,
@@ -538,8 +544,8 @@ export const guestMapStyles = StyleSheet.create({
     borderRadius: radius.pill
   },
   markerCore: {
-    width: 8,
-    height: 8,
+    width: 5,
+    height: 5,
     borderRadius: radius.pill,
     backgroundColor: colors.surface
   }

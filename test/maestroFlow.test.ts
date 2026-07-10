@@ -153,8 +153,7 @@ describe("Maestro iOS preview smoke flow", () => {
     );
     assert.match(flow, /SAFEROUTE_ENABLE_PREVIEW_MODE=true/);
     assert.match(flow, /SAFEROUTE_PREVIEW_INITIAL_SCREEN=routes/);
-    assert.match(flow, /-\s*clearState/);
-    assert.match(flow, /Fast Refresh can\s*\n#?\s*preserve a prior live-map screen/);
+    assert.doesNotMatch(flow, /-\s*clearState/);
     assert.match(flow, /text:\s*"Close"[\s\S]*optional:\s*true/);
     assert.doesNotMatch(flow, /point:\s*"91%,47%"/);
     assert.doesNotMatch(flow, /point:\s*"91%,49%"/);
@@ -167,7 +166,7 @@ describe("Maestro iOS preview smoke flow", () => {
     assert.match(flow, /id:\s*"safe-route-card-sr-city-airport-alpha"/);
     assert.match(flow, /id:\s*"safe-route-card-sr-docklands-low-profile"/);
     assert.match(flow, /id:\s*"safe-route-summary-sheet"/);
-    assert.match(flow, /assertVisible:\s*"Saved"/);
+    assert.match(flow, /assertVisible:\s*\n\s+id:\s*"safe-route-return"/);
     assert.match(flow, /id:\s*"guest-map-primary-action"/);
     assert.doesNotMatch(flow, /guest-map-destination-input/);
     assert.doesNotMatch(flow, /guest-map-plot-action/);

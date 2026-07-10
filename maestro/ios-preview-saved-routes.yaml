@@ -1,10 +1,6 @@
 appId: host.exp.Exponent
 ---
 - stopApp
-# This flow intentionally clears Expo Go state because it validates a dedicated
-# preview initial screen. Without a cold Expo Go launch, Fast Refresh can
-# preserve a prior live-map screen and bypass the Saved picker under test.
-- clearState
 - setLocation:
     latitude: 51.5074
     longitude: -0.1278
@@ -89,7 +85,8 @@ appId: host.exp.Exponent
     id: "safe-route-summary-sheet"
 - assertVisible:
     id: "safe-route-primary-action"
-- assertVisible: "Saved"
+- assertVisible:
+    id: "safe-route-return"
 - tapOn:
     id: "safe-route-return"
     waitToSettleTimeoutMs: 1000

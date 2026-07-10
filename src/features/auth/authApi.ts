@@ -2,7 +2,7 @@ import { LUNARCHAIN_API_BASE } from '../../config/env';
 import { fetchWithTimeout, type SafeRouteRequestOptions } from '../api/apiClientCore';
 import type { AuthSession, AuthenticatedUser, PasswordLoginResult } from './authTypes';
 import { assertAuthResponseOk } from './authApiCore';
-import { buildMobileAuthHeaders, buildMobileClientHeaders, buildPasswordLoginBody, normalizeEmail, unwrapAuthData } from './authPayload';
+import { buildAuthContentHeaders, buildPasswordLoginBody, normalizeEmail, unwrapAuthData } from './authPayload';
 
 async function fetchAuthResponse(url: string, options: SafeRouteRequestOptions): Promise<Response> {
   return fetchWithTimeout(url, options);
@@ -10,9 +10,9 @@ async function fetchAuthResponse(url: string, options: SafeRouteRequestOptions):
 
 export async function loginWithPassword(email: string, password: string): Promise<PasswordLoginResult> {
   const normalizedEmail = normalizeEmail(email);
-  const response = await fetchAuthResponse(`${LUNARCHAIN_API_BASE}/auth/login`, {
+  const response = await fetchAuthResponse(`${LUNARCHAIN_API_BASE}/auth/mobile-login`, {
     method: 'POST',
-    headers: buildMobileAuthHeaders('application/x-www-form-urlencoded'),
+    headers: buildAuthContentHeaders('application/x-www-form-urlencoded'),
     body: buildPasswordLoginBody(normalizedEmail, password)
   });
 
@@ -53,7 +53,7 @@ export async function loginWithPassword(email: string, password: string): Promis
 export async function verifyLoginCode(email: string, challengeToken: string, code: string): Promise<AuthSession> {
   const response = await fetchAuthResponse(`${LUNARCHAIN_API_BASE}/auth/verify-login-code`, {
     method: 'POST',
-    headers: buildMobileAuthHeaders('application/json'),
+    headers: buildAuthContentHeaders('application/json'),
     body: JSON.stringify({
       email: normalizeEmail(email),
       challenge_token: challengeToken,
@@ -77,9 +77,9 @@ export async function verifyLoginCode(email: string, challengeToken: string, cod
 
 export async function getCurrentUser(accessToken: string): Promise<AuthenticatedUser> {
   const response = await fetchAuthResponse(`${LUNARCHAIN_API_BASE}/users/me`, {
-    headers: buildMobileClientHeaders({
+    headers: {
       Authorization: `Bearer ${accessToken}`
-    })
+    }
   });
 
   const body = await assertAuthResponseOk(response, 'Unable to validate the saved session.');

@@ -70,12 +70,17 @@ if (!supportedEnvironments.includes(appEnvironment)) {
 
 const enableDemoDriveOverride = trimmedEnv('SAFEROUTE_ENABLE_DEMO_DRIVE');
 const enablePreviewModeOverride = trimmedEnv('SAFEROUTE_ENABLE_PREVIEW_MODE');
+const previewInitialScreenOverride = trimmedEnv('SAFEROUTE_PREVIEW_INITIAL_SCREEN');
 const safeRouteDemoDriveEnabled =
   appEnvironment !== 'production' &&
   (enableDemoDriveOverride ? enableDemoDriveOverride.toLowerCase() === 'true' : true);
 const safeRoutePreviewModeEnabled =
   appEnvironment !== 'production' &&
   (enablePreviewModeOverride ? enablePreviewModeOverride.toLowerCase() === 'true' : false);
+const safeRoutePreviewInitialScreen =
+  safeRoutePreviewModeEnabled && previewInitialScreenOverride?.toLowerCase() === 'routes'
+    ? 'routes'
+    : 'guest-map';
 const productionApiUrlOverride = trimmedEnv('SAFEROUTE_PROD_API_URL');
 const apiUrls = {
   development: firstConfiguredValue(trimmedEnv('SAFEROUTE_DEV_API_URL'), trimmedEnv('SAFEROUTE_API_URL'), 'https://api.lunarchain.net'),
@@ -170,6 +175,7 @@ module.exports = {
       safeRouteApiUrl,
       safeRouteApiVersion,
       safeRouteDemoDriveEnabled,
+      safeRoutePreviewInitialScreen,
       safeRoutePreviewModeEnabled
     }
   }

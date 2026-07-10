@@ -10,6 +10,7 @@ const ENV_KEYS = [
   'SAFEROUTE_API_VERSION',
   'SAFEROUTE_ENABLE_DEMO_DRIVE',
   'SAFEROUTE_ENABLE_PREVIEW_MODE',
+  'SAFEROUTE_PREVIEW_INITIAL_SCREEN',
   'SAFEROUTE_IOS_BUILD_NUMBER',
   'SAFEROUTE_DEV_API_URL',
   'SAFEROUTE_STAGING_API_URL',
@@ -37,6 +38,7 @@ type ExpoConfig = {
     safeRouteApiUrl: string;
     safeRouteApiVersion: string;
     safeRouteDemoDriveEnabled: boolean;
+    safeRoutePreviewInitialScreen: string;
     safeRoutePreviewModeEnabled: boolean;
   };
   ios: {
@@ -94,6 +96,7 @@ describe('Expo production configuration', () => {
     assert.equal(expo.extra.safeRouteEnvironment, 'development');
     assert.equal(expo.extra.safeRouteApiUrl, 'https://api.lunarchain.net');
     assert.equal(expo.extra.safeRouteDemoDriveEnabled, true);
+    assert.equal(expo.extra.safeRoutePreviewInitialScreen, 'guest-map');
     assert.equal(expo.extra.safeRoutePreviewModeEnabled, false);
     assert.equal(expo.name, 'SafeRoute');
     assert.equal(expo.slug, 'saferoute-mobile');
@@ -257,6 +260,33 @@ describe('Expo production configuration', () => {
 
     assert.equal(developmentExpo.extra.safeRoutePreviewModeEnabled, true);
     assert.equal(productionExpo.extra.safeRoutePreviewModeEnabled, false);
+  });
+
+  it('allows preview Maestro runs to start directly on saved routes outside production', () => {
+    const developmentExpo = loadExpoConfig({
+      SAFEROUTE_APP_ENV: 'development',
+      SAFEROUTE_ENABLE_PREVIEW_MODE: 'true',
+      SAFEROUTE_PREVIEW_INITIAL_SCREEN: ' routes '
+    });
+    const disabledPreviewExpo = loadExpoConfig({
+      SAFEROUTE_APP_ENV: 'development',
+      SAFEROUTE_PREVIEW_INITIAL_SCREEN: 'routes'
+    });
+    const productionExpo = loadExpoConfig({
+      SAFEROUTE_APP_ENV: 'production',
+      SAFEROUTE_ENABLE_PREVIEW_MODE: 'true',
+      SAFEROUTE_PREVIEW_INITIAL_SCREEN: 'routes',
+      SAFEROUTE_IOS_BUILD_NUMBER: '43',
+      SAFEROUTE_PROD_API_URL: 'https://api.lunarchain.net',
+      GOOGLE_MAPS_IOS_API_KEY: 'ios-key'
+    });
+
+    assert.equal(developmentExpo.extra.safeRoutePreviewModeEnabled, true);
+    assert.equal(developmentExpo.extra.safeRoutePreviewInitialScreen, 'routes');
+    assert.equal(disabledPreviewExpo.extra.safeRoutePreviewModeEnabled, false);
+    assert.equal(disabledPreviewExpo.extra.safeRoutePreviewInitialScreen, 'guest-map');
+    assert.equal(productionExpo.extra.safeRoutePreviewModeEnabled, false);
+    assert.equal(productionExpo.extra.safeRoutePreviewInitialScreen, 'guest-map');
   });
 
   it('passes trimmed production iOS map credentials into Expo config and the maps plugin', () => {

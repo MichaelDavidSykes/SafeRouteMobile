@@ -4,12 +4,14 @@ const PRODUCTION_ENVIRONMENT = 'production';
 const SUPPORTED_ENVIRONMENTS = ['development', 'staging', PRODUCTION_ENVIRONMENT] as const;
 
 export type SafeRouteAppEnvironment = (typeof SUPPORTED_ENVIRONMENTS)[number];
+export type SafeRoutePreviewInitialScreen = 'guest-map' | 'routes';
 
 export type SafeRouteExtra = {
   safeRouteApiUrl?: string;
   safeRouteApiVersion?: string;
   safeRouteEnvironment?: string;
   safeRouteDemoDriveEnabled?: boolean;
+  safeRoutePreviewInitialScreen?: string;
   safeRoutePreviewModeEnabled?: boolean;
 };
 
@@ -19,6 +21,7 @@ export type SafeRouteRuntimeConfig = {
   lunarchainApiUrl: string;
   lunarchainApiVersion: string;
   lunarchainApiBase: string;
+  previewInitialScreen: SafeRoutePreviewInitialScreen;
   previewModeEnabled: boolean;
 };
 
@@ -45,6 +48,7 @@ const SAFE_ROUTE_EXTRA_KEYS: (keyof SafeRouteExtra)[] = [
   'safeRouteApiVersion',
   'safeRouteEnvironment',
   'safeRouteDemoDriveEnabled',
+  'safeRoutePreviewInitialScreen',
   'safeRoutePreviewModeEnabled'
 ];
 
@@ -90,6 +94,17 @@ function normalizeApiVersion(value: string | undefined): string {
   return trimmedValue.replace(/^\/+|\/+$/g, '');
 }
 
+function normalizePreviewInitialScreen(
+  value: string | undefined,
+  previewModeEnabled: boolean
+): SafeRoutePreviewInitialScreen {
+  if (!previewModeEnabled) {
+    return 'guest-map';
+  }
+
+  return value?.trim().toLowerCase() === 'routes' ? 'routes' : 'guest-map';
+}
+
 export function resolveSafeRouteRuntimeConfig(extra: SafeRouteExtra | undefined): SafeRouteRuntimeConfig {
   const appEnvironment = normalizeEnvironment(extra?.safeRouteEnvironment);
   const demoDriveEnabled = extra?.safeRouteDemoDriveEnabled === true && appEnvironment !== PRODUCTION_ENVIRONMENT;
@@ -97,6 +112,10 @@ export function resolveSafeRouteRuntimeConfig(extra: SafeRouteExtra | undefined)
     extra?.safeRoutePreviewModeEnabled === true && appEnvironment !== PRODUCTION_ENVIRONMENT;
   const lunarchainApiUrl = normalizeApiUrl(extra?.safeRouteApiUrl, appEnvironment);
   const lunarchainApiVersion = normalizeApiVersion(extra?.safeRouteApiVersion);
+  const previewInitialScreen = normalizePreviewInitialScreen(
+    extra?.safeRoutePreviewInitialScreen,
+    previewModeEnabled
+  );
 
   return {
     appEnvironment,
@@ -104,6 +123,7 @@ export function resolveSafeRouteRuntimeConfig(extra: SafeRouteExtra | undefined)
     lunarchainApiBase: `${lunarchainApiUrl}/api/${lunarchainApiVersion}`,
     lunarchainApiUrl,
     lunarchainApiVersion,
+    previewInitialScreen,
     previewModeEnabled
   };
 }

@@ -18,6 +18,11 @@ const operationsFlowSource = () =>
     join(process.cwd(), "maestro/ios-preview-operations.yaml"),
     "utf8",
   );
+const savedRoutesFlowSource = () =>
+  readFileSync(
+    join(process.cwd(), "maestro/ios-preview-saved-routes.yaml"),
+    "utf8",
+  );
 const riskAreasFlowSource = () =>
   readFileSync(
     join(process.cwd(), "maestro/ios-preview-risk-areas.yaml"),
@@ -121,6 +126,66 @@ describe("Maestro iOS preview smoke flow", () => {
     assert.match(flow, /id:\s*"safe-route-risk-detail"/);
     assert.match(flow, /Philippi East \(Cape Flats\)/);
     assert.match(flow, /id:\s*"safe-route-risk-detail-dismiss"/);
+  });
+
+  it("opens saved preview routes without drafting a guest route", () => {
+    const flow = savedRoutesFlowSource();
+    const scripts = packageJson().scripts;
+    const appRootIndex = flow.indexOf('id: "saferoute-app-root"');
+    const routePickerIndex = flow.indexOf('id: "safe-route-picker"');
+    const firstRouteCardIndex = flow.indexOf('id: "safe-route-card-sr-city-airport-alpha"');
+    const secondRouteCardIndex = flow.indexOf('id: "safe-route-card-sr-docklands-low-profile"');
+    const liveMapIndex = flow.indexOf('id: "safe-route-live-map"');
+    const returnButtonIndex = flow.lastIndexOf('id: "safe-route-return"');
+    const finalRoutePickerIndex = flow.lastIndexOf('id: "safe-route-picker"');
+
+    assert.equal(
+      scripts["test:maestro:ios:saved-routes"],
+      "node scripts/run-maestro.mjs test maestro/ios-preview-saved-routes.yaml",
+    );
+    assert.equal(
+      scripts["prestart:maestro:ios:preview:saved-routes"],
+      "node scripts/maestro-ios-preflight.mjs",
+    );
+    assert.equal(
+      scripts["start:maestro:ios:preview:saved-routes"],
+      "SAFEROUTE_ENABLE_PREVIEW_MODE=true SAFEROUTE_PREVIEW_INITIAL_SCREEN=routes NODE_OPTIONS=--dns-result-order=ipv4first expo start --localhost --port 8081",
+    );
+    assert.match(flow, /SAFEROUTE_ENABLE_PREVIEW_MODE=true/);
+    assert.match(flow, /SAFEROUTE_PREVIEW_INITIAL_SCREEN=routes/);
+    assert.match(flow, /-\s*clearState/);
+    assert.match(flow, /Fast Refresh can\s*\n#?\s*preserve a prior live-map screen/);
+    assert.match(flow, /text:\s*"Close"[\s\S]*optional:\s*true/);
+    assert.doesNotMatch(flow, /point:\s*"91%,47%"/);
+    assert.doesNotMatch(flow, /point:\s*"91%,49%"/);
+    assert.match(flow, /setLocation:\s*\n\s+latitude:\s*51\.5074\s*\n\s+longitude:\s*-0\.1278/);
+    assert.match(flow, /id:\s*"safe-route-picker"/);
+    assert.match(flow, /id:\s*"safe-route-return"/);
+    assert.match(flow, /when:\s*\n\s+visible:\s*\n\s+id:\s*"safe-route-return"[\s\S]*tapOn:\s*\n\s+id:\s*"safe-route-return"/);
+    assert.match(flow, /when:\s*\n\s+visible:\s*\n\s+id:\s*"guest-map-primary-action"[\s\S]*tapOn:\s*\n\s+id:\s*"guest-map-primary-action"/);
+    assert.match(flow, /Choose route/);
+    assert.match(flow, /id:\s*"safe-route-card-sr-city-airport-alpha"/);
+    assert.match(flow, /id:\s*"safe-route-card-sr-docklands-low-profile"/);
+    assert.match(flow, /id:\s*"safe-route-summary-sheet"/);
+    assert.match(flow, /assertVisible:\s*"Saved"/);
+    assert.match(flow, /id:\s*"guest-map-primary-action"/);
+    assert.doesNotMatch(flow, /guest-map-destination-input/);
+    assert.doesNotMatch(flow, /guest-map-plot-action/);
+    assert.doesNotMatch(flow, /guest-map-route-preview/);
+    assert.ok(appRootIndex >= 0);
+    assert.ok(routePickerIndex > appRootIndex);
+    assert.ok(firstRouteCardIndex > routePickerIndex);
+    assert.ok(secondRouteCardIndex > firstRouteCardIndex);
+    assert.ok(liveMapIndex > firstRouteCardIndex);
+    assert.ok(returnButtonIndex > liveMapIndex);
+    assert.ok(finalRoutePickerIndex > returnButtonIndex);
+  });
+
+  it("keeps restored preview sessions on the requested preview initial screen", () => {
+    const appSource = readFileSync(join(process.cwd(), "App.tsx"), "utf8");
+
+    assert.match(appSource, /SAFEROUTE_PREVIEW_MODE_ENABLED && isPreviewAccessToken\(storedSession\.accessToken\)/);
+    assert.match(appSource, /setScreen\(SAFEROUTE_PREVIEW_INITIAL_SCREEN\)/);
   });
 
   it("verifies the branded mobile sign-in surface without a Turnstile dependency", () => {

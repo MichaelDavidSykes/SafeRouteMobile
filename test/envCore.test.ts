@@ -13,6 +13,7 @@ describe('SafeRoute runtime config', () => {
     assert.equal(config.appEnvironment, 'production');
     assert.equal(config.demoDriveEnabled, false);
     assert.equal(config.previewModeEnabled, false);
+    assert.equal(config.previewInitialScreen, 'guest-map');
     assert.equal(config.lunarchainApiUrl, 'https://api.lunarchain.net');
     assert.equal(config.lunarchainApiVersion, 'v1');
     assert.equal(config.lunarchainApiBase, 'https://api.lunarchain.net/api/v1');
@@ -83,6 +84,34 @@ describe('SafeRoute runtime config', () => {
     );
   });
 
+  it('normalizes preview initial screens only while preview mode is enabled', () => {
+    assert.equal(
+      resolveSafeRouteRuntimeConfig({
+        safeRouteEnvironment: 'development',
+        safeRoutePreviewModeEnabled: true,
+        safeRoutePreviewInitialScreen: ' routes '
+      }).previewInitialScreen,
+      'routes'
+    );
+
+    assert.equal(
+      resolveSafeRouteRuntimeConfig({
+        safeRouteEnvironment: 'development',
+        safeRoutePreviewModeEnabled: true,
+        safeRoutePreviewInitialScreen: 'operations'
+      }).previewInitialScreen,
+      'guest-map'
+    );
+
+    assert.equal(
+      resolveSafeRouteRuntimeConfig({
+        safeRouteEnvironment: 'development',
+        safeRoutePreviewInitialScreen: 'routes'
+      }).previewInitialScreen,
+      'guest-map'
+    );
+  });
+
   it('disables demo drive for unrecognized packaged environments', () => {
     const config = resolveSafeRouteRuntimeConfig({
       safeRouteDemoDriveEnabled: true,
@@ -100,12 +129,14 @@ describe('SafeRoute runtime config', () => {
         expoConfig: {
           extra: {
             safeRouteEnvironment: 'development',
+            safeRoutePreviewInitialScreen: 'routes',
             safeRoutePreviewModeEnabled: true
           }
         }
       }),
       {
         safeRouteEnvironment: 'development',
+        safeRoutePreviewInitialScreen: 'routes',
         safeRoutePreviewModeEnabled: true
       }
     );

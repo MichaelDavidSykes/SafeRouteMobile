@@ -1,0 +1,101 @@
+appId: host.exp.Exponent
+---
+- stopApp
+# This flow intentionally clears Expo Go state because it validates a dedicated
+# preview initial screen. Without a cold Expo Go launch, Fast Refresh can
+# preserve a prior live-map screen and bypass the Saved picker under test.
+- clearState
+- setLocation:
+    latitude: 51.5074
+    longitude: -0.1278
+- openLink: exp://localhost:8081
+- runFlow:
+    when:
+      visible: "Open"
+    commands:
+      - tapOn: "Open"
+- waitForAnimationToEnd:
+    timeout: 3000
+# Re-open once Expo Go is foregrounded. This mirrors the primary no-build smoke
+# path but keeps this flow focused on the authenticated preview Saved route card.
+- openLink: exp://localhost:8081
+- runFlow:
+    when:
+      visible: "Open"
+    commands:
+      - tapOn: "Open"
+- waitForAnimationToEnd:
+    timeout: 10000
+# Keep this flow on app-facing controls after the deep-link handoff. The
+# saved-route picker can occupy the same top-right area as Expo Go chrome, so
+# coordinate cleanup taps would risk opening a route before the assertions run.
+- tapOn:
+    text: "Close"
+    optional: true
+- waitForAnimationToEnd:
+    timeout: 1000
+- runFlow:
+    when:
+      visible: "Allow While Using App"
+    commands:
+      - tapOn: "Allow While Using App"
+      - waitForAnimationToEnd:
+          timeout: 3000
+- extendedWaitUntil:
+    visible:
+      id: "saferoute-app-root"
+    timeout: 45000
+- runFlow:
+    when:
+      visible:
+        id: "safe-route-return"
+    commands:
+      - tapOn:
+          id: "safe-route-return"
+          waitToSettleTimeoutMs: 1000
+      - waitForAnimationToEnd:
+          timeout: 3000
+- runFlow:
+    when:
+      visible:
+        id: "guest-map-primary-action"
+    commands:
+      - tapOn:
+          id: "guest-map-primary-action"
+          waitToSettleTimeoutMs: 1000
+      - waitForAnimationToEnd:
+          timeout: 3000
+# Requires the Expo listener to be started with SAFEROUTE_ENABLE_PREVIEW_MODE=true
+# and SAFEROUTE_PREVIEW_INITIAL_SCREEN=routes so the flow opens directly on
+# the authenticated preview Saved picker, while still recovering through stable
+# app controls if Expo Go preserves a previous guest or live-map surface.
+- extendedWaitUntil:
+    visible:
+      id: "safe-route-picker"
+    timeout: 30000
+- assertVisible: "Choose route"
+- assertVisible:
+    id: "safe-route-card-sr-city-airport-alpha"
+- assertVisible:
+    id: "safe-route-card-sr-docklands-low-profile"
+- tapOn:
+    id: "safe-route-card-sr-city-airport-alpha"
+    waitToSettleTimeoutMs: 1000
+- extendedWaitUntil:
+    visible:
+      id: "safe-route-live-map"
+    timeout: 30000
+- assertVisible:
+    id: "safe-route-summary-sheet"
+- assertVisible:
+    id: "safe-route-primary-action"
+- assertVisible: "Saved"
+- tapOn:
+    id: "safe-route-return"
+    waitToSettleTimeoutMs: 1000
+- extendedWaitUntil:
+    visible:
+      id: "safe-route-picker"
+    timeout: 12000
+- assertVisible:
+    id: "safe-route-card-sr-city-airport-alpha"

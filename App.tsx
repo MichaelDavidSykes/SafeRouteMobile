@@ -3,7 +3,10 @@ import { StatusBar } from 'expo-status-bar';
 import { StyleSheet, View } from 'react-native';
 import { SafeAreaProvider, initialWindowMetrics } from 'react-native-safe-area-context';
 
-import { SAFEROUTE_PREVIEW_MODE_ENABLED } from './src/config/env';
+import {
+  SAFEROUTE_PREVIEW_INITIAL_SCREEN,
+  SAFEROUTE_PREVIEW_MODE_ENABLED
+} from './src/config/env';
 import { getCurrentUser } from './src/features/auth/authApi';
 import { LoginScreen } from './src/features/auth/LoginScreen';
 import { prepareAuthenticatedSession } from './src/features/auth/authCompletion';
@@ -55,6 +58,7 @@ export default function App() {
 
       setSession(createPreviewAuthSession());
       setSessionMessage(PREVIEW_SESSION_NOTICE);
+      setScreen(SAFEROUTE_PREVIEW_INITIAL_SCREEN);
       return true;
     };
 
@@ -67,6 +71,11 @@ export default function App() {
         const storedSession = await loadAuthSession();
 
         if (!storedSession) {
+          enablePreviewSession();
+          return;
+        }
+
+        if (SAFEROUTE_PREVIEW_MODE_ENABLED && isPreviewAccessToken(storedSession.accessToken)) {
           enablePreviewSession();
           return;
         }

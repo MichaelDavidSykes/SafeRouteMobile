@@ -356,6 +356,51 @@ describe('guest route planner helpers', () => {
     );
   });
 
+  it('preserves ordered multi-stop checkpoints and previews through every selected stop', () => {
+    const checkpoints = [
+      {
+        id: 'origin',
+        label: 'A',
+        caption: 'Current location',
+        coordinate: { latitude: 51.5, longitude: -0.13 },
+        kind: 'origin' as const
+      },
+      {
+        id: 'waypoint-1',
+        label: '1',
+        caption: 'Bank',
+        coordinate: { latitude: 51.51, longitude: -0.09 },
+        kind: 'waypoint' as const
+      },
+      {
+        id: 'destination',
+        label: 'B',
+        caption: 'City Airport',
+        coordinate: { latitude: 51.505, longitude: 0.05 },
+        kind: 'destination' as const
+      }
+    ];
+    const route = createGuestRoutePlan({
+      checkpoints,
+      destination: 'City Airport',
+      destinationCoordinate: checkpoints[2].coordinate,
+      origin: 'Current location',
+      originCoordinate: checkpoints[0].coordinate,
+      riskZones: []
+    });
+
+    assert.deepEqual(route.checkpoints, checkpoints);
+    assert.deepEqual(route.route.coordinates[0], checkpoints[0].coordinate);
+    assert.ok(
+      Math.abs((route.route.coordinates.at(-1)?.latitude ?? 0) - checkpoints[2].coordinate.latitude) < 0.000001 &&
+      Math.abs((route.route.coordinates.at(-1)?.longitude ?? 0) - checkpoints[2].coordinate.longitude) < 0.000001
+    );
+    assert.ok(route.route.coordinates.some((coordinate) =>
+      Math.abs(coordinate.latitude - checkpoints[1].coordinate.latitude) < 0.000001 &&
+      Math.abs(coordinate.longitude - checkpoints[1].coordinate.longitude) < 0.000001
+    ));
+  });
+
   it('creates a compact accessible plotted-route preview with a single summary line', () => {
     const route = createGuestRoutePlan({
       origin: 'HQ',

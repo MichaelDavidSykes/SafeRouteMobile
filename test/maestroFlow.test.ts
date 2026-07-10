@@ -8,6 +8,11 @@ const previewFlowSource = () =>
     join(process.cwd(), "maestro/ios-preview-route-live-map.yaml"),
     "utf8",
   );
+const mapInteractionsFlowSource = () =>
+  readFileSync(
+    join(process.cwd(), "maestro/ios-preview-map-interactions.yaml"),
+    "utf8",
+  );
 const packageJson = () =>
   JSON.parse(readFileSync(join(process.cwd(), "package.json"), "utf8")) as {
     scripts: Record<string, string>;
@@ -62,11 +67,12 @@ describe("Maestro iOS preview smoke flow", () => {
 
     assert.match(flow, /when:\s*\n\s+visible:\s*\n\s+id:\s*"guest-map-primary-action"/);
     assert.match(flow, /tapOn:\s*\n\s+id:\s*"guest-map-destination-input"/);
-    assert.match(flow, /inputText:\s*"London City Airport"/);
-    assert.match(flow, /tapOn:\s*"done"/);
+    assert.match(flow, /inputText:\s*"51\.5053, 0\.0553"/);
+    assert.match(flow, /id:\s*"guest-map-search-coordinate-51-505300-0-055300"/);
     assert.doesNotMatch(flow, /hideKeyboard/);
     assert.match(flow, /tapOn:\s*\n\s+id:\s*"guest-map-plot-action"/);
-    assert.match(flow, /extendedWaitUntil:\s*\n\s+visible:\s*\n\s+id:\s*"guest-map-route-preview"\s*\n\s+timeout:\s*12000/);
+    assert.match(flow, /extendedWaitUntil:\s*\n\s+visible:\s*"Preview map"\s*\n\s+timeout:\s*30000/);
+    assert.match(flow, /assertVisible:\s*\n\s+id:\s*"guest-map-route-preview"/);
     assert.match(flow, /when:\s*\n\s+visible:\s*\n\s+id:\s*"safe-route-picker"/);
     assert.match(flow, /extendedWaitUntil:\s*\n\s+visible:\s*\n\s+id:\s*"safe-route-live-map"/);
     assert.match(flow, /assertVisible:\s*\n\s+id:\s*"safe-route-demo-action"/);
@@ -75,9 +81,27 @@ describe("Maestro iOS preview smoke flow", () => {
     assert.ok(firstConditionalIndex >= 0);
     assert.ok(guestGateIndex > firstConditionalIndex);
     assert.ok(destinationInputIndex > guestGateIndex);
-    assert.ok(routePreviewIndex > destinationInputIndex);
-    assert.ok(plotActionIndex > routePreviewIndex);
-    assert.ok(liveMapIndex > plotActionIndex);
+    assert.ok(plotActionIndex > destinationInputIndex);
+    assert.ok(routePreviewIndex > plotActionIndex);
+    assert.ok(liveMapIndex > routePreviewIndex);
+  });
+
+  it("covers multi-stop editing, sheet collapse, and map long-press actions", () => {
+    const flow = mapInteractionsFlowSource();
+    const scripts = packageJson().scripts;
+
+    assert.equal(
+      scripts["test:maestro:ios:map-interactions"],
+      "node scripts/run-maestro.mjs test maestro/ios-preview-map-interactions.yaml",
+    );
+    assert.match(flow, /id:\s*"guest-map-add-waypoint"/);
+    assert.match(flow, /id:\s*"guest-map-waypoint-guest-waypoint-1"/);
+    assert.match(flow, /id:\s*"guest-map-collapsed-sheet"/);
+    assert.match(flow, /longPressOn:/);
+    assert.match(flow, /id:\s*"guest-map-long-press-menu"/);
+    assert.match(flow, /id:\s*"guest-map-long-press-add-waypoint"/);
+    assert.match(flow, /id:\s*"guest-map-long-press-add-risk"/);
+    assert.match(flow, /id:\s*"guest-map-waypoint-guest-waypoint-2"/);
   });
 
   it("keeps the demo toggle assertion tied to the stable action id", () => {

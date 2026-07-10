@@ -355,7 +355,7 @@ describe("rounded visual language", () => {
     const inputStackBlock =
       /inputStack:\s*\{([\s\S]*?)\n  \},\n  inputRow:/.exec(guestMapStylesSource)?.[1] || "";
     const inputRowBlock =
-      /inputRow:\s*\{([\s\S]*?)\n  \},\n  inputRowDivider:/.exec(guestMapStylesSource)?.[1] || "";
+      /inputRow:\s*\{([\s\S]*?)\n  \},\n  waypointRow:/.exec(guestMapStylesSource)?.[1] || "";
     const inputRowDividerBlock =
       /inputRowDivider:\s*\{([\s\S]*?)\n  \},\n  input:/.exec(guestMapStylesSource)?.[1] || "";
 
@@ -433,7 +433,8 @@ describe("rounded visual language", () => {
       )?.[1] || "";
 
     assert.match(guestMapSource, /styles\.markerCore/);
-    assert.match(guestMapSource, /description=\{checkpoint\.kind === 'origin' \? 'Route start' : 'Destination'\}/);
+    assert.match(guestMapSource, /description=\{checkpointKindLabel\(checkpoint\.kind\)\}/);
+    assert.match(guestMapSource, /checkpoint\.kind === 'waypoint'/);
     assert.doesNotMatch(guestMapSource, /checkpoint\.label/);
     assert.match(guestMapStylesSource, /\bmarker:[\s\S]*width:\s*28[\s\S]*borderWidth:\s*3/);
     assert.match(guestMapStylesSource, /\bmarkerDestination:[\s\S]*borderRadius:\s*radius\.pill/);

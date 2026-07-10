@@ -6,6 +6,14 @@ export const uiTestIds = {
   guestMapPlotAction: "guest-map-plot-action",
   guestMapOriginInput: "guest-map-origin-input",
   guestMapDestinationInput: "guest-map-destination-input",
+  guestMapWaypointInput: (waypointId: string) =>
+    `guest-map-waypoint-${normalizeTestIdSegment(waypointId)}`,
+  guestMapAddWaypoint: "guest-map-add-waypoint",
+  guestMapSheetGrabber: "guest-map-sheet-grabber",
+  guestMapCollapsedSheet: "guest-map-collapsed-sheet",
+  guestMapLongPressMenu: "guest-map-long-press-menu",
+  guestMapLongPressAddWaypoint: "guest-map-long-press-add-waypoint",
+  guestMapLongPressAddRisk: "guest-map-long-press-add-risk",
   guestMapSearchResults: "guest-map-search-results",
   guestMapSearchResult: (resultId: string) =>
     `guest-map-search-${normalizeTestIdSegment(resultId)}`,

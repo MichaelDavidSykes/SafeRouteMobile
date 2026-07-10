@@ -14,7 +14,7 @@ describe("SafeRoute operations API core", () => {
   it("builds encoded view-only operations paths scoped to a client", () => {
     assert.equal(
       buildOperationsStatePath(" client/alpha beta "),
-      "/convoy-routes/operations/client/client%2Falpha%20beta"
+      "/mobile/safe-route/operations/client/client%2Falpha%20beta"
     );
     assert.throws(() => buildOperationsStatePath("   "), /client id is required/i);
   });
@@ -58,7 +58,7 @@ describe("SafeRoute operations API core", () => {
 
     const state = await loadOperationsState(request, " token-1 ", "client-1");
 
-    assert.deepEqual(seenPaths, ["token-1:/convoy-routes/operations/client/client-1"]);
+    assert.deepEqual(seenPaths, ["token-1:/mobile/safe-route/operations/client/client-1"]);
     assert.equal(state.client_id, "client-1");
     assert.equal(state.people[0].name, "Driver One");
     assert.equal(state.people[1].role, "other");
@@ -84,5 +84,49 @@ describe("SafeRoute operations API core", () => {
 
   it("treats malformed operations payloads as an empty read-only state", () => {
     assert.deepEqual(normalizeOperationsState("maintenance", "client-1"), createEmptyOperationsState("client-1"));
+  });
+
+  it("keeps the requested tenant authoritative and bounds malformed projection fields", () => {
+    const state = normalizeOperationsState({
+      client_id: "other-client",
+      people: [
+        { id: "person-1", client_id: "other-client", name: "Driver", role: "driver" },
+        { id: "person-1", client_id: "other-client", name: "Duplicate", role: "driver" }
+      ],
+      vehicles: [{
+        id: "vehicle-1",
+        client_id: "other-client",
+        callsign: "Lead",
+        make: "Vehicle",
+        model: "One",
+        year: 4000,
+        range_km: -50,
+        seat_count: 999
+      }],
+      trips: [{
+        id: "trip-1",
+        client_id: "other-client",
+        name: "Move",
+        status: "ready",
+        duration_minutes: 20000,
+        plan_color: "javascript:red",
+        route_assignments: [{
+          route_id: "route-1",
+          duration_minutes: -2
+        }]
+      }]
+    }, "client-1");
+
+    assert.equal(state.client_id, "client-1");
+    assert.equal(state.people.length, 1);
+    assert.equal(state.people[0].client_id, "client-1");
+    assert.equal(state.vehicles[0].client_id, "client-1");
+    assert.equal(state.vehicles[0].year, null);
+    assert.equal(state.vehicles[0].range_km, null);
+    assert.equal(state.vehicles[0].seat_count, 1);
+    assert.equal(state.trips[0].client_id, "client-1");
+    assert.equal(state.trips[0].duration_minutes, null);
+    assert.equal(state.trips[0].plan_color, null);
+    assert.equal(state.trips[0].route_assignments[0].duration_minutes, null);
   });
 });

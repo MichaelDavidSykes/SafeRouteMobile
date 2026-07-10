@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   ActivityIndicator,
   Pressable,
@@ -72,13 +72,20 @@ export function OperationsScreen({
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [errorState, setErrorState] = useState<RouteListErrorState | null>(null);
+  const selectedClientIdRef = useRef<string | null>(null);
+  const loadRevisionRef = useRef(0);
 
   useEffect(() => {
     setActiveTab(initialTab);
   }, [initialTab]);
 
   const loadOperations = useCallback(
-    async ({ refresh = false }: { refresh?: boolean } = {}) => {
+    async ({
+      clientId = selectedClientIdRef.current,
+      refresh = false
+    }: { clientId?: string | null; refresh?: boolean } = {}) => {
+      const revision = loadRevisionRef.current + 1;
+      loadRevisionRef.current = revision;
       if (refresh) {
         setRefreshing(true);
       } else {
@@ -88,14 +95,18 @@ export function OperationsScreen({
       setOperationsWarning(null);
 
       try {
-        const result = await fetchSavedRoutes(accessToken, selectedClientId || undefined);
+        const result = await fetchSavedRoutes(accessToken, clientId || undefined);
+        if (revision !== loadRevisionRef.current) {
+          return;
+        }
         const nextClientId = resolveOperationsClientId(
           result.clients,
-          selectedClientId,
+          clientId,
           result.selectedClientId
         );
 
         setClients(result.clients);
+        selectedClientIdRef.current = nextClientId;
         setSelectedClientId(nextClientId);
         setRoutes(result.routes);
 
@@ -106,8 +117,14 @@ export function OperationsScreen({
 
         try {
           const nextOperationsState = await fetchOperationsState(accessToken, nextClientId);
+          if (revision !== loadRevisionRef.current) {
+            return;
+          }
           setOperationsState(nextOperationsState);
         } catch (operationsError) {
+          if (revision !== loadRevisionRef.current) {
+            return;
+          }
           if (operationsError instanceof ApiSessionExpiredError) {
             onSessionExpired(operationsError.message);
             return;
@@ -115,24 +132,32 @@ export function OperationsScreen({
 
           const warning = createOperationsSyncWarningState(operationsError);
           setOperationsWarning(warning.message);
-          setOperationsState(createEmptyOperationsState(nextClientId));
+          setOperationsState(null);
         }
       } catch (error) {
+        if (revision !== loadRevisionRef.current) {
+          return;
+        }
         if (error instanceof ApiSessionExpiredError) {
           onSessionExpired(error.message);
           return;
         }
         setErrorState(createRouteSyncErrorState(error));
       } finally {
-        setLoading(false);
-        setRefreshing(false);
+        if (revision === loadRevisionRef.current) {
+          setLoading(false);
+          setRefreshing(false);
+        }
       }
     },
-    [accessToken, onSessionExpired, selectedClientId]
+    [accessToken, onSessionExpired]
   );
 
   useEffect(() => {
     void loadOperations();
+    return () => {
+      loadRevisionRef.current += 1;
+    };
   }, [loadOperations]);
 
   const tabOptions = useMemo(() => createOperationsTabOptions(activeTab), [activeTab]);
@@ -228,7 +253,11 @@ export function OperationsScreen({
                 client.selected ? styles.clientTabSelected : null,
                 pressed ? styles.tabPressed : null
               ]}
-              onPress={() => setSelectedClientId(client.id)}
+              onPress={() => {
+                selectedClientIdRef.current = client.id;
+                setSelectedClientId(client.id);
+                void loadOperations({ clientId: client.id });
+              }}
             >
               <Text
                 numberOfLines={1}

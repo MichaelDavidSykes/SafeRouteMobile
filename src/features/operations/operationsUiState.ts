@@ -232,7 +232,7 @@ export function createPlannedRouteRows(
 ): OperationsRouteRow[] {
   const assignmentViews = createAssignmentViews(routes, operationsState);
 
-  if (assignmentViews.length > 0) {
+  if (operationsState) {
     return assignmentViews
       .sort(compareAssignmentViews)
       .map((view) => createRouteRowFromAssignment(view, operationsState));
@@ -299,7 +299,7 @@ export function createConvoyRows(
     });
   }
 
-  return createFallbackConvoyRows(routes);
+  return operationsState ? [] : createFallbackConvoyRows(routes);
 }
 
 function createRouteRowFromAssignment(

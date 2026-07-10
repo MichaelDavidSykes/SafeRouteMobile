@@ -28,6 +28,8 @@ describe('guest map interaction contract', () => {
     assert.match(screen, /testID=\{uiTestIds\.guestMapLongPressMenu\}/);
     assert.match(screen, />Add stop<\/Text>/);
     assert.match(screen, /Add risk area/);
+    assert.match(screen, /handleMapLongPress[\s\S]*animateRouteSheet\(true\)/);
+    assert.match(screen, /handleSelectRiskZone[\s\S]*animateRouteSheet\(true\)/);
     assert.doesNotMatch(screen, /Ionicons|MaterialIcons|FontAwesome/);
   });
 });

@@ -27,6 +27,8 @@ interface LiveRouteRiskDetailCardProps {
   zone: RiskZone;
 }
 
+const LIVE_RISK_DETAIL_DISMISS_HIT_SLOP = 6;
+
 export function LiveRouteRiskAlertCard({
   alert,
   layout,
@@ -103,8 +105,10 @@ export function LiveRouteRiskDetailCard({
           </Text>
         </View>
         <Pressable
+          accessibilityHint="Closes the risk-area details and returns to the live map."
           accessibilityLabel="Close risk details"
           accessibilityRole="button"
+          hitSlop={LIVE_RISK_DETAIL_DISMISS_HIT_SLOP}
           testID={uiTestIds.liveMapRiskDetailDismiss}
           style={({ pressed }) => [
             styles.riskDismissButton,

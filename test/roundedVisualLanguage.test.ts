@@ -541,6 +541,12 @@ describe("rounded visual language", () => {
 
     assert.match(riskCardSource, /<Text numberOfLines=\{1\} style=\{styles\.riskEyebrow\}>/);
     assert.match(riskCardSource, /<Text numberOfLines=\{1\} style=\{styles\.riskDismissText\}>/);
+    assert.match(riskCardSource, /const LIVE_RISK_DETAIL_DISMISS_HIT_SLOP = 6/);
+    assert.match(riskCardSource, /hitSlop=\{LIVE_RISK_DETAIL_DISMISS_HIT_SLOP\}/);
+    assert.match(
+      riskCardSource,
+      /accessibilityHint="Closes the risk-area details and returns to the live map\."/,
+    );
     assert.match(riskEyebrowBlock, /maxWidth:\s*["']100%["']/);
     assert.match(riskDismissButtonBlock, /maxWidth:\s*96/);
     assert.match(riskDismissButtonBlock, /flexShrink:\s*0/);

@@ -4,10 +4,7 @@ import { join } from 'node:path';
 import { describe, it } from 'node:test';
 
 import {
-  SAFEROUTE_MOBILE_AUTH_CLIENT,
-  SAFEROUTE_MOBILE_AUTH_CLIENT_HEADER,
-  buildMobileAuthHeaders,
-  buildMobileClientHeaders,
+  buildAuthContentHeaders,
   buildPasswordLoginBody,
   getAuthErrorMessage,
   normalizeEmail,
@@ -25,27 +22,19 @@ describe('LunarChain auth payload helpers', () => {
     assert.equal(body, 'username=user%40example.com&password=secret+pass');
   });
 
-  it('marks SafeRoute Mobile auth requests for the backend mobile client path', () => {
-    assert.deepEqual(buildMobileAuthHeaders('application/x-www-form-urlencoded'), {
-      'Content-Type': 'application/x-www-form-urlencoded',
-      [SAFEROUTE_MOBILE_AUTH_CLIENT_HEADER]: SAFEROUTE_MOBILE_AUTH_CLIENT
+  it('builds content headers without a client-spoofing authentication bypass marker', () => {
+    assert.deepEqual(buildAuthContentHeaders('application/x-www-form-urlencoded'), {
+      'Content-Type': 'application/x-www-form-urlencoded'
     });
   });
 
-  it('uses the mobile client header for password and verification requests', () => {
+  it('uses the dedicated mobile endpoint for password requests', () => {
     const source = readFileSync(join(process.cwd(), 'src/features/auth/authApi.ts'), 'utf8');
 
-    assert.match(source, /headers: buildMobileAuthHeaders\('application\/x-www-form-urlencoded'\)/);
-    assert.match(source, /headers: buildMobileAuthHeaders\('application\/json'\)/);
-  });
-
-  it('marks bearer session validation requests for the mobile client path', () => {
-    const headers = buildMobileClientHeaders({
-      Authorization: 'Bearer token-1'
-    });
-
-    assert.equal(headers.Authorization, 'Bearer token-1');
-    assert.equal(headers[SAFEROUTE_MOBILE_AUTH_CLIENT_HEADER], SAFEROUTE_MOBILE_AUTH_CLIENT);
+    assert.match(source, /\/auth\/mobile-login/);
+    assert.match(source, /headers: buildAuthContentHeaders\('application\/x-www-form-urlencoded'\)/);
+    assert.match(source, /headers: buildAuthContentHeaders\('application\/json'\)/);
+    assert.doesNotMatch(source, /X-SafeRoute-Client/);
   });
 
   it('unwraps API data envelopes', () => {

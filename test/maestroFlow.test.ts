@@ -149,6 +149,18 @@ describe("Maestro iOS preview smoke flow", () => {
       scripts["test:maestro:ios:risk-areas"],
       "node scripts/run-maestro.mjs test maestro/ios-preview-risk-areas.yaml",
     );
+    assert.equal(
+      scripts["prestart:maestro:ios:preview:risk-areas"],
+      "node scripts/maestro-ios-preflight.mjs",
+    );
+    assert.equal(
+      scripts["start:maestro:ios:preview:risk-areas"],
+      "SAFEROUTE_ENABLE_PREVIEW_MODE=true SAFEROUTE_PREVIEW_INITIAL_SCREEN=guest-map NODE_OPTIONS=--dns-result-order=ipv4first expo start --localhost --port 8081",
+    );
+    assert.match(flow, /text:\s*"Close"[\s\S]*optional:\s*true/);
+    assert.match(flow, /visible:\s*"Try again"[\s\S]*tapOn:\s*"Try again"/);
+    assert.doesNotMatch(flow, /point:\s*"50%,92%"/);
+    assert.doesNotMatch(flow, /point:\s*"91%,49%"/);
     assert.match(flow, /latitude:\s*-34\.033/);
     assert.match(flow, /longitude:\s*18\.585/);
     assert.match(flow, /safe-route-risk-zone-generated-area-risk-safe-route-area-risk-philippi-east-33b347150ca4712272/);

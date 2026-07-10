@@ -21,16 +21,24 @@ appId: host.exp.Exponent
 - waitForAnimationToEnd:
     timeout: 10000
 - tapOn:
-    point: "50%,92%"
+    text: "Close"
+    optional: true
 - waitForAnimationToEnd:
-    timeout: 2500
-- tapOn:
-    point: "91%,49%"
+    timeout: 1000
+- runFlow:
+    when:
+      visible: "Try again"
+    commands:
+      - tapOn: "Try again"
+      - waitForAnimationToEnd:
+          timeout: 8000
 - runFlow:
     when:
       visible: "Allow While Using App"
     commands:
       - tapOn: "Allow While Using App"
+      - waitForAnimationToEnd:
+          timeout: 3000
 - extendedWaitUntil:
     visible:
       id: "saferoute-app-root"

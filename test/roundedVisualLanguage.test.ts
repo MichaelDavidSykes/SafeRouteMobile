@@ -1078,6 +1078,12 @@ describe("rounded visual language", () => {
       )?.[1] || "";
 
     assert.match(routeListHeaderSource, /styles\.headerActions/);
+    assert.match(routeListHeaderSource, /const ROUTE_LIST_HEADER_ACTION_HIT_SLOP = 6/);
+    assert.match(routeListHeaderSource, /hitSlop=\{ROUTE_LIST_HEADER_ACTION_HIT_SLOP\}/);
+    assert.equal(
+      (routeListHeaderSource.match(/hitSlop=\{ROUTE_LIST_HEADER_ACTION_HIT_SLOP\}/g) || []).length,
+      2,
+    );
     assert.match(routeListHeaderSource, /styles\.signOutButtonPressed/);
     assert.match(routeListHeaderSource, /accessibilityRole="alert" style=\{styles\.noticeBox\}/);
     assert.doesNotMatch(routeListHeaderSource, /SafeRouteLogo|Ionicons/);

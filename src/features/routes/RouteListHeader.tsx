@@ -9,6 +9,8 @@ import {
   createRouteListSignOutState,
 } from "./routeListUiState";
 
+const ROUTE_LIST_HEADER_ACTION_HIT_SLOP = 6;
+
 interface RouteListHeaderProps {
   sessionNotice?: string;
   userEmail: string;
@@ -38,6 +40,7 @@ export function RouteListHeader({
             accessibilityHint={mapReturnState.accessibilityHint}
             accessibilityLabel={mapReturnState.accessibilityLabel}
             accessibilityRole="button"
+            hitSlop={ROUTE_LIST_HEADER_ACTION_HIT_SLOP}
             testID={uiTestIds.routeListMapReturn}
             style={({ pressed }) => [
               styles.mapReturnButton,
@@ -53,6 +56,7 @@ export function RouteListHeader({
             accessibilityHint={signOutState.signOutAccessibilityHint}
             accessibilityLabel={signOutState.signOutAccessibilityLabel}
             accessibilityRole="button"
+            hitSlop={ROUTE_LIST_HEADER_ACTION_HIT_SLOP}
             testID={uiTestIds.routeListSignOut}
             style={({ pressed }) => [
               styles.signOutButton,

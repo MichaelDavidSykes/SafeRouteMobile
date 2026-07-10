@@ -105,3 +105,10 @@ appId: host.exp.Exponent
     id: "guest-map-long-press-add-waypoint"
 - assertVisible:
     id: "guest-map-waypoint-guest-waypoint-2"
+- tapOn:
+    id: "guest-map-plot-action"
+    waitToSettleTimeoutMs: 1000
+- extendedWaitUntil:
+    visible:
+      id: "guest-map-route-preview"
+    timeout: 30000

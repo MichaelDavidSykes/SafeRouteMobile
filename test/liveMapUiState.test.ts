@@ -11,7 +11,6 @@ import {
   createRouteHeaderPresentation,
   createRouteTitleAccessibilityLabel,
   createRouteTitleDisplayText,
-  demoDriveAccessibility,
   liveLocationNotice,
   mapControlAccessibility,
   mapControlDisplayLabel,
@@ -84,21 +83,19 @@ describe('live map UI state helpers', () => {
     );
   });
 
-  it('shows production-friendly location notices without interrupting route simulation', () => {
+  it('shows production-friendly location notices without exposing test controls', () => {
     assert.equal(
       liveLocationNotice({
         demoDriveActive: false,
-        demoDriveAvailable: true,
         errorMessage: '',
         hasLiveCoordinate: false,
         permissionStatus: 'denied'
       }),
-      'Location access is off. Enable it in iOS Settings for live guidance, or use route simulation for review.'
+      'Location access is off. Enable it in iOS Settings for live route guidance.'
     );
     assert.equal(
       liveLocationNotice({
         demoDriveActive: false,
-        demoDriveAvailable: true,
         errorMessage: '',
         hasLiveCoordinate: false,
         permissionStatus: 'idle'
@@ -108,7 +105,6 @@ describe('live map UI state helpers', () => {
     assert.equal(
       liveLocationNotice({
         demoDriveActive: false,
-        demoDriveAvailable: false,
         errorMessage: '  Live location is unavailable right now.  ',
         hasLiveCoordinate: false,
         permissionStatus: 'granted'
@@ -118,7 +114,6 @@ describe('live map UI state helpers', () => {
     assert.equal(
       liveLocationNotice({
         demoDriveActive: true,
-        demoDriveAvailable: true,
         errorMessage: 'Location off',
         hasLiveCoordinate: false,
         permissionStatus: 'denied',
@@ -129,7 +124,6 @@ describe('live map UI state helpers', () => {
     assert.equal(
       liveLocationNotice({
         demoDriveActive: true,
-        demoDriveAvailable: true,
         errorMessage: 'Location off',
         hasLiveCoordinate: false,
         permissionStatus: 'denied'
@@ -142,11 +136,11 @@ describe('live map UI state helpers', () => {
     assert.equal(createLiveLocationNoticePresentation(null), null);
     assert.deepEqual(
       createLiveLocationNoticePresentation(
-        'Location access is off. Enable it in iOS Settings for live guidance, or use route simulation for review.'
+        'Location access is off. Enable it in iOS Settings for live route guidance.'
       ),
       {
         accessibilityLabel:
-          'Location status. Location access is off. Enable it in iOS Settings for live guidance, or use route simulation for review.',
+          'Location status. Location access is off. Enable it in iOS Settings for live route guidance.',
         displayText: 'Location access off'
       }
     );
@@ -634,14 +628,6 @@ describe('live map UI state helpers', () => {
     assert.equal(shouldShowDriveAlongControl('arrived'), false);
     assert.equal(shouldShowDriveAlongControl('navigating'), true);
     assert.equal(shouldShowDriveAlongControl('off-route'), true);
-  });
-
-
-  it('marks route simulation as selected when active', () => {
-    assert.equal(demoDriveAccessibility(true).label, 'Turn route simulation off');
-    assert.equal(demoDriveAccessibility(false).label, 'Turn route simulation on');
-    assert.deepEqual(demoDriveAccessibility(true).state, { selected: true });
-    assert.deepEqual(demoDriveAccessibility(false).state, { selected: false });
   });
 
   it('keeps route intelligence collapsed by default for a cleaner map', () => {

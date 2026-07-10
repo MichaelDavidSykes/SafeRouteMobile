@@ -55,7 +55,6 @@ interface LocationReadinessOptions {
 }
 
 interface LocationNoticeOptions extends LocationReadinessOptions {
-  demoDriveAvailable: boolean;
   errorMessage?: string | null;
 }
 
@@ -132,7 +131,6 @@ export function routeStartBlockedReason({
 
 export function liveLocationNotice({
   demoDriveActive,
-  demoDriveAvailable,
   errorMessage,
   hasLiveCoordinate,
   permissionStatus,
@@ -153,9 +151,7 @@ export function liveLocationNotice({
   }
 
   if (permissionStatus === 'denied') {
-    return demoDriveAvailable
-      ? 'Location access is off. Enable it in iOS Settings for live guidance, or use route simulation for review.'
-      : 'Location access is off. Enable it in iOS Settings for live route guidance.';
+    return 'Location access is off. Enable it in iOS Settings for live route guidance.';
   }
 
   return routeStartBlockedReason({ demoDriveActive, hasLiveCoordinate, permissionStatus, routeCoordinateCount });
@@ -417,14 +413,6 @@ export function stopRouteAccessibility(state: NavigationLifecycle): ControlAcces
     label: state === 'stopped' ? 'Route guidance stopped' : 'Stop route guidance',
     hint: 'Stops guidance and resets progress for this route.',
     state: { selected: state === 'stopped' }
-  };
-}
-
-export function demoDriveAccessibility(enabled: boolean): ControlAccessibilityCopy {
-  return {
-    label: enabled ? 'Turn route simulation off' : 'Turn route simulation on',
-    hint: enabled ? 'Returns to live GPS tracking when available.' : 'Simulates convoy movement for local route review.',
-    state: { selected: enabled }
   };
 }
 

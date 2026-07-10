@@ -5,7 +5,6 @@ import {
   ROUTE_SUMMARY_DETAIL_METRIC_MAX_LENGTH,
   ROUTE_SUMMARY_DISTANCE_FALLBACK,
   ROUTE_SUMMARY_HEADLINE_MAX_LENGTH,
-  createRouteSummaryDemoAction,
   createRouteSummaryDetail,
   createRouteSummaryHeadline,
   createRouteSummaryHeadlineAccessibilityLabel,
@@ -15,7 +14,6 @@ import {
   createRouteSummarySafetyBadge,
   createRouteSummaryTitle,
   ROUTE_SUMMARY_SAFETY_BADGE_MAX_LENGTH,
-  shouldInlineRouteSummaryDemoAction,
   shouldShowRouteSummarySafetyBadge,
   shouldUseCompactRouteSummary,
 } from "../src/features/live-map/routeSummaryPresentation";
@@ -36,15 +34,6 @@ describe("live route summary presentation", () => {
     });
     assert.deepEqual(createRouteSummaryPrimaryAction("arrived"), {
       label: "Arrived",
-    });
-  });
-
-  it("keeps route simulation visible copy short for compact sheets", () => {
-    assert.deepEqual(createRouteSummaryDemoAction(false), {
-      label: "Simulate",
-    });
-    assert.deepEqual(createRouteSummaryDemoAction(true), {
-      label: "Simulation",
     });
   });
 
@@ -190,15 +179,6 @@ describe("live route summary presentation", () => {
     );
     assert.ok(headline.text.endsWith("…"));
     assert.ok(headline.text.length <= ROUTE_SUMMARY_HEADLINE_MAX_LENGTH);
-  });
-
-  it("keeps route simulation inline only on idle map summaries", () => {
-    assert.equal(shouldInlineRouteSummaryDemoAction("loaded"), true);
-    assert.equal(shouldInlineRouteSummaryDemoAction("stopped"), true);
-    assert.equal(shouldInlineRouteSummaryDemoAction("arrived"), true);
-    assert.equal(shouldInlineRouteSummaryDemoAction("navigating"), false);
-    assert.equal(shouldInlineRouteSummaryDemoAction("off-route"), false);
-    assert.equal(shouldInlineRouteSummaryDemoAction("paused"), false);
   });
 
   it("keeps guest live-map previews free of duplicate explanatory chrome", () => {

@@ -71,6 +71,10 @@ import {
 } from './guestRouteDraft';
 import { guestMapStyles as styles } from './GuestMapScreen.styles';
 import { createGuestRiskArea } from './guestRiskAreaApi';
+import {
+  shouldRecenterGuestMap,
+  type GuestMapCenteredLocation
+} from './guestMapLocation';
 
 const GUEST_ROUTE_PROVIDER_UI_TIMEOUT_MS = 15000;
 const GUEST_LOCATION_SEARCH_DEBOUNCE_MS = 320;
@@ -103,7 +107,8 @@ export function GuestMapScreen({
   const mapRef = useRef<MapView | null>(null);
   const activeRoadRouteRequestRef = useRef<AbortController | null>(null);
   const activeLocationSearchRef = useRef<AbortController | null>(null);
-  const hasCenteredOnLocationRef = useRef(false);
+  const lastCenteredLocationRef = useRef<GuestMapCenteredLocation | null>(null);
+  const userMovedMapRef = useRef(false);
   const pendingOpenPreviewRef = useRef(false);
   const roadRouteRequestIdRef = useRef(0);
   const sheetProgress = useRef(new Animated.Value(0)).current;
@@ -123,6 +128,7 @@ export function GuestMapScreen({
     label: string;
     pending: boolean;
   } | null>(null);
+  const [mapReady, setMapReady] = useState(false);
   const [mapRegion, setMapRegion] = useState<Region>(GUEST_MAP_REGION);
   const [routeMessage, setRouteMessage] = useState('');
   const [routingClientId, setRoutingClientId] = useState<string | null>(null);
@@ -133,10 +139,14 @@ export function GuestMapScreen({
   const {
     coordinate: liveLocation,
     errorMessage: locationErrorMessage,
-    permissionStatus
+    permissionStatus,
+    timestampMs: liveLocationTimestampMs
   } = useLiveLocation({ permissionRequested: true });
   const liveCoordinate = liveLocation
     ? { latitude: liveLocation.latitude, longitude: liveLocation.longitude }
+    : null;
+  const routingAccessToken = accessToken && !isPreviewAccessToken(accessToken)
+    ? accessToken
     : null;
   const origin = routeDraft.origin.label;
   const destination = routeDraft.destination.label;
@@ -169,7 +179,7 @@ export function GuestMapScreen({
     routePlotted
   });
   const viewportRisk = useViewportRiskAreas({
-    accessToken: accessToken && !isPreviewAccessToken(accessToken) ? accessToken : null,
+    accessToken: routingAccessToken,
     clientId: routingClientId,
     region: mapRegion
   });
@@ -243,15 +253,37 @@ export function GuestMapScreen({
   }, [selectedRiskZone, viewportRisk.zones]);
 
   useEffect(() => {
-    if (!liveCoordinate || hasCenteredOnLocationRef.current || routePlan) {
+    if (!mapReady) {
+      return;
+    }
+    const candidate = liveCoordinate
+      ? {
+          coordinate: liveCoordinate,
+          timestampMs: Number.isFinite(liveLocationTimestampMs)
+            ? Number(liveLocationTimestampMs)
+            : Date.now()
+        }
+      : null;
+    if (!candidate || !shouldRecenterGuestMap({
+      candidate,
+      previous: lastCenteredLocationRef.current,
+      routePlotted: Boolean(routePlan),
+      userMovedMap: userMovedMapRef.current
+    })) {
       return;
     }
 
-    hasCenteredOnLocationRef.current = true;
-    const nextRegion = regionAroundCoordinate(liveCoordinate);
+    lastCenteredLocationRef.current = candidate;
+    const nextRegion = regionAroundCoordinate(candidate.coordinate);
     setMapRegion(nextRegion);
     mapRef.current?.animateToRegion(nextRegion, 650);
-  }, [liveCoordinate?.latitude, liveCoordinate?.longitude, routePlan]);
+  }, [
+    liveCoordinate?.latitude,
+    liveCoordinate?.longitude,
+    liveLocationTimestampMs,
+    mapReady,
+    routePlan
+  ]);
 
   useEffect(() => {
     activeLocationSearchRef.current?.abort();
@@ -404,7 +436,10 @@ export function GuestMapScreen({
       destination,
       riskZones: viewportRisk.zones
     });
-    setRoutePlan(SAFEROUTE_PREVIEW_MODE_ENABLED ? localRoutePlan : null);
+    // A straight checkpoint connector is useful as an internal request
+    // scaffold, but it is never a drivable route. Keep navigation gated until
+    // an authoritative provider returns road-snapped geometry.
+    setRoutePlan(null);
     upgradeGuestRouteWithRoadPreview(localRoutePlan);
   };
 
@@ -441,7 +476,7 @@ export function GuestMapScreen({
     const routePreviewFetcher = roadRoutePreviewFetcher || ((options: GuestRoadRoutePreviewOptions) =>
       fetchSafeRouteRoadRoutePreview({
         ...options,
-        accessToken,
+        accessToken: routingAccessToken,
         clientId: routingClientId
       }));
 
@@ -544,21 +579,17 @@ export function GuestMapScreen({
         }
       })
       .catch(() => {
-        // The finalizer keeps preview-mode fixtures usable while production fails
-        // closed instead of presenting straight-line geometry as a drivable route.
+        // The finalizer fails closed instead of presenting checkpoint
+        // connectors as drivable road geometry.
       })
       .finally(() => {
         if (roadRouteRequestIdRef.current === requestId) {
           activeRoadRouteRequestRef.current = null;
           setRoadPreviewPending(false);
           if (!acceptedRoadPreview) {
-            if (SAFEROUTE_PREVIEW_MODE_ENABLED) {
-              setRoutePlan(localRoutePlan);
-              openPendingPreview(localRoutePlan);
-            } else {
-              pendingOpenPreviewRef.current = false;
-              setRouteMessage('A road-snapped safe route is unavailable. Retry in a moment.');
-            }
+            pendingOpenPreviewRef.current = false;
+            setRoutePlan(null);
+            setRouteMessage('A road-snapped safe route is unavailable. Retry in a moment.');
           }
         }
       });
@@ -780,7 +811,11 @@ export function GuestMapScreen({
         showsTraffic={false}
         toolbarEnabled={false}
         userInterfaceStyle="light"
+        onMapReady={() => setMapReady(true)}
         onLongPress={(event) => handleMapLongPress(event.nativeEvent.coordinate)}
+        onPanDrag={() => {
+          userMovedMapRef.current = true;
+        }}
         onRegionChangeComplete={setMapRegion}
       >
         {viewportRisk.zones.map((zone) => (
@@ -868,6 +903,7 @@ export function GuestMapScreen({
                 : 'Retry loading risk areas'}
               accessibilityRole={viewportRisk.loading ? 'progressbar' : 'button'}
               disabled={viewportRisk.loading}
+              testID={viewportRisk.loading ? uiTestIds.guestMapRiskLoadingStatus : undefined}
               style={styles.riskLoadStatus}
               onPress={viewportRisk.retry}
             >
@@ -1375,6 +1411,7 @@ function GuestRiskDetail({
         <Pressable
           accessibilityLabel="Close risk details"
           accessibilityRole="button"
+          testID={uiTestIds.liveMapRiskDetailDismiss}
           style={styles.guestRiskDismiss}
           onPress={onDismiss}
         >

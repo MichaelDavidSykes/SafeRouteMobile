@@ -15,6 +15,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { getUserFacingErrorMessage } from '../api/userFacingErrors';
 import { colors } from '../../theme';
 import { SafeRouteLogo } from '../../brand/SafeRouteLogo';
+import { uiTestIds } from '../../testing/uiTestIds';
 import { loginWithPassword, verifyLoginCode } from './authApi';
 import { createLoginErrorState } from './loginErrorState';
 import { createLoginHeaderState } from './loginHeaderState';
@@ -188,7 +189,7 @@ export function LoginScreen({
   };
 
   return (
-    <SafeAreaView style={styles.screen}>
+    <SafeAreaView style={styles.screen} testID={uiTestIds.loginScreen}>
       <KeyboardAvoidingView
         behavior={Platform.OS === 'ios' ? 'padding' : undefined}
         keyboardVerticalOffset={loginLayout.keyboardVerticalOffset}
@@ -252,6 +253,7 @@ export function LoginScreen({
                   style={styles.input}
                   textContentType="username"
                   value={email}
+                  testID={uiTestIds.loginEmail}
                   accessibilityLabel="LunarChain email"
                   accessibilityHint="Enter the email address for your LunarChain account."
                   onChangeText={(value) => {
@@ -275,6 +277,7 @@ export function LoginScreen({
                   style={styles.input}
                   textContentType="password"
                   value={password}
+                  testID={uiTestIds.loginPassword}
                   accessibilityLabel="LunarChain password"
                   accessibilityHint="Enter your LunarChain account password."
                   onChangeText={(value) => {
@@ -365,6 +368,7 @@ export function LoginScreen({
             accessibilityHint={primaryActionState.accessibilityHint}
             accessibilityState={{ disabled: primaryActionState.disabled }}
             disabled={primaryActionState.disabled}
+            testID={uiTestIds.loginPrimaryAction}
             style={({ pressed }) => [
               styles.primaryButton,
               pressed && !primaryActionState.disabled ? styles.primaryButtonPressed : null,
@@ -399,6 +403,7 @@ export function LoginScreen({
               accessibilityLabel={mapReturnAction.accessibilityLabel}
               accessibilityHint={mapReturnAction.accessibilityHint}
               disabled={loading}
+              testID={uiTestIds.loginMapReturn}
               style={({ pressed }) => [
                 styles.secondaryButton,
                 pressed && !loading ? styles.secondaryButtonPressed : null,

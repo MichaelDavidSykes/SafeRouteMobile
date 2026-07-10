@@ -1,0 +1,68 @@
+appId: host.exp.Exponent
+---
+- stopApp
+- setLocation:
+    latitude: -34.033
+    longitude: 18.585
+- openLink: exp://localhost:8081
+- runFlow:
+    when:
+      visible: "Open"
+    commands:
+      - tapOn: "Open"
+- waitForAnimationToEnd:
+    timeout: 3000
+- openLink: exp://localhost:8081
+- runFlow:
+    when:
+      visible: "Open"
+    commands:
+      - tapOn: "Open"
+- waitForAnimationToEnd:
+    timeout: 10000
+- tapOn:
+    point: "50%,92%"
+- waitForAnimationToEnd:
+    timeout: 2500
+- tapOn:
+    point: "91%,49%"
+- runFlow:
+    when:
+      visible: "Allow While Using App"
+    commands:
+      - tapOn: "Allow While Using App"
+- extendedWaitUntil:
+    visible:
+      id: "saferoute-app-root"
+    timeout: 45000
+- runFlow:
+    when:
+      visible:
+        id: "safe-route-return"
+    commands:
+      - tapOn:
+          id: "safe-route-return"
+- runFlow:
+    when:
+      visible:
+        id: "safe-route-operations-map-return"
+    commands:
+      - tapOn:
+          id: "safe-route-operations-map-return"
+- extendedWaitUntil:
+    visible:
+      id: "safe-route-risk-zone-generated-area-risk-safe-route-area-risk-philippi-east-33b347150ca4712272"
+    timeout: 30000
+- tapOn:
+    id: "safe-route-risk-zone-generated-area-risk-safe-route-area-risk-philippi-east-33b347150ca4712272"
+- extendedWaitUntil:
+    visible:
+      id: "safe-route-risk-detail"
+    timeout: 5000
+- assertVisible: "Philippi East (Cape Flats)"
+- assertVisible:
+    id: "guest-map-collapsed-sheet"
+- tapOn:
+    id: "safe-route-risk-detail-dismiss"
+- assertNotVisible:
+    id: "safe-route-risk-detail"

@@ -11,10 +11,6 @@ export type RouteSummaryPrimaryAction = {
   label: string;
 };
 
-export type RouteSummaryDemoAction = {
-  label: string;
-};
-
 export type RouteSummaryDetail = {
   accessibilityLabel: string;
   text: string;
@@ -57,14 +53,6 @@ export function createRouteSummaryPrimaryAction(
   }
 
   return { label: "Start" };
-}
-
-export function createRouteSummaryDemoAction(
-  enabled: boolean,
-): RouteSummaryDemoAction {
-  return {
-    label: enabled ? "Simulation" : "Simulate",
-  };
 }
 
 function createBlockedRouteActionLabel(
@@ -195,12 +183,6 @@ export function shouldUseCompactRouteSummary(
   state: NavigationLifecycle,
 ): boolean {
   return state === "navigating" || state === "off-route" || state === "paused";
-}
-
-export function shouldInlineRouteSummaryDemoAction(
-  state: NavigationLifecycle,
-): boolean {
-  return !shouldUseCompactRouteSummary(state);
 }
 
 export function createRouteSummaryRemainingMetric(

@@ -137,22 +137,6 @@ appId: host.exp.Exponent
     id: "safe-route-summary-sheet"
 - assertVisible:
     id: "safe-route-primary-action"
-- assertVisible:
-    id: "safe-route-demo-action"
-- assertVisible:
-    id: "safe-route-control-intelligence"
-- runFlow:
-    when:
-      visible: "Turn route simulation on"
-    commands:
-      - tapOn:
-          id: "safe-route-demo-action"
-          waitToSettleTimeoutMs: 1000
-      - waitForAnimationToEnd:
-          timeout: 3000
-- assertVisible: "Turn route simulation off"
-- assertVisible:
-    id: "safe-route-demo-action"
 - tapOn:
     id: "safe-route-primary-action"
     waitToSettleTimeoutMs: 1000

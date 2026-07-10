@@ -13,7 +13,10 @@ import {
   SAFE_ROUTE_DARK_MAP_STYLE,
   SAFE_ROUTE_DARK_ROUTE_CASING,
   SAFE_ROUTE_DARK_ROUTE_GLOW,
+  SAFE_ROUTE_ROUTE_CASING_WIDTH,
+  SAFE_ROUTE_ROUTE_GLOW_WIDTH,
 } from "../maps/safeRouteMapTheme";
+import { shouldRenderRouteCheckpointMarker } from "../maps/mapMarkerPresentation";
 
 interface LiveMapCanvasProps {
   activeNavigationState: NavigationLifecycle;
@@ -92,14 +95,14 @@ export function LiveMapCanvas({
           <Polyline
             coordinates={routeCoordinates}
             strokeColor={SAFE_ROUTE_DARK_ROUTE_CASING}
-            strokeWidth={13}
+            strokeWidth={SAFE_ROUTE_ROUTE_CASING_WIDTH}
             lineCap="round"
             lineJoin="round"
           />
           <Polyline
             coordinates={routeCoordinates}
             strokeColor={SAFE_ROUTE_DARK_ROUTE_GLOW}
-            strokeWidth={10}
+            strokeWidth={SAFE_ROUTE_ROUTE_GLOW_WIDTH}
             lineCap="round"
             lineJoin="round"
           />
@@ -135,7 +138,13 @@ export function LiveMapCanvas({
       ))}
 
       {showRouteCheckpoints
-        ? routePlan.checkpoints.map((checkpoint) => (
+        ? routePlan.checkpoints.filter((checkpoint) =>
+            shouldRenderRouteCheckpointMarker({
+              checkpoint,
+              liveCoordinate: vehicleCoordinate,
+              nativeUserLocationVisible: showNativeUserLocation,
+            })
+          ).map((checkpoint) => (
             <CheckpointMarker key={checkpoint.id} checkpoint={checkpoint} />
           ))
         : null}

@@ -18,6 +18,8 @@ describe("SafeRoute dark map theme", () => {
       assert.doesNotMatch(mapSource, /userInterfaceStyle="light"/);
       assert.match(mapSource, /SAFE_ROUTE_DARK_ROUTE_CASING/);
       assert.match(mapSource, /SAFE_ROUTE_DARK_ROUTE_GLOW/);
+      assert.match(mapSource, /SAFE_ROUTE_ROUTE_CASING_WIDTH/);
+      assert.match(mapSource, /SAFE_ROUTE_ROUTE_GLOW_WIDTH/);
     }
   });
 
@@ -35,6 +37,9 @@ describe("SafeRoute dark map theme", () => {
     );
     assert.match(mapTheme, /SAFE_ROUTE_DARK_ROUTE_CASING/);
     assert.match(mapTheme, /SAFE_ROUTE_DARK_ROUTE_GLOW/);
+    assert.match(mapTheme, /SAFE_ROUTE_ROUTE_CASING_WIDTH\s*=\s*8/);
+    assert.match(mapTheme, /SAFE_ROUTE_ROUTE_GLOW_WIDTH\s*=\s*6/);
+    assert.match(mapTheme, /SAFE_ROUTE_ROUTE_CORE_WIDTH\s*=\s*4/);
   });
 
   it("keeps every production map free of forced light map styling", () => {

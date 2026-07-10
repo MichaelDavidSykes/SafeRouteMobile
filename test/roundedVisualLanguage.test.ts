@@ -596,7 +596,8 @@ describe("rounded visual language", () => {
     assert.match(guestMapSource, /description=\{checkpointKindLabel\(checkpoint\.kind\)\}/);
     assert.match(guestMapSource, /checkpoint\.kind === 'waypoint'/);
     assert.doesNotMatch(guestMapSource, /checkpoint\.label/);
-    assert.match(guestMapStylesSource, /\bmarker:[\s\S]*width:\s*28[\s\S]*borderWidth:\s*3/);
+    assert.match(guestMapStylesSource, /\bmarkerHitArea:[\s\S]*width:\s*32/);
+    assert.match(guestMapStylesSource, /\bmarker:[\s\S]*width:\s*18[\s\S]*borderWidth:\s*2/);
     assert.match(guestMapStylesSource, /\bmarkerDestination:[\s\S]*borderRadius:\s*radius\.pill/);
     assert.match(guestMarkerBlock, /shadowOpacity:\s*0/);
     assert.match(guestMarkerBlock, /shadowRadius:\s*0/);
@@ -605,6 +606,8 @@ describe("rounded visual language", () => {
     assert.doesNotMatch(guestMapStylesSource, /\bmarkerLabel:/);
 
     assert.match(liveMarkerSource, /checkpointMarkerCore/);
+    assert.match(liveMarkerSource, /checkpointMarkerHitArea:[\s\S]*width:\s*32/);
+    assert.match(liveMarkerSource, /checkpointMarker:[\s\S]*width:\s*18[\s\S]*borderWidth:\s*2/);
     assert.match(liveMarkerSource, /description=\{markerRole\}/);
     assert.match(liveMarkerSource, /checkpointMarkerOrigin:[\s\S]*colors\.appleBlue/);
     assert.match(liveMarkerSource, /checkpointMarkerWaypoint:[\s\S]*colors\.safe/);
@@ -1484,8 +1487,13 @@ describe("rounded visual language", () => {
     assert.doesNotMatch(markerSource, /,\s*shadow,/);
     assert.doesNotMatch(markerSource, /shadow\.panel/);
     assert.match(markerSource, /\briskMarkerCore:/);
+    assert.match(markerSource, /\briskMarkerHitArea:[\s\S]*width:\s*40/);
     assert.match(markerSource, /\bvehicleMarkerHeading:/);
     assert.match(markerSource, /borderRadius:\s*radius\.pill/);
+    assert.match(riskMarkerBlock, /width:\s*20/);
+    assert.match(vehicleMarkerBlock, /width:\s*30/);
+    assert.match(markerSource, /strokeWidth=\{selected \|\| active \? 9 : 7\}/);
+    assert.doesNotMatch(markerSource, /strokeWidth=\{selected \|\| active \? 14 : 11\}/);
     for (const markerBlock of [
       checkpointMarkerBlock,
       riskMarkerBlock,

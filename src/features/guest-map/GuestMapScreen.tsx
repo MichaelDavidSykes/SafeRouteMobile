@@ -30,8 +30,12 @@ import { useLiveLocation } from '../live-map/useLiveLocation';
 import {
   SAFE_ROUTE_DARK_MAP_STYLE,
   SAFE_ROUTE_DARK_ROUTE_CASING,
-  SAFE_ROUTE_DARK_ROUTE_GLOW
+  SAFE_ROUTE_DARK_ROUTE_GLOW,
+  SAFE_ROUTE_ROUTE_CASING_WIDTH,
+  SAFE_ROUTE_ROUTE_CORE_WIDTH,
+  SAFE_ROUTE_ROUTE_GLOW_WIDTH
 } from '../maps/safeRouteMapTheme';
+import { shouldRenderRouteCheckpointMarker } from '../maps/mapMarkerPresentation';
 import { isPreviewAccessToken } from '../auth/previewSession';
 import { ApiSessionExpiredError } from '../api/apiClient';
 import { fetchSavedRoutes } from '../routes/routeApi';
@@ -839,25 +843,31 @@ export function GuestMapScreen({
             <Polyline
               coordinates={routePlan.route.coordinates}
               strokeColor={SAFE_ROUTE_DARK_ROUTE_CASING}
-              strokeWidth={13}
+              strokeWidth={SAFE_ROUTE_ROUTE_CASING_WIDTH}
               lineCap="round"
               lineJoin="round"
             />
             <Polyline
               coordinates={routePlan.route.coordinates}
               strokeColor={SAFE_ROUTE_DARK_ROUTE_GLOW}
-              strokeWidth={10}
+              strokeWidth={SAFE_ROUTE_ROUTE_GLOW_WIDTH}
               lineCap="round"
               lineJoin="round"
             />
             <Polyline
               coordinates={routePlan.route.coordinates}
               strokeColor={colors.routePrimary}
-              strokeWidth={7}
+              strokeWidth={SAFE_ROUTE_ROUTE_CORE_WIDTH}
               lineCap="round"
               lineJoin="round"
             />
-            {routePlan.checkpoints.map((checkpoint) => (
+            {routePlan.checkpoints.filter((checkpoint) =>
+              shouldRenderRouteCheckpointMarker({
+                checkpoint,
+                liveCoordinate,
+                nativeUserLocationVisible: permissionStatus === 'granted'
+              })
+            ).map((checkpoint) => (
               <Marker
                 key={checkpoint.id}
                 coordinate={checkpoint.coordinate}
@@ -868,16 +878,20 @@ export function GuestMapScreen({
                 <View
                   accessibilityLabel={`${checkpointKindLabel(checkpoint.kind)}: ${checkpoint.caption}`}
                   accessibilityRole="image"
-                  style={[
-                    styles.marker,
-                    checkpoint.kind === 'origin'
-                      ? styles.markerOrigin
-                      : checkpoint.kind === 'waypoint'
-                        ? styles.markerWaypoint
-                        : styles.markerDestination
-                  ]}
+                  style={styles.markerHitArea}
                 >
-                  <View style={styles.markerCore} />
+                  <View
+                    style={[
+                      styles.marker,
+                      checkpoint.kind === 'origin'
+                        ? styles.markerOrigin
+                        : checkpoint.kind === 'waypoint'
+                          ? styles.markerWaypoint
+                          : styles.markerDestination
+                    ]}
+                  >
+                    <View style={styles.markerCore} />
+                  </View>
                 </View>
               </Marker>
             ))}

@@ -1,4 +1,5 @@
 import { colors } from "../../theme";
+import { SAFE_ROUTE_ROUTE_CORE_WIDTH } from "../maps/safeRouteMapTheme";
 
 export type RouteLinePresentation = {
   completedStrokeColor: string;
@@ -20,11 +21,11 @@ export function resolveRouteLinePresentation({
 
   return {
     completedStrokeColor: colors.routePrimary,
-    completedStrokeWidth: 7,
+    completedStrokeWidth: SAFE_ROUTE_ROUTE_CORE_WIDTH,
     remainingStrokeColor: hasCompletedSegment
       ? colors.routeRemaining
       : colors.routePrimary,
-    remainingStrokeWidth: hasCompletedSegment ? 7 : 8,
+    remainingStrokeWidth: SAFE_ROUTE_ROUTE_CORE_WIDTH,
     showCompletedSegment: hasCompletedSegment,
   };
 }

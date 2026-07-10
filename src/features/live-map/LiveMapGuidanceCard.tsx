@@ -30,6 +30,7 @@ export function LiveMapGuidanceCard({
     progress,
     riskAdvisory,
   });
+  const warningActive = state === "off-route";
 
   return (
     <View
@@ -39,7 +40,7 @@ export function LiveMapGuidanceCard({
         styles.guidanceCard,
         { bottom: layout.guidanceBottom },
         layout.isCompact ? styles.guidanceCardCompact : null,
-        state === "off-route" ? styles.guidanceCardWarning : null,
+        warningActive ? styles.guidanceCardWarning : null,
       ]}
     >
       <View style={styles.guidanceCopy}>
@@ -48,11 +49,18 @@ export function LiveMapGuidanceCard({
           style={[
             styles.guidanceTitle,
             layout.isCompact ? styles.guidanceTitleCompact : null,
+            warningActive ? styles.guidanceTitleWarning : null,
           ]}
         >
           {presentation.instructionLabel}
         </Text>
-        <Text numberOfLines={1} style={styles.guidanceMeta}>
+        <Text
+          numberOfLines={1}
+          style={[
+            styles.guidanceMeta,
+            warningActive ? styles.guidanceMetaWarning : null,
+          ]}
+        >
           {presentation.metaLabel}
         </Text>
         {presentation.riskAdvisory ? (
@@ -73,6 +81,7 @@ export function LiveMapGuidanceCard({
           style={[
             styles.guidanceDistance,
             layout.isCompact ? styles.guidanceDistanceCompact : null,
+            warningActive ? styles.guidanceDistanceWarning : null,
           ]}
         >
           {presentation.distanceLabel}

@@ -2,7 +2,6 @@ import { Pressable, Text, View } from "react-native";
 
 import type { LiveMapOverlayLayout } from "./liveMapLayout";
 import type { RiskZone } from "./liveMapTypes";
-import type { NavigationLifecycle } from "./liveMapUiState";
 import {
   createLiveRouteRiskAlertPresentation,
   createRiskZoneDetailPresentation,
@@ -15,13 +14,11 @@ import { uiTestIds } from "../../testing/uiTestIds";
 interface LiveRouteRiskAlertCardProps {
   alert: LiveRouteRiskAlert;
   layout: LiveMapOverlayLayout;
-  navigationState: NavigationLifecycle;
   onPress: () => void;
 }
 
 interface LiveRouteRiskDetailCardProps {
   layout: LiveMapOverlayLayout;
-  navigationState: NavigationLifecycle;
   onDismiss: () => void;
   proximity: RouteRiskProximity | null;
   zone: RiskZone;
@@ -32,7 +29,6 @@ const LIVE_RISK_DETAIL_DISMISS_HIT_SLOP = 6;
 export function LiveRouteRiskAlertCard({
   alert,
   layout,
-  navigationState,
   onPress,
 }: LiveRouteRiskAlertCardProps) {
   const presentation = createLiveRouteRiskAlertPresentation(alert);
@@ -46,7 +42,7 @@ export function LiveRouteRiskAlertCard({
       style={({ pressed }) => [
         styles.riskCard,
         {
-          bottom: resolveRiskCardBottom(layout, navigationState),
+          bottom: resolveRiskCardBottom(layout),
         },
         layout.isCompact ? styles.riskCardCompact : null,
         riskCardToneStyle(presentation.tone),
@@ -74,7 +70,6 @@ export function LiveRouteRiskAlertCard({
 
 export function LiveRouteRiskDetailCard({
   layout,
-  navigationState,
   onDismiss,
   proximity,
   zone,
@@ -89,7 +84,7 @@ export function LiveRouteRiskDetailCard({
       style={[
         styles.riskDetailCard,
         {
-          bottom: resolveRiskCardBottom(layout, navigationState),
+          bottom: resolveRiskCardBottom(layout),
         },
         layout.isCompact ? styles.riskDetailCardCompact : null,
         riskCardToneStyle(presentation.tone),
@@ -135,18 +130,7 @@ export function LiveRouteRiskDetailCard({
   );
 }
 
-function resolveRiskCardBottom(
-  layout: LiveMapOverlayLayout,
-  navigationState: NavigationLifecycle
-): number {
-  if (
-    navigationState === "navigating" ||
-    navigationState === "off-route" ||
-    navigationState === "paused"
-  ) {
-    return layout.guidanceBottom + (layout.isCompact ? 70 : 86);
-  }
-
+function resolveRiskCardBottom(layout: LiveMapOverlayLayout): number {
   return layout.isCompact ? 176 : 218;
 }
 

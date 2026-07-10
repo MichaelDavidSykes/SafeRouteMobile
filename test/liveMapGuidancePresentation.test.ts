@@ -48,6 +48,22 @@ describe("live map guidance card presentation", () => {
     });
   });
 
+  it("does not repeat the remaining route distance as a maneuver distance", () => {
+    const presentation = createGuidanceCardPresentation({
+      guidance: {
+        instruction: "Continue on route",
+        distance: "13.2 km",
+      },
+      progress: {
+        etaSeconds: 1380,
+        remainingDistanceMeters: 13200,
+      } as RouteProgressSnapshot,
+    });
+
+    assert.equal(presentation.distanceLabel, null);
+    assert.equal(presentation.metaLabel, "23 min · 13.2 km left");
+  });
+
   it("bounds hosted guidance chrome while preserving full VoiceOver context", () => {
     const longInstruction =
       "Continue through the north security checkpoint and prepare for a controlled convoy merge after the second barrier";

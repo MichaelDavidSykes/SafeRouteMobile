@@ -240,9 +240,20 @@ export function resolveGuidance(
   }
 
   return {
-    instruction: route.nextInstruction || 'Continue on saved route',
+    instruction: resolveActiveGuidanceInstruction(route),
     distance: formatDistance(progressOrStep.remainingDistanceMeters)
   };
+}
+
+function resolveActiveGuidanceInstruction(route: RoutePath): string {
+  const instruction = route.nextInstruction?.trim();
+  const isPreviewInstruction =
+    route.nextDistance?.trim().toLowerCase() === 'preview' ||
+    /\b(review the route|open saved|sign in)\b/i.test(instruction || '');
+
+  return instruction && !isPreviewInstruction
+    ? instruction
+    : 'Continue on route';
 }
 
 export function formatDistance(distanceMeters: number): string {

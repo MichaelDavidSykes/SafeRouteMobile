@@ -17,7 +17,7 @@ export interface LiveMapOverlayLayout {
     right: number;
     top: number;
   };
-  guidanceBottom: number;
+  guidanceTop: number;
   guidanceDistanceVisible: boolean;
   guidanceTitleLines: number;
   isCompact: boolean;
@@ -46,13 +46,13 @@ export function resolveLiveMapOverlayLayout({
       alertChipWidth: 150,
       compact: true,
       density: 'compact',
-      edgePadding: { top: 172, right: 44, bottom: 286, left: 36 },
-      guidanceBottom: 314,
+      edgePadding: { top: 212, right: 44, bottom: 286, left: 36 },
+      guidanceTop: ios ? 96 : 108,
       guidanceDistanceVisible: normalizedWidth > 340,
       guidanceTitleLines: 2,
       isCompact: true,
       mapControlsDirection: 'row',
-      mapControlsTop: ios ? 152 : 166,
+      mapControlsTop: ios ? 184 : 196,
       sheetBottomPadding: ios ? 14 : 10,
       showRouteEndpoints: false,
       showRouteSubtitle: normalizedHeight > 640
@@ -63,13 +63,13 @@ export function resolveLiveMapOverlayLayout({
     alertChipWidth: 170,
     compact: false,
     density: 'regular',
-    edgePadding: { top: 188, right: 72, bottom: 336, left: 44 },
-    guidanceBottom: 386,
+    edgePadding: { top: 248, right: 72, bottom: 336, left: 44 },
+    guidanceTop: ios ? 132 : 144,
     guidanceDistanceVisible: true,
-    guidanceTitleLines: 1,
+    guidanceTitleLines: 2,
     isCompact: false,
     mapControlsDirection: 'column',
-    mapControlsTop: 196,
+    mapControlsTop: ios ? 244 : 256,
     sheetBottomPadding: ios ? 24 : 14,
     showRouteEndpoints: false,
     showRouteSubtitle: true

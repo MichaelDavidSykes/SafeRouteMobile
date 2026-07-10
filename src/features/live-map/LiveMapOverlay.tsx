@@ -131,7 +131,6 @@ export function LiveMapOverlay({
       {selectedRiskZone ? (
         <LiveRouteRiskDetailCard
           layout={layout}
-          navigationState={activeNavigationState}
           proximity={selectedRiskProximity}
           zone={selectedRiskZone}
           onDismiss={onDismissRiskDetail}
@@ -140,7 +139,6 @@ export function LiveMapOverlay({
         <LiveRouteRiskAlertCard
           alert={liveRiskAlert}
           layout={layout}
-          navigationState={activeNavigationState}
           onPress={onOpenRiskAlert}
         />
       ) : null}

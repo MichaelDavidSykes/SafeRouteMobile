@@ -60,6 +60,20 @@ function normalizeIosBuildNumber(value) {
   return normalized;
 }
 
+function normalizePreviewInitialScreen(value, previewModeEnabled) {
+  const normalized = value?.trim().toLowerCase();
+
+  if (!previewModeEnabled) {
+    return 'guest-map';
+  }
+
+  if (normalized === 'operations') {
+    return 'operations';
+  }
+
+  return normalized === 'routes' ? 'routes' : 'guest-map';
+}
+
 const appEnvironment = trimmedEnv('SAFEROUTE_APP_ENV') || 'development';
 
 if (!supportedEnvironments.includes(appEnvironment)) {
@@ -77,10 +91,10 @@ const safeRouteDemoDriveEnabled =
 const safeRoutePreviewModeEnabled =
   appEnvironment !== 'production' &&
   (enablePreviewModeOverride ? enablePreviewModeOverride.toLowerCase() === 'true' : false);
-const safeRoutePreviewInitialScreen =
-  safeRoutePreviewModeEnabled && previewInitialScreenOverride?.toLowerCase() === 'routes'
-    ? 'routes'
-    : 'guest-map';
+const safeRoutePreviewInitialScreen = normalizePreviewInitialScreen(
+  previewInitialScreenOverride,
+  safeRoutePreviewModeEnabled
+);
 const productionApiUrlOverride = trimmedEnv('SAFEROUTE_PROD_API_URL');
 const apiUrls = {
   development: firstConfiguredValue(trimmedEnv('SAFEROUTE_DEV_API_URL'), trimmedEnv('SAFEROUTE_API_URL'), 'https://api.lunarchain.net'),

@@ -262,11 +262,16 @@ describe('Expo production configuration', () => {
     assert.equal(productionExpo.extra.safeRoutePreviewModeEnabled, false);
   });
 
-  it('allows preview Maestro runs to start directly on saved routes outside production', () => {
-    const developmentExpo = loadExpoConfig({
+  it('allows preview Maestro runs to start directly on supporting screens outside production', () => {
+    const routePickerExpo = loadExpoConfig({
       SAFEROUTE_APP_ENV: 'development',
       SAFEROUTE_ENABLE_PREVIEW_MODE: 'true',
       SAFEROUTE_PREVIEW_INITIAL_SCREEN: ' routes '
+    });
+    const operationsExpo = loadExpoConfig({
+      SAFEROUTE_APP_ENV: 'development',
+      SAFEROUTE_ENABLE_PREVIEW_MODE: 'true',
+      SAFEROUTE_PREVIEW_INITIAL_SCREEN: ' operations '
     });
     const disabledPreviewExpo = loadExpoConfig({
       SAFEROUTE_APP_ENV: 'development',
@@ -281,8 +286,10 @@ describe('Expo production configuration', () => {
       GOOGLE_MAPS_IOS_API_KEY: 'ios-key'
     });
 
-    assert.equal(developmentExpo.extra.safeRoutePreviewModeEnabled, true);
-    assert.equal(developmentExpo.extra.safeRoutePreviewInitialScreen, 'routes');
+    assert.equal(routePickerExpo.extra.safeRoutePreviewModeEnabled, true);
+    assert.equal(routePickerExpo.extra.safeRoutePreviewInitialScreen, 'routes');
+    assert.equal(operationsExpo.extra.safeRoutePreviewModeEnabled, true);
+    assert.equal(operationsExpo.extra.safeRoutePreviewInitialScreen, 'operations');
     assert.equal(disabledPreviewExpo.extra.safeRoutePreviewModeEnabled, false);
     assert.equal(disabledPreviewExpo.extra.safeRoutePreviewInitialScreen, 'guest-map');
     assert.equal(productionExpo.extra.safeRoutePreviewModeEnabled, false);

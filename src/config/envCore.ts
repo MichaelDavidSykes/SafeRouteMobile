@@ -4,7 +4,7 @@ const PRODUCTION_ENVIRONMENT = 'production';
 const SUPPORTED_ENVIRONMENTS = ['development', 'staging', PRODUCTION_ENVIRONMENT] as const;
 
 export type SafeRouteAppEnvironment = (typeof SUPPORTED_ENVIRONMENTS)[number];
-export type SafeRoutePreviewInitialScreen = 'guest-map' | 'routes';
+export type SafeRoutePreviewInitialScreen = 'guest-map' | 'operations' | 'routes';
 
 export type SafeRouteExtra = {
   safeRouteApiUrl?: string;
@@ -100,6 +100,10 @@ function normalizePreviewInitialScreen(
 ): SafeRoutePreviewInitialScreen {
   if (!previewModeEnabled) {
     return 'guest-map';
+  }
+
+  if (value?.trim().toLowerCase() === 'operations') {
+    return 'operations';
   }
 
   return value?.trim().toLowerCase() === 'routes' ? 'routes' : 'guest-map';

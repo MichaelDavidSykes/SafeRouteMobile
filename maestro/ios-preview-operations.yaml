@@ -21,13 +21,10 @@ appId: host.exp.Exponent
 - waitForAnimationToEnd:
     timeout: 10000
 - tapOn:
-    point: "50%,92%"
+    text: "Close"
+    optional: true
 - waitForAnimationToEnd:
-    timeout: 3000
-- tapOn:
-    point: "91%,49%"
-- waitForAnimationToEnd:
-    timeout: 5000
+    timeout: 1000
 - runFlow:
     when:
       visible: "Allow While Using App"
@@ -52,26 +49,17 @@ appId: host.exp.Exponent
 - runFlow:
     when:
       visible:
-        id: "safe-route-operations-map-return"
+        id: "guest-map-gate-planned-trips"
     commands:
       - tapOn:
-          id: "safe-route-operations-map-return"
+          id: "guest-map-gate-planned-trips"
           waitToSettleTimeoutMs: 1000
       - waitForAnimationToEnd:
           timeout: 3000
 # Requires the Expo listener to be started with SAFEROUTE_ENABLE_PREVIEW_MODE=true
-# so the local preview session can expose authenticated, view-only operations.
-- extendedWaitUntil:
-    visible:
-      id: "guest-map-gate-planned-trips"
-    timeout: 15000
-- assertVisible:
-    id: "guest-map-gate-calendar"
-- assertVisible:
-    id: "guest-map-gate-convoy-management"
-- tapOn:
-    id: "guest-map-gate-planned-trips"
-    waitToSettleTimeoutMs: 1000
+# and SAFEROUTE_PREVIEW_INITIAL_SCREEN=operations so the local preview session
+# opens directly on the authenticated, view-only Operations surface while still
+# recovering through stable app controls if Expo Go preserves a previous map.
 - extendedWaitUntil:
     visible:
       id: "safe-route-operations"
@@ -108,6 +96,10 @@ appId: host.exp.Exponent
     visible:
       id: "guest-map-gate-calendar"
     timeout: 12000
+- assertVisible:
+    id: "guest-map-gate-planned-trips"
+- assertVisible:
+    id: "guest-map-gate-convoy-management"
 - tapOn:
     id: "guest-map-gate-calendar"
     waitToSettleTimeoutMs: 1000

@@ -100,6 +100,15 @@ describe('SafeRoute runtime config', () => {
         safeRoutePreviewModeEnabled: true,
         safeRoutePreviewInitialScreen: 'operations'
       }).previewInitialScreen,
+      'operations'
+    );
+
+    assert.equal(
+      resolveSafeRouteRuntimeConfig({
+        safeRouteEnvironment: 'development',
+        safeRoutePreviewModeEnabled: true,
+        safeRoutePreviewInitialScreen: ' route-detail '
+      }).previewInitialScreen,
       'guest-map'
     );
 

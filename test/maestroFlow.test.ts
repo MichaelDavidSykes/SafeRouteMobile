@@ -73,6 +73,34 @@ describe("Maestro iOS preview smoke flow", () => {
     assert.ok(appRootWaitIndex > lastLocalhostIndex);
   });
 
+  it("opens operations preview sessions directly on the supporting Operations surface", () => {
+    const flow = operationsFlowSource();
+    const scripts = packageJson().scripts;
+    const appRootIndex = flow.indexOf('id: "saferoute-app-root"');
+    const operationsIndex = flow.indexOf('id: "safe-route-operations"');
+    const firstMapReturnIndex = flow.indexOf('id: "safe-route-operations-map-return"');
+    const firstGuestGateIndex = flow.indexOf('id: "guest-map-gate-calendar"');
+
+    assert.equal(
+      scripts["prestart:maestro:ios:preview:operations"],
+      "node scripts/maestro-ios-preflight.mjs",
+    );
+    assert.equal(
+      scripts["start:maestro:ios:preview:operations"],
+      "SAFEROUTE_ENABLE_PREVIEW_MODE=true SAFEROUTE_PREVIEW_INITIAL_SCREEN=operations NODE_OPTIONS=--dns-result-order=ipv4first expo start --localhost --port 8081",
+    );
+    assert.match(flow, /SAFEROUTE_ENABLE_PREVIEW_MODE=true/);
+    assert.match(flow, /SAFEROUTE_PREVIEW_INITIAL_SCREEN=operations/);
+    assert.match(flow, /text:\s*"Close"[\s\S]*optional:\s*true/);
+    assert.doesNotMatch(flow, /point:\s*"50%,92%"/);
+    assert.doesNotMatch(flow, /point:\s*"91%,49%"/);
+    assert.match(flow, /extendedWaitUntil:\s*\n\s+visible:\s*\n\s+id:\s*"safe-route-operations"/);
+    assert.ok(appRootIndex >= 0);
+    assert.ok(operationsIndex > appRootIndex);
+    assert.ok(firstMapReturnIndex > operationsIndex);
+    assert.ok(firstGuestGateIndex > firstMapReturnIndex);
+  });
+
   it("plots a guest route before opening the live map", () => {
     const flow = previewFlowSource();
     const guestGateIndex = flow.indexOf('id: "guest-map-primary-action"');

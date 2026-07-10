@@ -52,19 +52,51 @@ describe('route list error states', () => {
     });
   });
 
+  it('keeps route detail error sentences calm when hosted copy already has punctuation', () => {
+    const ellipsisState = createRouteDetailErrorState(
+      new Error('  Hosted detail paused.  '),
+      ' Airport transfer… '
+    );
+    const questionState = createRouteDetailErrorState(
+      new Error('  Try again  '),
+      ' Embassy checkpoint? '
+    );
+
+    assert.equal(
+      ellipsisState.message,
+      'Could not load Airport transfer… Hosted detail paused.'
+    );
+    assert.equal(
+      ellipsisState.messageAccessibilityLabel,
+      'Could not load Airport transfer… Hosted detail paused.'
+    );
+    assert.doesNotMatch(ellipsisState.message, /…\./);
+    assert.doesNotMatch(ellipsisState.message, /\.\./);
+    assert.equal(
+      questionState.message,
+      'Could not load Embassy checkpoint? Try again.'
+    );
+    assert.doesNotMatch(questionState.message, /\?\./);
+  });
+
   it('bounds visible route detail error names while preserving retry context', () => {
     const longRouteName = `${'Airport transfer '.repeat(6)}north service entrance`;
     const state = createRouteDetailErrorState(
       new Error('  Details are temporarily unavailable.  '),
       `  ${longRouteName}  `
     );
-    const compactRouteName = /^Could not load (.*)\. Details are temporarily unavailable\.$/.exec(
-      state.message
-    )?.[1];
+    const messagePrefix = 'Could not load ';
+    const messageSuffix = ' Details are temporarily unavailable.';
+    const compactRouteName =
+      state.message.startsWith(messagePrefix) &&
+      state.message.endsWith(messageSuffix)
+        ? state.message.slice(messagePrefix.length, -messageSuffix.length)
+        : null;
 
     assert.ok(compactRouteName);
     assert.equal(compactRouteName.length, ROUTE_DETAIL_ERROR_ROUTE_NAME_MAX_LENGTH);
     assert.match(compactRouteName, /…$/);
+    assert.doesNotMatch(state.message, /…\./);
     assert.equal(
       state.messageAccessibilityLabel,
       `Could not load ${longRouteName.trim().replace(/\s+/g, ' ')}. Details are temporarily unavailable.`

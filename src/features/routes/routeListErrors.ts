@@ -39,8 +39,8 @@ export function createRouteDetailErrorState(error: unknown, routeName: string): 
 
   return {
     action: 'detail',
-    message: `Could not load ${compactRouteName}. ${compactReason}`,
-    messageAccessibilityLabel: `Could not load ${safeRouteName}. ${reason}`,
+    message: createRouteDetailErrorMessage(compactRouteName, compactReason),
+    messageAccessibilityLabel: createRouteDetailErrorMessage(safeRouteName, reason),
     retryAccessibilityLabel: `Retry loading ${safeRouteName}`,
     retryLabel: 'Retry',
     title: 'Route unavailable'
@@ -59,6 +59,26 @@ function cleanRouteName(routeName: string): string {
 
 function normalizeRouteErrorText(value: string): string {
   return value.trim().replace(/\s+/g, ' ');
+}
+
+function createRouteDetailErrorMessage(routeName: string, reason: string): string {
+  return createRouteErrorSentences([`Could not load ${routeName}`, reason]);
+}
+
+function createRouteErrorSentences(parts: string[]): string {
+  return parts
+    .map(normalizeRouteErrorText)
+    .filter(Boolean)
+    .map(createRouteErrorSentence)
+    .join(' ');
+}
+
+function createRouteErrorSentence(part: string): string {
+  return hasTerminalRouteErrorPunctuation(part) ? part : `${part}.`;
+}
+
+function hasTerminalRouteErrorPunctuation(part: string): boolean {
+  return /[.!?…]$/.test(part.trim());
 }
 
 function createCompactRouteErrorName(routeName: string): string {

@@ -1551,13 +1551,15 @@ describe("rounded visual language", () => {
       routeListErrorsSource,
       /const compactReason = createCompactRouteErrorText\(reason, ROUTE_LIST_ERROR_REASON_MAX_LENGTH\)/,
     );
+    assert.match(routeListErrorsSource, /createRouteDetailErrorMessage/);
+    assert.match(routeListErrorsSource, /hasTerminalRouteErrorPunctuation/);
     assert.match(
       routeListErrorsSource,
-      /message:\s*`Could not load \$\{compactRouteName\}\. \$\{compactReason\}`/,
+      /message:\s*createRouteDetailErrorMessage\(compactRouteName, compactReason\)/,
     );
     assert.match(
       routeListErrorsSource,
-      /messageAccessibilityLabel:\s*`Could not load \$\{safeRouteName\}\. \$\{reason\}`/,
+      /messageAccessibilityLabel:\s*createRouteDetailErrorMessage\(safeRouteName, reason\)/,
     );
     assert.match(
       routeListErrorsSource,

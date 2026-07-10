@@ -128,6 +128,10 @@ export const routeListStyles = StyleSheet.create({
     borderRadius: radius.pill,
     backgroundColor: colors.surfaceGlass,
   },
+  searchBoxFocused: {
+    borderColor: colors.appleBlue,
+    backgroundColor: colors.surfaceTranslucent,
+  },
   searchInput: {
     flex: 1,
     color: colors.ink,

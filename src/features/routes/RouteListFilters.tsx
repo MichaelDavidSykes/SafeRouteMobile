@@ -1,3 +1,4 @@
+import { useState } from "react";
 import { Pressable, ScrollView, Text, TextInput, View } from "react-native";
 
 import { colors } from "../../theme";
@@ -31,6 +32,8 @@ export function RouteListFilters({
   routeSummary,
   showSummary,
 }: RouteListFiltersProps) {
+  const [searchFocused, setSearchFocused] = useState(false);
+
   return (
     <>
       {showClientFilters ? (
@@ -53,9 +56,15 @@ export function RouteListFilters({
       ) : null}
 
       {showSearch ? (
-        <View style={styles.searchBox}>
+        <View
+          style={[
+            styles.searchBox,
+            searchFocused ? styles.searchBoxFocused : null,
+          ]}
+        >
           <TextInput
             accessibilityLabel="Search saved routes"
+            accessibilityHint="Filters saved routes by route, convoy, endpoint, or risk."
             autoCapitalize="none"
             autoCorrect={false}
             clearButtonMode="while-editing"
@@ -65,7 +74,9 @@ export function RouteListFilters({
             returnKeyType="search"
             style={styles.searchInput}
             value={query}
+            onBlur={() => setSearchFocused(false)}
             onChangeText={onChangeQuery}
+            onFocus={() => setSearchFocused(true)}
           />
         </View>
       ) : null}

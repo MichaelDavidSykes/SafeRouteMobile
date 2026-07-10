@@ -1605,10 +1605,17 @@ describe("rounded visual language", () => {
     assert.match(routeListFiltersSource, /placeholder="Find route"/);
     assert.doesNotMatch(routeListFiltersSource, /Ionicons/);
     assert.doesNotMatch(routeListFiltersSource, /name="search"/);
+    assert.match(routeListFiltersSource, /useState\(false\)/);
+    assert.match(routeListFiltersSource, /searchFocused \? styles\.searchBoxFocused : null/);
+    assert.match(routeListFiltersSource, /accessibilityHint="Filters saved routes by route, convoy, endpoint, or risk\."/);
+    assert.match(routeListFiltersSource, /onFocus=\{\(\) => setSearchFocused\(true\)\}/);
+    assert.match(routeListFiltersSource, /onBlur=\{\(\) => setSearchFocused\(false\)\}/);
     assert.match(searchBoxBlock, /minHeight:\s*controlSizes\.secondary/);
     assert.match(searchBoxBlock, /borderRadius:\s*radius\.pill/);
     assert.match(searchBoxBlock, /backgroundColor:\s*colors\.surfaceGlass/);
     assert.doesNotMatch(searchBoxBlock, /shadow\.panel/);
+    assert.match(routeListStylesSource, /searchBoxFocused:[\s\S]*borderColor:\s*colors\.appleBlue/);
+    assert.match(routeListStylesSource, /searchBoxFocused:[\s\S]*backgroundColor:\s*colors\.surfaceTranslucent/);
     assert.match(routeListFiltersSource, /hitSlop=\{ROUTE_FILTER_HIT_SLOP\}[\s\S]*styles\.clearSearchButton/);
     assert.match(routeListFiltersSource, /pressed \? styles\.clearSearchButtonPressed/);
     assert.match(routeListFiltersSource, /<Text numberOfLines=\{1\} style=\{styles\.clearSearchText\}>/);

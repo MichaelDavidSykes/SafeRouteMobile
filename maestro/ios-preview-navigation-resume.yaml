@@ -1,0 +1,136 @@
+appId: host.exp.Exponent
+---
+- stopApp
+- setLocation:
+    latitude: 51.5074
+    longitude: -0.1278
+- openLink: exp://localhost:8081
+- runFlow:
+    when:
+      visible: "Open"
+    commands:
+      - tapOn: "Open"
+- waitForAnimationToEnd:
+    timeout: 3000
+- openLink: exp://localhost:8081
+- runFlow:
+    when:
+      visible: "Open"
+    commands:
+      - tapOn: "Open"
+- waitForAnimationToEnd:
+    timeout: 10000
+- tapOn:
+    point: "50%,92%"
+- waitForAnimationToEnd:
+    timeout: 3000
+- tapOn:
+    point: "91%,49%"
+- waitForAnimationToEnd:
+    timeout: 5000
+- runFlow:
+    when:
+      visible: "Allow While Using App"
+    commands:
+      - tapOn: "Allow While Using App"
+      - waitForAnimationToEnd:
+          timeout: 3000
+- extendedWaitUntil:
+    visible:
+      id: "saferoute-app-root"
+    timeout: 45000
+- runFlow:
+    when:
+      visible:
+        id: "safe-route-return"
+    commands:
+      - tapOn:
+          id: "safe-route-return"
+          waitToSettleTimeoutMs: 1000
+      - waitForAnimationToEnd:
+          timeout: 3000
+- runFlow:
+    when:
+      visible:
+        id: "safe-route-operations-map-return"
+    commands:
+      - tapOn:
+          id: "safe-route-operations-map-return"
+          waitToSettleTimeoutMs: 1000
+      - waitForAnimationToEnd:
+          timeout: 3000
+- runFlow:
+    when:
+      visible:
+        id: "guest-map-primary-action"
+    commands:
+      - tapOn:
+          id: "guest-map-destination-input"
+      - inputText: "51.5053, 0.0553"
+      - extendedWaitUntil:
+          visible:
+            id: "guest-map-search-coordinate-51-505300-0-055300"
+          timeout: 10000
+      - tapOn:
+          id: "guest-map-search-coordinate-51-505300-0-055300"
+      - tapOn:
+          id: "guest-map-plot-action"
+          waitToSettleTimeoutMs: 1000
+      - extendedWaitUntil:
+          visible:
+            id: "guest-map-route-preview"
+          timeout: 30000
+      - tapOn:
+          id: "guest-map-plot-action"
+          waitToSettleTimeoutMs: 1000
+- runFlow:
+    when:
+      visible:
+        id: "safe-route-picker"
+    commands:
+      - tapOn:
+          id: "safe-route-card-sr-city-airport-alpha"
+          waitToSettleTimeoutMs: 1000
+- extendedWaitUntil:
+    visible:
+      id: "safe-route-live-map"
+    timeout: 30000
+- tapOn:
+    id: "safe-route-primary-action"
+    waitToSettleTimeoutMs: 1000
+- extendedWaitUntil:
+    visible:
+      id: "safe-route-stop-action"
+    timeout: 10000
+- assertVisible:
+    id: "safe-route-remaining-metrics"
+- tapOn:
+    id: "safe-route-return"
+    waitToSettleTimeoutMs: 1000
+- extendedWaitUntil:
+    visible:
+      id: "safe-route-resume-action"
+    timeout: 10000
+- assertVisible:
+    id: "safe-route-resume-action"
+- tapOn:
+    id: "safe-route-resume-action"
+    waitToSettleTimeoutMs: 1000
+- extendedWaitUntil:
+    visible:
+      id: "safe-route-live-map"
+    timeout: 10000
+- assertVisible:
+    id: "safe-route-stop-action"
+- tapOn:
+    id: "safe-route-stop-action"
+    waitToSettleTimeoutMs: 1000
+- waitForAnimationToEnd:
+    timeout: 3000
+- tapOn:
+    id: "safe-route-return"
+    waitToSettleTimeoutMs: 1000
+- waitForAnimationToEnd:
+    timeout: 3000
+- assertNotVisible:
+    id: "safe-route-resume-action"

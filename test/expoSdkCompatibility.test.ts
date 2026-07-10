@@ -53,11 +53,13 @@ describe('Expo Go SDK compatibility', () => {
     const packageJson = readPackageJson();
     const packageLock = readPackageLock();
     const expectedDependencies = {
+      '@react-native-async-storage/async-storage': '2.2.0',
       expo: '~56.0.15',
       'expo-constants': '~56.0.20',
       'expo-location': '~56.0.20',
       'expo-secure-store': '~56.0.4',
       'expo-status-bar': '~56.0.4',
+      'expo-task-manager': '~56.0.21',
       react: '19.2.3',
       'react-native': '0.85.3',
       'react-native-maps': '1.27.2',

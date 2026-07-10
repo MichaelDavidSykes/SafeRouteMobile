@@ -24,12 +24,15 @@ import {
   shouldUseCompactRouteSummary,
   type RouteSummarySafetyBadge,
 } from "./routeSummaryPresentation";
+import type { BackgroundNavigationPresentation } from "./backgroundNavigationState";
 
 const ROUTE_SUMMARY_ACTION_HIT_SLOP = 6;
 
 interface LiveMapRouteSummarySheetProps {
+  backgroundNavigationPresentation?: BackgroundNavigationPresentation | null;
   layout: LiveMapOverlayLayout;
   navigationState: NavigationLifecycle;
+  onEnableBackgroundNavigation: () => void;
   onPrimaryAction: () => void;
   onStopRoute: () => void;
   primaryDisabledReason?: string | null;
@@ -40,8 +43,10 @@ interface LiveMapRouteSummarySheetProps {
 }
 
 export function LiveMapRouteSummarySheet({
+  backgroundNavigationPresentation,
   layout,
   navigationState,
+  onEnableBackgroundNavigation,
   onPrimaryAction,
   onStopRoute,
   primaryDisabledReason,
@@ -156,6 +161,26 @@ export function LiveMapRouteSummarySheet({
           />
         ) : null}
       </View>
+
+      {backgroundNavigationPresentation ? (
+        <Pressable
+          accessibilityLabel={backgroundNavigationPresentation.accessibilityLabel}
+          accessibilityRole="button"
+          testID={uiTestIds.liveMapBackgroundNavigationAction}
+          style={({ pressed }) => [
+            styles.continuityAction,
+            pressed ? styles.continuityActionPressed : null,
+          ]}
+          onPress={onEnableBackgroundNavigation}
+        >
+          <Text numberOfLines={1} style={styles.continuityMessage}>
+            {backgroundNavigationPresentation.message}
+          </Text>
+          <Text numberOfLines={1} style={styles.continuityActionText}>
+            {backgroundNavigationPresentation.actionLabel}
+          </Text>
+        </Pressable>
+      ) : null}
 
       <View
         style={[

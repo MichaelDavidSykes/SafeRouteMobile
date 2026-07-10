@@ -46,14 +46,16 @@ type ExpoConfig = {
     bundleIdentifier: string;
     supportsTablet: boolean;
     infoPlist?: {
+      NSLocationAlwaysAndWhenInUseUsageDescription?: string;
       NSLocationWhenInUseUsageDescription?: string;
+      UIBackgroundModes?: string[];
     };
     config?: {
       googleMapsApiKey?: string;
       usesNonExemptEncryption?: boolean;
     };
   };
-  plugins: Array<string | [string, Record<string, string>]>;
+  plugins: Array<string | [string, Record<string, unknown>]>;
 };
 
 function loadExpoConfig(overrides: Partial<Record<SafeRouteEnvKey, string>> = {}): ExpoConfig {
@@ -146,9 +148,24 @@ describe('Expo production configuration', () => {
     assert.deepEqual(locationPlugin, [
       'expo-location',
       {
+        isAndroidBackgroundLocationEnabled: true,
+        isAndroidForegroundServiceEnabled: true,
+        isIosBackgroundLocationEnabled: true,
+        locationAlwaysAndWhenInUsePermission:
+          'Keeps active SafeRoute guidance and safety monitoring running when the screen is locked.',
         locationWhenInUsePermission: expectedCopy
       }
     ]);
+  });
+
+  it('configures explicit background guidance permissions for installed apps', () => {
+    const expo = loadExpoConfig();
+
+    assert.equal(
+      expo.ios.infoPlist?.NSLocationAlwaysAndWhenInUseUsageDescription,
+      'Keeps active SafeRoute guidance and safety monitoring running when the screen is locked.'
+    );
+    assert.deepEqual(expo.ios.infoPlist?.UIBackgroundModes, ['location']);
   });
 
   it('requires a supported SafeRoute app environment', () => {

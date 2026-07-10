@@ -21,10 +21,12 @@ import {
 import { styles } from "./LiveMapOverlay.styles";
 import { LiveMapRouteHeader } from "./LiveMapRouteHeader";
 import { LiveMapRouteSummarySheet } from "./LiveMapRouteSummarySheet";
+import type { BackgroundNavigationPresentation } from "./backgroundNavigationState";
 
 interface LiveMapOverlayProps {
   activeNavigationState: NavigationLifecycle;
   alertsVisible: boolean;
+  backgroundNavigationPresentation?: BackgroundNavigationPresentation | null;
   followModeEnabled: boolean;
   guidance: { instruction: string; distance: string };
   hasVehicleCoordinate: boolean;
@@ -42,6 +44,7 @@ interface LiveMapOverlayProps {
   progress: RouteProgressSnapshot | null;
   liveRiskAlert: LiveRouteRiskAlert | null;
   onDismissRiskDetail: () => void;
+  onEnableBackgroundNavigation: () => void;
   onOpenRiskAlert: () => void;
   riskAdvisory?: RouteRiskAdvisory | null;
   reroutePresentation?: LiveReroutePresentation | null;
@@ -57,6 +60,7 @@ interface LiveMapOverlayProps {
 export function LiveMapOverlay({
   activeNavigationState,
   alertsVisible,
+  backgroundNavigationPresentation,
   followModeEnabled,
   guidance,
   hasVehicleCoordinate,
@@ -74,6 +78,7 @@ export function LiveMapOverlay({
   progress,
   liveRiskAlert,
   onDismissRiskDetail,
+  onEnableBackgroundNavigation,
   onOpenRiskAlert,
   riskAdvisory,
   reroutePresentation,
@@ -141,6 +146,7 @@ export function LiveMapOverlay({
       ) : null}
 
       <LiveMapRouteSummarySheet
+        backgroundNavigationPresentation={backgroundNavigationPresentation}
         navigationState={activeNavigationState}
         layout={layout}
         progress={progress}
@@ -148,6 +154,7 @@ export function LiveMapOverlay({
         routeContext={routeContext}
         routePlan={routePlan}
         primaryDisabledReason={primaryDisabledReason}
+        onEnableBackgroundNavigation={onEnableBackgroundNavigation}
         onPrimaryAction={onPrimaryAction}
         onStopRoute={onStopRoute}
       />

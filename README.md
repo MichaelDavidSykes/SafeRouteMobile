@@ -9,6 +9,9 @@ Standalone mobile app shell for SafeRoute live mapping.
 - LunarChain credential sign in before route access
 - Full-screen live map screen for the selected saved route
 - Foreground location permission and live position watch with on-device route snapping
+- Accuracy-aware GPS filtering, circular heading smoothing, and implausible-jump rejection
+- Time-bounded active-route recovery with a compact Resume route action
+- Opt-in background guidance for installed builds so active tracking can continue with the screen locked
 - Guest route previews can consume a fail-closed road-snapped route geometry before opening live guidance
 - Deterministic route-preview movement reserved for explicit development preview sessions
 - Route summary, next movement card, position marker, and intelligence overlay controls
@@ -78,6 +81,8 @@ GOOGLE_MAPS_IOS_API_KEY=...
 
 `SAFEROUTE_APP_ENV` must be `development`, `staging`, or `production`. The map works in Expo Go for early iteration. Production iOS config now fails fast unless `SAFEROUTE_PROD_API_URL` is explicitly set to a valid hosted HTTPS URL, `GOOGLE_MAPS_IOS_API_KEY` is present, and `SAFEROUTE_IOS_BUILD_NUMBER` is explicitly set to a valid App Store/TestFlight build number. Production releases intentionally do not accept a generic `SAFEROUTE_API_URL`, `localhost`, or `127.0.0.1` fallback.
 
+Foreground route planning and live-location smoke tests work in Expo Go. Release-equivalent background testing requires an installed development, preview, or production build: Expo Go does not provide Android background location, and its iOS Simulator support is only a limited development aid. During a live route, the compact **Keep active** action requests background access only after foreground guidance is already running.
+
 Packaged runtime config also defaults to the hosted HTTPS API if a production manifest ever contains a missing or non-HTTPS API URL; local HTTP API URLs remain available for non-production simulator/dev runs.
 
 Set `SAFEROUTE_ENABLE_PREVIEW_MODE=true` only in non-production simulator/dev runs to open the signed-in map home with local SafeRoute fixtures. `SAFEROUTE_PREVIEW_INITIAL_SCREEN=operations` opens the view-only Operations surface, `SAFEROUTE_PREVIEW_INITIAL_SCREEN=routes` opens Saved routes, `SAFEROUTE_PREVIEW_INITIAL_SCREEN=routes-empty` opens Saved with no local route cards, `SAFEROUTE_PREVIEW_INITIAL_SCREEN=login-code` opens the two-factor code UI, and `SAFEROUTE_PREVIEW_INITIAL_SCREEN=session-expired` opens the sign-in recovery notice, so supporting-flow UI smoke tests do not need real LunarChain credentials or OTP. Preview mode is ignored when `SAFEROUTE_APP_ENV=production`.
@@ -89,6 +94,8 @@ Set `SAFEROUTE_ENABLE_PREVIEW_MODE=true` only in non-production simulator/dev ru
 - URL scheme: `saferoute`.
 - The iOS release identity and phone-first display shape are guarded by `test/appConfig.test.ts`; update the tests and this checklist together if the bundle id, scheme, portrait orientation, light style, or phone-only target changes intentionally.
 - Location permission copy is concise and map-first: "Shows your position on the map and guides active SafeRoute trips."
+- Background location copy is purpose-specific: "Keeps active SafeRoute guidance and safety monitoring running when the screen is locked."
+- The Expo location plugin enables iOS `location` background mode plus Android foreground-service/background-location permissions for installed builds.
 - Production runtime config should set `SAFEROUTE_APP_ENV=production`, `SAFEROUTE_PROD_API_URL` for the hosted API URL/version, an incremented `SAFEROUTE_IOS_BUILD_NUMBER`, and `GOOGLE_MAPS_IOS_API_KEY` through the build environment.
 - Demo drive is intended for development/preview only; the production app config disables it even if `SAFEROUTE_ENABLE_DEMO_DRIVE` is set.
 - Preview mode is intended for simulator/dev authenticated UI smoke only; production config disables it even if `SAFEROUTE_ENABLE_PREVIEW_MODE` is set.
@@ -116,3 +123,7 @@ Guest route road snapping is intentionally fail-closed in production: the mobile
 - Sign in with a valid LunarChain account.
 - Refresh saved routes, switch workspace filters, and choose a route.
 - Start navigation and verify the snapped convoy marker, off-route warning, pause/resume/stop, and arrival state on a real device.
+- Enable **Keep active**, lock the phone for at least two location updates, unlock it, and verify the route resumes from the newest accepted position without moving backwards.
+- Leave active guidance for another screen and verify the text-only **Resume route** action returns to the active route; confirm End, arrival, sign-out, and session expiry clear it.
+
+See [`docs/navigation-reliability.md`](docs/navigation-reliability.md) for the background-permission, persistence, privacy, and field-QA contract.

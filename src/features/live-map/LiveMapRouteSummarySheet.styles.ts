@@ -103,6 +103,33 @@ export const routeSummaryStyles = StyleSheet.create({
   safetyBadgeTextBlue: {
     color: colors.infoText,
   },
+  continuityAction: {
+    minHeight: 36,
+    marginTop: spacing.xs,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    gap: spacing.sm,
+    paddingHorizontal: spacing.sm,
+    borderRadius: radius.pill,
+    backgroundColor: colors.appleBlueSoft,
+  },
+  continuityActionPressed: {
+    opacity: 0.78,
+  },
+  continuityMessage: {
+    flex: 1,
+    minWidth: 0,
+    color: colors.inkSoft,
+    fontSize: typeScale.xs,
+    fontWeight: "700",
+  },
+  continuityActionText: {
+    flexShrink: 0,
+    color: colors.appleBlue,
+    fontSize: typeScale.xs,
+    fontWeight: "900",
+  },
   actionRow: {
     flexDirection: "row",
     alignItems: "center",

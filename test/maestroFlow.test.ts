@@ -8,6 +8,11 @@ const previewFlowSource = () =>
     join(process.cwd(), "maestro/ios-preview-route-live-map.yaml"),
     "utf8",
   );
+const navigationResumeFlowSource = () =>
+  readFileSync(
+    join(process.cwd(), "maestro/ios-preview-navigation-resume.yaml"),
+    "utf8",
+  );
 const mapInteractionsFlowSource = () =>
   readFileSync(
     join(process.cwd(), "maestro/ios-preview-map-interactions.yaml"),
@@ -141,6 +146,37 @@ describe("Maestro iOS preview smoke flow", () => {
     assert.ok(plotActionIndex > destinationInputIndex);
     assert.ok(routePreviewIndex > plotActionIndex);
     assert.ok(liveMapIndex > routePreviewIndex);
+  });
+
+  it("leaves, resumes, and explicitly ends real foreground guidance", () => {
+    const flow = navigationResumeFlowSource();
+    const scripts = packageJson().scripts;
+    const startIndex = flow.indexOf('id: "safe-route-primary-action"');
+    const returnIndex = flow.indexOf('id: "safe-route-return"', startIndex);
+    const resumeIndex = flow.indexOf('id: "safe-route-resume-action"');
+    const endIndex = flow.indexOf('id: "safe-route-stop-action"', resumeIndex);
+    const finalNoResumeIndex = flow.lastIndexOf('id: "safe-route-resume-action"');
+
+    assert.equal(
+      scripts["prestart:maestro:ios:preview:navigation-resume"],
+      "node scripts/maestro-ios-preflight.mjs",
+    );
+    assert.equal(
+      scripts["start:maestro:ios:preview:navigation-resume"],
+      "SAFEROUTE_ENABLE_PREVIEW_MODE=true SAFEROUTE_ENABLE_DEMO_DRIVE=false SAFEROUTE_PREVIEW_INITIAL_SCREEN=guest-map NODE_OPTIONS=--dns-result-order=ipv4first expo start --localhost --port 8081",
+    );
+    assert.equal(
+      scripts["test:maestro:ios:navigation-resume"],
+      "node scripts/run-maestro.mjs test maestro/ios-preview-navigation-resume.yaml",
+    );
+    assert.match(flow, /setLocation:[\s\S]*latitude:\s*51\.5074[\s\S]*longitude:\s*-0\.1278/);
+    assert.match(flow, /id:\s*"safe-route-remaining-metrics"/);
+    assert.match(flow, /assertNotVisible:\s*\n\s+id:\s*"safe-route-resume-action"/);
+    assert.ok(startIndex >= 0);
+    assert.ok(returnIndex > startIndex);
+    assert.ok(resumeIndex > returnIndex);
+    assert.ok(endIndex > resumeIndex);
+    assert.ok(finalNoResumeIndex > endIndex);
   });
 
   it("uses a deterministic London location in every iOS preview flow", () => {

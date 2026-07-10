@@ -209,6 +209,9 @@ function StatusPill({
         <View style={[styles.statusDot, statusDotStyle(presentation.tone)]} />
       )}
       <Text
+        adjustsFontSizeToFit
+        ellipsizeMode="tail"
+        minimumFontScale={0.82}
         numberOfLines={1}
         style={[
           styles.statusText,

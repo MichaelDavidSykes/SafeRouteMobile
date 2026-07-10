@@ -808,6 +808,14 @@ describe("rounded visual language", () => {
       /statusPillMinimalActiveNavigation:\s*\{([\s\S]*?)\n  \},\n  statusPillLive/.exec(
         liveHeaderStylesSource,
       )?.[1] || "";
+    const statusPillBlock =
+      /statusPill:\s*\{([\s\S]*?)\n  \},\n  statusPillCompactNavigation/.exec(
+        liveHeaderStylesSource,
+      )?.[1] || "";
+    const statusTextBlock =
+      /statusText:\s*\{([\s\S]*?)\n  \},\n  statusTextCompactNavigation/.exec(
+        liveHeaderStylesSource,
+      )?.[1] || "";
 
     assert.doesNotMatch(liveHeaderSource, /SafeRouteLogo/);
     assert.doesNotMatch(liveHeaderSource, /Ionicons/);
@@ -856,6 +864,14 @@ describe("rounded visual language", () => {
     assert.match(minimalReturnBlock, /backgroundColor:\s*["']transparent["']/);
     assert.match(minimalStatusBlock, /paddingHorizontal:\s*spacing\.xs/);
     assert.match(minimalStatusBlock, /backgroundColor:\s*["']transparent["']/);
+    assert.match(statusPillBlock, /maxWidth:\s*136/);
+    assert.match(statusPillBlock, /minWidth:\s*0/);
+    assert.match(statusPillBlock, /flexShrink:\s*1/);
+    assert.match(statusTextBlock, /maxWidth:\s*["']100%["']/);
+    assert.match(statusTextBlock, /minWidth:\s*0/);
+    assert.match(statusTextBlock, /flexShrink:\s*1/);
+    assert.match(statusTextBlock, /textAlign:\s*["']center["']/);
+    assert.match(liveHeaderSource, /ellipsizeMode="tail"[\s\S]*minimumFontScale=\{0\.82\}[\s\S]*presentation\.label/);
     assert.match(liveUiStateSource, /LIVE_ROUTE_STATUS_LABEL_MAX_LENGTH\s*=\s*18/);
     assert.match(liveUiStateSource, /routeStatusAccessibilityLabel/);
     assert.match(noticeBlock, /alignSelf:\s*"flex-start"/);

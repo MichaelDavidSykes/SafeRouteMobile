@@ -99,6 +99,9 @@ export const styles = StyleSheet.create({
   },
   statusPill: {
     minHeight: 30,
+    maxWidth: 136,
+    minWidth: 0,
+    flexShrink: 1,
     flexDirection: "row",
     alignItems: "center",
     gap: 7,
@@ -142,8 +145,12 @@ export const styles = StyleSheet.create({
     backgroundColor: colors.danger,
   },
   statusText: {
+    maxWidth: "100%",
+    minWidth: 0,
+    flexShrink: 1,
     fontSize: typeScale.xs,
     fontWeight: "800",
+    textAlign: "center",
   },
   statusTextCompactNavigation: {
     flexShrink: 1,

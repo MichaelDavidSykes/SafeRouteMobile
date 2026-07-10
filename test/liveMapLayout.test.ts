@@ -11,9 +11,10 @@ describe('live map overlay layout', () => {
     assert.equal(layout.density, 'regular');
     assert.equal(layout.mapControlsDirection, 'column');
     assert.equal(layout.showRouteEndpoints, false);
-    assert.equal(layout.guidanceBottom, 386);
-    assert.equal(layout.mapControlsTop, 196);
-    assert.deepEqual(layout.edgePadding, { top: 188, right: 72, bottom: 336, left: 44 });
+    assert.equal(layout.guidanceTop, 132);
+    assert.equal(layout.guidanceTitleLines, 2);
+    assert.equal(layout.mapControlsTop, 244);
+    assert.deepEqual(layout.edgePadding, { top: 248, right: 72, bottom: 336, left: 44 });
   });
 
   it('uses a denser overlay on small iPhone viewports', () => {
@@ -24,8 +25,9 @@ describe('live map overlay layout', () => {
     assert.equal(layout.mapControlsDirection, 'row');
     assert.equal(layout.showRouteEndpoints, false);
     assert.equal(layout.showRouteSubtitle, true);
-    assert.equal(layout.guidanceBottom, 314);
-    assert.deepEqual(layout.edgePadding, { top: 172, right: 44, bottom: 286, left: 36 });
+    assert.equal(layout.guidanceTop, 96);
+    assert.equal(layout.mapControlsTop, 184);
+    assert.deepEqual(layout.edgePadding, { top: 212, right: 44, bottom: 286, left: 36 });
   });
 
   it('normalizes invalid dimensions to a safe regular iPhone layout', () => {

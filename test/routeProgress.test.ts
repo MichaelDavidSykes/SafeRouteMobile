@@ -12,6 +12,7 @@ import {
   clampRouteStep,
   coordinateForInterpolatedStep,
   densifyRouteCoordinates,
+  formatDistance,
   formatEta,
   haversineDistanceMeters,
   normalizeRouteCoordinates,
@@ -122,6 +123,21 @@ describe('route traversal progress', () => {
     assert.deepEqual(resolveGuidance(guidedRoute, progress, 'navigating'), {
       instruction: 'Turn right onto Airport Approach',
       distance: '420 m'
+    });
+  });
+
+  it('replaces preview calls to action with driving guidance after route start', () => {
+    const progress = calculateRouteProgress(route.coordinates, route.coordinates[0]);
+    assert.ok(progress);
+
+    assert.deepEqual(resolveGuidance({
+      ...route,
+      navigationSteps: [],
+      nextInstruction: 'Review the route, then open Saved for synced plans.',
+      nextDistance: 'Preview'
+    }, progress, 'navigating'), {
+      instruction: 'Continue on route',
+      distance: formatDistance(progress.remainingDistanceMeters)
     });
   });
 

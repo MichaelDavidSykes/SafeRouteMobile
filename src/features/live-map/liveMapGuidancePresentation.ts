@@ -35,11 +35,16 @@ export function createGuidanceCardPresentation({
   const maneuverDistanceAccessibilityLabel = normalizeGuidanceCopy(
     guidance.distance,
   );
+  const shouldShowManeuverDistance = Boolean(
+    maneuverDistanceAccessibilityLabel &&
+      maneuverDistanceAccessibilityLabel.toLowerCase() !==
+        remainingLabel.toLowerCase(),
+  );
 
   const presentation: GuidanceCardPresentation = {
-    distanceLabel: maneuverDistanceAccessibilityLabel
+    distanceLabel: shouldShowManeuverDistance
       ? createCompactGuidanceLabel(
-          maneuverDistanceAccessibilityLabel,
+          maneuverDistanceAccessibilityLabel!,
           GUIDANCE_DISTANCE_MAX_LENGTH,
         )
       : null,

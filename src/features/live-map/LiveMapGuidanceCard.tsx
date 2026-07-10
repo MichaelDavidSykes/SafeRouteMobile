@@ -57,7 +57,7 @@ export function LiveMapGuidanceCard({
       accessibilityLabel={accessibilityLabel}
       style={[
         styles.guidanceCard,
-        { bottom: layout.guidanceBottom },
+        { top: layout.guidanceTop },
         layout.isCompact ? styles.guidanceCardCompact : null,
         warningActive ? styles.guidanceCardWarning : null,
       ]}

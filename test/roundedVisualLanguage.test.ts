@@ -1134,6 +1134,26 @@ describe("rounded visual language", () => {
       /card:\s*\{([\s\S]*?)\n  \},\n  cardPressed:/.exec(
         routeCardStylesSource,
       )?.[1] || "";
+    const cardPressedBlock =
+      /cardPressed:\s*\{([\s\S]*?)\n  \},\n  cardLoading:/.exec(
+        routeCardStylesSource,
+      )?.[1] || "";
+    const routeTitleRowBlock =
+      /routeTitleRow:\s*\{([\s\S]*?)\n  \},\n  statusPill:/.exec(
+        routeCardStylesSource,
+      )?.[1] || "";
+    const statusPillBlock =
+      /statusPill:\s*\{([\s\S]*?)\n  \},\n  statusReady:/.exec(
+        routeCardStylesSource,
+      )?.[1] || "";
+    const openButtonBlock =
+      /openButton:\s*\{([\s\S]*?)\n  \},\n  openButtonText:/.exec(
+        routeCardStylesSource,
+      )?.[1] || "";
+    const openButtonTextBlock =
+      /openButtonText:\s*\{([\s\S]*?)\n  \},\n\}\);/.exec(
+        routeCardStylesSource,
+      )?.[1] || "";
 
     assert.match(routeCardSource, /presentation\.endpointLabel/);
     assert.match(routeCardSource, /presentation\.summaryLabel/);
@@ -1166,17 +1186,35 @@ describe("rounded visual language", () => {
     assert.match(cardBlock, /shadowOpacity:\s*0/);
     assert.match(cardBlock, /elevation:\s*0/);
     assert.doesNotMatch(cardBlock, /shadow\.panel/);
+    assert.match(cardPressedBlock, /backgroundColor:\s*colors\.appleBlueSoft/);
+    assert.match(cardPressedBlock, /borderColor:\s*colors\.glassBorder/);
+    assert.match(cardPressedBlock, /transform:\s*\[\{ scale:\s*0\.985 \}\]/);
     assert.match(routeCardStylesSource, /\brouteTitleRow:/);
-    assert.match(routeCardStylesSource, /routeTitleRow:[\s\S]*alignItems:\s*"flex-start"/);
+    assert.match(routeTitleRowBlock, /minWidth:\s*0/);
+    assert.match(routeTitleRowBlock, /alignItems:\s*"flex-start"/);
     assert.match(routeCardStylesSource, /\brouteEndpoint:/);
     assert.match(routeCardStylesSource, /\brouteSummary:/);
-    assert.match(routeCardStylesSource, /\bopenButton:[\s\S]*minHeight:\s*controlSizes\.compact/);
+    assert.match(openButtonBlock, /maxWidth:\s*96/);
+    assert.match(openButtonBlock, /minHeight:\s*controlSizes\.compact/);
+    assert.match(openButtonBlock, /flexShrink:\s*0/);
+    assert.match(openButtonBlock, /overflow:\s*"hidden"/);
+    assert.match(openButtonBlock, /borderRadius:\s*radius\.pill/);
+    assert.match(openButtonBlock, /backgroundColor:\s*colors\.appleBlueSoft/);
+    assert.match(routeCardSource, /accessibilityElementsHidden/);
+    assert.match(routeCardSource, /importantForAccessibility="no-hide-descendants"/);
+    assert.match(routeCardSource, /pointerEvents="none"/);
+    assert.match(routeCardSource, /ActivityIndicator color=\{colors\.appleBlue\}/);
     assert.match(routeCardSource, /<Text numberOfLines=\{1\} style=\{styles\.openButtonText\}>/);
     assert.match(
       routeCardSource,
       /<Text\s+numberOfLines=\{1\}\s+style=\{\[styles\.statusText, statusTextStyle\]\}/,
     );
-    assert.match(routeCardStylesSource, /openButtonText:[\s\S]*maxWidth:\s*72/);
+    assert.match(openButtonTextBlock, /maxWidth:\s*72/);
+    assert.match(openButtonTextBlock, /flexShrink:\s*1/);
+    assert.match(openButtonTextBlock, /color:\s*colors\.appleBlue/);
+    assert.match(statusPillBlock, /maxWidth:\s*76/);
+    assert.match(statusPillBlock, /flexShrink:\s*0/);
+    assert.match(statusPillBlock, /overflow:\s*"hidden"/);
     assert.match(routeCardStylesSource, /statusText:[\s\S]*maxWidth:\s*68/);
     assert.match(routeCardPresentationSource, /ROUTE_CARD_TITLE_MAX_LENGTH\s*=\s*72/);
     assert.match(routeCardPresentationSource, /ROUTE_CARD_ENDPOINT_MAX_LENGTH\s*=\s*80/);

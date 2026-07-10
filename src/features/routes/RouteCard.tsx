@@ -44,9 +44,14 @@ export function RouteCard({ loading, onPress, route }: RouteCardProps) {
           {shouldShowRouteStatusPill(route.status) ? (
             <StatusPill status={route.status} />
           ) : null}
-          <View style={styles.openButton}>
+          <View
+            accessibilityElementsHidden
+            importantForAccessibility="no-hide-descendants"
+            pointerEvents="none"
+            style={styles.openButton}
+          >
             {loading ? (
-              <ActivityIndicator color={colors.surface} size="small" />
+              <ActivityIndicator color={colors.appleBlue} size="small" />
             ) : null}
             <Text numberOfLines={1} style={styles.openButtonText}>
               {presentation.actionLabel}

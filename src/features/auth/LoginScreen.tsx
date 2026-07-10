@@ -36,6 +36,7 @@ import {
 } from './twoFactorChallenge';
 
 interface LoginScreenProps {
+  initialChallenge?: TwoFactorChallenge | null;
   sessionMessage?: string;
   onAuthenticated: (session: AuthSession) => Promise<void> | void;
   onCancel?: () => void;
@@ -46,14 +47,15 @@ const PASSWORD_TOGGLE_HIT_SLOP = 8;
 const LOGIN_SECONDARY_ACTION_HIT_SLOP = 6;
 
 export function LoginScreen({
+  initialChallenge = null,
   onCancel,
   onAuthenticated,
   sessionMessage
 }: LoginScreenProps) {
-  const [email, setEmail] = useState('');
+  const [email, setEmail] = useState(initialChallenge?.email ?? '');
   const [password, setPassword] = useState('');
   const [code, setCode] = useState('');
-  const [challenge, setChallenge] = useState<TwoFactorChallenge | null>(null);
+  const [challenge, setChallenge] = useState<TwoFactorChallenge | null>(initialChallenge);
   const [passwordVisible, setPasswordVisible] = useState(false);
   const [loading, setLoading] = useState(false);
   const [errorMessage, setErrorMessage] = useState('');
@@ -321,6 +323,7 @@ export function LoginScreen({
                   style={styles.input}
                   textContentType="oneTimeCode"
                   value={code}
+                  testID={uiTestIds.loginCode}
                   accessibilityLabel="LunarChain login code"
                   accessibilityHint="Enter the six-digit code sent by LunarChain."
                   onChangeText={(value) => {
@@ -391,6 +394,7 @@ export function LoginScreen({
               accessibilityHint={secondaryChallengeAction?.accessibilityHint}
               disabled={loading}
               hitSlop={LOGIN_SECONDARY_ACTION_HIT_SLOP}
+              testID={uiTestIds.loginSecondaryAction}
               style={({ pressed }) => [
                 styles.secondaryButton,
                 pressed && !loading ? styles.secondaryButtonPressed : null,

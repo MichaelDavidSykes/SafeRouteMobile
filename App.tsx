@@ -12,6 +12,7 @@ import { LoginScreen } from './src/features/auth/LoginScreen';
 import { prepareAuthenticatedSession } from './src/features/auth/authCompletion';
 import { clearAuthSession, loadAuthSession, saveAuthSession } from './src/features/auth/authStorage';
 import {
+  createPreviewLoginCodeChallenge,
   createPreviewAuthSession,
   isPreviewAccessToken,
   PREVIEW_SESSION_NOTICE
@@ -56,7 +57,9 @@ export default function App() {
         return false;
       }
 
-      if (SAFEROUTE_PREVIEW_INITIAL_SCREEN === 'login') {
+      const previewInitialScreen = SAFEROUTE_PREVIEW_INITIAL_SCREEN;
+
+      if (previewInitialScreen === 'login' || previewInitialScreen === 'login-code') {
         setSession(null);
         setSessionMessage('');
         setScreen('login');
@@ -65,7 +68,7 @@ export default function App() {
 
       setSession(createPreviewAuthSession());
       setSessionMessage(PREVIEW_SESSION_NOTICE);
-      setScreen(SAFEROUTE_PREVIEW_INITIAL_SCREEN);
+      setScreen(previewInitialScreen);
       return true;
     };
 
@@ -212,6 +215,11 @@ export default function App() {
         <StatusBar style="dark" />
         {screen === 'login' ? (
           <LoginScreen
+            initialChallenge={
+              SAFEROUTE_PREVIEW_MODE_ENABLED && SAFEROUTE_PREVIEW_INITIAL_SCREEN === 'login-code'
+                ? createPreviewLoginCodeChallenge()
+                : null
+            }
             sessionMessage={authPrompt || sessionMessage}
             onAuthenticated={handleAuthenticated}
             onCancel={() => {

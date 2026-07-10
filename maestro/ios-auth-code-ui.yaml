@@ -1,0 +1,89 @@
+appId: host.exp.Exponent
+---
+- stopApp
+- setLocation:
+    latitude: 51.5074
+    longitude: -0.1278
+- openLink: exp://localhost:8081
+- runFlow:
+    when:
+      visible: "Open"
+    commands:
+      - tapOn: "Open"
+- waitForAnimationToEnd:
+    timeout: 3000
+# Re-open once Expo Go is foregrounded. The listener must be started with
+# SAFEROUTE_ENABLE_PREVIEW_MODE=true and SAFEROUTE_PREVIEW_INITIAL_SCREEN=login-code
+# so the smoke validates the two-factor UI without real credentials or OTP.
+- openLink: exp://localhost:8081
+- runFlow:
+    when:
+      visible: "Open"
+    commands:
+      - tapOn: "Open"
+- waitForAnimationToEnd:
+    timeout: 10000
+- tapOn:
+    text: "Close"
+    optional: true
+- waitForAnimationToEnd:
+    timeout: 1000
+- runFlow:
+    when:
+      visible: "Try again"
+    commands:
+      - tapOn: "Try again"
+      - waitForAnimationToEnd:
+          timeout: 8000
+- runFlow:
+    when:
+      visible: "Allow While Using App"
+    commands:
+      - tapOn: "Allow While Using App"
+      - waitForAnimationToEnd:
+          timeout: 3000
+- extendedWaitUntil:
+    visible:
+      id: "saferoute-app-root"
+    timeout: 45000
+- extendedWaitUntil:
+    visible:
+      id: "safe-route-login"
+    timeout: 30000
+- assertVisible: "SafeRoute Mobile"
+- assertVisible: "Enter LunarChain login code"
+- assertVisible: "Enter the 6-digit code sent by email."
+- assertVisible: "6-digit code"
+- assertVisible:
+    id: "safe-route-login-code"
+- assertVisible: "Use the most recent code."
+- assertVisible:
+    id: "safe-route-login-primary-action"
+- assertVisible:
+    id: "safe-route-login-secondary-action"
+- assertNotVisible:
+    id: "safe-route-login-email"
+- assertNotVisible:
+    id: "safe-route-login-password"
+- assertNotVisible: "Cloudflare"
+- assertNotVisible: "Turnstile"
+- tapOn:
+    id: "safe-route-login-secondary-action"
+- extendedWaitUntil:
+    visible:
+      id: "safe-route-login-email"
+    timeout: 10000
+- assertVisible:
+    id: "safe-route-login-password"
+- assertVisible:
+    id: "safe-route-login-map-return"
+- tapOn:
+    id: "safe-route-login-map-return"
+- extendedWaitUntil:
+    notVisible:
+      id: "safe-route-login"
+    timeout: 10000
+- extendedWaitUntil:
+    visible:
+      id: "guest-map-primary-action"
+    timeout: 10000

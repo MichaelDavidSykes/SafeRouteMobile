@@ -802,6 +802,8 @@ describe("rounded visual language", () => {
     assert.match(loginSource, /accessibilityLabel="LunarChain email"/);
     assert.match(loginSource, /accessibilityLabel="LunarChain password"/);
     assert.match(loginSource, /accessibilityLabel="LunarChain login code"/);
+    assert.match(loginSource, /testID=\{uiTestIds\.loginCode\}/);
+    assert.match(loginSource, /testID=\{uiTestIds\.loginSecondaryAction\}/);
     assert.match(loginSource, /styles\.formCardCompact/);
     assert.match(loginSource, /styles\.passwordToggle/);
     assert.match(loginSource, /const PASSWORD_TOGGLE_HIT_SLOP = 8/);

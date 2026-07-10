@@ -30,6 +30,8 @@ const riskAreasFlowSource = () =>
   );
 const authFlowSource = () =>
   readFileSync(join(process.cwd(), "maestro/ios-auth-ui.yaml"), "utf8");
+const authCodeFlowSource = () =>
+  readFileSync(join(process.cwd(), "maestro/ios-auth-code-ui.yaml"), "utf8");
 const packageJson = () =>
   JSON.parse(readFileSync(join(process.cwd(), "package.json"), "utf8")) as {
     scripts: Record<string, string>;
@@ -225,7 +227,8 @@ describe("Maestro iOS preview smoke flow", () => {
     const appSource = readFileSync(join(process.cwd(), "App.tsx"), "utf8");
 
     assert.match(appSource, /SAFEROUTE_PREVIEW_MODE_ENABLED && isPreviewAccessToken\(storedSession\.accessToken\)/);
-    assert.match(appSource, /setScreen\(SAFEROUTE_PREVIEW_INITIAL_SCREEN\)/);
+    assert.match(appSource, /const previewInitialScreen = SAFEROUTE_PREVIEW_INITIAL_SCREEN/);
+    assert.match(appSource, /setScreen\(previewInitialScreen\)/);
   });
 
   it("verifies the branded mobile sign-in surface without a Turnstile dependency", () => {
@@ -251,6 +254,56 @@ describe("Maestro iOS preview smoke flow", () => {
     assert.match(flow, /assertNotVisible:\s*"Cloudflare"/);
     assert.match(flow, /assertNotVisible:\s*"Turnstile"/);
     assert.match(flow, /id:\s*"safe-route-login-map-return"/);
+  });
+
+  it("opens the login-code preview directly on the two-factor surface", () => {
+    const appSource = readFileSync(join(process.cwd(), "App.tsx"), "utf8");
+    const flow = authCodeFlowSource();
+    const scripts = packageJson().scripts;
+    const appRootIndex = flow.indexOf('id: "saferoute-app-root"');
+    const loginIndex = flow.indexOf('id: "safe-route-login"');
+    const codeInputIndex = flow.indexOf('id: "safe-route-login-code"');
+    const secondaryActionIndex = flow.indexOf('id: "safe-route-login-secondary-action"');
+    const emailInputIndex = flow.lastIndexOf('id: "safe-route-login-email"');
+    const mapReturnIndex = flow.indexOf('id: "safe-route-login-map-return"');
+    const guestMapIndex = flow.indexOf('id: "guest-map-primary-action"');
+
+    assert.equal(
+      scripts["prestart:maestro:ios:preview:auth-code"],
+      "node scripts/maestro-ios-preflight.mjs",
+    );
+    assert.equal(
+      scripts["start:maestro:ios:preview:auth-code"],
+      "SAFEROUTE_ENABLE_PREVIEW_MODE=true SAFEROUTE_PREVIEW_INITIAL_SCREEN=login-code NODE_OPTIONS=--dns-result-order=ipv4first expo start --localhost --port 8081",
+    );
+    assert.equal(
+      scripts["test:maestro:ios:auth-code"],
+      "node scripts/run-maestro.mjs test maestro/ios-auth-code-ui.yaml",
+    );
+    assert.match(flow, /SAFEROUTE_PREVIEW_INITIAL_SCREEN=login-code/);
+    assert.match(flow, /without real credentials or OTP/);
+    assert.match(flow, /visible:\s*"Try again"[\s\S]*tapOn:\s*"Try again"/);
+    assert.match(flow, /assertVisible:\s*"Enter LunarChain login code"/);
+    assert.match(flow, /assertVisible:\s*"Enter the 6-digit code sent by email\."/);
+    assert.match(flow, /id:\s*"safe-route-login-code"/);
+    assert.match(flow, /assertVisible:\s*"Use the most recent code\."/);
+    assert.match(flow, /id:\s*"safe-route-login-primary-action"/);
+    assert.match(flow, /id:\s*"safe-route-login-secondary-action"/);
+    assert.match(flow, /id:\s*"safe-route-login-map-return"/);
+    assert.match(flow, /id:\s*"guest-map-primary-action"/);
+    assert.match(appSource, /SAFEROUTE_PREVIEW_INITIAL_SCREEN === 'login-code'/);
+    assert.match(appSource, /initialChallenge=\{[\s\S]*createPreviewLoginCodeChallenge\(\)/);
+    assert.doesNotMatch(flow, /inputText:/);
+    assert.doesNotMatch(flow, /longPressOn:/);
+    assert.match(flow, /assertNotVisible:\s*"Cloudflare"/);
+    assert.match(flow, /assertNotVisible:\s*"Turnstile"/);
+    assert.ok(appRootIndex >= 0);
+    assert.ok(loginIndex > appRootIndex);
+    assert.ok(codeInputIndex > loginIndex);
+    assert.ok(secondaryActionIndex > codeInputIndex);
+    assert.ok(emailInputIndex > secondaryActionIndex);
+    assert.ok(mapReturnIndex > emailInputIndex);
+    assert.ok(guestMapIndex > mapReturnIndex);
   });
 
   it("covers multi-stop editing, sheet collapse, and map long-press actions", () => {

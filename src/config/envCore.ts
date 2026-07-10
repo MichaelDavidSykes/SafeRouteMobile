@@ -4,7 +4,7 @@ const PRODUCTION_ENVIRONMENT = 'production';
 const SUPPORTED_ENVIRONMENTS = ['development', 'staging', PRODUCTION_ENVIRONMENT] as const;
 
 export type SafeRouteAppEnvironment = (typeof SUPPORTED_ENVIRONMENTS)[number];
-export type SafeRoutePreviewInitialScreen = 'guest-map' | 'login' | 'operations' | 'routes';
+export type SafeRoutePreviewInitialScreen = 'guest-map' | 'login' | 'login-code' | 'operations' | 'routes';
 
 export type SafeRouteExtra = {
   safeRouteApiUrl?: string;
@@ -104,7 +104,7 @@ function normalizePreviewInitialScreen(
 
   const normalized = value?.trim().toLowerCase();
 
-  if (normalized === 'login' || normalized === 'operations') {
+  if (normalized === 'login' || normalized === 'login-code' || normalized === 'operations') {
     return normalized;
   }
 

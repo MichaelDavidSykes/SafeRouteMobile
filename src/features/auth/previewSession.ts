@@ -1,4 +1,4 @@
-import type { AuthSession } from "./authTypes";
+import type { AuthSession, TwoFactorChallenge } from "./authTypes";
 
 export const PREVIEW_ACCESS_TOKEN = "__saferoute_preview_session__";
 export const PREVIEW_SESSION_NOTICE =
@@ -12,6 +12,14 @@ export function createPreviewAuthSession(): AuthSession {
       email: "preview@lunarchain.local",
       name: "SafeRoute Preview",
     },
+  };
+}
+
+export function createPreviewLoginCodeChallenge(): TwoFactorChallenge {
+  return {
+    challengeToken: "preview-login-code",
+    email: "preview.operator@lunarchain.local",
+    method: "email",
   };
 }
 

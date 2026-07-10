@@ -3,6 +3,7 @@ import { describe, it } from "node:test";
 
 import {
   createPreviewAuthSession,
+  createPreviewLoginCodeChallenge,
   isPreviewAccessToken,
   PREVIEW_ACCESS_TOKEN,
   PREVIEW_SESSION_NOTICE,
@@ -21,6 +22,14 @@ describe("SafeRoute preview session", () => {
 
     assert.match(PREVIEW_SESSION_NOTICE, /local/i);
     assert.match(PREVIEW_SESSION_NOTICE, /production build/i);
+  });
+
+  it("creates a local two-factor challenge for credential-free auth-code previews", () => {
+    assert.deepEqual(createPreviewLoginCodeChallenge(), {
+      challengeToken: "preview-login-code",
+      email: "preview.operator@lunarchain.local",
+      method: "email",
+    });
   });
 
   it("recognizes only the trimmed preview token", () => {

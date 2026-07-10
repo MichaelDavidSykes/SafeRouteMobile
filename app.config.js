@@ -67,7 +67,12 @@ function normalizePreviewInitialScreen(value, previewModeEnabled) {
     return 'guest-map';
   }
 
-  if (normalized === 'login' || normalized === 'login-code' || normalized === 'operations') {
+  if (
+    normalized === 'login' ||
+    normalized === 'login-code' ||
+    normalized === 'operations' ||
+    normalized === 'session-expired'
+  ) {
     return normalized;
   }
 

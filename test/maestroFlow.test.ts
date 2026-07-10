@@ -32,6 +32,11 @@ const authFlowSource = () =>
   readFileSync(join(process.cwd(), "maestro/ios-auth-ui.yaml"), "utf8");
 const authCodeFlowSource = () =>
   readFileSync(join(process.cwd(), "maestro/ios-auth-code-ui.yaml"), "utf8");
+const authSessionExpiredFlowSource = () =>
+  readFileSync(
+    join(process.cwd(), "maestro/ios-auth-session-expired-ui.yaml"),
+    "utf8",
+  );
 const packageJson = () =>
   JSON.parse(readFileSync(join(process.cwd(), "package.json"), "utf8")) as {
     scripts: Record<string, string>;
@@ -303,6 +308,60 @@ describe("Maestro iOS preview smoke flow", () => {
     assert.ok(secondaryActionIndex > codeInputIndex);
     assert.ok(emailInputIndex > secondaryActionIndex);
     assert.ok(mapReturnIndex > emailInputIndex);
+    assert.ok(guestMapIndex > mapReturnIndex);
+  });
+
+  it("opens the session-expired preview directly on sign-in recovery copy", () => {
+    const appSource = readFileSync(join(process.cwd(), "App.tsx"), "utf8");
+    const previewSessionSource = readFileSync(
+      join(process.cwd(), "src/features/auth/previewSession.ts"),
+      "utf8",
+    );
+    const flow = authSessionExpiredFlowSource();
+    const scripts = packageJson().scripts;
+    const appRootIndex = flow.indexOf('id: "saferoute-app-root"');
+    const loginIndex = flow.indexOf('id: "safe-route-login"');
+    const noticeIndex = flow.indexOf("Your LunarChain session expired. Sign in again.");
+    const emailInputIndex = flow.indexOf('id: "safe-route-login-email"');
+    const passwordInputIndex = flow.indexOf('id: "safe-route-login-password"');
+    const mapReturnIndex = flow.indexOf('id: "safe-route-login-map-return"');
+    const guestMapIndex = flow.indexOf('id: "guest-map-primary-action"');
+
+    assert.equal(
+      scripts["prestart:maestro:ios:preview:session-expired"],
+      "node scripts/maestro-ios-preflight.mjs",
+    );
+    assert.equal(
+      scripts["start:maestro:ios:preview:session-expired"],
+      "SAFEROUTE_ENABLE_PREVIEW_MODE=true SAFEROUTE_PREVIEW_INITIAL_SCREEN=session-expired NODE_OPTIONS=--dns-result-order=ipv4first expo start --localhost --port 8081",
+    );
+    assert.equal(
+      scripts["test:maestro:ios:session-expired"],
+      "node scripts/run-maestro.mjs test maestro/ios-auth-session-expired-ui.yaml",
+    );
+    assert.match(flow, /SAFEROUTE_PREVIEW_INITIAL_SCREEN=session-expired/);
+    assert.match(flow, /without real credentials or tokens/);
+    assert.match(flow, /visible:\s*"Try again"[\s\S]*tapOn:\s*"Try again"/);
+    assert.match(flow, /assertVisible:\s*"Your LunarChain session expired\. Sign in again\."/);
+    assert.match(flow, /id:\s*"safe-route-login-email"/);
+    assert.match(flow, /id:\s*"safe-route-login-password"/);
+    assert.match(flow, /id:\s*"safe-route-login-primary-action"/);
+    assert.match(flow, /assertNotVisible:[\s\S]*id:\s*"safe-route-login-code"/);
+    assert.match(flow, /assertNotVisible:\s*"Cloudflare"/);
+    assert.match(flow, /assertNotVisible:\s*"Turnstile"/);
+    assert.match(flow, /id:\s*"safe-route-login-map-return"/);
+    assert.match(flow, /id:\s*"guest-map-primary-action"/);
+    assert.match(appSource, /previewInitialScreen === 'session-expired'/);
+    assert.match(appSource, /PREVIEW_EXPIRED_SESSION_NOTICE/);
+    assert.match(previewSessionSource, /PREVIEW_EXPIRED_SESSION_NOTICE/);
+    assert.doesNotMatch(flow, /inputText:/);
+    assert.doesNotMatch(flow, /longPressOn:/);
+    assert.ok(appRootIndex >= 0);
+    assert.ok(loginIndex > appRootIndex);
+    assert.ok(noticeIndex > loginIndex);
+    assert.ok(emailInputIndex > noticeIndex);
+    assert.ok(passwordInputIndex > emailInputIndex);
+    assert.ok(mapReturnIndex > passwordInputIndex);
     assert.ok(guestMapIndex > mapReturnIndex);
   });
 

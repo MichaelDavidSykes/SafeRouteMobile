@@ -6,6 +6,7 @@ import {
   createPreviewLoginCodeChallenge,
   isPreviewAccessToken,
   PREVIEW_ACCESS_TOKEN,
+  PREVIEW_EXPIRED_SESSION_NOTICE,
   PREVIEW_SESSION_NOTICE,
 } from "../src/features/auth/previewSession";
 
@@ -22,6 +23,13 @@ describe("SafeRoute preview session", () => {
 
     assert.match(PREVIEW_SESSION_NOTICE, /local/i);
     assert.match(PREVIEW_SESSION_NOTICE, /production build/i);
+  });
+
+  it("provides concise expired-session recovery copy for auth previews", () => {
+    assert.equal(
+      PREVIEW_EXPIRED_SESSION_NOTICE,
+      "Your LunarChain session expired. Sign in again.",
+    );
   });
 
   it("creates a local two-factor challenge for credential-free auth-code previews", () => {

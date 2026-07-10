@@ -13,6 +13,11 @@ const mapInteractionsFlowSource = () =>
     join(process.cwd(), "maestro/ios-preview-map-interactions.yaml"),
     "utf8",
   );
+const operationsFlowSource = () =>
+  readFileSync(
+    join(process.cwd(), "maestro/ios-preview-operations.yaml"),
+    "utf8",
+  );
 const packageJson = () =>
   JSON.parse(readFileSync(join(process.cwd(), "package.json"), "utf8")) as {
     scripts: Record<string, string>;
@@ -71,8 +76,7 @@ describe("Maestro iOS preview smoke flow", () => {
     assert.match(flow, /id:\s*"guest-map-search-coordinate-51-505300-0-055300"/);
     assert.doesNotMatch(flow, /hideKeyboard/);
     assert.match(flow, /tapOn:\s*\n\s+id:\s*"guest-map-plot-action"/);
-    assert.match(flow, /extendedWaitUntil:\s*\n\s+visible:\s*"Preview map"\s*\n\s+timeout:\s*30000/);
-    assert.match(flow, /assertVisible:\s*\n\s+id:\s*"guest-map-route-preview"/);
+    assert.match(flow, /extendedWaitUntil:\s*\n\s+visible:\s*\n\s+id:\s*"guest-map-route-preview"\s*\n\s+timeout:\s*30000/);
     assert.match(flow, /when:\s*\n\s+visible:\s*\n\s+id:\s*"safe-route-picker"/);
     assert.match(flow, /extendedWaitUntil:\s*\n\s+visible:\s*\n\s+id:\s*"safe-route-live-map"/);
     assert.match(flow, /assertVisible:\s*\n\s+id:\s*"safe-route-demo-action"/);
@@ -84,6 +88,16 @@ describe("Maestro iOS preview smoke flow", () => {
     assert.ok(plotActionIndex > destinationInputIndex);
     assert.ok(routePreviewIndex > plotActionIndex);
     assert.ok(liveMapIndex > routePreviewIndex);
+  });
+
+  it("uses a deterministic London location in every iOS preview flow", () => {
+    for (const flow of [
+      previewFlowSource(),
+      mapInteractionsFlowSource(),
+      operationsFlowSource(),
+    ]) {
+      assert.match(flow, /setLocation:\s*\n\s+latitude:\s*51\.5074\s*\n\s+longitude:\s*-0\.1278/);
+    }
   });
 
   it("covers multi-stop editing, sheet collapse, and map long-press actions", () => {

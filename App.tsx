@@ -56,6 +56,13 @@ export default function App() {
         return false;
       }
 
+      if (SAFEROUTE_PREVIEW_INITIAL_SCREEN === 'login') {
+        setSession(null);
+        setSessionMessage('');
+        setScreen('login');
+        return true;
+      }
+
       setSession(createPreviewAuthSession());
       setSessionMessage(PREVIEW_SESSION_NOTICE);
       setScreen(SAFEROUTE_PREVIEW_INITIAL_SCREEN);

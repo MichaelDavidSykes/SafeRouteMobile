@@ -273,6 +273,11 @@ describe('Expo production configuration', () => {
       SAFEROUTE_ENABLE_PREVIEW_MODE: 'true',
       SAFEROUTE_PREVIEW_INITIAL_SCREEN: ' operations '
     });
+    const loginExpo = loadExpoConfig({
+      SAFEROUTE_APP_ENV: 'development',
+      SAFEROUTE_ENABLE_PREVIEW_MODE: 'true',
+      SAFEROUTE_PREVIEW_INITIAL_SCREEN: ' login '
+    });
     const disabledPreviewExpo = loadExpoConfig({
       SAFEROUTE_APP_ENV: 'development',
       SAFEROUTE_PREVIEW_INITIAL_SCREEN: 'routes'
@@ -290,6 +295,8 @@ describe('Expo production configuration', () => {
     assert.equal(routePickerExpo.extra.safeRoutePreviewInitialScreen, 'routes');
     assert.equal(operationsExpo.extra.safeRoutePreviewModeEnabled, true);
     assert.equal(operationsExpo.extra.safeRoutePreviewInitialScreen, 'operations');
+    assert.equal(loginExpo.extra.safeRoutePreviewModeEnabled, true);
+    assert.equal(loginExpo.extra.safeRoutePreviewInitialScreen, 'login');
     assert.equal(disabledPreviewExpo.extra.safeRoutePreviewModeEnabled, false);
     assert.equal(disabledPreviewExpo.extra.safeRoutePreviewInitialScreen, 'guest-map');
     assert.equal(productionExpo.extra.safeRoutePreviewModeEnabled, false);

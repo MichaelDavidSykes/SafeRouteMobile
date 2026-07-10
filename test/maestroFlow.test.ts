@@ -233,10 +233,17 @@ describe("Maestro iOS preview smoke flow", () => {
     const scripts = packageJson().scripts;
 
     assert.equal(
+      scripts["start:maestro:ios:preview:auth"],
+      "SAFEROUTE_ENABLE_PREVIEW_MODE=true SAFEROUTE_PREVIEW_INITIAL_SCREEN=login NODE_OPTIONS=--dns-result-order=ipv4first expo start --localhost --port 8081",
+    );
+    assert.equal(
       scripts["test:maestro:ios:auth"],
       "node scripts/run-maestro.mjs test maestro/ios-auth-ui.yaml",
     );
-    assert.match(flow, /id:\s*"guest-map-long-press-add-risk"/);
+    assert.doesNotMatch(flow, /longPressOn:/);
+    assert.doesNotMatch(flow, /guest-map-long-press-add-risk/);
+    assert.match(flow, /SAFEROUTE_PREVIEW_INITIAL_SCREEN=login/);
+    assert.match(flow, /Try again/);
     assert.match(flow, /id:\s*"safe-route-login"/);
     assert.match(flow, /SafeRoute Mobile/);
     assert.match(flow, /id:\s*"safe-route-login-email"/);

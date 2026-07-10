@@ -67,8 +67,8 @@ function normalizePreviewInitialScreen(value, previewModeEnabled) {
     return 'guest-map';
   }
 
-  if (normalized === 'operations') {
-    return 'operations';
+  if (normalized === 'login' || normalized === 'operations') {
+    return normalized;
   }
 
   return normalized === 'routes' ? 'routes' : 'guest-map';

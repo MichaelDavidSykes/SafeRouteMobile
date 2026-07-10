@@ -719,11 +719,15 @@ describe("rounded visual language", () => {
     assert.match(loginSource, /<SafeRouteLogo[\s\S]*accessibilityLabel="SafeRoute Mobile"/);
     assert.match(loginSource, /imageSize=\{loginLayout\.compact \? 40 : 50\}/);
     assert.match(loginSource, /size=\{loginLayout\.compact \? 52 : 64\}/);
+    assert.match(logoSource, /require\(["']\.\.\/\.\.\/assets\/icon\.png["']\)/);
+    assert.doesNotMatch(logoSource, /require\(["']\.\.\/\.\.\/assets\/logo-mark\.png["']\)/);
     assert.match(logoSource, /resizeMode="contain"/);
     assert.match(logoSource, /height:\s*resolvedImageSize/);
     assert.match(logoSource, /width:\s*resolvedImageSize/);
+    assert.match(logoSource, /borderRadius:\s*Math\.max\(radius\.sm,\s*resolvedImageSize \/ 2\)/);
     assert.match(logoSource, /borderRadius:\s*Math\.max\(radius\.sm,\s*size \/ 2\)/);
-    assert.match(logoFrameBlock, /backgroundColor:\s*colors\.ink/);
+    assert.match(logoFrameBlock, /borderColor:\s*colors\.glassBorder/);
+    assert.match(logoFrameBlock, /backgroundColor:\s*["']transparent["']/);
     assert.match(logoFrameBlock, /shadowOpacity:\s*0/);
     assert.match(logoFrameBlock, /shadowRadius:\s*0/);
     assert.match(logoFrameBlock, /elevation:\s*0/);

@@ -12,6 +12,8 @@ appId: host.exp.Exponent
       - tapOn: "Open"
 - waitForAnimationToEnd:
     timeout: 3000
+# Re-open once Expo Go is foregrounded. This mirrors the other no-build preview
+# smokes and avoids relying on route-planning gestures to reach authentication.
 - openLink: exp://localhost:8081
 - runFlow:
     when:
@@ -20,46 +22,36 @@ appId: host.exp.Exponent
       - tapOn: "Open"
 - waitForAnimationToEnd:
     timeout: 10000
+- tapOn:
+    text: "Close"
+    optional: true
+- waitForAnimationToEnd:
+    timeout: 1000
+- runFlow:
+    when:
+      visible: "Try again"
+    commands:
+      - tapOn: "Try again"
+      - waitForAnimationToEnd:
+          timeout: 8000
 - runFlow:
     when:
       visible: "Allow While Using App"
     commands:
       - tapOn: "Allow While Using App"
+      - waitForAnimationToEnd:
+          timeout: 3000
 - extendedWaitUntil:
     visible:
       id: "saferoute-app-root"
     timeout: 45000
-- waitForAnimationToEnd:
-    timeout: 2000
-- tapOn:
-    text: "Close"
-    optional: true
-- waitForAnimationToEnd:
-    timeout: 1200
-- runFlow:
-    when:
-      visible:
-        id: "safe-route-return"
-    commands:
-      - tapOn:
-          id: "safe-route-return"
-- runFlow:
-    when:
-      visible:
-        id: "safe-route-operations-map-return"
-    commands:
-      - tapOn:
-          id: "safe-route-operations-map-return"
-- longPressOn:
-    point: "50%,38%"
+# Requires the Expo listener to be started with SAFEROUTE_ENABLE_PREVIEW_MODE=true
+# and SAFEROUTE_PREVIEW_INITIAL_SCREEN=login so the smoke opens directly on the
+# branded sign-in surface without brittle map long-press setup.
 - extendedWaitUntil:
     visible:
-      id: "guest-map-long-press-add-risk"
-    timeout: 10000
-- tapOn:
-    id: "guest-map-long-press-add-risk"
-- assertVisible:
-    id: "safe-route-login"
+      id: "safe-route-login"
+    timeout: 30000
 - assertVisible: "SafeRoute Mobile"
 - assertVisible: "Sign in"
 - assertVisible:

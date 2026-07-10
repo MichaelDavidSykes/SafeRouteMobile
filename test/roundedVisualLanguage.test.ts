@@ -1517,7 +1517,9 @@ describe("rounded visual language", () => {
       )?.[1] || "";
 
     assert.match(routeListScreenSource, /accessibilityRole="alert"/);
+    assert.match(routeListScreenSource, /const ROUTE_LIST_ERROR_ACTION_HIT_SLOP = 6/);
     assert.match(routeListScreenSource, /accessibilityLabel=\{emptyState\.accessibilityLabel\}/);
+    assert.match(routeListScreenSource, /hitSlop=\{ROUTE_LIST_ERROR_ACTION_HIT_SLOP\}/);
     assert.match(
       routeListScreenSource,
       /style=\{\(\{ pressed \}\) => \[\s*styles\.retryButton,\s*pressed \? styles\.retryButtonPressed : null,/,

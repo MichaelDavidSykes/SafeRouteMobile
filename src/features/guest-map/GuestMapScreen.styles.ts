@@ -160,20 +160,32 @@ export const guestMapStyles = StyleSheet.create({
     gap: 2
   },
   waypointAction: {
+    maxWidth: 58,
     minHeight: 34,
+    flexShrink: 1,
+    alignItems: 'center',
     justifyContent: 'center',
     paddingHorizontal: spacing.xs,
     borderRadius: radius.pill
   },
+  waypointActionPressed: {
+    backgroundColor: colors.appleBlueSoft
+  },
   waypointActionText: {
+    maxWidth: '100%',
+    flexShrink: 1,
     color: colors.appleBlue,
     fontSize: 10,
-    fontWeight: '700'
+    fontWeight: '700',
+    textAlign: 'center'
   },
   waypointRemoveText: {
+    maxWidth: '100%',
+    flexShrink: 1,
     color: colors.danger,
     fontSize: 10,
-    fontWeight: '700'
+    fontWeight: '700',
+    textAlign: 'center'
   },
   inputRowDivider: {
     borderBottomWidth: 0.5,

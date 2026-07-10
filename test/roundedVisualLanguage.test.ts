@@ -474,6 +474,22 @@ describe("rounded visual language", () => {
       /inputRow:\s*\{([\s\S]*?)\n  \},\n  waypointRow:/.exec(guestMapStylesSource)?.[1] || "";
     const inputRowDividerBlock =
       /inputRowDivider:\s*\{([\s\S]*?)\n  \},\n  input:/.exec(guestMapStylesSource)?.[1] || "";
+    const waypointActionBlock =
+      /waypointAction:\s*\{([\s\S]*?)\n  \},\n  waypointActionPressed:/.exec(
+        guestMapStylesSource,
+      )?.[1] || "";
+    const waypointActionPressedBlock =
+      /waypointActionPressed:\s*\{([\s\S]*?)\n  \},\n  waypointActionText:/.exec(
+        guestMapStylesSource,
+      )?.[1] || "";
+    const waypointActionTextBlock =
+      /waypointActionText:\s*\{([\s\S]*?)\n  \},\n  waypointRemoveText:/.exec(
+        guestMapStylesSource,
+      )?.[1] || "";
+    const waypointRemoveTextBlock =
+      /waypointRemoveText:\s*\{([\s\S]*?)\n  \},\n  inputRowDivider:/.exec(
+        guestMapStylesSource,
+      )?.[1] || "";
     const primaryButtonTextBlock =
       /primaryButtonText:\s*\{([\s\S]*?)\n  \},\n  routePreview:/.exec(
         guestMapStylesSource,
@@ -490,6 +506,12 @@ describe("rounded visual language", () => {
     assert.match(guestMapSource, /accessibilityLabel=\{label\}/);
     assert.match(guestMapSource, /<RouteInput\s+divided/);
     assert.match(guestMapSource, /styles\.inputRowDivider/);
+    assert.match(guestMapSource, /const GUEST_WAYPOINT_ACTION_HIT_SLOP = 6/);
+    assert.equal((guestMapSource.match(/hitSlop=\{GUEST_WAYPOINT_ACTION_HIT_SLOP\}/g) || []).length, 3);
+    assert.equal((guestMapSource.match(/pressed \? styles\.waypointActionPressed : null/g) || []).length, 3);
+    assert.match(guestMapSource, /<Text numberOfLines=\{1\} style=\{styles\.waypointActionText\}>Earlier<\/Text>/);
+    assert.match(guestMapSource, /<Text numberOfLines=\{1\} style=\{styles\.waypointActionText\}>Later<\/Text>/);
+    assert.match(guestMapSource, /<Text numberOfLines=\{1\} style=\{styles\.waypointRemoveText\}>Remove<\/Text>/);
     assert.match(guestMapSource, /<Text numberOfLines=\{1\} style=\{styles\.primaryButtonText\}>/);
     assert.match(primaryButtonTextBlock, /maxWidth:\s*['"]100%['"]/);
     assert.match(primaryButtonTextBlock, /flexShrink:\s*1/);
@@ -511,6 +533,17 @@ describe("rounded visual language", () => {
     assert.doesNotMatch(inputRowBlock, /shadow\.panel/);
     assert.match(inputRowDividerBlock, /borderBottomWidth:\s*0\.5/);
     assert.match(inputRowDividerBlock, /borderBottomColor:\s*colors\.borderSoft/);
+    assert.match(waypointActionBlock, /maxWidth:\s*58/);
+    assert.match(waypointActionBlock, /minHeight:\s*34/);
+    assert.match(waypointActionBlock, /flexShrink:\s*1/);
+    assert.match(waypointActionBlock, /alignItems:\s*['"]center['"]/);
+    assert.match(waypointActionBlock, /borderRadius:\s*radius\.pill/);
+    assert.match(waypointActionPressedBlock, /backgroundColor:\s*colors\.appleBlueSoft/);
+    for (const waypointTextBlock of [waypointActionTextBlock, waypointRemoveTextBlock]) {
+      assert.match(waypointTextBlock, /maxWidth:\s*['"]100%['"]/);
+      assert.match(waypointTextBlock, /flexShrink:\s*1/);
+      assert.match(waypointTextBlock, /textAlign:\s*['"]center['"]/);
+    }
   });
 
   it("upgrades guest route previews with road geometry without adding sheet chrome", () => {

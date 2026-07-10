@@ -80,6 +80,7 @@ const GUEST_ROUTE_PROVIDER_UI_TIMEOUT_MS = 15000;
 const GUEST_LOCATION_SEARCH_DEBOUNCE_MS = 320;
 const GUEST_LOCATION_SEARCH_MIN_LENGTH = 2;
 const GUEST_RISK_DETAIL_DISMISS_HIT_SLOP = 6;
+const GUEST_WAYPOINT_ACTION_HIT_SLOP = 6;
 
 type GuestRoadRoutePreviewFetcher = (
   options: GuestRoadRoutePreviewOptions
@@ -1307,29 +1308,41 @@ function WaypointInput({
           <Pressable
             accessibilityLabel={`Move stop ${index + 1} earlier`}
             accessibilityRole="button"
-            style={styles.waypointAction}
+            hitSlop={GUEST_WAYPOINT_ACTION_HIT_SLOP}
+            style={({ pressed }) => [
+              styles.waypointAction,
+              pressed ? styles.waypointActionPressed : null
+            ]}
             onPress={() => onMove(index - 1)}
           >
-            <Text style={styles.waypointActionText}>Earlier</Text>
+            <Text numberOfLines={1} style={styles.waypointActionText}>Earlier</Text>
           </Pressable>
         ) : null}
         {canMoveDown ? (
           <Pressable
             accessibilityLabel={`Move stop ${index + 1} later`}
             accessibilityRole="button"
-            style={styles.waypointAction}
+            hitSlop={GUEST_WAYPOINT_ACTION_HIT_SLOP}
+            style={({ pressed }) => [
+              styles.waypointAction,
+              pressed ? styles.waypointActionPressed : null
+            ]}
             onPress={() => onMove(index + 1)}
           >
-            <Text style={styles.waypointActionText}>Later</Text>
+            <Text numberOfLines={1} style={styles.waypointActionText}>Later</Text>
           </Pressable>
         ) : null}
         <Pressable
           accessibilityLabel={`Remove stop ${index + 1}`}
           accessibilityRole="button"
-          style={styles.waypointAction}
+          hitSlop={GUEST_WAYPOINT_ACTION_HIT_SLOP}
+          style={({ pressed }) => [
+            styles.waypointAction,
+            pressed ? styles.waypointActionPressed : null
+          ]}
           onPress={onRemove}
         >
-          <Text style={styles.waypointRemoveText}>Remove</Text>
+          <Text numberOfLines={1} style={styles.waypointRemoveText}>Remove</Text>
         </Pressable>
       </View>
     </View>

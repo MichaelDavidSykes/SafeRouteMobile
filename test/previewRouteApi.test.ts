@@ -27,6 +27,16 @@ describe("SafeRoute preview route API", () => {
     assert.equal(loadPreviewSavedRoutes("other-client").routes.length, 0);
   });
 
+  it("serves an empty local Saved state for no-saved-routes previews", () => {
+    const result = loadPreviewSavedRoutes(undefined, { empty: true });
+
+    assert.deepEqual(result, {
+      clients: [],
+      routes: [],
+      selectedClientId: null,
+    });
+  });
+
   it("loads preview route detail by id and fails clearly for stale fixture ids", () => {
     assert.equal(
       loadPreviewRouteDetail(` ${SAVED_ROUTE_PLANS[1].id} `).id,

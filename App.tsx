@@ -78,7 +78,7 @@ export default function App() {
       setAuthPrompt('');
       setSession(createPreviewAuthSession());
       setSessionMessage(PREVIEW_SESSION_NOTICE);
-      setScreen(previewInitialScreen);
+      setScreen(screenForAuthenticatedPreview(previewInitialScreen));
       return true;
     };
 
@@ -282,6 +282,20 @@ export default function App() {
       </View>
     </SafeAreaProvider>
   );
+}
+
+function screenForAuthenticatedPreview(
+  previewInitialScreen: typeof SAFEROUTE_PREVIEW_INITIAL_SCREEN,
+): AppScreen {
+  if (previewInitialScreen === 'operations') {
+    return 'operations';
+  }
+
+  if (previewInitialScreen === 'routes' || previewInitialScreen === 'routes-empty') {
+    return 'routes';
+  }
+
+  return 'guest-map';
 }
 
 const styles = StyleSheet.create({

@@ -284,6 +284,7 @@ export function RouteListScreen({
             <View
               accessible
               accessibilityLabel={emptyState.accessibilityLabel}
+              testID={uiTestIds.routeListEmptyState}
               style={styles.emptyState}
             >
               <Text numberOfLines={1} style={styles.emptyTitle}>

@@ -1,5 +1,8 @@
 import { apiRequest } from '../api/apiClient';
-import { SAFEROUTE_PREVIEW_MODE_ENABLED } from '../../config/env';
+import {
+  SAFEROUTE_PREVIEW_INITIAL_SCREEN,
+  SAFEROUTE_PREVIEW_MODE_ENABLED,
+} from '../../config/env';
 import { isPreviewAccessToken } from '../auth/previewSession';
 import { loadRouteDetail, loadSavedRoutes, type SavedRouteSyncResult } from './routeApiCore';
 import type { SavedSafeRoutePlan } from '../live-map/liveMapTypes';
@@ -7,7 +10,9 @@ import { loadPreviewRouteDetail, loadPreviewSavedRoutes } from './previewRouteAp
 
 export async function fetchSavedRoutes(accessToken: string, clientId?: string): Promise<SavedRouteSyncResult> {
   if (SAFEROUTE_PREVIEW_MODE_ENABLED && isPreviewAccessToken(accessToken)) {
-    return loadPreviewSavedRoutes(clientId);
+    return loadPreviewSavedRoutes(clientId, {
+      empty: SAFEROUTE_PREVIEW_INITIAL_SCREEN === 'routes-empty',
+    });
   }
 
   return loadSavedRoutes(apiRequest, accessToken, clientId);

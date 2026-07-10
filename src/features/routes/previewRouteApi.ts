@@ -3,12 +3,27 @@ import type { SavedSafeRoutePlan } from "../live-map/liveMapTypes";
 import type { SavedRouteSyncResult } from "./routeApiCore";
 import type { MobileSafeRouteClient } from "./routeMapper";
 
+type PreviewSavedRoutesOptions = {
+  empty?: boolean;
+};
+
 const PREVIEW_CLIENT: MobileSafeRouteClient = {
   id: "preview-routes",
   name: "Preview routes",
 };
 
-export function loadPreviewSavedRoutes(clientId?: string): SavedRouteSyncResult {
+export function loadPreviewSavedRoutes(
+  clientId?: string,
+  options: PreviewSavedRoutesOptions = {},
+): SavedRouteSyncResult {
+  if (options.empty) {
+    return {
+      clients: [],
+      routes: [],
+      selectedClientId: null,
+    };
+  }
+
   const normalizedClientId = String(clientId || "").trim();
   const routes =
     normalizedClientId && normalizedClientId !== PREVIEW_CLIENT.id

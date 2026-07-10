@@ -125,6 +125,15 @@ describe('SafeRoute runtime config', () => {
       resolveSafeRouteRuntimeConfig({
         safeRouteEnvironment: 'development',
         safeRoutePreviewModeEnabled: true,
+        safeRoutePreviewInitialScreen: ' routes-empty '
+      }).previewInitialScreen,
+      'routes-empty'
+    );
+
+    assert.equal(
+      resolveSafeRouteRuntimeConfig({
+        safeRouteEnvironment: 'development',
+        safeRoutePreviewModeEnabled: true,
         safeRoutePreviewInitialScreen: ' session-expired '
       }).previewInitialScreen,
       'session-expired'

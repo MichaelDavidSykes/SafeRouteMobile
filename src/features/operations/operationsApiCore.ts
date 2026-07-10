@@ -29,7 +29,7 @@ export function buildOperationsStatePath(clientId: string): string {
     throw new Error("A client id is required before loading SafeRoute operations.");
   }
 
-  return `/convoy-routes/operations/client/${encodeURIComponent(normalizedClientId)}`;
+  return `/mobile/safe-route/operations/client/${encodeURIComponent(normalizedClientId)}`;
 }
 
 export function createEmptyOperationsState(clientId?: string | null): SafeRouteOperationsState {
@@ -56,13 +56,13 @@ export async function loadOperationsState(
 
 export function normalizeOperationsState(payload: unknown, clientId: string): SafeRouteOperationsState {
   const record = isRecord(payload) ? payload : {};
-  const normalizedClientId = cleanText(record.client_id, cleanText(clientId, EMPTY_CLIENT_ID));
+  const normalizedClientId = cleanText(clientId, EMPTY_CLIENT_ID);
 
   return {
     client_id: normalizedClientId,
-    people: arrayOfRecords(record.people).slice(0, MAX_LIST_SIZE).map((person, index) => normalizePerson(person, normalizedClientId, index)),
-    vehicles: arrayOfRecords(record.vehicles).slice(0, MAX_LIST_SIZE).map((vehicle, index) => normalizeVehicle(vehicle, normalizedClientId, index)),
-    trips: arrayOfRecords(record.trips).slice(0, MAX_LIST_SIZE).map((trip, index) => normalizeTrip(trip, normalizedClientId, index)),
+    people: uniqueEntitiesById(arrayOfRecords(record.people).slice(0, MAX_LIST_SIZE).map((person, index) => normalizePerson(person, normalizedClientId, index))),
+    vehicles: uniqueEntitiesById(arrayOfRecords(record.vehicles).slice(0, MAX_LIST_SIZE).map((vehicle, index) => normalizeVehicle(vehicle, normalizedClientId, index))),
+    trips: uniqueEntitiesById(arrayOfRecords(record.trips).slice(0, MAX_LIST_SIZE).map((trip, index) => normalizeTrip(trip, normalizedClientId, index))),
     updated_at: cleanText(record.updated_at, "")
   };
 }
@@ -72,7 +72,7 @@ function normalizePerson(record: Record<string, unknown>, clientId: string, inde
 
   return {
     id: cleanText(record.id, `person-${index + 1}`),
-    client_id: cleanText(record.client_id, clientId),
+    client_id: clientId,
     name: cleanText(record.name, "Team member"),
     callsign: cleanOptionalText(record.callsign),
     role: personRoles.has(role) ? role : "other",
@@ -90,20 +90,20 @@ function normalizeVehicle(record: Record<string, unknown>, clientId: string, ind
 
   return {
     id: cleanText(record.id, `vehicle-${index + 1}`),
-    client_id: cleanText(record.client_id, clientId),
+    client_id: clientId,
     callsign: cleanText(record.callsign, "Vehicle"),
     make: cleanText(record.make, "Vehicle"),
     model: cleanText(record.model, ""),
     trim: cleanOptionalText(record.trim),
-    year: normalizeOptionalNumber(record.year),
+    year: normalizeBoundedOptionalInteger(record.year, 1900, 2100),
     registration: cleanOptionalText(record.registration),
     vin: cleanOptionalText(record.vin),
     vehicle_type: vehicleTypes.has(vehicleType) ? vehicleType : "passenger",
     protection_profile: protectionProfiles.has(protectionProfile) ? protectionProfile : "standard",
     color: cleanOptionalText(record.color),
     fuel_type: cleanOptionalText(record.fuel_type),
-    range_km: normalizeOptionalNumber(record.range_km),
-    seat_count: normalizePositiveInteger(record.seat_count, 0),
+    range_km: normalizeBoundedOptionalInteger(record.range_km, 0, 2500),
+    seat_count: normalizeBoundedInteger(record.seat_count, 1, 12, 1),
     notes: cleanOptionalText(record.notes),
     is_active: record.is_active !== false,
     created_at: cleanText(record.created_at, ""),
@@ -120,11 +120,11 @@ function normalizeTrip(record: Record<string, unknown>, clientId: string, index:
 
   return {
     id: cleanText(record.id, `trip-${index + 1}`),
-    client_id: cleanText(record.client_id, clientId),
+    client_id: clientId,
     name: cleanText(record.name, "SafeRoute trip"),
     status: tripStatuses.has(status) ? status : "draft",
     movement_date: cleanOptionalText(record.movement_date),
-    duration_minutes: normalizeOptionalNumber(record.duration_minutes),
+    duration_minutes: normalizeBoundedOptionalInteger(record.duration_minutes, 1, 10080),
     origin: cleanOptionalText(record.origin),
     destination: cleanOptionalText(record.destination),
     route_ids: uniqueTextList([...routeIds, ...assignments.map((assignment) => assignment.route_id)], 80),
@@ -132,7 +132,7 @@ function normalizeTrip(record: Record<string, unknown>, clientId: string, index:
     person_ids: uniqueTextList(record.person_ids, 200),
     route_assignments: assignments,
     lead_vehicle_id: cleanOptionalText(record.lead_vehicle_id),
-    plan_color: cleanOptionalText(record.plan_color),
+    plan_color: normalizePlanColor(record.plan_color),
     notes: cleanOptionalText(record.notes),
     is_active: record.is_active !== false,
     created_at: cleanText(record.created_at, ""),
@@ -152,7 +152,7 @@ function normalizeRouteAssignment(
     vehicle_ids: uniqueTextList(record.vehicle_ids, 120),
     person_ids: uniqueTextList(record.person_ids, 200),
     movement_date: cleanOptionalText(record.movement_date),
-    duration_minutes: normalizeOptionalNumber(record.duration_minutes),
+    duration_minutes: normalizeBoundedOptionalInteger(record.duration_minutes, 1, 10080),
     status: status && tripStatuses.has(status) ? status : null,
     notes: cleanOptionalText(record.notes)
   };
@@ -200,18 +200,47 @@ function uniqueTextList(value: unknown, limit: number): string[] {
   return result;
 }
 
-function normalizeOptionalNumber(value: unknown): number | null {
+function normalizeBoundedOptionalInteger(
+  value: unknown,
+  minimum: number,
+  maximum: number
+): number | null {
   if (value === null || value === undefined || value === "") {
     return null;
   }
 
   const numericValue = Number(value);
-  return Number.isFinite(numericValue) ? numericValue : null;
+  return Number.isFinite(numericValue) && numericValue >= minimum && numericValue <= maximum
+    ? Math.round(numericValue)
+    : null;
 }
 
-function normalizePositiveInteger(value: unknown, fallback: number): number {
+function normalizeBoundedInteger(
+  value: unknown,
+  minimum: number,
+  maximum: number,
+  fallback: number
+): number {
   const numericValue = Number(value);
-  return Number.isFinite(numericValue) && numericValue > 0 ? Math.round(numericValue) : fallback;
+  return Number.isFinite(numericValue) && numericValue >= minimum && numericValue <= maximum
+    ? Math.round(numericValue)
+    : fallback;
+}
+
+function normalizePlanColor(value: unknown): string | null {
+  const color = cleanOptionalText(value);
+  return color && /^#[0-9a-f]{6}(?:[0-9a-f]{2})?$/i.test(color) ? color : null;
+}
+
+function uniqueEntitiesById<T extends { id: string }>(entities: T[]): T[] {
+  const seen = new Set<string>();
+  return entities.filter((entity) => {
+    if (seen.has(entity.id)) {
+      return false;
+    }
+    seen.add(entity.id);
+    return true;
+  });
 }
 
 function cleanOptionalText(value: unknown): string | null {

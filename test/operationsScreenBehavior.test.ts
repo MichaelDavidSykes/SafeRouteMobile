@@ -9,7 +9,7 @@ describe("operations screen behavior", () => {
   it("loads synced routes plus SafeRoute operations manifests into view-only tabs", () => {
     const text = screenSource();
 
-    assert.match(text, /fetchSavedRoutes\(accessToken, selectedClientId \|\| undefined\)/);
+    assert.match(text, /fetchSavedRoutes\(accessToken, clientId \|\| undefined\)/);
     assert.match(text, /resolveOperationsClientId\(/);
     assert.match(text, /fetchOperationsState\(accessToken, nextClientId\)/);
     assert.match(text, /createPlannedRouteRows\(routes, operationsState\)/);
@@ -21,6 +21,8 @@ describe("operations screen behavior", () => {
     assert.match(text, /testID=\{uiTestIds\.operationsRouteCard\(row\.id\)\}/);
     assert.match(text, /testID=\{uiTestIds\.operationsConvoyCard\(row\.id\)\}/);
     assert.match(text, />View only</);
+    assert.match(text, /revision !== loadRevisionRef\.current/);
+    assert.match(text, /void loadOperations\(\{ clientId: client\.id \}\)/);
     assert.doesNotMatch(text, /onEdit|Edit route|Save changes|Delete route|Create convoy|saveSelected|upsert|deleteTrip/);
   });
 
@@ -29,7 +31,7 @@ describe("operations screen behavior", () => {
 
     assert.match(text, /operationsError instanceof ApiSessionExpiredError/);
     assert.match(text, /createOperationsSyncWarningState\(operationsError\)/);
-    assert.match(text, /setOperationsState\(createEmptyOperationsState\(nextClientId\)\)/);
+    assert.match(text, /setOperationsState\(null\)/);
     assert.match(text, /Showing saved routes only/);
   });
 });

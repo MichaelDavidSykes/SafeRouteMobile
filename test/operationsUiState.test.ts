@@ -111,6 +111,14 @@ describe("view-only operations UI state", () => {
     assert.ok(convoyRows.some((row) => row.title === "Alpha convoy"));
   });
 
+  it("does not mislabel saved routes as planned when a real workspace has no trip plans", () => {
+    const emptyOperationsState = loadPreviewOperationsState("empty-client");
+
+    assert.deepEqual(createPlannedRouteRows(SAVED_ROUTE_PLANS, emptyOperationsState), []);
+    assert.deepEqual(createCalendarRows(SAVED_ROUTE_PLANS, emptyOperationsState), []);
+    assert.deepEqual(createConvoyRows(SAVED_ROUTE_PLANS, emptyOperationsState), []);
+  });
+
   it("summarizes visible operations data without adding edit affordances", () => {
     const operationsState = loadPreviewOperationsState("preview-routes");
     const summary = createOperationsSummaryState(SAVED_ROUTE_PLANS, operationsState);

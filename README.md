@@ -104,6 +104,7 @@ The app expects:
 - `GET /api/v1/users/me` with the LunarChain bearer token for session restore validation.
 - `GET /api/v1/mobile/safe-route/routes?client_id={optional}`
 - `GET /api/v1/mobile/safe-route/routes/{route_id}`
+- `GET /api/v1/mobile/safe-route/operations/client/{client_id}` for the sanitized, read-only planned-trip, calendar, person, and vehicle projection. Sensitive inventory fields stay on the web operations API.
 
 Saved-route endpoints require the LunarChain bearer token and return the standard LunarChain response envelope. Route list rows must include stable non-empty `id` values before they are shown in the picker; malformed list payloads fall back to the empty picker state instead of crashing. Route detail payloads should echo that id, and the app falls back to the requested id if the detail response omits it; malformed detail payloads surface concise retry copy instead of opening a broken map. Risk overlay radii should be expressed in meters; the mobile mapper treats malformed/negative radii as a compact 250 m overlay and caps imported circular overlays at 50 km so bad hosted data cannot flood the map. Hosted auth remains authoritative for credentials, two-factor challenges, and session validation.
 

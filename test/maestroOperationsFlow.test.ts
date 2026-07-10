@@ -31,6 +31,7 @@ describe("Maestro iOS preview operations flow", () => {
     assert.match(flow, /SAFEROUTE_PREVIEW_INITIAL_SCREEN=operations/);
     assert.match(flow, /openLink: exp:\/\/localhost:8081/);
     assert.doesNotMatch(flow, /openLink: exp:\/\/127\.0\.0\.1:8081/);
+    assert.match(flow, /visible:\s*"Try again"[\s\S]*tapOn:\s*"Try again"/);
     assert.doesNotMatch(flow, /point: "50%,92%"/);
     assert.doesNotMatch(flow, /point: "91%,49%"/);
   });

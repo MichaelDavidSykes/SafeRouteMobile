@@ -27,6 +27,13 @@ appId: host.exp.Exponent
     timeout: 1000
 - runFlow:
     when:
+      visible: "Try again"
+    commands:
+      - tapOn: "Try again"
+      - waitForAnimationToEnd:
+          timeout: 8000
+- runFlow:
+    when:
       visible: "Allow While Using App"
     commands:
       - tapOn: "Allow While Using App"

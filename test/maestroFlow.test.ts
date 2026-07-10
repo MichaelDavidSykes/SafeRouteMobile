@@ -92,6 +92,7 @@ describe("Maestro iOS preview smoke flow", () => {
     assert.match(flow, /SAFEROUTE_ENABLE_PREVIEW_MODE=true/);
     assert.match(flow, /SAFEROUTE_PREVIEW_INITIAL_SCREEN=operations/);
     assert.match(flow, /text:\s*"Close"[\s\S]*optional:\s*true/);
+    assert.match(flow, /visible:\s*"Try again"[\s\S]*tapOn:\s*"Try again"/);
     assert.doesNotMatch(flow, /point:\s*"50%,92%"/);
     assert.doesNotMatch(flow, /point:\s*"91%,49%"/);
     assert.match(flow, /extendedWaitUntil:\s*\n\s+visible:\s*\n\s+id:\s*"safe-route-operations"/);

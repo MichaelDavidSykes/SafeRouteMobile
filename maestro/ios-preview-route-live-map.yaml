@@ -82,14 +82,21 @@ appId: host.exp.Exponent
           id: "guest-map-destination-input"
       - tapOn:
           id: "guest-map-destination-input"
-      - inputText: "London City Airport"
-      - tapOn: "done"
-      - waitForAnimationToEnd:
-          timeout: 5000
+      - inputText: "51.5053, 0.0553"
       - extendedWaitUntil:
           visible:
-            id: "guest-map-route-preview"
-          timeout: 12000
+            id: "guest-map-search-coordinate-51-505300-0-055300"
+          timeout: 10000
+      - tapOn:
+          id: "guest-map-search-coordinate-51-505300-0-055300"
+      - tapOn:
+          id: "guest-map-plot-action"
+          waitToSettleTimeoutMs: 1000
+      - extendedWaitUntil:
+          visible: "Preview map"
+          timeout: 30000
+      - assertVisible:
+          id: "guest-map-route-preview"
       - assertVisible:
           id: "guest-map-plot-action"
       - tapOn:

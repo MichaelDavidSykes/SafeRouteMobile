@@ -238,6 +238,7 @@ export default function App() {
             authenticated={authenticated}
             onOpenFullAccessFeature={openFullAccessFeature}
             onOpenRoutePreview={openRoutePreview}
+            onSessionExpired={handleSessionExpired}
             onSignIn={() => openSignIn()}
           />
         )}

@@ -5,7 +5,12 @@ import {
   densifyRouteCoordinates,
   normalizeRouteCoordinates
 } from '../live-map/routeGeometry';
-import type { RiskZone, RouteNavigationStep, SavedSafeRoutePlan } from '../live-map/liveMapTypes';
+import type {
+  RiskZone,
+  RouteCheckpoint,
+  RouteNavigationStep,
+  SavedSafeRoutePlan
+} from '../live-map/liveMapTypes';
 import { routeRiskStartBlockedReason } from '../live-map/routeRisk';
 import { formatDistance, formatEta } from '../routes/routeMapperNormalization';
 
@@ -54,6 +59,7 @@ export type GuestRouteMetricsOptions = {
 
 export type GuestRoutePlanOptions = {
   authenticated?: boolean;
+  checkpoints?: RouteCheckpoint[] | null;
   destination: string;
   destinationCoordinate?: LatLng | null;
   origin: string;
@@ -302,6 +308,7 @@ export function createGuestRouteMetrics(
 
 export function createGuestRoutePlan({
   authenticated = false,
+  checkpoints,
   destination,
   destinationCoordinate,
   origin,
@@ -321,14 +328,17 @@ export function createGuestRoutePlan({
 
   const normalizedRoadSnappedCoordinates = normalizeGuestRouteCoordinates(roadSnappedCoordinates);
   const hasRoadSnappedCoordinates = normalizedRoadSnappedCoordinates.length >= 2;
-  const selectedEndpointCoordinates = normalizeGuestRouteCoordinates([
-    originCoordinate as LatLng,
-    destinationCoordinate as LatLng
-  ]);
-  const hasSelectedEndpointCoordinates = selectedEndpointCoordinates.length === 2;
-  const localRouteCoordinates = hasSelectedEndpointCoordinates
+  const normalizedCheckpoints = normalizeGuestRouteCheckpoints(checkpoints);
+  const selectedStopCoordinates = normalizedCheckpoints.length >= 2
+    ? normalizedCheckpoints.map((checkpoint) => checkpoint.coordinate)
+    : normalizeGuestRouteCoordinates([
+        originCoordinate as LatLng,
+        destinationCoordinate as LatLng
+      ]);
+  const hasSelectedStopCoordinates = selectedStopCoordinates.length >= 2;
+  const localRouteCoordinates = hasSelectedStopCoordinates
     ? densifyRouteCoordinates(
-        selectedEndpointCoordinates,
+        selectedStopCoordinates,
         GUEST_ROUTE_SIMULATION_MAX_SEGMENT_METERS
       )
     : resolveGuestRouteCoordinates(destinationLabel);
@@ -383,14 +393,16 @@ export function createGuestRoutePlan({
     },
     riskZones: riskZones
       ? [...riskZones]
-      : hasSelectedEndpointCoordinates
+      : hasSelectedStopCoordinates
         ? []
         : GUEST_ROUTE_RISK_ZONES,
-    checkpoints: createGuestRouteCheckpoints({
-      destinationLabel,
-      originLabel,
-      routeCoordinates
-    })
+    checkpoints: normalizedCheckpoints.length >= 2
+      ? normalizedCheckpoints
+      : createGuestRouteCheckpoints({
+          destinationLabel,
+          originLabel,
+          routeCoordinates
+        })
   };
 }
 
@@ -413,6 +425,29 @@ function normalizeGuestRouteCoordinates(coordinates: LatLng[] | null | undefined
   }
 
   return normalizeRouteCoordinates(coordinates);
+}
+
+function normalizeGuestRouteCheckpoints(
+  checkpoints: RouteCheckpoint[] | null | undefined
+): RouteCheckpoint[] {
+  if (!Array.isArray(checkpoints) || checkpoints.length < 2) {
+    return [];
+  }
+  const normalized = checkpoints.filter((checkpoint) =>
+    checkpoint &&
+    typeof checkpoint.id === 'string' &&
+    typeof checkpoint.caption === 'string' &&
+    Number.isFinite(checkpoint.coordinate?.latitude) &&
+    Number.isFinite(checkpoint.coordinate?.longitude) &&
+    checkpoint.coordinate.latitude >= -90 &&
+    checkpoint.coordinate.latitude <= 90 &&
+    checkpoint.coordinate.longitude >= -180 &&
+    checkpoint.coordinate.longitude <= 180
+  ).map((checkpoint) => ({
+    ...checkpoint,
+    coordinate: { ...checkpoint.coordinate }
+  }));
+  return normalized.length === checkpoints.length ? normalized : [];
 }
 
 export function resolveGuestRouteCoordinates(destinationLabel: string): LatLng[] {

@@ -367,7 +367,9 @@ describe("rounded visual language", () => {
     assert.doesNotMatch(guestMapSource, /styles\.topTitle/);
     assert.doesNotMatch(guestMapStylesSource, /\bbrandRow:/);
     assert.doesNotMatch(topBarBlock, /borderWidth|backgroundColor|shadow\.panel/);
-    assert.match(topBarBlock, /justifyContent:\s*["']flex-end["']/);
+    assert.match(topBarBlock, /justifyContent:\s*["']space-between["']/);
+    assert.match(guestMapSource, /Loading risks…/);
+    assert.match(guestMapStylesSource, /riskLoadStatus:[\s\S]*borderRadius:\s*radius\.pill/);
     assert.match(signInButtonBlock, /maxWidth:\s*144/);
     assert.match(signInButtonBlock, /backgroundColor:\s*colors\.surfaceGlass/);
     assert.match(signInButtonBlock, /borderRadius:\s*radius\.pill/);
@@ -418,7 +420,7 @@ describe("rounded visual language", () => {
     const inputStackBlock =
       /inputStack:\s*\{([\s\S]*?)\n  \},\n  inputRow:/.exec(guestMapStylesSource)?.[1] || "";
     const inputRowBlock =
-      /inputRow:\s*\{([\s\S]*?)\n  \},\n  inputRowDivider:/.exec(guestMapStylesSource)?.[1] || "";
+      /inputRow:\s*\{([\s\S]*?)\n  \},\n  waypointRow:/.exec(guestMapStylesSource)?.[1] || "";
     const inputRowDividerBlock =
       /inputRowDivider:\s*\{([\s\S]*?)\n  \},\n  input:/.exec(guestMapStylesSource)?.[1] || "";
     const primaryButtonTextBlock =
@@ -466,17 +468,26 @@ describe("rounded visual language", () => {
       "utf8",
     );
 
-    assert.match(guestMapSource, /fetchGuestRoadRoutePreview/);
-    assert.match(guestMapSource, /roadRoutePreviewFetcher = fetchGuestRoadRoutePreview/);
-    assert.match(guestMapSource, /setRoutePlan\(localRoutePlan\)/);
+    assert.match(guestMapSource, /fetchSafeRouteRoadRoutePreview/);
+    assert.match(guestMapSource, /roadRoutePreviewFetcher \|\|/);
+    assert.match(guestMapSource, /routingAccessToken = accessToken && !isPreviewAccessToken\(accessToken\)/);
+    assert.match(guestMapSource, /accessToken:\s*routingAccessToken/);
+    assert.match(guestMapSource, /setRoutePlan\(null\)/);
     assert.match(guestMapSource, /upgradeGuestRouteWithRoadPreview\(localRoutePlan\)/);
     assert.match(guestMapSource, /new AbortController\(\)/);
-    assert.match(guestMapSource, /GUEST_ROUTE_PROVIDER_UI_TIMEOUT_MS\s*=\s*3500/);
+    assert.match(guestMapSource, /roadPreviewPending/);
+    assert.match(guestMapSource, /pendingOpenPreviewRef/);
+    assert.match(guestMapSource, /openPendingPreview\(roadRoutePlan\)/);
+    assert.doesNotMatch(guestMapSource, /openPendingPreview\(localRoutePlan\)/);
+    assert.doesNotMatch(guestMapSource, /setRoutePlan\(SAFEROUTE_PREVIEW_MODE_ENABLED\s*\?\s*localRoutePlan/);
+    assert.match(guestMapSource, /A road-snapped safe route is unavailable/);
+    assert.match(guestMapSource, /GUEST_ROUTE_PROVIDER_UI_TIMEOUT_MS\s*=\s*15000/);
     assert.match(guestMapSource, /timeoutMs:\s*GUEST_ROUTE_PROVIDER_UI_TIMEOUT_MS/);
-    assert.match(guestMapSource, /roadSnappedCoordinates:\s*roadPreview\.coordinates/);
-    assert.match(guestMapSource, /routeDistanceMeters:\s*roadPreview\.distanceMeters/);
-    assert.match(guestMapSource, /routeDurationSeconds:\s*roadPreview\.durationSeconds/);
-    assert.doesNotMatch(guestMapSource, /roadPreviewLoading|roadPreviewStatus|ActivityIndicator/);
+    assert.match(guestMapSource, /roadSnappedCoordinates:\s*finalRoadPreview\.coordinates/);
+    assert.match(guestMapSource, /routeDistanceMeters:\s*finalRoadPreview\.distanceMeters/);
+    assert.match(guestMapSource, /routeDurationSeconds:\s*finalRoadPreview\.durationSeconds/);
+    assert.doesNotMatch(guestMapSource, /roadPreviewLoading|roadPreviewStatus/);
+    assert.match(guestMapSource, /accessibilityLabel="Searching nearby places"/);
   });
 
   it("keeps route endpoint markers compact, geometric, and text-free", () => {
@@ -498,7 +509,8 @@ describe("rounded visual language", () => {
       )?.[1] || "";
 
     assert.match(guestMapSource, /styles\.markerCore/);
-    assert.match(guestMapSource, /description=\{checkpoint\.kind === 'origin' \? 'Route start' : 'Destination'\}/);
+    assert.match(guestMapSource, /description=\{checkpointKindLabel\(checkpoint\.kind\)\}/);
+    assert.match(guestMapSource, /checkpoint\.kind === 'waypoint'/);
     assert.doesNotMatch(guestMapSource, /checkpoint\.label/);
     assert.match(guestMapStylesSource, /\bmarker:[\s\S]*width:\s*28[\s\S]*borderWidth:\s*3/);
     assert.match(guestMapStylesSource, /\bmarkerDestination:[\s\S]*borderRadius:\s*radius\.pill/);
@@ -941,7 +953,8 @@ describe("rounded visual language", () => {
         guidanceStylesSource,
       )?.[1] || "";
 
-    assert.match(guidanceSource, /accessibilityLabel=\{presentation\.accessibilityLabel\}/);
+    assert.match(guidanceSource, /accessibilityLabel=\{accessibilityLabel\}/);
+    assert.match(guidanceSource, /:\s*presentation\.accessibilityLabel/);
     assert.match(guidanceSource, /presentation\.instructionLabel/);
     assert.match(guidanceSource, /presentation\.distanceLabel/);
     assert.match(guidanceSource, /<Text\s+numberOfLines=\{1\}[\s\S]*styles\.guidanceDistance/);
@@ -1122,18 +1135,6 @@ describe("rounded visual language", () => {
       /bottomSheet:\s*\{([\s\S]*?)\n  \},\n  bottomSheetCompact:/.exec(
         routeSheetStylesSource,
       )?.[1] || "";
-    const demoButtonBlock =
-      /demoButton:\s*\{([\s\S]*?)\n  \},\n  demoButtonInline:/.exec(
-        routeSheetStylesSource,
-      )?.[1] || "";
-    const demoButtonPressedBlock =
-      /demoButtonPressed:\s*\{([\s\S]*?)\n  \},\n  demoButtonText:/.exec(
-        routeSheetStylesSource,
-      )?.[1] || "";
-    const demoButtonTextBlock =
-      /demoButtonText:\s*\{([\s\S]*?)\n  \},\n  demoButtonTextActive:/.exec(
-        routeSheetStylesSource,
-      )?.[1] || "";
 
     assert.match(routeSheetSource, /createRouteSummaryDetail/);
     assert.match(routeSheetSource, /createRouteSummaryHeadline/);
@@ -1142,26 +1143,19 @@ describe("rounded visual language", () => {
     assert.match(routeSheetSource, /styles\.routeDetailLine/);
     assert.match(routeSheetSource, /styles\.remainingMetricLine/);
     assert.match(routeSheetSource, /uiTestIds\.liveMapRemainingMetrics/);
-    assert.match(routeSheetSource, /shouldInlineRouteSummaryDemoAction/);
-    assert.match(routeSheetSource, /inlineDemoAction/);
-    assert.match(routeSheetSource, /styles\.demoButtonInline/);
+    assert.doesNotMatch(routeSheetSource, /DemoDrive|demoButton|Simulate|Simulation/);
     assert.match(routeSheetSource, /const ROUTE_SUMMARY_ACTION_HIT_SLOP = 6;/);
     assert.equal(
       routeSheetSource.match(/hitSlop=\{ROUTE_SUMMARY_ACTION_HIT_SLOP\}/g)
         ?.length,
-      3,
+      2,
     );
     assert.match(routeSheetSource, /style=\{\(\{ pressed \}\) => \[/);
-    assert.match(routeSheetSource, /pressed \? styles\.demoButtonPressed : null/);
     assert.match(
       routeSheetSource,
       /<Text\s+numberOfLines=\{1\}\s+style=\{\[\s*styles\.startButtonText/,
     );
     assert.match(routeSheetSource, /<Text numberOfLines=\{1\} style=\{styles\.stopButtonText\}>/);
-    assert.match(
-      routeSheetSource,
-      /<Text\s+numberOfLines=\{1\}\s+style=\{\[\s*styles\.demoButtonText/,
-    );
     assert.match(
       routeSheetSource,
       /accessibilityLabel=\{headlinePresentation\.accessibilityLabel\}[\s\S]*numberOfLines=\{1\}[\s\S]*\{headlinePresentation\.text\}/,
@@ -1182,17 +1176,9 @@ describe("rounded visual language", () => {
     assert.doesNotMatch(routeSheetStylesSource, /\bcardLabelCompactNavigation:/);
     assert.match(routeSheetStylesSource, /\bremainingMetricLine:/);
     assert.match(routeSheetStylesSource, /\bsummaryCopyCompactNavigation:\s*\{[\s\S]*justifyContent:\s*"center"/);
-    assert.match(routeSheetStylesSource, /\bdemoButtonInline:\s*\{[\s\S]*marginTop:\s*0/);
     assert.match(routeSheetStylesSource, /startButtonText:[\s\S]*maxWidth:\s*"100%"/);
     assert.match(routeSheetStylesSource, /startButtonText:[\s\S]*flexShrink:\s*1/);
-    assert.match(routeSheetStylesSource, /demoButtonText:[\s\S]*maxWidth:\s*"100%"/);
-    assert.match(routeSheetStylesSource, /demoButtonText:[\s\S]*flexShrink:\s*1/);
-    assert.match(demoButtonBlock, /minHeight:\s*controlSizes\.compact/);
-    assert.match(demoButtonBlock, /borderRadius:\s*radius\.pill/);
-    assert.match(demoButtonBlock, /backgroundColor:\s*"transparent"/);
-    assert.doesNotMatch(demoButtonBlock, /\bborderWidth/);
-    assert.match(demoButtonPressedBlock, /backgroundColor:\s*colors\.appleBlueSoft/);
-    assert.match(demoButtonTextBlock, /color:\s*colors\.appleBlue/);
+    assert.doesNotMatch(routeSheetStylesSource, /\bdemoButton/);
     assert.match(bottomSheetBlock, /backgroundColor:\s*colors\.surfaceTranslucent/);
     assert.match(bottomSheetBlock, /shadowOpacity:\s*0/);
     assert.match(bottomSheetBlock, /shadowRadius:\s*0/);
@@ -1211,7 +1197,7 @@ describe("rounded visual language", () => {
     assert.match(routeSummarySource, /label:\s*"Resume"/);
     assert.match(routeSummarySource, /createRouteSummaryHeadline/);
     assert.match(routeSummarySource, /createRouteSummaryHeadlineAccessibilityLabel/);
-    assert.match(routeSummarySource, /shouldInlineRouteSummaryDemoAction/);
+    assert.doesNotMatch(routeSummarySource, /DemoAction|Simulate|Simulation/);
     assert.match(routeSummarySource, /return "Guidance"/);
     assert.match(routeSummarySource, /return "Preview"/);
     assert.doesNotMatch(routeSummarySource, /Start route|Pause route|Resume route/);

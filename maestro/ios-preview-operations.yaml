@@ -1,0 +1,135 @@
+appId: host.exp.Exponent
+---
+- stopApp
+- setLocation:
+    latitude: 51.5074
+    longitude: -0.1278
+- openLink: exp://localhost:8081
+- runFlow:
+    when:
+      visible: "Open"
+    commands:
+      - tapOn: "Open"
+- waitForAnimationToEnd:
+    timeout: 3000
+- openLink: exp://localhost:8081
+- runFlow:
+    when:
+      visible: "Open"
+    commands:
+      - tapOn: "Open"
+- waitForAnimationToEnd:
+    timeout: 10000
+- tapOn:
+    point: "50%,92%"
+- waitForAnimationToEnd:
+    timeout: 3000
+- tapOn:
+    point: "91%,49%"
+- waitForAnimationToEnd:
+    timeout: 5000
+- runFlow:
+    when:
+      visible: "Allow While Using App"
+    commands:
+      - tapOn: "Allow While Using App"
+      - waitForAnimationToEnd:
+          timeout: 3000
+- extendedWaitUntil:
+    visible:
+      id: "saferoute-app-root"
+    timeout: 45000
+- runFlow:
+    when:
+      visible:
+        id: "safe-route-return"
+    commands:
+      - tapOn:
+          id: "safe-route-return"
+          waitToSettleTimeoutMs: 1000
+      - waitForAnimationToEnd:
+          timeout: 3000
+- runFlow:
+    when:
+      visible:
+        id: "safe-route-operations-map-return"
+    commands:
+      - tapOn:
+          id: "safe-route-operations-map-return"
+          waitToSettleTimeoutMs: 1000
+      - waitForAnimationToEnd:
+          timeout: 3000
+# Requires the Expo listener to be started with SAFEROUTE_ENABLE_PREVIEW_MODE=true
+# so the local preview session can expose authenticated, view-only operations.
+- extendedWaitUntil:
+    visible:
+      id: "guest-map-gate-planned-trips"
+    timeout: 15000
+- assertVisible:
+    id: "guest-map-gate-calendar"
+- assertVisible:
+    id: "guest-map-gate-convoy-management"
+- tapOn:
+    id: "guest-map-gate-planned-trips"
+    waitToSettleTimeoutMs: 1000
+- extendedWaitUntil:
+    visible:
+      id: "safe-route-operations"
+    timeout: 30000
+- assertVisible:
+    id: "safe-route-operations-tab-planned-routes"
+- assertVisible: "Planned routes"
+- assertVisible:
+    id: "safe-route-operations-route-trip-airport-transfer-sr-city-airport-alpha-0"
+- assertVisible:
+    id: "safe-route-operations-route-trip-docklands-low-profile-sr-docklands-low-profile-0"
+- tapOn:
+    id: "safe-route-operations-tab-calendar"
+    waitToSettleTimeoutMs: 1000
+- waitForAnimationToEnd:
+    timeout: 1500
+- assertVisible: "Calendar"
+- assertVisible:
+    id: "safe-route-operations-route-trip-airport-transfer-sr-city-airport-alpha-0"
+- tapOn:
+    id: "safe-route-operations-tab-convoy-management"
+    waitToSettleTimeoutMs: 1000
+- waitForAnimationToEnd:
+    timeout: 1500
+- assertVisible: "Convoys"
+- assertVisible:
+    id: "safe-route-operations-convoy-trip-airport-transfer"
+- assertVisible:
+    id: "safe-route-operations-convoy-trip-docklands-low-profile"
+- tapOn:
+    id: "safe-route-operations-map-return"
+    waitToSettleTimeoutMs: 1000
+- extendedWaitUntil:
+    visible:
+      id: "guest-map-gate-calendar"
+    timeout: 12000
+- tapOn:
+    id: "guest-map-gate-calendar"
+    waitToSettleTimeoutMs: 1000
+- extendedWaitUntil:
+    visible:
+      id: "safe-route-operations"
+    timeout: 12000
+- assertVisible: "Calendar"
+- tapOn:
+    id: "safe-route-operations-map-return"
+    waitToSettleTimeoutMs: 1000
+- extendedWaitUntil:
+    visible:
+      id: "guest-map-gate-convoy-management"
+    timeout: 12000
+- tapOn:
+    id: "guest-map-gate-convoy-management"
+    waitToSettleTimeoutMs: 1000
+- extendedWaitUntil:
+    visible:
+      id: "safe-route-operations"
+    timeout: 12000
+- assertVisible: "Convoys"
+- assertVisible:
+    id: "safe-route-operations-convoy-trip-airport-transfer"

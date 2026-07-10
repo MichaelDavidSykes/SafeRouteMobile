@@ -5,10 +5,16 @@ import {
   densifyRouteCoordinates,
   normalizeRouteCoordinates
 } from '../live-map/routeGeometry';
-import type { RiskZone, SavedSafeRoutePlan } from '../live-map/liveMapTypes';
+import type {
+  RiskZone,
+  RouteCheckpoint,
+  RouteNavigationStep,
+  SavedSafeRoutePlan
+} from '../live-map/liveMapTypes';
+import { routeRiskStartBlockedReason } from '../live-map/routeRisk';
 import { formatDistance, formatEta } from '../routes/routeMapperNormalization';
 
-export type GuestFullAccessFeature = 'saved-routes' | 'planned-trips' | 'convoy-management';
+export type GuestFullAccessFeature = 'saved-routes' | 'planned-trips' | 'calendar' | 'convoy-management';
 
 export type GuestFullAccessCopy = {
   action: string;
@@ -51,6 +57,20 @@ export type GuestRouteMetricsOptions = {
   durationSeconds?: number | null;
 };
 
+export type GuestRoutePlanOptions = {
+  authenticated?: boolean;
+  checkpoints?: RouteCheckpoint[] | null;
+  destination: string;
+  destinationCoordinate?: LatLng | null;
+  origin: string;
+  originCoordinate?: LatLng | null;
+  riskZones?: RiskZone[];
+  roadSnappedCoordinates?: LatLng[] | null;
+  routeDistanceMeters?: number | null;
+  routeDurationSeconds?: number | null;
+  routeGuidanceSteps?: RouteNavigationStep[];
+};
+
 export type GuestMapHomeCopy = {
   primaryActionAccessibilityLabel: string;
   primaryActionLabel: string;
@@ -90,6 +110,37 @@ const GUEST_ROUTE_COORDINATES: LatLng[] = densifyRouteCoordinates(
   GUEST_ROUTE_ANCHORS,
   GUEST_ROUTE_SIMULATION_MAX_SEGMENT_METERS
 );
+
+const LONDON_CITY_AIRPORT_ROUTE_ANCHORS: LatLng[] = [
+  { latitude: 51.5099, longitude: -0.1479 },
+  { latitude: 51.5015, longitude: -0.135 },
+  { latitude: 51.5005, longitude: -0.1197 },
+  { latitude: 51.4935, longitude: -0.092 },
+  { latitude: 51.4917, longitude: -0.063 },
+  { latitude: 51.493, longitude: -0.047 },
+  { latitude: 51.484, longitude: -0.01 },
+  { latitude: 51.493, longitude: 0.003 },
+  { latitude: 51.509, longitude: 0.006 },
+  { latitude: 51.514, longitude: 0.03 },
+  { latitude: 51.5053, longitude: 0.0553 }
+];
+
+const LONDON_CITY_AIRPORT_ROUTE_COORDINATES: LatLng[] = densifyRouteCoordinates(
+  LONDON_CITY_AIRPORT_ROUTE_ANCHORS,
+  GUEST_ROUTE_SIMULATION_MAX_SEGMENT_METERS
+);
+
+const GUEST_ROUTE_DESTINATION_GEOMETRIES = [
+  {
+    aliases: [
+      'london city airport',
+      'city airport',
+      'lcy'
+    ],
+    coordinates: LONDON_CITY_AIRPORT_ROUTE_COORDINATES,
+    roadPreviewStops: LONDON_CITY_AIRPORT_ROUTE_ANCHORS
+  }
+];
 
 const GUEST_ROUTE_RISK_ZONES: RiskZone[] = [
   {
@@ -257,19 +308,17 @@ export function createGuestRouteMetrics(
 
 export function createGuestRoutePlan({
   authenticated = false,
+  checkpoints,
   destination,
+  destinationCoordinate,
   origin,
+  originCoordinate,
+  riskZones,
   roadSnappedCoordinates,
   routeDistanceMeters,
-  routeDurationSeconds
-}: {
-  authenticated?: boolean;
-  destination: string;
-  origin: string;
-  roadSnappedCoordinates?: LatLng[] | null;
-  routeDistanceMeters?: number | null;
-  routeDurationSeconds?: number | null;
-}): SavedSafeRoutePlan {
+  routeDurationSeconds,
+  routeGuidanceSteps
+}: GuestRoutePlanOptions): SavedSafeRoutePlan {
   const originLabel = normalizeGuestRouteLabel(origin, 'Current location');
   const destinationLabel = normalizeGuestRouteLabel(destination, '');
 
@@ -279,9 +328,23 @@ export function createGuestRoutePlan({
 
   const normalizedRoadSnappedCoordinates = normalizeGuestRouteCoordinates(roadSnappedCoordinates);
   const hasRoadSnappedCoordinates = normalizedRoadSnappedCoordinates.length >= 2;
+  const normalizedCheckpoints = normalizeGuestRouteCheckpoints(checkpoints);
+  const selectedStopCoordinates = normalizedCheckpoints.length >= 2
+    ? normalizedCheckpoints.map((checkpoint) => checkpoint.coordinate)
+    : normalizeGuestRouteCoordinates([
+        originCoordinate as LatLng,
+        destinationCoordinate as LatLng
+      ]);
+  const hasSelectedStopCoordinates = selectedStopCoordinates.length >= 2;
+  const localRouteCoordinates = hasSelectedStopCoordinates
+    ? densifyRouteCoordinates(
+        selectedStopCoordinates,
+        GUEST_ROUTE_SIMULATION_MAX_SEGMENT_METERS
+      )
+    : resolveGuestRouteCoordinates(destinationLabel);
   const routeCoordinates = hasRoadSnappedCoordinates
     ? normalizedRoadSnappedCoordinates
-    : GUEST_ROUTE_COORDINATES;
+    : localRouteCoordinates;
   const routeMetrics = createGuestRouteMetrics(
     routeCoordinates,
     hasRoadSnappedCoordinates
@@ -323,15 +386,37 @@ export function createGuestRoutePlan({
         ? 'Review the route, then open Saved for synced plans.'
         : 'Review the route, then sign in to save it.',
       nextDistance: 'Preview',
-      coordinates: routeCoordinates
+      coordinates: routeCoordinates,
+      ...(routeGuidanceSteps?.length
+        ? { navigationSteps: [...routeGuidanceSteps] }
+        : {})
     },
-    riskZones: GUEST_ROUTE_RISK_ZONES,
-    checkpoints: createGuestRouteCheckpoints({
-      destinationLabel,
-      originLabel,
-      routeCoordinates
-    })
+    riskZones: riskZones
+      ? [...riskZones]
+      : hasSelectedStopCoordinates
+        ? []
+        : GUEST_ROUTE_RISK_ZONES,
+    checkpoints: normalizedCheckpoints.length >= 2
+      ? normalizedCheckpoints
+      : createGuestRouteCheckpoints({
+          destinationLabel,
+          originLabel,
+          routeCoordinates
+        })
   };
+}
+
+export function createGuestRoadSnappedRoutePlan(
+  options: GuestRoutePlanOptions
+): SavedSafeRoutePlan | null {
+  const candidateRoutePlan = createGuestRoutePlan(options);
+  const acceptedRoadPreview = candidateRoutePlan.updatedAtLabel === 'Road preview';
+
+  if (!acceptedRoadPreview || routeRiskStartBlockedReason(candidateRoutePlan)) {
+    return null;
+  }
+
+  return candidateRoutePlan;
 }
 
 function normalizeGuestRouteCoordinates(coordinates: LatLng[] | null | undefined): LatLng[] {
@@ -340,6 +425,58 @@ function normalizeGuestRouteCoordinates(coordinates: LatLng[] | null | undefined
   }
 
   return normalizeRouteCoordinates(coordinates);
+}
+
+function normalizeGuestRouteCheckpoints(
+  checkpoints: RouteCheckpoint[] | null | undefined
+): RouteCheckpoint[] {
+  if (!Array.isArray(checkpoints) || checkpoints.length < 2) {
+    return [];
+  }
+  const normalized = checkpoints.filter((checkpoint) =>
+    checkpoint &&
+    typeof checkpoint.id === 'string' &&
+    typeof checkpoint.caption === 'string' &&
+    Number.isFinite(checkpoint.coordinate?.latitude) &&
+    Number.isFinite(checkpoint.coordinate?.longitude) &&
+    checkpoint.coordinate.latitude >= -90 &&
+    checkpoint.coordinate.latitude <= 90 &&
+    checkpoint.coordinate.longitude >= -180 &&
+    checkpoint.coordinate.longitude <= 180
+  ).map((checkpoint) => ({
+    ...checkpoint,
+    coordinate: { ...checkpoint.coordinate }
+  }));
+  return normalized.length === checkpoints.length ? normalized : [];
+}
+
+export function resolveGuestRouteCoordinates(destinationLabel: string): LatLng[] {
+  const destinationGeometry = resolveGuestRouteDestinationGeometry(destinationLabel);
+
+  return [...(destinationGeometry?.coordinates || GUEST_ROUTE_COORDINATES)];
+}
+
+export function resolveGuestRoadPreviewStops(destinationLabel: string): LatLng[] {
+  const destinationGeometry = resolveGuestRouteDestinationGeometry(destinationLabel);
+
+  return [...(destinationGeometry?.roadPreviewStops || GUEST_ROUTE_ANCHORS)];
+}
+
+function resolveGuestRouteDestinationGeometry(destinationLabel: string) {
+  const normalizedDestination = normalizeGuestDestinationSearchLabel(destinationLabel);
+
+  return GUEST_ROUTE_DESTINATION_GEOMETRIES.find((geometry) =>
+    geometry.aliases.some((alias) => normalizedDestination.includes(alias))
+  );
+}
+
+function normalizeGuestDestinationSearchLabel(value: string): string {
+  return value
+    .trim()
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
 }
 
 function normalizePositiveRouteMetric(value: number | null | undefined): number | null {
@@ -481,7 +618,7 @@ export function getGuestMapGateFeatures({
     return [];
   }
 
-  return ['planned-trips', 'convoy-management'];
+  return ['planned-trips', 'calendar', 'convoy-management'];
 }
 
 export function getGuestFullAccessCopy(feature: GuestFullAccessFeature): GuestFullAccessCopy {
@@ -491,6 +628,12 @@ export function getGuestFullAccessCopy(feature: GuestFullAccessFeature): GuestFu
         title: 'Trips',
         body: 'View assigned trips after sign-in.',
         action: 'Sign in to view trips'
+      };
+    case 'calendar':
+      return {
+        title: 'Calendar',
+        body: 'View route windows after sign-in.',
+        action: 'Sign in to view calendar'
       };
     case 'convoy-management':
       return {

@@ -6,6 +6,7 @@ import type {
   RouteCheckpoint,
   SavedSafeRoutePlan
 } from '../live-map/liveMapTypes';
+import { normalizeRouteNavigationSteps } from '../live-map/routeGuidance';
 import {
   clampNumber,
   formatDistance,
@@ -48,6 +49,8 @@ interface MobileRoutePathDto {
   description?: string;
   next_instruction?: string;
   next_distance_meters?: number | null;
+  guidance_steps?: unknown;
+  navigation_steps?: unknown;
 }
 
 interface MobileRiskOverlayDto {
@@ -88,6 +91,10 @@ interface MobileCheckpointDto {
   kind?: string;
 }
 
+interface MobileWaypointDto extends MobileCheckpointDto {
+  label?: string;
+}
+
 export interface MobileSafeRouteDto {
   id: string;
   name: string;
@@ -107,6 +114,7 @@ export interface MobileSafeRouteDto {
   route_alerts?: MobileRiskOverlayDto[];
   alerts?: MobileRiskOverlayDto[];
   checkpoints?: MobileCheckpointDto[];
+  waypoints?: MobileWaypointDto[];
 }
 
 export interface MobileRouteListResponse {
@@ -157,6 +165,9 @@ export function mapRouteDtoToSavedPlan(dto: MobileSafeRouteDto): SavedSafeRouteP
 
   return {
     id: cleanText(dto.id, 'safe-route-plan'),
+    ...(firstCleanText(dto.client_id, dto.client?.id, '')
+      ? { clientId: firstCleanText(dto.client_id, dto.client?.id, '') }
+      : {}),
     name: cleanText(dto.name, 'SafeRoute plan'),
     operation: firstCleanText(dto.operation, dto.client_name, dto.client?.name, 'SafeRoute plan'),
     status: normalizeStatus(dto.mobile_status || dto.status),
@@ -178,11 +189,36 @@ export function mapRouteDtoToSavedPlan(dto: MobileSafeRouteDto): SavedSafeRouteP
       description: firstCleanText(route.description, dto.description, 'Follow the saved SafeRoute geometry with live position guidance.'),
       nextInstruction: cleanText(route.next_instruction, 'Continue on saved route'),
       nextDistance: formatDistance(toFiniteNumber(route.next_distance_meters, 0)),
-      coordinates
+      coordinates,
+      navigationSteps: normalizeRouteNavigationSteps(
+        route.guidance_steps ?? route.navigation_steps
+      )
     },
     riskZones: mapRiskOverlays(dto),
-    checkpoints: mapCheckpoints(toArray<MobileCheckpointDto>(dto.checkpoints), dto.origin, dto.destination, coordinates)
+    checkpoints: mapCheckpoints(
+      preferredCheckpointDtos(dto.checkpoints, dto.waypoints),
+      dto.origin,
+      dto.destination,
+      coordinates
+    )
   };
+}
+
+function preferredCheckpointDtos(
+  checkpoints: MobileCheckpointDto[] | undefined,
+  waypoints: MobileWaypointDto[] | undefined
+): MobileCheckpointDto[] {
+  const normalizedWaypoints = toArray<MobileWaypointDto>(waypoints);
+  const hasIntermediateWaypoint = normalizedWaypoints.some((waypoint) => {
+    const kind = String(waypoint.kind || '').trim().toLowerCase();
+    return kind === 'checkpoint' || kind === 'stop' || kind === 'waypoint' || kind === 'via';
+  });
+  return hasIntermediateWaypoint
+    ? normalizedWaypoints.map((waypoint) => ({
+        ...waypoint,
+        caption: waypoint.caption || waypoint.label
+      }))
+    : toArray<MobileCheckpointDto>(checkpoints);
 }
 
 export function normalizeMobileClients(clients: unknown): MobileSafeRouteClient[] {

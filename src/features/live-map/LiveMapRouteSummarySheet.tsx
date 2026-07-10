@@ -3,7 +3,6 @@ import { Pressable, Text, View } from "react-native";
 import type { LiveMapOverlayLayout } from "./liveMapLayout";
 import type { RoutePath, SavedSafeRoutePlan } from "./liveMapTypes";
 import {
-  demoDriveAccessibility,
   primaryRouteActionAccessibility,
   stopRouteAccessibility,
   type NavigationLifecycle,
@@ -16,13 +15,11 @@ import {
 import { routeSummaryStyles as styles } from "./LiveMapRouteSummarySheet.styles";
 import { uiTestIds } from "../../testing/uiTestIds";
 import {
-  createRouteSummaryDemoAction,
   createRouteSummaryDetail,
   createRouteSummaryHeadline,
   createRouteSummaryPrimaryAction,
   createRouteSummaryRemainingMetric,
   createRouteSummarySafetyBadge,
-  shouldInlineRouteSummaryDemoAction,
   shouldShowRouteSummarySafetyBadge,
   shouldUseCompactRouteSummary,
   type RouteSummarySafetyBadge,
@@ -31,13 +28,10 @@ import {
 const ROUTE_SUMMARY_ACTION_HIT_SLOP = 6;
 
 interface LiveMapRouteSummarySheetProps {
-  demoDriveAvailable: boolean;
-  demoDriveEnabled: boolean;
   layout: LiveMapOverlayLayout;
   navigationState: NavigationLifecycle;
   onPrimaryAction: () => void;
   onStopRoute: () => void;
-  onToggleDemoDrive: () => void;
   primaryDisabledReason?: string | null;
   progress: RouteProgressSnapshot | null;
   route: RoutePath;
@@ -46,14 +40,11 @@ interface LiveMapRouteSummarySheetProps {
 }
 
 export function LiveMapRouteSummarySheet({
-  demoDriveAvailable,
-  demoDriveEnabled,
   layout,
   navigationState,
   onPrimaryAction,
   onStopRoute,
   primaryDisabledReason,
-  onToggleDemoDrive,
   progress,
   route,
   routeContext,
@@ -71,8 +62,6 @@ export function LiveMapRouteSummarySheet({
   const stopAccessibility = stopRouteAccessibility(navigationState);
   const primaryDisabled = Boolean(primaryAccessibility.state.disabled);
   const compactRouteSummary = shouldUseCompactRouteSummary(navigationState);
-  const inlineDemoAction =
-    demoDriveAvailable && shouldInlineRouteSummaryDemoAction(navigationState);
   const showStopAction =
     navigationState === "navigating" ||
     navigationState === "off-route" ||
@@ -107,7 +96,6 @@ export function LiveMapRouteSummarySheet({
     routeRiskLabel: route.riskLabel,
     safeScore: route.safeScore,
   });
-  const demoAction = createRouteSummaryDemoAction(demoDriveEnabled);
 
   return (
     <View
@@ -220,70 +208,8 @@ export function LiveMapRouteSummarySheet({
             </Text>
           </Pressable>
         ) : null}
-        {inlineDemoAction ? (
-          <DemoDriveButton
-            compact={compactRouteSummary}
-            demoAction={demoAction}
-            enabled={demoDriveEnabled}
-            inline
-            onPress={onToggleDemoDrive}
-          />
-        ) : null}
       </View>
-
-      {demoDriveAvailable && !inlineDemoAction ? (
-        <DemoDriveButton
-          compact={compactRouteSummary}
-          demoAction={demoAction}
-          enabled={demoDriveEnabled}
-          onPress={onToggleDemoDrive}
-        />
-      ) : null}
     </View>
-  );
-}
-
-function DemoDriveButton({
-  compact,
-  demoAction,
-  enabled,
-  inline = false,
-  onPress,
-}: {
-  compact: boolean;
-  demoAction: { label: string };
-  enabled: boolean;
-  inline?: boolean;
-  onPress: () => void;
-}) {
-  const accessibility = demoDriveAccessibility(enabled);
-
-  return (
-    <Pressable
-      accessibilityHint={accessibility.hint}
-      accessibilityLabel={accessibility.label}
-      accessibilityRole="button"
-      accessibilityState={accessibility.state}
-      hitSlop={ROUTE_SUMMARY_ACTION_HIT_SLOP}
-      testID={uiTestIds.liveMapDemoDriveAction}
-      style={({ pressed }) => [
-        styles.demoButton,
-        inline ? styles.demoButtonInline : null,
-        compact ? styles.demoButtonCompactNavigation : null,
-        pressed ? styles.demoButtonPressed : null,
-      ]}
-      onPress={onPress}
-    >
-      <Text
-        numberOfLines={1}
-        style={[
-          styles.demoButtonText,
-          enabled ? styles.demoButtonTextActive : null,
-        ]}
-      >
-        {demoAction.label}
-      </Text>
-    </Pressable>
   );
 }
 

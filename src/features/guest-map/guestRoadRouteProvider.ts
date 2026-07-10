@@ -1,8 +1,9 @@
 import type { LatLng } from 'react-native-maps';
 
 import { haversineDistanceMeters } from '../live-map/routeGeometry';
+import type { RouteNavigationStep } from '../live-map/liveMapTypes';
 
-export type GuestRoadRouteProvider = 'osrm';
+export type GuestRoadRouteProvider = 'osrm' | 'tomtom';
 
 export type GuestRoadRoutePreview = {
   coordinates: LatLng[];
@@ -10,13 +11,23 @@ export type GuestRoadRoutePreview = {
   durationSeconds: number | null;
   provider: GuestRoadRouteProvider;
   snapped: boolean;
+  guidanceSteps?: RouteNavigationStep[];
 };
 
 export type GuestRoadRoutePreviewOptions = {
+  avoidRectangles?: GuestRouteAvoidRectangle[];
   request?: typeof fetch;
   signal?: AbortSignal;
   stops: LatLng[];
   timeoutMs?: number;
+};
+
+export type GuestRouteAvoidRectangle = {
+  label?: string | null;
+  maxLatitude: number;
+  maxLongitude: number;
+  minLatitude: number;
+  minLongitude: number;
 };
 
 const OSRM_ROUTE_BASE_URL = 'https://router.project-osrm.org/route/v1/driving';
@@ -27,6 +38,7 @@ const GUEST_ROUTE_PROVIDER_ENDPOINT_CONNECTOR_THRESHOLD_METERS = 2;
 const GUEST_ROUTE_PROVIDER_MAX_ENDPOINT_SNAP_METERS = 800;
 
 export async function fetchGuestRoadRoutePreview({
+  avoidRectangles = [],
   request = fetch,
   signal,
   stops,
@@ -48,7 +60,11 @@ export async function fetchGuestRoadRoutePreview({
       return null;
     }
 
-    return normalizeOsrmRoutePreview(await response.json(), routeStops);
+    return normalizeOsrmRoutePreview(
+      await response.json(),
+      routeStops,
+      normalizeAvoidRectangles(avoidRectangles)
+    );
   } catch {
     return null;
   } finally {
@@ -66,7 +82,7 @@ export function buildOsrmRouteUrl(stops: LatLng[]): string {
     .map((stop) => `${formatCoordinate(stop.longitude)},${formatCoordinate(stop.latitude)}`)
     .join(';');
   const searchParams = new URLSearchParams({
-    alternatives: 'false',
+    alternatives: 'true',
     continue_straight: 'false',
     geometries: 'geojson',
     overview: 'full',
@@ -76,7 +92,11 @@ export function buildOsrmRouteUrl(stops: LatLng[]): string {
   return `${OSRM_ROUTE_BASE_URL}/${coordinatePath}?${searchParams.toString()}`;
 }
 
-function normalizeOsrmRoutePreview(payload: unknown, stops: LatLng[]): GuestRoadRoutePreview | null {
+function normalizeOsrmRoutePreview(
+  payload: unknown,
+  stops: LatLng[],
+  avoidRectangles: GuestRouteAvoidRectangle[] = []
+): GuestRoadRoutePreview | null {
   if (!payload || typeof payload !== 'object') {
     return null;
   }
@@ -86,10 +106,36 @@ function normalizeOsrmRoutePreview(payload: unknown, stops: LatLng[]): GuestRoad
     return null;
   }
 
-  const route = record.routes[0] as Record<string, unknown>;
+  const candidates = record.routes
+    .map((route) => normalizeOsrmRouteCandidate(route, stops))
+    .filter((route): route is GuestRoadRoutePreview => Boolean(route))
+    .filter((route) => !routeIntersectsAvoidRectangles(route.coordinates, avoidRectangles))
+    .sort((left, right) =>
+      (left.durationSeconds ?? Number.POSITIVE_INFINITY) -
+        (right.durationSeconds ?? Number.POSITIVE_INFINITY) ||
+      (left.distanceMeters ?? Number.POSITIVE_INFINITY) -
+        (right.distanceMeters ?? Number.POSITIVE_INFINITY)
+    );
+
+  return candidates[0] || null;
+}
+
+function normalizeOsrmRouteCandidate(
+  payload: unknown,
+  stops: LatLng[]
+): GuestRoadRoutePreview | null {
+  if (!payload || typeof payload !== 'object') {
+    return null;
+  }
+
+  const route = payload as Record<string, unknown>;
   const geometry = route.geometry as Record<string, unknown> | undefined;
   const coordinates = normalizeOsrmGeometryCoordinates(geometry?.coordinates);
-  if (coordinates.length < 2 || !routeCoversRequestedEndpoints(coordinates, stops)) {
+  if (
+    coordinates.length < 2 ||
+    !routeCoversRequestedEndpoints(coordinates, stops) ||
+    !routeCoversRequestedStopsInOrder(coordinates, stops)
+  ) {
     return null;
   }
 
@@ -104,6 +150,117 @@ function normalizeOsrmRoutePreview(payload: unknown, stops: LatLng[]): GuestRoad
     provider: 'osrm',
     snapped: true
   };
+}
+
+function routeCoversRequestedStopsInOrder(coordinates: LatLng[], stops: LatLng[]): boolean {
+  let routeStartIndex = 0;
+  for (const stop of stops) {
+    let nearestIndex = -1;
+    let nearestDistance = Number.POSITIVE_INFINITY;
+    for (let index = routeStartIndex; index < coordinates.length; index += 1) {
+      const distance = haversineDistanceMeters(coordinates[index], stop);
+      if (distance < nearestDistance) {
+        nearestDistance = distance;
+        nearestIndex = index;
+      }
+    }
+    if (nearestIndex < 0 || nearestDistance > GUEST_ROUTE_PROVIDER_MAX_ENDPOINT_SNAP_METERS) {
+      return false;
+    }
+    routeStartIndex = nearestIndex;
+  }
+  return true;
+}
+
+function normalizeAvoidRectangles(
+  rectangles: GuestRouteAvoidRectangle[]
+): GuestRouteAvoidRectangle[] {
+  return rectangles
+    .filter((rectangle) =>
+      Number.isFinite(rectangle?.minLatitude) &&
+      Number.isFinite(rectangle?.maxLatitude) &&
+      Number.isFinite(rectangle?.minLongitude) &&
+      Number.isFinite(rectangle?.maxLongitude) &&
+      rectangle.maxLatitude > rectangle.minLatitude &&
+      rectangle.maxLongitude > rectangle.minLongitude &&
+      rectangle.minLatitude >= -90 &&
+      rectangle.maxLatitude <= 90 &&
+      rectangle.minLongitude >= -180 &&
+      rectangle.maxLongitude <= 180
+    )
+    .slice(0, 10);
+}
+
+function routeIntersectsAvoidRectangles(
+  coordinates: LatLng[],
+  rectangles: GuestRouteAvoidRectangle[]
+): boolean {
+  if (!rectangles.length) {
+    return false;
+  }
+
+  return rectangles.some((rectangle) => coordinates.some((coordinate, index) => {
+    if (coordinateInsideRectangle(coordinate, rectangle)) {
+      return true;
+    }
+    const next = coordinates[index + 1];
+    return Boolean(next && segmentIntersectsRectangle(coordinate, next, rectangle));
+  }));
+}
+
+function coordinateInsideRectangle(
+  coordinate: LatLng,
+  rectangle: GuestRouteAvoidRectangle
+): boolean {
+  return (
+    coordinate.latitude >= rectangle.minLatitude &&
+    coordinate.latitude <= rectangle.maxLatitude &&
+    coordinate.longitude >= rectangle.minLongitude &&
+    coordinate.longitude <= rectangle.maxLongitude
+  );
+}
+
+function segmentIntersectsRectangle(
+  start: LatLng,
+  end: LatLng,
+  rectangle: GuestRouteAvoidRectangle
+): boolean {
+  const segmentMinLatitude = Math.min(start.latitude, end.latitude);
+  const segmentMaxLatitude = Math.max(start.latitude, end.latitude);
+  const segmentMinLongitude = Math.min(start.longitude, end.longitude);
+  const segmentMaxLongitude = Math.max(start.longitude, end.longitude);
+  if (
+    segmentMaxLatitude < rectangle.minLatitude ||
+    segmentMinLatitude > rectangle.maxLatitude ||
+    segmentMaxLongitude < rectangle.minLongitude ||
+    segmentMinLongitude > rectangle.maxLongitude
+  ) {
+    return false;
+  }
+
+  const rectangleCorners: LatLng[] = [
+    { latitude: rectangle.minLatitude, longitude: rectangle.minLongitude },
+    { latitude: rectangle.minLatitude, longitude: rectangle.maxLongitude },
+    { latitude: rectangle.maxLatitude, longitude: rectangle.maxLongitude },
+    { latitude: rectangle.maxLatitude, longitude: rectangle.minLongitude }
+  ];
+  return rectangleCorners.some((corner, index) =>
+    lineSegmentsIntersect(start, end, corner, rectangleCorners[(index + 1) % 4])
+  );
+}
+
+function lineSegmentsIntersect(a: LatLng, b: LatLng, c: LatLng, d: LatLng): boolean {
+  const orientation = (p: LatLng, q: LatLng, r: LatLng) =>
+    (q.longitude - p.longitude) * (r.latitude - p.latitude) -
+    (q.latitude - p.latitude) * (r.longitude - p.longitude);
+  const first = orientation(a, b, c);
+  const second = orientation(a, b, d);
+  const third = orientation(c, d, a);
+  const fourth = orientation(c, d, b);
+  return (
+    ((first <= 0 && second >= 0) || (first >= 0 && second <= 0)) &&
+    ((third <= 0 && fourth >= 0) || (third >= 0 && fourth <= 0))
+  );
 }
 
 function normalizeOsrmGeometryCoordinates(coordinates: unknown): LatLng[] {

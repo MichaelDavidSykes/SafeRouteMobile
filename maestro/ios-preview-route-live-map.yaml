@@ -1,6 +1,9 @@
 appId: host.exp.Exponent
 ---
 - stopApp
+- setLocation:
+    latitude: 51.5074
+    longitude: -0.1278
 - openLink: exp://localhost:8081
 - runFlow:
     when:
@@ -53,15 +56,24 @@ appId: host.exp.Exponent
     timeout: 45000
 - runFlow:
     when:
-      visible: "Saved"
+      visible:
+        id: "safe-route-return"
     commands:
       - tapOn:
-          id: "guest-map-primary-action"
+          id: "safe-route-return"
           waitToSettleTimeoutMs: 1000
-      - extendedWaitUntil:
-          visible:
-            id: "safe-route-picker"
-          timeout: 15000
+      - waitForAnimationToEnd:
+          timeout: 3000
+- runFlow:
+    when:
+      visible:
+        id: "safe-route-operations-map-return"
+    commands:
+      - tapOn:
+          id: "safe-route-operations-map-return"
+          waitToSettleTimeoutMs: 1000
+      - waitForAnimationToEnd:
+          timeout: 3000
 - runFlow:
     when:
       visible:
@@ -73,14 +85,20 @@ appId: host.exp.Exponent
           id: "guest-map-destination-input"
       - tapOn:
           id: "guest-map-destination-input"
-      - inputText: "London City Airport"
-      - tapOn: "done"
-      - waitForAnimationToEnd:
-          timeout: 5000
+      - inputText: "51.5053, 0.0553"
+      - extendedWaitUntil:
+          visible:
+            id: "guest-map-search-coordinate-51-505300-0-055300"
+          timeout: 10000
+      - tapOn:
+          id: "guest-map-search-coordinate-51-505300-0-055300"
+      - tapOn:
+          id: "guest-map-plot-action"
+          waitToSettleTimeoutMs: 1000
       - extendedWaitUntil:
           visible:
             id: "guest-map-route-preview"
-          timeout: 12000
+          timeout: 30000
       - assertVisible:
           id: "guest-map-plot-action"
       - tapOn:
@@ -119,25 +137,6 @@ appId: host.exp.Exponent
     id: "safe-route-summary-sheet"
 - assertVisible:
     id: "safe-route-primary-action"
-- assertVisible:
-    id: "safe-route-demo-action"
-- runFlow:
-    when:
-      visible: "Turn route simulation on"
-    commands:
-      - tapOn:
-          id: "safe-route-demo-action"
-          waitToSettleTimeoutMs: 1000
-      - waitForAnimationToEnd:
-          timeout: 3000
-- assertVisible: "Turn route simulation off"
-- assertVisible:
-    id: "safe-route-demo-action"
-# Route-risk notes are review-time chrome. Active drive-along guidance keeps
-# map controls minimal, so assert the risk control before guidance starts and
-# then only the active camera controls after the route is running.
-- assertVisible:
-    id: "safe-route-control-intelligence"
 - tapOn:
     id: "safe-route-primary-action"
     waitToSettleTimeoutMs: 1000

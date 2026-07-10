@@ -18,6 +18,7 @@ export function loadPreviewSavedRoutes(clientId?: string): SavedRouteSyncResult 
   return {
     clients: [PREVIEW_CLIENT],
     routes,
+    selectedClientId: PREVIEW_CLIENT.id,
   };
 }
 

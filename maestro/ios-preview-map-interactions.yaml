@@ -1,0 +1,114 @@
+appId: host.exp.Exponent
+---
+- stopApp
+- setLocation:
+    latitude: 51.5074
+    longitude: -0.1278
+- openLink: exp://localhost:8081
+- runFlow:
+    when:
+      visible: "Open"
+    commands:
+      - tapOn: "Open"
+- waitForAnimationToEnd:
+    timeout: 3000
+- openLink: exp://localhost:8081
+- runFlow:
+    when:
+      visible: "Open"
+    commands:
+      - tapOn: "Open"
+- waitForAnimationToEnd:
+    timeout: 10000
+- tapOn:
+    point: "50%,92%"
+- waitForAnimationToEnd:
+    timeout: 2500
+- tapOn:
+    point: "91%,49%"
+- runFlow:
+    when:
+      visible: "Allow While Using App"
+    commands:
+      - tapOn: "Allow While Using App"
+- extendedWaitUntil:
+    visible:
+      id: "saferoute-app-root"
+    timeout: 45000
+- runFlow:
+    when:
+      visible:
+        id: "safe-route-return"
+    commands:
+      - tapOn:
+          id: "safe-route-return"
+- runFlow:
+    when:
+      visible:
+        id: "safe-route-operations-map-return"
+    commands:
+      - tapOn:
+          id: "safe-route-operations-map-return"
+- extendedWaitUntil:
+    visible:
+      id: "guest-map-add-waypoint"
+    timeout: 15000
+- tapOn:
+    id: "guest-map-add-waypoint"
+- assertVisible:
+    id: "guest-map-waypoint-guest-waypoint-1"
+- tapOn:
+    id: "guest-map-waypoint-guest-waypoint-1"
+- inputText: "51.5100, -0.0900"
+- extendedWaitUntil:
+    visible:
+      id: "guest-map-search-coordinate-51-510000-0-090000"
+    timeout: 10000
+- tapOn:
+    id: "guest-map-search-coordinate-51-510000-0-090000"
+- tapOn:
+    id: "guest-map-destination-input"
+- inputText: "51.5053, 0.0553"
+- extendedWaitUntil:
+    visible:
+      id: "guest-map-search-coordinate-51-505300-0-055300"
+    timeout: 10000
+- tapOn:
+    id: "guest-map-search-coordinate-51-505300-0-055300"
+- swipe:
+    # Drag from the dedicated grabber rather than the scrollable route fields.
+    # The expanded sheet starts around mid-screen on the iPhone smoke target.
+    start: "50%,52%"
+    end: "50%,90%"
+    duration: 500
+- extendedWaitUntil:
+    visible:
+      id: "guest-map-collapsed-sheet"
+    timeout: 5000
+- tapOn:
+    id: "guest-map-collapsed-sheet"
+- extendedWaitUntil:
+    visible:
+      id: "guest-map-add-waypoint"
+    timeout: 5000
+- longPressOn:
+    point: "50%,38%"
+- extendedWaitUntil:
+    visible:
+      id: "guest-map-long-press-menu"
+    timeout: 5000
+- assertVisible:
+    id: "guest-map-long-press-add-waypoint"
+- assertVisible:
+    id: "guest-map-long-press-add-risk"
+- tapOn:
+    id: "guest-map-long-press-add-waypoint"
+- assertVisible:
+    id: "guest-map-waypoint-guest-waypoint-2"
+- tapOn:
+    id: "guest-map-plot-action"
+    waitToSettleTimeoutMs: 1000
+- extendedWaitUntil:
+    visible:
+      id: "guest-map-route-preview"
+    timeout: 30000

@@ -10,8 +10,8 @@ Standalone mobile app shell for SafeRoute live mapping.
 - Full-screen live map screen for the selected saved route
 - Foreground location permission and live position watch with on-device route snapping
 - Guest route previews can consume a fail-closed road-snapped route geometry before opening live guidance
-- Demo drive mode as an explicit developer/testing toggle
-- Route summary, next movement card, convoy marker, and intelligence overlay controls
+- Deterministic route-preview movement reserved for explicit development preview sessions
+- Route summary, next movement card, position marker, and intelligence overlay controls
 - Navigation lifecycle controls for start, pause, resume, stop, off-route, and arrival states
 
 ## Requirements
@@ -27,7 +27,7 @@ npm run start
 
 Then open the app in Expo Go, an iOS simulator, or an Android emulator.
 
-For the no-build iOS Maestro smoke path, start the local Expo preview listener with `npm run start:maestro:ios` before running `npm run test:maestro:ios`. The start script enables `SAFEROUTE_ENABLE_PREVIEW_MODE=true`, then preflights the Node 22.13+ runtime declared by `package.json`, local SDK 56 dependency install, Maestro CLI, booted iOS simulator, matching Expo Go SDK family, and port `8081`; if another Metro/Expo server is already listening, stop it or intentionally reuse it with the test command only so Expo Go does not attach to a stale SafeRoute bundle. The Maestro npm script resolves the CLI from `MAESTRO_BIN`, `~/.maestro/bin/maestro`, or `maestro` on `PATH`, so it still works in Codex shells that do not automatically include the standard Maestro install directory. It sets `MAESTRO_DRIVER_STARTUP_TIMEOUT=180000` unless already configured and retries `maestro test` once by default to recover local XCUITest driver connection drops; set `MAESTRO_RETRIES=0` when debugging a failure without retries. The iOS smoke flow uses `exp://localhost:8081` only; if Expo Go stays on its home screen, retry from a quiet simulator/server state rather than forcing an IPv4 loopback link that can time out before app assertions.
+For the no-build iOS Maestro smoke path and auth coverage, run `npm run start:maestro:ios:preview` for the preview route, map-interaction, risk-area, and operations flows. Run `npm run start:maestro:ios` for the non-preview authentication flow. Both commands preflight the Node 22.13+ runtime declared by `package.json`, the local SDK 56 dependency install, Maestro CLI, a booted iOS simulator, the matching Expo Go SDK family, and port `8081`. If another Metro/Expo server is already listening, stop it or intentionally reuse it with the test command only so Expo Go does not attach to a stale SafeRoute bundle. The Maestro npm scripts resolve the CLI from `MAESTRO_BIN`, `~/.maestro/bin/maestro`, or `maestro` on `PATH`; they set `MAESTRO_DRIVER_STARTUP_TIMEOUT=180000` unless already configured and retry `maestro test` once by default to recover local XCUITest driver connection drops. Set `MAESTRO_RETRIES=0` when debugging without retries. The iOS flows use `exp://localhost:8081` only; if Expo Go stays on its home screen, retry from a quiet simulator/server state rather than forcing an IPv4 loopback link that can time out before app assertions.
 
 ## Test
 
@@ -99,15 +99,16 @@ Set `SAFEROUTE_ENABLE_PREVIEW_MODE=true` only in non-production simulator/dev ru
 
 The app expects:
 
-- `POST /api/v1/auth/login` with form-encoded credentials and `X-SafeRoute-Client: saferoute-mobile` so hosted auth can recognize native app requests.
-- `POST /api/v1/auth/verify-login-code` with JSON verification data and the same mobile client header.
-- `GET /api/v1/users/me` with the LunarChain bearer token and the same mobile client header for session restore validation.
+- `POST /api/v1/auth/mobile-login` with form-encoded credentials. This dedicated, rate-limited native endpoint does not use browser-only Turnstile and does not trust a spoofable client-bypass header.
+- `POST /api/v1/auth/verify-login-code` with JSON verification data for two-factor completion.
+- `GET /api/v1/users/me` with the LunarChain bearer token for session restore validation.
 - `GET /api/v1/mobile/safe-route/routes?client_id={optional}`
 - `GET /api/v1/mobile/safe-route/routes/{route_id}`
+- `GET /api/v1/mobile/safe-route/operations/client/{client_id}` for the sanitized, read-only planned-trip, calendar, person, and vehicle projection. Sensitive inventory fields stay on the web operations API.
 
 Saved-route endpoints require the LunarChain bearer token and return the standard LunarChain response envelope. Route list rows must include stable non-empty `id` values before they are shown in the picker; malformed list payloads fall back to the empty picker state instead of crashing. Route detail payloads should echo that id, and the app falls back to the requested id if the detail response omits it; malformed detail payloads surface concise retry copy instead of opening a broken map. Risk overlay radii should be expressed in meters; the mobile mapper treats malformed/negative radii as a compact 250 m overlay and caps imported circular overlays at 50 km so bad hosted data cannot flood the map. Hosted auth remains authoritative for credentials, two-factor challenges, and session validation.
 
-Guest route preview road snapping is intentionally fail-closed: the mobile OSRM adapter only accepts valid GeoJSON route geometry that stays near the requested endpoints, caps dense waypoint requests without dropping the requested destination, down-samples very dense routes, preserves exact endpoint connectors for map markers, and returns `null` for network errors, malformed payloads, or mismatched routes so the map can keep using the local preview path. The guest map-home plot action shows the local route immediately, then attempts a short, abortable road-preview upgrade in the background so provider slowness never blocks the map-first flow.
+Guest route road snapping is intentionally fail-closed in production: the mobile route service accepts only snapped provider geometry that covers every requested stop in order, applies bounded high-risk avoidance areas, and scans bounded corridor-risk chunks before presenting a drivable route. Local straight-line fixtures remain available only in explicit non-production preview mode.
 
 ## Manual smoke
 

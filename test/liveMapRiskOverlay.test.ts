@@ -48,7 +48,7 @@ describe("live map risk overlay interactions", () => {
 
     assert.match(
       vehicleMarkerFunction,
-      /const markerTitle = demoDriveEnabled \? 'Simulated convoy' : 'Current convoy'/,
+      /const markerTitle = demoDriveEnabled \? 'Route preview position' : 'Current position'/,
     );
     assert.match(vehicleMarkerFunction, /title=\{markerTitle\}/);
     assert.match(vehicleMarkerBlock, /accessible/);
@@ -59,7 +59,7 @@ describe("live map risk overlay interactions", () => {
     assert.match(vehicleMarkerBlock, /accessibilityRole="image"/);
     assert.match(
       source,
-      /return demoDriveEnabled \? 'Simulated convoy position' : 'Current convoy position'/,
+      /return demoDriveEnabled \? 'Route preview position' : 'Current position'/,
     );
   });
 

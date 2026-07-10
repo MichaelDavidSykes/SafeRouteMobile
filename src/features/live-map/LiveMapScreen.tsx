@@ -7,6 +7,9 @@ import {
 } from "react-native";
 import type MapView from "react-native-maps";
 
+import { fetchSafeRouteRoadRoutePreview } from "../guest-map/safeRouteRoadRouteProvider";
+import { isPreviewAccessToken } from "../auth/previewSession";
+import { mergeRiskZonesById } from "./areaRiskApiCore";
 import type { RiskZone, SavedSafeRoutePlan } from "./liveMapTypes";
 import {
   DEFAULT_ROUTE_INTELLIGENCE_VISIBLE,
@@ -20,6 +23,7 @@ import { LiveMapOverlay } from "./LiveMapOverlay";
 import { createRouteRiskAdvisory } from "./liveRouteRiskAdvisory";
 import {
   calculateRiskZoneRouteProximity,
+  auditRouteRiskAvoidance,
   routeRiskStartBlockedReason,
   resolveLiveRouteRiskAlert,
   resolveVisibleRiskZones,
@@ -45,11 +49,33 @@ import {
   shouldUseDriveAlongCamera,
 } from "./liveMapNavigation";
 import { useLiveLocation } from "./useLiveLocation";
+import { useViewportRiskAreas } from "./useViewportRiskAreas";
+import { fetchAreaRiskAlongRoute } from "./routeRiskCorridorApi";
+import {
+  applyLiveRerouteSample,
+  createLiveRerouteState,
+  getManualRerouteRetryEligibility,
+  resolveLiveRerouteFailure,
+  resolveLiveRerouteSuccess,
+  requestImmediateLiveReroute,
+  retryFailedLiveReroute,
+  startLiveRerouteMonitoring,
+  stopLiveRerouteMonitoring,
+  type LiveRerouteRequest,
+  type LiveRerouteState,
+} from "./liveRerouteState";
+import {
+  applyLiveReroutePreview,
+  buildLiveRerouteAvoidRectangles,
+  buildLiveRerouteTargets,
+  createLiveRiskRegion,
+} from "./liveReroutePlan";
 import { SAFEROUTE_DEMO_DRIVE_ENABLED } from "../../config/env";
 import { colors } from "../../theme";
 import { uiTestIds } from "../../testing/uiTestIds";
 
 interface LiveMapScreenProps {
+  accessToken?: string | null;
   returnAccessibilityLabel?: string;
   returnLabel?: string;
   routeContext?: "guest" | "saved";
@@ -58,6 +84,7 @@ interface LiveMapScreenProps {
 }
 
 export function LiveMapScreen({
+  accessToken,
   onChangeRoute,
   returnAccessibilityLabel = "Return to saved routes",
   returnLabel = "Routes",
@@ -66,28 +93,38 @@ export function LiveMapScreen({
 }: LiveMapScreenProps) {
   const mapRef = useRef<MapView | null>(null);
   const lastDriveAlongCameraPoseRef = useRef<DriveAlongCameraPose | null>(null);
+  const rerouteStateRef = useRef<LiveRerouteState>(createLiveRerouteState());
+  const liveRoutePlanRef = useRef(routePlan);
+  const progressRef = useRef<ReturnType<typeof calculateRouteProgress>>(null);
   const viewport = useWindowDimensions();
   const [alertsVisible, setAlertsVisible] = useState(
     DEFAULT_ROUTE_INTELLIGENCE_VISIBLE,
   );
   const [followModeEnabled, setFollowModeEnabled] = useState(true);
-  const [demoDriveEnabled, setDemoDriveEnabled] = useState(false);
   const [navigationState, setNavigationState] =
     useState<NavigationLifecycle>("loaded");
   const [liveLocationRequested, setLiveLocationRequested] = useState(false);
   const [pendingNavigationStart, setPendingNavigationStart] = useState(false);
   const [routeStep, setRouteStep] = useState(0);
+  const [activeRoutePlan, setActiveRoutePlan] = useState(routePlan);
+  const [rerouteState, setRerouteState] = useState<LiveRerouteState>(
+    rerouteStateRef.current,
+  );
+  const [rerouteClockMs, setRerouteClockMs] = useState(Date.now());
   const [progressFloorMeters, setProgressFloorMeters] = useState(0);
   const [selectedRiskZoneId, setSelectedRiskZoneId] = useState<string | null>(
     null,
   );
-  const demoDriveActive = SAFEROUTE_DEMO_DRIVE_ENABLED && demoDriveEnabled;
+  // Expo preview sessions advance along the real snapped route automatically
+  // once guidance starts. This keeps QA deterministic without exposing a
+  // confusing simulation control in the customer-facing route sheet.
+  const demoDriveActive = SAFEROUTE_DEMO_DRIVE_ENABLED && isPreviewAccessToken(accessToken);
   const navigationLocationTrackingActive =
     !demoDriveActive &&
     (navigationState === "navigating" || navigationState === "off-route");
   const locationTrackingRequested =
     liveLocationRequested || navigationLocationTrackingActive;
-  const { coordinate, errorMessage, permissionStatus, trackingLabel } =
+  const { coordinate, errorMessage, permissionStatus, timestampMs, trackingLabel } =
     useLiveLocation({
       navigationActive: navigationLocationTrackingActive,
       permissionRequested: locationTrackingRequested,
@@ -116,8 +153,36 @@ export function LiveMapScreen({
     };
   }, [coordinate]);
 
+  const liveRiskRegion = useMemo(
+    () => createLiveRiskRegion(liveCoordinate, activeRoutePlan.region),
+    [
+      activeRoutePlan.region,
+      liveCoordinate?.latitude,
+      liveCoordinate?.longitude,
+    ],
+  );
+  const liveApiAccessToken = accessToken && !isPreviewAccessToken(accessToken)
+    ? accessToken
+    : null;
+  const viewportRisk = useViewportRiskAreas({
+    accessToken: liveApiAccessToken,
+    clientId: activeRoutePlan.clientId,
+    region: liveRiskRegion,
+  });
+  const liveRoutePlan = useMemo<SavedSafeRoutePlan>(
+    () => ({
+      ...activeRoutePlan,
+      riskZones: mergeRiskZonesById(
+        activeRoutePlan.riskZones,
+        viewportRisk.zones,
+      ),
+    }),
+    [activeRoutePlan, viewportRisk.zones],
+  );
+  liveRoutePlanRef.current = liveRoutePlan;
+
   const demoCoordinate = coordinateForInterpolatedStep(
-    routePlan.route.coordinates,
+    liveRoutePlan.route.coordinates,
     routeStep,
   );
   const rawVehicleCoordinate = demoDriveActive
@@ -129,7 +194,7 @@ export function LiveMapScreen({
       ? coordinate.speed
       : null;
   const progress = calculateRouteProgress(
-    routePlan.route.coordinates,
+    liveRoutePlan.route.coordinates,
     rawVehicleCoordinate,
     {
       minimumDistanceAlongMeters:
@@ -141,54 +206,60 @@ export function LiveMapScreen({
       speedMetersPerSecond,
     },
   );
+  progressRef.current = progress;
   const activeNavigationState = resolveActiveNavigationState(
     navigationState,
     progress,
   );
   const vehicleCoordinate = resolveNavigationVehicleCoordinate({
-    fallbackCoordinate: routePlan.route.coordinates[0],
+    fallbackCoordinate: liveRoutePlan.route.coordinates[0],
     progress,
     rawVehicleCoordinate,
   });
   const progressCoordinates =
     progress?.completedCoordinates ||
     (demoDriveActive
-      ? buildInterpolatedProgressCoordinates(routePlan.route.coordinates, routeStep)
+      ? buildInterpolatedProgressCoordinates(liveRoutePlan.route.coordinates, routeStep)
       : []);
   const riskStartBlockedReason = useMemo(
-    () => routeRiskStartBlockedReason(routePlan),
-    [routePlan],
+    () => routeRiskStartBlockedReason(liveRoutePlan),
+    [liveRoutePlan],
   );
   const navigationBlockedReason = riskStartBlockedReason || routeStartBlockedReason({
     demoDriveActive,
     hasLiveCoordinate: Boolean(rawVehicleCoordinate),
     permissionStatus,
-    routeCoordinateCount: routePlan.route.coordinates.length,
+    routeCoordinateCount: liveRoutePlan.route.coordinates.length,
   });
-  const locationNotice = riskStartBlockedReason || liveLocationNotice({
+  const locationNotice = (
+    navigationState === "loaded" ||
+    navigationState === "paused" ||
+    navigationState === "stopped"
+      ? riskStartBlockedReason
+      : null
+  ) || liveLocationNotice({
     demoDriveActive,
-    demoDriveAvailable: SAFEROUTE_DEMO_DRIVE_ENABLED,
     errorMessage,
     hasLiveCoordinate: Boolean(rawVehicleCoordinate),
     permissionStatus,
-    routeCoordinateCount: routePlan.route.coordinates.length,
+    routeCoordinateCount: liveRoutePlan.route.coordinates.length,
   });
   const guidance = resolveGuidance(
-    routePlan.route,
+    liveRoutePlan.route,
     progress,
     activeNavigationState,
   );
   const riskAdvisory = createRouteRiskAdvisory({
     progress,
-    riskZones: routePlan.riskZones,
-    routeCoordinates: routePlan.route.coordinates,
+    riskZones: liveRoutePlan.riskZones,
+    routeCoordinates: liveRoutePlan.route.coordinates,
   });
   const liveRiskAlert = useMemo(
     () =>
       resolveLiveRouteRiskAlert({
         navigationState: activeNavigationState,
         progress,
-        routePlan,
+        routePlan: liveRoutePlan,
         vehicleCoordinate: rawVehicleCoordinate,
       }),
     [
@@ -200,7 +271,7 @@ export function LiveMapScreen({
       progress?.travelledDistanceMeters,
       rawVehicleCoordinate?.latitude,
       rawVehicleCoordinate?.longitude,
-      routePlan,
+      liveRoutePlan,
     ],
   );
   const visibleRiskZones = useMemo(
@@ -209,42 +280,305 @@ export function LiveMapScreen({
         alertsVisible,
         liveRiskAlert,
         navigationState: activeNavigationState,
-        riskZones: routePlan.riskZones,
+        riskZones: liveRoutePlan.riskZones,
       }),
-    [activeNavigationState, alertsVisible, liveRiskAlert, routePlan.riskZones],
+    [activeNavigationState, alertsVisible, liveRiskAlert, liveRoutePlan.riskZones],
   );
   const selectedRiskZone = useMemo(
     () =>
-      routePlan.riskZones.find((zone) => zone.id === selectedRiskZoneId) ||
+      liveRoutePlan.riskZones.find((zone) => zone.id === selectedRiskZoneId) ||
       null,
-    [routePlan.riskZones, selectedRiskZoneId],
+    [liveRoutePlan.riskZones, selectedRiskZoneId],
   );
   const selectedRiskProximity = useMemo(
     () =>
       selectedRiskZone
         ? calculateRiskZoneRouteProximity(
-            routePlan.route.coordinates,
+            liveRoutePlan.route.coordinates,
             selectedRiskZone,
           )
         : null,
-    [routePlan.route.coordinates, selectedRiskZone],
+    [liveRoutePlan.route.coordinates, selectedRiskZone],
+  );
+  const severeRouteRiskViolation = useMemo(
+    () => auditRouteRiskAvoidance(liveRoutePlan).violations.some(
+      (violation) => violation.zone.severity === "high",
+    ),
+    [liveRoutePlan],
   );
   const heading = resolveVehicleHeading(
-    routePlan.route.coordinates,
+    liveRoutePlan.route.coordinates,
     progress,
     coordinate?.heading,
     demoDriveActive,
     routeStep,
   );
 
+  const commitRerouteState = (nextState: LiveRerouteState) => {
+    rerouteStateRef.current = nextState;
+    setRerouteState(nextState);
+  };
+
+  const failRerouteRequest = (
+    request: LiveRerouteRequest,
+    message = "A safer route could not be calculated right now.",
+  ) => {
+    const transition = resolveLiveRerouteFailure(rerouteStateRef.current, {
+      code: "route-provider-unavailable",
+      failedAtMs: Date.now(),
+      message,
+      requestRevision: request.requestRevision,
+      routeId: request.routeId,
+      routeRevision: request.routeRevision,
+    });
+    if (transition.accepted) {
+      commitRerouteState(transition.state);
+    }
+  };
+
+  const executeLiveReroute = async (request: LiveRerouteRequest) => {
+    const plan = liveRoutePlanRef.current;
+    const currentCoordinate = request.sample.coordinate;
+    const targets = buildLiveRerouteTargets(
+      plan,
+      currentCoordinate,
+      progressRef.current,
+    );
+    if (targets.stops.length < 2) {
+      failRerouteRequest(request, "No remaining destination is available for rerouting.");
+      return;
+    }
+    const routingAccessToken = liveApiAccessToken;
+    const avoidRectangles = buildLiveRerouteAvoidRectangles(
+      plan.riskZones,
+      plan.route.coordinates,
+      targets.stops,
+    );
+
+    try {
+      const preview = await fetchSafeRouteRoadRoutePreview({
+        accessToken: routingAccessToken,
+        avoidRectangles,
+        clientId: plan.clientId,
+        stops: targets.stops,
+        timeoutMs: 15_000,
+      });
+      if (!preview?.snapped || preview.coordinates.length < 2) {
+        failRerouteRequest(request);
+        return;
+      }
+      const corridorRiskZones = await fetchAreaRiskAlongRoute(
+        preview.coordinates,
+        {
+          accessToken: routingAccessToken,
+          clientId: plan.clientId,
+          maxChunks: 8,
+          timeoutMs: 9000,
+        },
+      );
+      const finalRiskZones = mergeRiskZonesById(
+        plan.riskZones,
+        corridorRiskZones,
+      );
+      const corridorAvoidRectangles = buildLiveRerouteAvoidRectangles(
+        finalRiskZones,
+        preview.coordinates,
+        targets.stops,
+      );
+      const finalPreview = JSON.stringify(corridorAvoidRectangles) === JSON.stringify(avoidRectangles)
+        ? preview
+        : await fetchSafeRouteRoadRoutePreview({
+            accessToken: routingAccessToken,
+            avoidRectangles: corridorAvoidRectangles,
+            clientId: plan.clientId,
+            stops: targets.stops,
+            timeoutMs: 15_000,
+          });
+      if (!finalPreview?.snapped || finalPreview.coordinates.length < 2) {
+        failRerouteRequest(request);
+        return;
+      }
+      const nextPlan = applyLiveReroutePreview({
+        currentCoordinate,
+        preview: finalPreview,
+        requestRevision: request.requestRevision,
+        riskZones: finalRiskZones,
+        routePlan: plan,
+        targets,
+      });
+      const transition = resolveLiveRerouteSuccess(rerouteStateRef.current, {
+        nextRouteId: nextPlan.route.id,
+        receivedAtMs: Date.now(),
+        requestRevision: request.requestRevision,
+        routeId: request.routeId,
+        routeRevision: request.routeRevision,
+      });
+      if (!transition.accepted) {
+        return;
+      }
+      commitRerouteState(transition.state);
+      liveRoutePlanRef.current = nextPlan;
+      setActiveRoutePlan(nextPlan);
+      setProgressFloorMeters(0);
+      setNavigationState("navigating");
+      setFollowModeEnabled(true);
+      setSelectedRiskZoneId(null);
+    } catch {
+      failRerouteRequest(request);
+    }
+  };
+
+  const rerouteMonitoringActive = Boolean(
+    !demoDriveActive &&
+      (navigationState === "navigating" || navigationState === "off-route"),
+  );
+
   useEffect(() => {
+    const currentState = rerouteStateRef.current;
+    if (rerouteMonitoringActive) {
+      if (
+        currentState.status === "idle" ||
+        currentState.routeId !== liveRoutePlan.route.id
+      ) {
+        commitRerouteState(
+          startLiveRerouteMonitoring(currentState, {
+            nowMs: Date.now(),
+            routeId: liveRoutePlan.route.id,
+          }),
+        );
+      }
+      return;
+    }
+    if (currentState.status !== "idle") {
+      commitRerouteState(stopLiveRerouteMonitoring(currentState, Date.now()));
+    }
+  }, [liveRoutePlan.route.id, rerouteMonitoringActive]);
+
+  useEffect(() => {
+    if (
+      !rerouteMonitoringActive ||
+      !rawVehicleCoordinate ||
+      !progress ||
+      !Number.isFinite(timestampMs)
+    ) {
+      return;
+    }
+    const transition = applyLiveRerouteSample(rerouteStateRef.current, {
+      coordinate: rawVehicleCoordinate,
+      distanceFromRouteMeters: progress.offRouteDistanceMeters,
+      horizontalAccuracyMeters:
+        typeof coordinate?.accuracy === "number" ? coordinate.accuracy : null,
+      timestampMs: timestampMs as number,
+    });
+    if (transition.state !== rerouteStateRef.current) {
+      commitRerouteState(transition.state);
+    }
+    if (transition.request) {
+      void executeLiveReroute(transition.request);
+    }
+  }, [
+    coordinate?.accuracy,
+    progress?.offRouteDistanceMeters,
+    rawVehicleCoordinate?.latitude,
+    rawVehicleCoordinate?.longitude,
+    rerouteMonitoringActive,
+    timestampMs,
+  ]);
+
+  useEffect(() => {
+    if (
+      !rerouteMonitoringActive ||
+      !severeRouteRiskViolation ||
+      progress?.isOffRoute ||
+      !rawVehicleCoordinate ||
+      !progress ||
+      !Number.isFinite(timestampMs)
+    ) {
+      return;
+    }
+    const transition = requestImmediateLiveReroute(
+      rerouteStateRef.current,
+      {
+        coordinate: rawVehicleCoordinate,
+        distanceFromRouteMeters: progress.offRouteDistanceMeters,
+        horizontalAccuracyMeters:
+          typeof coordinate?.accuracy === "number" ? coordinate.accuracy : null,
+        timestampMs: timestampMs as number,
+      },
+      timestampMs as number,
+    );
+    if (!transition.request) {
+      return;
+    }
+    commitRerouteState(transition.state);
+    void executeLiveReroute(transition.request);
+  }, [
+    coordinate?.accuracy,
+    progress?.isOffRoute,
+    progress?.offRouteDistanceMeters,
+    rawVehicleCoordinate?.latitude,
+    rawVehicleCoordinate?.longitude,
+    rerouteMonitoringActive,
+    severeRouteRiskViolation,
+    timestampMs,
+  ]);
+
+  useEffect(() => {
+    if (rerouteState.status !== "failed") {
+      return;
+    }
+    const delay = Math.max(0, rerouteState.failure.retryEligibleAtMs - Date.now());
+    const timer = setTimeout(() => setRerouteClockMs(Date.now()), delay + 20);
+    return () => clearTimeout(timer);
+  }, [rerouteState]);
+
+  const rerouteRetryEligibility = getManualRerouteRetryEligibility(
+    rerouteState,
+    rerouteClockMs,
+  );
+  const reroutePresentation = rerouteState.status === "pending"
+    ? {
+        message: "Using your live position and mapped risk areas.",
+        retryAvailable: false,
+        status: "pending" as const,
+      }
+    : rerouteState.status === "failed"
+      ? {
+          message: rerouteState.failure.message,
+          retryAvailable: rerouteRetryEligibility.eligible,
+          status: "failed" as const,
+        }
+      : null;
+
+  const handleRetryReroute = () => {
+    const transition = retryFailedLiveReroute(rerouteStateRef.current, Date.now());
+    if (!transition.request) {
+      return;
+    }
+    commitRerouteState(transition.state);
+    void executeLiveReroute(transition.request);
+  };
+
+  useEffect(() => {
+    setActiveRoutePlan(routePlan);
+    liveRoutePlanRef.current = routePlan;
+    const resetRerouteState = createLiveRerouteState();
+    rerouteStateRef.current = resetRerouteState;
+    setRerouteState(resetRerouteState);
     setNavigationState("loaded");
     setRouteStep(0);
     setProgressFloorMeters(0);
     setFollowModeEnabled(true);
     setPendingNavigationStart(false);
     setSelectedRiskZoneId(null);
-    const timer = setTimeout(() => fitRoute(), 120);
+    const timer = setTimeout(() => {
+      if (routePlan.route.coordinates.length >= 2) {
+        mapRef.current?.fitToCoordinates(routePlan.route.coordinates, {
+          animated: true,
+          edgePadding: layout.edgePadding,
+        });
+      }
+    }, 120);
     return () => clearTimeout(timer);
   }, [routePlan.id]);
 
@@ -257,7 +591,7 @@ export function LiveMapScreen({
     }
 
     const routeStepIncrement = resolveDemoDriveStepIncrement(
-      routePlan.route.coordinates.length,
+      liveRoutePlan.route.coordinates.length,
     );
     if (routeStepIncrement <= 0) {
       return undefined;
@@ -265,13 +599,13 @@ export function LiveMapScreen({
 
     const timer = setInterval(() => {
       setRouteStep((step) => {
-        const finalStep = Math.max(0, routePlan.route.coordinates.length - 1);
+        const finalStep = Math.max(0, liveRoutePlan.route.coordinates.length - 1);
         return Math.min(finalStep, step + routeStepIncrement);
       });
     }, DEMO_DRIVE_STEP_INTERVAL_MS);
 
     return () => clearInterval(timer);
-  }, [demoDriveActive, navigationState, routePlan.route.coordinates.length]);
+  }, [demoDriveActive, navigationState, liveRoutePlan.route.coordinates.length]);
 
   useEffect(() => {
     if (navigationState === "loaded" || navigationState === "stopped") {
@@ -375,8 +709,8 @@ export function LiveMapScreen({
   const fitRoute = () => {
     resetToOverviewCamera();
 
-    if (routePlan.route.coordinates.length >= 2) {
-      mapRef.current?.fitToCoordinates(routePlan.route.coordinates, {
+    if (liveRoutePlan.route.coordinates.length >= 2) {
+      mapRef.current?.fitToCoordinates(liveRoutePlan.route.coordinates, {
         animated: true,
         edgePadding: layout.edgePadding,
       });
@@ -519,17 +853,6 @@ export function LiveMapScreen({
     fitRoute();
   };
 
-  const toggleDemoDrive = () => {
-    if (!SAFEROUTE_DEMO_DRIVE_ENABLED) {
-      return;
-    }
-
-    setDemoDriveEnabled((enabled) => !enabled);
-    setRouteStep(0);
-    setProgressFloorMeters(0);
-    setNavigationState("loaded");
-  };
-
   const handleRiskZonePress = (zone: RiskZone) => {
     setSelectedRiskZoneId(zone.id);
     setAlertsVisible(true);
@@ -561,7 +884,7 @@ export function LiveMapScreen({
         onRiskZonePress={handleRiskZonePress}
         permissionStatus={permissionStatus}
         progressCoordinates={progressCoordinates}
-        routePlan={routePlan}
+        routePlan={liveRoutePlan}
         selectedRiskZoneId={selectedRiskZoneId}
         vehicleCoordinate={vehicleCoordinate}
         visibleRiskZones={visibleRiskZones}
@@ -570,8 +893,6 @@ export function LiveMapScreen({
       <LiveMapOverlay
         activeNavigationState={activeNavigationState}
         alertsVisible={alertsVisible}
-        demoDriveActive={demoDriveActive}
-        demoDriveAvailable={SAFEROUTE_DEMO_DRIVE_ENABLED}
         followModeEnabled={followModeEnabled}
         guidance={guidance}
         hasVehicleCoordinate={Boolean(rawVehicleCoordinate)}
@@ -583,21 +904,22 @@ export function LiveMapScreen({
         onFitRoute={fitRouteFromControl}
         onOpenRiskAlert={handleOpenRiskAlert}
         onPrimaryAction={handlePrimaryNavigationAction}
+        onRetryReroute={handleRetryReroute}
         returnAccessibilityLabel={returnAccessibilityLabel}
         returnLabel={returnLabel}
         routeContext={routeContext}
         onSetAlertsVisible={setAlertsVisible}
         onSetFollowModeEnabled={setFollowModeEnabled}
         onStopRoute={handleStopRoute}
-        onToggleDemoDrive={toggleDemoDrive}
         primaryDisabledReason={liveNavigationBlockedReason}
         progress={progress}
         liveRiskAlert={liveRiskAlert}
         riskAdvisory={riskAdvisory}
-        routePlan={routePlan}
+        reroutePresentation={reroutePresentation}
+        routePlan={liveRoutePlan}
         selectedRiskProximity={selectedRiskProximity}
         selectedRiskZone={selectedRiskZone}
-        trackingLabel={trackingLabel}
+        trackingLabel={viewportRisk.loading ? "Updating risk" : trackingLabel}
       />
     </View>
   );

@@ -1,6 +1,7 @@
 import type { LatLng } from 'react-native-maps';
 
 import type { RoutePath } from './liveMapTypes';
+import { resolveUpcomingNavigationStep } from './routeGuidance';
 import {
   calculateCumulativeDistances,
   haversineDistanceMeters,
@@ -224,6 +225,17 @@ export function resolveGuidance(
     return {
       instruction: 'Start route when ready',
       distance: route.distance
+    };
+  }
+
+  const upcomingStep = resolveUpcomingNavigationStep(
+    route.navigationSteps,
+    progressOrStep.travelledDistanceMeters
+  );
+  if (upcomingStep) {
+    return {
+      instruction: upcomingStep.step.instruction,
+      distance: formatDistance(upcomingStep.distanceToStepMeters)
     };
   }
 

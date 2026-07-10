@@ -19,6 +19,7 @@ describe("SafeRoute preview route API", () => {
     ]);
     assert.equal(result.routes.length, SAVED_ROUTE_PLANS.length);
     assert.equal(result.routes[0].id, SAVED_ROUTE_PLANS[0].id);
+    assert.equal(result.selectedClientId, "preview-routes");
   });
 
   it("keeps preview client filtering deterministic", () => {

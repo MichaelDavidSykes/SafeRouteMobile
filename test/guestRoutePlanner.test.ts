@@ -6,6 +6,7 @@ import {
   GUEST_ROUTE_PREVIEW_METRIC_MAX_LENGTH,
   GUEST_ROUTE_PREVIEW_SUMMARY_FALLBACK,
   createGuestMapHomeCopy,
+  createGuestRoadSnappedRoutePlan,
   createGuestRouteActionState,
   createGuestRouteInputCopy,
   createGuestRouteMetrics,
@@ -16,6 +17,8 @@ import {
   getGuestMapGateFeatures,
   hasGuestRouteDestination,
   normalizeGuestRouteLabel,
+  resolveGuestRoadPreviewStops,
+  resolveGuestRouteCoordinates,
   shouldShowGuestMapGateRow,
   shouldShowGuestMapSubtitle
 } from '../src/features/guest-map/guestRoutePlanner';
@@ -192,6 +195,53 @@ describe('guest route planner helpers', () => {
     assert.equal(route.route.nextDistance, 'Preview');
   });
 
+  it('uses selected real-world endpoints instead of London preview geometry', () => {
+    const originCoordinate = { latitude: -33.9249, longitude: 18.4241 };
+    const destinationCoordinate = { latitude: -33.9696, longitude: 18.5972 };
+    const route = createGuestRoutePlan({
+      origin: 'Cape Town City Centre',
+      originCoordinate,
+      destination: 'Cape Town International Airport',
+      destinationCoordinate
+    });
+
+    assert.deepEqual(route.route.coordinates[0], originCoordinate);
+    assert.deepEqual(route.route.coordinates.at(-1), destinationCoordinate);
+    assert.deepEqual(route.checkpoints[0].coordinate, originCoordinate);
+    assert.deepEqual(route.checkpoints.at(-1)?.coordinate, destinationCoordinate);
+    assert.equal(route.riskZones.length, 0);
+    assert.equal(route.route.coordinates.length > 2, true);
+  });
+
+  it('uses destination-aware geometry for London City Airport instead of the placeholder corridor', () => {
+    const route = createGuestRoutePlan({
+      origin: 'Current location',
+      destination: 'London City Airport'
+    });
+    const routeEnd = route.route.coordinates[route.route.coordinates.length - 1];
+    const airportGeometry = resolveGuestRouteCoordinates('LCY');
+    const roadPreviewStops = resolveGuestRoadPreviewStops('London City Airport');
+
+    assert.equal(route.destination, 'London City Airport');
+    assert.equal(route.route.coordinates.length > 40, true);
+    assert.deepEqual(routeEnd, { latitude: 51.5053, longitude: 0.0553 });
+    assert.deepEqual(route.checkpoints[1].coordinate, routeEnd);
+    assert.notDeepEqual(routeEnd, { latitude: 51.5088, longitude: -0.0182 });
+    assert.deepEqual(roadPreviewStops[0], { latitude: 51.5099, longitude: -0.1479 });
+    assert.deepEqual(roadPreviewStops[roadPreviewStops.length - 1], {
+      latitude: 51.5053,
+      longitude: 0.0553
+    });
+    assert.equal(
+      roadPreviewStops.some((stop) => stop.latitude < 51.495 && stop.longitude < -0.04),
+      true
+    );
+    assert.deepEqual(
+      airportGeometry[airportGeometry.length - 1],
+      { latitude: 51.5053, longitude: 0.0553 }
+    );
+  });
+
   it('accepts road-snapped preview coordinates and provider metrics without adding sheet clutter', () => {
     const roadSnappedCoordinates = [
       { latitude: 51.5115, longitude: -0.1478 },
@@ -225,6 +275,38 @@ describe('guest route planner helpers', () => {
         'Unsaved route preview from Paddington to London City Airport. 38 min, 16.5 km. Sign in to save it.',
       summaryLabel: '38 min · 16.5 km'
     });
+  });
+
+  it('accepts only risk-safe road-snapped route upgrades for guest previews', () => {
+    const safeLocalRoute = createGuestRoutePlan({
+      origin: 'HQ',
+      destination: 'London City Airport'
+    });
+    const safeRoadPreview = createGuestRoadSnappedRoutePlan({
+      origin: 'HQ',
+      destination: 'London City Airport',
+      roadSnappedCoordinates: safeLocalRoute.route.coordinates,
+      routeDistanceMeters: 9400,
+      routeDurationSeconds: 1440
+    });
+
+    assert.ok(safeRoadPreview);
+    assert.equal(safeRoadPreview.updatedAtLabel, 'Road preview');
+    assert.equal(safeRoadPreview.route.distance, '9.4 km');
+
+    const unsafeRoadPreview = createGuestRoadSnappedRoutePlan({
+      origin: 'HQ',
+      destination: 'London City Airport',
+      roadSnappedCoordinates: [
+        { latitude: 51.5099, longitude: -0.1479 },
+        { latitude: 51.5134, longitude: -0.089 },
+        { latitude: 51.5088, longitude: -0.0182 }
+      ],
+      routeDistanceMeters: 10563,
+      routeDurationSeconds: 1585.3
+    });
+
+    assert.equal(unsafeRoadPreview, null);
   });
 
   it('falls back to local preview geometry when provider route data is incomplete', () => {
@@ -272,6 +354,51 @@ describe('guest route planner helpers', () => {
       route.checkpoints[1].coordinate,
       route.route.coordinates[route.route.coordinates.length - 1]
     );
+  });
+
+  it('preserves ordered multi-stop checkpoints and previews through every selected stop', () => {
+    const checkpoints = [
+      {
+        id: 'origin',
+        label: 'A',
+        caption: 'Current location',
+        coordinate: { latitude: 51.5, longitude: -0.13 },
+        kind: 'origin' as const
+      },
+      {
+        id: 'waypoint-1',
+        label: '1',
+        caption: 'Bank',
+        coordinate: { latitude: 51.51, longitude: -0.09 },
+        kind: 'waypoint' as const
+      },
+      {
+        id: 'destination',
+        label: 'B',
+        caption: 'City Airport',
+        coordinate: { latitude: 51.505, longitude: 0.05 },
+        kind: 'destination' as const
+      }
+    ];
+    const route = createGuestRoutePlan({
+      checkpoints,
+      destination: 'City Airport',
+      destinationCoordinate: checkpoints[2].coordinate,
+      origin: 'Current location',
+      originCoordinate: checkpoints[0].coordinate,
+      riskZones: []
+    });
+
+    assert.deepEqual(route.checkpoints, checkpoints);
+    assert.deepEqual(route.route.coordinates[0], checkpoints[0].coordinate);
+    assert.ok(
+      Math.abs((route.route.coordinates.at(-1)?.latitude ?? 0) - checkpoints[2].coordinate.latitude) < 0.000001 &&
+      Math.abs((route.route.coordinates.at(-1)?.longitude ?? 0) - checkpoints[2].coordinate.longitude) < 0.000001
+    );
+    assert.ok(route.route.coordinates.some((coordinate) =>
+      Math.abs(coordinate.latitude - checkpoints[1].coordinate.latitude) < 0.000001 &&
+      Math.abs(coordinate.longitude - checkpoints[1].coordinate.longitude) < 0.000001
+    ));
   });
 
   it('creates a compact accessible plotted-route preview with a single summary line', () => {
@@ -400,13 +527,15 @@ describe('guest route planner helpers', () => {
   it('keeps private feature sign-in prompts concise and specific', () => {
     const saved = getGuestFullAccessCopy('saved-routes');
     const trips = getGuestFullAccessCopy('planned-trips');
+    const calendar = getGuestFullAccessCopy('calendar');
     const convoys = getGuestFullAccessCopy('convoy-management');
 
     assert.equal(saved.title, 'Saved');
     assert.equal(trips.title, 'Trips');
+    assert.equal(calendar.title, 'Calendar');
     assert.equal(convoys.title, 'Convoys');
 
-    for (const copy of [saved, trips, convoys]) {
+    for (const copy of [saved, trips, calendar, convoys]) {
       assert.equal('eyebrow' in copy, false);
       assert.match(copy.action, /^Sign in/);
       assert.ok(copy.action.length <= 32, `${copy.action} should stay compact`);
@@ -435,7 +564,7 @@ describe('guest route planner helpers', () => {
         authenticated: true,
         routePlotted: false
       }),
-      ['planned-trips', 'convoy-management']
+      ['planned-trips', 'calendar', 'convoy-management']
     );
     assert.equal(
       shouldShowGuestMapGateRow({

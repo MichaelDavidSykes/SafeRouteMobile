@@ -218,7 +218,7 @@ export function VehicleMarker({
       coordinate={coordinate}
       anchor={{ x: 0.5, y: 0.5 }}
       rotation={heading}
-      title={demoDriveEnabled ? 'Simulated convoy' : 'Current convoy'}
+      title={demoDriveEnabled ? 'Route preview position' : 'Current position'}
     >
       <View style={styles.vehicleMarker}>
         <View style={styles.vehicleMarkerHeading} />

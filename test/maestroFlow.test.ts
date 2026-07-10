@@ -18,6 +18,13 @@ const operationsFlowSource = () =>
     join(process.cwd(), "maestro/ios-preview-operations.yaml"),
     "utf8",
   );
+const riskAreasFlowSource = () =>
+  readFileSync(
+    join(process.cwd(), "maestro/ios-preview-risk-areas.yaml"),
+    "utf8",
+  );
+const authFlowSource = () =>
+  readFileSync(join(process.cwd(), "maestro/ios-auth-ui.yaml"), "utf8");
 const packageJson = () =>
   JSON.parse(readFileSync(join(process.cwd(), "package.json"), "utf8")) as {
     scripts: Record<string, string>;
@@ -79,7 +86,7 @@ describe("Maestro iOS preview smoke flow", () => {
     assert.match(flow, /extendedWaitUntil:\s*\n\s+visible:\s*\n\s+id:\s*"guest-map-route-preview"\s*\n\s+timeout:\s*30000/);
     assert.match(flow, /when:\s*\n\s+visible:\s*\n\s+id:\s*"safe-route-picker"/);
     assert.match(flow, /extendedWaitUntil:\s*\n\s+visible:\s*\n\s+id:\s*"safe-route-live-map"/);
-    assert.match(flow, /assertVisible:\s*\n\s+id:\s*"safe-route-demo-action"/);
+    assert.doesNotMatch(flow, /safe-route-demo-action|route simulation|Simulate/);
     assert.doesNotMatch(flow, /guest-map-gate-planned-trips/);
     assert.doesNotMatch(flow, /point:\s*"77%,12%"/);
     assert.ok(firstConditionalIndex >= 0);
@@ -100,6 +107,40 @@ describe("Maestro iOS preview smoke flow", () => {
     }
   });
 
+  it("loads and opens real Cape Town risk-area details", () => {
+    const flow = riskAreasFlowSource();
+    const scripts = packageJson().scripts;
+
+    assert.equal(
+      scripts["test:maestro:ios:risk-areas"],
+      "node scripts/run-maestro.mjs test maestro/ios-preview-risk-areas.yaml",
+    );
+    assert.match(flow, /latitude:\s*-34\.033/);
+    assert.match(flow, /longitude:\s*18\.585/);
+    assert.match(flow, /safe-route-risk-zone-generated-area-risk-safe-route-area-risk-philippi-east-33b347150ca4712272/);
+    assert.match(flow, /id:\s*"safe-route-risk-detail"/);
+    assert.match(flow, /Philippi East \(Cape Flats\)/);
+    assert.match(flow, /id:\s*"safe-route-risk-detail-dismiss"/);
+  });
+
+  it("verifies the branded mobile sign-in surface without a Turnstile dependency", () => {
+    const flow = authFlowSource();
+    const scripts = packageJson().scripts;
+
+    assert.equal(
+      scripts["test:maestro:ios:auth"],
+      "node scripts/run-maestro.mjs test maestro/ios-auth-ui.yaml",
+    );
+    assert.match(flow, /id:\s*"guest-map-long-press-add-risk"/);
+    assert.match(flow, /id:\s*"safe-route-login"/);
+    assert.match(flow, /SafeRoute Mobile/);
+    assert.match(flow, /id:\s*"safe-route-login-email"/);
+    assert.match(flow, /id:\s*"safe-route-login-password"/);
+    assert.match(flow, /assertNotVisible:\s*"Cloudflare"/);
+    assert.match(flow, /assertNotVisible:\s*"Turnstile"/);
+    assert.match(flow, /id:\s*"safe-route-login-map-return"/);
+  });
+
   it("covers multi-stop editing, sheet collapse, and map long-press actions", () => {
     const flow = mapInteractionsFlowSource();
     const scripts = packageJson().scripts;
@@ -116,16 +157,15 @@ describe("Maestro iOS preview smoke flow", () => {
     assert.match(flow, /id:\s*"guest-map-long-press-add-waypoint"/);
     assert.match(flow, /id:\s*"guest-map-long-press-add-risk"/);
     assert.match(flow, /id:\s*"guest-map-waypoint-guest-waypoint-2"/);
+    assert.match(flow, /id:\s*"guest-map-plot-action"/);
+    assert.match(flow, /id:\s*"guest-map-route-preview"/);
   });
 
-  it("keeps the demo toggle assertion tied to the stable action id", () => {
+  it("keeps preview movement automatic and out of customer-facing route controls", () => {
     const flow = previewFlowSource();
 
-    assert.match(flow, /when:\s*\n\s+visible:\s*"Turn route simulation on"/);
-    assert.match(flow, /tapOn:\s*\n\s+id:\s*"safe-route-demo-action"/);
-    assert.match(flow, /assertVisible:\s*"Turn route simulation off"/);
-    assert.match(flow, /assertVisible:\s*\n\s+id:\s*"safe-route-demo-action"/);
-    assert.doesNotMatch(flow, /text:\s*"Simulation"/);
+    assert.doesNotMatch(flow, /safe-route-demo-action|route simulation|Simulate/);
+    assert.match(flow, /tapOn:\s*\n\s+id:\s*"safe-route-primary-action"/);
   });
 
   it("avoids transient live risk detail assertions in the smoke flow", () => {
@@ -134,7 +174,7 @@ describe("Maestro iOS preview smoke flow", () => {
     assert.doesNotMatch(flow, /id:\s*"safe-route-risk-alert"/);
     assert.doesNotMatch(flow, /id:\s*"safe-route-risk-detail"/);
     assert.doesNotMatch(flow, /id:\s*"safe-route-risk-detail-dismiss"/);
-    assert.match(flow, /assertVisible:\s*\n\s+id:\s*"safe-route-control-intelligence"/);
+    assert.doesNotMatch(flow, /id:\s*"safe-route-control-intelligence"/);
   });
 
   it("asserts active drive-along map controls through stable ids", () => {
@@ -143,16 +183,13 @@ describe("Maestro iOS preview smoke flow", () => {
     const remainingMetricsIndex = flow.indexOf('id: "safe-route-remaining-metrics"');
     const fitControlIndex = flow.indexOf('id: "safe-route-control-fit"');
     const followControlIndex = flow.indexOf('id: "safe-route-control-follow"');
-    const intelligenceControlIndex = flow.indexOf('id: "safe-route-control-intelligence"');
     const stopActionIndex = flow.indexOf('id: "safe-route-stop-action"');
 
     assert.match(flow, /assertVisible:\s*\n\s+id:\s*"safe-route-remaining-metrics"/);
     assert.match(flow, /assertVisible:\s*\n\s+id:\s*"safe-route-control-fit"/);
     assert.match(flow, /assertVisible:\s*\n\s+id:\s*"safe-route-control-follow"/);
-    assert.match(flow, /assertVisible:\s*\n\s+id:\s*"safe-route-control-intelligence"/);
     assert.ok(primaryActionIndex >= 0);
-    assert.ok(intelligenceControlIndex > primaryActionIndex);
-    assert.ok(stopActionIndex > intelligenceControlIndex);
+    assert.ok(stopActionIndex > primaryActionIndex);
     assert.ok(remainingMetricsIndex > stopActionIndex);
     assert.ok(fitControlIndex > remainingMetricsIndex);
     assert.ok(followControlIndex > fitControlIndex);
@@ -181,7 +218,6 @@ describe("Maestro iOS preview smoke flow", () => {
   it("limits action tap settling so map animations do not stall the smoke run", () => {
     const flow = previewFlowSource();
 
-    assert.match(flow, /id:\s*"safe-route-demo-action"\s*\n\s+waitToSettleTimeoutMs:\s*1000/);
     assert.match(flow, /id:\s*"safe-route-primary-action"\s*\n\s+waitToSettleTimeoutMs:\s*1000/);
     assert.match(flow, /id:\s*"safe-route-stop-action"\s*\n\s+waitToSettleTimeoutMs:\s*1000/);
   });

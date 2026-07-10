@@ -25,8 +25,6 @@ import { LiveMapRouteSummarySheet } from "./LiveMapRouteSummarySheet";
 interface LiveMapOverlayProps {
   activeNavigationState: NavigationLifecycle;
   alertsVisible: boolean;
-  demoDriveActive: boolean;
-  demoDriveAvailable: boolean;
   followModeEnabled: boolean;
   guidance: { instruction: string; distance: string };
   hasVehicleCoordinate: boolean;
@@ -40,7 +38,6 @@ interface LiveMapOverlayProps {
   onSetAlertsVisible: (updater: (value: boolean) => boolean) => void;
   onSetFollowModeEnabled: (updater: (value: boolean) => boolean) => void;
   onStopRoute: () => void;
-  onToggleDemoDrive: () => void;
   primaryDisabledReason?: string | null;
   progress: RouteProgressSnapshot | null;
   liveRiskAlert: LiveRouteRiskAlert | null;
@@ -60,8 +57,6 @@ interface LiveMapOverlayProps {
 export function LiveMapOverlay({
   activeNavigationState,
   alertsVisible,
-  demoDriveActive,
-  demoDriveAvailable,
   followModeEnabled,
   guidance,
   hasVehicleCoordinate,
@@ -75,7 +70,6 @@ export function LiveMapOverlay({
   onSetAlertsVisible,
   onSetFollowModeEnabled,
   onStopRoute,
-  onToggleDemoDrive,
   primaryDisabledReason,
   progress,
   liveRiskAlert,
@@ -147,8 +141,6 @@ export function LiveMapOverlay({
       ) : null}
 
       <LiveMapRouteSummarySheet
-        demoDriveAvailable={demoDriveAvailable}
-        demoDriveEnabled={demoDriveActive}
         navigationState={activeNavigationState}
         layout={layout}
         progress={progress}
@@ -158,7 +150,6 @@ export function LiveMapOverlay({
         primaryDisabledReason={primaryDisabledReason}
         onPrimaryAction={onPrimaryAction}
         onStopRoute={onStopRoute}
-        onToggleDemoDrive={onToggleDemoDrive}
       />
     </SafeAreaView>
   );

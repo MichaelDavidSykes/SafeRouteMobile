@@ -101,7 +101,6 @@ export function LiveMapScreen({
     DEFAULT_ROUTE_INTELLIGENCE_VISIBLE,
   );
   const [followModeEnabled, setFollowModeEnabled] = useState(true);
-  const [demoDriveEnabled, setDemoDriveEnabled] = useState(false);
   const [navigationState, setNavigationState] =
     useState<NavigationLifecycle>("loaded");
   const [liveLocationRequested, setLiveLocationRequested] = useState(false);
@@ -116,7 +115,10 @@ export function LiveMapScreen({
   const [selectedRiskZoneId, setSelectedRiskZoneId] = useState<string | null>(
     null,
   );
-  const demoDriveActive = SAFEROUTE_DEMO_DRIVE_ENABLED && demoDriveEnabled;
+  // Expo preview sessions advance along the real snapped route automatically
+  // once guidance starts. This keeps QA deterministic without exposing a
+  // confusing simulation control in the customer-facing route sheet.
+  const demoDriveActive = SAFEROUTE_DEMO_DRIVE_ENABLED && isPreviewAccessToken(accessToken);
   const navigationLocationTrackingActive =
     !demoDriveActive &&
     (navigationState === "navigating" || navigationState === "off-route");
@@ -237,7 +239,6 @@ export function LiveMapScreen({
       : null
   ) || liveLocationNotice({
     demoDriveActive,
-    demoDriveAvailable: SAFEROUTE_DEMO_DRIVE_ENABLED,
     errorMessage,
     hasLiveCoordinate: Boolean(rawVehicleCoordinate),
     permissionStatus,
@@ -852,17 +853,6 @@ export function LiveMapScreen({
     fitRoute();
   };
 
-  const toggleDemoDrive = () => {
-    if (!SAFEROUTE_DEMO_DRIVE_ENABLED) {
-      return;
-    }
-
-    setDemoDriveEnabled((enabled) => !enabled);
-    setRouteStep(0);
-    setProgressFloorMeters(0);
-    setNavigationState("loaded");
-  };
-
   const handleRiskZonePress = (zone: RiskZone) => {
     setSelectedRiskZoneId(zone.id);
     setAlertsVisible(true);
@@ -903,8 +893,6 @@ export function LiveMapScreen({
       <LiveMapOverlay
         activeNavigationState={activeNavigationState}
         alertsVisible={alertsVisible}
-        demoDriveActive={demoDriveActive}
-        demoDriveAvailable={SAFEROUTE_DEMO_DRIVE_ENABLED}
         followModeEnabled={followModeEnabled}
         guidance={guidance}
         hasVehicleCoordinate={Boolean(rawVehicleCoordinate)}
@@ -923,7 +911,6 @@ export function LiveMapScreen({
         onSetAlertsVisible={setAlertsVisible}
         onSetFollowModeEnabled={setFollowModeEnabled}
         onStopRoute={handleStopRoute}
-        onToggleDemoDrive={toggleDemoDrive}
         primaryDisabledReason={liveNavigationBlockedReason}
         progress={progress}
         liveRiskAlert={liveRiskAlert}

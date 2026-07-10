@@ -161,36 +161,4 @@ export const routeSummaryStyles = StyleSheet.create({
     fontSize: typeScale.md,
     fontWeight: "800",
   },
-  demoButton: {
-    alignSelf: "center",
-    minHeight: controlSizes.compact,
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "center",
-    gap: spacing.xs,
-    marginTop: spacing.xs,
-    paddingHorizontal: spacing.md,
-    borderRadius: radius.pill,
-    backgroundColor: "transparent",
-  },
-  demoButtonInline: {
-    alignSelf: "stretch",
-    minWidth: 94,
-    marginTop: 0,
-  },
-  demoButtonCompactNavigation: {
-    minHeight: 34,
-    marginTop: 6,
-  },
-  demoButtonPressed: {
-    backgroundColor: colors.appleBlueSoft,
-  },
-  demoButtonText: {
-    color: colors.appleBlue,
-    fontSize: typeScale.xs,
-    fontWeight: "800",
-  },
-  demoButtonTextActive: {
-    color: colors.amberText,
-  },
 });

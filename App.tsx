@@ -15,6 +15,7 @@ import {
   createPreviewLoginCodeChallenge,
   createPreviewAuthSession,
   isPreviewAccessToken,
+  PREVIEW_EXPIRED_SESSION_NOTICE,
   PREVIEW_SESSION_NOTICE
 } from './src/features/auth/previewSession';
 import { restoreSavedSession } from './src/features/auth/sessionRestore';
@@ -59,13 +60,22 @@ export default function App() {
 
       const previewInitialScreen = SAFEROUTE_PREVIEW_INITIAL_SCREEN;
 
-      if (previewInitialScreen === 'login' || previewInitialScreen === 'login-code') {
+      if (
+        previewInitialScreen === 'login' ||
+        previewInitialScreen === 'login-code' ||
+        previewInitialScreen === 'session-expired'
+      ) {
+        const previewSessionMessage =
+          previewInitialScreen === 'session-expired' ? PREVIEW_EXPIRED_SESSION_NOTICE : '';
+
         setSession(null);
-        setSessionMessage('');
+        setAuthPrompt(previewSessionMessage);
+        setSessionMessage(previewSessionMessage);
         setScreen('login');
         return true;
       }
 
+      setAuthPrompt('');
       setSession(createPreviewAuthSession());
       setSessionMessage(PREVIEW_SESSION_NOTICE);
       setScreen(previewInitialScreen);

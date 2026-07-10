@@ -3,6 +3,8 @@ import type { AuthSession, TwoFactorChallenge } from "./authTypes";
 export const PREVIEW_ACCESS_TOKEN = "__saferoute_preview_session__";
 export const PREVIEW_SESSION_NOTICE =
   "Preview routes are local. Sign in on a production build for live sync.";
+export const PREVIEW_EXPIRED_SESSION_NOTICE =
+  "Your LunarChain session expired. Sign in again.";
 
 export function createPreviewAuthSession(): AuthSession {
   return {

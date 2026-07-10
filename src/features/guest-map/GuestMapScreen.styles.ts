@@ -341,6 +341,8 @@ export const guestMapStyles = StyleSheet.create({
     fontWeight: '800'
   },
   guestRiskDismiss: {
+    maxWidth: 96,
+    flexShrink: 0,
     minHeight: controlSizes.secondary,
     minWidth: controlSizes.secondary,
     alignItems: 'center',
@@ -349,10 +351,17 @@ export const guestMapStyles = StyleSheet.create({
     borderRadius: radius.pill,
     backgroundColor: colors.appleBlueSoft
   },
+  guestRiskDismissPressed: {
+    backgroundColor: colors.controlStrong,
+    transform: [{ scale: 0.985 }]
+  },
   guestRiskDismissText: {
+    maxWidth: 64,
+    flexShrink: 1,
     color: colors.appleBlue,
     fontSize: typeScale.xs,
-    fontWeight: '800'
+    fontWeight: '800',
+    textAlign: 'center'
   },
   guestRiskMeta: {
     marginTop: spacing.sm,

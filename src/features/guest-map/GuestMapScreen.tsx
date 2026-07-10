@@ -79,6 +79,7 @@ import {
 const GUEST_ROUTE_PROVIDER_UI_TIMEOUT_MS = 15000;
 const GUEST_LOCATION_SEARCH_DEBOUNCE_MS = 320;
 const GUEST_LOCATION_SEARCH_MIN_LENGTH = 2;
+const GUEST_RISK_DETAIL_DISMISS_HIT_SLOP = 6;
 
 type GuestRoadRoutePreviewFetcher = (
   options: GuestRoadRoutePreviewOptions
@@ -1409,13 +1410,18 @@ function GuestRiskDetail({
           <Text numberOfLines={1} style={styles.guestRiskTitle}>{zone.title}</Text>
         </View>
         <Pressable
+          accessibilityHint="Closes the risk-area details and returns to the map."
           accessibilityLabel="Close risk details"
           accessibilityRole="button"
+          hitSlop={GUEST_RISK_DETAIL_DISMISS_HIT_SLOP}
           testID={uiTestIds.liveMapRiskDetailDismiss}
-          style={styles.guestRiskDismiss}
+          style={({ pressed }) => [
+            styles.guestRiskDismiss,
+            pressed ? styles.guestRiskDismissPressed : null
+          ]}
           onPress={onDismiss}
         >
-          <Text style={styles.guestRiskDismissText}>Done</Text>
+          <Text numberOfLines={1} style={styles.guestRiskDismissText}>Done</Text>
         </Pressable>
       </View>
       <Text numberOfLines={1} style={styles.guestRiskMeta}>

@@ -29,13 +29,31 @@ describe('login error state', () => {
     );
   });
 
+  it('finishes hosted auth errors as punctuation-aware sentences', () => {
+    assert.deepEqual(createLoginErrorState('Invalid username or password'), {
+      accessibilityLabel: null,
+      message: 'Invalid username or password.'
+    });
+
+    assert.deepEqual(createLoginErrorState('Code expired?'), {
+      accessibilityLabel: null,
+      message: 'Code expired?'
+    });
+
+    assert.deepEqual(createLoginErrorState('Verification paused…'), {
+      accessibilityLabel: null,
+      message: 'Verification paused…'
+    });
+  });
+
   it('bounds verbose hosted auth errors while preserving full VoiceOver context', () => {
     const message =
-      'Verification failed because this LunarChain operator account requires a fresh security review before route sync can continue.';
-    const compactMessage = `${message.slice(0, LOGIN_ERROR_MESSAGE_MAX_LENGTH - 1).trimEnd()}…`;
+      'Verification failed because this LunarChain operator account requires a fresh security review before route sync can continue';
+    const fullMessage = `${message}.`;
+    const compactMessage = `${fullMessage.slice(0, LOGIN_ERROR_MESSAGE_MAX_LENGTH - 1).trimEnd()}…`;
 
     assert.deepEqual(createLoginErrorState(message), {
-      accessibilityLabel: message,
+      accessibilityLabel: fullMessage,
       message: compactMessage
     });
     assert.equal(compactMessage.length, LOGIN_ERROR_MESSAGE_MAX_LENGTH);
@@ -48,5 +66,10 @@ describe('login error state', () => {
       createCompactLoginErrorText(message),
       `${'A'.repeat(LOGIN_ERROR_MESSAGE_MAX_LENGTH - 1)}…`
     );
+  });
+
+  it('completes concise direct compact helper copy', () => {
+    assert.equal(createCompactLoginErrorText('Try again'), 'Try again.');
+    assert.equal(createCompactLoginErrorText('Try again!'), 'Try again!');
   });
 });

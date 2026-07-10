@@ -665,6 +665,8 @@ describe("rounded visual language", () => {
     assert.match(loginSource, /numberOfLines=\{2\}/);
     assert.match(loginErrorStateSource, /LOGIN_ERROR_MESSAGE_MAX_LENGTH\s*=\s*84/);
     assert.match(loginErrorStateSource, /createCompactLoginErrorText/);
+    assert.match(loginErrorStateSource, /completeLoginErrorSentence/);
+    assert.match(loginErrorStateSource, /\[\.!\?…\]\$/);
     assert.match(loginErrorStateSource, /accessibilityLabel:\s*compactMessage === normalizedMessage \? null : normalizedMessage/);
     assert.match(loginNoticeStateSource, /LOGIN_NOTICE_MESSAGE_MAX_LENGTH\s*=\s*72/);
     assert.match(loginNoticeStateSource, /createCompactLoginNoticeText/);

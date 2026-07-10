@@ -6,7 +6,7 @@ export interface LoginErrorState {
 export const LOGIN_ERROR_MESSAGE_MAX_LENGTH = 84;
 
 export function createLoginErrorState(message: string): LoginErrorState | null {
-  const normalizedMessage = normalizeLoginErrorMessage(message);
+  const normalizedMessage = completeLoginErrorSentence(normalizeLoginErrorMessage(message));
 
   if (!normalizedMessage) {
     return null;
@@ -24,7 +24,7 @@ export function createCompactLoginErrorText(
   message: string,
   maxLength = LOGIN_ERROR_MESSAGE_MAX_LENGTH
 ): string {
-  const normalizedMessage = normalizeLoginErrorMessage(message);
+  const normalizedMessage = completeLoginErrorSentence(normalizeLoginErrorMessage(message));
 
   if (!normalizedMessage || normalizedMessage.length <= maxLength) {
     return normalizedMessage;
@@ -35,4 +35,12 @@ export function createCompactLoginErrorText(
 
 function normalizeLoginErrorMessage(message: string): string {
   return String(message || '').replace(/\s+/g, ' ').trim();
+}
+
+function completeLoginErrorSentence(message: string): string {
+  if (!message) {
+    return '';
+  }
+
+  return /[.!?…]$/.test(message) ? message : `${message}.`;
 }

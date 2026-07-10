@@ -1,0 +1,82 @@
+appId: host.exp.Exponent
+---
+- stopApp
+- setLocation:
+    latitude: 51.5074
+    longitude: -0.1278
+- openLink: exp://localhost:8081
+- runFlow:
+    when:
+      visible: "Open"
+    commands:
+      - tapOn: "Open"
+- waitForAnimationToEnd:
+    timeout: 3000
+- openLink: exp://localhost:8081
+- runFlow:
+    when:
+      visible: "Open"
+    commands:
+      - tapOn: "Open"
+- waitForAnimationToEnd:
+    timeout: 10000
+- runFlow:
+    when:
+      visible: "Allow While Using App"
+    commands:
+      - tapOn: "Allow While Using App"
+- extendedWaitUntil:
+    visible:
+      id: "saferoute-app-root"
+    timeout: 45000
+- waitForAnimationToEnd:
+    timeout: 2000
+- tapOn:
+    text: "Close"
+    optional: true
+- waitForAnimationToEnd:
+    timeout: 1200
+- runFlow:
+    when:
+      visible:
+        id: "safe-route-return"
+    commands:
+      - tapOn:
+          id: "safe-route-return"
+- runFlow:
+    when:
+      visible:
+        id: "safe-route-operations-map-return"
+    commands:
+      - tapOn:
+          id: "safe-route-operations-map-return"
+- longPressOn:
+    point: "50%,38%"
+- extendedWaitUntil:
+    visible:
+      id: "guest-map-long-press-add-risk"
+    timeout: 10000
+- tapOn:
+    id: "guest-map-long-press-add-risk"
+- assertVisible:
+    id: "safe-route-login"
+- assertVisible: "SafeRoute Mobile"
+- assertVisible: "Sign in"
+- assertVisible:
+    id: "safe-route-login-email"
+- assertVisible:
+    id: "safe-route-login-password"
+- assertNotVisible: "Cloudflare"
+- assertNotVisible: "Turnstile"
+- assertVisible:
+    id: "safe-route-login-map-return"
+- tapOn:
+    id: "safe-route-login-map-return"
+- extendedWaitUntil:
+    notVisible:
+      id: "safe-route-login"
+    timeout: 10000
+- extendedWaitUntil:
+    visible:
+      id: "guest-map-primary-action"
+    timeout: 10000

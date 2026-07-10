@@ -37,6 +37,7 @@ describe('SafeRoute route API core', () => {
       seenPaths.push(`${accessToken}:${path}`);
       return {
         clients: 'malformed',
+        selected_client_id: ' client-1 ',
         routes: [
           {
             id: 'route-1',
@@ -58,6 +59,7 @@ describe('SafeRoute route API core', () => {
     assert.deepEqual(result.clients, []);
     assert.equal(result.routes.length, 1);
     assert.equal(result.routes[0].route.eta, '10 min');
+    assert.equal(result.selectedClientId, 'client-1');
   });
 
   it('treats malformed saved-route list payloads as an empty picker state', async () => {
@@ -69,6 +71,7 @@ describe('SafeRoute route API core', () => {
 
       assert.deepEqual(result.clients, []);
       assert.deepEqual(result.routes, []);
+      assert.equal(result.selectedClientId, null);
     }
   });
 

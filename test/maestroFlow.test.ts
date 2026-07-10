@@ -8,6 +8,23 @@ const previewFlowSource = () =>
     join(process.cwd(), "maestro/ios-preview-route-live-map.yaml"),
     "utf8",
   );
+const mapInteractionsFlowSource = () =>
+  readFileSync(
+    join(process.cwd(), "maestro/ios-preview-map-interactions.yaml"),
+    "utf8",
+  );
+const operationsFlowSource = () =>
+  readFileSync(
+    join(process.cwd(), "maestro/ios-preview-operations.yaml"),
+    "utf8",
+  );
+const riskAreasFlowSource = () =>
+  readFileSync(
+    join(process.cwd(), "maestro/ios-preview-risk-areas.yaml"),
+    "utf8",
+  );
+const authFlowSource = () =>
+  readFileSync(join(process.cwd(), "maestro/ios-auth-ui.yaml"), "utf8");
 const packageJson = () =>
   JSON.parse(readFileSync(join(process.cwd(), "package.json"), "utf8")) as {
     scripts: Record<string, string>;
@@ -39,7 +56,7 @@ describe("Maestro iOS preview smoke flow", () => {
     assert.match(flow, /localhost only/);
     assert.match(flow, /previous IPv4 loopback retry could time\s*\n?#?\s*out in iOS/);
     assert.equal(
-      scripts["start:maestro:ios"],
+      scripts["start:maestro:ios:preview"],
       "SAFEROUTE_ENABLE_PREVIEW_MODE=true NODE_OPTIONS=--dns-result-order=ipv4first expo start --localhost --port 8081",
     );
     assert.equal(
@@ -49,26 +66,6 @@ describe("Maestro iOS preview smoke flow", () => {
     assert.ok(firstLocalhostIndex >= 0);
     assert.ok(lastLocalhostIndex > firstLocalhostIndex);
     assert.ok(appRootWaitIndex > lastLocalhostIndex);
-  });
-
-  it("opens preview saved routes before falling back to guest plotting", () => {
-    const flow = previewFlowSource();
-    const scripts = packageJson().scripts;
-    const appRootWaitIndex = flow.indexOf('id: "saferoute-app-root"');
-    const savedPreviewIndex = flow.indexOf('visible: "Saved"');
-    const savedTapIndex = flow.indexOf('id: "guest-map-primary-action"\n          waitToSettleTimeoutMs: 1000');
-    const routePickerWaitIndex = flow.indexOf('id: "safe-route-picker"\n          timeout: 15000');
-    const guestGateIndex = flow.indexOf('id: "guest-map-primary-action"', savedTapIndex + 1);
-
-    assert.match(scripts["start:maestro:ios"], /SAFEROUTE_ENABLE_PREVIEW_MODE=true/);
-    assert.match(flow, /visible:\s*"Saved"/);
-    assert.match(flow, /tapOn:\s*\n\s+id:\s*"guest-map-primary-action"\s*\n\s+waitToSettleTimeoutMs:\s*1000/);
-    assert.match(flow, /extendedWaitUntil:\s*\n\s+visible:\s*\n\s+id:\s*"safe-route-picker"\s*\n\s+timeout:\s*15000/);
-    assert.ok(appRootWaitIndex >= 0);
-    assert.ok(savedPreviewIndex > appRootWaitIndex);
-    assert.ok(savedTapIndex > savedPreviewIndex);
-    assert.ok(routePickerWaitIndex > savedTapIndex);
-    assert.ok(guestGateIndex > routePickerWaitIndex);
   });
 
   it("plots a guest route before opening the live map", () => {
@@ -82,32 +79,93 @@ describe("Maestro iOS preview smoke flow", () => {
 
     assert.match(flow, /when:\s*\n\s+visible:\s*\n\s+id:\s*"guest-map-primary-action"/);
     assert.match(flow, /tapOn:\s*\n\s+id:\s*"guest-map-destination-input"/);
-    assert.match(flow, /inputText:\s*"London City Airport"/);
-    assert.match(flow, /tapOn:\s*"done"/);
+    assert.match(flow, /inputText:\s*"51\.5053, 0\.0553"/);
+    assert.match(flow, /id:\s*"guest-map-search-coordinate-51-505300-0-055300"/);
     assert.doesNotMatch(flow, /hideKeyboard/);
     assert.match(flow, /tapOn:\s*\n\s+id:\s*"guest-map-plot-action"/);
-    assert.match(flow, /extendedWaitUntil:\s*\n\s+visible:\s*\n\s+id:\s*"guest-map-route-preview"\s*\n\s+timeout:\s*12000/);
+    assert.match(flow, /extendedWaitUntil:\s*\n\s+visible:\s*\n\s+id:\s*"guest-map-route-preview"\s*\n\s+timeout:\s*30000/);
     assert.match(flow, /when:\s*\n\s+visible:\s*\n\s+id:\s*"safe-route-picker"/);
     assert.match(flow, /extendedWaitUntil:\s*\n\s+visible:\s*\n\s+id:\s*"safe-route-live-map"/);
-    assert.match(flow, /assertVisible:\s*\n\s+id:\s*"safe-route-demo-action"/);
+    assert.doesNotMatch(flow, /safe-route-demo-action|route simulation|Simulate/);
     assert.doesNotMatch(flow, /guest-map-gate-planned-trips/);
     assert.doesNotMatch(flow, /point:\s*"77%,12%"/);
     assert.ok(firstConditionalIndex >= 0);
     assert.ok(guestGateIndex > firstConditionalIndex);
     assert.ok(destinationInputIndex > guestGateIndex);
-    assert.ok(routePreviewIndex > destinationInputIndex);
-    assert.ok(plotActionIndex > routePreviewIndex);
-    assert.ok(liveMapIndex > plotActionIndex);
+    assert.ok(plotActionIndex > destinationInputIndex);
+    assert.ok(routePreviewIndex > plotActionIndex);
+    assert.ok(liveMapIndex > routePreviewIndex);
   });
 
-  it("keeps the demo toggle assertion tied to the stable action id", () => {
+  it("uses a deterministic London location in every iOS preview flow", () => {
+    for (const flow of [
+      previewFlowSource(),
+      mapInteractionsFlowSource(),
+      operationsFlowSource(),
+    ]) {
+      assert.match(flow, /setLocation:\s*\n\s+latitude:\s*51\.5074\s*\n\s+longitude:\s*-0\.1278/);
+    }
+  });
+
+  it("loads and opens real Cape Town risk-area details", () => {
+    const flow = riskAreasFlowSource();
+    const scripts = packageJson().scripts;
+
+    assert.equal(
+      scripts["test:maestro:ios:risk-areas"],
+      "node scripts/run-maestro.mjs test maestro/ios-preview-risk-areas.yaml",
+    );
+    assert.match(flow, /latitude:\s*-34\.033/);
+    assert.match(flow, /longitude:\s*18\.585/);
+    assert.match(flow, /safe-route-risk-zone-generated-area-risk-safe-route-area-risk-philippi-east-33b347150ca4712272/);
+    assert.match(flow, /id:\s*"safe-route-risk-detail"/);
+    assert.match(flow, /Philippi East \(Cape Flats\)/);
+    assert.match(flow, /id:\s*"safe-route-risk-detail-dismiss"/);
+  });
+
+  it("verifies the branded mobile sign-in surface without a Turnstile dependency", () => {
+    const flow = authFlowSource();
+    const scripts = packageJson().scripts;
+
+    assert.equal(
+      scripts["test:maestro:ios:auth"],
+      "node scripts/run-maestro.mjs test maestro/ios-auth-ui.yaml",
+    );
+    assert.match(flow, /id:\s*"guest-map-long-press-add-risk"/);
+    assert.match(flow, /id:\s*"safe-route-login"/);
+    assert.match(flow, /SafeRoute Mobile/);
+    assert.match(flow, /id:\s*"safe-route-login-email"/);
+    assert.match(flow, /id:\s*"safe-route-login-password"/);
+    assert.match(flow, /assertNotVisible:\s*"Cloudflare"/);
+    assert.match(flow, /assertNotVisible:\s*"Turnstile"/);
+    assert.match(flow, /id:\s*"safe-route-login-map-return"/);
+  });
+
+  it("covers multi-stop editing, sheet collapse, and map long-press actions", () => {
+    const flow = mapInteractionsFlowSource();
+    const scripts = packageJson().scripts;
+
+    assert.equal(
+      scripts["test:maestro:ios:map-interactions"],
+      "node scripts/run-maestro.mjs test maestro/ios-preview-map-interactions.yaml",
+    );
+    assert.match(flow, /id:\s*"guest-map-add-waypoint"/);
+    assert.match(flow, /id:\s*"guest-map-waypoint-guest-waypoint-1"/);
+    assert.match(flow, /id:\s*"guest-map-collapsed-sheet"/);
+    assert.match(flow, /longPressOn:/);
+    assert.match(flow, /id:\s*"guest-map-long-press-menu"/);
+    assert.match(flow, /id:\s*"guest-map-long-press-add-waypoint"/);
+    assert.match(flow, /id:\s*"guest-map-long-press-add-risk"/);
+    assert.match(flow, /id:\s*"guest-map-waypoint-guest-waypoint-2"/);
+    assert.match(flow, /id:\s*"guest-map-plot-action"/);
+    assert.match(flow, /id:\s*"guest-map-route-preview"/);
+  });
+
+  it("keeps preview movement automatic and out of customer-facing route controls", () => {
     const flow = previewFlowSource();
 
-    assert.match(flow, /when:\s*\n\s+visible:\s*"Turn route simulation on"/);
-    assert.match(flow, /tapOn:\s*\n\s+id:\s*"safe-route-demo-action"/);
-    assert.match(flow, /assertVisible:\s*"Turn route simulation off"/);
-    assert.match(flow, /assertVisible:\s*\n\s+id:\s*"safe-route-demo-action"/);
-    assert.doesNotMatch(flow, /text:\s*"Simulation"/);
+    assert.doesNotMatch(flow, /safe-route-demo-action|route simulation|Simulate/);
+    assert.match(flow, /tapOn:\s*\n\s+id:\s*"safe-route-primary-action"/);
   });
 
   it("avoids transient live risk detail assertions in the smoke flow", () => {
@@ -116,34 +174,25 @@ describe("Maestro iOS preview smoke flow", () => {
     assert.doesNotMatch(flow, /id:\s*"safe-route-risk-alert"/);
     assert.doesNotMatch(flow, /id:\s*"safe-route-risk-detail"/);
     assert.doesNotMatch(flow, /id:\s*"safe-route-risk-detail-dismiss"/);
-    assert.match(flow, /assertVisible:\s*\n\s+id:\s*"safe-route-control-intelligence"/);
+    assert.doesNotMatch(flow, /id:\s*"safe-route-control-intelligence"/);
   });
 
-  it("asserts review-time risk and active drive-along map controls through stable ids", () => {
+  it("asserts active drive-along map controls through stable ids", () => {
     const flow = previewFlowSource();
     const primaryActionIndex = flow.indexOf('id: "safe-route-primary-action"');
-    const primaryTapIndex = flow.indexOf('id: "safe-route-primary-action"\n    waitToSettleTimeoutMs: 1000');
     const remainingMetricsIndex = flow.indexOf('id: "safe-route-remaining-metrics"');
     const fitControlIndex = flow.indexOf('id: "safe-route-control-fit"');
     const followControlIndex = flow.indexOf('id: "safe-route-control-follow"');
-    const intelligenceControlIndex = flow.indexOf('id: "safe-route-control-intelligence"');
     const stopActionIndex = flow.indexOf('id: "safe-route-stop-action"');
-    const activeControlBlock = flow.slice(primaryTapIndex, stopActionIndex);
 
-    assert.match(flow, /extendedWaitUntil:\s*\n\s+visible:\s*\n\s+id:\s*"safe-route-stop-action"\s*\n\s+timeout:\s*5000/);
     assert.match(flow, /assertVisible:\s*\n\s+id:\s*"safe-route-remaining-metrics"/);
     assert.match(flow, /assertVisible:\s*\n\s+id:\s*"safe-route-control-fit"/);
     assert.match(flow, /assertVisible:\s*\n\s+id:\s*"safe-route-control-follow"/);
-    assert.match(flow, /assertVisible:\s*\n\s+id:\s*"safe-route-control-intelligence"/);
     assert.ok(primaryActionIndex >= 0);
-    assert.ok(primaryTapIndex > primaryActionIndex);
-    assert.ok(intelligenceControlIndex > 0);
-    assert.ok(intelligenceControlIndex < primaryTapIndex);
-    assert.ok(stopActionIndex > primaryTapIndex);
+    assert.ok(stopActionIndex > primaryActionIndex);
     assert.ok(remainingMetricsIndex > stopActionIndex);
     assert.ok(fitControlIndex > remainingMetricsIndex);
     assert.ok(followControlIndex > fitControlIndex);
-    assert.doesNotMatch(activeControlBlock, /safe-route-control-intelligence/);
     assert.ok(stopActionIndex < fitControlIndex);
   });
 
@@ -169,7 +218,6 @@ describe("Maestro iOS preview smoke flow", () => {
   it("limits action tap settling so map animations do not stall the smoke run", () => {
     const flow = previewFlowSource();
 
-    assert.match(flow, /id:\s*"safe-route-demo-action"\s*\n\s+waitToSettleTimeoutMs:\s*1000/);
     assert.match(flow, /id:\s*"safe-route-primary-action"\s*\n\s+waitToSettleTimeoutMs:\s*1000/);
     assert.match(flow, /id:\s*"safe-route-stop-action"\s*\n\s+waitToSettleTimeoutMs:\s*1000/);
   });

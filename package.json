@@ -10,13 +10,19 @@
   "scripts": {
     "start": "expo start",
     "prestart:maestro:ios": "node scripts/maestro-ios-preflight.mjs",
-    "start:maestro:ios": "SAFEROUTE_ENABLE_PREVIEW_MODE=true NODE_OPTIONS=--dns-result-order=ipv4first expo start --localhost --port 8081",
+    "prestart:maestro:ios:preview": "node scripts/maestro-ios-preflight.mjs",
+    "start:maestro:ios": "NODE_OPTIONS=--dns-result-order=ipv4first expo start --localhost --port 8081",
     "android": "expo start --android",
     "ios": "expo start --ios",
     "typecheck": "tsc --noEmit",
     "test:logic": "tsx --test test/*.test.ts",
     "test:maestro:ios": "node scripts/run-maestro.mjs test maestro/ios-preview-route-live-map.yaml",
-    "test": "npm run typecheck && npm run test:logic"
+    "test": "npm run typecheck && npm run test:logic",
+    "start:maestro:ios:preview": "SAFEROUTE_ENABLE_PREVIEW_MODE=true NODE_OPTIONS=--dns-result-order=ipv4first expo start --localhost --port 8081",
+    "test:maestro:ios:operations": "node scripts/run-maestro.mjs test maestro/ios-preview-operations.yaml",
+    "test:maestro:ios:map-interactions": "node scripts/run-maestro.mjs test maestro/ios-preview-map-interactions.yaml",
+    "test:maestro:ios:risk-areas": "node scripts/run-maestro.mjs test maestro/ios-preview-risk-areas.yaml",
+    "test:maestro:ios:auth": "node scripts/run-maestro.mjs test maestro/ios-auth-ui.yaml"
   },
   "dependencies": {
     "expo": "~56.0.15",

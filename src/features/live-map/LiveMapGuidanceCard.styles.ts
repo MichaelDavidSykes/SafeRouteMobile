@@ -81,4 +81,22 @@ export const guidanceCardStyles = StyleSheet.create({
   guidanceDistanceWarning: {
     color: colors.dangerText,
   },
+  rerouteButton: {
+    minWidth: 66,
+    minHeight: 44,
+    alignItems: "center",
+    justifyContent: "center",
+    paddingHorizontal: spacing.sm,
+    borderRadius: radius.pill,
+    backgroundColor: colors.surface,
+  },
+  rerouteButtonPressed: {
+    opacity: 0.82,
+    transform: [{ scale: 0.98 }],
+  },
+  rerouteButtonText: {
+    color: colors.ink,
+    fontSize: typeScale.sm,
+    fontWeight: "800",
+  },
 });

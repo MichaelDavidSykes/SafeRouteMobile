@@ -64,6 +64,14 @@ describe('Maestro iOS runtime preflight', () => {
     );
     assert.equal(
       scripts['start:maestro:ios'],
+      'NODE_OPTIONS=--dns-result-order=ipv4first expo start --localhost --port 8081'
+    );
+    assert.equal(
+      scripts['prestart:maestro:ios:preview'],
+      'node scripts/maestro-ios-preflight.mjs'
+    );
+    assert.equal(
+      scripts['start:maestro:ios:preview'],
       'SAFEROUTE_ENABLE_PREVIEW_MODE=true NODE_OPTIONS=--dns-result-order=ipv4first expo start --localhost --port 8081'
     );
     assert.equal(

@@ -17,6 +17,19 @@ export interface RoutePath {
   nextInstruction: string;
   nextDistance: string;
   coordinates: LatLng[];
+  navigationSteps?: RouteNavigationStep[];
+}
+
+export interface RouteNavigationStep {
+  id: string;
+  instruction: string;
+  maneuverType: string;
+  modifier?: string | null;
+  roadName?: string | null;
+  distanceAlongMeters: number;
+  distanceMeters: number | null;
+  durationSeconds: number | null;
+  coordinate: LatLng;
 }
 
 export interface RiskZone {
@@ -46,6 +59,7 @@ export interface RouteCheckpoint {
 
 export interface SavedSafeRoutePlan {
   id: string;
+  clientId?: string;
   name: string;
   operation: string;
   status: SavedRouteStatus;

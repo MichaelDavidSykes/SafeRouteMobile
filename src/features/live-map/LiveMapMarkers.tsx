@@ -213,7 +213,7 @@ export function VehicleMarker({
   demoDriveEnabled: boolean;
   heading: number;
 }) {
-  const markerTitle = demoDriveEnabled ? 'Simulated convoy' : 'Current convoy';
+  const markerTitle = demoDriveEnabled ? 'Route preview position' : 'Current position';
 
   return (
     <Marker
@@ -235,7 +235,7 @@ export function VehicleMarker({
 }
 
 export function createVehicleMarkerAccessibilityLabel(demoDriveEnabled: boolean): string {
-  return demoDriveEnabled ? 'Simulated convoy position' : 'Current convoy position';
+  return demoDriveEnabled ? 'Route preview position' : 'Current position';
 }
 
 function severityMarkerStyle(severity: RiskSeverity) {

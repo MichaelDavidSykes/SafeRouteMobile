@@ -676,6 +676,9 @@ export function GuestMapScreen({
     Keyboard.dismiss();
     setActiveInput(null);
     setSelectedRiskZone(null);
+    // Keep the contextual action card unobstructed by the route editor. The
+    // compact sheet preserves route context while the map action takes focus.
+    animateRouteSheet(true);
     setMapAction({
       coordinate,
       label: formatCoordinateLabel(coordinate),
@@ -695,6 +698,14 @@ export function GuestMapScreen({
           }
         : current);
     });
+  };
+
+  const handleSelectRiskZone = (zone: RiskZone) => {
+    setMapAction(null);
+    setSelectedRiskZone(zone);
+    // Risk details are a map-level interaction, so present them above the
+    // compact route summary rather than hiding them behind the expanded sheet.
+    animateRouteSheet(true);
   };
 
   const handleAddMapWaypoint = () => {
@@ -777,7 +788,7 @@ export function GuestMapScreen({
             key={zone.id}
             selected={selectedRiskZone?.id === zone.id}
             zone={zone}
-            onPress={setSelectedRiskZone}
+            onPress={handleSelectRiskZone}
           />
         ))}
         {routePlan ? (

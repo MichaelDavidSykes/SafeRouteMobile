@@ -73,8 +73,10 @@ appId: host.exp.Exponent
 - tapOn:
     id: "guest-map-search-coordinate-51-505300-0-055300"
 - swipe:
-    start: "50%,82%"
-    end: "50%,96%"
+    # Drag from the dedicated grabber rather than the scrollable route fields.
+    # The expanded sheet starts around mid-screen on the iPhone smoke target.
+    start: "50%,52%"
+    end: "50%,90%"
     duration: 500
 - extendedWaitUntil:
     visible:

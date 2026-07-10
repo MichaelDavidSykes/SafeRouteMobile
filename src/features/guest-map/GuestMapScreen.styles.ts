@@ -93,7 +93,10 @@ export const guestMapStyles = StyleSheet.create({
     maxHeight: 520
   },
   sheetGrabberTouch: {
-    minHeight: 24,
+    // Keep the visible grabber understated while giving the drag affordance a
+    // full iOS-sized touch target. This also prevents a downward sheet gesture
+    // from being mistaken for scrolling the route fields beneath it.
+    minHeight: 44,
     alignItems: 'center',
     justifyContent: 'center'
   },
@@ -249,6 +252,8 @@ export const guestMapStyles = StyleSheet.create({
   },
   mapActionMenu: {
     position: 'absolute',
+    zIndex: 20,
+    elevation: 20,
     right: spacing.md,
     bottom: 250,
     left: spacing.md,
@@ -298,6 +303,8 @@ export const guestMapStyles = StyleSheet.create({
   },
   guestRiskDetail: {
     position: 'absolute',
+    zIndex: 20,
+    elevation: 20,
     right: spacing.md,
     bottom: 286,
     left: spacing.md,

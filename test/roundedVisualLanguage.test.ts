@@ -1381,6 +1381,12 @@ describe("rounded visual language", () => {
     assert.match(routeListStateSource, /label: "All"/);
     assert.doesNotMatch(routeListStateSource, /label: "All clients"/);
     assert.doesNotMatch(routeListStateSource, /totalRouteCount > 1/);
+    assert.match(routeListFiltersSource, /const ROUTE_FILTER_HIT_SLOP = 6/);
+    assert.equal(
+      (routeListFiltersSource.match(/hitSlop=\{ROUTE_FILTER_HIT_SLOP\}/g) ?? [])
+        .length,
+      2,
+    );
     assert.match(clientTabBlock, /minHeight:\s*controlSizes\.compact/);
     assert.match(clientTabBlock, /alignItems:\s*["']center["']/);
     assert.match(clientTabBlock, /overflow:\s*["']hidden["']/);
@@ -1400,6 +1406,7 @@ describe("rounded visual language", () => {
     assert.match(searchBoxBlock, /borderRadius:\s*radius\.pill/);
     assert.match(searchBoxBlock, /backgroundColor:\s*colors\.surfaceGlass/);
     assert.doesNotMatch(searchBoxBlock, /shadow\.panel/);
+    assert.match(routeListFiltersSource, /hitSlop=\{ROUTE_FILTER_HIT_SLOP\}[\s\S]*styles\.clearSearchButton/);
     assert.match(routeListFiltersSource, /pressed \? styles\.clearSearchButtonPressed/);
     assert.match(routeListFiltersSource, /<Text numberOfLines=\{1\} style=\{styles\.clearSearchText\}>/);
     assert.match(clearSearchButtonBlock, /backgroundColor:\s*"transparent"/);

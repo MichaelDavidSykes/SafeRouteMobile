@@ -8,6 +8,8 @@ import {
   type RouteListSummaryState,
 } from "./routeListUiState";
 
+const ROUTE_FILTER_HIT_SLOP = 6;
+
 interface RouteListFiltersProps {
   clientFilterOptions: RouteListClientFilterOption[];
   query: string;
@@ -84,6 +86,7 @@ export function RouteListFilters({
                 "Clear saved route search"
               }
               accessibilityRole="button"
+              hitSlop={ROUTE_FILTER_HIT_SLOP}
               style={({ pressed }) => [
                 styles.clearSearchButton,
                 pressed ? styles.clearSearchButtonPressed : null,
@@ -120,6 +123,7 @@ function ClientTab({
       accessibilityLabel={accessibilityLabel}
       accessibilityRole="button"
       accessibilityState={{ selected: active }}
+      hitSlop={ROUTE_FILTER_HIT_SLOP}
       style={({ pressed }) => [
         styles.clientTab,
         active ? styles.clientTabActive : null,

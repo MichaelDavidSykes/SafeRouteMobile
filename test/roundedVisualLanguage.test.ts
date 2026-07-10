@@ -843,6 +843,9 @@ describe("rounded visual language", () => {
     assert.match(liveHeaderSource, /presentation\.accessibilityLabel/);
     assert.match(liveHeaderStylesSource, /statusTextCompactNavigation/);
     assert.match(liveHeaderSource, /style=\{\(\{ pressed \}\) => \[/);
+    assert.match(liveHeaderSource, /const LIVE_ROUTE_RETURN_HIT_SLOP = 6/);
+    assert.match(liveHeaderSource, /hitSlop=\{LIVE_ROUTE_RETURN_HIT_SLOP\}/);
+    assert.equal((liveHeaderSource.match(/hitSlop=\{LIVE_ROUTE_RETURN_HIT_SLOP\}/g) || []).length, 2);
     assert.doesNotMatch(liveHeaderStylesSource, /\bbrandCluster:/);
     assert.match(headerPanelBlock, /backgroundColor:\s*colors\.surfaceGlass/);
     assert.match(headerPanelBlock, /shadowOpacity:\s*0/);

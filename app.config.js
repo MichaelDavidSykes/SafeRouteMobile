@@ -1,5 +1,7 @@
 const supportedEnvironments = ['development', 'staging', 'production'];
 const iosLocationPurposeCopy = 'Shows your position on the map and guides active SafeRoute trips.';
+const backgroundLocationPurposeCopy =
+  'Keeps active SafeRoute guidance and safety monitoring running when the screen is locked.';
 
 function trimmedEnv(name) {
   const value = process.env[name];
@@ -167,7 +169,9 @@ module.exports = {
           : {})
       },
       infoPlist: {
-        NSLocationWhenInUseUsageDescription: iosLocationPurposeCopy
+        NSLocationAlwaysAndWhenInUseUsageDescription: backgroundLocationPurposeCopy,
+        NSLocationWhenInUseUsageDescription: iosLocationPurposeCopy,
+        UIBackgroundModes: ['location']
       }
     },
     android: {
@@ -182,6 +186,10 @@ module.exports = {
       [
         'expo-location',
         {
+          isAndroidBackgroundLocationEnabled: true,
+          isAndroidForegroundServiceEnabled: true,
+          isIosBackgroundLocationEnabled: true,
+          locationAlwaysAndWhenInUsePermission: backgroundLocationPurposeCopy,
           locationWhenInUsePermission: iosLocationPurposeCopy
         }
       ],

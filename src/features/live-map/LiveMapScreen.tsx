@@ -73,9 +73,23 @@ import {
 import { SAFEROUTE_DEMO_DRIVE_ENABLED } from "../../config/env";
 import { colors } from "../../theme";
 import { uiTestIds } from "../../testing/uiTestIds";
+import { stopBackgroundNavigation } from "./backgroundNavigation";
+import { createBackgroundNavigationPresentation } from "./backgroundNavigationState";
+import {
+  createActiveNavigationSession,
+  isPersistedNavigationLifecycle,
+  type ActiveNavigationSession,
+} from "./activeNavigationSessionCore";
+import {
+  clearActiveNavigationSession,
+  saveActiveNavigationSession,
+} from "./activeNavigationSession";
+import { normalizeReliableLocationSample } from "./locationSignal";
 
 interface LiveMapScreenProps {
   accessToken?: string | null;
+  initialNavigationSession?: ActiveNavigationSession | null;
+  onNavigationSessionChange?: (session: ActiveNavigationSession | null) => void;
   returnAccessibilityLabel?: string;
   returnLabel?: string;
   routeContext?: "guest" | "saved";
@@ -85,33 +99,53 @@ interface LiveMapScreenProps {
 
 export function LiveMapScreen({
   accessToken,
+  initialNavigationSession = null,
   onChangeRoute,
+  onNavigationSessionChange,
   returnAccessibilityLabel = "Return to saved routes",
   returnLabel = "Routes",
   routePlan,
   routeContext = "saved",
 }: LiveMapScreenProps) {
+  const resumedNavigationSession =
+    initialNavigationSession?.routePlan.route.id === routePlan.route.id
+      ? initialNavigationSession
+      : null;
   const mapRef = useRef<MapView | null>(null);
   const lastDriveAlongCameraPoseRef = useRef<DriveAlongCameraPose | null>(null);
   const rerouteStateRef = useRef<LiveRerouteState>(createLiveRerouteState());
-  const liveRoutePlanRef = useRef(routePlan);
+  const liveRoutePlanRef = useRef(
+    resumedNavigationSession?.routePlan || routePlan,
+  );
   const progressRef = useRef<ReturnType<typeof calculateRouteProgress>>(null);
+  const activeSessionSnapshotRef = useRef<ActiveNavigationSession | null>(null);
+  const onNavigationSessionChangeRef = useRef(onNavigationSessionChange);
   const viewport = useWindowDimensions();
   const [alertsVisible, setAlertsVisible] = useState(
     DEFAULT_ROUTE_INTELLIGENCE_VISIBLE,
   );
-  const [followModeEnabled, setFollowModeEnabled] = useState(true);
+  const [followModeEnabled, setFollowModeEnabled] = useState(
+    resumedNavigationSession?.followModeEnabled ?? true,
+  );
   const [navigationState, setNavigationState] =
-    useState<NavigationLifecycle>("loaded");
-  const [liveLocationRequested, setLiveLocationRequested] = useState(false);
+    useState<NavigationLifecycle>(
+      resumedNavigationSession?.navigationState || "loaded",
+    );
+  const [liveLocationRequested, setLiveLocationRequested] = useState(
+    Boolean(resumedNavigationSession),
+  );
   const [pendingNavigationStart, setPendingNavigationStart] = useState(false);
   const [routeStep, setRouteStep] = useState(0);
-  const [activeRoutePlan, setActiveRoutePlan] = useState(routePlan);
+  const [activeRoutePlan, setActiveRoutePlan] = useState(
+    resumedNavigationSession?.routePlan || routePlan,
+  );
   const [rerouteState, setRerouteState] = useState<LiveRerouteState>(
     rerouteStateRef.current,
   );
   const [rerouteClockMs, setRerouteClockMs] = useState(Date.now());
-  const [progressFloorMeters, setProgressFloorMeters] = useState(0);
+  const [progressFloorMeters, setProgressFloorMeters] = useState(
+    resumedNavigationSession?.progressFloorMeters || 0,
+  );
   const [selectedRiskZoneId, setSelectedRiskZoneId] = useState<string | null>(
     null,
   );
@@ -124,11 +158,22 @@ export function LiveMapScreen({
     (navigationState === "navigating" || navigationState === "off-route");
   const locationTrackingRequested =
     liveLocationRequested || navigationLocationTrackingActive;
-  const { coordinate, errorMessage, permissionStatus, timestampMs, trackingLabel } =
-    useLiveLocation({
-      navigationActive: navigationLocationTrackingActive,
-      permissionRequested: locationTrackingRequested,
-    });
+  const {
+    backgroundStatus,
+    coordinate,
+    enableBackgroundTracking,
+    errorMessage,
+    permissionStatus,
+    timestampMs,
+    trackingLabel,
+  } = useLiveLocation({
+    backgroundRouteId: activeRoutePlan.route.id,
+    initialLocationSample: resumedNavigationSession?.lastLocation || null,
+    manageBackgroundNavigation: true,
+    navigationActive: navigationLocationTrackingActive,
+    permissionRequested: locationTrackingRequested,
+  });
+  onNavigationSessionChangeRef.current = onNavigationSessionChange;
   const layout = useMemo(
     () =>
       resolveLiveMapOverlayLayout({
@@ -211,6 +256,32 @@ export function LiveMapScreen({
     navigationState,
     progress,
   );
+  const backgroundNavigationPresentation =
+    createBackgroundNavigationPresentation({
+      navigationActive:
+        activeNavigationState === "navigating" ||
+        activeNavigationState === "off-route",
+      status: backgroundStatus,
+    });
+  activeSessionSnapshotRef.current =
+    !demoDriveActive && isPersistedNavigationLifecycle(navigationState)
+      ? createActiveNavigationSession({
+          backgroundTrackingEnabled: backgroundStatus === "active",
+          followModeEnabled,
+          lastLocation: normalizeReliableLocationSample({
+            accuracyMeters: coordinate?.accuracy,
+            headingDegrees: coordinate?.heading,
+            latitude: coordinate?.latitude,
+            longitude: coordinate?.longitude,
+            speedMetersPerSecond: coordinate?.speed,
+            timestampMs,
+          }),
+          navigationState,
+          progressFloorMeters,
+          routeContext,
+          routePlan: liveRoutePlan,
+        })
+      : null;
   const vehicleCoordinate = resolveNavigationVehicleCoordinate({
     fallbackCoordinate: liveRoutePlan.route.coordinates[0],
     progress,
@@ -560,20 +631,26 @@ export function LiveMapScreen({
   };
 
   useEffect(() => {
-    setActiveRoutePlan(routePlan);
-    liveRoutePlanRef.current = routePlan;
+    const nextResumeSession =
+      initialNavigationSession?.routePlan.route.id === routePlan.route.id
+        ? initialNavigationSession
+        : null;
+    const nextRoutePlan = nextResumeSession?.routePlan || routePlan;
+    setActiveRoutePlan(nextRoutePlan);
+    liveRoutePlanRef.current = nextRoutePlan;
     const resetRerouteState = createLiveRerouteState();
     rerouteStateRef.current = resetRerouteState;
     setRerouteState(resetRerouteState);
-    setNavigationState("loaded");
+    setNavigationState(nextResumeSession?.navigationState || "loaded");
     setRouteStep(0);
-    setProgressFloorMeters(0);
-    setFollowModeEnabled(true);
+    setProgressFloorMeters(nextResumeSession?.progressFloorMeters || 0);
+    setFollowModeEnabled(nextResumeSession?.followModeEnabled ?? true);
+    setLiveLocationRequested(Boolean(nextResumeSession));
     setPendingNavigationStart(false);
     setSelectedRiskZoneId(null);
     const timer = setTimeout(() => {
-      if (routePlan.route.coordinates.length >= 2) {
-        mapRef.current?.fitToCoordinates(routePlan.route.coordinates, {
+      if (nextRoutePlan.route.coordinates.length >= 2) {
+        mapRef.current?.fitToCoordinates(nextRoutePlan.route.coordinates, {
           animated: true,
           edgePadding: layout.edgePadding,
         });
@@ -581,6 +658,36 @@ export function LiveMapScreen({
     }, 120);
     return () => clearTimeout(timer);
   }, [routePlan.id]);
+
+  useEffect(() => {
+    if (demoDriveActive) {
+      return;
+    }
+
+    if (navigationState === "stopped" || navigationState === "arrived") {
+      activeSessionSnapshotRef.current = null;
+      onNavigationSessionChangeRef.current?.(null);
+      void clearActiveNavigationSession();
+      return;
+    }
+
+    if (!isPersistedNavigationLifecycle(navigationState)) {
+      return;
+    }
+
+    const persistCurrentSession = () => {
+      const snapshot = activeSessionSnapshotRef.current;
+      if (!snapshot) {
+        return;
+      }
+      onNavigationSessionChangeRef.current?.(snapshot);
+      void saveActiveNavigationSession(snapshot);
+    };
+
+    persistCurrentSession();
+    const interval = setInterval(persistCurrentSession, 5_000);
+    return () => clearInterval(interval);
+  }, [activeRoutePlan.route.id, demoDriveActive, navigationState, routeContext]);
 
   useEffect(() => {
     if (
@@ -638,6 +745,7 @@ export function LiveMapScreen({
 
     if (progress.isArrived) {
       setNavigationState("arrived");
+      void stopBackgroundNavigation();
       return;
     }
 
@@ -846,6 +954,7 @@ export function LiveMapScreen({
   ]);
 
   const handleStopRoute = () => {
+    void stopBackgroundNavigation();
     setNavigationState("stopped");
     setRouteStep(0);
     setProgressFloorMeters(0);
@@ -893,6 +1002,7 @@ export function LiveMapScreen({
       <LiveMapOverlay
         activeNavigationState={activeNavigationState}
         alertsVisible={alertsVisible}
+        backgroundNavigationPresentation={backgroundNavigationPresentation}
         followModeEnabled={followModeEnabled}
         guidance={guidance}
         hasVehicleCoordinate={Boolean(rawVehicleCoordinate)}
@@ -901,6 +1011,9 @@ export function LiveMapScreen({
         onCenterVehicle={centerOnVehicle}
         onChangeRoute={onChangeRoute}
         onDismissRiskDetail={handleDismissRiskDetail}
+        onEnableBackgroundNavigation={() => {
+          void enableBackgroundTracking();
+        }}
         onFitRoute={fitRouteFromControl}
         onOpenRiskAlert={handleOpenRiskAlert}
         onPrimaryAction={handlePrimaryNavigationAction}

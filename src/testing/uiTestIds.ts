@@ -47,6 +47,8 @@ export const uiTestIds = {
     `safe-route-card-${normalizeTestIdSegment(routeId)}`,
   liveMapScreen: "safe-route-live-map",
   liveMapCanvas: "safe-route-map-view",
+  liveMapBackgroundNavigationAction: "safe-route-background-navigation-action",
+  liveMapResumeAction: "safe-route-resume-action",
   liveMapReturn: "safe-route-return",
   liveMapRouteSummarySheet: "safe-route-summary-sheet",
   liveMapRemainingMetrics: "safe-route-remaining-metrics",

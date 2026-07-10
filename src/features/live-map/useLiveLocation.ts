@@ -1,4 +1,5 @@
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
+import { AppState, Linking } from 'react-native';
 import * as Location from 'expo-location';
 
 import {
@@ -10,22 +11,121 @@ import {
   trackingLabelForPermissionStatus,
   type PermissionStatus
 } from './liveLocationState';
+import { loadBackgroundNavigationLocation } from './activeNavigationSession';
+import {
+  inspectBackgroundNavigation,
+  requestAndStartBackgroundNavigation,
+  startBackgroundNavigationIfAuthorized,
+  stopBackgroundNavigation,
+  type BackgroundNavigationStatus
+} from './backgroundNavigation';
+import {
+  applyReliableLocationSample,
+  createLocationSignalState,
+  isReliableLocationSampleRecent,
+  type ReliableLocationSample
+} from './locationSignal';
 
 export type { PermissionStatus } from './liveLocationState';
 
 interface UseLiveLocationOptions {
+  backgroundRouteId?: string | null;
+  initialLocationSample?: ReliableLocationSample | null;
+  manageBackgroundNavigation?: boolean;
   navigationActive?: boolean;
   permissionRequested?: boolean;
 }
 
 export function useLiveLocation({
+  backgroundRouteId = null,
+  initialLocationSample = null,
+  manageBackgroundNavigation = false,
   navigationActive = false,
   permissionRequested = false
 }: UseLiveLocationOptions = {}) {
-  const [coordinate, setCoordinate] = useState<Location.LocationObjectCoords | null>(null);
-  const [timestampMs, setTimestampMs] = useState<number | null>(null);
+  const initialReliableLocationRef = useRef(
+    isReliableLocationSampleRecent(initialLocationSample)
+      ? initialLocationSample
+      : null
+  );
+  const signalStateRef = useRef(
+    createLocationSignalState(initialReliableLocationRef.current)
+  );
+  const navigationActiveRef = useRef(navigationActive);
+  const mountedRef = useRef(true);
+  const [coordinate, setCoordinate] = useState<Location.LocationObjectCoords | null>(() =>
+    initialReliableLocationRef.current
+      ? {
+          accuracy: initialReliableLocationRef.current.accuracyMeters,
+          altitude: null,
+          altitudeAccuracy: null,
+          heading: initialReliableLocationRef.current.headingDegrees,
+          latitude: initialReliableLocationRef.current.latitude,
+          longitude: initialReliableLocationRef.current.longitude,
+          speed: initialReliableLocationRef.current.speedMetersPerSecond
+        }
+      : null
+  );
+  const [timestampMs, setTimestampMs] = useState<number | null>(
+    initialReliableLocationRef.current?.timestampMs || null
+  );
   const [permissionStatus, setPermissionStatus] = useState<PermissionStatus>('idle');
   const [errorMessage, setErrorMessage] = useState('');
+  const [locationQuality, setLocationQuality] = useState<'degraded' | 'good'>('degraded');
+  const [backgroundStatus, setBackgroundStatus] = useState<BackgroundNavigationStatus>('idle');
+
+  navigationActiveRef.current = navigationActive;
+
+  useEffect(() => {
+    mountedRef.current = true;
+    return () => {
+      mountedRef.current = false;
+    };
+  }, []);
+
+  const acceptReliableSample = useCallback((
+    sample: ReliableLocationSample,
+    sourceCoords?: Location.LocationObjectCoords | null
+  ) => {
+    const transition = applyReliableLocationSample(signalStateRef.current, sample, {
+      navigationActive: navigationActiveRef.current,
+      nowMs: Date.now()
+    });
+    signalStateRef.current = transition.state;
+    setLocationQuality(transition.quality);
+    if (!transition.accepted || !transition.state.sample) {
+      return false;
+    }
+
+    const accepted = transition.state.sample;
+    setCoordinate({
+      accuracy: accepted.accuracyMeters,
+      altitude: sourceCoords?.altitude ?? null,
+      altitudeAccuracy: sourceCoords?.altitudeAccuracy ?? null,
+      heading: accepted.headingDegrees,
+      latitude: accepted.latitude,
+      longitude: accepted.longitude,
+      speed: accepted.speedMetersPerSecond
+    });
+    setTimestampMs(accepted.timestampMs);
+    setErrorMessage('');
+    return true;
+  }, []);
+
+  const acceptLocationObject = useCallback((location: Location.LocationObject | null | undefined) => {
+    if (!location?.coords || location.mocked === true) {
+      return false;
+    }
+
+    return acceptReliableSample({
+      accuracyMeters: location.coords.accuracy,
+      headingDegrees: location.coords.heading,
+      latitude: location.coords.latitude,
+      longitude: location.coords.longitude,
+      speedMetersPerSecond: location.coords.speed,
+      timestampMs: Number.isFinite(location.timestamp) ? location.timestamp : Date.now()
+    }, location.coords);
+  }, [acceptReliableSample]);
 
   useEffect(() => {
     let mounted = true;
@@ -78,8 +178,7 @@ export function useLiveLocation({
           requiredAccuracy: trackingCadence.lastKnownRequiredAccuracyMeters
         });
         if (mounted && lastKnown?.coords) {
-          setCoordinate(lastKnown.coords);
-          setTimestampMs(Number.isFinite(lastKnown.timestamp) ? lastKnown.timestamp : Date.now());
+          acceptLocationObject(lastKnown);
         }
       } catch {
         // Keep foreground permission granted; the live watcher below may still return a fresh fix.
@@ -96,11 +195,7 @@ export function useLiveLocation({
           },
           (nextLocation) => {
             if (mounted) {
-              setCoordinate(nextLocation.coords);
-              setTimestampMs(
-                Number.isFinite(nextLocation.timestamp) ? nextLocation.timestamp : Date.now()
-              );
-              setErrorMessage('');
+              acceptLocationObject(nextLocation);
             }
           }
         );
@@ -116,6 +211,29 @@ export function useLiveLocation({
       }
     };
 
+    const restoreBackgroundLocation = async () => {
+      if (!backgroundRouteId) {
+        return;
+      }
+      const backgroundLocation = await loadBackgroundNavigationLocation(backgroundRouteId);
+      if (mounted && backgroundLocation) {
+        acceptReliableSample(backgroundLocation);
+      }
+    };
+
+    const appStateSubscription = AppState.addEventListener('change', (nextState) => {
+      if (nextState === 'active') {
+        void restoreBackgroundLocation();
+        if (manageBackgroundNavigation && navigationActiveRef.current) {
+          void inspectBackgroundNavigation().then((nextResult) => {
+            if (mounted) {
+              setBackgroundStatus(nextResult.status);
+            }
+          });
+        }
+      }
+    });
+
     void startTracking().catch(() => {
       if (!mounted) {
         return;
@@ -123,18 +241,96 @@ export function useLiveLocation({
 
       setErrorMessage(LIVE_LOCATION_UNAVAILABLE_MESSAGE);
     });
+    void restoreBackgroundLocation();
 
     return () => {
       mounted = false;
       subscription?.remove();
+      appStateSubscription.remove();
     };
-  }, [navigationActive, permissionRequested]);
+  }, [
+    acceptLocationObject,
+    acceptReliableSample,
+    backgroundRouteId,
+    manageBackgroundNavigation,
+    navigationActive,
+    permissionRequested
+  ]);
+
+  useEffect(() => {
+    if (!manageBackgroundNavigation) {
+      return;
+    }
+
+    let mounted = true;
+    if (!navigationActive) {
+      setBackgroundStatus('idle');
+      void stopBackgroundNavigation();
+      return () => {
+        mounted = false;
+      };
+    }
+
+    setBackgroundStatus('checking');
+    void startBackgroundNavigationIfAuthorized().then((nextResult) => {
+      if (mounted) {
+        setBackgroundStatus(nextResult.status);
+      }
+    });
+
+    return () => {
+      mounted = false;
+    };
+  }, [manageBackgroundNavigation, navigationActive]);
+
+  const enableBackgroundTracking = useCallback(async () => {
+    if (!manageBackgroundNavigation) {
+      return false;
+    }
+
+    if (backgroundStatus === 'denied') {
+      await Linking.openSettings();
+      return false;
+    }
+
+    if (mountedRef.current) {
+      setBackgroundStatus('requesting');
+    }
+    const nextResult = await requestAndStartBackgroundNavigation();
+    if (mountedRef.current) {
+      setBackgroundStatus(nextResult.status);
+    }
+    return nextResult.status === 'active';
+  }, [backgroundStatus, manageBackgroundNavigation]);
+
+  const refreshBackgroundTrackingStatus = useCallback(async () => {
+    if (!manageBackgroundNavigation) {
+      return 'idle' as const;
+    }
+
+    if (mountedRef.current) {
+      setBackgroundStatus('checking');
+    }
+    const nextResult = await inspectBackgroundNavigation();
+    if (mountedRef.current) {
+      setBackgroundStatus(nextResult.status);
+    }
+    return nextResult.status;
+  }, [manageBackgroundNavigation]);
 
   return {
+    backgroundStatus,
     coordinate,
+    enableBackgroundTracking,
     errorMessage,
+    locationQuality,
     permissionStatus,
+    refreshBackgroundTrackingStatus,
+    rejectedSampleCount: signalStateRef.current.rejectedSampleCount,
     timestampMs,
-    trackingLabel: trackingLabelForPermissionStatus(permissionStatus)
+    trackingLabel:
+      permissionStatus === 'granted' && locationQuality === 'degraded'
+        ? 'Low accuracy'
+        : trackingLabelForPermissionStatus(permissionStatus)
   };
 }

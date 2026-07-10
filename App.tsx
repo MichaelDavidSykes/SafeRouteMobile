@@ -25,6 +25,16 @@ import type { GuestFullAccessFeature } from './src/features/guest-map/guestRoute
 import { LiveMapScreen } from './src/features/live-map/LiveMapScreen';
 import type { SavedSafeRoutePlan } from './src/features/live-map/liveMapTypes';
 import {
+  canResumeActiveNavigationSession,
+  type ActiveNavigationSession
+} from './src/features/live-map/activeNavigationSessionCore';
+import {
+  clearActiveNavigationSession,
+  loadActiveNavigationSession
+} from './src/features/live-map/activeNavigationSession';
+import { stopBackgroundNavigation } from './src/features/live-map/backgroundNavigation';
+import { ResumeNavigationButton } from './src/features/live-map/ResumeNavigationButton';
+import {
   DEFAULT_SIGN_IN_PROMPT,
   hasAuthenticatedSession,
   resolveFullAccessNavigation,
@@ -43,12 +53,29 @@ import { colors } from './src/theme';
 export default function App() {
   const [session, setSession] = useState<AuthSession | null>(null);
   const [selectedRoute, setSelectedRoute] = useState<SavedSafeRoutePlan | null>(null);
+  const [activeNavigationSession, setActiveNavigationSession] =
+    useState<ActiveNavigationSession | null>(null);
   const [sessionMessage, setSessionMessage] = useState('');
   const [authPrompt, setAuthPrompt] = useState('');
   const [screen, setScreen] = useState<AppScreen>('guest-map');
   const [routePreviewSource, setRoutePreviewSource] = useState<RoutePreviewSource>('guest');
   const [operationsTab, setOperationsTab] = useState<OperationsTab>('planned-routes');
   const authenticated = hasAuthenticatedSession(session);
+
+  const openActiveNavigationSession = (
+    nextNavigationSession: ActiveNavigationSession,
+    sessionAuthenticated: boolean
+  ) => {
+    if (!canResumeActiveNavigationSession(nextNavigationSession, sessionAuthenticated)) {
+      return false;
+    }
+
+    setActiveNavigationSession(nextNavigationSession);
+    setSelectedRoute(nextNavigationSession.routePlan);
+    setRoutePreviewSource(nextNavigationSession.routeContext);
+    setScreen('route-preview');
+    return true;
+  };
 
   useEffect(() => {
     let mounted = true;
@@ -86,12 +113,24 @@ export default function App() {
       setAuthPrompt('');
       setSelectedRoute(null);
       setScreen('guest-map');
+      let persistedNavigation: ActiveNavigationSession | null = null;
 
       try {
+        persistedNavigation = SAFEROUTE_PREVIEW_MODE_ENABLED
+          ? null
+          : await loadActiveNavigationSession();
         const storedSession = await loadAuthSession();
+        if (!mounted) {
+          return;
+        }
 
         if (!storedSession) {
-          enablePreviewSession();
+          if (
+            !persistedNavigation ||
+            !openActiveNavigationSession(persistedNavigation, false)
+          ) {
+            enablePreviewSession();
+          }
           return;
         }
 
@@ -104,16 +143,30 @@ export default function App() {
 
         if (restoreResult.status === 'expired') {
           await clearAuthSession();
-          if (!enablePreviewSession() && mounted) {
+          if (
+            !enablePreviewSession() &&
+            mounted &&
+            (!persistedNavigation ||
+              !openActiveNavigationSession(persistedNavigation, false))
+          ) {
             setSessionMessage(restoreResult.message);
           }
         } else if (restoreResult.status === 'restored' && mounted) {
           setSessionMessage(restoreResult.message || '');
           setSession(restoreResult.session);
+          if (persistedNavigation) {
+            openActiveNavigationSession(persistedNavigation, true);
+          }
         }
       } catch {
         await clearAuthSession();
-        enablePreviewSession();
+        if (
+          mounted &&
+          (!persistedNavigation ||
+            !openActiveNavigationSession(persistedNavigation, false))
+        ) {
+          enablePreviewSession();
+        }
       }
     };
 
@@ -138,11 +191,20 @@ export default function App() {
     setSessionMessage('');
     setAuthPrompt('');
     setSession(persistedSession);
-    setScreen(screenAfterAuthentication());
+    const persistedNavigation = await loadActiveNavigationSession();
+    if (
+      !persistedNavigation ||
+      !openActiveNavigationSession(persistedNavigation, true)
+    ) {
+      setScreen(screenAfterAuthentication());
+    }
   };
 
   const handleSignOut = async () => {
+    await stopBackgroundNavigation();
+    await clearActiveNavigationSession();
     await clearAuthSession();
+    setActiveNavigationSession(null);
     setSelectedRoute(null);
     setSessionMessage('');
     setAuthPrompt('');
@@ -160,7 +222,10 @@ export default function App() {
   };
 
   const handleSessionExpired = async (message = 'Your LunarChain session expired. Sign in again.') => {
+    await stopBackgroundNavigation();
+    await clearActiveNavigationSession();
     await clearAuthSession();
+    setActiveNavigationSession(null);
     setSelectedRoute(null);
     setSessionMessage(message);
     setAuthPrompt(message);
@@ -197,12 +262,28 @@ export default function App() {
   };
 
   const openRoutePreview = (routePlan: SavedSafeRoutePlan) => {
+    if (
+      activeNavigationSession &&
+      activeNavigationSession.routePlan.route.id !== routePlan.route.id
+    ) {
+      setActiveNavigationSession(null);
+      void stopBackgroundNavigation();
+      void clearActiveNavigationSession();
+    }
     setSelectedRoute(routePlan);
     setRoutePreviewSource('guest');
     setScreen('route-preview');
   };
 
   const handleSelectSavedRoute = (routePlan: SavedSafeRoutePlan) => {
+    if (
+      activeNavigationSession &&
+      activeNavigationSession.routePlan.route.id !== routePlan.route.id
+    ) {
+      setActiveNavigationSession(null);
+      void stopBackgroundNavigation();
+      void clearActiveNavigationSession();
+    }
     setSelectedRoute(routePlan);
     setRoutePreviewSource('saved');
     setScreen('route-preview');
@@ -211,6 +292,17 @@ export default function App() {
   const returnFromRoutePreview = () => {
     setSelectedRoute(null);
     setScreen(screenAfterRoutePreview(routePreviewSource, authenticated));
+  };
+
+  const resumeActiveNavigation = async () => {
+    const persistedNavigation =
+      (await loadActiveNavigationSession()) || activeNavigationSession;
+    if (!persistedNavigation) {
+      setActiveNavigationSession(null);
+      return;
+    }
+
+    openActiveNavigationSession(persistedNavigation, authenticated);
   };
 
   const returnCopy = routePreviewReturnCopy(routePreviewSource);
@@ -243,11 +335,17 @@ export default function App() {
         ) : screen === 'route-preview' && selectedRoute ? (
           <LiveMapScreen
             accessToken={session?.accessToken || null}
+            initialNavigationSession={
+              activeNavigationSession?.routePlan.route.id === selectedRoute.route.id
+                ? activeNavigationSession
+                : null
+            }
             returnAccessibilityLabel={returnCopy.accessibilityLabel}
             returnLabel={returnCopy.label}
             routeContext={routePreviewSource}
             routePlan={selectedRoute}
             onChangeRoute={returnFromRoutePreview}
+            onNavigationSessionChange={setActiveNavigationSession}
           />
         ) : screen === 'routes' && session && authenticated ? (
           <RouteListScreen
@@ -279,6 +377,14 @@ export default function App() {
             onSignIn={() => openSignIn()}
           />
         )}
+        {activeNavigationSession && screen !== 'route-preview' && screen !== 'login' ? (
+          <ResumeNavigationButton
+            routeName={activeNavigationSession.routePlan.name}
+            onPress={() => {
+              void resumeActiveNavigation();
+            }}
+          />
+        ) : null}
       </View>
     </SafeAreaProvider>
   );

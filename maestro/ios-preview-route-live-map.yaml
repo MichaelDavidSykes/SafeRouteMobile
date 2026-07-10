@@ -1,6 +1,9 @@
 appId: host.exp.Exponent
 ---
 - stopApp
+- setLocation:
+    latitude: 51.5074
+    longitude: -0.1278
 - openLink: exp://localhost:8081
 - runFlow:
     when:
@@ -93,10 +96,9 @@ appId: host.exp.Exponent
           id: "guest-map-plot-action"
           waitToSettleTimeoutMs: 1000
       - extendedWaitUntil:
-          visible: "Preview map"
+          visible:
+            id: "guest-map-route-preview"
           timeout: 30000
-      - assertVisible:
-          id: "guest-map-route-preview"
       - assertVisible:
           id: "guest-map-plot-action"
       - tapOn:

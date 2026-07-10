@@ -208,11 +208,14 @@ export default function App() {
     session && isPreviewAccessToken(session.accessToken)
       ? PREVIEW_SESSION_NOTICE
       : sessionMessage;
+  const statusBarStyle = screen === 'guest-map' || screen === 'route-preview'
+    ? 'light'
+    : 'dark';
 
   return (
     <SafeAreaProvider initialMetrics={initialWindowMetrics} style={styles.root}>
       <View testID={uiTestIds.appRoot} style={styles.root}>
-        <StatusBar style="dark" />
+        <StatusBar style={statusBarStyle} />
         {screen === 'login' ? (
           <LoginScreen
             initialChallenge={

@@ -9,6 +9,11 @@ import { shouldShowNativeUserLocation } from "./liveMapUiState";
 import { CheckpointMarker, RiskOverlay, VehicleMarker } from "./LiveMapMarkers";
 import { resolveRouteLinePresentation } from "./routeLinePresentation";
 import { uiTestIds } from "../../testing/uiTestIds";
+import {
+  SAFE_ROUTE_DARK_MAP_STYLE,
+  SAFE_ROUTE_DARK_ROUTE_CASING,
+  SAFE_ROUTE_DARK_ROUTE_GLOW,
+} from "../maps/safeRouteMapTheme";
 
 interface LiveMapCanvasProps {
   activeNavigationState: NavigationLifecycle;
@@ -77,7 +82,8 @@ export function LiveMapCanvas({
         activeNavigationState === "off-route"
       }
       toolbarEnabled={false}
-      userInterfaceStyle="light"
+      customMapStyle={SAFE_ROUTE_DARK_MAP_STYLE}
+      userInterfaceStyle="dark"
       onPanDrag={onPanDrag}
       onMapReady={onMapReady}
     >
@@ -85,14 +91,14 @@ export function LiveMapCanvas({
         <>
           <Polyline
             coordinates={routeCoordinates}
-            strokeColor="rgba(255, 255, 255, 0.92)"
+            strokeColor={SAFE_ROUTE_DARK_ROUTE_CASING}
             strokeWidth={13}
             lineCap="round"
             lineJoin="round"
           />
           <Polyline
             coordinates={routeCoordinates}
-            strokeColor="rgba(60, 60, 67, 0.18)"
+            strokeColor={SAFE_ROUTE_DARK_ROUTE_GLOW}
             strokeWidth={10}
             lineCap="round"
             lineJoin="round"

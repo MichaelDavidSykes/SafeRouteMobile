@@ -27,6 +27,11 @@ import { mergeRiskZonesById } from '../live-map/areaRiskApiCore';
 import { fetchAreaRiskAlongRoute } from '../live-map/routeRiskCorridorApi';
 import { buildLiveRerouteAvoidRectangles } from '../live-map/liveReroutePlan';
 import { useLiveLocation } from '../live-map/useLiveLocation';
+import {
+  SAFE_ROUTE_DARK_MAP_STYLE,
+  SAFE_ROUTE_DARK_ROUTE_CASING,
+  SAFE_ROUTE_DARK_ROUTE_GLOW
+} from '../maps/safeRouteMapTheme';
 import { isPreviewAccessToken } from '../auth/previewSession';
 import { ApiSessionExpiredError } from '../api/apiClient';
 import { fetchSavedRoutes } from '../routes/routeApi';
@@ -812,7 +817,8 @@ export function GuestMapScreen({
         showsScale={false}
         showsTraffic={false}
         toolbarEnabled={false}
-        userInterfaceStyle="light"
+        customMapStyle={SAFE_ROUTE_DARK_MAP_STYLE}
+        userInterfaceStyle="dark"
         onMapReady={() => setMapReady(true)}
         onLongPress={(event) => handleMapLongPress(event.nativeEvent.coordinate)}
         onPanDrag={() => {
@@ -832,14 +838,14 @@ export function GuestMapScreen({
           <>
             <Polyline
               coordinates={routePlan.route.coordinates}
-              strokeColor="rgba(255, 255, 255, 0.9)"
+              strokeColor={SAFE_ROUTE_DARK_ROUTE_CASING}
               strokeWidth={13}
               lineCap="round"
               lineJoin="round"
             />
             <Polyline
               coordinates={routePlan.route.coordinates}
-              strokeColor="rgba(60, 60, 67, 0.18)"
+              strokeColor={SAFE_ROUTE_DARK_ROUTE_GLOW}
               strokeWidth={10}
               lineCap="round"
               lineJoin="round"

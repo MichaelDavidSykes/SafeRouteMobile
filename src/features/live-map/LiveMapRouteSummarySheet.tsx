@@ -197,9 +197,10 @@ export function LiveMapRouteSummarySheet({
             accessibilityState={stopAccessibility.state}
             hitSlop={ROUTE_SUMMARY_ACTION_HIT_SLOP}
             testID={uiTestIds.liveMapStopAction}
-            style={[
+            style={({ pressed }) => [
               styles.stopButton,
               compactRouteSummary ? styles.stopButtonCompactNavigation : null,
+              pressed ? styles.stopButtonPressed : null,
             ]}
             onPress={onStopRoute}
           >

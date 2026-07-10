@@ -1311,6 +1311,22 @@ describe("rounded visual language", () => {
       /bottomSheet:\s*\{([\s\S]*?)\n  \},\n  bottomSheetCompact:/.exec(
         routeSheetStylesSource,
       )?.[1] || "";
+    const stopButtonBlock =
+      /stopButton:\s*\{([\s\S]*?)\n  \},\n  stopButtonCompactNavigation:/.exec(
+        routeSheetStylesSource,
+      )?.[1] || "";
+    const stopButtonCompactBlock =
+      /stopButtonCompactNavigation:\s*\{([\s\S]*?)\n  \},\n  stopButtonPressed:/.exec(
+        routeSheetStylesSource,
+      )?.[1] || "";
+    const stopButtonPressedBlock =
+      /stopButtonPressed:\s*\{([\s\S]*?)\n  \},\n  stopButtonText:/.exec(
+        routeSheetStylesSource,
+      )?.[1] || "";
+    const stopButtonTextBlock =
+      /stopButtonText:\s*\{([\s\S]*?)\n  \},/.exec(
+        routeSheetStylesSource,
+      )?.[1] || "";
 
     assert.match(routeSheetSource, /createRouteSummaryDetail/);
     assert.match(routeSheetSource, /createRouteSummaryHeadline/);
@@ -1327,6 +1343,7 @@ describe("rounded visual language", () => {
       2,
     );
     assert.match(routeSheetSource, /style=\{\(\{ pressed \}\) => \[/);
+    assert.match(routeSheetSource, /pressed \? styles\.stopButtonPressed : null/);
     assert.match(
       routeSheetSource,
       /<Text\s+numberOfLines=\{1\}\s+style=\{\[\s*styles\.startButtonText/,
@@ -1354,6 +1371,16 @@ describe("rounded visual language", () => {
     assert.match(routeSheetStylesSource, /\bsummaryCopyCompactNavigation:\s*\{[\s\S]*justifyContent:\s*"center"/);
     assert.match(routeSheetStylesSource, /startButtonText:[\s\S]*maxWidth:\s*"100%"/);
     assert.match(routeSheetStylesSource, /startButtonText:[\s\S]*flexShrink:\s*1/);
+    assert.match(stopButtonBlock, /maxWidth:\s*96/);
+    assert.match(stopButtonBlock, /flexShrink:\s*0/);
+    assert.match(stopButtonBlock, /paddingHorizontal:\s*spacing\.md/);
+    assert.match(stopButtonCompactBlock, /maxWidth:\s*84/);
+    assert.match(stopButtonCompactBlock, /paddingHorizontal:\s*spacing\.sm/);
+    assert.match(stopButtonPressedBlock, /backgroundColor:\s*colors\.dangerSoft/);
+    assert.match(stopButtonPressedBlock, /transform:\s*\[\{ scale:\s*0\.985 \}\]/);
+    assert.match(stopButtonTextBlock, /maxWidth:\s*64/);
+    assert.match(stopButtonTextBlock, /flexShrink:\s*1/);
+    assert.match(stopButtonTextBlock, /textAlign:\s*["']center["']/);
     assert.doesNotMatch(routeSheetStylesSource, /\bdemoButton/);
     assert.match(bottomSheetBlock, /backgroundColor:\s*colors\.surfaceTranslucent/);
     assert.match(bottomSheetBlock, /shadowOpacity:\s*0/);

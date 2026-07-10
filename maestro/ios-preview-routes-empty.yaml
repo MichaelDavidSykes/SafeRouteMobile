@@ -1,0 +1,92 @@
+appId: host.exp.Exponent
+---
+- stopApp
+- setLocation:
+    latitude: 51.5074
+    longitude: -0.1278
+- openLink: exp://localhost:8081
+- runFlow:
+    when:
+      visible: "Open"
+    commands:
+      - tapOn: "Open"
+- waitForAnimationToEnd:
+    timeout: 3000
+# Re-open once Expo Go is foregrounded. Keep this no-build empty-state smoke on
+# localhost only so it validates the current SafeRoute preview bundle.
+- openLink: exp://localhost:8081
+- runFlow:
+    when:
+      visible: "Open"
+    commands:
+      - tapOn: "Open"
+- waitForAnimationToEnd:
+    timeout: 10000
+- tapOn:
+    text: "Close"
+    optional: true
+- waitForAnimationToEnd:
+    timeout: 1000
+- runFlow:
+    when:
+      visible: "Allow While Using App"
+    commands:
+      - tapOn: "Allow While Using App"
+      - waitForAnimationToEnd:
+          timeout: 3000
+- runFlow:
+    when:
+      visible: "Try again"
+    commands:
+      - tapOn: "Try again"
+      - waitForAnimationToEnd:
+          timeout: 5000
+- extendedWaitUntil:
+    visible:
+      id: "saferoute-app-root"
+    timeout: 45000
+- runFlow:
+    when:
+      visible:
+        id: "safe-route-return"
+    commands:
+      - tapOn:
+          id: "safe-route-return"
+          waitToSettleTimeoutMs: 1000
+      - waitForAnimationToEnd:
+          timeout: 3000
+- runFlow:
+    when:
+      visible:
+        id: "guest-map-primary-action"
+    commands:
+      - tapOn:
+          id: "guest-map-primary-action"
+          waitToSettleTimeoutMs: 1000
+      - waitForAnimationToEnd:
+          timeout: 3000
+# Requires the Expo listener to be started with SAFEROUTE_ENABLE_PREVIEW_MODE=true
+# and SAFEROUTE_PREVIEW_INITIAL_SCREEN=routes-empty so the local preview route
+# API returns an authenticated Saved picker with no route cards.
+- extendedWaitUntil:
+    visible:
+      id: "safe-route-picker"
+    timeout: 30000
+- assertVisible: "Choose route"
+- assertVisible:
+    id: "safe-route-empty-state"
+- assertVisible: "No saved routes"
+- assertVisible: "Save a plan, then open it on the map."
+- assertNotVisible:
+    id: "safe-route-card-sr-city-airport-alpha"
+- assertNotVisible:
+    id: "safe-route-card-sr-docklands-low-profile"
+- assertVisible:
+    id: "route-list-map-return"
+- tapOn:
+    id: "route-list-map-return"
+    waitToSettleTimeoutMs: 1000
+- extendedWaitUntil:
+    visible:
+      id: "guest-map-primary-action"
+    timeout: 12000

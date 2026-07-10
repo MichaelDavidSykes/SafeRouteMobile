@@ -23,6 +23,11 @@ const savedRoutesFlowSource = () =>
     join(process.cwd(), "maestro/ios-preview-saved-routes.yaml"),
     "utf8",
   );
+const emptyRoutesFlowSource = () =>
+  readFileSync(
+    join(process.cwd(), "maestro/ios-preview-routes-empty.yaml"),
+    "utf8",
+  );
 const riskAreasFlowSource = () =>
   readFileSync(
     join(process.cwd(), "maestro/ios-preview-risk-areas.yaml"),
@@ -228,12 +233,63 @@ describe("Maestro iOS preview smoke flow", () => {
     assert.ok(finalRoutePickerIndex > returnButtonIndex);
   });
 
+  it("opens an authenticated no-saved-routes preview without route cards", () => {
+    const appSource = readFileSync(join(process.cwd(), "App.tsx"), "utf8");
+    const routeApiSource = readFileSync(
+      join(process.cwd(), "src/features/routes/routeApi.ts"),
+      "utf8",
+    );
+    const flow = emptyRoutesFlowSource();
+    const scripts = packageJson().scripts;
+    const appRootIndex = flow.indexOf('id: "saferoute-app-root"');
+    const routePickerIndex = flow.indexOf('id: "safe-route-picker"');
+    const emptyStateIndex = flow.indexOf('id: "safe-route-empty-state"');
+    const mapReturnIndex = flow.indexOf('id: "route-list-map-return"');
+    const guestMapIndex = flow.lastIndexOf('id: "guest-map-primary-action"');
+
+    assert.equal(
+      scripts["prestart:maestro:ios:preview:routes-empty"],
+      "node scripts/maestro-ios-preflight.mjs",
+    );
+    assert.equal(
+      scripts["start:maestro:ios:preview:routes-empty"],
+      "SAFEROUTE_ENABLE_PREVIEW_MODE=true SAFEROUTE_PREVIEW_INITIAL_SCREEN=routes-empty NODE_OPTIONS=--dns-result-order=ipv4first expo start --localhost --port 8081",
+    );
+    assert.equal(
+      scripts["test:maestro:ios:routes-empty"],
+      "node scripts/run-maestro.mjs test maestro/ios-preview-routes-empty.yaml",
+    );
+    assert.match(flow, /SAFEROUTE_PREVIEW_INITIAL_SCREEN=routes-empty/);
+    assert.match(flow, /local preview route\s*\n?#?\s*API returns an authenticated Saved picker with no route cards/);
+    assert.doesNotMatch(flow, /-\s*clearState/);
+    assert.match(flow, /text:\s*"Close"[\s\S]*optional:\s*true/);
+    assert.match(flow, /visible:\s*"Try again"[\s\S]*tapOn:\s*"Try again"/);
+    assert.match(flow, /setLocation:\s*\n\s+latitude:\s*51\.5074\s*\n\s+longitude:\s*-0\.1278/);
+    assert.match(flow, /id:\s*"safe-route-empty-state"/);
+    assert.match(flow, /No saved routes/);
+    assert.match(flow, /Save a plan, then open it on the map\./);
+    assert.match(flow, /assertNotVisible:[\s\S]*safe-route-card-sr-city-airport-alpha/);
+    assert.match(flow, /assertNotVisible:[\s\S]*safe-route-card-sr-docklands-low-profile/);
+    assert.match(flow, /id:\s*"route-list-map-return"/);
+    assert.match(flow, /id:\s*"guest-map-primary-action"/);
+    assert.match(appSource, /previewInitialScreen === 'routes-empty'/);
+    assert.match(appSource, /screenForAuthenticatedPreview\(previewInitialScreen\)/);
+    assert.match(routeApiSource, /SAFEROUTE_PREVIEW_INITIAL_SCREEN === 'routes-empty'/);
+    assert.doesNotMatch(flow, /guest-map-destination-input/);
+    assert.doesNotMatch(flow, /safe-route-card-sr-city-airport-alpha"\s*\n\s+waitToSettleTimeoutMs/);
+    assert.ok(appRootIndex >= 0);
+    assert.ok(routePickerIndex > appRootIndex);
+    assert.ok(emptyStateIndex > routePickerIndex);
+    assert.ok(mapReturnIndex > emptyStateIndex);
+    assert.ok(guestMapIndex > mapReturnIndex);
+  });
+
   it("keeps restored preview sessions on the requested preview initial screen", () => {
     const appSource = readFileSync(join(process.cwd(), "App.tsx"), "utf8");
 
     assert.match(appSource, /SAFEROUTE_PREVIEW_MODE_ENABLED && isPreviewAccessToken\(storedSession\.accessToken\)/);
     assert.match(appSource, /const previewInitialScreen = SAFEROUTE_PREVIEW_INITIAL_SCREEN/);
-    assert.match(appSource, /setScreen\(previewInitialScreen\)/);
+    assert.match(appSource, /screenForAuthenticatedPreview\(previewInitialScreen\)/);
   });
 
   it("verifies the branded mobile sign-in surface without a Turnstile dependency", () => {

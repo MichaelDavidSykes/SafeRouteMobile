@@ -10,6 +10,7 @@ export type SafeRoutePreviewInitialScreen =
   | 'login-code'
   | 'operations'
   | 'routes'
+  | 'routes-empty'
   | 'session-expired';
 
 export type SafeRouteExtra = {
@@ -114,6 +115,7 @@ function normalizePreviewInitialScreen(
     normalized === 'login' ||
     normalized === 'login-code' ||
     normalized === 'operations' ||
+    normalized === 'routes-empty' ||
     normalized === 'session-expired'
   ) {
     return normalized;

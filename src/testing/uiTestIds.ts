@@ -31,6 +31,7 @@ export const uiTestIds = {
   routeListScreen: "safe-route-picker",
   routeListMapReturn: "route-list-map-return",
   routeListSignOut: "route-list-sign-out",
+  routeListEmptyState: "safe-route-empty-state",
   operationsScreen: "safe-route-operations",
   operationsMapReturn: "safe-route-operations-map-return",
   operationsSignOut: "safe-route-operations-sign-out",

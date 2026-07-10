@@ -71,6 +71,7 @@ function normalizePreviewInitialScreen(value, previewModeEnabled) {
     normalized === 'login' ||
     normalized === 'login-code' ||
     normalized === 'operations' ||
+    normalized === 'routes-empty' ||
     normalized === 'session-expired'
   ) {
     return normalized;

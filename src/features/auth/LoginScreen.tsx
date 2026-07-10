@@ -41,6 +41,8 @@ interface LoginScreenProps {
 }
 
 const LOGIN_CONNECTION_MESSAGE = 'Unable to reach LunarChain. Check your connection and try again.';
+const PASSWORD_TOGGLE_HIT_SLOP = 8;
+const LOGIN_SECONDARY_ACTION_HIT_SLOP = 6;
 
 export function LoginScreen({
   onCancel,
@@ -291,6 +293,7 @@ export function LoginScreen({
                   accessibilityHint={passwordVisible ? 'Masks the password field.' : 'Reveals the password field for review.'}
                   accessibilityState={{ selected: passwordVisible }}
                   disabled={loading}
+                  hitSlop={PASSWORD_TOGGLE_HIT_SLOP}
                   style={({ pressed }) => [
                     styles.passwordToggle,
                     pressed && !loading ? styles.passwordTogglePressed : null,
@@ -383,6 +386,7 @@ export function LoginScreen({
               accessibilityLabel={secondaryChallengeAction?.accessibilityLabel}
               accessibilityHint={secondaryChallengeAction?.accessibilityHint}
               disabled={loading}
+              hitSlop={LOGIN_SECONDARY_ACTION_HIT_SLOP}
               style={({ pressed }) => [
                 styles.secondaryButton,
                 pressed && !loading ? styles.secondaryButtonPressed : null,
@@ -400,6 +404,7 @@ export function LoginScreen({
               accessibilityLabel={mapReturnAction.accessibilityLabel}
               accessibilityHint={mapReturnAction.accessibilityHint}
               disabled={loading}
+              hitSlop={LOGIN_SECONDARY_ACTION_HIT_SLOP}
               style={({ pressed }) => [
                 styles.secondaryButton,
                 pressed && !loading ? styles.secondaryButtonPressed : null,

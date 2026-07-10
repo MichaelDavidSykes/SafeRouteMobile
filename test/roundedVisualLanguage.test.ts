@@ -653,6 +653,9 @@ describe("rounded visual language", () => {
     assert.match(loginSource, /accessibilityLabel="LunarChain login code"/);
     assert.match(loginSource, /styles\.formCardCompact/);
     assert.match(loginSource, /styles\.passwordToggle/);
+    assert.match(loginSource, /const PASSWORD_TOGGLE_HIT_SLOP = 8/);
+    assert.match(loginSource, /hitSlop=\{PASSWORD_TOGGLE_HIT_SLOP\}/);
+    assert.equal((loginSource.match(/hitSlop=\{PASSWORD_TOGGLE_HIT_SLOP\}/g) || []).length, 1);
     assert.match(loginSource, /<Text numberOfLines=\{1\} style=\{styles\.passwordToggleText\}>/);
     assert.match(loginSource, /passwordVisible \? 'Hide' : 'Show'/);
     assert.match(loginSource, /createLoginErrorState/);
@@ -744,6 +747,9 @@ describe("rounded visual language", () => {
     assert.match(primaryTextBlock, /maxWidth:\s*220/);
     assert.match(primaryTextBlock, /textAlign:\s*['"]center['"]/);
     assert.match(loginSource, /styles\.secondaryButtonPressed/);
+    assert.match(loginSource, /const LOGIN_SECONDARY_ACTION_HIT_SLOP = 6/);
+    assert.match(loginSource, /hitSlop=\{LOGIN_SECONDARY_ACTION_HIT_SLOP\}/);
+    assert.equal((loginSource.match(/hitSlop=\{LOGIN_SECONDARY_ACTION_HIT_SLOP\}/g) || []).length, 2);
     assert.match(secondaryButtonBlock, /alignSelf:\s*["']center["']/);
     assert.match(secondaryButtonBlock, /backgroundColor:\s*["']transparent["']/);
     assert.doesNotMatch(secondaryButtonBlock, /borderWidth/);

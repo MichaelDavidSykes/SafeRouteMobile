@@ -179,6 +179,57 @@ describe("rounded visual language", () => {
     }
   });
 
+  it("keeps live guidance on light glass with readable Apple-blue route context", () => {
+    const guidanceCardSource = readFileSync(
+      join(process.cwd(), "src/features/live-map/LiveMapGuidanceCard.tsx"),
+      "utf8",
+    );
+    const guidanceStylesSource = readFileSync(
+      join(process.cwd(), "src/features/live-map/LiveMapGuidanceCard.styles.ts"),
+      "utf8",
+    );
+    const guidanceCardBlock =
+      /guidanceCard:\s*\{([\s\S]*?)\n  \},\n  guidanceCardCompact:/.exec(
+        guidanceStylesSource,
+      )?.[1] || "";
+    const guidanceWarningBlock =
+      /guidanceCardWarning:\s*\{([\s\S]*?)\n  \},\n  guidanceCopy:/.exec(
+        guidanceStylesSource,
+      )?.[1] || "";
+    const guidanceTitleBlock =
+      /guidanceTitle:\s*\{([\s\S]*?)\n  \},\n  guidanceTitleCompact:/.exec(
+        guidanceStylesSource,
+      )?.[1] || "";
+    const guidanceMetaBlock =
+      /guidanceMeta:\s*\{([\s\S]*?)\n  \},\n  guidanceMetaWarning:/.exec(
+        guidanceStylesSource,
+      )?.[1] || "";
+    const guidanceDistanceBlock =
+      /guidanceDistance:\s*\{([\s\S]*?)\n  \},\n  guidanceDistanceCompact:/.exec(
+        guidanceStylesSource,
+      )?.[1] || "";
+
+    assert.match(guidanceCardSource, /const warningActive = state === "off-route"/);
+    assert.match(guidanceCardSource, /warningActive \? styles\.guidanceTitleWarning : null/);
+    assert.match(guidanceCardSource, /warningActive \? styles\.guidanceMetaWarning : null/);
+    assert.match(guidanceCardSource, /warningActive \? styles\.guidanceDistanceWarning : null/);
+    assert.match(guidanceCardBlock, /backgroundColor:\s*colors\.surfaceTranslucent/);
+    assert.match(guidanceCardBlock, /borderColor:\s*colors\.glassBorder/);
+    assert.match(guidanceCardBlock, /borderRadius:\s*radius\.xl/);
+    assert.match(guidanceWarningBlock, /backgroundColor:\s*colors\.dangerSoft/);
+    assert.match(guidanceWarningBlock, /borderColor:\s*"rgba\(216, 74, 63, 0\.28\)"/);
+    assert.match(guidanceTitleBlock, /color:\s*colors\.ink/);
+    assert.match(guidanceMetaBlock, /color:\s*colors\.muted/);
+    assert.match(guidanceDistanceBlock, /color:\s*colors\.appleBlue/);
+    assert.match(guidanceStylesSource, /guidanceTitleWarning:[\s\S]*color:\s*colors\.dangerText/);
+    assert.match(guidanceStylesSource, /guidanceDistanceWarning:[\s\S]*color:\s*colors\.dangerText/);
+    assert.match(guidanceStylesSource, /guidanceRiskMetaDanger:[\s\S]*color:\s*colors\.dangerText/);
+    assert.match(guidanceStylesSource, /guidanceRiskMetaWarning:[\s\S]*color:\s*colors\.amberText/);
+    assert.match(guidanceStylesSource, /guidanceRiskMetaInfo:[\s\S]*color:\s*colors\.infoText/);
+    assert.doesNotMatch(guidanceStylesSource, /rgba\(17,\s*17,\s*19/);
+    assert.doesNotMatch(guidanceStylesSource, /rgba\(150,\s*49,\s*38/);
+  });
+
   it("keeps floating live-map controls capsule-sized and label-bounded", () => {
     const liveMapControlsSource = readFileSync(
       join(process.cwd(), "src/features/live-map/LiveMapControls.tsx"),
@@ -553,6 +604,12 @@ describe("rounded visual language", () => {
 
     assert.match(riskCardSource, /<Text numberOfLines=\{1\} style=\{styles\.riskEyebrow\}>/);
     assert.match(riskCardSource, /<Text numberOfLines=\{1\} style=\{styles\.riskDismissText\}>/);
+    assert.match(riskCardSource, /const LIVE_RISK_DETAIL_DISMISS_HIT_SLOP = 6/);
+    assert.match(riskCardSource, /hitSlop=\{LIVE_RISK_DETAIL_DISMISS_HIT_SLOP\}/);
+    assert.match(
+      riskCardSource,
+      /accessibilityHint="Closes the risk-area details and returns to the live map\."/,
+    );
     assert.match(riskEyebrowBlock, /maxWidth:\s*["']100%["']/);
     assert.match(riskDismissButtonBlock, /maxWidth:\s*96/);
     assert.match(riskDismissButtonBlock, /flexShrink:\s*0/);
@@ -855,6 +912,9 @@ describe("rounded visual language", () => {
     assert.match(liveHeaderSource, /presentation\.accessibilityLabel/);
     assert.match(liveHeaderStylesSource, /statusTextCompactNavigation/);
     assert.match(liveHeaderSource, /style=\{\(\{ pressed \}\) => \[/);
+    assert.match(liveHeaderSource, /const LIVE_ROUTE_RETURN_HIT_SLOP = 6/);
+    assert.match(liveHeaderSource, /hitSlop=\{LIVE_ROUTE_RETURN_HIT_SLOP\}/);
+    assert.equal((liveHeaderSource.match(/hitSlop=\{LIVE_ROUTE_RETURN_HIT_SLOP\}/g) || []).length, 2);
     assert.doesNotMatch(liveHeaderStylesSource, /\bbrandCluster:/);
     assert.match(headerPanelBlock, /backgroundColor:\s*colors\.surfaceGlass/);
     assert.match(headerPanelBlock, /shadowOpacity:\s*0/);
@@ -1500,7 +1560,9 @@ describe("rounded visual language", () => {
       )?.[1] || "";
 
     assert.match(routeListScreenSource, /accessibilityRole="alert"/);
+    assert.match(routeListScreenSource, /const ROUTE_LIST_ERROR_ACTION_HIT_SLOP = 6/);
     assert.match(routeListScreenSource, /accessibilityLabel=\{emptyState\.accessibilityLabel\}/);
+    assert.match(routeListScreenSource, /hitSlop=\{ROUTE_LIST_ERROR_ACTION_HIT_SLOP\}/);
     assert.match(
       routeListScreenSource,
       /style=\{\(\{ pressed \}\) => \[\s*styles\.retryButton,\s*pressed \? styles\.retryButtonPressed : null,/,

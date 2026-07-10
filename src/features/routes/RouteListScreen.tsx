@@ -39,6 +39,8 @@ import type { MobileSafeRouteClient } from "./routeMapper";
 import { colors } from "../../theme";
 import { uiTestIds } from "../../testing/uiTestIds";
 
+const ROUTE_LIST_ERROR_ACTION_HIT_SLOP = 6;
+
 interface RouteListErrorState extends BaseRouteListErrorState {
   route?: SavedSafeRoutePlan;
 }
@@ -229,6 +231,7 @@ export function RouteListScreen({
           <Pressable
             accessibilityLabel={errorState.retryAccessibilityLabel}
             accessibilityRole="button"
+            hitSlop={ROUTE_LIST_ERROR_ACTION_HIT_SLOP}
             style={({ pressed }) => [
               styles.retryButton,
               pressed ? styles.retryButtonPressed : null,

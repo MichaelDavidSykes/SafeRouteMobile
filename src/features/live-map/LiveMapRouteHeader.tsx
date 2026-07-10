@@ -16,6 +16,8 @@ import {
 import { styles } from "./LiveMapRouteHeader.styles";
 import { uiTestIds } from "../../testing/uiTestIds";
 
+const LIVE_ROUTE_RETURN_HIT_SLOP = 6;
+
 interface LiveMapRouteHeaderProps {
   activeNavigationState: NavigationLifecycle;
   layout: LiveMapOverlayLayout;
@@ -81,6 +83,7 @@ export function LiveMapRouteHeader({
               accessibilityLabel={returnAccessibilityLabel}
               accessibilityHint="Returns to the previous SafeRoute view without ending this route."
               accessibilityRole="button"
+              hitSlop={LIVE_ROUTE_RETURN_HIT_SLOP}
               testID={uiTestIds.liveMapReturn}
               style={({ pressed }) => [
                 styles.routeListButton,
@@ -126,6 +129,7 @@ export function LiveMapRouteHeader({
                 accessibilityLabel={returnAccessibilityLabel}
                 accessibilityHint="Returns to the previous SafeRoute view without ending this route."
                 accessibilityRole="button"
+                hitSlop={LIVE_ROUTE_RETURN_HIT_SLOP}
                 testID={uiTestIds.liveMapReturn}
                 style={({ pressed }) => [
                   styles.routeListButton,

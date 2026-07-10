@@ -14,9 +14,9 @@ export const guidanceCardStyles = StyleSheet.create({
     paddingVertical: spacing.sm,
     paddingHorizontal: spacing.md,
     borderWidth: 0.5,
-    borderColor: "rgba(255, 255, 255, 0.18)",
+    borderColor: colors.glassBorder,
     borderRadius: radius.xl,
-    backgroundColor: "rgba(17, 17, 19, 0.94)",
+    backgroundColor: colors.surfaceTranslucent,
     shadowOpacity: 0,
     shadowRadius: 0,
     shadowOffset: { width: 0, height: 0 },
@@ -28,14 +28,15 @@ export const guidanceCardStyles = StyleSheet.create({
     paddingHorizontal: spacing.md,
   },
   guidanceCardWarning: {
-    backgroundColor: "rgba(150, 49, 38, 0.94)",
+    borderColor: "rgba(216, 74, 63, 0.28)",
+    backgroundColor: colors.dangerSoft,
   },
   guidanceCopy: {
     flex: 1,
     minWidth: 0,
   },
   guidanceTitle: {
-    color: colors.surface,
+    color: colors.ink,
     fontSize: typeScale.lg,
     fontWeight: "800",
   },
@@ -43,11 +44,17 @@ export const guidanceCardStyles = StyleSheet.create({
     fontSize: typeScale.md,
     lineHeight: 19,
   },
+  guidanceTitleWarning: {
+    color: colors.dangerText,
+  },
   guidanceMeta: {
     marginTop: 2,
-    color: "rgba(255, 255, 255, 0.72)",
+    color: colors.muted,
     fontSize: typeScale.xs,
     fontWeight: "700",
+  },
+  guidanceMetaWarning: {
+    color: colors.dangerText,
   },
   guidanceRiskMeta: {
     marginTop: 1,
@@ -55,21 +62,24 @@ export const guidanceCardStyles = StyleSheet.create({
     fontWeight: "800",
   },
   guidanceRiskMetaDanger: {
-    color: "#FFB8AD",
+    color: colors.dangerText,
   },
   guidanceRiskMetaWarning: {
-    color: "#FFE1A8",
+    color: colors.amberText,
   },
   guidanceRiskMetaInfo: {
-    color: "rgba(255, 255, 255, 0.78)",
+    color: colors.infoText,
   },
   guidanceDistance: {
-    color: colors.surface,
+    color: colors.appleBlue,
     fontSize: typeScale.lg,
     fontWeight: "800",
   },
   guidanceDistanceCompact: {
     fontSize: typeScale.md,
+  },
+  guidanceDistanceWarning: {
+    color: colors.dangerText,
   },
   rerouteButton: {
     minWidth: 66,

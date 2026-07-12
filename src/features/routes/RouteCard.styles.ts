@@ -1,13 +1,14 @@
 import { StyleSheet } from "react-native";
 
-import { colors, controlSizes, radius, spacing, typeScale } from "../../theme";
+import { colors, radius, spacing, typeScale } from "../../theme";
 
 export const styles = StyleSheet.create({
   card: {
-    padding: 12,
+    paddingHorizontal: spacing.md,
+    paddingVertical: 12,
     borderWidth: 0.5,
     borderColor: colors.borderSoft,
-    borderRadius: radius.xl,
+    borderRadius: radius.lg,
     backgroundColor: colors.surfaceTranslucent,
     shadowOpacity: 0,
     shadowRadius: 0,
@@ -80,27 +81,34 @@ export const styles = StyleSheet.create({
     fontWeight: "700",
   },
   routeSummary: {
-    marginTop: spacing.xs,
+    minWidth: 0,
+    flex: 1,
     color: colors.inkSoft,
     fontSize: typeScale.xs,
     fontWeight: "800",
   },
+  routeFooter: {
+    minHeight: 30,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    gap: spacing.sm,
+    marginTop: 4,
+  },
   openButton: {
-    maxWidth: 96,
-    minWidth: 56,
-    minHeight: controlSizes.compact,
+    maxWidth: 84,
+    minWidth: 40,
+    minHeight: 30,
     flexShrink: 0,
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "center",
     gap: 4,
-    overflow: "hidden",
-    paddingHorizontal: spacing.sm,
-    borderRadius: radius.pill,
-    backgroundColor: colors.appleBlueSoft,
+    paddingHorizontal: 4,
+    backgroundColor: "transparent",
   },
   openButtonText: {
-    maxWidth: 72,
+    maxWidth: 64,
     flexShrink: 1,
     color: colors.appleBlue,
     fontSize: typeScale.xs,

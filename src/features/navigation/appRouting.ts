@@ -91,7 +91,7 @@ export function routePreviewReturnCopy(source: RoutePreviewSource): RoutePreview
       }
     : {
         accessibilityLabel: 'Return to saved routes',
-        label: 'Saved'
+        label: 'All routes'
       };
 }
 

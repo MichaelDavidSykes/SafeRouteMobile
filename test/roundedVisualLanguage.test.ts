@@ -255,13 +255,17 @@ describe("rounded visual language", () => {
     assert.match(liveMapControlsSource, /<Text[\s\S]*numberOfLines=\{1\}[\s\S]*styles\.controlButtonText/);
     assert.match(liveMapControlsSource, /const MAP_CONTROL_HIT_SLOP = 8/);
     assert.match(liveMapControlsSource, /hitSlop=\{MAP_CONTROL_HIT_SLOP\}/);
-    assert.match(controlButtonBlock, /maxWidth:\s*92/);
+    assert.match(controlButtonBlock, /width:\s*64/);
+    assert.match(controlButtonBlock, /maxWidth:\s*64/);
+    assert.match(controlButtonBlock, /minWidth:\s*64/);
     assert.match(controlButtonBlock, /minHeight:\s*44/);
     assert.match(controlButtonBlock, /borderRadius:\s*radius\.pill/);
     assert.match(controlButtonBlock, /backgroundColor:\s*colors\.surfaceGlass/);
     assert.match(controlButtonBlock, /shadowOpacity:\s*0/);
     assert.match(controlButtonBlock, /elevation:\s*0/);
+    assert.match(controlButtonCompactBlock, /width:\s*64/);
     assert.match(controlButtonCompactBlock, /maxWidth:\s*64/);
+    assert.match(controlButtonCompactBlock, /minWidth:\s*64/);
     assert.match(controlButtonCompactBlock, /minHeight:\s*44/);
     assert.match(controlButtonCompactBlock, /paddingHorizontal:\s*spacing\.xs/);
     assert.match(controlButtonTextBlock, /maxWidth:\s*["']100%["']/);
@@ -1174,12 +1178,13 @@ describe("rounded visual language", () => {
     assert.match(routeTitleRowBlock, /alignItems:\s*"flex-start"/);
     assert.match(routeCardStylesSource, /\brouteEndpoint:/);
     assert.match(routeCardStylesSource, /\brouteSummary:/);
-    assert.match(openButtonBlock, /maxWidth:\s*96/);
-    assert.match(openButtonBlock, /minHeight:\s*controlSizes\.compact/);
+    assert.match(cardBlock, /paddingHorizontal:\s*spacing\.md/);
+    assert.match(cardBlock, /borderRadius:\s*radius\.lg/);
+    assert.match(openButtonBlock, /maxWidth:\s*84/);
+    assert.match(openButtonBlock, /minHeight:\s*30/);
     assert.match(openButtonBlock, /flexShrink:\s*0/);
-    assert.match(openButtonBlock, /overflow:\s*"hidden"/);
-    assert.match(openButtonBlock, /borderRadius:\s*radius\.pill/);
-    assert.match(openButtonBlock, /backgroundColor:\s*colors\.appleBlueSoft/);
+    assert.match(openButtonBlock, /backgroundColor:\s*"transparent"/);
+    assert.match(routeCardStylesSource, /routeFooter:/);
     assert.match(routeCardSource, /accessibilityElementsHidden/);
     assert.match(routeCardSource, /importantForAccessibility="no-hide-descendants"/);
     assert.match(routeCardSource, /pointerEvents="none"/);
@@ -1189,7 +1194,7 @@ describe("rounded visual language", () => {
       routeCardSource,
       /<Text\s+numberOfLines=\{1\}\s+style=\{\[styles\.statusText, statusTextStyle\]\}/,
     );
-    assert.match(openButtonTextBlock, /maxWidth:\s*72/);
+    assert.match(openButtonTextBlock, /maxWidth:\s*64/);
     assert.match(openButtonTextBlock, /flexShrink:\s*1/);
     assert.match(openButtonTextBlock, /color:\s*colors\.appleBlue/);
     assert.match(statusPillBlock, /maxWidth:\s*76/);
@@ -1242,7 +1247,7 @@ describe("rounded visual language", () => {
         routeListStylesSource,
       )?.[1] || "";
     const noticeTextBlock =
-      /noticeText:\s*\{([\s\S]*?)\n  \},\n  clientTabs:/.exec(
+      /noticeText:\s*\{([\s\S]*?)\n  \},\n  clientFilter:/.exec(
         routeListStylesSource,
       )?.[1] || "";
 
@@ -1545,12 +1550,16 @@ describe("rounded visual language", () => {
       join(process.cwd(), "src/features/routes/RouteListScreen.styles.ts"),
       "utf8",
     );
-    const clientTabBlock =
-      /clientTab:\s*\{([\s\S]*?)\n  \},\n  clientTabActive:/.exec(
+    const clientSelectorBlock =
+      /clientSelectorButton:\s*\{([\s\S]*?)\n  \},\n  clientSelectorButtonOpen:/.exec(
         routeListStylesSource,
       )?.[1] || "";
-    const clientTabTextBlock =
-      /clientTabText:\s*\{([\s\S]*?)\n  \},\n  clientTabTextActive:/.exec(
+    const clientMenuBlock =
+      /clientMenu:\s*\{([\s\S]*?)\n  \},\n  clientMenuContent:/.exec(
+        routeListStylesSource,
+      )?.[1] || "";
+    const clientMenuItemBlock =
+      /clientMenuItem:\s*\{([\s\S]*?)\n  \},\n  clientMenuItemActive:/.exec(
         routeListStylesSource,
       )?.[1] || "";
     const searchBoxBlock =
@@ -1575,18 +1584,22 @@ describe("rounded visual language", () => {
     assert.equal(
       (routeListFiltersSource.match(/hitSlop=\{ROUTE_FILTER_HIT_SLOP\}/g) ?? [])
         .length,
-      2,
+      3,
     );
-    assert.match(clientTabBlock, /minHeight:\s*controlSizes\.compact/);
-    assert.match(clientTabBlock, /alignItems:\s*["']center["']/);
-    assert.match(clientTabBlock, /overflow:\s*["']hidden["']/);
-    assert.match(clientTabBlock, /borderRadius:\s*radius\.pill/);
-    assert.match(clientTabBlock, /backgroundColor:\s*colors\.surfaceGlass/);
-    assert.match(routeListFiltersSource, /<Text\s+numberOfLines=\{1\}\s+style=\{\[\s*styles\.clientTabText/);
-    assert.match(clientTabTextBlock, /maxWidth:\s*["']100%["']/);
-    assert.match(clientTabTextBlock, /flexShrink:\s*1/);
-    assert.match(clientTabTextBlock, /textAlign:\s*["']center["']/);
-    assert.doesNotMatch(clientTabBlock, /surfaceElevated/);
+    assert.match(routeListFiltersSource, /Tenant filter, \$\{selectedClientOption\.label\}/);
+    assert.match(routeListFiltersSource, /accessibilityState=\{\{ expanded: clientMenuOpen \}\}/);
+    assert.match(routeListFiltersSource, /clientMenuOpen \? "Close" : "Change"/);
+    assert.match(routeListFiltersSource, /nestedScrollEnabled/);
+    assert.match(clientSelectorBlock, /minHeight:\s*controlSizes\.secondary/);
+    assert.match(clientSelectorBlock, /alignItems:\s*["']center["']/);
+    assert.match(clientSelectorBlock, /justifyContent:\s*["']space-between["']/);
+    assert.match(clientSelectorBlock, /borderRadius:\s*radius\.lg/);
+    assert.match(clientSelectorBlock, /backgroundColor:\s*colors\.surfaceGlass/);
+    assert.match(clientMenuBlock, /maxHeight:\s*220/);
+    assert.match(clientMenuBlock, /overflow:\s*["']hidden["']/);
+    assert.match(clientMenuItemBlock, /minHeight:\s*controlSizes\.secondary/);
+    assert.match(clientMenuItemBlock, /borderRadius:\s*radius\.lg/);
+    assert.doesNotMatch(clientSelectorBlock, /surfaceElevated/);
     assert.match(routeListFiltersSource, /accessibilityLabel="Search saved routes"/);
     assert.match(routeListFiltersSource, /maxLength=\{ROUTE_LIST_QUERY_INPUT_MAX_LENGTH\}/);
     assert.match(routeListFiltersSource, /placeholder="Find route"/);

@@ -85,38 +85,87 @@ export const routeListStyles = StyleSheet.create({
     lineHeight: 18,
     textAlign: "center",
   },
-  clientTabs: {
-    gap: spacing.sm,
-    paddingBottom: spacing.sm,
+  clientFilter: {
+    marginBottom: spacing.sm,
   },
-  clientTab: {
-    maxWidth: 160,
-    minHeight: controlSizes.compact,
+  clientSelectorButton: {
+    minHeight: controlSizes.secondary,
+    flexDirection: "row",
     alignItems: "center",
-    justifyContent: "center",
-    overflow: "hidden",
+    justifyContent: "space-between",
+    gap: spacing.sm,
     paddingHorizontal: spacing.md,
     borderWidth: 0.5,
     borderColor: colors.borderSoft,
-    borderRadius: radius.pill,
+    borderRadius: radius.lg,
     backgroundColor: colors.surfaceGlass,
   },
-  clientTabActive: {
-    backgroundColor: colors.appleBlue,
+  clientSelectorButtonOpen: {
+    borderColor: colors.appleBlue,
+    backgroundColor: colors.surfaceTranslucent,
   },
-  clientTabPressed: {
+  clientSelectorButtonPressed: {
     transform: [{ scale: 0.985 }],
   },
-  clientTabText: {
-    maxWidth: "100%",
-    flexShrink: 1,
+  clientSelectorCopy: {
+    minWidth: 0,
+    flex: 1,
+    flexDirection: "row",
+    alignItems: "center",
+    gap: spacing.sm,
+  },
+  clientSelectorLabel: {
+    flexShrink: 0,
+    color: colors.muted,
+    fontSize: typeScale.xs,
+    fontWeight: "700",
+  },
+  clientSelectorValue: {
+    minWidth: 0,
+    flex: 1,
     color: colors.ink,
     fontSize: typeScale.sm,
     fontWeight: "800",
-    textAlign: "center",
   },
-  clientTabTextActive: {
-    color: colors.surface,
+  clientSelectorAction: {
+    flexShrink: 0,
+    color: colors.appleBlue,
+    fontSize: typeScale.xs,
+    fontWeight: "800",
+  },
+  clientMenu: {
+    maxHeight: 220,
+    marginTop: spacing.xs,
+    overflow: "hidden",
+    borderWidth: 0.5,
+    borderColor: colors.borderSoft,
+    borderRadius: radius.lg,
+    backgroundColor: colors.surfaceTranslucent,
+  },
+  clientMenuContent: {
+    padding: 4,
+  },
+  clientMenuItem: {
+    minHeight: controlSizes.secondary,
+    justifyContent: "center",
+    paddingHorizontal: spacing.sm,
+    borderRadius: radius.lg,
+    backgroundColor: "transparent",
+  },
+  clientMenuItemActive: {
+    backgroundColor: colors.appleBlueSoft,
+  },
+  clientMenuItemPressed: {
+    backgroundColor: colors.surfaceGlass,
+  },
+  clientMenuItemText: {
+    color: colors.ink,
+    fontSize: typeScale.sm,
+    fontWeight: "700",
+  },
+  clientMenuItemTextActive: {
+    color: colors.appleBlue,
+    fontWeight: "900",
   },
   searchBox: {
     minHeight: controlSizes.secondary,
@@ -245,7 +294,7 @@ export const routeListStyles = StyleSheet.create({
     fontWeight: "800",
   },
   routeList: {
-    gap: spacing.sm,
+    gap: 8,
     paddingTop: spacing.xs,
     paddingBottom: spacing.xl,
   },

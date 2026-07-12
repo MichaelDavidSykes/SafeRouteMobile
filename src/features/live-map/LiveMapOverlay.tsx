@@ -50,6 +50,7 @@ interface LiveMapOverlayProps {
   riskAdvisory?: RouteRiskAdvisory | null;
   reroutePresentation?: LiveReroutePresentation | null;
   rerouteUnavailable: boolean;
+  rerouteUnavailableReason?: "cooldown" | "failed" | "location";
   returnAccessibilityLabel: string;
   returnLabel: string;
   routeContext: "guest" | "saved";
@@ -86,6 +87,7 @@ export function LiveMapOverlay({
   riskAdvisory,
   reroutePresentation,
   rerouteUnavailable,
+  rerouteUnavailableReason,
   returnAccessibilityLabel,
   returnLabel,
   routeContext,
@@ -121,6 +123,7 @@ export function LiveMapOverlay({
         routeIntelCount={routePlan.riskZones.length}
         reroutePending={reroutePresentation?.status === "pending"}
         rerouteUnavailable={rerouteUnavailable}
+        rerouteUnavailableReason={rerouteUnavailableReason}
       />
 
       {shouldShowGuidanceCard(activeNavigationState) ? (

@@ -45,6 +45,7 @@ import {
   saveOfflineRoutes,
 } from "./offlineRouteCache";
 import { hasUsableRoutePlan } from "./offlineRouteCacheCore";
+import { useNetworkAvailability } from "../api/useNetworkAvailability";
 
 const ROUTE_LIST_ERROR_ACTION_HIT_SLOP = 6;
 
@@ -71,6 +72,7 @@ export function RouteListScreen({
   sessionNotice,
   userEmail,
 }: RouteListScreenProps) {
+  const { offline } = useNetworkAvailability();
   const [query, setQuery] = useState("");
   const [clients, setClients] = useState<MobileSafeRouteClient[]>([]);
   const [selectedClientId, setSelectedClientId] = useState<string | null>(null);
@@ -92,6 +94,28 @@ export function RouteListScreen({
       }
       setErrorState(null);
 
+      const cached = refresh
+        ? null
+        : await loadOfflineRoutes(userEmail, selectedClientId);
+      if (cached) {
+        setClients(cached.clients);
+        setRoutes(cached.routes);
+        setLoading(false);
+        if (offline) {
+          setShowingOfflineCopy(true);
+          setRefreshing(false);
+          return;
+        }
+        setRefreshing(true);
+      } else if (offline) {
+        setErrorState(
+          createRouteSyncErrorState(new TypeError("Network request failed")),
+        );
+        setLoading(false);
+        setRefreshing(false);
+        return;
+      }
+
       try {
         const result = await fetchSavedRoutes(
           accessToken,
@@ -109,10 +133,11 @@ export function RouteListScreen({
           onSessionExpired(error.message);
           return;
         }
-        const cached = await loadOfflineRoutes(userEmail, selectedClientId);
-        if (cached) {
-          setClients(cached.clients);
-          setRoutes(cached.routes);
+        const offlineCopy =
+          cached || (await loadOfflineRoutes(userEmail, selectedClientId));
+        if (offlineCopy) {
+          setClients(offlineCopy.clients);
+          setRoutes(offlineCopy.routes);
           setShowingOfflineCopy(true);
         } else {
           setErrorState(createRouteSyncErrorState(error));
@@ -122,7 +147,7 @@ export function RouteListScreen({
         setRefreshing(false);
       }
     },
-    [accessToken, onSessionExpired, selectedClientId, userEmail],
+    [accessToken, offline, onSessionExpired, selectedClientId, userEmail],
   );
 
   useEffect(() => {
@@ -184,6 +209,18 @@ export function RouteListScreen({
   const handleSelectRoute = async (route: SavedSafeRoutePlan) => {
     setDetailLoadingId(route.id);
     setErrorState(null);
+
+    if (offline) {
+      const cached =
+        (await loadOfflineRouteDetail(userEmail, route.id)) ||
+        (hasUsableRoutePlan(route) ? route : null);
+      if (cached) {
+        setShowingOfflineCopy(true);
+        setDetailLoadingId(null);
+        onSelectRoute(cached);
+        return;
+      }
+    }
 
     try {
       const routeDetail = await fetchRouteDetail(accessToken, route.id);

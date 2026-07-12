@@ -65,6 +65,7 @@ interface MapControlAccessibilityOptions {
   disabled?: boolean;
   driveAlongActive?: boolean;
   hasLiveLocation?: boolean;
+  rerouteUnavailableReason?: 'cooldown' | 'failed' | 'location';
 }
 
 interface ControlAccessibilityCopy {
@@ -364,7 +365,11 @@ export function mapControlAccessibility(
         hint: active
           ? 'A new risk-aware route is being calculated.'
           : disabled
-            ? 'A reliable live location is required before rerouting.'
+            ? options.rerouteUnavailableReason === 'cooldown'
+              ? 'Rerouting will be available again after the current route stabilizes.'
+              : options.rerouteUnavailableReason === 'failed'
+                ? 'Use Retry in the guidance card to try the failed reroute again.'
+                : 'A reliable live location is required before rerouting.'
             : 'Finds a new risk-aware route from your current location.',
         state: { disabled, selected: active }
       };

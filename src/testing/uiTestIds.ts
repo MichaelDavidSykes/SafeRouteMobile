@@ -51,6 +51,7 @@ export const uiTestIds = {
   liveMapResumeAction: "safe-route-resume-action",
   liveMapReturn: "safe-route-return",
   liveMapRouteSummarySheet: "safe-route-summary-sheet",
+  liveMapSavedRouteDetails: "safe-route-saved-details",
   liveMapRemainingMetrics: "safe-route-remaining-metrics",
   liveMapControl: (control: string) =>
     `safe-route-control-${normalizeTestIdSegment(control)}`,

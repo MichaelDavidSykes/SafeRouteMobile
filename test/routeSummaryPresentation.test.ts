@@ -13,6 +13,7 @@ import {
   createRouteSummaryRemainingMetric,
   createRouteSummarySafetyBadge,
   createRouteSummaryTitle,
+  createSavedRouteContextDetail,
   ROUTE_SUMMARY_SAFETY_BADGE_MAX_LENGTH,
   ROUTE_SUMMARY_VISIBLE_RISK_NOTE_LIMIT,
   shouldShowRouteSummarySafetyBadge,
@@ -20,6 +21,24 @@ import {
 } from "../src/features/live-map/routeSummaryPresentation";
 
 describe("live route summary presentation", () => {
+  it("shows the saved web route context needed before starting navigation", () => {
+    assert.deepEqual(
+      createSavedRouteContextDetail({
+        convoyCallsign: "Alpha",
+        operation: "Airport transfer",
+        routePlanName: "City Airport transfer",
+        updatedAtLabel: "Updated 4 min ago",
+        waypointCount: 2,
+      }),
+      {
+        accessibilityLabel:
+          "City Airport transfer. Operation Airport transfer. Convoy Alpha. 2 stops. Updated 4 min ago.",
+        primary: "Airport transfer · Alpha",
+        secondary: "2 stops · Updated 4 min ago",
+      },
+    );
+  });
+
   it("maps navigation lifecycle to the primary route action copy", () => {
     assert.deepEqual(createRouteSummaryPrimaryAction("stopped"), {
       label: "Start",

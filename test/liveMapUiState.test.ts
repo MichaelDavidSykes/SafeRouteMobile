@@ -323,9 +323,19 @@ describe('live map UI state helpers', () => {
       state: { disabled: false, selected: true }
     });
     assert.deepEqual(mapControlAccessibility('reroute'), {
-      label: 'Reroute unavailable',
-      hint: 'Dynamic rerouting is not available in this version yet.',
-      state: { disabled: true }
+      label: 'Reroute from current location',
+      hint: 'Finds a new risk-aware route from your current location.',
+      state: { disabled: false, selected: false }
+    });
+    assert.deepEqual(mapControlAccessibility('reroute', { disabled: true }), {
+      label: 'Reroute from current location',
+      hint: 'A reliable live location is required before rerouting.',
+      state: { disabled: true, selected: false }
+    });
+    assert.deepEqual(mapControlAccessibility('reroute', { active: true, disabled: true }), {
+      label: 'Finding a safer route',
+      hint: 'A new risk-aware route is being calculated.',
+      state: { disabled: true, selected: true }
     });
   });
 
@@ -338,6 +348,7 @@ describe('live map UI state helpers', () => {
     assert.equal(mapControlDisplayLabel('follow', { driveAlongActive: true }), 'Drive');
     assert.equal(mapControlDisplayLabel('intelligence'), 'Risk');
     assert.equal(mapControlDisplayLabel('reroute'), 'Reroute');
+    assert.equal(mapControlDisplayLabel('reroute', { active: true }), 'Routing');
   });
 
   it('hides route-intelligence chrome when a route has no overlays', () => {
@@ -359,11 +370,11 @@ describe('live map UI state helpers', () => {
     );
     assert.deepEqual(
       resolveVisibleMapControls({ routeIntelCount: 3, state: 'navigating' }),
-      ['fit', 'follow']
+      ['fit', 'follow', 'reroute']
     );
     assert.deepEqual(
       resolveVisibleMapControls({ routeIntelCount: 3, state: 'off-route' }),
-      ['fit', 'follow']
+      ['fit', 'follow', 'reroute']
     );
     assert.deepEqual(
       resolveVisibleMapControls({ routeIntelCount: 3, state: 'paused' }),

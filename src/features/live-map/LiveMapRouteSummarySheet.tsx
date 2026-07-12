@@ -20,6 +20,7 @@ import {
   createRouteSummaryPrimaryAction,
   createRouteSummaryRemainingMetric,
   createRouteSummarySafetyBadge,
+  createSavedRouteContextDetail,
   shouldShowRouteSummarySafetyBadge,
   shouldUseCompactRouteSummary,
   type RouteSummarySafetyBadge,
@@ -101,6 +102,15 @@ export function LiveMapRouteSummarySheet({
     routeRiskLabel: route.riskLabel,
     safeScore: route.safeScore,
   });
+  const savedRouteContext = createSavedRouteContextDetail({
+    convoyCallsign: routePlan.convoyCallsign,
+    operation: routePlan.operation,
+    routePlanName: routePlan.name,
+    updatedAtLabel: routePlan.updatedAtLabel,
+    waypointCount: routePlan.checkpoints.filter(
+      (checkpoint) => checkpoint.kind === "waypoint",
+    ).length,
+  });
 
   return (
     <View
@@ -161,6 +171,22 @@ export function LiveMapRouteSummarySheet({
           />
         ) : null}
       </View>
+
+      {!compactRouteSummary && routeContext === "saved" ? (
+        <View
+          accessible
+          accessibilityLabel={savedRouteContext.accessibilityLabel}
+          testID={uiTestIds.liveMapSavedRouteDetails}
+          style={styles.savedRouteContext}
+        >
+          <Text numberOfLines={1} style={styles.savedRouteContextPrimary}>
+            {savedRouteContext.primary}
+          </Text>
+          <Text numberOfLines={1} style={styles.savedRouteContextSecondary}>
+            {savedRouteContext.secondary}
+          </Text>
+        </View>
+      ) : null}
 
       {backgroundNavigationPresentation ? (
         <Pressable

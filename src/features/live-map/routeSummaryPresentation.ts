@@ -37,6 +37,38 @@ export type RouteSummarySafetyBadge = {
   text: string;
 };
 
+export type SavedRouteContextDetail = {
+  accessibilityLabel: string;
+  primary: string;
+  secondary: string;
+};
+
+export function createSavedRouteContextDetail({
+  convoyCallsign,
+  operation,
+  routePlanName,
+  updatedAtLabel,
+  waypointCount,
+}: {
+  convoyCallsign: string;
+  operation: string;
+  routePlanName: string;
+  updatedAtLabel: string;
+  waypointCount: number;
+}): SavedRouteContextDetail {
+  const normalizedOperation = normalizeInlineCopy(operation) || "SafeRoute plan";
+  const normalizedConvoy = normalizeInlineCopy(convoyCallsign) || "Convoy";
+  const normalizedUpdated = normalizeInlineCopy(updatedAtLabel) || "Update time unavailable";
+  const stopCount = Math.max(0, Math.floor(waypointCount));
+  const stops = `${stopCount} stop${stopCount === 1 ? "" : "s"}`;
+  const name = normalizeInlineCopy(routePlanName) || "Saved route";
+  return {
+    accessibilityLabel: `${name}. Operation ${normalizedOperation}. Convoy ${normalizedConvoy}. ${stops}. ${normalizedUpdated}.`,
+    primary: `${normalizedOperation} · ${normalizedConvoy}`,
+    secondary: `${stops} · ${normalizedUpdated}`,
+  };
+}
+
 export function createRouteSummaryPrimaryAction(
   state: NavigationLifecycle,
   disabledReason?: string | null,

@@ -58,6 +58,7 @@ import {
   resolveLiveRerouteFailure,
   resolveLiveRerouteSuccess,
   requestImmediateLiveReroute,
+  requestManualLiveReroute,
   retryFailedLiveReroute,
   startLiveRerouteMonitoring,
   stopLiveRerouteMonitoring,
@@ -630,6 +631,28 @@ export function LiveMapScreen({
     void executeLiveReroute(transition.request);
   };
 
+  const handleManualReroute = () => {
+    if (!rawVehicleCoordinate || !progress || !Number.isFinite(timestampMs)) {
+      return;
+    }
+    const transition = requestManualLiveReroute(
+      rerouteStateRef.current,
+      {
+        coordinate: rawVehicleCoordinate,
+        distanceFromRouteMeters: progress.offRouteDistanceMeters,
+        horizontalAccuracyMeters:
+          typeof coordinate?.accuracy === "number" ? coordinate.accuracy : null,
+        timestampMs: timestampMs as number,
+      },
+      timestampMs as number,
+    );
+    if (!transition.request) {
+      return;
+    }
+    commitRerouteState(transition.state);
+    void executeLiveReroute(transition.request);
+  };
+
   useEffect(() => {
     const nextResumeSession =
       initialNavigationSession?.routePlan.route.id === routePlan.route.id
@@ -1017,6 +1040,7 @@ export function LiveMapScreen({
         onFitRoute={fitRouteFromControl}
         onOpenRiskAlert={handleOpenRiskAlert}
         onPrimaryAction={handlePrimaryNavigationAction}
+        onReroute={handleManualReroute}
         onRetryReroute={handleRetryReroute}
         returnAccessibilityLabel={returnAccessibilityLabel}
         returnLabel={returnLabel}
@@ -1029,6 +1053,12 @@ export function LiveMapScreen({
         liveRiskAlert={liveRiskAlert}
         riskAdvisory={riskAdvisory}
         reroutePresentation={reroutePresentation}
+        rerouteUnavailable={
+          !rerouteMonitoringActive ||
+          !rawVehicleCoordinate ||
+          !progress ||
+          !Number.isFinite(timestampMs)
+        }
         routePlan={liveRoutePlan}
         selectedRiskProximity={selectedRiskProximity}
         selectedRiskZone={selectedRiskZone}

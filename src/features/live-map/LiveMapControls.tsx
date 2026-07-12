@@ -21,9 +21,12 @@ interface LiveMapControlsProps {
   layout: LiveMapOverlayLayout;
   onCenterVehicle: () => void;
   onFitRoute: () => void;
+  onReroute: () => void;
   onSetAlertsVisible: (updater: (value: boolean) => boolean) => void;
   onSetFollowModeEnabled: (updater: (value: boolean) => boolean) => void;
   routeIntelCount: number;
+  reroutePending: boolean;
+  rerouteUnavailable: boolean;
 }
 
 export function LiveMapControls({
@@ -34,9 +37,12 @@ export function LiveMapControls({
   layout,
   onCenterVehicle,
   onFitRoute,
+  onReroute,
   onSetAlertsVisible,
   onSetFollowModeEnabled,
   routeIntelCount,
+  reroutePending,
+  rerouteUnavailable,
 }: LiveMapControlsProps) {
   const driveAlongActive = shouldShowDriveAlongControl(activeNavigationState);
   const compactControls = layout.mapControlsDirection === "row";
@@ -87,6 +93,15 @@ export function LiveMapControls({
           active={alertsVisible}
           compact={compactControls}
           onPress={() => onSetAlertsVisible((value) => !value)}
+        />
+      ) : null}
+      {visibleControls.includes("reroute") ? (
+        <MapControlButton
+          control="reroute"
+          active={reroutePending}
+          compact={compactControls}
+          disabled={reroutePending || rerouteUnavailable}
+          onPress={onReroute}
         />
       ) : null}
     </View>

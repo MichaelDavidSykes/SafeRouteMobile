@@ -33,26 +33,65 @@ export function RouteListFilters({
   showSummary,
 }: RouteListFiltersProps) {
   const [searchFocused, setSearchFocused] = useState(false);
+  const [clientMenuOpen, setClientMenuOpen] = useState(false);
+  const selectedClientOption =
+    clientFilterOptions.find((option) => option.selected) ||
+    clientFilterOptions[0];
 
   return (
     <>
-      {showClientFilters ? (
-        <ScrollView
-          horizontal
-          showsHorizontalScrollIndicator={false}
-          contentContainerStyle={styles.clientTabs}
-        >
-          {clientFilterOptions.map((option) => (
-            <ClientTab
-              key={option.id || "all-clients"}
-              accessibilityHint={option.accessibilityHint}
-              accessibilityLabel={option.accessibilityLabel}
-              label={option.label}
-              active={option.selected}
-              onPress={() => onSelectClient(option.id)}
-            />
-          ))}
-        </ScrollView>
+      {showClientFilters && selectedClientOption ? (
+        <View style={styles.clientFilter}>
+          <Pressable
+            accessibilityHint="Opens the tenant filter menu."
+            accessibilityLabel={`Tenant filter, ${selectedClientOption.label}`}
+            accessibilityRole="button"
+            accessibilityState={{ expanded: clientMenuOpen }}
+            hitSlop={ROUTE_FILTER_HIT_SLOP}
+            style={({ pressed }) => [
+              styles.clientSelectorButton,
+              clientMenuOpen ? styles.clientSelectorButtonOpen : null,
+              pressed ? styles.clientSelectorButtonPressed : null,
+            ]}
+            onPress={() => setClientMenuOpen((open) => !open)}
+          >
+            <View style={styles.clientSelectorCopy}>
+              <Text numberOfLines={1} style={styles.clientSelectorLabel}>
+                Tenant
+              </Text>
+              <Text numberOfLines={1} style={styles.clientSelectorValue}>
+                {selectedClientOption.label}
+              </Text>
+            </View>
+            <Text numberOfLines={1} style={styles.clientSelectorAction}>
+              {clientMenuOpen ? "Close" : "Change"}
+            </Text>
+          </Pressable>
+
+          {clientMenuOpen ? (
+            <View style={styles.clientMenu}>
+              <ScrollView
+                nestedScrollEnabled
+                showsVerticalScrollIndicator={false}
+                contentContainerStyle={styles.clientMenuContent}
+              >
+                {clientFilterOptions.map((option) => (
+                  <ClientMenuItem
+                    key={option.id || "all-clients"}
+                    accessibilityHint={option.accessibilityHint}
+                    accessibilityLabel={option.accessibilityLabel}
+                    active={option.selected}
+                    label={option.label}
+                    onPress={() => {
+                      setClientMenuOpen(false);
+                      onSelectClient(option.id);
+                    }}
+                  />
+                ))}
+              </ScrollView>
+            </View>
+          ) : null}
+        </View>
       ) : null}
 
       {showSearch ? (
@@ -115,7 +154,7 @@ export function RouteListFilters({
   );
 }
 
-function ClientTab({
+function ClientMenuItem({
   accessibilityHint,
   accessibilityLabel,
   active,
@@ -136,17 +175,17 @@ function ClientTab({
       accessibilityState={{ selected: active }}
       hitSlop={ROUTE_FILTER_HIT_SLOP}
       style={({ pressed }) => [
-        styles.clientTab,
-        active ? styles.clientTabActive : null,
-        pressed ? styles.clientTabPressed : null,
+        styles.clientMenuItem,
+        active ? styles.clientMenuItemActive : null,
+        pressed ? styles.clientMenuItemPressed : null,
       ]}
       onPress={onPress}
     >
       <Text
         numberOfLines={1}
         style={[
-          styles.clientTabText,
-          active ? styles.clientTabTextActive : null,
+          styles.clientMenuItemText,
+          active ? styles.clientMenuItemTextActive : null,
         ]}
       >
         {label}

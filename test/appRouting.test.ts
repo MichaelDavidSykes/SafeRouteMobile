@@ -65,7 +65,7 @@ describe('app routing security gates', () => {
     });
     assert.deepEqual(routePreviewReturnCopy('saved'), {
       accessibilityLabel: 'Return to saved routes',
-      label: 'Saved'
+      label: 'All routes'
     });
     assert.equal(screenAfterRoutePreview('guest', true), 'guest-map');
     assert.equal(screenAfterRoutePreview('saved', true), 'routes');

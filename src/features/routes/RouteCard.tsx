@@ -44,6 +44,15 @@ export function RouteCard({ loading, onPress, route }: RouteCardProps) {
           {shouldShowRouteStatusPill(route.status) ? (
             <StatusPill status={route.status} />
           ) : null}
+        </View>
+
+        <Text numberOfLines={1} style={styles.routeEndpoint}>
+          {presentation.endpointLabel}
+        </Text>
+        <View style={styles.routeFooter}>
+          <Text numberOfLines={1} style={styles.routeSummary}>
+            {presentation.summaryLabel}
+          </Text>
           <View
             accessibilityElementsHidden
             importantForAccessibility="no-hide-descendants"
@@ -58,13 +67,6 @@ export function RouteCard({ loading, onPress, route }: RouteCardProps) {
             </Text>
           </View>
         </View>
-
-        <Text numberOfLines={1} style={styles.routeEndpoint}>
-          {presentation.endpointLabel}
-        </Text>
-        <Text numberOfLines={1} style={styles.routeSummary}>
-          {presentation.summaryLabel}
-        </Text>
       </View>
     </Pressable>
   );

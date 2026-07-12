@@ -24,8 +24,9 @@ export const styles = StyleSheet.create({
     gap: 6,
   },
   controlButton: {
-    maxWidth: 92,
-    minWidth: 54,
+    width: 64,
+    maxWidth: 64,
+    minWidth: 64,
     minHeight: 44,
     alignItems: "center",
     justifyContent: "center",
@@ -40,8 +41,9 @@ export const styles = StyleSheet.create({
     elevation: 0,
   },
   controlButtonCompact: {
+    width: 64,
     maxWidth: 64,
-    minWidth: 50,
+    minWidth: 64,
     minHeight: 44,
     paddingHorizontal: spacing.xs,
     shadowOpacity: 0,

@@ -134,7 +134,7 @@ const DEFAULT_REGION: Region = {
 };
 
 const DEFAULT_RISK_RADIUS_METERS = 250;
-const MAX_RISK_RADIUS_METERS = 50000;
+const MAX_RISK_RADIUS_METERS = 10000;
 
 const severityColors: Record<RiskSeverity, { marker: string; stroke: string; fill: string }> = {
   low: {

@@ -3,6 +3,7 @@ import { StyleSheet } from "react-native";
 import MapView, { Polyline, type LatLng } from "react-native-maps";
 
 import type { PermissionStatus } from "./liveLocationState";
+import type { RouteRiskProximity } from "./routeRisk";
 import type { RiskZone, SavedSafeRoutePlan } from "./liveMapTypes";
 import type { NavigationLifecycle } from "./liveMapUiState";
 import { shouldShowNativeUserLocation } from "./liveMapUiState";
@@ -27,11 +28,13 @@ interface LiveMapCanvasProps {
   onMapReady: () => void;
   onPanDrag: () => void;
   onRiskZonePress: (zone: RiskZone) => void;
+  onDismissRiskDetail: () => void;
   offline: boolean;
   permissionStatus: PermissionStatus;
   progressCoordinates: LatLng[];
   routePlan: SavedSafeRoutePlan;
   selectedRiskZoneId?: string | null;
+  selectedRiskProximity?: RouteRiskProximity | null;
   vehicleCoordinate: LatLng | null;
   visibleRiskZones: RiskZone[];
 }
@@ -45,11 +48,13 @@ export function LiveMapCanvas({
   onMapReady,
   onPanDrag,
   onRiskZonePress,
+  onDismissRiskDetail,
   offline,
   permissionStatus,
   progressCoordinates,
   routePlan,
   selectedRiskZoneId,
+  selectedRiskProximity,
   vehicleCoordinate,
   visibleRiskZones,
 }: LiveMapCanvasProps) {
@@ -135,7 +140,9 @@ export function LiveMapCanvas({
           active={zone.id === activeRiskZoneId}
           routeCoordinates={routeCoordinates}
           selected={zone.id === selectedRiskZoneId}
+          proximity={zone.id === selectedRiskZoneId ? selectedRiskProximity : null}
           zone={zone}
+          onDismiss={onDismissRiskDetail}
           onPress={onRiskZonePress}
         />
       ))}

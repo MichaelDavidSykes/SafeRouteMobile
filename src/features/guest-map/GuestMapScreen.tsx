@@ -88,7 +88,6 @@ import {
 const GUEST_ROUTE_PROVIDER_UI_TIMEOUT_MS = 15000;
 const GUEST_LOCATION_SEARCH_DEBOUNCE_MS = 320;
 const GUEST_LOCATION_SEARCH_MIN_LENGTH = 2;
-const GUEST_RISK_DETAIL_DISMISS_HIT_SLOP = 6;
 const GUEST_WAYPOINT_ACTION_HIT_SLOP = 6;
 
 type GuestRoadRoutePreviewFetcher = (
@@ -835,6 +834,7 @@ export function GuestMapScreen({
             key={zone.id}
             selected={selectedRiskZone?.id === zone.id}
             zone={zone}
+            onDismiss={() => setSelectedRiskZone(null)}
             onPress={handleSelectRiskZone}
           />
         ))}
@@ -959,10 +959,6 @@ export function GuestMapScreen({
             </Text>
           </Pressable>
         </View>
-
-        {selectedRiskZone ? (
-          <GuestRiskDetail zone={selectedRiskZone} onDismiss={() => setSelectedRiskZone(null)} />
-        ) : null}
 
         {mapAction ? (
           <View
@@ -1419,48 +1415,6 @@ function LocationSearchResults({
           {message}
         </Text>
       ) : null}
-    </View>
-  );
-}
-
-function GuestRiskDetail({
-  onDismiss,
-  zone
-}: {
-  onDismiss: () => void;
-  zone: RiskZone;
-}) {
-  return (
-    <View
-      accessible
-      accessibilityLabel={`${zone.title}. ${zone.severity} risk. ${zone.description}`}
-      style={styles.guestRiskDetail}
-      testID={uiTestIds.liveMapRiskDetail}
-    >
-      <View style={styles.guestRiskDetailHeader}>
-        <View style={styles.guestRiskDetailCopy}>
-          <Text style={styles.guestRiskEyebrow}>Risk area</Text>
-          <Text numberOfLines={1} style={styles.guestRiskTitle}>{zone.title}</Text>
-        </View>
-        <Pressable
-          accessibilityHint="Closes the risk-area details and returns to the map."
-          accessibilityLabel="Close risk details"
-          accessibilityRole="button"
-          hitSlop={GUEST_RISK_DETAIL_DISMISS_HIT_SLOP}
-          testID={uiTestIds.liveMapRiskDetailDismiss}
-          style={({ pressed }) => [
-            styles.guestRiskDismiss,
-            pressed ? styles.guestRiskDismissPressed : null
-          ]}
-          onPress={onDismiss}
-        >
-          <Text numberOfLines={1} style={styles.guestRiskDismissText}>Done</Text>
-        </Pressable>
-      </View>
-      <Text numberOfLines={1} style={styles.guestRiskMeta}>
-        {zone.severity.charAt(0).toUpperCase() + zone.severity.slice(1)} · {zone.category}
-      </Text>
-      <Text numberOfLines={3} style={styles.guestRiskBody}>{zone.description}</Text>
     </View>
   );
 }

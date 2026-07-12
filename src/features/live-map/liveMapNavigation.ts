@@ -36,6 +36,7 @@ export interface DriveAlongCameraPose {
 
 export interface NavigationVehicleCoordinateOptions {
   fallbackCoordinate?: LatLng | null;
+  navigationActive?: boolean;
   progress: RouteProgressSnapshot | null;
   rawVehicleCoordinate?: LatLng | null;
 }
@@ -111,11 +112,19 @@ export function shouldSuspendDriveAlongCamera(
 
 export function resolveNavigationVehicleCoordinate({
   fallbackCoordinate,
+  navigationActive = false,
   progress,
   rawVehicleCoordinate,
 }: NavigationVehicleCoordinateOptions): LatLng | null {
   if (progress?.isOffRoute && rawVehicleCoordinate) {
     return rawVehicleCoordinate;
+  }
+
+  // A route endpoint is useful while reviewing a route, but it is not a valid
+  // vehicle location. Waiting for a real/recovered location sample prevents a
+  // resumed guidance session from briefly flying to the start of the route.
+  if (navigationActive && !progress && !rawVehicleCoordinate) {
+    return null;
   }
 
   return (

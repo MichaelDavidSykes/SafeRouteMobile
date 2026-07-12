@@ -10,11 +10,16 @@ describe('viewport risk hook integration contract', () => {
   );
 
   it('debounces, aborts stale requests, and uses the bounded cache', () => {
-    assert.match(source, /VIEWPORT_RISK_DEBOUNCE_MS\s*=\s*280/);
+    assert.match(source, /VIEWPORT_RISK_DEBOUNCE_MS\s*=\s*140/);
+    assert.match(source, /VIEWPORT_RISK_TIMEOUT_MS\s*=\s*6000/);
     assert.match(source, /new AbortController\(\)/);
     assert.match(source, /requestRevisionRef\.current !== revision/);
     assert.match(source, /getCachedViewportRiskZones/);
     assert.match(source, /cacheViewportRiskZones/);
+    assert.match(source, /Promise\.allSettled/);
+    assert.match(source, /setZones\(mergeRiskZonesById\(\.\.\.cachedZones, \.\.\.receivedZones\)\)/);
+    assert.doesNotMatch(source, /detailMaxRecords:\s*120/);
+    assert.doesNotMatch(source, /regionalMaxRecords:\s*60/);
   });
 
   it('exposes calm loading, empty, retryable error, and zoom-gate states', () => {

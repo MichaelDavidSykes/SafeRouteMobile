@@ -8,6 +8,7 @@ import type { RiskZone, SavedSafeRoutePlan } from "./liveMapTypes";
 import type { NavigationLifecycle } from "./liveMapUiState";
 import { shouldShowNativeUserLocation } from "./liveMapUiState";
 import { CheckpointMarker, RiskOverlay, VehicleMarker } from "./LiveMapMarkers";
+import { LiveMapRiskDetailCallout } from "./LiveMapRiskDetailCallout";
 import { resolveRouteLinePresentation } from "./routeLinePresentation";
 import { uiTestIds } from "../../testing/uiTestIds";
 import {
@@ -34,6 +35,7 @@ interface LiveMapCanvasProps {
   progressCoordinates: LatLng[];
   routePlan: SavedSafeRoutePlan;
   selectedRiskZoneId?: string | null;
+  selectedRiskZone?: RiskZone | null;
   selectedRiskProximity?: RouteRiskProximity | null;
   vehicleCoordinate: LatLng | null;
   visibleRiskZones: RiskZone[];
@@ -54,6 +56,7 @@ export function LiveMapCanvas({
   progressCoordinates,
   routePlan,
   selectedRiskZoneId,
+  selectedRiskZone,
   selectedRiskProximity,
   vehicleCoordinate,
   visibleRiskZones,
@@ -73,7 +76,8 @@ export function LiveMapCanvas({
   });
 
   return (
-    <MapView
+    <>
+      <MapView
       ref={mapRef}
       testID={uiTestIds.liveMapCanvas}
       style={StyleSheet.absoluteFill}
@@ -140,9 +144,7 @@ export function LiveMapCanvas({
           active={zone.id === activeRiskZoneId}
           routeCoordinates={routeCoordinates}
           selected={zone.id === selectedRiskZoneId}
-          proximity={zone.id === selectedRiskZoneId ? selectedRiskProximity : null}
           zone={zone}
-          onDismiss={onDismissRiskDetail}
           onPress={onRiskZonePress}
         />
       ))}
@@ -166,6 +168,15 @@ export function LiveMapCanvas({
           heading={heading}
         />
       ) : null}
-    </MapView>
+      </MapView>
+      {selectedRiskZone ? (
+        <LiveMapRiskDetailCallout
+          mapRef={mapRef}
+          proximity={selectedRiskProximity}
+          zone={selectedRiskZone}
+          onDismiss={onDismissRiskDetail}
+        />
+      ) : null}
+    </>
   );
 }

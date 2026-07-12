@@ -1033,6 +1033,11 @@ export function LiveMapScreen({
     setSelectedRiskZoneId(null);
   };
 
+  const handleMapPanDrag = () => {
+    suspendDriveAlongCameraForMapReview();
+    setSelectedRiskZoneId(null);
+  };
+
   return (
     <View testID={uiTestIds.liveMapScreen} style={styles.screen}>
       <LiveMapCanvas
@@ -1042,7 +1047,7 @@ export function LiveMapScreen({
         heading={heading}
         mapRef={mapRef}
         onMapReady={fitRoute}
-        onPanDrag={suspendDriveAlongCameraForMapReview}
+        onPanDrag={handleMapPanDrag}
         onDismissRiskDetail={handleDismissRiskDetail}
         onRiskZonePress={handleRiskZonePress}
         offline={offline}
@@ -1050,6 +1055,7 @@ export function LiveMapScreen({
         progressCoordinates={progressCoordinates}
         routePlan={liveRoutePlan}
         selectedRiskZoneId={selectedRiskZoneId}
+        selectedRiskZone={selectedRiskZone}
         selectedRiskProximity={selectedRiskProximity}
         vehicleCoordinate={vehicleCoordinate}
         visibleRiskZones={visibleRiskZones}

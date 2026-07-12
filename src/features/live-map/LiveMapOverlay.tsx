@@ -8,16 +8,13 @@ import {
   type NavigationLifecycle,
 } from "./liveMapUiState";
 import type { RouteProgressSnapshot } from "./routeProgress";
-import type { LiveRouteRiskAlert, RouteRiskProximity } from "./routeRisk";
+import type { LiveRouteRiskAlert } from "./routeRisk";
 import { LiveMapControls } from "./LiveMapControls";
 import {
   LiveMapGuidanceCard,
   type LiveReroutePresentation,
 } from "./LiveMapGuidanceCard";
-import {
-  LiveRouteRiskAlertCard,
-  LiveRouteRiskDetailCard,
-} from "./LiveMapRiskCard";
+import { LiveRouteRiskAlertCard } from "./LiveMapRiskCard";
 import { styles } from "./LiveMapOverlay.styles";
 import { LiveMapRouteHeader } from "./LiveMapRouteHeader";
 import { LiveMapRouteSummarySheet } from "./LiveMapRouteSummarySheet";
@@ -44,7 +41,6 @@ interface LiveMapOverlayProps {
   primaryDisabledReason?: string | null;
   progress: RouteProgressSnapshot | null;
   liveRiskAlert: LiveRouteRiskAlert | null;
-  onDismissRiskDetail: () => void;
   onEnableBackgroundNavigation: () => void;
   onOpenRiskAlert: () => void;
   riskAdvisory?: RouteRiskAdvisory | null;
@@ -55,7 +51,6 @@ interface LiveMapOverlayProps {
   returnLabel: string;
   routeContext: "guest" | "saved";
   routePlan: SavedSafeRoutePlan;
-  selectedRiskProximity: RouteRiskProximity | null;
   selectedRiskZone: RiskZone | null;
   trackingLabel: string;
 }
@@ -81,7 +76,6 @@ export function LiveMapOverlay({
   primaryDisabledReason,
   progress,
   liveRiskAlert,
-  onDismissRiskDetail,
   onEnableBackgroundNavigation,
   onOpenRiskAlert,
   riskAdvisory,
@@ -92,7 +86,6 @@ export function LiveMapOverlay({
   returnLabel,
   routeContext,
   routePlan,
-  selectedRiskProximity,
   selectedRiskZone,
   trackingLabel,
 }: LiveMapOverlayProps) {
@@ -138,14 +131,7 @@ export function LiveMapOverlay({
         />
       ) : null}
 
-      {selectedRiskZone ? (
-        <LiveRouteRiskDetailCard
-          layout={layout}
-          proximity={selectedRiskProximity}
-          zone={selectedRiskZone}
-          onDismiss={onDismissRiskDetail}
-        />
-      ) : liveRiskAlert ? (
+      {!selectedRiskZone && liveRiskAlert ? (
         <LiveRouteRiskAlertCard
           alert={liveRiskAlert}
           layout={layout}

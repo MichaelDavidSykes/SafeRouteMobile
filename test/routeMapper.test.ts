@@ -331,7 +331,7 @@ describe('SafeRoute mobile DTO mapper', () => {
         ['string-radius', 375],
         ['blank-radius', 250],
         ['zero-radius', 0],
-        ['oversized-radius', 50000]
+        ['oversized-radius', 10000]
       ]
     );
   });

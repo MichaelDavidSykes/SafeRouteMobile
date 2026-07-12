@@ -659,44 +659,15 @@ describe("rounded visual language", () => {
       join(process.cwd(), "src/features/guest-map/GuestMapScreen.tsx"),
       "utf8",
     );
-    const guestMapStylesSource = readFileSync(
-      join(process.cwd(), "src/features/guest-map/GuestMapScreen.styles.ts"),
+    const markerSource = readFileSync(
+      join(process.cwd(), "src/features/live-map/LiveMapMarkers.tsx"),
       "utf8",
     );
-    const guestRiskDismissBlock =
-      /guestRiskDismiss:\s*\{([\s\S]*?)\n  \},\n  guestRiskDismissPressed:/.exec(
-        guestMapStylesSource,
-      )?.[1] || "";
-    const guestRiskDismissPressedBlock =
-      /guestRiskDismissPressed:\s*\{([\s\S]*?)\n  \},\n  guestRiskDismissText:/.exec(
-        guestMapStylesSource,
-      )?.[1] || "";
-    const guestRiskDismissTextBlock =
-      /guestRiskDismissText:\s*\{([\s\S]*?)\n  \},\n  guestRiskMeta:/.exec(
-        guestMapStylesSource,
-      )?.[1] || "";
 
-    assert.match(guestMapSource, /const GUEST_RISK_DETAIL_DISMISS_HIT_SLOP = 6/);
-    assert.match(guestMapSource, /hitSlop=\{GUEST_RISK_DETAIL_DISMISS_HIT_SLOP\}/);
-    assert.match(
-      guestMapSource,
-      /accessibilityHint="Closes the risk-area details and returns to the map\."/,
-    );
-    assert.match(
-      guestMapSource,
-      /style=\{\(\{ pressed \}\) => \[\s*styles\.guestRiskDismiss,\s*pressed \? styles\.guestRiskDismissPressed : null/,
-    );
-    assert.match(guestMapSource, /<Text numberOfLines=\{1\} style=\{styles\.guestRiskDismissText\}>/);
-    assert.match(guestRiskDismissBlock, /maxWidth:\s*96/);
-    assert.match(guestRiskDismissBlock, /flexShrink:\s*0/);
-    assert.match(guestRiskDismissBlock, /minHeight:\s*controlSizes\.secondary/);
-    assert.match(guestRiskDismissBlock, /borderRadius:\s*radius\.pill/);
-    assert.match(guestRiskDismissBlock, /backgroundColor:\s*colors\.appleBlueSoft/);
-    assert.match(guestRiskDismissPressedBlock, /backgroundColor:\s*colors\.controlStrong/);
-    assert.match(guestRiskDismissPressedBlock, /transform:\s*\[\{ scale:\s*0\.985 \}\]/);
-    assert.match(guestRiskDismissTextBlock, /maxWidth:\s*64/);
-    assert.match(guestRiskDismissTextBlock, /flexShrink:\s*1/);
-    assert.match(guestRiskDismissTextBlock, /textAlign:\s*["']center["']/);
+    assert.match(guestMapSource, /onDismiss=\{\(\) => setSelectedRiskZone\(null\)\}/);
+    assert.doesNotMatch(guestMapSource, /function GuestRiskDetail/);
+    assert.match(markerSource, /<Callout tooltip onPress=\{onDismiss\}>/);
+    assert.match(markerSource, /testID=\{uiTestIds\.liveMapRiskDetailDismiss\}/);
   });
 
   it("keeps the login header logo-first without duplicate brand text", () => {
@@ -1487,12 +1458,14 @@ describe("rounded visual language", () => {
     assert.doesNotMatch(markerSource, /,\s*shadow,/);
     assert.doesNotMatch(markerSource, /shadow\.panel/);
     assert.match(markerSource, /\briskMarkerCore:/);
-    assert.match(markerSource, /\briskMarkerHitArea:[\s\S]*width:\s*40/);
+    assert.match(markerSource, /\briskMarkerHitArea:[\s\S]*width:\s*32/);
+    assert.match(markerSource, /\brouteAlertMarker:[\s\S]*width:\s*9/);
+    assert.match(markerSource, /<Callout tooltip/);
     assert.match(markerSource, /\bvehicleMarkerHeading:/);
     assert.match(markerSource, /borderRadius:\s*radius\.pill/);
-    assert.match(riskMarkerBlock, /width:\s*20/);
+    assert.match(riskMarkerBlock, /width:\s*14/);
     assert.match(vehicleMarkerBlock, /width:\s*30/);
-    assert.match(markerSource, /strokeWidth=\{selected \|\| active \? 9 : 7\}/);
+    assert.match(markerSource, /strokeWidth=\{selected \|\| active \? 6 : 5\}/);
     assert.doesNotMatch(markerSource, /strokeWidth=\{selected \|\| active \? 14 : 11\}/);
     for (const markerBlock of [
       checkpointMarkerBlock,

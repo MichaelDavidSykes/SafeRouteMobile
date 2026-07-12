@@ -1027,12 +1027,14 @@ export function LiveMapScreen({
         mapRef={mapRef}
         onMapReady={fitRoute}
         onPanDrag={suspendDriveAlongCameraForMapReview}
+        onDismissRiskDetail={handleDismissRiskDetail}
         onRiskZonePress={handleRiskZonePress}
         offline={offline}
         permissionStatus={permissionStatus}
         progressCoordinates={progressCoordinates}
         routePlan={liveRoutePlan}
         selectedRiskZoneId={selectedRiskZoneId}
+        selectedRiskProximity={selectedRiskProximity}
         vehicleCoordinate={vehicleCoordinate}
         visibleRiskZones={visibleRiskZones}
       />
@@ -1048,7 +1050,6 @@ export function LiveMapScreen({
         locationNotice={locationNotice}
         onCenterVehicle={centerOnVehicle}
         onChangeRoute={onChangeRoute}
-        onDismissRiskDetail={handleDismissRiskDetail}
         onEnableBackgroundNavigation={() => {
           void enableBackgroundTracking();
         }}
@@ -1073,7 +1074,6 @@ export function LiveMapScreen({
         }
         rerouteUnavailableReason={manualRerouteUnavailableReason || undefined}
         routePlan={liveRoutePlan}
-        selectedRiskProximity={selectedRiskProximity}
         selectedRiskZone={selectedRiskZone}
         trackingLabel={
           offline

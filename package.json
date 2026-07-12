@@ -9,6 +9,7 @@
   },
   "scripts": {
     "start": "expo start",
+    "repair:maestro:ios:expo-go": "node scripts/install-maestro-expo-go.mjs",
     "prestart:maestro:ios": "node scripts/maestro-ios-preflight.mjs",
     "prestart:maestro:ios:preview": "node scripts/maestro-ios-preflight.mjs",
     "prestart:maestro:ios:preview:navigation-resume": "node scripts/maestro-ios-preflight.mjs",

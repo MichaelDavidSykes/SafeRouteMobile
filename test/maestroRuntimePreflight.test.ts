@@ -63,6 +63,10 @@ describe('Maestro iOS runtime preflight', () => {
       'node scripts/maestro-ios-preflight.mjs'
     );
     assert.equal(
+      scripts['repair:maestro:ios:expo-go'],
+      'node scripts/install-maestro-expo-go.mjs'
+    );
+    assert.equal(
       scripts['start:maestro:ios'],
       'NODE_OPTIONS=--dns-result-order=ipv4first expo start --localhost --port 8081'
     );
@@ -90,6 +94,20 @@ describe('Maestro iOS runtime preflight', () => {
     assert.match(source, /Node 22\.13\+/);
     assert.match(source, /port `8081`/);
     assert.match(source, /stale SafeRoute bundle/);
+  });
+
+  it('repairs a mismatched simulator runtime without building SafeRoute', () => {
+    const source = readFileSync(
+      join(process.cwd(), 'scripts/install-maestro-expo-go.mjs'),
+      'utf8'
+    );
+
+    assert.match(source, /expo-go@0\.0\.4/);
+    assert.match(source, /"download", "ios", sdkMajor/);
+    assert.match(source, /"simctl", "install", "booted"/);
+    assert.match(source, /5 \* 60 \* 1000/);
+    assert.match(source, /rmSync\(downloadDirectory, \{ force: true, recursive: true \}\)/);
+    assert.doesNotMatch(source, /expo (?:run:ios|prebuild)|npm run build/);
   });
 
   it('passes when Node, SDK, simulator, Expo Go, Maestro, dependencies, and port line up', async () => {
@@ -232,6 +250,7 @@ describe('Maestro iOS runtime preflight', () => {
 
     assert.match(message, /Expo Go 56\.0\.4/);
     assert.match(message, /targets Expo SDK 54/);
+    assert.match(message, /npm run repair:maestro:ios:expo-go/);
     assert.match(message, /no-build smoke flow/);
     assert.match(message, /false Maestro failures/);
   });

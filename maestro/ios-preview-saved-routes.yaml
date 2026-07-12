@@ -22,6 +22,15 @@ appId: host.exp.Exponent
       - tapOn: "Open"
 - waitForAnimationToEnd:
     timeout: 10000
+# A freshly installed SDK-specific Expo Go runtime presents a one-time developer
+# menu explanation. Dismiss it semantically so the route picker is interactive.
+- runFlow:
+    when:
+      visible: "Continue"
+    commands:
+      - tapOn: "Continue"
+      - waitForAnimationToEnd:
+          timeout: 1000
 # Keep this flow on app-facing controls after the deep-link handoff. The
 # saved-route picker can occupy the same top-right area as Expo Go chrome, so
 # coordinate cleanup taps would risk opening a route before the assertions run.
@@ -75,8 +84,46 @@ appId: host.exp.Exponent
 - assertVisible:
     id: "safe-route-card-sr-docklands-low-profile"
 - tapOn:
-    id: "safe-route-card-sr-city-airport-alpha"
+    # The Expo Go accessibility bridge exposes the card identifier but can
+    # acknowledge a semantic tap without delivering it to React Native.
+    # This fixed simulator point is inside the first card after its assertions.
+    point: "50%,28%"
+    retryTapIfNoChange: true
     waitToSettleTimeoutMs: 1000
+- runFlow:
+    when:
+      visible:
+        id: "safe-route-picker"
+    commands:
+      # Expo Go can consume the first touch immediately after its deep-link
+      # overlay closes, so retry only while the picker is still visible.
+      - tapOn:
+          point: "50%,28%"
+          waitToSettleTimeoutMs: 1000
+- runFlow:
+    when:
+      visible:
+        id: "safe-route-picker"
+    commands:
+      - tapOn:
+          point: "50%,28%"
+          waitToSettleTimeoutMs: 1000
+- runFlow:
+    when:
+      visible:
+        id: "safe-route-picker"
+    commands:
+      - tapOn:
+          point: "50%,28%"
+          waitToSettleTimeoutMs: 1000
+- runFlow:
+    when:
+      visible:
+        id: "safe-route-picker"
+    commands:
+      - tapOn:
+          point: "50%,28%"
+          waitToSettleTimeoutMs: 1000
 - extendedWaitUntil:
     visible:
       id: "safe-route-live-map"
@@ -85,6 +132,31 @@ appId: host.exp.Exponent
     id: "safe-route-summary-sheet"
 - assertVisible:
     id: "safe-route-primary-action"
+- assertVisible:
+    id: "safe-route-saved-details"
+- tapOn:
+    id: "safe-route-primary-action"
+    waitToSettleTimeoutMs: 1000
+- runFlow:
+    when:
+      visible: "Allow While Using App"
+    commands:
+      - tapOn: "Allow While Using App"
+      - waitForAnimationToEnd:
+          timeout: 3000
+- extendedWaitUntil:
+    visible:
+      id: "safe-route-stop-action"
+    timeout: 15000
+- assertVisible:
+    id: "safe-route-remaining-metrics"
+- assertVisible:
+    id: "safe-route-control-reroute"
+- tapOn:
+    id: "safe-route-stop-action"
+    waitToSettleTimeoutMs: 1000
+- waitForAnimationToEnd:
+    timeout: 2000
 - assertVisible:
     id: "safe-route-return"
 - tapOn:

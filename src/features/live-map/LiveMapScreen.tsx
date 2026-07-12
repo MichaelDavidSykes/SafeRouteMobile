@@ -287,6 +287,9 @@ export function LiveMapScreen({
       : null;
   const vehicleCoordinate = resolveNavigationVehicleCoordinate({
     fallbackCoordinate: liveRoutePlan.route.coordinates[0],
+    navigationActive:
+      activeNavigationState === "navigating" ||
+      activeNavigationState === "off-route",
     progress,
     rawVehicleCoordinate,
   });
@@ -852,7 +855,7 @@ export function LiveMapScreen({
   };
 
   const fitRoute = () => {
-    resetToOverviewCamera();
+    lastDriveAlongCameraPoseRef.current = null;
 
     if (liveRoutePlan.route.coordinates.length >= 2) {
       mapRef.current?.fitToCoordinates(liveRoutePlan.route.coordinates, {
@@ -863,13 +866,14 @@ export function LiveMapScreen({
     }
 
     if (vehicleCoordinate) {
-      mapRef.current?.animateToRegion(
+      const overviewCamera = resolveOverviewCameraReset();
+      mapRef.current?.animateCamera(
         {
-          ...vehicleCoordinate,
-          latitudeDelta: 0.04,
-          longitudeDelta: 0.04,
+          ...overviewCamera.camera,
+          center: vehicleCoordinate,
+          zoom: 13.8,
         },
-        460,
+        { duration: 460 },
       );
     }
   };
@@ -946,6 +950,7 @@ export function LiveMapScreen({
       return;
     }
 
+    lastDriveAlongCameraPoseRef.current = null;
     setNavigationState("navigating");
     setFollowModeEnabled(true);
   };
@@ -979,6 +984,7 @@ export function LiveMapScreen({
     }
 
     setPendingNavigationStart(false);
+    lastDriveAlongCameraPoseRef.current = null;
     setNavigationState("navigating");
     setFollowModeEnabled(true);
   }, [
@@ -991,11 +997,21 @@ export function LiveMapScreen({
   ]);
 
   const handleStopRoute = () => {
+    const stoppedRerouteState = stopLiveRerouteMonitoring(
+      rerouteStateRef.current,
+      Date.now(),
+    );
+    rerouteStateRef.current = stoppedRerouteState;
+    setRerouteState(stoppedRerouteState);
+    activeSessionSnapshotRef.current = null;
+    onNavigationSessionChangeRef.current?.(null);
+    void clearActiveNavigationSession();
     void stopBackgroundNavigation();
     setNavigationState("stopped");
     setRouteStep(0);
     setProgressFloorMeters(0);
     setFollowModeEnabled(false);
+    setPendingNavigationStart(false);
     fitRoute();
   };
 

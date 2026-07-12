@@ -139,6 +139,15 @@ describe("live map navigation helpers", () => {
       }),
       routeCoordinates[0],
     );
+    assert.equal(
+      resolveNavigationVehicleCoordinate({
+        fallbackCoordinate: routeCoordinates[0],
+        navigationActive: true,
+        progress: null,
+        rawVehicleCoordinate: null,
+      }),
+      null,
+    );
   });
 
   it("suspends drive-along follow mode only for active map review gestures", () => {

@@ -55,6 +55,13 @@ type ExpoConfig = {
       usesNonExemptEncryption?: boolean;
     };
   };
+  android: {
+    config?: {
+      googleMaps?: {
+        apiKey?: string;
+      };
+    };
+  };
   plugins: Array<string | [string, Record<string, unknown>]>;
 };
 
@@ -341,7 +348,7 @@ describe('Expo production configuration', () => {
     assert.equal(productionExpo.extra.safeRoutePreviewInitialScreen, 'guest-map');
   });
 
-  it('passes trimmed production iOS map credentials into Expo config and the maps plugin', () => {
+  it('passes trimmed production map credentials through SDK 54 platform config', () => {
     const expo = loadExpoConfig({
       SAFEROUTE_APP_ENV: 'production',
       SAFEROUTE_PROD_API_URL: 'https://api.lunarchain.net',
@@ -355,15 +362,10 @@ describe('Expo production configuration', () => {
     assert.equal(expo.ios.buildNumber, '44');
     assert.equal(expo.ios.config?.usesNonExemptEncryption, false);
     assert.equal(expo.ios.config?.googleMapsApiKey, 'ios-key');
-
-    const mapsPlugin = expo.plugins.find((plugin) => Array.isArray(plugin) && plugin[0] === 'react-native-maps');
-    assert.deepEqual(mapsPlugin, [
-      'react-native-maps',
-      {
-        androidGoogleMapsApiKey: 'android-key',
-        iosGoogleMapsApiKey: 'ios-key'
-      }
-    ]);
+    assert.equal(expo.android.config?.googleMaps?.apiKey, 'android-key');
+    assert.ok(!expo.plugins.some((plugin) =>
+      (Array.isArray(plugin) ? plugin[0] : plugin) === 'react-native-maps'
+    ));
   });
 
   it('normalizes release environment values before exposing runtime config', () => {

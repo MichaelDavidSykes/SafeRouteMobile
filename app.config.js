@@ -113,17 +113,8 @@ const safeRouteApiUrl = normalizeApiUrl(firstConfiguredValue(apiUrls[appEnvironm
 const safeRouteApiVersion = normalizeApiVersion(trimmedEnv('SAFEROUTE_API_VERSION'));
 const iosBuildNumberOverride = trimmedEnv('SAFEROUTE_IOS_BUILD_NUMBER');
 const iosBuildNumber = normalizeIosBuildNumber(iosBuildNumberOverride);
-const mapsPluginOptions = {};
 const googleMapsAndroidApiKey = trimmedEnv('GOOGLE_MAPS_ANDROID_API_KEY');
 const googleMapsIosApiKey = trimmedEnv('GOOGLE_MAPS_IOS_API_KEY');
-
-if (googleMapsAndroidApiKey) {
-  mapsPluginOptions.androidGoogleMapsApiKey = googleMapsAndroidApiKey;
-}
-
-if (googleMapsIosApiKey) {
-  mapsPluginOptions.iosGoogleMapsApiKey = googleMapsIosApiKey;
-}
 
 if (appEnvironment === 'production') {
   if (!productionApiUrlOverride) {
@@ -177,6 +168,15 @@ module.exports = {
     android: {
       package: 'com.lunarchain.saferoute',
       permissions: ['ACCESS_COARSE_LOCATION', 'ACCESS_FINE_LOCATION'],
+      ...(googleMapsAndroidApiKey
+        ? {
+            config: {
+              googleMaps: {
+                apiKey: googleMapsAndroidApiKey
+              }
+            }
+          }
+        : {}),
       adaptiveIcon: {
         foregroundImage: './assets/adaptive-icon.png',
         backgroundColor: '#000000'
@@ -193,10 +193,7 @@ module.exports = {
           locationWhenInUsePermission: iosLocationPurposeCopy
         }
       ],
-      'expo-secure-store',
-      Object.keys(mapsPluginOptions).length
-        ? ['react-native-maps', mapsPluginOptions]
-        : 'react-native-maps'
+      'expo-secure-store'
     ],
     extra: {
       safeRouteEnvironment: appEnvironment,

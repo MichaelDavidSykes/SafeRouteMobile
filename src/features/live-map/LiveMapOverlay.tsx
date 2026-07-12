@@ -36,6 +36,7 @@ interface LiveMapOverlayProps {
   onChangeRoute: () => void;
   onFitRoute: () => void;
   onPrimaryAction: () => void;
+  onReroute: () => void;
   onRetryReroute: () => void;
   onSetAlertsVisible: (updater: (value: boolean) => boolean) => void;
   onSetFollowModeEnabled: (updater: (value: boolean) => boolean) => void;
@@ -48,6 +49,7 @@ interface LiveMapOverlayProps {
   onOpenRiskAlert: () => void;
   riskAdvisory?: RouteRiskAdvisory | null;
   reroutePresentation?: LiveReroutePresentation | null;
+  rerouteUnavailable: boolean;
   returnAccessibilityLabel: string;
   returnLabel: string;
   routeContext: "guest" | "saved";
@@ -70,6 +72,7 @@ export function LiveMapOverlay({
   onChangeRoute,
   onFitRoute,
   onPrimaryAction,
+  onReroute,
   onRetryReroute,
   onSetAlertsVisible,
   onSetFollowModeEnabled,
@@ -82,6 +85,7 @@ export function LiveMapOverlay({
   onOpenRiskAlert,
   riskAdvisory,
   reroutePresentation,
+  rerouteUnavailable,
   returnAccessibilityLabel,
   returnLabel,
   routeContext,
@@ -111,9 +115,12 @@ export function LiveMapOverlay({
         layout={layout}
         onCenterVehicle={onCenterVehicle}
         onFitRoute={onFitRoute}
+        onReroute={onReroute}
         onSetAlertsVisible={onSetAlertsVisible}
         onSetFollowModeEnabled={onSetFollowModeEnabled}
         routeIntelCount={routePlan.riskZones.length}
+        reroutePending={reroutePresentation?.status === "pending"}
+        rerouteUnavailable={rerouteUnavailable}
       />
 
       {shouldShowGuidanceCard(activeNavigationState) ? (

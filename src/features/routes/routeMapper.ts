@@ -6,7 +6,10 @@ import type {
   RouteCheckpoint,
   SavedSafeRoutePlan
 } from '../live-map/liveMapTypes';
-import { normalizeRouteNavigationSteps } from '../live-map/routeGuidance';
+import {
+  deriveRouteNavigationSteps,
+  normalizeRouteNavigationSteps
+} from '../live-map/routeGuidance';
 import {
   clampNumber,
   formatDistance,
@@ -190,9 +193,14 @@ export function mapRouteDtoToSavedPlan(dto: MobileSafeRouteDto): SavedSafeRouteP
       nextInstruction: cleanText(route.next_instruction, 'Continue on saved route'),
       nextDistance: formatDistance(toFiniteNumber(route.next_distance_meters, 0)),
       coordinates,
-      navigationSteps: normalizeRouteNavigationSteps(
-        route.guidance_steps ?? route.navigation_steps
-      )
+      navigationSteps: (() => {
+        const providerSteps = normalizeRouteNavigationSteps(
+          route.guidance_steps ?? route.navigation_steps
+        );
+        return providerSteps.length
+          ? providerSteps
+          : deriveRouteNavigationSteps(coordinates);
+      })()
     },
     riskZones: mapRiskOverlays(dto),
     checkpoints: mapCheckpoints(

@@ -8,6 +8,7 @@ import {
   extractRemainingCheckpoints,
   getManualRerouteRetryEligibility,
   requestImmediateLiveReroute,
+  requestManualLiveReroute,
   resolveLiveRerouteFailure,
   resolveLiveRerouteSuccess,
   retryFailedLiveReroute,
@@ -607,6 +608,19 @@ describe("remaining reroute checkpoints", () => {
 });
 
 describe("explicit live reroute states", () => {
+  it("starts a driver-requested reroute with the manual trigger", () => {
+    const transition = requestManualLiveReroute(
+      monitoringState("route-a", 1_000),
+      locationSample(2_000, 0, 8),
+      2_000,
+      TEST_CONFIG,
+    );
+
+    assert.equal(transition.reason, "accepted");
+    assert.equal(transition.request?.trigger, "manual");
+    assert.equal(transition.state.status, "pending");
+  });
+
   it("starts a proactive safety reroute without waiting for off-route evidence", () => {
     const monitoring = monitoringState("route-a", 1_000);
     const transition = requestImmediateLiveReroute(

@@ -93,7 +93,7 @@ export function mapControlDisplayLabel(
     case 'intelligence':
       return 'Risk';
     case 'reroute':
-      return 'Reroute';
+      return options.active ? 'Routing' : 'Reroute';
   }
 }
 
@@ -360,9 +360,13 @@ export function mapControlAccessibility(
       };
     case 'reroute':
       return {
-        label: 'Reroute unavailable',
-        hint: 'Dynamic rerouting is not available in this version yet.',
-        state: { disabled: true }
+        label: active ? 'Finding a safer route' : 'Reroute from current location',
+        hint: active
+          ? 'A new risk-aware route is being calculated.'
+          : disabled
+            ? 'A reliable live location is required before rerouting.'
+            : 'Finds a new risk-aware route from your current location.',
+        state: { disabled, selected: active }
       };
   }
 }
@@ -458,7 +462,7 @@ export function resolveVisibleMapControls({
   state: NavigationLifecycle;
 }): LiveMapControlId[] {
   if (shouldShowDriveAlongControl(state)) {
-    return ['fit', 'follow'];
+    return ['fit', 'follow', 'reroute'];
   }
 
   return [

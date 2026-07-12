@@ -656,6 +656,39 @@ export function requestImmediateLiveReroute(
   };
 }
 
+/** Requests a driver-initiated reroute from the latest reliable position. */
+export function requestManualLiveReroute(
+  state: LiveRerouteState,
+  sample: LiveRerouteLocationSample,
+  nowMs: number,
+  configOverrides: Partial<LiveRerouteConfig> = {},
+): ImmediateLiveRerouteTransition {
+  if (state.status !== "monitoring") {
+    return { reason: "not-monitoring", request: null, state };
+  }
+  if (
+    !isFiniteTimestamp(nowMs) ||
+    evaluateOffRouteSample(sample, configOverrides).classification === "invalid"
+  ) {
+    return { reason: "invalid-sample", request: null, state };
+  }
+  if (nowMs < state.cooldownUntilMs) {
+    return { reason: "cooldown", request: null, state };
+  }
+  const pendingState = beginRequest(
+    state,
+    sample,
+    "manual",
+    nowMs,
+    resolveLiveRerouteConfig(configOverrides),
+  );
+  return {
+    reason: "accepted",
+    request: pendingState.request,
+    state: pendingState,
+  };
+}
+
 /**
  * Returns future waypoints and the destination in route order. The origin is
  * never sent to a reroute provider because the current GPS fix is the new

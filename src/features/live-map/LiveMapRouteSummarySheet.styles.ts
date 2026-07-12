@@ -103,6 +103,23 @@ export const routeSummaryStyles = StyleSheet.create({
   safetyBadgeTextBlue: {
     color: colors.infoText,
   },
+  savedRouteContext: {
+    marginTop: spacing.xs,
+    paddingTop: spacing.xs,
+    borderTopWidth: 0.5,
+    borderTopColor: colors.borderSoft,
+  },
+  savedRouteContextPrimary: {
+    color: colors.ink,
+    fontSize: typeScale.xs,
+    fontWeight: "800",
+  },
+  savedRouteContextSecondary: {
+    marginTop: 2,
+    color: colors.inkSoft,
+    fontSize: typeScale.xs,
+    fontWeight: "700",
+  },
   continuityAction: {
     minHeight: 36,
     marginTop: spacing.xs,

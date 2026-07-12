@@ -48,6 +48,7 @@ describe("UI test identifiers", () => {
     assert.equal(uiTestIds.operationsScreen, "safe-route-operations");
     assert.equal(uiTestIds.operationsMapReturn, "safe-route-operations-map-return");
     assert.equal(uiTestIds.operationsSignOut, "safe-route-operations-sign-out");
+    assert.equal(uiTestIds.operationsClientSelector, "safe-route-operations-client-selector");
     assert.equal(
       uiTestIds.operationsTab("convoy management"),
       "safe-route-operations-tab-convoy-management",

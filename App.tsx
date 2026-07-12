@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { StatusBar } from 'expo-status-bar';
 import { StyleSheet, View } from 'react-native';
 import { SafeAreaProvider, initialWindowMetrics } from 'react-native-safe-area-context';
@@ -36,10 +36,11 @@ import { stopBackgroundNavigation } from './src/features/live-map/backgroundNavi
 import { ResumeNavigationButton } from './src/features/live-map/ResumeNavigationButton';
 import {
   DEFAULT_SIGN_IN_PROMPT,
+  fullAccessFeatureForOperationsTab,
   hasAuthenticatedSession,
   resolveFullAccessNavigation,
+  resolvePostAuthenticationNavigation,
   routePreviewReturnCopy,
-  screenAfterAuthentication,
   screenAfterRoutePreview,
   type AppScreen,
   type RoutePreviewSource
@@ -60,7 +61,34 @@ export default function App() {
   const [screen, setScreen] = useState<AppScreen>('guest-map');
   const [routePreviewSource, setRoutePreviewSource] = useState<RoutePreviewSource>('guest');
   const [operationsTab, setOperationsTab] = useState<OperationsTab>('planned-routes');
+  const pendingFullAccessFeatureRef = useRef<GuestFullAccessFeature | null>(null);
   const authenticated = hasAuthenticatedSession(session);
+
+  const takePendingFullAccessFeature = () => {
+    const pendingFeature = pendingFullAccessFeatureRef.current;
+    pendingFullAccessFeatureRef.current = null;
+    return pendingFeature;
+  };
+
+  const openAuthenticatedFeature = (feature: GuestFullAccessFeature) => {
+    const nextNavigation = resolveFullAccessNavigation({
+      authenticated: true,
+      feature
+    });
+
+    setSessionMessage('');
+    setAuthPrompt('');
+
+    if (nextNavigation.screen === 'operations') {
+      setOperationsTab(nextNavigation.tab);
+      setScreen('operations');
+      return;
+    }
+
+    if (nextNavigation.screen === 'routes') {
+      setScreen('routes');
+    }
+  };
 
   const openActiveNavigationSession = (
     nextNavigationSession: ActiveNavigationSession,
@@ -105,7 +133,12 @@ export default function App() {
       setAuthPrompt('');
       setSession(createPreviewAuthSession());
       setSessionMessage(PREVIEW_SESSION_NOTICE);
-      setScreen(screenForAuthenticatedPreview(previewInitialScreen));
+      const pendingFeature = takePendingFullAccessFeature();
+      if (pendingFeature) {
+        openAuthenticatedFeature(pendingFeature);
+      } else {
+        setScreen(screenForAuthenticatedPreview(previewInitialScreen));
+      }
       return true;
     };
 
@@ -154,8 +187,13 @@ export default function App() {
         } else if (restoreResult.status === 'restored' && mounted) {
           setSessionMessage(restoreResult.message || '');
           setSession(restoreResult.session);
-          if (persistedNavigation) {
-            openActiveNavigationSession(persistedNavigation, true);
+          if (!persistedNavigation || !openActiveNavigationSession(persistedNavigation, true)) {
+            const pendingFeature = takePendingFullAccessFeature();
+            if (pendingFeature) {
+              openAuthenticatedFeature(pendingFeature);
+            } else {
+              setScreen('guest-map');
+            }
           }
         }
       } catch {
@@ -191,12 +229,17 @@ export default function App() {
     setSessionMessage('');
     setAuthPrompt('');
     setSession(persistedSession);
+    const pendingFeature = takePendingFullAccessFeature();
     const persistedNavigation = await loadActiveNavigationSession();
     if (
       !persistedNavigation ||
       !openActiveNavigationSession(persistedNavigation, true)
     ) {
-      setScreen(screenAfterAuthentication());
+      const nextNavigation = resolvePostAuthenticationNavigation(pendingFeature);
+      if (nextNavigation.screen === 'operations') {
+        setOperationsTab(nextNavigation.tab);
+      }
+      setScreen(nextNavigation.screen);
     }
   };
 
@@ -209,6 +252,7 @@ export default function App() {
     setSessionMessage('');
     setAuthPrompt('');
     setOperationsTab('planned-routes');
+    pendingFullAccessFeatureRef.current = null;
     setSession(null);
     setScreen('guest-map');
   };
@@ -218,10 +262,16 @@ export default function App() {
     setSessionMessage('');
     setAuthPrompt('');
     setOperationsTab('planned-routes');
+    pendingFullAccessFeatureRef.current = null;
     setScreen('guest-map');
   };
 
   const handleSessionExpired = async (message = 'Your LunarChain session expired. Sign in again.') => {
+    pendingFullAccessFeatureRef.current = screen === 'operations'
+      ? fullAccessFeatureForOperationsTab(operationsTab)
+      : screen === 'routes'
+        ? 'saved-routes'
+        : null;
     await stopBackgroundNavigation();
     await clearActiveNavigationSession();
     await clearAuthSession();
@@ -246,19 +296,13 @@ export default function App() {
     });
 
     if (nextNavigation.screen === 'login') {
+      pendingFullAccessFeatureRef.current = feature;
       openSignIn(nextNavigation.prompt);
       return;
     }
 
-    if (nextNavigation.screen === 'operations') {
-      setSessionMessage('');
-      setOperationsTab(nextNavigation.tab);
-      setScreen('operations');
-      return;
-    }
-
-    setSessionMessage(nextNavigation.prompt);
-    setScreen(nextNavigation.screen);
+    pendingFullAccessFeatureRef.current = null;
+    openAuthenticatedFeature(feature);
   };
 
   const openRoutePreview = (routePlan: SavedSafeRoutePlan) => {
@@ -328,6 +372,7 @@ export default function App() {
             sessionMessage={authPrompt || sessionMessage}
             onAuthenticated={handleAuthenticated}
             onCancel={() => {
+              pendingFullAccessFeatureRef.current = null;
               setAuthPrompt('');
               setScreen('guest-map');
             }}
@@ -374,7 +419,10 @@ export default function App() {
             onOpenFullAccessFeature={openFullAccessFeature}
             onOpenRoutePreview={openRoutePreview}
             onSessionExpired={handleSessionExpired}
-            onSignIn={() => openSignIn()}
+            onSignIn={() => {
+              pendingFullAccessFeatureRef.current = null;
+              openSignIn();
+            }}
           />
         )}
         {activeNavigationSession && screen !== 'route-preview' && screen !== 'login' ? (

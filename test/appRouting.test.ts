@@ -4,8 +4,10 @@ import { describe, it } from 'node:test';
 import {
   DEFAULT_SIGN_IN_PROMPT,
   createSignInPrompt,
+  fullAccessFeatureForOperationsTab,
   hasAuthenticatedSession,
   resolveFullAccessNavigation,
+  resolvePostAuthenticationNavigation,
   routePreviewReturnCopy,
   screenAfterAuthentication,
   screenAfterRoutePreview
@@ -49,6 +51,30 @@ describe('app routing security gates', () => {
 
   it('returns successful sign-in to the map-first home surface', () => {
     assert.equal(screenAfterAuthentication(), 'guest-map');
+    assert.deepEqual(resolvePostAuthenticationNavigation(null), {
+      screen: 'guest-map',
+      prompt: ''
+    });
+  });
+
+  it('continues directly to the protected feature requested before sign-in', () => {
+    assert.deepEqual(resolvePostAuthenticationNavigation('calendar'), {
+      screen: 'operations',
+      prompt: '',
+      tab: 'calendar'
+    });
+    assert.deepEqual(resolvePostAuthenticationNavigation('convoy-management'), {
+      screen: 'operations',
+      prompt: '',
+      tab: 'convoy-management'
+    });
+    assert.deepEqual(resolvePostAuthenticationNavigation('saved-routes'), {
+      screen: 'routes',
+      prompt: ''
+    });
+    assert.equal(fullAccessFeatureForOperationsTab('planned-routes'), 'planned-trips');
+    assert.equal(fullAccessFeatureForOperationsTab('calendar'), 'calendar');
+    assert.equal(fullAccessFeatureForOperationsTab('convoy-management'), 'convoy-management');
   });
 
   it('treats only sessions with a non-empty access token as authenticated', () => {

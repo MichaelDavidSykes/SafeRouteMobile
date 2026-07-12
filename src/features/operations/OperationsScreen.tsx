@@ -69,6 +69,7 @@ export function OperationsScreen({
   const [routes, setRoutes] = useState<SavedSafeRoutePlan[]>([]);
   const [operationsState, setOperationsState] = useState<SafeRouteOperationsState | null>(null);
   const [operationsWarning, setOperationsWarning] = useState<string | null>(null);
+  const [clientMenuOpen, setClientMenuOpen] = useState(false);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [errorState, setErrorState] = useState<RouteListErrorState | null>(null);
@@ -125,11 +126,6 @@ export function OperationsScreen({
           if (revision !== loadRevisionRef.current) {
             return;
           }
-          if (operationsError instanceof ApiSessionExpiredError) {
-            onSessionExpired(operationsError.message);
-            return;
-          }
-
           const warning = createOperationsSyncWarningState(operationsError);
           setOperationsWarning(warning.message);
           setOperationsState(null);
@@ -165,6 +161,8 @@ export function OperationsScreen({
     () => createOperationsClientFilterOptions(clients, selectedClientId),
     [clients, selectedClientId]
   );
+  const selectedClientOption = clientFilterOptions.find((client) => client.selected)
+    || clientFilterOptions[0];
   const plannedRows = useMemo(() => createPlannedRouteRows(routes, operationsState), [operationsState, routes]);
   const calendarRows = useMemo(() => createCalendarRows(routes, operationsState), [operationsState, routes]);
   const convoyRows = useMemo(() => createConvoyRows(routes, operationsState), [operationsState, routes]);
@@ -187,46 +185,48 @@ export function OperationsScreen({
   return (
     <SafeAreaView testID={uiTestIds.operationsScreen} style={styles.screen}>
       <View style={styles.header}>
-        <View style={styles.headerCopy}>
-          <Text style={styles.eyebrow}>SafeRoute operations</Text>
-          <Text numberOfLines={1} style={styles.title}>{title}</Text>
-          <Text numberOfLines={2} style={styles.subtitle}>{subtitle}</Text>
+        <View style={styles.headerTopRow}>
+          <View style={styles.headerCopy}>
+            <Text style={styles.eyebrow}>SafeRoute · View only</Text>
+            <Text numberOfLines={1} style={styles.title}>{title}</Text>
+          </View>
+          <View style={styles.headerActions}>
+            <Pressable
+              accessibilityHint={mapReturnState.accessibilityHint}
+              accessibilityLabel={mapReturnState.accessibilityLabel}
+              accessibilityRole="button"
+              testID={uiTestIds.operationsMapReturn}
+              style={({ pressed }) => [
+                styles.mapButton,
+                pressed ? styles.mapButtonPressed : null
+              ]}
+              onPress={onBackToMap}
+            >
+              <Text style={styles.mapButtonText}>{mapReturnState.label}</Text>
+            </Pressable>
+            <Pressable
+              accessibilityHint={signOutState.signOutAccessibilityHint}
+              accessibilityLabel={signOutState.signOutAccessibilityLabel}
+              accessibilityRole="button"
+              testID={uiTestIds.operationsSignOut}
+              style={({ pressed }) => [
+                styles.signOutButton,
+                pressed ? styles.signOutButtonPressed : null
+              ]}
+              onPress={onSignOut}
+            >
+              <Text style={styles.signOutButtonText}>{signOutState.label}</Text>
+            </Pressable>
+          </View>
         </View>
-        <View style={styles.headerActions}>
-          <Pressable
-            accessibilityHint={mapReturnState.accessibilityHint}
-            accessibilityLabel={mapReturnState.accessibilityLabel}
-            accessibilityRole="button"
-            testID={uiTestIds.operationsMapReturn}
-            style={({ pressed }) => [
-              styles.mapButton,
-              pressed ? styles.mapButtonPressed : null
-            ]}
-            onPress={onBackToMap}
-          >
-            <Text style={styles.mapButtonText}>{mapReturnState.label}</Text>
-          </Pressable>
-          <Pressable
-            accessibilityHint={signOutState.signOutAccessibilityHint}
-            accessibilityLabel={signOutState.signOutAccessibilityLabel}
-            accessibilityRole="button"
-            testID={uiTestIds.operationsSignOut}
-            style={({ pressed }) => [
-              styles.signOutButton,
-              pressed ? styles.signOutButtonPressed : null
-            ]}
-            onPress={onSignOut}
-          >
-            <Text style={styles.signOutButtonText}>{signOutState.label}</Text>
-          </Pressable>
-        </View>
+        <Text numberOfLines={1} style={styles.subtitle}>{subtitle}</Text>
       </View>
 
       {sessionNoticeState ? (
         <View accessibilityRole="alert" style={styles.noticeBox}>
           <Text
             accessibilityLabel={sessionNoticeState.accessibilityLabel || undefined}
-            numberOfLines={2}
+            numberOfLines={1}
             style={styles.noticeText}
           >
             {sessionNoticeState.message}
@@ -234,47 +234,7 @@ export function OperationsScreen({
         </View>
       ) : null}
 
-      {shouldShowOperationsClientFilters(clientFilterOptions) ? (
-        <ScrollView
-          horizontal
-          contentContainerStyle={styles.clientTabs}
-          showsHorizontalScrollIndicator={false}
-        >
-          {clientFilterOptions.map((client) => (
-            <Pressable
-              key={client.id}
-              accessibilityHint={client.accessibilityHint}
-              accessibilityLabel={client.accessibilityLabel}
-              accessibilityRole="button"
-              accessibilityState={{ selected: client.selected }}
-              testID={uiTestIds.operationsClientTab(client.id)}
-              style={({ pressed }) => [
-                styles.clientTab,
-                client.selected ? styles.clientTabSelected : null,
-                pressed ? styles.tabPressed : null
-              ]}
-              onPress={() => {
-                selectedClientIdRef.current = client.id;
-                setSelectedClientId(client.id);
-                void loadOperations({ clientId: client.id });
-              }}
-            >
-              <Text
-                numberOfLines={1}
-                style={[styles.clientTabText, client.selected ? styles.clientTabTextSelected : null]}
-              >
-                {client.label}
-              </Text>
-            </Pressable>
-          ))}
-        </ScrollView>
-      ) : null}
-
-      <ScrollView
-        horizontal
-        contentContainerStyle={styles.tabs}
-        showsHorizontalScrollIndicator={false}
-      >
+      <View style={styles.tabs}>
         {tabOptions.map((tab) => (
           <Pressable
             key={tab.id}
@@ -287,14 +247,86 @@ export function OperationsScreen({
               tab.selected ? styles.tabSelected : null,
               pressed ? styles.tabPressed : null
             ]}
-            onPress={() => setActiveTab(tab.id)}
+            onPress={() => {
+              setClientMenuOpen(false);
+              setActiveTab(tab.id);
+            }}
           >
             <Text style={[styles.tabText, tab.selected ? styles.tabTextSelected : null]}>
               {tab.label}
             </Text>
           </Pressable>
         ))}
-      </ScrollView>
+      </View>
+
+      {shouldShowOperationsClientFilters(clientFilterOptions) && selectedClientOption ? (
+        <View style={styles.clientFilter}>
+          <Pressable
+            accessibilityHint="Opens the tenant selector."
+            accessibilityLabel={`Tenant, ${selectedClientOption.label}`}
+            accessibilityRole="button"
+            accessibilityState={{ expanded: clientMenuOpen }}
+            testID={uiTestIds.operationsClientSelector}
+            style={({ pressed }) => [
+              styles.clientSelector,
+              clientMenuOpen ? styles.clientSelectorOpen : null,
+              pressed ? styles.tabPressed : null
+            ]}
+            onPress={() => setClientMenuOpen((open) => !open)}
+          >
+            <View style={styles.clientSelectorCopy}>
+              <Text style={styles.clientSelectorLabel}>Tenant</Text>
+              <Text numberOfLines={1} style={styles.clientSelectorValue}>
+                {selectedClientOption.label}
+              </Text>
+            </View>
+            <Text style={styles.clientSelectorAction}>
+              {clientMenuOpen ? "Close" : "Change"}
+            </Text>
+          </Pressable>
+          {clientMenuOpen ? (
+            <View style={styles.clientMenu}>
+              <ScrollView
+                nestedScrollEnabled
+                contentContainerStyle={styles.clientMenuContent}
+                showsVerticalScrollIndicator={false}
+              >
+                {clientFilterOptions.map((client) => (
+                  <Pressable
+                    key={client.id}
+                    accessibilityHint={client.accessibilityHint}
+                    accessibilityLabel={client.accessibilityLabel}
+                    accessibilityRole="button"
+                    accessibilityState={{ selected: client.selected }}
+                    testID={uiTestIds.operationsClientTab(client.id)}
+                    style={({ pressed }) => [
+                      styles.clientMenuItem,
+                      client.selected ? styles.clientMenuItemSelected : null,
+                      pressed ? styles.clientMenuItemPressed : null
+                    ]}
+                    onPress={() => {
+                      setClientMenuOpen(false);
+                      selectedClientIdRef.current = client.id;
+                      setSelectedClientId(client.id);
+                      void loadOperations({ clientId: client.id });
+                    }}
+                  >
+                    <Text
+                      numberOfLines={1}
+                      style={[
+                        styles.clientMenuItemText,
+                        client.selected ? styles.clientMenuItemTextSelected : null
+                      ]}
+                    >
+                      {client.label}
+                    </Text>
+                  </Pressable>
+                ))}
+              </ScrollView>
+            </View>
+          ) : null}
+        </View>
+      ) : null}
 
       {!loading ? (
         <View
@@ -424,9 +456,6 @@ function OperationsRouteCard({ calendar = false, row }: { calendar?: boolean; ro
       {!calendar ? (
         <Text numberOfLines={1} style={styles.routeMeta}>{row.scheduleLabel}</Text>
       ) : null}
-      <View style={styles.readOnlyPill}>
-        <Text style={styles.readOnlyText}>View only</Text>
-      </View>
     </View>
   );
 }
@@ -448,14 +477,11 @@ function OperationsConvoyCard({ row }: { row: OperationsConvoyRow }) {
       <Text style={styles.routeMeta}>{row.metaLabel}</Text>
       <Text numberOfLines={2} style={styles.routeManifest}>{row.manifestLabel}</Text>
       <View style={styles.convoyRoutes}>
-        {row.routeLabels.map((routeLabel) => (
-          <View key={routeLabel} style={styles.convoyRoutePill}>
-            <Text numberOfLines={1} style={styles.convoyRouteText}>{routeLabel}</Text>
-          </View>
+        {row.routeLabels.map((routeLabel, index) => (
+          <Text key={`${routeLabel}-${index}`} numberOfLines={1} style={styles.convoyRouteText}>
+            {routeLabel}
+          </Text>
         ))}
-      </View>
-      <View style={styles.readOnlyPill}>
-        <Text style={styles.readOnlyText}>View only</Text>
       </View>
     </View>
   );

@@ -35,6 +35,7 @@ export const uiTestIds = {
   operationsScreen: "safe-route-operations",
   operationsMapReturn: "safe-route-operations-map-return",
   operationsSignOut: "safe-route-operations-sign-out",
+  operationsClientSelector: "safe-route-operations-client-selector",
   operationsTab: (tabId: string) =>
     `safe-route-operations-tab-${normalizeTestIdSegment(tabId)}`,
   operationsRouteCard: (routeId: string) =>

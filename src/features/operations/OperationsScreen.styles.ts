@@ -9,12 +9,15 @@ export const operationsStyles = StyleSheet.create({
     backgroundColor: colors.control
   },
   header: {
+    gap: 3,
+    marginTop: spacing.md,
+    marginBottom: spacing.md
+  },
+  headerTopRow: {
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "space-between",
-    gap: spacing.sm,
-    marginTop: spacing.md,
-    marginBottom: spacing.sm
+    gap: spacing.sm
   },
   headerCopy: {
     flex: 1,
@@ -34,7 +37,6 @@ export const operationsStyles = StyleSheet.create({
     lineHeight: 28
   },
   subtitle: {
-    marginTop: 2,
     color: colors.muted,
     fontSize: typeScale.xs,
     fontWeight: "600",
@@ -79,66 +81,116 @@ export const operationsStyles = StyleSheet.create({
     fontWeight: "800"
   },
   noticeBox: {
-    alignSelf: "center",
-    maxWidth: "100%",
-    minHeight: controlSizes.compact,
-    alignItems: "center",
+    alignSelf: "stretch",
+    minHeight: 24,
+    alignItems: "flex-start",
     justifyContent: "center",
     marginBottom: spacing.sm,
-    paddingHorizontal: spacing.md,
-    paddingVertical: spacing.xs,
-    borderWidth: 0.5,
-    borderColor: colors.borderSoft,
-    borderRadius: radius.pill,
-    backgroundColor: colors.appleBlueSoft
+    paddingHorizontal: spacing.xs
   },
   noticeText: {
-    color: colors.appleBlue,
-    fontSize: typeScale.sm,
+    color: colors.muted,
+    fontSize: typeScale.xs,
     fontWeight: "700",
-    lineHeight: 18,
-    textAlign: "center"
+    lineHeight: 16
   },
-  clientTabs: {
+  clientFilter: {
+    marginBottom: spacing.sm
+  },
+  clientSelector: {
+    minHeight: controlSizes.secondary,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
     gap: spacing.sm,
-    paddingBottom: spacing.xs
-  },
-  clientTab: {
-    maxWidth: 170,
-    minHeight: controlSizes.compact,
-    justifyContent: "center",
     paddingHorizontal: spacing.md,
     borderWidth: 0.5,
     borderColor: colors.borderSoft,
-    borderRadius: radius.pill,
+    borderRadius: radius.lg,
     backgroundColor: colors.surfaceGlass
   },
-  clientTabSelected: {
-    backgroundColor: colors.ink
+  clientSelectorOpen: {
+    borderColor: colors.appleBlue,
+    backgroundColor: colors.surfaceTranslucent
   },
-  clientTabText: {
+  clientSelectorCopy: {
+    minWidth: 0,
+    flex: 1,
+    flexDirection: "row",
+    alignItems: "center",
+    gap: spacing.sm
+  },
+  clientSelectorLabel: {
+    flexShrink: 0,
+    color: colors.muted,
+    fontSize: typeScale.xs,
+    fontWeight: "700"
+  },
+  clientSelectorValue: {
+    minWidth: 0,
+    flex: 1,
     color: colors.ink,
+    fontSize: typeScale.sm,
+    fontWeight: "800"
+  },
+  clientSelectorAction: {
+    flexShrink: 0,
+    color: colors.appleBlue,
     fontSize: typeScale.xs,
     fontWeight: "800"
   },
-  clientTabTextSelected: {
-    color: colors.surface
-  },
-  tabs: {
-    gap: spacing.sm,
-    paddingBottom: spacing.sm
-  },
-  tab: {
-    minHeight: controlSizes.compact,
-    justifyContent: "center",
-    paddingHorizontal: spacing.md,
+  clientMenu: {
+    maxHeight: 220,
+    marginTop: spacing.xs,
+    overflow: "hidden",
     borderWidth: 0.5,
     borderColor: colors.borderSoft,
-    borderRadius: radius.pill,
+    borderRadius: radius.lg,
+    backgroundColor: colors.surfaceTranslucent
+  },
+  clientMenuContent: {
+    padding: 4
+  },
+  clientMenuItem: {
+    minHeight: controlSizes.secondary,
+    justifyContent: "center",
+    paddingHorizontal: spacing.sm,
+    borderRadius: radius.lg
+  },
+  clientMenuItemSelected: {
+    backgroundColor: colors.appleBlueSoft
+  },
+  clientMenuItemPressed: {
     backgroundColor: colors.surfaceGlass
   },
+  clientMenuItemText: {
+    color: colors.ink,
+    fontSize: typeScale.sm,
+    fontWeight: "700"
+  },
+  clientMenuItemTextSelected: {
+    color: colors.appleBlue,
+    fontWeight: "900"
+  },
+  tabs: {
+    minHeight: controlSizes.secondary,
+    flexDirection: "row",
+    gap: 3,
+    marginBottom: spacing.sm,
+    padding: 3,
+    borderRadius: radius.lg,
+    backgroundColor: colors.borderSoft
+  },
+  tab: {
+    flex: 1,
+    alignItems: "center",
+    justifyContent: "center",
+    paddingHorizontal: spacing.xs,
+    borderRadius: radius.md,
+    backgroundColor: "transparent"
+  },
   tabSelected: {
-    backgroundColor: colors.appleBlue
+    backgroundColor: colors.surfaceTranslucent
   },
   tabPressed: {
     transform: [{ scale: 0.985 }]
@@ -149,32 +201,27 @@ export const operationsStyles = StyleSheet.create({
     fontWeight: "800"
   },
   tabTextSelected: {
-    color: colors.surface
+    color: colors.appleBlue
   },
   summaryStrip: {
-    minHeight: controlSizes.secondary,
+    minHeight: 28,
     flexDirection: "row",
     alignItems: "center",
-    justifyContent: "space-between",
-    gap: spacing.sm,
+    justifyContent: "flex-start",
+    gap: spacing.md,
     marginBottom: spacing.sm,
-    paddingHorizontal: spacing.md,
-    paddingVertical: spacing.xs,
-    borderWidth: 0.5,
-    borderColor: colors.borderSoft,
-    borderRadius: radius.xl,
-    backgroundColor: colors.surfaceGlass
+    paddingHorizontal: spacing.xs
   },
   summaryMetric: {
-    flex: 1,
-    alignItems: "center",
-    gap: 2
+    flexDirection: "row",
+    alignItems: "baseline",
+    gap: 3
   },
   summaryValue: {
     color: colors.ink,
-    fontSize: typeScale.lg,
+    fontSize: typeScale.sm,
     fontWeight: "900",
-    lineHeight: 21
+    lineHeight: 18
   },
   summaryLabel: {
     color: colors.muted,
@@ -274,16 +321,14 @@ export const operationsStyles = StyleSheet.create({
     fontWeight: "800"
   },
   list: {
-    gap: spacing.sm,
-    paddingTop: spacing.xs,
+    paddingTop: 0,
     paddingBottom: spacing.xl
   },
   routeCard: {
-    padding: 12,
-    borderWidth: 0.5,
-    borderColor: colors.borderSoft,
-    borderRadius: radius.xl,
-    backgroundColor: colors.surfaceTranslucent
+    paddingHorizontal: spacing.xs,
+    paddingVertical: spacing.md,
+    borderBottomWidth: StyleSheet.hairlineWidth,
+    borderBottomColor: colors.borderSoft
   },
   routeHeader: {
     flexDirection: "row",
@@ -330,34 +375,15 @@ export const operationsStyles = StyleSheet.create({
     fontWeight: "700",
     lineHeight: 16
   },
-  readOnlyPill: {
-    alignSelf: "flex-start",
-    marginTop: spacing.sm,
-    paddingHorizontal: spacing.sm,
-    paddingVertical: 4,
-    borderRadius: radius.pill,
-    backgroundColor: colors.control
-  },
-  readOnlyText: {
-    color: colors.muted,
-    fontSize: typeScale.xs,
-    fontWeight: "800"
-  },
   convoyRoutes: {
-    gap: spacing.xs,
+    gap: 3,
     marginTop: spacing.sm
   },
-  convoyRoutePill: {
-    alignSelf: "flex-start",
-    paddingHorizontal: spacing.sm,
-    paddingVertical: 5,
-    borderRadius: radius.pill,
-    backgroundColor: colors.control
-  },
   convoyRouteText: {
-    color: colors.inkSoft,
+    color: colors.muted,
     fontSize: typeScale.xs,
-    fontWeight: "700"
+    fontWeight: "700",
+    lineHeight: 16
   },
   emptyState: {
     alignSelf: "center",

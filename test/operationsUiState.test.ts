@@ -44,7 +44,7 @@ describe("view-only operations UI state", () => {
     assert.equal(createOperationsTitle("planned-routes"), "Planned routes");
     assert.equal(createOperationsTitle("calendar"), "Calendar");
     assert.equal(createOperationsTitle("convoy-management"), "Convoys");
-    assert.match(createOperationsSubtitle("planned-routes"), /Editing stays on web/);
+    assert.match(createOperationsSubtitle("planned-routes"), /synced from SafeRoute/);
     assert.equal(createOperationsLoadingLabel("convoy-management"), "Loading convoys");
   });
 
@@ -106,7 +106,8 @@ describe("view-only operations UI state", () => {
     const convoyRows = createConvoyRows(SAVED_ROUTE_PLANS, null);
 
     assert.equal(plannedRows.length, 3);
-    assert.equal(calendarRows.length, 0);
+    assert.equal(calendarRows.length, 3);
+    assert.equal(calendarRows.every((row) => row.scheduleLabel === "Schedule pending"), true);
     assert.match(plannedRows[0].manifestLabel, /Manifest pending/);
     assert.ok(convoyRows.some((row) => row.title === "Alpha convoy"));
   });
@@ -145,6 +146,12 @@ describe("view-only operations UI state", () => {
     assert.deepEqual(createOperationsSyncWarningState(new Error("Operations offline")), {
       message: "Operations offline. Showing saved routes only.",
       accessibilityLabel: "Operations offline. Showing saved routes only."
+    });
+    const expiredError = new Error("Your session expired");
+    expiredError.name = "ApiSessionExpiredError";
+    assert.deepEqual(createOperationsSyncWarningState(expiredError), {
+      message: "Live calendar and convoy details are temporarily unavailable. Showing saved routes only.",
+      accessibilityLabel: "Live calendar and convoy details are temporarily unavailable. Showing saved routes only."
     });
   });
 });

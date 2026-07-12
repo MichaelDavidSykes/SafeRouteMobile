@@ -19,6 +19,13 @@ export type FullAccessNavigation =
       tab: OperationsTab;
     };
 
+export type PostAuthenticationNavigation =
+  | {
+      screen: 'guest-map';
+      prompt: '';
+    }
+  | Exclude<FullAccessNavigation, { screen: 'login' }>;
+
 export type RoutePreviewReturnCopy = {
   accessibilityLabel: string;
   label: string;
@@ -81,6 +88,34 @@ export function resolveFullAccessNavigation({
 
 export function screenAfterAuthentication(): AppScreen {
   return 'guest-map';
+}
+
+export function resolvePostAuthenticationNavigation(
+  pendingFeature: GuestFullAccessFeature | null | undefined
+): PostAuthenticationNavigation {
+  if (!pendingFeature) {
+    return {
+      screen: 'guest-map',
+      prompt: ''
+    };
+  }
+
+  return resolveFullAccessNavigation({
+    authenticated: true,
+    feature: pendingFeature
+  }) as Exclude<FullAccessNavigation, { screen: 'login' }>;
+}
+
+export function fullAccessFeatureForOperationsTab(tab: OperationsTab): GuestFullAccessFeature {
+  if (tab === 'calendar') {
+    return 'calendar';
+  }
+
+  if (tab === 'convoy-management') {
+    return 'convoy-management';
+  }
+
+  return 'planned-trips';
 }
 
 export function routePreviewReturnCopy(source: RoutePreviewSource): RoutePreviewReturnCopy {

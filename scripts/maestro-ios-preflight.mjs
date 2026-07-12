@@ -270,7 +270,7 @@ export async function resolveBootedExpoGoVersions({
 export function formatExpoGoMismatchMessage({ expectedSdkMajor, installedVersion }) {
   return [
     `SafeRoute Maestro preflight found Expo Go ${installedVersion}, but this workspace targets Expo SDK ${expectedSdkMajor}.`,
-    `Install/open Expo Go ${expectedSdkMajor}.x on the booted iOS simulator or switch to a SafeRoute branch that targets the installed Expo Go runtime before running the no-build smoke flow.`,
+    `Run \`npm run repair:maestro:ios:expo-go\` to install Expo Go ${expectedSdkMajor}.x on the booted simulator before running the no-build smoke flow.`,
     'This prevents false Maestro failures caused by Expo Go loading an incompatible SafeRoute bundle.'
   ].join('\n');
 }

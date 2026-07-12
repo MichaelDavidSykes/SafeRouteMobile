@@ -63,6 +63,30 @@ describe("Maestro iOS preview smoke flow", () => {
     assert.match(flow, /tapOn:\s*"Open"/);
   });
 
+  it("dismisses the SDK-specific Expo Go first-launch developer explanation", () => {
+    const flow = savedRoutesFlowSource();
+
+    assert.match(flow, /visible:\s*"Continue"[\s\S]*tapOn:\s*"Continue"/);
+    assert.match(flow, /text:\s*"Close"[\s\S]*optional:\s*true/);
+  });
+
+  it("opens, starts, verifies, and stops saved-route guidance", () => {
+    const flow = savedRoutesFlowSource();
+    const previewIndex = flow.indexOf('id: "safe-route-live-map"');
+    const detailsIndex = flow.indexOf('id: "safe-route-saved-details"');
+    const startIndex = flow.indexOf('id: "safe-route-primary-action"', detailsIndex);
+    const remainingIndex = flow.indexOf('id: "safe-route-remaining-metrics"');
+    const rerouteIndex = flow.indexOf('id: "safe-route-control-reroute"');
+    const stopIndex = flow.lastIndexOf('id: "safe-route-stop-action"');
+
+    assert.ok(previewIndex >= 0);
+    assert.ok(detailsIndex > previewIndex);
+    assert.ok(startIndex > detailsIndex);
+    assert.ok(remainingIndex > startIndex);
+    assert.ok(rerouteIndex > remainingIndex);
+    assert.ok(stopIndex > rerouteIndex);
+  });
+
   it("keeps the no-build simulator preview handoff on localhost only", () => {
     const flow = previewFlowSource();
     const scripts = packageJson().scripts;

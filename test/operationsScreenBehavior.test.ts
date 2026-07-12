@@ -17,21 +17,23 @@ describe("operations screen behavior", () => {
     assert.match(text, /createConvoyRows\(routes, operationsState\)/);
     assert.match(text, /createOperationsSummaryState\(routes, operationsState\)/);
     assert.match(text, /accessibilityRole="tab"/);
+    assert.match(text, /testID=\{uiTestIds\.operationsClientSelector\}/);
     assert.match(text, /testID=\{uiTestIds\.operationsScreen\}/);
     assert.match(text, /testID=\{uiTestIds\.operationsRouteCard\(row\.id\)\}/);
     assert.match(text, /testID=\{uiTestIds\.operationsConvoyCard\(row\.id\)\}/);
-    assert.match(text, />View only</);
+    assert.match(text, /SafeRoute · View only/);
     assert.match(text, /revision !== loadRevisionRef\.current/);
     assert.match(text, /void loadOperations\(\{ clientId: client\.id \}\)/);
     assert.doesNotMatch(text, /onEdit|Edit route|Save changes|Delete route|Create convoy|saveSelected|upsert|deleteTrip/);
   });
 
-  it("keeps manifest sync failure non-blocking while preserving session expiry safety", () => {
+  it("keeps optional manifest sync failure non-blocking without signing out a route-authenticated user", () => {
     const text = `${screenSource()}\n${uiStateSource()}`;
 
-    assert.match(text, /operationsError instanceof ApiSessionExpiredError/);
     assert.match(text, /createOperationsSyncWarningState\(operationsError\)/);
     assert.match(text, /setOperationsState\(null\)/);
     assert.match(text, /Showing saved routes only/);
+    assert.doesNotMatch(text, /operationsError instanceof ApiSessionExpiredError[\s\S]{0,180}onSessionExpired/);
+    assert.match(text, /error instanceof ApiSessionExpiredError[\s\S]{0,180}onSessionExpired/);
   });
 });

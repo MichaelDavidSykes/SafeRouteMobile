@@ -158,10 +158,10 @@ export function createOperationsSubtitle(tab: OperationsTab): string {
   }
 
   if (tab === "convoy-management") {
-    return "Vehicles, people, and route manifests. View only.";
+    return "Vehicles, people, and route manifests.";
   }
 
-  return "Upcoming SafeRoute plans. Editing stays on web for now.";
+  return "Upcoming routes synced from SafeRoute.";
 }
 
 export function createOperationsLoadingLabel(tab: OperationsTab): string {
@@ -193,9 +193,11 @@ export function createOperationsEmptyState(tab: OperationsTab): OperationsEmptyS
 }
 
 export function createOperationsSyncWarningState(error: unknown): OperationsSyncWarningState {
-  const message = error instanceof Error && error.message.trim()
-    ? error.message.trim()
-    : "Trip and convoy manifests could not sync.";
+  const message = error instanceof Error && error.name === "ApiSessionExpiredError"
+    ? "Live calendar and convoy details are temporarily unavailable"
+    : error instanceof Error && error.message.trim()
+      ? error.message.trim()
+      : "Trip and convoy manifests could not sync.";
 
   const sentence = message.endsWith(".") ? message : `${message}.`;
 
@@ -247,6 +249,12 @@ export function createCalendarRows(
   routes: SavedSafeRoutePlan[],
   operationsState: SafeRouteOperationsState | null = null
 ): OperationsRouteRow[] {
+  if (!operationsState) {
+    return routes
+      .filter((route) => route.status !== "in-progress")
+      .map((route) => createRouteRowFromSavedRoute(route, "Schedule pending", "Schedule pending"));
+  }
+
   return createAssignmentViews(routes, operationsState)
     .filter((view) => Boolean(resolveMovementDate(view.trip, view.assignment)))
     .sort(compareAssignmentViews)
@@ -342,13 +350,17 @@ function createRouteRowFromAssignment(
   };
 }
 
-function createRouteRowFromSavedRoute(route: SavedSafeRoutePlan, badgeLabel: string): OperationsRouteRow {
+function createRouteRowFromSavedRoute(
+  route: SavedSafeRoutePlan,
+  badgeLabel: string,
+  fallbackScheduleLabel?: string
+): OperationsRouteRow {
   const title = normalizeLabel(route.name, "SafeRoute plan");
   const operation = normalizeLabel(route.operation, "Operation");
   const convoy = normalizeLabel(route.convoyCallsign, "Convoy");
   const endpointLabel = `${normalizeLabel(route.origin, "Origin")} → ${normalizeLabel(route.destination, "Destination")}`;
   const metaLabel = `${operation} · ${convoy} · ${route.route.eta} · ${route.route.distance}`;
-  const scheduleLabel = route.status === "planned" ? "Schedule pending" : route.updatedAtLabel;
+  const scheduleLabel = fallbackScheduleLabel || (route.status === "planned" ? "Schedule pending" : route.updatedAtLabel);
   const manifestLabel = "Manifest pending";
 
   return {

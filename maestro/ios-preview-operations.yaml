@@ -84,6 +84,8 @@ appId: host.exp.Exponent
 - waitForAnimationToEnd:
     timeout: 1500
 - assertVisible: "Calendar"
+- assertNotVisible:
+    id: "safe-route-login"
 - assertVisible:
     id: "safe-route-operations-route-trip-airport-transfer-sr-city-airport-alpha-0"
 - tapOn:
@@ -92,6 +94,8 @@ appId: host.exp.Exponent
 - waitForAnimationToEnd:
     timeout: 1500
 - assertVisible: "Convoys"
+- assertNotVisible:
+    id: "safe-route-login"
 - assertVisible:
     id: "safe-route-operations-convoy-trip-airport-transfer"
 - assertVisible:
@@ -115,6 +119,8 @@ appId: host.exp.Exponent
       id: "safe-route-operations"
     timeout: 12000
 - assertVisible: "Calendar"
+- assertNotVisible:
+    id: "safe-route-login"
 - tapOn:
     id: "safe-route-operations-map-return"
     waitToSettleTimeoutMs: 1000
@@ -130,5 +136,7 @@ appId: host.exp.Exponent
       id: "safe-route-operations"
     timeout: 12000
 - assertVisible: "Convoys"
+- assertNotVisible:
+    id: "safe-route-login"
 - assertVisible:
     id: "safe-route-operations-convoy-trip-airport-transfer"

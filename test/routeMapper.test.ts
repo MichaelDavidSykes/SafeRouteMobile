@@ -162,6 +162,8 @@ describe('SafeRoute mobile DTO mapper', () => {
 
     assert.equal(plan.route.coordinates.length, snappedGeometry.length);
     assert.deepEqual(plan.route.coordinates, snappedGeometry);
+    assert.equal(plan.route.navigationSteps?.[0].maneuverType, 'depart');
+    assert.equal(plan.route.navigationSteps?.at(-1)?.maneuverType, 'arrive');
   });
 
   it('falls back safely when route geometry is missing', () => {

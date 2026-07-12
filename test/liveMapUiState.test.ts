@@ -332,6 +332,22 @@ describe('live map UI state helpers', () => {
       hint: 'A reliable live location is required before rerouting.',
       state: { disabled: true, selected: false }
     });
+    assert.deepEqual(mapControlAccessibility('reroute', {
+      disabled: true,
+      rerouteUnavailableReason: 'cooldown'
+    }), {
+      label: 'Reroute from current location',
+      hint: 'Rerouting will be available again after the current route stabilizes.',
+      state: { disabled: true, selected: false }
+    });
+    assert.deepEqual(mapControlAccessibility('reroute', {
+      disabled: true,
+      rerouteUnavailableReason: 'failed'
+    }), {
+      label: 'Reroute from current location',
+      hint: 'Use Retry in the guidance card to try the failed reroute again.',
+      state: { disabled: true, selected: false }
+    });
     assert.deepEqual(mapControlAccessibility('reroute', { active: true, disabled: true }), {
       label: 'Finding a safer route',
       hint: 'A new risk-aware route is being calculated.',

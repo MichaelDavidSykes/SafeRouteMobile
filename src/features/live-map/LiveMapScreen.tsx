@@ -623,6 +623,18 @@ export function LiveMapScreen({
           status: "failed" as const,
         }
       : null;
+  const manualRerouteUnavailableReason = rerouteState.status === "failed"
+    ? "failed" as const
+    : rerouteState.status === "monitoring" &&
+        Number.isFinite(timestampMs) &&
+        (timestampMs as number) < rerouteState.cooldownUntilMs
+      ? "cooldown" as const
+      : !rerouteMonitoringActive ||
+          !rawVehicleCoordinate ||
+          !progress ||
+          !Number.isFinite(timestampMs)
+        ? "location" as const
+        : null;
 
   const handleRetryReroute = () => {
     const transition = retryFailedLiveReroute(rerouteStateRef.current, Date.now());
@@ -1057,11 +1069,9 @@ export function LiveMapScreen({
         riskAdvisory={riskAdvisory}
         reroutePresentation={reroutePresentation}
         rerouteUnavailable={
-          !rerouteMonitoringActive ||
-          !rawVehicleCoordinate ||
-          !progress ||
-          !Number.isFinite(timestampMs)
+          manualRerouteUnavailableReason !== null
         }
+        rerouteUnavailableReason={manualRerouteUnavailableReason || undefined}
         routePlan={liveRoutePlan}
         selectedRiskProximity={selectedRiskProximity}
         selectedRiskZone={selectedRiskZone}

@@ -27,6 +27,7 @@ interface LiveMapControlsProps {
   routeIntelCount: number;
   reroutePending: boolean;
   rerouteUnavailable: boolean;
+  rerouteUnavailableReason?: "cooldown" | "failed" | "location";
 }
 
 export function LiveMapControls({
@@ -43,6 +44,7 @@ export function LiveMapControls({
   routeIntelCount,
   reroutePending,
   rerouteUnavailable,
+  rerouteUnavailableReason,
 }: LiveMapControlsProps) {
   const driveAlongActive = shouldShowDriveAlongControl(activeNavigationState);
   const compactControls = layout.mapControlsDirection === "row";
@@ -101,6 +103,7 @@ export function LiveMapControls({
           active={reroutePending}
           compact={compactControls}
           disabled={reroutePending || rerouteUnavailable}
+          rerouteUnavailableReason={rerouteUnavailableReason}
           onPress={onReroute}
         />
       ) : null}
@@ -116,6 +119,7 @@ function MapControlButton({
   driveAlongActive,
   hasLiveLocation,
   onPress,
+  rerouteUnavailableReason,
 }: {
   active?: boolean;
   compact?: boolean;
@@ -123,6 +127,7 @@ function MapControlButton({
   disabled?: boolean;
   driveAlongActive?: boolean;
   hasLiveLocation?: boolean;
+  rerouteUnavailableReason?: "cooldown" | "failed" | "location";
   onPress: () => void;
 }) {
   const controlOptions = {
@@ -130,6 +135,7 @@ function MapControlButton({
     disabled,
     driveAlongActive,
     hasLiveLocation,
+    rerouteUnavailableReason,
   };
   const accessibility = mapControlAccessibility(control, controlOptions);
   const displayLabel = mapControlDisplayLabel(control, controlOptions);

@@ -14,7 +14,8 @@ import {
   type ViewportRiskCache
 } from './viewportRiskState';
 
-const VIEWPORT_RISK_DEBOUNCE_MS = 280;
+export const VIEWPORT_RISK_DEBOUNCE_MS = 140;
+export const VIEWPORT_RISK_TIMEOUT_MS = 6000;
 
 export function useViewportRiskAreas({
   accessToken,
@@ -36,9 +37,7 @@ export function useViewportRiskAreas({
   const [retryRevision, setRetryRevision] = useState(0);
   const requests = useMemo(
     () => regionToAreaRiskViewportRequests(region, {
-      clientId: clientId || undefined,
-      detailMaxRecords: 120,
-      regionalMaxRecords: 60
+      clientId: clientId || undefined
     }),
     [
       clientId,
@@ -89,39 +88,53 @@ export function useViewportRiskAreas({
       return () => controller.abort();
     }
 
+    const cachedResult = mergeRiskZonesById(...cachedZones);
+    // Paint cached chunks immediately rather than holding the previous
+    // viewport on screen while its replacement is downloaded.
+    setZones(cachedResult);
     setLoading(true);
     setErrorMessage('');
     setStatusMessage('Loading risk areas…');
     const timer = setTimeout(() => {
-      void Promise.all(missingRequests.map(async (request) => {
-        const feed = await fetchAreaRiskViewport(request, {
-          accessToken,
-          signal: controller.signal,
-          timeoutMs: 9000
-        });
-        cacheViewportRiskZones(cacheRef.current, request, feed.zones);
-        return feed;
-      })).then((feeds) => {
+      const receivedZones: RiskZone[][] = [];
+      let failedRequestCount = 0;
+      const downloads = missingRequests.map(async (request) => {
+        try {
+          const feed = await fetchAreaRiskViewport(request, {
+            accessToken,
+            signal: controller.signal,
+            timeoutMs: VIEWPORT_RISK_TIMEOUT_MS
+          });
+          if (controller.signal.aborted || requestRevisionRef.current !== revision) {
+            return;
+          }
+          cacheViewportRiskZones(cacheRef.current, request, feed.zones);
+          receivedZones.push(feed.zones);
+          // Antimeridian views have two chunks. Reveal the first successful
+          // chunk as soon as it lands instead of waiting for the slower one.
+          setZones(mergeRiskZonesById(...cachedZones, ...receivedZones));
+        } catch {
+          if (!controller.signal.aborted) {
+            failedRequestCount += 1;
+          }
+        }
+      });
+
+      void Promise.allSettled(downloads).then(() => {
         if (controller.signal.aborted || requestRevisionRef.current !== revision) {
           return;
         }
-        const nextZones = mergeRiskZonesById(
-          ...cachedZones,
-          ...feeds.map((feed) => feed.zones)
-        );
+
+        const nextZones = mergeRiskZonesById(...cachedZones, ...receivedZones);
         setZones(nextZones);
-        setStatusMessage(nextZones.length ? '' : 'No risk areas in this map view.');
-      }).catch(() => {
-        if (controller.signal.aborted || requestRevisionRef.current !== revision) {
-          return;
+        if (failedRequestCount === missingRequests.length && !cachedResult.length) {
+          setErrorMessage('Risk areas could not be updated. Move the map or retry.');
+          setStatusMessage('');
+        } else {
+          setErrorMessage('');
+          setStatusMessage(nextZones.length ? '' : 'No risk areas in this map view.');
         }
-        setZones(mergeRiskZonesById(...cachedZones));
-        setErrorMessage('Risk areas could not be updated. Move the map or retry.');
-        setStatusMessage('');
-      }).finally(() => {
-        if (!controller.signal.aborted && requestRevisionRef.current === revision) {
-          setLoading(false);
-        }
+        setLoading(false);
       });
     }, VIEWPORT_RISK_DEBOUNCE_MS);
 

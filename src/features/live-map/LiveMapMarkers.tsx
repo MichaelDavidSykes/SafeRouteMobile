@@ -1,13 +1,12 @@
 import type { ComponentProps, ComponentType } from 'react';
-import { StyleSheet, Text, View } from 'react-native';
-import { Callout, Circle, Marker, Polygon, Polyline } from 'react-native-maps';
+import { StyleSheet, View } from 'react-native';
+import { Circle, Marker, Polygon, Polyline } from 'react-native-maps';
 
 import type { RiskSeverity, RiskZone, RouteCheckpoint } from './liveMapTypes';
 import {
   buildRouteRiskAlertSegment,
   createRiskZoneAccessibilityLabel
 } from './routeRisk';
-import { createRiskZoneDetailPresentation, type RouteRiskProximity } from './routeRisk';
 import {
   isRouteAlertZone,
   shouldRenderRiskCoverage,
@@ -29,16 +28,12 @@ export function RiskOverlay({
   onPress,
   routeCoordinates,
   selected,
-  proximity,
-  onDismiss,
   zone
 }: {
   active?: boolean;
   onPress?: (zone: RiskZone) => void;
   routeCoordinates?: Array<{ latitude: number; longitude: number }>;
   selected?: boolean;
-  proximity?: RouteRiskProximity | null;
-  onDismiss?: () => void;
   zone: RiskZone;
 }) {
   const routeSegmentCoordinates = zone.routeSegmentCoordinates || [];
@@ -134,9 +129,7 @@ export function RiskOverlay({
       ) : null}
       <RiskMarker
         active={active}
-        onDismiss={onDismiss}
         onPress={handlePress}
-        proximity={proximity}
         routeAlert={routeAlert}
         selected={selected}
         zone={zone}
@@ -193,30 +186,23 @@ function RiskMarker({
   active,
   onPress,
   selected,
-  proximity,
   routeAlert,
-  onDismiss,
   zone
 }: {
   active?: boolean;
   onPress?: () => void;
   selected?: boolean;
-  proximity?: RouteRiskProximity | null;
   routeAlert: boolean;
-  onDismiss?: () => void;
   zone: RiskZone;
 }) {
   return (
     <Marker
       coordinate={zone.coordinate}
       anchor={{ x: 0.5, y: 0.5 }}
-      title={zone.title}
-      description={zone.description}
       testID={uiTestIds.liveMapRiskZone(zone.id)}
       tappable={Boolean(onPress)}
       zIndex={selected || active ? 20 : 10}
       onPress={onPress}
-      onCalloutPress={onDismiss}
     >
       <View
         accessibilityLabel={createRiskZoneAccessibilityLabel(zone, Boolean(selected))}
@@ -236,46 +222,7 @@ function RiskMarker({
           <View style={routeAlert ? styles.routeAlertMarkerCore : styles.riskMarkerCore} />
         </View>
       </View>
-      <RiskCallout proximity={proximity || null} zone={zone} onDismiss={onDismiss} />
     </Marker>
-  );
-}
-
-function RiskCallout({
-  onDismiss,
-  proximity,
-  zone,
-}: {
-  onDismiss?: () => void;
-  proximity: RouteRiskProximity | null;
-  zone: RiskZone;
-}) {
-  const presentation = createRiskZoneDetailPresentation({ proximity, zone });
-  return (
-    <Callout tooltip onPress={onDismiss}>
-      <View
-        accessible
-        accessibilityLabel={presentation.accessibilityLabel}
-        testID={uiTestIds.liveMapRiskDetail}
-        style={styles.riskCalloutWrap}
-      >
-        <View style={styles.riskCallout}>
-          <Text numberOfLines={1} style={styles.riskCalloutEyebrow}>Risk area</Text>
-          <Text numberOfLines={2} style={styles.riskCalloutTitle}>{presentation.title}</Text>
-          <Text numberOfLines={2} style={styles.riskCalloutBody}>{presentation.body}</Text>
-          <Text numberOfLines={2} style={styles.riskCalloutMeta}>{presentation.metaLabel}</Text>
-          <Text numberOfLines={1} style={styles.riskCalloutClearance}>{presentation.clearanceLabel}</Text>
-          <Text
-            accessibilityLabel="Close risk details"
-            testID={uiTestIds.liveMapRiskDetailDismiss}
-            style={styles.riskCalloutDismiss}
-          >
-            Tap to close
-          </Text>
-        </View>
-        <View style={styles.riskCalloutPointer} />
-      </View>
-    </Callout>
   );
 }
 
@@ -424,70 +371,6 @@ const styles = StyleSheet.create({
     height: 3,
     borderRadius: 1,
     backgroundColor: colors.surface
-  },
-  riskCalloutWrap: {
-    width: 286,
-    alignItems: 'center'
-  },
-  riskCallout: {
-    width: 286,
-    paddingHorizontal: 14,
-    paddingVertical: 12,
-    borderWidth: 0.5,
-    borderColor: 'rgba(255,255,255,0.18)',
-    borderRadius: 18,
-    backgroundColor: 'rgba(8,11,15,0.94)'
-  },
-  riskCalloutEyebrow: {
-    color: 'rgba(226,232,240,0.72)',
-    fontSize: 10,
-    fontWeight: '900',
-    letterSpacing: 0.8,
-    textTransform: 'uppercase'
-  },
-  riskCalloutTitle: {
-    marginTop: 4,
-    color: '#f8fafc',
-    fontSize: 15,
-    fontWeight: '900',
-    lineHeight: 19
-  },
-  riskCalloutBody: {
-    marginTop: 6,
-    color: 'rgba(226,232,240,0.78)',
-    fontSize: 12,
-    fontWeight: '600',
-    lineHeight: 16
-  },
-  riskCalloutMeta: {
-    marginTop: 8,
-    color: 'rgba(226,232,240,0.9)',
-    fontSize: 10,
-    fontWeight: '800',
-    lineHeight: 14,
-    textTransform: 'uppercase'
-  },
-  riskCalloutClearance: {
-    marginTop: 6,
-    color: '#f8fafc',
-    fontSize: 11,
-    fontWeight: '800'
-  },
-  riskCalloutDismiss: {
-    marginTop: 9,
-    color: '#8cc8ff',
-    fontSize: 11,
-    fontWeight: '900'
-  },
-  riskCalloutPointer: {
-    width: 0,
-    height: 0,
-    borderLeftWidth: 10,
-    borderRightWidth: 10,
-    borderTopWidth: 12,
-    borderLeftColor: 'transparent',
-    borderRightColor: 'transparent',
-    borderTopColor: 'rgba(8,11,15,0.94)'
   },
   vehicleMarker: {
     width: 30,

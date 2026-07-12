@@ -237,8 +237,9 @@ describe("Maestro iOS preview smoke flow", () => {
     assert.match(flow, /longitude:\s*18\.585/);
     assert.match(flow, /safe-route-risk-zone-generated-area-risk-safe-route-area-risk-philippi-east-33b347150ca4712272/);
     assert.match(flow, /id:\s*"safe-route-risk-detail"/);
-    assert.match(flow, /Philippi East \(Cape Flats\)/);
+    assert.match(flow, /Philippi East/);
     assert.match(flow, /id:\s*"safe-route-risk-detail-dismiss"/);
+    assert.match(flow, /point:\s*"69%,19%"/);
   });
 
   it("opens saved preview routes without drafting a guest route", () => {

@@ -22,6 +22,7 @@ import { uiTestIds } from '../../testing/uiTestIds';
 import type { SavedSafeRoutePlan } from '../live-map/liveMapTypes';
 import type { RiskZone } from '../live-map/liveMapTypes';
 import { RiskOverlay } from '../live-map/LiveMapMarkers';
+import { LiveMapRiskDetailCallout } from '../live-map/LiveMapRiskDetailCallout';
 import { useViewportRiskAreas } from '../live-map/useViewportRiskAreas';
 import { mergeRiskZonesById } from '../live-map/areaRiskApiCore';
 import { fetchAreaRiskAlongRoute } from '../live-map/routeRiskCorridorApi';
@@ -826,6 +827,7 @@ export function GuestMapScreen({
         onLongPress={(event) => handleMapLongPress(event.nativeEvent.coordinate)}
         onPanDrag={() => {
           userMovedMapRef.current = true;
+          setSelectedRiskZone(null);
         }}
         onRegionChangeComplete={setMapRegion}
       >
@@ -834,7 +836,6 @@ export function GuestMapScreen({
             key={zone.id}
             selected={selectedRiskZone?.id === zone.id}
             zone={zone}
-            onDismiss={() => setSelectedRiskZone(null)}
             onPress={handleSelectRiskZone}
           />
         ))}
@@ -909,6 +910,14 @@ export function GuestMapScreen({
           </Marker>
         ) : null}
       </MapView>
+
+      {selectedRiskZone ? (
+        <LiveMapRiskDetailCallout
+          mapRef={mapRef}
+          zone={selectedRiskZone}
+          onDismiss={() => setSelectedRiskZone(null)}
+        />
+      ) : null}
 
       <KeyboardAvoidingView
         behavior={Platform.OS === 'ios' ? 'padding' : 'height'}

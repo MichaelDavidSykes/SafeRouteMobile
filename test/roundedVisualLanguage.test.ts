@@ -663,15 +663,17 @@ describe("rounded visual language", () => {
       join(process.cwd(), "src/features/guest-map/GuestMapScreen.tsx"),
       "utf8",
     );
-    const markerSource = readFileSync(
-      join(process.cwd(), "src/features/live-map/LiveMapMarkers.tsx"),
+    const calloutSource = readFileSync(
+      join(process.cwd(), "src/features/live-map/LiveMapRiskDetailCallout.tsx"),
       "utf8",
     );
 
     assert.match(guestMapSource, /onDismiss=\{\(\) => setSelectedRiskZone\(null\)\}/);
     assert.doesNotMatch(guestMapSource, /function GuestRiskDetail/);
-    assert.match(markerSource, /<Callout tooltip onPress=\{onDismiss\}>/);
-    assert.match(markerSource, /testID=\{uiTestIds\.liveMapRiskDetailDismiss\}/);
+    assert.match(calloutSource, /pointForCoordinate\(zone\.coordinate\)/);
+    assert.match(calloutSource, /styles\.connector/);
+    assert.match(calloutSource, /testID=\{uiTestIds\.liveMapRiskDetail\}/);
+    assert.match(calloutSource, /testID=\{uiTestIds\.liveMapRiskDetailDismiss\}/);
   });
 
   it("keeps the login header logo-first without duplicate brand text", () => {
@@ -1465,7 +1467,7 @@ describe("rounded visual language", () => {
     assert.match(markerSource, /\briskMarkerCore:/);
     assert.match(markerSource, /\briskMarkerHitArea:[\s\S]*width:\s*32/);
     assert.match(markerSource, /\brouteAlertMarker:[\s\S]*width:\s*9/);
-    assert.match(markerSource, /<Callout tooltip/);
+    assert.doesNotMatch(markerSource, /Callout|showCallout/);
     assert.match(markerSource, /\bvehicleMarkerHeading:/);
     assert.match(markerSource, /borderRadius:\s*radius\.pill/);
     assert.match(riskMarkerBlock, /width:\s*14/);

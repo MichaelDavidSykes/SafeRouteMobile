@@ -63,11 +63,17 @@ appId: host.exp.Exponent
     timeout: 30000
 - tapOn:
     id: "safe-route-risk-zone-generated-area-risk-safe-route-area-risk-philippi-east-33b347150ca4712272"
+# react-native-maps exposes the marker identifier for assertions, while iOS can
+# consume accessibility-initiated marker taps without dispatching the native
+# map press callback. Verify the same physical marker interaction a user makes.
+- tapOn:
+    point: "69%,19%"
+    waitToSettleTimeoutMs: 1000
 - extendedWaitUntil:
     visible:
       id: "safe-route-risk-detail"
     timeout: 5000
-- assertVisible: "Philippi East (Cape Flats)"
+- assertVisible: ".*Philippi East \\(Cape Flats\\).*"
 - assertVisible:
     id: "guest-map-collapsed-sheet"
 - tapOn:

@@ -77,7 +77,8 @@ import {
   guestRouteDraftReducer,
   mapGuestRouteDraftToCheckpoints,
   resolveGuestRouteDraftStopCoordinate,
-  setGuestRouteCurrentLocation
+  setGuestRouteCurrentLocation,
+  shouldUseGuestMapSelectionAsDestination
 } from './guestRouteDraft';
 import { guestMapStyles as styles } from './GuestMapScreen.styles';
 import { createGuestRiskArea } from './guestRiskAreaApi';
@@ -177,6 +178,9 @@ export function GuestMapScreen({
   });
   const routeActionDisabled = routeAction.disabled || roadPreviewPending;
   const routeActionLabel = roadPreviewPending ? 'Finding safest route…' : routeAction.label;
+  const mapSelectionSetsDestination = shouldUseGuestMapSelectionAsDestination(routeDraft);
+  const canAddMapRoutePoint =
+    mapSelectionSetsDestination || canAddGuestRouteWaypoint(routeDraft);
   const originInputCopy = createGuestRouteInputCopy({
     field: 'origin',
     routePlotted
@@ -750,21 +754,36 @@ export function GuestMapScreen({
     animateRouteSheet(true);
   };
 
-  const handleAddMapWaypoint = () => {
-    if (!mapAction || !canAddGuestRouteWaypoint(routeDraft)) {
+  const handleAddMapRoutePoint = () => {
+    if (!mapAction || !canAddMapRoutePoint) {
       return;
     }
-    dispatchRouteDraft({
-      options: {
-        coordinate: mapAction.coordinate,
-        label: mapAction.label.slice(0, GUEST_ROUTE_LABEL_MAX_LENGTH),
-        select: false
-      },
-      type: 'waypoint/add'
-    });
+    const selection = {
+      coordinate: mapAction.coordinate,
+      label: mapAction.label.slice(0, GUEST_ROUTE_LABEL_MAX_LENGTH)
+    };
+    if (mapSelectionSetsDestination) {
+      dispatchRouteDraft({
+        selection,
+        stopId: GUEST_ROUTE_DRAFT_DESTINATION_ID,
+        type: 'stop/select'
+      });
+    } else {
+      dispatchRouteDraft({
+        options: {
+          ...selection,
+          select: false
+        },
+        type: 'waypoint/add'
+      });
+    }
     cancelRoadRouteUpgrade();
     setRoutePlan(null);
-    setRouteMessage('Stop added. Plot the route when ready.');
+    setRouteMessage(
+      mapSelectionSetsDestination
+        ? 'Destination set. Plot the route when ready.'
+        : 'Stop added. Plot the route when ready.'
+    );
     setMapAction(null);
     animateRouteSheet(false);
   };
@@ -979,21 +998,30 @@ export function GuestMapScreen({
               <Text numberOfLines={1} style={styles.mapActionTitle}>
                 {mapAction.pending ? 'Locating…' : mapAction.label}
               </Text>
-              <Text style={styles.mapActionSubtitle}>Choose what to add here.</Text>
+              <Text style={styles.mapActionSubtitle}>
+                {mapSelectionSetsDestination
+                  ? 'Use this point as your destination.'
+                  : 'Add this point to the route.'}
+              </Text>
             </View>
             <View style={styles.mapActionButtons}>
               <Pressable
-                accessibilityLabel="Add this location as a route stop"
+                accessibilityLabel={mapSelectionSetsDestination
+                  ? 'Use this location as the route destination'
+                  : 'Add this location as a route stop'}
                 accessibilityRole="button"
-                disabled={!canAddGuestRouteWaypoint(routeDraft)}
+                accessibilityState={{ disabled: !canAddMapRoutePoint }}
+                disabled={!canAddMapRoutePoint}
                 testID={uiTestIds.guestMapLongPressAddWaypoint}
                 style={({ pressed }) => [
                   styles.mapActionButton,
                   pressed ? styles.mapActionButtonPressed : null
                 ]}
-                onPress={handleAddMapWaypoint}
+                onPress={handleAddMapRoutePoint}
               >
-                <Text style={styles.mapActionButtonText}>Add stop</Text>
+                <Text style={styles.mapActionButtonText}>
+                  {mapSelectionSetsDestination ? 'Set destination' : 'Add stop'}
+                </Text>
               </Pressable>
               <Pressable
                 accessibilityLabel={authenticated ? 'Add a risk area here' : 'Sign in to add a risk area'}

@@ -497,6 +497,7 @@ describe("Maestro iOS preview smoke flow", () => {
     assert.match(flow, /id:\s*"guest-map-long-press-menu"/);
     assert.match(flow, /id:\s*"guest-map-long-press-add-waypoint"/);
     assert.match(flow, /id:\s*"guest-map-long-press-add-risk"/);
+    assert.doesNotMatch(flow, /guest-map-search-coordinate-51-505300-0-055300/);
     assert.match(flow, /id:\s*"guest-map-waypoint-guest-waypoint-2"/);
     assert.match(flow, /id:\s*"guest-map-plot-action"/);
     assert.match(flow, /id:\s*"guest-map-route-preview"/);

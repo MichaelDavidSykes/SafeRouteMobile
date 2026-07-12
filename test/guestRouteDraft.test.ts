@@ -25,6 +25,7 @@ import {
   setGuestRouteOrigin,
   setGuestRouteWaypoint,
   setSelectedGuestRouteDraftStop,
+  shouldUseGuestMapSelectionAsDestination,
   useGuestRouteCurrentLocation
 } from '../src/features/guest-map/guestRouteDraft';
 
@@ -50,6 +51,26 @@ const destinationSelection = {
 };
 
 describe('guest route draft state', () => {
+  it('uses the first held map point as the destination instead of an incomplete waypoint', () => {
+    const initial = createGuestRouteDraft({ currentLocation: originSelection.coordinate });
+    assert.equal(shouldUseGuestMapSelectionAsDestination(initial), true);
+
+    const withDestination = selectGuestRouteDraftLocation(
+      initial,
+      GUEST_ROUTE_DRAFT_DESTINATION_ID,
+      destinationSelection
+    );
+    assert.equal(shouldUseGuestMapSelectionAsDestination(withDestination), false);
+    assert.equal(canExportGuestRouteDraft(withDestination), true);
+
+    const editedDestination = editGuestRouteDraftStop(
+      withDestination,
+      GUEST_ROUTE_DRAFT_DESTINATION_ID,
+      'Choose another point'
+    );
+    assert.equal(shouldUseGuestMapSelectionAsDestination(editedDestination), true);
+  });
+
   it('keeps fixed endpoint IDs and monotonic waypoint IDs across edits and removal', () => {
     let draft = createGuestRouteDraft();
     assert.equal(draft.origin.id, GUEST_ROUTE_DRAFT_ORIGIN_ID);

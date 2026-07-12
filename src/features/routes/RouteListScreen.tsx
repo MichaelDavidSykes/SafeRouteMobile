@@ -38,6 +38,13 @@ import {
 import type { MobileSafeRouteClient } from "./routeMapper";
 import { colors } from "../../theme";
 import { uiTestIds } from "../../testing/uiTestIds";
+import {
+  loadOfflineRouteDetail,
+  loadOfflineRoutes,
+  saveOfflineRouteDetail,
+  saveOfflineRoutes,
+} from "./offlineRouteCache";
+import { hasUsableRoutePlan } from "./offlineRouteCacheCore";
 
 const ROUTE_LIST_ERROR_ACTION_HIT_SLOP = 6;
 
@@ -74,6 +81,7 @@ export function RouteListScreen({
     null,
   );
   const [detailLoadingId, setDetailLoadingId] = useState<string | null>(null);
+  const [showingOfflineCopy, setShowingOfflineCopy] = useState(false);
 
   const loadRoutes = useCallback(
     async ({ refresh = false }: { refresh?: boolean } = {}) => {
@@ -94,18 +102,27 @@ export function RouteListScreen({
           reconcileSelectedClientId(result.clients, currentClientId),
         );
         setRoutes(result.routes);
+        setShowingOfflineCopy(false);
+        void saveOfflineRoutes(userEmail, selectedClientId, result).catch(() => undefined);
       } catch (error) {
         if (error instanceof ApiSessionExpiredError) {
           onSessionExpired(error.message);
           return;
         }
-        setErrorState(createRouteSyncErrorState(error));
+        const cached = await loadOfflineRoutes(userEmail, selectedClientId);
+        if (cached) {
+          setClients(cached.clients);
+          setRoutes(cached.routes);
+          setShowingOfflineCopy(true);
+        } else {
+          setErrorState(createRouteSyncErrorState(error));
+        }
       } finally {
         setLoading(false);
         setRefreshing(false);
       }
     },
-    [accessToken, onSessionExpired, selectedClientId],
+    [accessToken, onSessionExpired, selectedClientId, userEmail],
   );
 
   useEffect(() => {
@@ -170,16 +187,25 @@ export function RouteListScreen({
 
     try {
       const routeDetail = await fetchRouteDetail(accessToken, route.id);
+      void saveOfflineRouteDetail(userEmail, routeDetail).catch(() => undefined);
       onSelectRoute(routeDetail);
     } catch (error) {
       if (error instanceof ApiSessionExpiredError) {
         onSessionExpired(error.message);
         return;
       }
-      setErrorState({
-        ...createRouteDetailErrorState(error, route.name),
-        route,
-      });
+      const cached =
+        (await loadOfflineRouteDetail(userEmail, route.id)) ||
+        (hasUsableRoutePlan(route) ? route : null);
+      if (cached) {
+        setShowingOfflineCopy(true);
+        onSelectRoute(cached);
+      } else {
+        setErrorState({
+          ...createRouteDetailErrorState(error, route.name),
+          route,
+        });
+      }
     } finally {
       setDetailLoadingId(null);
     }
@@ -213,6 +239,14 @@ export function RouteListScreen({
         onChangeQuery={handleChangeQuery}
         onSelectClient={setSelectedClientId}
       />
+
+      {showingOfflineCopy ? (
+        <View accessibilityRole="alert" style={styles.offlineNotice}>
+          <Text style={styles.offlineNoticeText}>
+            Offline saved copy · route maps and guidance remain available
+          </Text>
+        </View>
+      ) : null}
 
       {errorState ? (
         <View accessibilityRole="alert" style={styles.errorBox}>

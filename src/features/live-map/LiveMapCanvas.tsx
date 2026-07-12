@@ -27,6 +27,7 @@ interface LiveMapCanvasProps {
   onMapReady: () => void;
   onPanDrag: () => void;
   onRiskZonePress: (zone: RiskZone) => void;
+  offline: boolean;
   permissionStatus: PermissionStatus;
   progressCoordinates: LatLng[];
   routePlan: SavedSafeRoutePlan;
@@ -44,6 +45,7 @@ export function LiveMapCanvas({
   onMapReady,
   onPanDrag,
   onRiskZonePress,
+  offline,
   permissionStatus,
   progressCoordinates,
   routePlan,
@@ -86,6 +88,7 @@ export function LiveMapCanvas({
       }
       toolbarEnabled={false}
       customMapStyle={SAFE_ROUTE_DARK_MAP_STYLE}
+      mapType={offline ? "none" : "standard"}
       userInterfaceStyle="dark"
       onPanDrag={onPanDrag}
       onMapReady={onMapReady}

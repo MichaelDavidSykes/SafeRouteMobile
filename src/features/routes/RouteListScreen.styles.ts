@@ -249,6 +249,20 @@ export const routeListStyles = StyleSheet.create({
     paddingTop: spacing.xs,
     paddingBottom: spacing.xl,
   },
+  offlineNotice: {
+    alignSelf: "center",
+    marginBottom: spacing.xs,
+    paddingHorizontal: spacing.sm,
+    paddingVertical: spacing.xs,
+    borderRadius: radius.pill,
+    backgroundColor: colors.surfaceGlass,
+  },
+  offlineNoticeText: {
+    color: colors.inkSoft,
+    fontSize: typeScale.xs,
+    fontWeight: "700",
+    textAlign: "center",
+  },
   emptyState: {
     alignSelf: "center",
     alignItems: "center",

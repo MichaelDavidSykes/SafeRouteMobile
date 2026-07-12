@@ -265,6 +265,12 @@ export function canAddGuestRouteWaypoint(draft: GuestRouteDraft): boolean {
   return getOrderedGuestRouteDraftStops(draft).length < GUEST_ROUTE_DRAFT_MAX_STOPS;
 }
 
+export function shouldUseGuestMapSelectionAsDestination(
+  draft: GuestRouteDraft
+): boolean {
+  return draft.destination.resolution.type !== 'coordinate';
+}
+
 export function addGuestRouteWaypoint(
   draft: GuestRouteDraft,
   options: AddGuestRouteWaypointOptions = {}

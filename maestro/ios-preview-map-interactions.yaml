@@ -26,6 +26,11 @@ appId: host.exp.Exponent
     timeout: 2500
 - tapOn:
     point: "91%,49%"
+- tapOn:
+    text: "Close"
+    optional: true
+- waitForAnimationToEnd:
+    timeout: 1000
 - runFlow:
     when:
       visible: "Allow While Using App"
@@ -53,6 +58,20 @@ appId: host.exp.Exponent
     visible:
       id: "guest-map-add-waypoint"
     timeout: 15000
+# With no destination entered, the first held map point must become the
+# destination rather than an intermediate waypoint that leaves plotting gated.
+- longPressOn:
+    point: "50%,38%"
+- extendedWaitUntil:
+    visible:
+      id: "guest-map-long-press-menu"
+    timeout: 5000
+- tapOn:
+    id: "guest-map-long-press-add-waypoint"
+- assertNotVisible:
+    id: "guest-map-long-press-menu"
+- assertVisible:
+    id: "guest-map-destination-input"
 - tapOn:
     id: "guest-map-add-waypoint"
 - assertVisible:
@@ -66,15 +85,6 @@ appId: host.exp.Exponent
     timeout: 10000
 - tapOn:
     id: "guest-map-search-coordinate-51-510000-0-090000"
-- tapOn:
-    id: "guest-map-destination-input"
-- inputText: "51.5053, 0.0553"
-- extendedWaitUntil:
-    visible:
-      id: "guest-map-search-coordinate-51-505300-0-055300"
-    timeout: 10000
-- tapOn:
-    id: "guest-map-search-coordinate-51-505300-0-055300"
 - swipe:
     # Drag from the dedicated grabber rather than the scrollable route fields.
     # The expanded sheet starts around mid-screen on the iPhone smoke target.

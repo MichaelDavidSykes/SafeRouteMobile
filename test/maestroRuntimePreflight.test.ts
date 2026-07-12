@@ -30,14 +30,14 @@ type MaestroPreflightModule = {
 
 const readyInputs = {
   bootedSimulatorAvailable: true,
-  expoGoVersions: ['56.0.4'],
-  installedExpoVersion: '56.0.15',
-  installedReactNativeVersion: '0.85.3',
+  expoGoVersions: ['54.0.2'],
+  installedExpoVersion: '54.0.35',
+  installedReactNativeVersion: '0.81.5',
   maestroCliVersion: '2.6.1',
   nodeVersion: 'v22.13.1',
-  packageExpoVersionRange: '~56.0.15',
+  packageExpoVersionRange: '~54.0.35',
   packageNodeEngine: '>=22.13.0',
-  packageReactNativeVersion: '0.85.3',
+  packageReactNativeVersion: '0.81.5',
   port: 8081,
   portAvailable: true,
   portProcessDetails: ''
@@ -84,7 +84,7 @@ describe('Maestro iOS runtime preflight', () => {
     const source = readme();
 
     assert.match(source, /no-build iOS Maestro smoke path/);
-    assert.match(source, /SDK 56 dependency install/);
+    assert.match(source, /SDK 54 dependency install/);
     assert.match(source, /Maestro CLI/);
     assert.match(source, /matching Expo Go SDK family/);
     assert.match(source, /Node 22\.13\+/);
@@ -103,8 +103,8 @@ describe('Maestro iOS runtime preflight', () => {
     } = await loadPreflightModule();
     const result = evaluateMaestroRuntimePreflight(readyInputs);
 
-    assert.equal(parseExpoSdkMajor('~56.0.15'), 56);
-    assert.equal(parseExpoSdkMajor('56.0.4'), 56);
+    assert.equal(parseExpoSdkMajor('~54.0.35'), 54);
+    assert.equal(parseExpoSdkMajor('54.0.2'), 54);
     assert.equal(parseExpoSdkMajor('^55.0.0'), 55);
     assert.equal(parseExpoSdkMajor('latest'), null);
     assert.deepEqual(parseNodeVersion('v22.13.1'), { major: 22, minor: 13, patch: 1 });
@@ -114,7 +114,7 @@ describe('Maestro iOS runtime preflight', () => {
     assert.equal(result.ready, true);
     assert.deepEqual(result.blockers, []);
     assert.ok(result.checks.some((check) => check.includes('Node 22.13.1 satisfies >=22.13.0')));
-    assert.ok(result.checks.some((check) => check.includes('Expo Go 56.0.4 matches SDK 56')));
+    assert.ok(result.checks.some((check) => check.includes('Expo Go 54.0.2 matches SDK 54')));
     assert.match(formatRuntimeReadinessReport(result), /SafeRoute Maestro preflight passed/);
   });
 
@@ -123,7 +123,7 @@ describe('Maestro iOS runtime preflight', () => {
     const result = evaluateMaestroRuntimePreflight({
       ...readyInputs,
       bootedSimulatorAvailable: false,
-      expoGoVersions: ['54.0.2'],
+      expoGoVersions: ['56.0.4'],
       installedReactNativeVersion: null,
       nodeVersion: 'v18.15.0',
       portAvailable: false,
@@ -137,8 +137,8 @@ describe('Maestro iOS runtime preflight', () => {
     assert.match(report, /nvm use/);
     assert.match(report, /required node_modules packages are missing/);
     assert.match(report, /Boot an iOS simulator/);
-    assert.match(report, /Expo Go 54\.0\.2/);
-    assert.match(report, /targets Expo SDK 56/);
+    assert.match(report, /Expo Go 56\.0\.4/);
+    assert.match(report, /targets Expo SDK 54/);
     assert.match(report, /port 8081 already in use/);
     assert.match(report, /node 1234/);
   });
@@ -152,12 +152,12 @@ describe('Maestro iOS runtime preflight', () => {
       "host.exp.Exponent" = {
         CFBundleDisplayName = "Expo Go";
         CFBundleIdentifier = "host.exp.Exponent";
-        CFBundleVersion = "56.0.4";
+        CFBundleVersion = "54.0.2";
       };
     `;
 
-    assert.deepEqual(parseExpoGoVersionsFromListApps(output), ['56.0.4']);
-    assert.deepEqual(parseExpoGoVersionsFromListApps('"other.app" = { CFBundleVersion = "56.0.4"; };'), []);
+    assert.deepEqual(parseExpoGoVersionsFromListApps(output), ['54.0.2']);
+    assert.deepEqual(parseExpoGoVersionsFromListApps('"other.app" = { CFBundleVersion = "54.0.2"; };'), []);
   });
 
   it('prefers bounded simctl listapps lookup before Expo Go container fallback', async () => {
@@ -167,14 +167,14 @@ describe('Maestro iOS runtime preflight', () => {
     assert.deepEqual(
       await resolveBootedExpoGoVersions({
         listAppsResolver: async () => {
-          return ['56.0.4'];
+          return ['54.0.2'];
         },
         containerResolver: () => {
           containerCalled = true;
-          return ['54.0.7'];
+          return ['56.0.4'];
         }
       }),
-      ['56.0.4']
+      ['54.0.2']
     );
     assert.equal(containerCalled, false);
 
@@ -186,10 +186,10 @@ describe('Maestro iOS runtime preflight', () => {
         },
         containerResolver: () => {
           containerCalled = true;
-          return ['56.0.4'];
+          return ['54.0.2'];
         }
       }),
-      ['56.0.4']
+      ['54.0.2']
     );
     assert.equal(containerCalled, true);
   });
@@ -205,7 +205,7 @@ describe('Maestro iOS runtime preflight', () => {
     assert.match(source, /await resolveBootedExpoGoVersions\(\)/);
   });
 
-  it('fails fast when the shell Node runtime is too old for Expo SDK 56', async () => {
+  it('fails fast when the shell Node runtime is too old for Expo SDK 54', async () => {
     const { formatNodeVersionMismatchMessage } = await loadPreflightModule();
     const message = formatNodeVersionMismatchMessage({
       currentVersion: 'v18.15.0',
@@ -221,17 +221,17 @@ describe('Maestro iOS runtime preflight', () => {
   it('fails fast when a booted Expo Go runtime cannot load the workspace SDK family', async () => {
     const { findExpoGoSdkMismatch, formatExpoGoMismatchMessage } = await loadPreflightModule();
 
-    assert.equal(findExpoGoSdkMismatch(56, ['56.0.4']), null);
-    assert.equal(findExpoGoSdkMismatch(56, []), null);
-    assert.equal(findExpoGoSdkMismatch(56, ['54.0.2']), '54.0.2');
+    assert.equal(findExpoGoSdkMismatch(54, ['54.0.2']), null);
+    assert.equal(findExpoGoSdkMismatch(54, []), null);
+    assert.equal(findExpoGoSdkMismatch(54, ['56.0.4']), '56.0.4');
 
     const message = formatExpoGoMismatchMessage({
-      expectedSdkMajor: 56,
-      installedVersion: '54.0.2'
+      expectedSdkMajor: 54,
+      installedVersion: '56.0.4'
     });
 
-    assert.match(message, /Expo Go 54\.0\.2/);
-    assert.match(message, /targets Expo SDK 56/);
+    assert.match(message, /Expo Go 56\.0\.4/);
+    assert.match(message, /targets Expo SDK 54/);
     assert.match(message, /no-build smoke flow/);
     assert.match(message, /false Maestro failures/);
   });

@@ -49,26 +49,26 @@ function pluginName(plugin: ExpoConfig['plugins'][number]): string {
 }
 
 describe('Expo Go SDK compatibility', () => {
-  it('keeps Expo packages aligned with the local Expo Go 56 runtime family', () => {
+  it('keeps Expo packages aligned with the local Expo Go 54 runtime family', () => {
     const packageJson = readPackageJson();
     const packageLock = readPackageLock();
     const expectedDependencies = {
       '@react-native-async-storage/async-storage': '2.2.0',
-      expo: '~56.0.15',
-      'expo-constants': '~56.0.20',
-      'expo-location': '~56.0.20',
-      'expo-secure-store': '~56.0.4',
-      'expo-status-bar': '~56.0.4',
-      'expo-task-manager': '~56.0.21',
-      react: '19.2.3',
-      'react-native': '0.85.3',
-      'react-native-maps': '1.27.2',
-      'react-native-safe-area-context': '~5.7.0'
+      expo: '~54.0.35',
+      'expo-constants': '~18.0.13',
+      'expo-location': '~19.0.8',
+      'expo-secure-store': '~15.0.8',
+      'expo-status-bar': '~3.0.9',
+      'expo-task-manager': '~14.0.9',
+      react: '19.1.0',
+      'react-native': '0.81.5',
+      'react-native-maps': '1.20.1',
+      'react-native-safe-area-context': '~5.6.0'
     };
     const expectedDevDependencies = {
-      '@types/react': '~19.2.17',
-      'babel-preset-expo': '~56.0.15',
-      typescript: '~6.0.3'
+      '@types/react': '~19.1.10',
+      'babel-preset-expo': '~54.0.10',
+      typescript: '~5.9.2'
     };
 
     for (const [name, version] of Object.entries(expectedDependencies)) {
@@ -89,15 +89,15 @@ describe('Expo Go SDK compatibility', () => {
       );
     }
 
-    assert.equal(packageLock.packages?.['node_modules/expo']?.version, '56.0.15');
-    assert.equal(packageLock.packages?.['node_modules/react-native']?.version, '0.85.3');
+    assert.equal(packageLock.packages?.['node_modules/expo']?.version, '54.0.35');
+    assert.equal(packageLock.packages?.['node_modules/react-native']?.version, '0.81.5');
   });
 
   it('keeps native config plugins needed by the iOS map preview', () => {
     const expo = readExpoConfig();
     const plugins = expo.plugins.map(pluginName);
 
-    assert.deepEqual(plugins, ['expo-location', 'expo-secure-store', 'react-native-maps']);
+    assert.deepEqual(plugins, ['expo-location', 'expo-secure-store']);
     assert.ok(!plugins.includes('expo-status-bar'), 'expo-status-bar should remain a JS-only dependency');
   });
 });

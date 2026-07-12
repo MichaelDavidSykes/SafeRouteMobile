@@ -101,8 +101,8 @@ describe("rounded visual language", () => {
       return reactNativeSafeAreaImport.test(source);
     });
 
-    assert.equal(packageJson.dependencies?.["react-native-safe-area-context"], "~5.7.0");
-    assert.equal(packageLock.packages?.[""]?.dependencies?.["react-native-safe-area-context"], "~5.7.0");
+    assert.equal(packageJson.dependencies?.["react-native-safe-area-context"], "~5.6.0");
+    assert.equal(packageLock.packages?.[""]?.dependencies?.["react-native-safe-area-context"], "~5.6.0");
     assert.match(appSource, /import\s*\{[^}]*\bSafeAreaProvider\b[^}]*\binitialWindowMetrics\b[^}]*\}\s*from\s*["']react-native-safe-area-context["']/);
     assert.match(appSource, /<SafeAreaProvider initialMetrics=\{initialWindowMetrics\} style=\{styles\.root\}>/);
     assert.deepEqual(violations, []);

@@ -86,6 +86,7 @@ import {
   saveActiveNavigationSession,
 } from "./activeNavigationSession";
 import { normalizeReliableLocationSample } from "./locationSignal";
+import { useNetworkAvailability } from "../api/useNetworkAvailability";
 
 interface LiveMapScreenProps {
   accessToken?: string | null;
@@ -108,6 +109,7 @@ export function LiveMapScreen({
   routePlan,
   routeContext = "saved",
 }: LiveMapScreenProps) {
+  const { offline } = useNetworkAvailability();
   const resumedNavigationSession =
     initialNavigationSession?.routePlan.route.id === routePlan.route.id
       ? initialNavigationSession
@@ -1014,6 +1016,7 @@ export function LiveMapScreen({
         onMapReady={fitRoute}
         onPanDrag={suspendDriveAlongCameraForMapReview}
         onRiskZonePress={handleRiskZonePress}
+        offline={offline}
         permissionStatus={permissionStatus}
         progressCoordinates={progressCoordinates}
         routePlan={liveRoutePlan}
@@ -1062,7 +1065,13 @@ export function LiveMapScreen({
         routePlan={liveRoutePlan}
         selectedRiskProximity={selectedRiskProximity}
         selectedRiskZone={selectedRiskZone}
-        trackingLabel={viewportRisk.loading ? "Updating risk" : trackingLabel}
+        trackingLabel={
+          offline
+            ? "Offline route map"
+            : viewportRisk.loading
+              ? "Updating risk"
+              : trackingLabel
+        }
       />
     </View>
   );

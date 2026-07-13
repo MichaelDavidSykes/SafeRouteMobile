@@ -621,12 +621,12 @@ export function retryFailedLiveReroute(
   };
 }
 
-/** Requests a proactive reroute when newly downloaded severe risk intersects the active road. */
-export function requestImmediateLiveReroute(
+function requestTriggeredLiveReroute(
   state: LiveRerouteState,
   sample: LiveRerouteLocationSample,
+  trigger: "manual" | "safety",
   nowMs: number,
-  configOverrides: Partial<LiveRerouteConfig> = {},
+  configOverrides: Partial<LiveRerouteConfig>,
 ): ImmediateLiveRerouteTransition {
   if (state.status !== "monitoring") {
     return { reason: "not-monitoring", request: null, state };
@@ -643,7 +643,7 @@ export function requestImmediateLiveReroute(
   const pendingState = beginRequest(
     state,
     sample,
-    "safety",
+    trigger,
     nowMs,
     resolveLiveRerouteConfig(configOverrides),
   );
@@ -654,6 +654,22 @@ export function requestImmediateLiveReroute(
   };
 }
 
+/** Requests a proactive reroute when newly downloaded severe risk intersects the active road. */
+export function requestImmediateLiveReroute(
+  state: LiveRerouteState,
+  sample: LiveRerouteLocationSample,
+  nowMs: number,
+  configOverrides: Partial<LiveRerouteConfig> = {},
+): ImmediateLiveRerouteTransition {
+  return requestTriggeredLiveReroute(
+    state,
+    sample,
+    "safety",
+    nowMs,
+    configOverrides,
+  );
+}
+
 /** Requests a driver-initiated reroute from the latest reliable position. */
 export function requestManualLiveReroute(
   state: LiveRerouteState,
@@ -661,30 +677,13 @@ export function requestManualLiveReroute(
   nowMs: number,
   configOverrides: Partial<LiveRerouteConfig> = {},
 ): ImmediateLiveRerouteTransition {
-  if (state.status !== "monitoring") {
-    return { reason: "not-monitoring", request: null, state };
-  }
-  if (
-    !isFiniteTimestamp(nowMs) ||
-    evaluateOffRouteSample(sample, configOverrides).classification === "invalid"
-  ) {
-    return { reason: "invalid-sample", request: null, state };
-  }
-  if (nowMs < state.cooldownUntilMs) {
-    return { reason: "cooldown", request: null, state };
-  }
-  const pendingState = beginRequest(
+  return requestTriggeredLiveReroute(
     state,
     sample,
     "manual",
     nowMs,
-    resolveLiveRerouteConfig(configOverrides),
+    configOverrides,
   );
-  return {
-    reason: "accepted",
-    request: pendingState.request,
-    state: pendingState,
-  };
 }
 
 /**

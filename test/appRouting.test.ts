@@ -9,7 +9,6 @@ import {
   resolveFullAccessNavigation,
   resolvePostAuthenticationNavigation,
   routePreviewReturnCopy,
-  screenAfterAuthentication,
   screenAfterRoutePreview
 } from '../src/features/navigation/appRouting';
 
@@ -50,7 +49,6 @@ describe('app routing security gates', () => {
   });
 
   it('returns successful sign-in to the map-first home surface', () => {
-    assert.equal(screenAfterAuthentication(), 'guest-map');
     assert.deepEqual(resolvePostAuthenticationNavigation(null), {
       screen: 'guest-map',
       prompt: ''

@@ -104,7 +104,7 @@ function MapControlButton({
     hasLiveLocation,
   };
   const accessibility = mapControlAccessibility(control, controlOptions);
-  const displayLabel = mapControlDisplayLabel(control, controlOptions);
+  const displayLabel = mapControlDisplayLabel(control);
 
   return (
     <Pressable

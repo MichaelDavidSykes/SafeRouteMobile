@@ -8,6 +8,7 @@ import {
   getApiAuthorizationMessage,
   getApiErrorMessage,
   getApiSessionExpiredMessage,
+  parseJsonResponse,
   type SafeRouteRequestOptions
 } from '../api/apiClientCore';
 import {
@@ -104,16 +105,4 @@ export async function fetchAreaRiskForRegion(
     providerStatus: feeds.map((feed) => feed.providerStatus).find(Boolean) ?? null,
     zones
   };
-}
-
-async function parseJsonResponse(response: Response): Promise<unknown> {
-  const text = await response.text();
-  if (!text) {
-    return {};
-  }
-  try {
-    return JSON.parse(text);
-  } catch {
-    return {};
-  }
 }

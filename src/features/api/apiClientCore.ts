@@ -35,6 +35,19 @@ export function createNetworkRequestError(): ApiRequestError {
   return new ApiRequestError(LUNARCHAIN_NETWORK_ERROR_MESSAGE, 0);
 }
 
+export async function parseJsonResponse(response: Response): Promise<unknown> {
+  const text = await response.text();
+  if (!text) {
+    return {};
+  }
+
+  try {
+    return JSON.parse(text);
+  } catch {
+    return {};
+  }
+}
+
 export function createApiResponseError(
   statusCode: number,
   responseBody: unknown,

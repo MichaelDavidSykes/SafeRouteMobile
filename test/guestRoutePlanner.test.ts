@@ -19,7 +19,6 @@ import {
   normalizeGuestRouteLabel,
   resolveGuestRoadPreviewStops,
   resolveGuestRouteCoordinates,
-  shouldShowGuestMapGateRow,
   shouldShowGuestMapSubtitle
 } from '../src/features/guest-map/guestRoutePlanner';
 
@@ -552,13 +551,6 @@ describe('guest route planner helpers', () => {
       }),
       []
     );
-    assert.equal(
-      shouldShowGuestMapGateRow({
-        authenticated: false,
-        routePlotted: false
-      }),
-      false
-    );
     assert.deepEqual(
       getGuestMapGateFeatures({
         authenticated: true,
@@ -566,26 +558,12 @@ describe('guest route planner helpers', () => {
       }),
       ['planned-trips', 'calendar', 'convoy-management']
     );
-    assert.equal(
-      shouldShowGuestMapGateRow({
-        authenticated: true,
-        routePlotted: false
-      }),
-      true
-    );
     assert.deepEqual(
       getGuestMapGateFeatures({
         authenticated: true,
         routePlotted: true
       }),
       []
-    );
-    assert.equal(
-      shouldShowGuestMapGateRow({
-        authenticated: true,
-        routePlotted: true
-      }),
-      false
     );
   });
 });

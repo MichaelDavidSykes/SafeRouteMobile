@@ -9,6 +9,7 @@ import {
   getApiAuthorizationMessage,
   getApiErrorMessage,
   getApiSessionExpiredMessage,
+  parseJsonResponse,
   unwrapApiEnvelope,
   type SafeRouteRequestOptions
 } from './apiClientCore';
@@ -23,21 +24,9 @@ export {
   getApiAuthorizationMessage,
   getApiErrorMessage,
   getApiSessionExpiredMessage,
+  parseJsonResponse,
   unwrapApiEnvelope
 };
-
-export async function parseJsonResponse(response: Response): Promise<unknown> {
-  const text = await response.text();
-  if (!text) {
-    return {};
-  }
-
-  try {
-    return JSON.parse(text);
-  } catch {
-    return {};
-  }
-}
 
 export async function apiRequest<T>(
   path: string,

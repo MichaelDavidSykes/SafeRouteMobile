@@ -15,6 +15,9 @@ export const uiTestIds = {
   guestMapLongPressAddWaypoint: "guest-map-long-press-add-waypoint",
   guestMapLongPressAddRisk: "guest-map-long-press-add-risk",
   guestMapRiskLoadingStatus: "guest-map-risk-loading-status",
+  guestMapWorkspaceSelector: "guest-map-workspace-selector",
+  guestMapWorkspaceOption: (workspaceId: string) =>
+    `guest-map-workspace-${normalizeTestIdSegment(workspaceId)}`,
   guestMapSearchResults: "guest-map-search-results",
   guestMapSearchResult: (resultId: string) =>
     `guest-map-search-${normalizeTestIdSegment(resultId)}`,
@@ -32,6 +35,10 @@ export const uiTestIds = {
   routeListMapReturn: "route-list-map-return",
   routeListSignOut: "route-list-sign-out",
   routeListEmptyState: "safe-route-empty-state",
+  routeListWorkspaceSelector: "safe-route-workspace-selector",
+  routeListWorkspaceState: "safe-route-workspace-state",
+  routeListWorkspaceOption: (workspaceId: string) =>
+    `safe-route-workspace-${normalizeTestIdSegment(workspaceId)}`,
   operationsScreen: "safe-route-operations",
   operationsMapReturn: "safe-route-operations-map-return",
   operationsSignOut: "safe-route-operations-sign-out",

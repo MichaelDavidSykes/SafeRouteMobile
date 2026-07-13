@@ -195,23 +195,13 @@ export function createRouteListClientFilterOptions(
 ): RouteListClientFilterOption[] {
   const activeClientId = reconcileSelectedClientId(clients, selectedClientId);
 
-  return [
-    {
-      accessibilityHint: "Shows saved routes for every client.",
-      accessibilityLabel: `Show routes for all clients${
-        activeClientId ? "" : ", selected"
-      }`,
-      id: null,
-      label: "All",
-      selected: !activeClientId,
-    },
-    ...clients.map((client) => {
+  return clients.map((client) => {
       const selected = activeClientId === client.id;
-      const clientName = normalizeRouteListLabel(client.name) || "Client";
+      const clientName = normalizeRouteListLabel(client.name) || "Workspace";
       const displayName = createCompactRouteListLabel(
         clientName,
         ROUTE_LIST_CLIENT_DISPLAY_MAX_LENGTH,
-        "Client",
+        "Workspace",
       );
 
       return {
@@ -223,19 +213,14 @@ export function createRouteListClientFilterOptions(
         label: displayName,
         selected,
       };
-    }),
-  ];
+    });
 }
 
 export function shouldShowClientFilters(
   clientFilterOptions: RouteListClientFilterOption[],
 ): boolean {
-  const clientOptions = clientFilterOptions.filter((option) => option.id);
-
-  return (
-    clientOptions.length > 1 ||
-    clientOptions.some((option) => option.selected)
-  );
+  return clientFilterOptions.length > 1 ||
+    clientFilterOptions.some((option) => option.selected);
 }
 
 export function filterSavedRoutes(
@@ -287,23 +272,23 @@ export function createRouteListEmptyState({
 
   if (trimmedQuery) {
     const accessibilityLabel = clientName
-      ? `No saved routes match ${trimmedQuery} for ${clientName}. Try another search or client.`
+      ? `No saved routes match ${trimmedQuery} for ${clientName}. Try another search or workspace.`
       : `No saved routes match ${trimmedQuery}. Try another route, destination, or convoy.`;
 
     return {
       accessibilityLabel,
       title: "No matches",
       copy: clientName
-        ? `No ${queryLabel} routes for ${clientLabel}. Try another search or client.`
+        ? `No ${queryLabel} routes for ${clientLabel}. Try another search or workspace.`
         : `No ${queryLabel} routes. Try another route or destination.`,
     };
   }
 
   if (clientName) {
     return {
-      accessibilityLabel: `No saved routes are available for ${clientName}. Switch clients or refresh after saving a plan.`,
+      accessibilityLabel: `No saved routes are available for ${clientName}. Switch workspaces or refresh after saving a plan.`,
       title: "No routes",
-      copy: "Switch clients or refresh.",
+      copy: "Switch workspaces or refresh.",
     };
   }
 

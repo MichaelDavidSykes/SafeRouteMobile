@@ -39,7 +39,7 @@ import {
 import { shouldRenderRouteCheckpointMarker } from '../maps/mapMarkerPresentation';
 import { isPreviewAccessToken } from '../auth/previewSession';
 import { getRequestSessionExpiry } from '../api/sessionExpiry';
-import { fetchSavedRoutes } from '../routes/routeApi';
+import type { SafeRouteWorkspace } from '../workspaces/activeWorkspace';
 import {
   GUEST_MAP_REGION,
   GUEST_ROUTE_LABEL_MAX_LENGTH,
@@ -98,22 +98,36 @@ type GuestRoadRoutePreviewFetcher = (
 
 interface GuestMapScreenProps {
   accessToken?: string | null;
+  activeWorkspace?: SafeRouteWorkspace | null;
   authenticated: boolean;
+  availableWorkspaces?: SafeRouteWorkspace[];
   onOpenFullAccessFeature: (feature: GuestFullAccessFeature) => void;
   onOpenRoutePreview?: (routePlan: SavedSafeRoutePlan) => void;
   onSessionExpired?: (message?: string) => void;
+  onRetryWorkspaceCatalog?: () => void;
   roadRoutePreviewFetcher?: GuestRoadRoutePreviewFetcher;
   onSignIn: () => void;
+  onWorkspaceChange?: (workspace: SafeRouteWorkspace) => void;
+  workspaceCatalogError?: string;
+  workspaceCatalogLoading?: boolean;
+  workspaceSwitchDisabled?: boolean;
 }
 
 export function GuestMapScreen({
   accessToken,
+  activeWorkspace = null,
   authenticated,
+  availableWorkspaces = [],
   onOpenFullAccessFeature,
   onOpenRoutePreview,
   onSessionExpired,
+  onRetryWorkspaceCatalog,
   roadRoutePreviewFetcher,
-  onSignIn
+  onSignIn,
+  onWorkspaceChange,
+  workspaceCatalogError = '',
+  workspaceCatalogLoading = false,
+  workspaceSwitchDisabled = false
 }: GuestMapScreenProps) {
   const viewport = useWindowDimensions();
   const mapRef = useRef<MapView | null>(null);
@@ -146,7 +160,7 @@ export function GuestMapScreen({
   const [mapReady, setMapReady] = useState(false);
   const [mapRegion, setMapRegion] = useState<Region>(GUEST_MAP_REGION);
   const [routeMessage, setRouteMessage] = useState('');
-  const [routingClientId, setRoutingClientId] = useState<string | null>(null);
+  const [workspaceMenuOpen, setWorkspaceMenuOpen] = useState(false);
   const [selectedRiskZone, setSelectedRiskZone] = useState<RiskZone | null>(null);
   const [routePlan, setRoutePlan] = useState<SavedSafeRoutePlan | null>(null);
   const [roadPreviewPending, setRoadPreviewPending] = useState(false);
@@ -160,7 +174,9 @@ export function GuestMapScreen({
   const liveCoordinate = liveLocation
     ? { latitude: liveLocation.latitude, longitude: liveLocation.longitude }
     : null;
-  const routingAccessToken = accessToken && !isPreviewAccessToken(accessToken)
+  const routingClientId = authenticated ? activeWorkspace?.id || null : null;
+  const workspaceSelectionRequired = authenticated && !routingClientId;
+  const routingAccessToken = !workspaceSelectionRequired && accessToken && !isPreviewAccessToken(accessToken)
     ? accessToken
     : null;
   const origin = routeDraft.origin.label;
@@ -179,8 +195,19 @@ export function GuestMapScreen({
     destination,
     routePlotted
   });
-  const routeActionDisabled = routeAction.disabled || roadPreviewPending;
-  const routeActionLabel = roadPreviewPending ? 'Finding safest route…' : routeAction.label;
+  const routeActionDisabled = routeAction.disabled || roadPreviewPending || workspaceSelectionRequired;
+  const workspaceBlockingActionLabel = workspaceCatalogLoading
+    ? 'Loading workspace…'
+    : workspaceCatalogError
+      ? 'Workspace unavailable'
+      : availableWorkspaces.length
+        ? 'Choose workspace'
+        : 'No workspace access';
+  const routeActionLabel = roadPreviewPending
+    ? 'Finding safest route…'
+    : workspaceSelectionRequired
+      ? workspaceBlockingActionLabel
+      : routeAction.label;
   const mapSelectionSetsDestination = shouldUseGuestMapSelectionAsDestination(routeDraft);
   const canAddMapRoutePoint =
     mapSelectionSetsDestination || canAddGuestRouteWaypoint(routeDraft);
@@ -199,6 +226,7 @@ export function GuestMapScreen({
   const viewportRisk = useViewportRiskAreas({
     accessToken: routingAccessToken,
     clientId: routingClientId,
+    enabled: !workspaceSelectionRequired,
     onSessionExpired,
     region: mapRegion
   });
@@ -238,45 +266,6 @@ export function GuestMapScreen({
       type: 'current-location/set'
     });
   }, [liveCoordinate?.latitude, liveCoordinate?.longitude]);
-
-  useEffect(() => {
-    let active = true;
-    if (!authenticated || !accessToken?.trim()) {
-      setRoutingClientId(null);
-      return () => {
-        active = false;
-      };
-    }
-
-    void fetchSavedRoutes(accessToken).then((result) => {
-      if (active) {
-        setRoutingClientId(result.selectedClientId || result.clients[0]?.id || null);
-      }
-    }).catch((error) => {
-      if (!active) {
-        return;
-      }
-      const sessionExpiry = getRequestSessionExpiry({
-        authenticated: Boolean(
-          accessToken &&
-          !isPreviewAccessToken(accessToken) &&
-          onSessionExpiredRef.current
-        ),
-        error,
-        handled: false,
-        requestActive: active
-      });
-      if (sessionExpiry) {
-        onSessionExpiredRef.current?.(sessionExpiry.message);
-        return;
-      }
-      setRoutingClientId(null);
-    });
-
-    return () => {
-      active = false;
-    };
-  }, [accessToken, authenticated]);
 
   useEffect(() => () => {
     activeRiskAreaRequestRef.current?.abort();
@@ -419,6 +408,33 @@ export function GuestMapScreen({
     activeRoadRouteRequestRef.current?.abort();
     activeRoadRouteRequestRef.current = null;
     setRoadPreviewPending(false);
+  };
+
+  const clearWorkspaceScopedMapState = () => {
+    cancelRoadRouteUpgrade();
+    riskAreaRequestIdRef.current += 1;
+    activeRiskAreaRequestRef.current?.abort();
+    activeRiskAreaRequestRef.current = null;
+    setRiskAreaSavePending(false);
+    setSelectedRiskZone(null);
+    setMapAction(null);
+    setRoutePlan(null);
+    setRouteMessage('');
+  };
+
+  useEffect(() => {
+    setWorkspaceMenuOpen(false);
+    clearWorkspaceScopedMapState();
+  }, [routingClientId]);
+
+  const handleWorkspaceChange = (workspace: SafeRouteWorkspace) => {
+    setWorkspaceMenuOpen(false);
+    if (workspace.id === routingClientId) {
+      return;
+    }
+
+    clearWorkspaceScopedMapState();
+    onWorkspaceChange?.(workspace);
   };
 
   const handlePlotRoute = async () => {
@@ -1094,10 +1110,14 @@ export function GuestMapScreen({
                 </Text>
               </Pressable>
               <Pressable
-                accessibilityLabel={authenticated ? 'Add a risk area here' : 'Sign in to add a risk area'}
+                accessibilityLabel={authenticated
+                  ? workspaceSelectionRequired
+                    ? 'Choose a workspace before adding a risk area'
+                    : 'Add a risk area here'
+                  : 'Sign in to add a risk area'}
                 accessibilityRole="button"
-                accessibilityState={{ disabled: riskAreaSavePending }}
-                disabled={riskAreaSavePending}
+                accessibilityState={{ disabled: riskAreaSavePending || workspaceSelectionRequired }}
+                disabled={riskAreaSavePending || workspaceSelectionRequired}
                 testID={uiTestIds.guestMapLongPressAddRisk}
                 style={({ pressed }) => [
                   styles.mapActionButton,
@@ -1170,6 +1190,24 @@ export function GuestMapScreen({
                   <RoutePreview authenticated={authenticated} inline routePlan={routePlan} />
                 ) : null}
               </View>
+
+              {authenticated ? (
+                <GuestWorkspaceSelector
+                  activeWorkspace={activeWorkspace}
+                  errorMessage={workspaceCatalogError}
+                  loading={workspaceCatalogLoading}
+                  menuOpen={workspaceMenuOpen}
+                  workspaces={availableWorkspaces}
+                  onRetry={onRetryWorkspaceCatalog}
+                  onSelect={handleWorkspaceChange}
+                  onToggle={() => {
+                    Keyboard.dismiss();
+                    setActiveInput(null);
+                    setWorkspaceMenuOpen((open) => !open);
+                  }}
+                  switchDisabled={workspaceSwitchDisabled}
+                />
+              ) : null}
 
               <View style={styles.inputStack}>
                 <RouteInput
@@ -1320,6 +1358,112 @@ export function GuestMapScreen({
         </View>
       </SafeAreaView>
       </KeyboardAvoidingView>
+    </View>
+  );
+}
+
+function GuestWorkspaceSelector({
+  activeWorkspace,
+  errorMessage,
+  loading,
+  menuOpen,
+  onRetry,
+  onSelect,
+  onToggle,
+  switchDisabled,
+  workspaces
+}: {
+  activeWorkspace: SafeRouteWorkspace | null;
+  errorMessage: string;
+  loading: boolean;
+  menuOpen: boolean;
+  onRetry?: () => void;
+  onSelect: (workspace: SafeRouteWorkspace) => void;
+  onToggle: () => void;
+  switchDisabled: boolean;
+  workspaces: SafeRouteWorkspace[];
+}) {
+  const waitingForCatalog = loading && !workspaces.length;
+  const catalogUnavailable = Boolean(errorMessage) && !workspaces.length;
+  const disabled = switchDisabled || waitingForCatalog || (!errorMessage && !workspaces.length);
+  const value = activeWorkspace?.name || (workspaces.length
+    ? 'Choose workspace'
+    : loading
+      ? 'Loading…'
+      : errorMessage ? 'Unavailable' : 'No workspace');
+  const action = switchDisabled
+    ? 'Route active'
+    : catalogUnavailable
+      ? 'Retry'
+      : menuOpen ? 'Close' : errorMessage ? 'Offline' : 'Change';
+
+  return (
+    <View style={styles.workspacePicker}>
+      <Pressable
+        accessibilityHint={switchDisabled
+          ? 'End active guidance before changing workspace.'
+          : catalogUnavailable
+            ? 'Retries loading your SafeRoute workspaces.'
+            : 'Opens the active workspace menu.'}
+        accessibilityLabel={`Workspace, ${value}`}
+        accessibilityRole={waitingForCatalog ? "progressbar" : "button"}
+        accessibilityState={{ disabled, expanded: menuOpen }}
+        disabled={disabled}
+        testID={uiTestIds.guestMapWorkspaceSelector}
+        style={({ pressed }) => [
+          styles.workspaceSelector,
+          menuOpen ? styles.workspaceSelectorOpen : null,
+          pressed ? styles.workspaceSelectorPressed : null
+        ]}
+        onPress={catalogUnavailable ? onRetry : onToggle}
+      >
+        <View style={styles.workspaceSelectorCopy}>
+          <Text numberOfLines={1} style={styles.workspaceSelectorLabel}>Workspace</Text>
+          <Text numberOfLines={1} style={styles.workspaceSelectorValue}>{value}</Text>
+        </View>
+        {!loading && (errorMessage || workspaces.length) ? (
+          <Text numberOfLines={1} style={styles.workspaceSelectorAction}>{action}</Text>
+        ) : null}
+      </Pressable>
+
+      {menuOpen && workspaces.length > 0 && !switchDisabled ? (
+        <ScrollView
+          nestedScrollEnabled
+          contentContainerStyle={styles.workspaceMenuContent}
+          showsVerticalScrollIndicator={false}
+          style={styles.workspaceMenu}
+        >
+          {workspaces.map((workspace) => {
+            const selected = activeWorkspace?.id === workspace.id;
+            return (
+              <Pressable
+                key={workspace.id}
+                accessibilityHint={`Uses ${workspace.name} for routes and risk intelligence.`}
+                accessibilityLabel={`Use workspace ${workspace.name}${selected ? ', selected' : ''}`}
+                accessibilityRole="button"
+                accessibilityState={{ selected }}
+                testID={uiTestIds.guestMapWorkspaceOption(workspace.id)}
+                style={({ pressed }) => [
+                  styles.workspaceMenuItem,
+                  selected ? styles.workspaceMenuItemSelected : null,
+                  pressed ? styles.workspaceMenuItemPressed : null
+                ]}
+                onPress={() => onSelect(workspace)}
+              >
+                <Text
+                  numberOfLines={1}
+                  style={[
+                    styles.workspaceMenuItemText,
+                    selected ? styles.workspaceMenuItemTextSelected : null
+                  ]}
+                >
+                  {workspace.name}
+                </Text>
+              </Pressable>
+            );
+          })}
+        </ScrollView>
+      ) : null}
     </View>
   );
 }

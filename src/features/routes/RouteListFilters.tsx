@@ -8,6 +8,7 @@ import {
   type RouteListClientFilterOption,
   type RouteListSummaryState,
 } from "./routeListUiState";
+import { uiTestIds } from "../../testing/uiTestIds";
 
 const ROUTE_FILTER_HIT_SLOP = 6;
 
@@ -18,6 +19,7 @@ interface RouteListFiltersProps {
   showSummary: boolean;
   showClientFilters: boolean;
   showSearch: boolean;
+  workspaceSwitchDisabled: boolean;
   onChangeQuery: (query: string) => void;
   onSelectClient: (clientId: string | null) => void;
 }
@@ -31,23 +33,28 @@ export function RouteListFilters({
   showSearch,
   routeSummary,
   showSummary,
+  workspaceSwitchDisabled,
 }: RouteListFiltersProps) {
   const [searchFocused, setSearchFocused] = useState(false);
   const [clientMenuOpen, setClientMenuOpen] = useState(false);
   const selectedClientOption =
-    clientFilterOptions.find((option) => option.selected) ||
-    clientFilterOptions[0];
+    clientFilterOptions.find((option) => option.selected) || null;
+  const workspaceLabel = selectedClientOption?.label || "Choose workspace";
 
   return (
     <>
-      {showClientFilters && selectedClientOption ? (
+      {showClientFilters ? (
         <View style={styles.clientFilter}>
           <Pressable
-            accessibilityHint="Opens the tenant filter menu."
-            accessibilityLabel={`Tenant filter, ${selectedClientOption.label}`}
+            accessibilityHint={workspaceSwitchDisabled
+              ? "End active guidance before changing workspace."
+              : "Opens the active workspace menu."}
+            accessibilityLabel={`Workspace, ${workspaceLabel}`}
             accessibilityRole="button"
-            accessibilityState={{ expanded: clientMenuOpen }}
+            accessibilityState={{ disabled: workspaceSwitchDisabled, expanded: clientMenuOpen }}
+            disabled={workspaceSwitchDisabled}
             hitSlop={ROUTE_FILTER_HIT_SLOP}
+            testID={uiTestIds.routeListWorkspaceSelector}
             style={({ pressed }) => [
               styles.clientSelectorButton,
               clientMenuOpen ? styles.clientSelectorButtonOpen : null,
@@ -57,18 +64,18 @@ export function RouteListFilters({
           >
             <View style={styles.clientSelectorCopy}>
               <Text numberOfLines={1} style={styles.clientSelectorLabel}>
-                Tenant
+                Workspace
               </Text>
               <Text numberOfLines={1} style={styles.clientSelectorValue}>
-                {selectedClientOption.label}
+                {workspaceLabel}
               </Text>
             </View>
             <Text numberOfLines={1} style={styles.clientSelectorAction}>
-              {clientMenuOpen ? "Close" : "Change"}
+              {workspaceSwitchDisabled ? "Route active" : clientMenuOpen ? "Close" : "Change"}
             </Text>
           </Pressable>
 
-          {clientMenuOpen ? (
+          {clientMenuOpen && !workspaceSwitchDisabled ? (
             <View style={styles.clientMenu}>
               <ScrollView
                 nestedScrollEnabled
@@ -82,6 +89,7 @@ export function RouteListFilters({
                     accessibilityLabel={option.accessibilityLabel}
                     active={option.selected}
                     label={option.label}
+                    testID={option.id ? uiTestIds.routeListWorkspaceOption(option.id) : undefined}
                     onPress={() => {
                       setClientMenuOpen(false);
                       onSelectClient(option.id);
@@ -160,12 +168,14 @@ function ClientMenuItem({
   active,
   label,
   onPress,
+  testID,
 }: {
   accessibilityHint: string;
   accessibilityLabel: string;
   active: boolean;
   label: string;
   onPress: () => void;
+  testID?: string;
 }) {
   return (
     <Pressable
@@ -174,6 +184,7 @@ function ClientMenuItem({
       accessibilityRole="button"
       accessibilityState={{ selected: active }}
       hitSlop={ROUTE_FILTER_HIT_SLOP}
+      testID={testID}
       style={({ pressed }) => [
         styles.clientMenuItem,
         active ? styles.clientMenuItemActive : null,

@@ -334,13 +334,6 @@ describe("route list UI state helpers", () => {
 
     assert.deepEqual(createRouteListClientFilterOptions(clients, "client-2"), [
       {
-        accessibilityHint: "Shows saved routes for every client.",
-        accessibilityLabel: "Show routes for all clients",
-        id: null,
-        label: "All",
-        selected: false,
-      },
-      {
         accessibilityHint: "Shows saved routes for Acme Security.",
         accessibilityLabel: "Show routes for Acme Security",
         id: "client-1",
@@ -357,13 +350,6 @@ describe("route list UI state helpers", () => {
     ]);
 
     assert.deepEqual(createRouteListClientFilterOptions(clients, "missing"), [
-      {
-        accessibilityHint: "Shows saved routes for every client.",
-        accessibilityLabel: "Show routes for all clients, selected",
-        id: null,
-        label: "All",
-        selected: true,
-      },
       {
         accessibilityHint: "Shows saved routes for Acme Security.",
         accessibilityLabel: "Show routes for Acme Security",
@@ -387,7 +373,7 @@ describe("route list UI state helpers", () => {
     const option = createRouteListClientFilterOptions(
       [{ id: "client-long", name: clientName }],
       "client-long",
-    )[1];
+    )[0];
 
     assert.ok(
       option.label.length <= ROUTE_LIST_CLIENT_DISPLAY_MAX_LENGTH,
@@ -493,9 +479,9 @@ describe("route list UI state helpers", () => {
       }),
       {
         accessibilityLabel:
-          "No saved routes match airport for Acme Security. Try another search or client.",
+          "No saved routes match airport for Acme Security. Try another search or workspace.",
         title: "No matches",
-        copy: "No airport routes for Acme Security. Try another search or client.",
+        copy: "No airport routes for Acme Security. Try another search or workspace.",
       },
     );
 
@@ -507,9 +493,9 @@ describe("route list UI state helpers", () => {
       }),
       {
         accessibilityLabel:
-          "No saved routes are available for Blue Team. Switch clients or refresh after saving a plan.",
+          "No saved routes are available for Blue Team. Switch workspaces or refresh after saving a plan.",
         title: "No routes",
-        copy: "Switch clients or refresh.",
+        copy: "Switch workspaces or refresh.",
       },
     );
 
@@ -555,7 +541,7 @@ describe("route list UI state helpers", () => {
     );
     assert.equal(
       emptyState.accessibilityLabel,
-      "No saved routes match airport corridor with multiple checkpoint terms that should not fill the picker for Metropolitan Diplomatic Protection Group Northern Corridor Operations Team. Try another search or client.",
+      "No saved routes match airport corridor with multiple checkpoint terms that should not fill the picker for Metropolitan Diplomatic Protection Group Northern Corridor Operations Team. Try another search or workspace.",
     );
 
     const clientOnlyState = createRouteListEmptyState({
@@ -565,14 +551,14 @@ describe("route list UI state helpers", () => {
     });
 
     assert.equal(clientOnlyState.title, "No routes");
-    assert.equal(clientOnlyState.copy, "Switch clients or refresh.");
+    assert.equal(clientOnlyState.copy, "Switch workspaces or refresh.");
     assert.ok(
       clientOnlyState.title.length < ROUTE_LIST_CLIENT_DISPLAY_MAX_LENGTH,
       "Expected client-only empty title to avoid repeating the selected chip",
     );
     assert.equal(
       clientOnlyState.accessibilityLabel,
-      "No saved routes are available for Metropolitan Diplomatic Protection Group Northern Corridor Operations Team. Switch clients or refresh after saving a plan.",
+      "No saved routes are available for Metropolitan Diplomatic Protection Group Northern Corridor Operations Team. Switch workspaces or refresh after saving a plan.",
     );
   });
 });

@@ -558,7 +558,7 @@ describe("rounded visual language", () => {
 
     assert.match(guestMapSource, /fetchSafeRouteRoadRoutePreview/);
     assert.match(guestMapSource, /roadRoutePreviewFetcher \|\|/);
-    assert.match(guestMapSource, /routingAccessToken = accessToken && !isPreviewAccessToken\(accessToken\)/);
+    assert.match(guestMapSource, /routingAccessToken = !workspaceSelectionRequired && accessToken && !isPreviewAccessToken\(accessToken\)/);
     assert.match(guestMapSource, /accessToken:\s*routingAccessToken/);
     assert.match(guestMapSource, /setRoutePlan\(null\)/);
     assert.match(guestMapSource, /upgradeGuestRouteWithRoadPreview\(localRoutePlan\)/);
@@ -1562,8 +1562,8 @@ describe("rounded visual language", () => {
     assert.match(routeListStateSource, /ROUTE_LIST_CLIENT_DISPLAY_MAX_LENGTH = 28/);
     assert.match(routeListStateSource, /createRouteListSearchQueryValue/);
     assert.match(routeListStateSource, /createCompactRouteListLabel/);
-    assert.match(routeListStateSource, /label: "All"/);
-    assert.doesNotMatch(routeListStateSource, /label: "All clients"/);
+    assert.doesNotMatch(routeListStateSource, /label: "All"/);
+    assert.doesNotMatch(routeListStateSource, /every client/);
     assert.doesNotMatch(routeListStateSource, /totalRouteCount > 1/);
     assert.match(routeListFiltersSource, /const ROUTE_FILTER_HIT_SLOP = 6/);
     assert.equal(
@@ -1571,8 +1571,8 @@ describe("rounded visual language", () => {
         .length,
       3,
     );
-    assert.match(routeListFiltersSource, /Tenant filter, \$\{selectedClientOption\.label\}/);
-    assert.match(routeListFiltersSource, /accessibilityState=\{\{ expanded: clientMenuOpen \}\}/);
+    assert.match(routeListFiltersSource, /Workspace, \$\{workspaceLabel\}/);
+    assert.match(routeListFiltersSource, /accessibilityState=\{\{ disabled: workspaceSwitchDisabled, expanded: clientMenuOpen \}\}/);
     assert.match(routeListFiltersSource, /clientMenuOpen \? "Close" : "Change"/);
     assert.match(routeListFiltersSource, /nestedScrollEnabled/);
     assert.match(clientSelectorBlock, /minHeight:\s*controlSizes\.secondary/);

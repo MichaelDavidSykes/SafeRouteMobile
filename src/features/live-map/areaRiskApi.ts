@@ -20,7 +20,6 @@ import {
   type AreaRiskViewportRequest,
   type AreaRiskViewportRequestOptions
 } from './areaRiskApiCore';
-import type { RiskZone } from './liveMapTypes';
 import type { Region } from 'react-native-maps';
 
 export type AreaRiskHttpRequester = (
@@ -105,13 +104,6 @@ export async function fetchAreaRiskForRegion(
     providerStatus: feeds.map((feed) => feed.providerStatus).find(Boolean) ?? null,
     zones
   };
-}
-
-export async function fetchAreaRiskZones(
-  region: Region,
-  options: AreaRiskRegionFetchOptions = {}
-): Promise<RiskZone[]> {
-  return (await fetchAreaRiskForRegion(region, options)).zones;
 }
 
 async function parseJsonResponse(response: Response): Promise<unknown> {

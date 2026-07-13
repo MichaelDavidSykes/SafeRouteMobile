@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import type { Region } from 'react-native-maps';
 
+import { getRequestSessionExpiry } from '../api/sessionExpiry';
 import { fetchAreaRiskViewport } from './areaRiskApi';
 import {
   mergeRiskZonesById,
@@ -21,14 +22,17 @@ export function useViewportRiskAreas({
   accessToken,
   clientId,
   enabled = true,
+  onSessionExpired,
   region
 }: {
   accessToken?: string | null;
   clientId?: string | null;
   enabled?: boolean;
+  onSessionExpired?: (message?: string) => void;
   region: Region;
 }) {
   const cacheRef = useRef<ViewportRiskCache>(new Map());
+  const onSessionExpiredRef = useRef(onSessionExpired);
   const requestRevisionRef = useRef(0);
   const [zones, setZones] = useState<RiskZone[]>([]);
   const [loading, setLoading] = useState(false);
@@ -47,6 +51,7 @@ export function useViewportRiskAreas({
       region.longitudeDelta
     ]
   );
+  onSessionExpiredRef.current = onSessionExpired;
 
   useEffect(() => {
     const revision = requestRevisionRef.current + 1;
@@ -98,6 +103,7 @@ export function useViewportRiskAreas({
     const timer = setTimeout(() => {
       const receivedZones: RiskZone[][] = [];
       let failedRequestCount = 0;
+      let sessionExpiryHandled = false;
       const downloads = missingRequests.map(async (request) => {
         try {
           const feed = await fetchAreaRiskViewport(request, {
@@ -113,10 +119,26 @@ export function useViewportRiskAreas({
           // Antimeridian views have two chunks. Reveal the first successful
           // chunk as soon as it lands instead of waiting for the slower one.
           setZones(mergeRiskZonesById(...cachedZones, ...receivedZones));
-        } catch {
-          if (!controller.signal.aborted) {
-            failedRequestCount += 1;
+        } catch (error) {
+          if (controller.signal.aborted || requestRevisionRef.current !== revision) {
+            return;
           }
+          const sessionExpiry = getRequestSessionExpiry({
+            authenticated: Boolean(accessToken && onSessionExpiredRef.current),
+            error,
+            handled: sessionExpiryHandled,
+            requestActive: true
+          });
+          if (sessionExpiry) {
+            sessionExpiryHandled = true;
+            controller.abort();
+            setZones([]);
+            setLoading(false);
+            setStatusMessage('');
+            onSessionExpiredRef.current?.(sessionExpiry.message);
+            return;
+          }
+          failedRequestCount += 1;
         }
       });
 
@@ -124,7 +146,6 @@ export function useViewportRiskAreas({
         if (controller.signal.aborted || requestRevisionRef.current !== revision) {
           return;
         }
-
         const nextZones = mergeRiskZonesById(...cachedZones, ...receivedZones);
         setZones(nextZones);
         if (failedRequestCount === missingRequests.length && !cachedResult.length) {

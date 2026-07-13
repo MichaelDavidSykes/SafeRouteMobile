@@ -9,17 +9,20 @@ export async function createGuestRiskArea({
   accessToken,
   clientId,
   coordinate,
-  locationLabel
+  locationLabel,
+  signal
 }: {
   accessToken: string;
   clientId: string;
   coordinate: LatLng;
   locationLabel: string;
+  signal?: AbortSignal;
 }): Promise<void> {
   const payload = buildGuestRiskAreaPayload({ clientId, coordinate, locationLabel });
   await apiRequest(GUEST_RISK_AREA_ENDPOINT, accessToken, {
     body: JSON.stringify(payload),
     method: 'POST',
+    signal,
     timeoutMs: 15_000
   });
 }

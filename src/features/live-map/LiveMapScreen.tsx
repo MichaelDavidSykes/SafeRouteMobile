@@ -86,11 +86,13 @@ import {
 } from "./activeNavigationSession";
 import { normalizeReliableLocationSample } from "./locationSignal";
 import { useNetworkAvailability } from "../api/useNetworkAvailability";
+import { getRequestSessionExpiry } from "../api/sessionExpiry";
 
 interface LiveMapScreenProps {
   accessToken?: string | null;
   initialNavigationSession?: ActiveNavigationSession | null;
   onNavigationSessionChange?: (session: ActiveNavigationSession | null) => void;
+  onSessionExpired?: (message?: string) => void;
   returnAccessibilityLabel?: string;
   returnLabel?: string;
   routeContext?: "guest" | "saved";
@@ -103,6 +105,7 @@ export function LiveMapScreen({
   initialNavigationSession = null,
   onChangeRoute,
   onNavigationSessionChange,
+  onSessionExpired,
   returnAccessibilityLabel = "Return to saved routes",
   returnLabel = "Routes",
   routePlan,
@@ -114,6 +117,7 @@ export function LiveMapScreen({
       ? initialNavigationSession
       : null;
   const mapRef = useRef<MapView | null>(null);
+  const activeRerouteRequestRef = useRef<AbortController | null>(null);
   const lastDriveAlongCameraPoseRef = useRef<DriveAlongCameraPose | null>(null);
   const rerouteStateRef = useRef<LiveRerouteState>(createLiveRerouteState());
   const liveRoutePlanRef = useRef(
@@ -214,6 +218,7 @@ export function LiveMapScreen({
   const viewportRisk = useViewportRiskAreas({
     accessToken: liveApiAccessToken,
     clientId: activeRoutePlan.clientId,
+    onSessionExpired,
     region: liveRiskRegion,
   });
   const liveRoutePlan = useMemo<SavedSafeRoutePlan>(
@@ -391,6 +396,17 @@ export function LiveMapScreen({
   );
 
   const commitRerouteState = (nextState: LiveRerouteState) => {
+    const currentState = rerouteStateRef.current;
+    const keepsCurrentRequest =
+      currentState.status === "pending" &&
+      nextState.status === "pending" &&
+      currentState.request.requestRevision === nextState.request.requestRevision &&
+      currentState.request.routeId === nextState.request.routeId &&
+      currentState.request.routeRevision === nextState.request.routeRevision;
+    if (!keepsCurrentRequest) {
+      activeRerouteRequestRef.current?.abort();
+      activeRerouteRequestRef.current = null;
+    }
     rerouteStateRef.current = nextState;
     setRerouteState(nextState);
   };
@@ -413,6 +429,9 @@ export function LiveMapScreen({
   };
 
   const executeLiveReroute = async (request: LiveRerouteRequest) => {
+    activeRerouteRequestRef.current?.abort();
+    const controller = new AbortController();
+    activeRerouteRequestRef.current = controller;
     const plan = liveRoutePlanRef.current;
     const currentCoordinate = request.sample.coordinate;
     const targets = buildLiveRerouteTargets(
@@ -436,6 +455,7 @@ export function LiveMapScreen({
         accessToken: routingAccessToken,
         avoidRectangles,
         clientId: plan.clientId,
+        signal: controller.signal,
         stops: targets.stops,
         timeoutMs: 15_000,
       });
@@ -449,6 +469,7 @@ export function LiveMapScreen({
           accessToken: routingAccessToken,
           clientId: plan.clientId,
           maxChunks: 8,
+          signal: controller.signal,
           timeoutMs: 9000,
         },
       );
@@ -467,6 +488,7 @@ export function LiveMapScreen({
             accessToken: routingAccessToken,
             avoidRectangles: corridorAvoidRectangles,
             clientId: plan.clientId,
+            signal: controller.signal,
             stops: targets.stops,
             timeoutMs: 15_000,
           });
@@ -499,8 +521,33 @@ export function LiveMapScreen({
       setNavigationState("navigating");
       setFollowModeEnabled(true);
       setSelectedRiskZoneId(null);
-    } catch {
+    } catch (error) {
+      const currentRerouteState = rerouteStateRef.current;
+      const requestActive =
+        !controller.signal.aborted &&
+        currentRerouteState.status === "pending" &&
+        currentRerouteState.request.requestRevision === request.requestRevision &&
+        currentRerouteState.request.routeId === request.routeId &&
+        currentRerouteState.request.routeRevision === request.routeRevision;
+      const sessionExpiry = getRequestSessionExpiry({
+        authenticated: Boolean(liveApiAccessToken && onSessionExpired),
+        error,
+        handled: false,
+        requestActive
+      });
+      if (sessionExpiry) {
+        controller.abort();
+        onSessionExpired?.(sessionExpiry.message);
+        return;
+      }
+      if (controller.signal.aborted || !requestActive) {
+        return;
+      }
       failRerouteRequest(request);
+    } finally {
+      if (activeRerouteRequestRef.current === controller) {
+        activeRerouteRequestRef.current = null;
+      }
     }
   };
 
@@ -508,6 +555,15 @@ export function LiveMapScreen({
     !demoDriveActive &&
       (navigationState === "navigating" || navigationState === "off-route"),
   );
+
+  useEffect(() => () => {
+    activeRerouteRequestRef.current?.abort();
+    activeRerouteRequestRef.current = null;
+    const currentState = rerouteStateRef.current;
+    if (currentState.status !== "idle") {
+      rerouteStateRef.current = stopLiveRerouteMonitoring(currentState, Date.now());
+    }
+  }, []);
 
   useEffect(() => {
     const currentState = rerouteStateRef.current;
@@ -640,6 +696,8 @@ export function LiveMapScreen({
         ? initialNavigationSession
         : null;
     const nextRoutePlan = nextResumeSession?.routePlan || routePlan;
+    activeRerouteRequestRef.current?.abort();
+    activeRerouteRequestRef.current = null;
     setActiveRoutePlan(nextRoutePlan);
     liveRoutePlanRef.current = nextRoutePlan;
     const resetRerouteState = createLiveRerouteState();
@@ -965,8 +1023,7 @@ export function LiveMapScreen({
       rerouteStateRef.current,
       Date.now(),
     );
-    rerouteStateRef.current = stoppedRerouteState;
-    setRerouteState(stoppedRerouteState);
+    commitRerouteState(stoppedRerouteState);
     activeSessionSnapshotRef.current = null;
     onNavigationSessionChangeRef.current?.(null);
     void clearActiveNavigationSession();

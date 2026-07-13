@@ -50,6 +50,10 @@ import type { OperationsTab } from './src/features/operations/operationsUiState'
 import { RouteListScreen } from './src/features/routes/RouteListScreen';
 import { uiTestIds } from './src/testing/uiTestIds';
 import { colors } from './src/theme';
+import {
+  shouldHandleActiveSessionExpiry,
+  waitForSessionCleanup
+} from './src/features/api/sessionExpiry';
 
 export default function App() {
   const [session, setSession] = useState<AuthSession | null>(null);
@@ -62,7 +66,13 @@ export default function App() {
   const [routePreviewSource, setRoutePreviewSource] = useState<RoutePreviewSource>('guest');
   const [operationsTab, setOperationsTab] = useState<OperationsTab>('planned-routes');
   const pendingFullAccessFeatureRef = useRef<GuestFullAccessFeature | null>(null);
+  const activeSessionTokenRef = useRef(session?.accessToken || null);
+  const sessionCleanupRef = useRef<Promise<unknown> | null>(null);
+  const sessionEpochRef = useRef(0);
+  const sessionExpiryHandledRef = useRef(false);
   const authenticated = hasAuthenticatedSession(session);
+  const sessionEpoch = sessionEpochRef.current;
+  activeSessionTokenRef.current = session?.accessToken || null;
 
   const takePendingFullAccessFeature = () => {
     const pendingFeature = pendingFullAccessFeatureRef.current;
@@ -216,6 +226,7 @@ export default function App() {
   }, []);
 
   const handleAuthenticated = async (nextSession: AuthSession) => {
+    await waitForSessionCleanup(sessionCleanupRef.current);
     const persistedSession = await prepareAuthenticatedSession(nextSession, saveAuthSession, getCurrentUser);
     if (!hasAuthenticatedSession(persistedSession)) {
       await clearAuthSession();
@@ -228,6 +239,9 @@ export default function App() {
 
     setSessionMessage('');
     setAuthPrompt('');
+    sessionEpochRef.current += 1;
+    activeSessionTokenRef.current = persistedSession.accessToken;
+    sessionExpiryHandledRef.current = false;
     setSession(persistedSession);
     const pendingFeature = takePendingFullAccessFeature();
     const persistedNavigation = await loadActiveNavigationSession();
@@ -244,6 +258,9 @@ export default function App() {
   };
 
   const handleSignOut = async () => {
+    sessionEpochRef.current += 1;
+    activeSessionTokenRef.current = null;
+    sessionExpiryHandledRef.current = true;
     await stopBackgroundNavigation();
     await clearActiveNavigationSession();
     await clearAuthSession();
@@ -266,15 +283,35 @@ export default function App() {
     setScreen('guest-map');
   };
 
-  const handleSessionExpired = async (message = 'Your LunarChain session expired. Sign in again.') => {
+  const handleSessionExpired = async (
+    message = 'Your LunarChain session expired. Sign in again.',
+    expiredAccessToken = session?.accessToken || null,
+    expiredSessionEpoch = sessionEpoch
+  ) => {
+    if (!shouldHandleActiveSessionExpiry({
+      activeAccessToken: activeSessionTokenRef.current,
+      activeSessionEpoch: sessionEpochRef.current,
+      expiredAccessToken,
+      expiredSessionEpoch,
+      handled: sessionExpiryHandledRef.current
+    })) {
+      return;
+    }
+    sessionExpiryHandledRef.current = true;
+    activeSessionTokenRef.current = null;
     pendingFullAccessFeatureRef.current = screen === 'operations'
       ? fullAccessFeatureForOperationsTab(operationsTab)
       : screen === 'routes'
         ? 'saved-routes'
-        : null;
-    await stopBackgroundNavigation();
-    await clearActiveNavigationSession();
-    await clearAuthSession();
+        : screen === 'route-preview' && routePreviewSource === 'saved'
+          ? 'saved-routes'
+          : null;
+    const cleanup = Promise.allSettled([
+      stopBackgroundNavigation(),
+      clearActiveNavigationSession(),
+      clearAuthSession()
+    ]);
+    sessionCleanupRef.current = cleanup;
     setActiveNavigationSession(null);
     setSelectedRoute(null);
     setSessionMessage(message);
@@ -282,6 +319,10 @@ export default function App() {
     setOperationsTab('planned-routes');
     setSession(null);
     setScreen('login');
+    await cleanup;
+    if (sessionCleanupRef.current === cleanup) {
+      sessionCleanupRef.current = null;
+    }
   };
 
   const openSignIn = (message = DEFAULT_SIGN_IN_PROMPT) => {
@@ -391,6 +432,7 @@ export default function App() {
             routePlan={selectedRoute}
             onChangeRoute={returnFromRoutePreview}
             onNavigationSessionChange={setActiveNavigationSession}
+            onSessionExpired={handleSessionExpired}
           />
         ) : screen === 'routes' && session && authenticated ? (
           <RouteListScreen

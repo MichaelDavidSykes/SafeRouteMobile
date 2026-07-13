@@ -208,6 +208,16 @@ export function GuestMapScreen({
     : workspaceSelectionRequired
       ? workspaceBlockingActionLabel
       : routeAction.label;
+  const routeActionAccessibilityLabel = workspaceSelectionRequired
+    ? workspaceBlockingActionLabel
+    : routeAction.accessibilityLabel;
+  const routeActionAccessibilityHint = workspaceSelectionRequired
+    ? availableWorkspaces.length
+      ? 'Choose the SafeRoute workspace above before plotting this route.'
+      : workspaceCatalogError
+        ? 'Retry workspace loading before plotting this route.'
+        : 'Route planning needs an available SafeRoute workspace.'
+    : routeAction.accessibilityHint;
   const mapSelectionSetsDestination = shouldUseGuestMapSelectionAsDestination(routeDraft);
   const canAddMapRoutePoint =
     mapSelectionSetsDestination || canAddGuestRouteWaypoint(routeDraft);
@@ -1278,8 +1288,8 @@ export function GuestMapScreen({
               ) : null}
 
               <Pressable
-                accessibilityHint={routeAction.accessibilityHint}
-                accessibilityLabel={routeAction.accessibilityLabel}
+                accessibilityHint={routeActionAccessibilityHint}
+                accessibilityLabel={routeActionAccessibilityLabel}
                 accessibilityRole="button"
                 accessibilityState={{ disabled: routeActionDisabled }}
                 disabled={routeActionDisabled}

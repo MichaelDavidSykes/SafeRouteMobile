@@ -489,8 +489,18 @@ export default function App() {
     if (navigationWorkspace) {
       activeWorkspaceRef.current = navigationWorkspace;
       setActiveWorkspace(navigationWorkspace);
+      const userEmail = (session?.user?.email || session?.email || '').trim();
+      void saveOfflineWorkspaceContext(userEmail, {
+        activeWorkspaceId: navigationWorkspace.id,
+        workspaces: availableWorkspaces,
+      }).catch(() => undefined);
     }
-  }, [activeNavigationSession?.routePlan.clientId, availableWorkspaces]);
+  }, [
+    activeNavigationSession?.routePlan.clientId,
+    availableWorkspaces,
+    session?.email,
+    session?.user?.email,
+  ]);
 
   const openSignIn = (message = DEFAULT_SIGN_IN_PROMPT) => {
     setAuthPrompt(message);

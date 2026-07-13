@@ -18,6 +18,7 @@ describe("App active workspace integration", () => {
     assert.match(app, /loadOfflineWorkspaceContext\(userEmail\)/);
     assert.match(app, /loadOfflineRoutes\(userEmail, null\)/);
     assert.match(app, /saveOfflineWorkspaceContext\(userEmail/);
+    assert.match(app, /navigationWorkspace[\s\S]*activeWorkspaceId: navigationWorkspace\.id/);
     assert.match(app, /<RouteListScreen[\s\S]*activeWorkspace=\{activeWorkspace\}[\s\S]*availableWorkspaces=\{availableWorkspaces\}/);
     assert.match(app, /<GuestMapScreen[\s\S]*activeWorkspace=\{activeWorkspace\}[\s\S]*availableWorkspaces=\{availableWorkspaces\}/);
     assert.match(app, /handleSelectSavedRoute[\s\S]*routePlan\.clientId !== activeWorkspace\.id[\s\S]*Choose the saved route again/);
@@ -40,6 +41,8 @@ describe("App active workspace integration", () => {
     const routes = routesSource();
 
     assert.match(guest, /workspaceSelectionRequired = authenticated && !routingClientId/);
+    assert.match(guest, /routeActionAccessibilityLabel = workspaceSelectionRequired/);
+    assert.match(guest, /Choose the SafeRoute workspace above before plotting this route/);
     assert.match(guest, /enabled: !workspaceSelectionRequired/);
     assert.match(guest, /cancelRoadRouteUpgrade\(\)[\s\S]*activeRiskAreaRequestRef\.current\?\.abort\(\)[\s\S]*setRoutePlan\(null\)/);
     assert.doesNotMatch(guest, /result\.clients\[0\]/);

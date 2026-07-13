@@ -620,7 +620,7 @@ describe("rounded visual language", () => {
     assert.doesNotMatch(liveMarkerSource, /checkpointMarkerText/);
   });
 
-  it("keeps live risk card status and detail actions bounded", () => {
+  it("keeps live risk card status bounded", () => {
     const riskCardSource = readFileSync(
       join(process.cwd(), "src/features/live-map/LiveMapRiskCard.tsx"),
       "utf8",
@@ -633,29 +633,9 @@ describe("rounded visual language", () => {
       /riskEyebrow:\s*\{([\s\S]*?)\n  \},\n  riskTitle:/.exec(
         riskCardStylesSource,
       )?.[1] || "";
-    const riskDismissButtonBlock =
-      /riskDismissButton:\s*\{([\s\S]*?)\n  \},\n  riskDismissButtonPressed:/.exec(
-        riskCardStylesSource,
-      )?.[1] || "";
-    const riskDismissTextBlock =
-      /riskDismissText:\s*\{([\s\S]*?)\n  \},\n  riskCardHigh:/.exec(
-        riskCardStylesSource,
-      )?.[1] || "";
 
     assert.match(riskCardSource, /<Text numberOfLines=\{1\} style=\{styles\.riskEyebrow\}>/);
-    assert.match(riskCardSource, /<Text numberOfLines=\{1\} style=\{styles\.riskDismissText\}>/);
-    assert.match(riskCardSource, /const LIVE_RISK_DETAIL_DISMISS_HIT_SLOP = 6/);
-    assert.match(riskCardSource, /hitSlop=\{LIVE_RISK_DETAIL_DISMISS_HIT_SLOP\}/);
-    assert.match(
-      riskCardSource,
-      /accessibilityHint="Closes the risk-area details and returns to the live map\."/,
-    );
     assert.match(riskEyebrowBlock, /maxWidth:\s*["']100%["']/);
-    assert.match(riskDismissButtonBlock, /maxWidth:\s*96/);
-    assert.match(riskDismissButtonBlock, /flexShrink:\s*0/);
-    assert.match(riskDismissTextBlock, /maxWidth:\s*64/);
-    assert.match(riskDismissTextBlock, /flexShrink:\s*1/);
-    assert.match(riskDismissTextBlock, /textAlign:\s*["']center["']/);
   });
 
   it("keeps guest risk details easy to dismiss without extra map chrome", () => {

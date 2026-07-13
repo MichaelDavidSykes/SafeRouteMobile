@@ -1,12 +1,9 @@
 import { Pressable, Text, View } from "react-native";
 
 import type { LiveMapOverlayLayout } from "./liveMapLayout";
-import type { RiskZone } from "./liveMapTypes";
 import {
   createLiveRouteRiskAlertPresentation,
-  createRiskZoneDetailPresentation,
   type LiveRouteRiskAlert,
-  type RouteRiskProximity,
 } from "./routeRisk";
 import { riskCardStyles as styles } from "./LiveMapRiskCard.styles";
 import { uiTestIds } from "../../testing/uiTestIds";
@@ -16,15 +13,6 @@ interface LiveRouteRiskAlertCardProps {
   layout: LiveMapOverlayLayout;
   onPress: () => void;
 }
-
-interface LiveRouteRiskDetailCardProps {
-  layout: LiveMapOverlayLayout;
-  onDismiss: () => void;
-  proximity: RouteRiskProximity | null;
-  zone: RiskZone;
-}
-
-const LIVE_RISK_DETAIL_DISMISS_HIT_SLOP = 6;
 
 export function LiveRouteRiskAlertCard({
   alert,
@@ -65,68 +53,6 @@ export function LiveRouteRiskAlertCard({
         {presentation.detailLabel}
       </Text>
     </Pressable>
-  );
-}
-
-export function LiveRouteRiskDetailCard({
-  layout,
-  onDismiss,
-  proximity,
-  zone,
-}: LiveRouteRiskDetailCardProps) {
-  const presentation = createRiskZoneDetailPresentation({ proximity, zone });
-
-  return (
-    <View
-      accessible
-      accessibilityLabel={presentation.accessibilityLabel}
-      testID={uiTestIds.liveMapRiskDetail}
-      style={[
-        styles.riskDetailCard,
-        {
-          bottom: resolveRiskCardBottom(layout),
-        },
-        layout.isCompact ? styles.riskDetailCardCompact : null,
-        riskCardToneStyle(presentation.tone),
-      ]}
-    >
-      <View style={styles.riskDetailHeader}>
-        <View style={styles.riskCopy}>
-          <Text numberOfLines={1} style={styles.riskEyebrow}>
-            Risk area
-          </Text>
-          <Text numberOfLines={1} style={styles.riskTitle}>
-            {presentation.title}
-          </Text>
-        </View>
-        <Pressable
-          accessibilityHint="Closes the risk-area details and returns to the live map."
-          accessibilityLabel="Close risk details"
-          accessibilityRole="button"
-          hitSlop={LIVE_RISK_DETAIL_DISMISS_HIT_SLOP}
-          testID={uiTestIds.liveMapRiskDetailDismiss}
-          style={({ pressed }) => [
-            styles.riskDismissButton,
-            pressed ? styles.riskDismissButtonPressed : null,
-          ]}
-          onPress={onDismiss}
-        >
-          <Text numberOfLines={1} style={styles.riskDismissText}>
-            Done
-          </Text>
-        </Pressable>
-      </View>
-
-      <Text numberOfLines={1} style={styles.riskMeta}>
-        {presentation.metaLabel}
-      </Text>
-      <Text numberOfLines={2} style={styles.riskBody}>
-        {presentation.body}
-      </Text>
-      <Text numberOfLines={1} style={styles.riskClearance}>
-        {presentation.clearanceLabel}
-      </Text>
-    </View>
   );
 }
 

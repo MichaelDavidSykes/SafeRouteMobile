@@ -176,14 +176,6 @@ export function regionToAreaRiskViewportRequests(
   }));
 }
 
-/** Use the plural form when full dateline coverage is required. */
-export function regionToAreaRiskViewportRequest(
-  region: Region | null | undefined,
-  options: AreaRiskViewportRequestOptions = {}
-): AreaRiskViewportRequest | null {
-  return regionToAreaRiskViewportRequests(region, options)[0] ?? null;
-}
-
 /** The configured API base contributes /api/v1 to this endpoint-relative path. */
 export function buildAreaRiskViewportPath(
   request: AreaRiskViewportRequest,
@@ -279,10 +271,6 @@ export function normalizeAreaRiskFeed(payload: unknown): AreaRiskFeed {
   };
 }
 
-export function normalizeAreaRiskZones(payload: unknown): RiskZone[] {
-  return normalizeAreaRiskFeed(payload).zones;
-}
-
 export function mergeRiskZonesById(...zoneSets: ReadonlyArray<readonly RiskZone[]>): RiskZone[] {
   const byId = new Map<string, RiskZone>();
   for (const zone of zoneSets.flat()) {
@@ -319,8 +307,6 @@ export function canonicalAreaRiskZoneId(
   ].join('|');
   return `generated-area-risk-${titleSlug}-${stableHash(signature)}`;
 }
-
-export const canonicalAreaRiskId = canonicalAreaRiskZoneId;
 
 export function deriveRiskZoneAvoidRectangles(
   riskZones: readonly (RiskZone | AvoidanceRiskZone)[],
@@ -359,8 +345,6 @@ export function deriveRiskZoneAvoidRectangles(
   }
   return rectangles;
 }
-
-export const buildAvoidRectanglesFromRiskZones = deriveRiskZoneAvoidRectangles;
 
 export function riskZoneToAvoidRectangles(
   zone: RiskZone | AvoidanceRiskZone,

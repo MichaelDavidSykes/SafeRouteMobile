@@ -40,6 +40,17 @@ describe("UI test identifiers", () => {
     assert.equal(uiTestIds.liveMapRemainingMetrics, "safe-route-remaining-metrics");
     assert.equal(uiTestIds.liveMapPrimaryAction, "safe-route-primary-action");
     assert.equal(uiTestIds.guestMapRiskLoadingStatus, "guest-map-risk-loading-status");
+    assert.equal(uiTestIds.guestMapWorkspaceSelector, "guest-map-workspace-selector");
+    assert.equal(
+      uiTestIds.guestMapWorkspaceOption(" West Corridor "),
+      "guest-map-workspace-west-corridor",
+    );
+    assert.equal(uiTestIds.routeListWorkspaceSelector, "safe-route-workspace-selector");
+    assert.equal(uiTestIds.routeListWorkspaceState, "safe-route-workspace-state");
+    assert.equal(
+      uiTestIds.routeListWorkspaceOption(" West Corridor "),
+      "safe-route-workspace-west-corridor",
+    );
     assert.equal(uiTestIds.loginScreen, "safe-route-login");
     assert.equal(uiTestIds.loginEmail, "safe-route-login-email");
     assert.equal(uiTestIds.loginPassword, "safe-route-login-password");

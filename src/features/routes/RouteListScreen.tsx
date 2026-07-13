@@ -29,13 +29,11 @@ import {
   createRouteListSummaryState,
   filterSavedRoutes,
   findSelectedClient,
-  reconcileSelectedClientId,
   shouldShowRouteSearch,
   shouldShowClientFilters,
   shouldShowRouteEmptyState,
   shouldShowRouteSummary,
 } from "./routeListUiState";
-import type { MobileSafeRouteClient } from "./routeMapper";
 import { colors } from "../../theme";
 import { uiTestIds } from "../../testing/uiTestIds";
 import {
@@ -46,8 +44,16 @@ import {
 } from "./offlineRouteCache";
 import { hasUsableRoutePlan } from "./offlineRouteCacheCore";
 import { useNetworkAvailability } from "../api/useNetworkAvailability";
+import type { SafeRouteWorkspace } from "../workspaces/activeWorkspace";
 
 const ROUTE_LIST_ERROR_ACTION_HIT_SLOP = 6;
+
+function routesForWorkspace(
+  routes: SavedSafeRoutePlan[],
+  workspaceId: string,
+): SavedSafeRoutePlan[] {
+  return routes.filter((route) => route.clientId === workspaceId);
+}
 
 interface RouteListErrorState extends BaseRouteListErrorState {
   route?: SavedSafeRoutePlan;
@@ -55,27 +61,39 @@ interface RouteListErrorState extends BaseRouteListErrorState {
 
 interface RouteListScreenProps {
   accessToken: string;
+  activeWorkspace: SafeRouteWorkspace | null;
+  availableWorkspaces: SafeRouteWorkspace[];
   sessionNotice?: string;
   userEmail: string;
   onBackToMap: () => void;
+  onRetryWorkspaceCatalog: () => void;
   onSelectRoute: (route: SavedSafeRoutePlan) => void;
   onSessionExpired: (message?: string) => void;
   onSignOut: () => void;
+  onWorkspaceChange: (workspace: SafeRouteWorkspace) => void;
+  workspaceCatalogError: string;
+  workspaceCatalogLoading: boolean;
+  workspaceSwitchDisabled: boolean;
 }
 
 export function RouteListScreen({
   accessToken,
+  activeWorkspace,
+  availableWorkspaces,
   onBackToMap,
+  onRetryWorkspaceCatalog,
   onSelectRoute,
   onSessionExpired,
   onSignOut,
+  onWorkspaceChange,
   sessionNotice,
   userEmail,
+  workspaceCatalogError,
+  workspaceCatalogLoading,
+  workspaceSwitchDisabled,
 }: RouteListScreenProps) {
   const { offline } = useNetworkAvailability();
   const [query, setQuery] = useState("");
-  const [clients, setClients] = useState<MobileSafeRouteClient[]>([]);
-  const [selectedClientId, setSelectedClientId] = useState<string | null>(null);
   const [routes, setRoutes] = useState<SavedSafeRoutePlan[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
@@ -86,6 +104,9 @@ export function RouteListScreen({
   const [showingOfflineCopy, setShowingOfflineCopy] = useState(false);
   const loadRevisionRef = useRef(0);
   const detailRevisionRef = useRef(0);
+  const selectedClientId = activeWorkspace?.id || null;
+  const activeWorkspaceIdRef = useRef<string | null>(selectedClientId);
+  activeWorkspaceIdRef.current = selectedClientId;
 
   const loadRoutes = useCallback(
     async ({ refresh = false }: { refresh?: boolean } = {}) => {
@@ -98,15 +119,28 @@ export function RouteListScreen({
       }
       setErrorState(null);
 
-      const cached = refresh
+      if (!selectedClientId) {
+        setRoutes([]);
+        setShowingOfflineCopy(false);
+        setLoading(false);
+        setRefreshing(false);
+        return;
+      }
+
+      let cached = refresh
         ? null
         : await loadOfflineRoutes(userEmail, selectedClientId);
       if (revision !== loadRevisionRef.current) {
         return;
       }
+      if (!cached && offline && !refresh) {
+        cached = await loadOfflineRoutes(userEmail, null);
+        if (revision !== loadRevisionRef.current) {
+          return;
+        }
+      }
       if (cached) {
-        setClients(cached.clients);
-        setRoutes(cached.routes);
+        setRoutes(routesForWorkspace(cached.routes, selectedClientId));
         setLoading(false);
         if (offline) {
           setShowingOfflineCopy(true);
@@ -131,13 +165,13 @@ export function RouteListScreen({
         if (revision !== loadRevisionRef.current) {
           return;
         }
-        setClients(result.clients);
-        setSelectedClientId((currentClientId) =>
-          reconcileSelectedClientId(result.clients, currentClientId),
-        );
-        setRoutes(result.routes);
+        const scopedResult = {
+          ...result,
+          routes: routesForWorkspace(result.routes, selectedClientId),
+        };
+        setRoutes(scopedResult.routes);
         setShowingOfflineCopy(false);
-        void saveOfflineRoutes(userEmail, selectedClientId, result).catch(() => undefined);
+        void saveOfflineRoutes(userEmail, selectedClientId, scopedResult).catch(() => undefined);
       } catch (error) {
         if (revision !== loadRevisionRef.current) {
           return;
@@ -146,14 +180,19 @@ export function RouteListScreen({
           onSessionExpired(error.message);
           return;
         }
-        const offlineCopy =
+        let offlineCopy =
           cached || (await loadOfflineRoutes(userEmail, selectedClientId));
         if (revision !== loadRevisionRef.current) {
           return;
         }
+        if (!offlineCopy) {
+          offlineCopy = await loadOfflineRoutes(userEmail, null);
+          if (revision !== loadRevisionRef.current) {
+            return;
+          }
+        }
         if (offlineCopy) {
-          setClients(offlineCopy.clients);
-          setRoutes(offlineCopy.routes);
+          setRoutes(routesForWorkspace(offlineCopy.routes, selectedClientId));
           setShowingOfflineCopy(true);
         } else {
           setErrorState(createRouteSyncErrorState(error));
@@ -187,26 +226,30 @@ export function RouteListScreen({
   }, []);
 
   const selectedClient = useMemo(
-    () => findSelectedClient(clients, selectedClientId),
-    [clients, selectedClientId],
+    () => findSelectedClient(availableWorkspaces, selectedClientId),
+    [availableWorkspaces, selectedClientId],
   );
   const clientFilterOptions = useMemo(
-    () => createRouteListClientFilterOptions(clients, selectedClientId),
-    [clients, selectedClientId],
+    () => createRouteListClientFilterOptions(availableWorkspaces, selectedClientId),
+    [availableWorkspaces, selectedClientId],
+  );
+  const workspaceRoutes = useMemo(
+    () => selectedClientId ? routesForWorkspace(routes, selectedClientId) : [],
+    [routes, selectedClientId],
   );
   const filteredRoutes = useMemo(
-    () => filterSavedRoutes(routes, query),
-    [query, routes],
+    () => filterSavedRoutes(workspaceRoutes, query),
+    [query, workspaceRoutes],
   );
   const loadingState = createRouteListLoadingState();
   const emptyState = useMemo(
     () =>
       createRouteListEmptyState({
         query,
-        routeCount: routes.length,
+        routeCount: workspaceRoutes.length,
         selectedClientName: selectedClient?.name,
       }),
-    [query, routes.length, selectedClient?.name],
+    [query, workspaceRoutes.length, selectedClient?.name],
   );
   const routeSummary = useMemo(
     () =>
@@ -214,29 +257,72 @@ export function RouteListScreen({
         filteredRouteCount: filteredRoutes.length,
         query,
         selectedClientName: selectedClient?.name,
-        totalRouteCount: routes.length,
+        totalRouteCount: workspaceRoutes.length,
       }),
-    [filteredRoutes.length, query, routes.length, selectedClient?.name],
+    [filteredRoutes.length, query, workspaceRoutes.length, selectedClient?.name],
   );
   const showRouteSearch = shouldShowRouteSearch({
     query,
     selectedClientName: selectedClient?.name,
-    totalRouteCount: routes.length,
+    totalRouteCount: workspaceRoutes.length,
   });
   const showRouteSummary = shouldShowRouteSummary({
     query,
     selectedClientName: selectedClient?.name,
-    totalRouteCount: routes.length,
+    totalRouteCount: workspaceRoutes.length,
   });
   const showEmptyState = shouldShowRouteEmptyState({
     errorAction: errorState?.action,
     filteredRouteCount: filteredRoutes.length,
-    totalRouteCount: routes.length,
+    totalRouteCount: workspaceRoutes.length,
   });
+  const workspaceState = !selectedClientId
+    ? workspaceCatalogLoading && !availableWorkspaces.length
+      ? {
+          accessibilityLabel: "Loading SafeRoute workspaces.",
+          copy: "Checking the workspaces available to this account.",
+          loading: true,
+          retry: false,
+          title: "Loading workspaces",
+        }
+      : availableWorkspaces.length
+        ? {
+            accessibilityLabel: workspaceCatalogError
+              ? "Choose a cached workspace to show its offline saved routes."
+              : "Choose a workspace to show its saved routes.",
+            copy: workspaceCatalogError
+              ? "Choose a saved workspace. Reconnect to refresh workspace access."
+              : "Choose the workspace whose routes you need.",
+            loading: false,
+            retry: false,
+            title: "Choose workspace",
+          }
+        : workspaceCatalogError
+          ? {
+              accessibilityLabel: "Workspaces unavailable. Retry loading your SafeRoute workspaces.",
+              copy: workspaceCatalogError,
+              loading: false,
+              retry: true,
+              title: "Workspaces unavailable",
+            }
+          : {
+              accessibilityLabel: "No SafeRoute workspace access is available for this account.",
+              copy: "Ask an administrator to add this account to a SafeRoute workspace.",
+              loading: false,
+              retry: false,
+              title: "No workspace access",
+            }
+    : null;
 
   const handleSelectRoute = async (route: SavedSafeRoutePlan) => {
+    if (!selectedClientId) {
+      return;
+    }
     const revision = detailRevisionRef.current + 1;
     detailRevisionRef.current = revision;
+    const requestOwnsWorkspace = () =>
+      revision === detailRevisionRef.current &&
+      activeWorkspaceIdRef.current === selectedClientId;
     setDetailLoadingId(route.id);
     setErrorState(null);
 
@@ -244,26 +330,47 @@ export function RouteListScreen({
       const cached =
         (await loadOfflineRouteDetail(userEmail, route.id)) ||
         (hasUsableRoutePlan(route) ? route : null);
-      if (revision !== detailRevisionRef.current) {
+      if (!requestOwnsWorkspace()) {
         return;
       }
       if (cached) {
+        if (cached.clientId !== selectedClientId) {
+          setErrorState({
+            ...createRouteDetailErrorState(
+              new Error("This route belongs to another workspace."),
+              route.name,
+            ),
+            route,
+          });
+          setDetailLoadingId(null);
+          return;
+        }
         setShowingOfflineCopy(true);
         setDetailLoadingId(null);
-        onSelectRoute(cached);
+        onSelectRoute({ ...cached, clientId: selectedClientId });
         return;
       }
     }
 
     try {
       const routeDetail = await fetchRouteDetail(accessToken, route.id);
-      if (revision !== detailRevisionRef.current) {
+      if (!requestOwnsWorkspace()) {
+        return;
+      }
+      if (routeDetail.clientId !== selectedClientId) {
+        setErrorState({
+          ...createRouteDetailErrorState(
+            new Error("This route belongs to another workspace."),
+            route.name,
+          ),
+          route,
+        });
         return;
       }
       void saveOfflineRouteDetail(userEmail, routeDetail).catch(() => undefined);
       onSelectRoute(routeDetail);
     } catch (error) {
-      if (revision !== detailRevisionRef.current) {
+      if (!requestOwnsWorkspace()) {
         return;
       }
       if (error instanceof ApiSessionExpiredError) {
@@ -273,12 +380,22 @@ export function RouteListScreen({
       const cached =
         (await loadOfflineRouteDetail(userEmail, route.id)) ||
         (hasUsableRoutePlan(route) ? route : null);
-      if (revision !== detailRevisionRef.current) {
+      if (!requestOwnsWorkspace()) {
         return;
       }
       if (cached) {
+        if (cached.clientId !== selectedClientId) {
+          setErrorState({
+            ...createRouteDetailErrorState(
+              new Error("This route belongs to another workspace."),
+              route.name,
+            ),
+            route,
+          });
+          return;
+        }
         setShowingOfflineCopy(true);
-        onSelectRoute(cached);
+        onSelectRoute({ ...cached, clientId: selectedClientId });
       } else {
         setErrorState({
           ...createRouteDetailErrorState(error, route.name),
@@ -286,7 +403,7 @@ export function RouteListScreen({
         });
       }
     } finally {
-      if (revision === detailRevisionRef.current) {
+      if (requestOwnsWorkspace()) {
         setDetailLoadingId(null);
       }
     }
@@ -318,7 +435,21 @@ export function RouteListScreen({
         showSearch={showRouteSearch}
         showSummary={!loading && showRouteSummary}
         onChangeQuery={handleChangeQuery}
-        onSelectClient={setSelectedClientId}
+        workspaceSwitchDisabled={workspaceSwitchDisabled}
+        onSelectClient={(clientId) => {
+          const workspace = availableWorkspaces.find((client) => client.id === clientId);
+          if (workspace) {
+            detailRevisionRef.current += 1;
+            activeWorkspaceIdRef.current = workspace.id;
+            setDetailLoadingId(null);
+            setErrorState(null);
+            setRoutes([]);
+            setShowingOfflineCopy(false);
+            setLoading(true);
+            setQuery("");
+            onWorkspaceChange(workspace);
+          }
+        }}
       />
 
       {showingOfflineCopy ? (
@@ -329,7 +460,35 @@ export function RouteListScreen({
         </View>
       ) : null}
 
-      {errorState ? (
+      {workspaceState ? (
+        <View style={styles.loadingState}>
+          <View
+            accessible
+            accessibilityLabel={workspaceState.accessibilityLabel}
+            accessibilityRole={workspaceState.loading ? "progressbar" : "summary"}
+            testID={uiTestIds.routeListWorkspaceState}
+            style={styles.emptyState}
+          >
+            {workspaceState.loading ? <ActivityIndicator color={colors.appleBlue} /> : null}
+            <Text numberOfLines={1} style={styles.emptyTitle}>{workspaceState.title}</Text>
+            <Text numberOfLines={2} style={styles.emptyCopy}>{workspaceState.copy}</Text>
+          </View>
+          {workspaceState.retry ? (
+            <Pressable
+              accessibilityLabel="Retry loading SafeRoute workspaces"
+              accessibilityRole="button"
+              hitSlop={ROUTE_LIST_ERROR_ACTION_HIT_SLOP}
+              style={({ pressed }) => [
+                styles.retryButton,
+                pressed ? styles.retryButtonPressed : null,
+              ]}
+              onPress={onRetryWorkspaceCatalog}
+            >
+              <Text numberOfLines={1} style={styles.retryText}>Retry</Text>
+            </Pressable>
+          ) : null}
+        </View>
+      ) : errorState ? (
         <View accessibilityRole="alert" style={styles.errorBox}>
           <View style={styles.errorCopy}>
             <Text numberOfLines={1} style={styles.errorTitle}>
@@ -358,9 +517,7 @@ export function RouteListScreen({
             </Text>
           </Pressable>
         </View>
-      ) : null}
-
-      {loading ? (
+      ) : loading ? (
         <View style={styles.loadingState}>
           <View
             accessible

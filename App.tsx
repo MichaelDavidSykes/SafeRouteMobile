@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { StatusBar } from 'expo-status-bar';
 import { StyleSheet, View } from 'react-native';
 import { SafeAreaProvider, initialWindowMetrics } from 'react-native-safe-area-context';
@@ -54,6 +54,19 @@ import {
   shouldHandleActiveSessionExpiry,
   waitForSessionCleanup
 } from './src/features/api/sessionExpiry';
+import { ApiSessionExpiredError } from './src/features/api/apiClient';
+import { fetchSavedRoutes } from './src/features/routes/routeApi';
+import { loadOfflineRoutes } from './src/features/routes/offlineRouteCache';
+import {
+  findWorkspace,
+  normalizeWorkspaceCatalog,
+  resolveActiveWorkspace,
+  type SafeRouteWorkspace
+} from './src/features/workspaces/activeWorkspace';
+import {
+  loadOfflineWorkspaceContext,
+  saveOfflineWorkspaceContext
+} from './src/features/workspaces/offlineWorkspaceCache';
 
 export default function App() {
   const [session, setSession] = useState<AuthSession | null>(null);
@@ -65,14 +78,22 @@ export default function App() {
   const [screen, setScreen] = useState<AppScreen>('guest-map');
   const [routePreviewSource, setRoutePreviewSource] = useState<RoutePreviewSource>('guest');
   const [operationsTab, setOperationsTab] = useState<OperationsTab>('planned-routes');
+  const [availableWorkspaces, setAvailableWorkspaces] = useState<SafeRouteWorkspace[]>([]);
+  const [activeWorkspace, setActiveWorkspace] = useState<SafeRouteWorkspace | null>(null);
+  const [workspaceCatalogLoading, setWorkspaceCatalogLoading] = useState(false);
+  const [workspaceCatalogError, setWorkspaceCatalogError] = useState('');
+  const [workspaceDiscoveryRevision, setWorkspaceDiscoveryRevision] = useState(0);
   const pendingFullAccessFeatureRef = useRef<GuestFullAccessFeature | null>(null);
   const activeSessionTokenRef = useRef(session?.accessToken || null);
   const sessionCleanupRef = useRef<Promise<unknown> | null>(null);
   const sessionEpochRef = useRef(0);
   const sessionExpiryHandledRef = useRef(false);
+  const workspaceRequestRevisionRef = useRef(0);
+  const activeWorkspaceRef = useRef<SafeRouteWorkspace | null>(null);
   const authenticated = hasAuthenticatedSession(session);
   const sessionEpoch = sessionEpochRef.current;
   activeSessionTokenRef.current = session?.accessToken || null;
+  activeWorkspaceRef.current = activeWorkspace;
 
   const takePendingFullAccessFeature = () => {
     const pendingFeature = pendingFullAccessFeatureRef.current;
@@ -141,6 +162,7 @@ export default function App() {
       }
 
       setAuthPrompt('');
+      setWorkspaceCatalogLoading(true);
       setSession(createPreviewAuthSession());
       setSessionMessage(PREVIEW_SESSION_NOTICE);
       const pendingFeature = takePendingFullAccessFeature();
@@ -155,6 +177,11 @@ export default function App() {
     const restoreSession = async () => {
       setAuthPrompt('');
       setSelectedRoute(null);
+      setAvailableWorkspaces([]);
+      activeWorkspaceRef.current = null;
+      setActiveWorkspace(null);
+      setWorkspaceCatalogLoading(true);
+      setWorkspaceCatalogError('');
       setScreen('guest-map');
       let persistedNavigation: ActiveNavigationSession | null = null;
 
@@ -226,6 +253,12 @@ export default function App() {
   }, []);
 
   const handleAuthenticated = async (nextSession: AuthSession) => {
+    workspaceRequestRevisionRef.current += 1;
+    setAvailableWorkspaces([]);
+    activeWorkspaceRef.current = null;
+    setActiveWorkspace(null);
+    setWorkspaceCatalogLoading(true);
+    setWorkspaceCatalogError('');
     await waitForSessionCleanup(sessionCleanupRef.current);
     const persistedSession = await prepareAuthenticatedSession(nextSession, saveAuthSession, getCurrentUser);
     if (!hasAuthenticatedSession(persistedSession)) {
@@ -239,6 +272,10 @@ export default function App() {
 
     setSessionMessage('');
     setAuthPrompt('');
+    setAvailableWorkspaces([]);
+    activeWorkspaceRef.current = null;
+    setActiveWorkspace(null);
+    setWorkspaceCatalogError('');
     sessionEpochRef.current += 1;
     activeSessionTokenRef.current = persistedSession.accessToken;
     sessionExpiryHandledRef.current = false;
@@ -258,6 +295,7 @@ export default function App() {
   };
 
   const handleSignOut = async () => {
+    workspaceRequestRevisionRef.current += 1;
     sessionEpochRef.current += 1;
     activeSessionTokenRef.current = null;
     sessionExpiryHandledRef.current = true;
@@ -268,6 +306,11 @@ export default function App() {
     setSelectedRoute(null);
     setSessionMessage('');
     setAuthPrompt('');
+    setAvailableWorkspaces([]);
+    activeWorkspaceRef.current = null;
+    setActiveWorkspace(null);
+    setWorkspaceCatalogLoading(false);
+    setWorkspaceCatalogError('');
     setOperationsTab('planned-routes');
     pendingFullAccessFeatureRef.current = null;
     setSession(null);
@@ -297,6 +340,7 @@ export default function App() {
     })) {
       return;
     }
+    workspaceRequestRevisionRef.current += 1;
     sessionExpiryHandledRef.current = true;
     activeSessionTokenRef.current = null;
     pendingFullAccessFeatureRef.current = screen === 'operations'
@@ -316,6 +360,11 @@ export default function App() {
     setSelectedRoute(null);
     setSessionMessage(message);
     setAuthPrompt(message);
+    setAvailableWorkspaces([]);
+    activeWorkspaceRef.current = null;
+    setActiveWorkspace(null);
+    setWorkspaceCatalogLoading(false);
+    setWorkspaceCatalogError('');
     setOperationsTab('planned-routes');
     setSession(null);
     setScreen('login');
@@ -324,6 +373,124 @@ export default function App() {
       sessionCleanupRef.current = null;
     }
   };
+
+  useEffect(() => {
+    const revision = workspaceRequestRevisionRef.current + 1;
+    workspaceRequestRevisionRef.current = revision;
+    const accessToken = session?.accessToken?.trim();
+    const userEmail = (session?.user?.email || session?.email || '').trim();
+
+    if (!accessToken || !authenticated) {
+      setAvailableWorkspaces([]);
+      activeWorkspaceRef.current = null;
+      setActiveWorkspace(null);
+      setWorkspaceCatalogLoading(false);
+      setWorkspaceCatalogError('');
+      return;
+    }
+
+    setWorkspaceCatalogLoading(true);
+    setWorkspaceCatalogError('');
+
+    const discoverWorkspaces = async () => {
+      const cachedContext = await loadOfflineWorkspaceContext(userEmail);
+      if (revision !== workspaceRequestRevisionRef.current) {
+        return;
+      }
+
+      const legacyRouteCache = cachedContext
+        ? null
+        : await loadOfflineRoutes(userEmail, null);
+      if (revision !== workspaceRequestRevisionRef.current) {
+        return;
+      }
+
+      const cachedCatalog = normalizeWorkspaceCatalog(
+        cachedContext?.workspaces || legacyRouteCache?.clients || [],
+      );
+      if (cachedCatalog.length) {
+        const cachedWorkspace = resolveActiveWorkspace(
+          cachedCatalog,
+          activeNavigationSession?.routePlan.clientId || activeWorkspaceRef.current?.id,
+          cachedContext?.activeWorkspaceId || legacyRouteCache?.selectedClientId,
+        );
+        setAvailableWorkspaces(cachedCatalog);
+        activeWorkspaceRef.current = cachedWorkspace;
+        setActiveWorkspace(cachedWorkspace);
+      }
+
+      try {
+        const result = await fetchSavedRoutes(accessToken);
+        if (revision !== workspaceRequestRevisionRef.current) {
+          return;
+        }
+
+        const catalog = normalizeWorkspaceCatalog(result.clients);
+        const resolvedWorkspace = resolveActiveWorkspace(
+          catalog,
+          activeNavigationSession?.routePlan.clientId || activeWorkspaceRef.current?.id,
+          result.selectedClientId,
+        );
+        setAvailableWorkspaces(catalog);
+        activeWorkspaceRef.current = resolvedWorkspace;
+        setActiveWorkspace(resolvedWorkspace);
+        void saveOfflineWorkspaceContext(userEmail, {
+          activeWorkspaceId: resolvedWorkspace?.id || null,
+          workspaces: catalog,
+        }).catch(() => undefined);
+      } catch (error) {
+        if (revision !== workspaceRequestRevisionRef.current) {
+          return;
+        }
+        if (error instanceof ApiSessionExpiredError) {
+          void handleSessionExpired(error.message);
+          return;
+        }
+        setWorkspaceCatalogError('Workspaces could not be loaded. Retry.');
+      } finally {
+        if (revision === workspaceRequestRevisionRef.current) {
+          setWorkspaceCatalogLoading(false);
+        }
+      }
+    };
+
+    void discoverWorkspaces();
+
+    return () => {
+      workspaceRequestRevisionRef.current += 1;
+    };
+  }, [authenticated, session?.accessToken, workspaceDiscoveryRevision]);
+
+  const handleActiveWorkspaceChange = useCallback((workspace: SafeRouteWorkspace | null) => {
+    if (
+      activeNavigationSession &&
+      workspace?.id !== activeWorkspace?.id
+    ) {
+      return;
+    }
+    const nextWorkspace = workspace
+      ? findWorkspace(availableWorkspaces, workspace.id)
+      : null;
+    activeWorkspaceRef.current = nextWorkspace;
+    setActiveWorkspace(nextWorkspace);
+    const userEmail = (session?.user?.email || session?.email || '').trim();
+    void saveOfflineWorkspaceContext(userEmail, {
+      activeWorkspaceId: nextWorkspace?.id || null,
+      workspaces: availableWorkspaces,
+    }).catch(() => undefined);
+  }, [activeNavigationSession, activeWorkspace?.id, availableWorkspaces, session?.email, session?.user?.email]);
+
+  useEffect(() => {
+    const navigationWorkspaceId = activeNavigationSession?.routePlan.clientId;
+    if (!navigationWorkspaceId) {
+      return;
+    }
+    const navigationWorkspace = findWorkspace(availableWorkspaces, navigationWorkspaceId);
+    if (navigationWorkspace) {
+      activeWorkspaceRef.current = navigationWorkspace;
+      setActiveWorkspace(navigationWorkspace);
+    }
+  }, [activeNavigationSession?.routePlan.clientId, availableWorkspaces]);
 
   const openSignIn = (message = DEFAULT_SIGN_IN_PROMPT) => {
     setAuthPrompt(message);
@@ -361,6 +528,10 @@ export default function App() {
   };
 
   const handleSelectSavedRoute = (routePlan: SavedSafeRoutePlan) => {
+    if (!activeWorkspace || routePlan.clientId !== activeWorkspace.id) {
+      setSessionMessage('The active workspace changed. Choose the saved route again.');
+      return;
+    }
     if (
       activeNavigationSession &&
       activeNavigationSession.routePlan.route.id !== routePlan.route.id
@@ -437,12 +608,21 @@ export default function App() {
         ) : screen === 'routes' && session && authenticated ? (
           <RouteListScreen
             accessToken={session.accessToken}
+            activeWorkspace={activeWorkspace}
+            availableWorkspaces={availableWorkspaces}
+            onRetryWorkspaceCatalog={() => {
+              setWorkspaceDiscoveryRevision((revision) => revision + 1);
+            }}
             sessionNotice={routeListSessionNotice}
             userEmail={session.user?.email || session.email}
             onBackToMap={returnToMapHome}
             onSelectRoute={handleSelectSavedRoute}
             onSessionExpired={handleSessionExpired}
             onSignOut={handleSignOut}
+            onWorkspaceChange={handleActiveWorkspaceChange}
+            workspaceCatalogError={workspaceCatalogError}
+            workspaceCatalogLoading={workspaceCatalogLoading}
+            workspaceSwitchDisabled={Boolean(activeNavigationSession)}
           />
         ) : screen === 'operations' && session && authenticated ? (
           <OperationsScreen
@@ -457,14 +637,23 @@ export default function App() {
         ) : (
           <GuestMapScreen
             accessToken={session?.accessToken || null}
+            activeWorkspace={activeWorkspace}
             authenticated={authenticated}
+            availableWorkspaces={availableWorkspaces}
             onOpenFullAccessFeature={openFullAccessFeature}
             onOpenRoutePreview={openRoutePreview}
             onSessionExpired={handleSessionExpired}
+            onRetryWorkspaceCatalog={() => {
+              setWorkspaceDiscoveryRevision((revision) => revision + 1);
+            }}
             onSignIn={() => {
               pendingFullAccessFeatureRef.current = null;
               openSignIn();
             }}
+            onWorkspaceChange={handleActiveWorkspaceChange}
+            workspaceCatalogError={workspaceCatalogError}
+            workspaceCatalogLoading={workspaceCatalogLoading}
+            workspaceSwitchDisabled={Boolean(activeNavigationSession)}
           />
         )}
         {activeNavigationSession && screen !== 'route-preview' && screen !== 'login' ? (

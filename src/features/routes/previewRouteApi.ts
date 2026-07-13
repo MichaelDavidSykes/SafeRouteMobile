@@ -7,10 +7,27 @@ type PreviewSavedRoutesOptions = {
   empty?: boolean;
 };
 
-const PREVIEW_CLIENT: MobileSafeRouteClient = {
-  id: "preview-routes",
-  name: "Preview routes",
-};
+export const PREVIEW_CLIENTS: MobileSafeRouteClient[] = [
+  {
+    id: "preview-routes",
+    name: "Central Operations",
+  },
+  {
+    id: "preview-west",
+    name: "West Corridor",
+  },
+];
+
+function previewWorkspaceIdForRoute(routeId: string): string {
+  return routeId === "sr-westbound-heathrow" ? "preview-west" : "preview-routes";
+}
+
+function withPreviewWorkspace(route: SavedSafeRoutePlan): SavedSafeRoutePlan {
+  return {
+    ...route,
+    clientId: previewWorkspaceIdForRoute(route.id),
+  };
+}
 
 export function loadPreviewSavedRoutes(
   clientId?: string,
@@ -25,15 +42,17 @@ export function loadPreviewSavedRoutes(
   }
 
   const normalizedClientId = String(clientId || "").trim();
-  const routes =
-    normalizedClientId && normalizedClientId !== PREVIEW_CLIENT.id
-      ? []
-      : SAVED_ROUTE_PLANS;
+  const selectedClient = normalizedClientId
+    ? PREVIEW_CLIENTS.find((client) => client.id === normalizedClientId) || null
+    : null;
+  const routes = SAVED_ROUTE_PLANS
+    .map(withPreviewWorkspace)
+    .filter((route) => !selectedClient || route.clientId === selectedClient.id);
 
   return {
-    clients: [PREVIEW_CLIENT],
-    routes,
-    selectedClientId: PREVIEW_CLIENT.id,
+    clients: selectedClient ? [selectedClient] : PREVIEW_CLIENTS,
+    routes: normalizedClientId && !selectedClient ? [] : routes,
+    selectedClientId: selectedClient?.id || (normalizedClientId ? null : PREVIEW_CLIENTS[0].id),
   };
 }
 
@@ -44,5 +63,5 @@ export function loadPreviewRouteDetail(routeId: string): SavedSafeRoutePlan {
     throw new Error("Preview route unavailable. Return to Saved and choose another route.");
   }
 
-  return route;
+  return withPreviewWorkspace(route);
 }

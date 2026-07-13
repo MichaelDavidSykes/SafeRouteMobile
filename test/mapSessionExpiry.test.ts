@@ -18,10 +18,12 @@ describe('authenticated map session expiry integration', () => {
   });
 
   it('routes current guest route and corridor expiry without publishing a generic failure', () => {
+    const app = source('App.tsx');
     const guestMap = source('src/features/guest-map/GuestMapScreen.tsx');
 
     assert.match(guestMap, /useViewportRiskAreas\(\{[\s\S]*onSessionExpired/);
-    assert.match(guestMap, /fetchSavedRoutes\(accessToken\)[\s\S]*catch\(\(error\)[\s\S]*getRequestSessionExpiry[\s\S]*onSessionExpiredRef\.current/);
+    assert.match(app, /fetchSavedRoutes\(accessToken\)[\s\S]*error instanceof ApiSessionExpiredError[\s\S]*handleSessionExpired\(error\.message\)/);
+    assert.doesNotMatch(guestMap, /fetchSavedRoutes\(accessToken\)/);
     assert.match(guestMap, /handleRouteSessionExpiry/);
     assert.match(guestMap, /roadRouteRequestIdRef\.current !== requestId/);
     assert.match(guestMap, /catch \(error\) \{[\s\S]*handleRouteSessionExpiry\(error\)/);

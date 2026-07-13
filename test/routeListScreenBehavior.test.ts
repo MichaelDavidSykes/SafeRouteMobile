@@ -30,7 +30,7 @@ describe("route list screen behavior", () => {
     );
     assert.match(
       loadSource,
-      /await fetchSavedRoutes[\s\S]*?revision !== loadRevisionRef\.current[\s\S]*?setClients\(result\.clients\)/,
+      /await fetchSavedRoutes[\s\S]*?revision !== loadRevisionRef\.current[\s\S]*?routesForWorkspace\(result\.routes, selectedClientId\)[\s\S]*?setRoutes\(scopedResult\.routes\)/,
     );
     assert.match(
       loadSource,
@@ -81,19 +81,28 @@ describe("route list screen behavior", () => {
     assert.match(detailSource, /detailRevisionRef\.current = revision/);
     assert.match(
       detailSource,
-      /await loadOfflineRouteDetail[\s\S]*?revision !== detailRevisionRef\.current[\s\S]*?onSelectRoute\(cached\)/,
+      /await loadOfflineRouteDetail[\s\S]*?!requestOwnsWorkspace\(\)[\s\S]*?onSelectRoute\(\{ \.\.\.cached, clientId: selectedClientId \}\)/,
     );
     assert.match(
       detailSource,
-      /await fetchRouteDetail[\s\S]*?revision !== detailRevisionRef\.current[\s\S]*?onSelectRoute\(routeDetail\)/,
+      /await fetchRouteDetail[\s\S]*?!requestOwnsWorkspace\(\)[\s\S]*?routeDetail\.clientId !== selectedClientId[\s\S]*?onSelectRoute\(routeDetail\)/,
     );
     assert.match(
       detailSource,
-      /catch \(error\)[\s\S]*?revision !== detailRevisionRef\.current[\s\S]*?error instanceof ApiSessionExpiredError/,
+      /catch \(error\)[\s\S]*?!requestOwnsWorkspace\(\)[\s\S]*?error instanceof ApiSessionExpiredError/,
     );
     assert.match(
       detailSource,
-      /finally[\s\S]*?revision === detailRevisionRef\.current[\s\S]*?setDetailLoadingId\(null\)/,
+      /finally[\s\S]*?requestOwnsWorkspace\(\)[\s\S]*?setDetailLoadingId\(null\)/,
+    );
+  });
+
+  it("invalidates a pending route detail before switching workspaces", () => {
+    const source = screenSource();
+
+    assert.match(
+      source,
+      /const workspace = availableWorkspaces\.find[\s\S]*?detailRevisionRef\.current \+= 1;[\s\S]*?setDetailLoadingId\(null\);[\s\S]*?onWorkspaceChange\(workspace\)/,
     );
   });
 });

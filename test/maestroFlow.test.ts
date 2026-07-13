@@ -33,6 +33,11 @@ const emptyRoutesFlowSource = () =>
     join(process.cwd(), "maestro/ios-preview-routes-empty.yaml"),
     "utf8",
   );
+const activeWorkspaceFlowSource = () =>
+  readFileSync(
+    join(process.cwd(), "maestro/ios-preview-active-workspace.yaml"),
+    "utf8",
+  );
 const riskAreasFlowSource = () =>
   readFileSync(
     join(process.cwd(), "maestro/ios-preview-risk-areas.yaml"),
@@ -142,6 +147,31 @@ describe("Maestro iOS preview smoke flow", () => {
     assert.ok(operationsIndex > appRootIndex);
     assert.ok(firstMapReturnIndex > operationsIndex);
     assert.ok(firstGuestGateIndex > firstMapReturnIndex);
+  });
+
+  it("keeps one selected workspace from the map through the Saved picker", () => {
+    const flow = activeWorkspaceFlowSource();
+    const scripts = packageJson().scripts;
+    const mapSelectorIndex = flow.indexOf('id: "guest-map-workspace-selector"');
+    const westOptionIndex = flow.indexOf('id: "guest-map-workspace-preview-west"');
+    const routePickerIndex = flow.indexOf('id: "safe-route-picker"', westOptionIndex);
+    const savedSelectorIndex = flow.indexOf('id: "safe-route-workspace-selector"');
+    const westRouteIndex = flow.indexOf('id: "safe-route-card-sr-westbound-heathrow"');
+
+    assert.equal(
+      scripts["start:maestro:ios:preview:active-workspace"],
+      "SAFEROUTE_ENABLE_PREVIEW_MODE=true SAFEROUTE_PREVIEW_INITIAL_SCREEN=guest-map NODE_OPTIONS=--dns-result-order=ipv4first expo start --localhost --port 8081",
+    );
+    assert.equal(
+      scripts["test:maestro:ios:active-workspace"],
+      "node scripts/run-maestro.mjs test maestro/ios-preview-active-workspace.yaml",
+    );
+    assert.ok(mapSelectorIndex >= 0);
+    assert.ok(westOptionIndex > mapSelectorIndex);
+    assert.ok(routePickerIndex > westOptionIndex);
+    assert.ok(savedSelectorIndex > routePickerIndex);
+    assert.ok(westRouteIndex > savedSelectorIndex);
+    assert.match(flow, /assertNotVisible:\s*\n\s+id: "safe-route-card-sr-city-airport-alpha"/);
   });
 
   it("plots a guest route before opening the live map", () => {

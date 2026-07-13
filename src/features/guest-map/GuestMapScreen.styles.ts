@@ -133,6 +133,83 @@ export const guestMapStyles = StyleSheet.create({
     fontWeight: '500',
     lineHeight: 18
   },
+  workspacePicker: {
+    marginTop: spacing.sm
+  },
+  workspaceSelector: {
+    minHeight: controlSizes.secondary,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: spacing.sm,
+    paddingHorizontal: spacing.md,
+    borderWidth: 0.5,
+    borderColor: colors.glassBorder,
+    borderRadius: radius.lg,
+    backgroundColor: colors.surfaceGlass
+  },
+  workspaceSelectorOpen: {
+    borderColor: colors.appleBlue
+  },
+  workspaceSelectorPressed: {
+    backgroundColor: colors.appleBlueSoft
+  },
+  workspaceSelectorCopy: {
+    flex: 1,
+    minWidth: 0
+  },
+  workspaceSelectorLabel: {
+    color: colors.muted,
+    fontSize: 10,
+    fontWeight: '700',
+    textTransform: 'uppercase'
+  },
+  workspaceSelectorValue: {
+    color: colors.ink,
+    fontSize: typeScale.sm,
+    fontWeight: '700'
+  },
+  workspaceSelectorAction: {
+    maxWidth: 72,
+    flexShrink: 1,
+    color: colors.appleBlue,
+    fontSize: typeScale.xs,
+    fontWeight: '800'
+  },
+  workspaceMenu: {
+    maxHeight: 180,
+    marginTop: spacing.xs,
+    overflow: 'hidden',
+    borderWidth: 0.5,
+    borderColor: colors.glassBorder,
+    borderRadius: radius.lg,
+    backgroundColor: colors.surfaceGlass
+  },
+  workspaceMenuContent: {
+    paddingVertical: 2
+  },
+  workspaceMenuItem: {
+    minHeight: controlSizes.secondary,
+    justifyContent: 'center',
+    paddingHorizontal: spacing.md,
+    borderBottomWidth: 0.5,
+    borderBottomColor: colors.borderSoft
+  },
+  workspaceMenuItemSelected: {
+    backgroundColor: colors.appleBlueSoft
+  },
+  workspaceMenuItemPressed: {
+    backgroundColor: colors.control
+  },
+  workspaceMenuItemText: {
+    color: colors.ink,
+    fontSize: typeScale.sm,
+    fontWeight: '600'
+  },
+  workspaceMenuItemTextSelected: {
+    color: colors.appleBlue,
+    fontWeight: '800'
+  },
   inputStack: {
     marginTop: spacing.sm,
     overflow: 'hidden',

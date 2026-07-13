@@ -1,6 +1,6 @@
 import type { RiskSeverity, SavedRouteStatus } from '../live-map/liveMapTypes';
 
-export type RouteRiskLevel = 'low' | 'medium' | 'high';
+type RouteRiskLevel = 'low' | 'medium' | 'high';
 
 export function normalizeStatus(status?: string): SavedRouteStatus {
   const normalizedStatus = normalizeEnumToken(status);
@@ -40,10 +40,9 @@ export function normalizeRiskLevel(level: string | undefined, safeScore: number)
 
 export function normalizeRouteColor(color: string | undefined, level: RouteRiskLevel): string {
   const trimmedColor = String(color || '').trim();
-  return isSixDigitHexColor(trimmedColor) ? trimmedColor : colorForRisk(level);
-}
-
-export function colorForRisk(level: RouteRiskLevel): string {
+  if (isSixDigitHexColor(trimmedColor)) {
+    return trimmedColor;
+  }
   if (level === 'high') {
     return '#f3a32b';
   }

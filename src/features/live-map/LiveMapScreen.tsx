@@ -58,7 +58,6 @@ import {
   resolveLiveRerouteFailure,
   resolveLiveRerouteSuccess,
   requestImmediateLiveReroute,
-  requestManualLiveReroute,
   retryFailedLiveReroute,
   startLiveRerouteMonitoring,
   stopLiveRerouteMonitoring,
@@ -626,43 +625,8 @@ export function LiveMapScreen({
           status: "failed" as const,
         }
       : null;
-  const manualRerouteUnavailableReason = rerouteState.status === "failed"
-    ? "failed" as const
-    : rerouteState.status === "monitoring" &&
-        Number.isFinite(timestampMs) &&
-        (timestampMs as number) < rerouteState.cooldownUntilMs
-      ? "cooldown" as const
-      : !rerouteMonitoringActive ||
-          !rawVehicleCoordinate ||
-          !progress ||
-          !Number.isFinite(timestampMs)
-        ? "location" as const
-        : null;
-
   const handleRetryReroute = () => {
     const transition = retryFailedLiveReroute(rerouteStateRef.current, Date.now());
-    if (!transition.request) {
-      return;
-    }
-    commitRerouteState(transition.state);
-    void executeLiveReroute(transition.request);
-  };
-
-  const handleManualReroute = () => {
-    if (!rawVehicleCoordinate || !progress || !Number.isFinite(timestampMs)) {
-      return;
-    }
-    const transition = requestManualLiveReroute(
-      rerouteStateRef.current,
-      {
-        coordinate: rawVehicleCoordinate,
-        distanceFromRouteMeters: progress.offRouteDistanceMeters,
-        horizontalAccuracyMeters:
-          typeof coordinate?.accuracy === "number" ? coordinate.accuracy : null,
-        timestampMs: timestampMs as number,
-      },
-      timestampMs as number,
-    );
     if (!transition.request) {
       return;
     }
@@ -1065,7 +1029,6 @@ export function LiveMapScreen({
         activeNavigationState={activeNavigationState}
         alertsVisible={alertsVisible}
         backgroundNavigationPresentation={backgroundNavigationPresentation}
-        followModeEnabled={followModeEnabled}
         guidance={guidance}
         hasVehicleCoordinate={Boolean(rawVehicleCoordinate)}
         layout={layout}
@@ -1078,23 +1041,17 @@ export function LiveMapScreen({
         onFitRoute={fitRouteFromControl}
         onOpenRiskAlert={handleOpenRiskAlert}
         onPrimaryAction={handlePrimaryNavigationAction}
-        onReroute={handleManualReroute}
         onRetryReroute={handleRetryReroute}
         returnAccessibilityLabel={returnAccessibilityLabel}
         returnLabel={returnLabel}
         routeContext={routeContext}
         onSetAlertsVisible={setAlertsVisible}
-        onSetFollowModeEnabled={setFollowModeEnabled}
         onStopRoute={handleStopRoute}
         primaryDisabledReason={liveNavigationBlockedReason}
         progress={progress}
         liveRiskAlert={liveRiskAlert}
         riskAdvisory={riskAdvisory}
         reroutePresentation={reroutePresentation}
-        rerouteUnavailable={
-          manualRerouteUnavailableReason !== null
-        }
-        rerouteUnavailableReason={manualRerouteUnavailableReason || undefined}
         routePlan={liveRoutePlan}
         selectedRiskZone={selectedRiskZone}
         trackingLabel={

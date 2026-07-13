@@ -47,7 +47,7 @@ interface RouteHeaderPresentationOptions {
   showRouteEndpoints: boolean;
   showRouteSubtitle: boolean;
 }
-export type LiveMapControlId = 'center' | 'fit' | 'follow' | 'intelligence' | 'reroute';
+export type LiveMapControlId = 'center' | 'fit' | 'intelligence';
 
 interface LocationReadinessOptions {
   demoDriveActive: boolean;
@@ -65,7 +65,6 @@ interface MapControlAccessibilityOptions {
   disabled?: boolean;
   driveAlongActive?: boolean;
   hasLiveLocation?: boolean;
-  rerouteUnavailableReason?: 'cooldown' | 'failed' | 'location';
 }
 
 interface ControlAccessibilityCopy {
@@ -81,20 +80,13 @@ export function mapControlDisplayLabel(
   control: LiveMapControlId,
   options: MapControlAccessibilityOptions = {}
 ): string {
-  const driveAlongActive = Boolean(options.driveAlongActive);
-  const hasLiveLocation = Boolean(options.hasLiveLocation);
-
   switch (control) {
     case 'center':
-      return driveAlongActive || hasLiveLocation ? 'Me' : 'Start';
+      return 'Center';
     case 'fit':
-      return 'Route';
-    case 'follow':
-      return driveAlongActive ? 'Drive' : 'Follow';
+      return 'Overview';
     case 'intelligence':
-      return 'Risk';
-    case 'reroute':
-      return options.active ? 'Routing' : 'Reroute';
+      return 'Risks';
   }
 }
 
@@ -329,48 +321,10 @@ export function mapControlAccessibility(
         hint: 'Zooms the map to show the saved route.',
         state: { disabled }
       };
-    case 'follow':
-      if (disabled && !driveAlongActive) {
-        return {
-          label: 'Drive-along starts with guidance',
-          hint: 'Start route guidance before changing the drive-along camera.',
-          state: { disabled: true, selected: false }
-        };
-      }
-
-      if (driveAlongActive) {
-        return {
-          label: active ? 'Turn drive-along view off' : 'Turn drive-along view on',
-          hint: active
-            ? 'Stops the map from following the route-facing navigation view.'
-            : 'Follows the convoy from a route-facing navigation view.',
-          state: { disabled, selected: active }
-        };
-      }
-
-      return {
-        label: active ? 'Turn follow mode off' : 'Turn follow mode on',
-        hint: active ? 'Stops the map from following convoy movement.' : 'Keeps the map centered while navigating.',
-        state: { disabled, selected: active }
-      };
     case 'intelligence':
       return {
         label: active ? 'Hide route risk notes' : 'Show route risk notes',
         hint: active ? 'Hides risk overlays from the map.' : 'Shows risk overlays on the map.',
-        state: { disabled, selected: active }
-      };
-    case 'reroute':
-      return {
-        label: active ? 'Finding a safer route' : 'Reroute from current location',
-        hint: active
-          ? 'A new risk-aware route is being calculated.'
-          : disabled
-            ? options.rerouteUnavailableReason === 'cooldown'
-              ? 'Rerouting will be available again after the current route stabilizes.'
-              : options.rerouteUnavailableReason === 'failed'
-                ? 'Use Retry in the guidance card to try the failed reroute again.'
-                : 'A reliable live location is required before rerouting.'
-            : 'Finds a new risk-aware route from your current location.',
         state: { disabled, selected: active }
       };
   }
@@ -467,7 +421,7 @@ export function resolveVisibleMapControls({
   state: NavigationLifecycle;
 }): LiveMapControlId[] {
   if (shouldShowDriveAlongControl(state)) {
-    return ['fit', 'follow', 'reroute'];
+    return ['fit', 'center'];
   }
 
   return [

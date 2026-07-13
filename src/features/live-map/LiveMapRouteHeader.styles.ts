@@ -20,28 +20,29 @@ export const styles = StyleSheet.create({
     elevation: 0,
   },
   headerPanelCompactNavigation: {
-    paddingVertical: 8,
-    paddingHorizontal: 10,
-    borderRadius: radius.xl,
+    alignSelf: "flex-start",
+    padding: 0,
+    borderWidth: 0,
+    backgroundColor: "transparent",
   },
   headerPanelMinimalActiveNavigation: {
-    alignSelf: "center",
-    paddingVertical: 6,
-    paddingHorizontal: 8,
-    borderRadius: radius.pill,
-    shadowOpacity: 0,
-    shadowRadius: 0,
-    shadowOffset: { width: 0, height: 0 },
-    elevation: 0,
+    alignSelf: "flex-start",
   },
-  compactNavigationRow: {
-    minHeight: controlSizes.secondary,
-    flexDirection: "row",
+  activeBackButton: {
+    minWidth: 64,
+    height: controlSizes.secondary,
     alignItems: "center",
-    gap: spacing.xs,
-  },
-  compactNavigationRowMinimal: {
     justifyContent: "center",
+    paddingHorizontal: spacing.sm,
+    borderWidth: 0.5,
+    borderColor: colors.glassBorder,
+    borderRadius: radius.pill,
+    backgroundColor: colors.surfaceGlass,
+  },
+  activeBackButtonText: {
+    color: colors.ink,
+    fontSize: typeScale.sm,
+    fontWeight: "800",
   },
   brandRow: {
     flexDirection: "row",
@@ -63,15 +64,6 @@ export const styles = StyleSheet.create({
   routeListButtonPressed: {
     backgroundColor: colors.appleBlueSoft,
   },
-  routeListButtonCompactNavigation: {
-    minHeight: controlSizes.secondary,
-    paddingHorizontal: spacing.sm,
-  },
-  routeListButtonMinimalActiveNavigation: {
-    paddingHorizontal: spacing.md,
-    borderWidth: 0,
-    backgroundColor: "transparent",
-  },
   routeListButtonText: {
     maxWidth: "100%",
     flexShrink: 1,
@@ -80,22 +72,11 @@ export const styles = StyleSheet.create({
     fontWeight: "800",
     textAlign: "center",
   },
-  routeListButtonTextMinimalActiveNavigation: {
-    color: colors.appleBlue,
-  },
   routeTitle: {
     marginTop: spacing.sm,
     color: colors.ink,
     fontSize: typeScale.xl,
     fontWeight: "800",
-  },
-  routeTitleCompactNavigation: {
-    flex: 1,
-    minWidth: 0,
-    marginTop: 0,
-    color: colors.inkSoft,
-    fontSize: typeScale.sm,
-    fontWeight: "700",
   },
   statusPill: {
     minHeight: 30,
@@ -107,19 +88,6 @@ export const styles = StyleSheet.create({
     gap: 7,
     paddingHorizontal: spacing.sm,
     borderRadius: radius.pill,
-  },
-  statusPillCompactNavigation: {
-    minHeight: 28,
-    maxWidth: 130,
-    gap: spacing.xs,
-    paddingHorizontal: spacing.sm,
-  },
-  statusPillMinimalActiveNavigation: {
-    minHeight: 32,
-    maxWidth: 142,
-    paddingHorizontal: spacing.xs,
-    borderWidth: 0,
-    backgroundColor: "transparent",
   },
   statusPillLive: {
     backgroundColor: colors.appleBlueSoft,
@@ -151,9 +119,6 @@ export const styles = StyleSheet.create({
     fontSize: typeScale.xs,
     fontWeight: "800",
     textAlign: "center",
-  },
-  statusTextCompactNavigation: {
-    flexShrink: 1,
   },
   statusTextLive: {
     color: colors.appleBlue,

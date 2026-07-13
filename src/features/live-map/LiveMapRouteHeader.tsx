@@ -71,57 +71,22 @@ export function LiveMapRouteHeader({
         ]}
       >
         {headerPresentation.compactNavigation ? (
-          <View
-            style={[
-              styles.compactNavigationRow,
-              headerPresentation.minimalActiveNavigation
-                ? styles.compactNavigationRowMinimal
-                : null,
+          <Pressable
+            accessibilityLabel={returnAccessibilityLabel}
+            accessibilityHint="Returns to the previous SafeRoute view without ending this route."
+            accessibilityRole="button"
+            hitSlop={LIVE_ROUTE_RETURN_HIT_SLOP}
+            testID={uiTestIds.liveMapReturn}
+            style={({ pressed }) => [
+              styles.activeBackButton,
+              pressed ? styles.routeListButtonPressed : null,
             ]}
+            onPress={onChangeRoute}
           >
-            <Pressable
-              accessibilityLabel={returnAccessibilityLabel}
-              accessibilityHint="Returns to the previous SafeRoute view without ending this route."
-              accessibilityRole="button"
-              hitSlop={LIVE_ROUTE_RETURN_HIT_SLOP}
-              testID={uiTestIds.liveMapReturn}
-              style={({ pressed }) => [
-                styles.routeListButton,
-                styles.routeListButtonCompactNavigation,
-                headerPresentation.minimalActiveNavigation
-                  ? styles.routeListButtonMinimalActiveNavigation
-                  : null,
-                pressed ? styles.routeListButtonPressed : null,
-              ]}
-              onPress={onChangeRoute}
-            >
-              <Text
-                numberOfLines={1}
-                style={[
-                  styles.routeListButtonText,
-                  headerPresentation.minimalActiveNavigation
-                    ? styles.routeListButtonTextMinimalActiveNavigation
-                    : null,
-                ]}
-              >
-                {returnLabel}
-              </Text>
-            </Pressable>
-            {headerPresentation.showRouteTitle ? (
-              <Text
-                accessibilityLabel={routeTitleAccessibilityLabel}
-                numberOfLines={1}
-                style={styles.routeTitleCompactNavigation}
-              >
-                {routeTitleDisplayText}
-              </Text>
-            ) : null}
-            <StatusPill
-              compact
-              minimal={headerPresentation.minimalActiveNavigation}
-              presentation={statusPresentation}
-            />
-          </View>
+            <Text numberOfLines={1} style={styles.activeBackButtonText}>
+              Back
+            </Text>
+          </Pressable>
         ) : (
           <>
             <View style={styles.brandRow}>
@@ -189,15 +154,7 @@ export function LiveMapRouteHeader({
   );
 }
 
-function StatusPill({
-  compact = false,
-  minimal = false,
-  presentation,
-}: {
-  compact?: boolean;
-  minimal?: boolean;
-  presentation: RouteStatusPillPresentation;
-}) {
+function StatusPill({ presentation }: { presentation: RouteStatusPillPresentation }) {
   return (
     <View
       accessible
@@ -205,13 +162,9 @@ function StatusPill({
       style={[
         styles.statusPill,
         statusPillStyle(presentation.tone),
-        compact ? styles.statusPillCompactNavigation : null,
-        minimal ? styles.statusPillMinimalActiveNavigation : null,
       ]}
     >
-      {minimal ? null : (
-        <View style={[styles.statusDot, statusDotStyle(presentation.tone)]} />
-      )}
+      <View style={[styles.statusDot, statusDotStyle(presentation.tone)]} />
       <Text
         adjustsFontSizeToFit
         ellipsizeMode="tail"
@@ -219,7 +172,6 @@ function StatusPill({
         numberOfLines={1}
         style={[
           styles.statusText,
-          compact ? styles.statusTextCompactNavigation : null,
           statusTextStyle(presentation.tone),
         ]}
       >

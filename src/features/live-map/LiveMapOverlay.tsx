@@ -24,7 +24,6 @@ interface LiveMapOverlayProps {
   activeNavigationState: NavigationLifecycle;
   alertsVisible: boolean;
   backgroundNavigationPresentation?: BackgroundNavigationPresentation | null;
-  followModeEnabled: boolean;
   guidance: { instruction: string; distance: string };
   hasVehicleCoordinate: boolean;
   layout: LiveMapOverlayLayout;
@@ -33,10 +32,8 @@ interface LiveMapOverlayProps {
   onChangeRoute: () => void;
   onFitRoute: () => void;
   onPrimaryAction: () => void;
-  onReroute: () => void;
   onRetryReroute: () => void;
   onSetAlertsVisible: (updater: (value: boolean) => boolean) => void;
-  onSetFollowModeEnabled: (updater: (value: boolean) => boolean) => void;
   onStopRoute: () => void;
   primaryDisabledReason?: string | null;
   progress: RouteProgressSnapshot | null;
@@ -45,8 +42,6 @@ interface LiveMapOverlayProps {
   onOpenRiskAlert: () => void;
   riskAdvisory?: RouteRiskAdvisory | null;
   reroutePresentation?: LiveReroutePresentation | null;
-  rerouteUnavailable: boolean;
-  rerouteUnavailableReason?: "cooldown" | "failed" | "location";
   returnAccessibilityLabel: string;
   returnLabel: string;
   routeContext: "guest" | "saved";
@@ -59,7 +54,6 @@ export function LiveMapOverlay({
   activeNavigationState,
   alertsVisible,
   backgroundNavigationPresentation,
-  followModeEnabled,
   guidance,
   hasVehicleCoordinate,
   layout,
@@ -68,10 +62,8 @@ export function LiveMapOverlay({
   onChangeRoute,
   onFitRoute,
   onPrimaryAction,
-  onReroute,
   onRetryReroute,
   onSetAlertsVisible,
-  onSetFollowModeEnabled,
   onStopRoute,
   primaryDisabledReason,
   progress,
@@ -80,8 +72,6 @@ export function LiveMapOverlay({
   onOpenRiskAlert,
   riskAdvisory,
   reroutePresentation,
-  rerouteUnavailable,
-  rerouteUnavailableReason,
   returnAccessibilityLabel,
   returnLabel,
   routeContext,
@@ -105,18 +95,12 @@ export function LiveMapOverlay({
       <LiveMapControls
         activeNavigationState={activeNavigationState}
         alertsVisible={alertsVisible}
-        followModeEnabled={followModeEnabled}
         hasVehicleCoordinate={hasVehicleCoordinate}
         layout={layout}
         onCenterVehicle={onCenterVehicle}
         onFitRoute={onFitRoute}
-        onReroute={onReroute}
         onSetAlertsVisible={onSetAlertsVisible}
-        onSetFollowModeEnabled={onSetFollowModeEnabled}
         routeIntelCount={routePlan.riskZones.length}
-        reroutePending={reroutePresentation?.status === "pending"}
-        rerouteUnavailable={rerouteUnavailable}
-        rerouteUnavailableReason={rerouteUnavailableReason}
       />
 
       {shouldShowGuidanceCard(activeNavigationState) ? (

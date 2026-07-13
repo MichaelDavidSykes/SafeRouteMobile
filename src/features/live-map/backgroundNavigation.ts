@@ -1,5 +1,9 @@
 import { Platform } from "react-native";
+import Constants from "expo-constants";
 import * as Location from "expo-location";
+import { isBackgroundNavigationRuntimeSupported } from "./backgroundNavigationRuntime";
+
+export { isBackgroundNavigationRuntimeSupported } from "./backgroundNavigationRuntime";
 
 export const SAFEROUTE_BACKGROUND_LOCATION_TASK =
   "SAFEROUTE_ACTIVE_GUIDANCE_LOCATION_V1";
@@ -36,9 +40,19 @@ export const SAFEROUTE_BACKGROUND_LOCATION_OPTIONS: Location.LocationTaskOptions
   timeInterval: 3_000,
 };
 
+function unsupportedRuntimeResult(): BackgroundNavigationResult {
+  return result(
+    "unsupported",
+    "Screen-lock guidance requires the installed SafeRoute app.",
+  );
+}
+
 export async function inspectBackgroundNavigation(): Promise<BackgroundNavigationResult> {
-  if (Platform.OS === "web") {
-    return result("unsupported", "Background guidance is unavailable on web.");
+  if (!isBackgroundNavigationRuntimeSupported({
+    executionEnvironment: String(Constants.executionEnvironment || ""),
+    platform: Platform.OS,
+  })) {
+    return unsupportedRuntimeResult();
   }
 
   try {
@@ -99,8 +113,11 @@ export async function startBackgroundNavigationIfAuthorized(): Promise<Backgroun
 }
 
 export async function requestAndStartBackgroundNavigation(): Promise<BackgroundNavigationResult> {
-  if (Platform.OS === "web") {
-    return result("unsupported", "Background guidance is unavailable on web.");
+  if (!isBackgroundNavigationRuntimeSupported({
+    executionEnvironment: String(Constants.executionEnvironment || ""),
+    platform: Platform.OS,
+  })) {
+    return unsupportedRuntimeResult();
   }
 
   try {
@@ -139,6 +156,13 @@ export async function requestAndStartBackgroundNavigation(): Promise<BackgroundN
 }
 
 export async function stopBackgroundNavigation(): Promise<void> {
+  if (!isBackgroundNavigationRuntimeSupported({
+    executionEnvironment: String(Constants.executionEnvironment || ""),
+    platform: Platform.OS,
+  })) {
+    return;
+  }
+
   try {
     const started = await Location.hasStartedLocationUpdatesAsync(
       SAFEROUTE_BACKGROUND_LOCATION_TASK,

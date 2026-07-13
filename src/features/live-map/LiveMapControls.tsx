@@ -16,35 +16,23 @@ const MAP_CONTROL_HIT_SLOP = 8;
 interface LiveMapControlsProps {
   activeNavigationState: NavigationLifecycle;
   alertsVisible: boolean;
-  followModeEnabled: boolean;
   hasVehicleCoordinate: boolean;
   layout: LiveMapOverlayLayout;
   onCenterVehicle: () => void;
   onFitRoute: () => void;
-  onReroute: () => void;
   onSetAlertsVisible: (updater: (value: boolean) => boolean) => void;
-  onSetFollowModeEnabled: (updater: (value: boolean) => boolean) => void;
   routeIntelCount: number;
-  reroutePending: boolean;
-  rerouteUnavailable: boolean;
-  rerouteUnavailableReason?: "cooldown" | "failed" | "location";
 }
 
 export function LiveMapControls({
   activeNavigationState,
   alertsVisible,
-  followModeEnabled,
   hasVehicleCoordinate,
   layout,
   onCenterVehicle,
   onFitRoute,
-  onReroute,
   onSetAlertsVisible,
-  onSetFollowModeEnabled,
   routeIntelCount,
-  reroutePending,
-  rerouteUnavailable,
-  rerouteUnavailableReason,
 }: LiveMapControlsProps) {
   const driveAlongActive = shouldShowDriveAlongControl(activeNavigationState);
   const compactControls = layout.mapControlsDirection === "row";
@@ -76,17 +64,8 @@ export function LiveMapControls({
         <MapControlButton
           compact={compactControls}
           control="fit"
-          driveAlongActive={driveAlongActive && followModeEnabled}
+          driveAlongActive={driveAlongActive}
           onPress={onFitRoute}
-        />
-      ) : null}
-      {visibleControls.includes("follow") ? (
-        <MapControlButton
-          control="follow"
-          active={followModeEnabled}
-          compact={compactControls}
-          driveAlongActive
-          onPress={() => onSetFollowModeEnabled((value) => !value)}
         />
       ) : null}
       {visibleControls.includes("intelligence") ? (
@@ -95,16 +74,6 @@ export function LiveMapControls({
           active={alertsVisible}
           compact={compactControls}
           onPress={() => onSetAlertsVisible((value) => !value)}
-        />
-      ) : null}
-      {visibleControls.includes("reroute") ? (
-        <MapControlButton
-          control="reroute"
-          active={reroutePending}
-          compact={compactControls}
-          disabled={reroutePending || rerouteUnavailable}
-          rerouteUnavailableReason={rerouteUnavailableReason}
-          onPress={onReroute}
         />
       ) : null}
     </View>
@@ -119,7 +88,6 @@ function MapControlButton({
   driveAlongActive,
   hasLiveLocation,
   onPress,
-  rerouteUnavailableReason,
 }: {
   active?: boolean;
   compact?: boolean;
@@ -127,7 +95,6 @@ function MapControlButton({
   disabled?: boolean;
   driveAlongActive?: boolean;
   hasLiveLocation?: boolean;
-  rerouteUnavailableReason?: "cooldown" | "failed" | "location";
   onPress: () => void;
 }) {
   const controlOptions = {
@@ -135,7 +102,6 @@ function MapControlButton({
     disabled,
     driveAlongActive,
     hasLiveLocation,
-    rerouteUnavailableReason,
   };
   const accessibility = mapControlAccessibility(control, controlOptions);
   const displayLabel = mapControlDisplayLabel(control, controlOptions);

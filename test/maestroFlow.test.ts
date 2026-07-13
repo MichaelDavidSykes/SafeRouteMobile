@@ -76,15 +76,16 @@ describe("Maestro iOS preview smoke flow", () => {
     const detailsIndex = flow.indexOf('id: "safe-route-saved-details"');
     const startIndex = flow.indexOf('id: "safe-route-primary-action"', detailsIndex);
     const remainingIndex = flow.indexOf('id: "safe-route-remaining-metrics"');
-    const rerouteIndex = flow.indexOf('id: "safe-route-control-reroute"');
+    const centerIndex = flow.indexOf('id: "safe-route-control-center"');
     const stopIndex = flow.lastIndexOf('id: "safe-route-stop-action"');
 
     assert.ok(previewIndex >= 0);
     assert.ok(detailsIndex > previewIndex);
     assert.ok(startIndex > detailsIndex);
     assert.ok(remainingIndex > startIndex);
-    assert.ok(rerouteIndex > remainingIndex);
-    assert.ok(stopIndex > rerouteIndex);
+    assert.ok(centerIndex > remainingIndex);
+    assert.ok(stopIndex > centerIndex);
+    assert.match(flow, /assertNotVisible:\s*\n\s+id:\s*"safe-route-control-reroute"/);
   });
 
   it("keeps the no-build simulator preview handoff on localhost only", () => {
@@ -524,17 +525,21 @@ describe("Maestro iOS preview smoke flow", () => {
     const primaryActionIndex = flow.indexOf('id: "safe-route-primary-action"');
     const remainingMetricsIndex = flow.indexOf('id: "safe-route-remaining-metrics"');
     const fitControlIndex = flow.indexOf('id: "safe-route-control-fit"');
-    const followControlIndex = flow.indexOf('id: "safe-route-control-follow"');
+    const centerControlIndex = flow.indexOf('id: "safe-route-control-center"');
     const stopActionIndex = flow.indexOf('id: "safe-route-stop-action"');
 
     assert.match(flow, /assertVisible:\s*\n\s+id:\s*"safe-route-remaining-metrics"/);
     assert.match(flow, /assertVisible:\s*\n\s+id:\s*"safe-route-control-fit"/);
-    assert.match(flow, /assertVisible:\s*\n\s+id:\s*"safe-route-control-follow"/);
+    assert.match(flow, /assertVisible:\s*\n\s+id:\s*"safe-route-control-center"/);
+    assert.match(flow, /assertNotVisible:\s*\n\s+id:\s*"safe-route-control-reroute"/);
+    assert.match(flow, /assertNotVisible:\s*\n\s+id:\s*"safe-route-background-navigation-action"/);
+    assert.match(flow, /assertVisible:\s*"Resume route guidance"/);
+    assert.match(flow, /assertVisible:\s*"Pause route guidance"/);
     assert.ok(primaryActionIndex >= 0);
     assert.ok(stopActionIndex > primaryActionIndex);
     assert.ok(remainingMetricsIndex > stopActionIndex);
     assert.ok(fitControlIndex > remainingMetricsIndex);
-    assert.ok(followControlIndex > fitControlIndex);
+    assert.ok(centerControlIndex > fitControlIndex);
     assert.ok(stopActionIndex < fitControlIndex);
   });
 

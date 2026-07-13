@@ -2,8 +2,39 @@ import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 
 import { createBackgroundNavigationPresentation } from "../src/features/live-map/backgroundNavigationState";
+import { isBackgroundNavigationRuntimeSupported } from "../src/features/live-map/backgroundNavigationRuntime";
 
 describe("background navigation presentation", () => {
+  it("does not offer screen-lock guidance inside Expo Go", () => {
+    assert.equal(
+      isBackgroundNavigationRuntimeSupported({
+        executionEnvironment: "storeClient",
+        platform: "ios",
+      }),
+      false,
+    );
+    assert.equal(
+      isBackgroundNavigationRuntimeSupported({
+        executionEnvironment: "standalone",
+        platform: "ios",
+      }),
+      true,
+    );
+    assert.equal(
+      isBackgroundNavigationRuntimeSupported({
+        executionEnvironment: "bare",
+        platform: "android",
+      }),
+      true,
+    );
+    assert.equal(
+      isBackgroundNavigationRuntimeSupported({
+        executionEnvironment: "standalone",
+        platform: "web",
+      }),
+      false,
+    );
+  });
   it("stays hidden outside active navigation and after background tracking starts", () => {
     assert.equal(
       createBackgroundNavigationPresentation({

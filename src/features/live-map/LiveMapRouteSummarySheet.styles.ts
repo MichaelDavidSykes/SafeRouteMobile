@@ -190,9 +190,7 @@ export const routeSummaryStyles = StyleSheet.create({
     color: colors.inkSoft,
   },
   stopButton: {
-    maxWidth: 96,
-    flexShrink: 0,
-    minWidth: 86,
+    flex: 1,
     minHeight: 50,
     alignItems: "center",
     justifyContent: "center",
@@ -203,9 +201,7 @@ export const routeSummaryStyles = StyleSheet.create({
     backgroundColor: "rgba(255, 59, 48, 0.12)",
   },
   stopButtonCompactNavigation: {
-    maxWidth: 84,
     minHeight: controlSizes.secondary,
-    minWidth: 78,
     paddingHorizontal: spacing.sm,
   },
   stopButtonPressed: {

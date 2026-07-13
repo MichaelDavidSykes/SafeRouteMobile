@@ -149,7 +149,23 @@ appId: host.exp.Exponent
 - assertVisible:
     id: "safe-route-control-fit"
 - assertVisible:
-    id: "safe-route-control-follow"
+    id: "safe-route-control-center"
+- assertNotVisible:
+    id: "safe-route-control-reroute"
+- assertNotVisible:
+    id: "safe-route-background-navigation-action"
+- assertVisible:
+    id: "safe-route-return"
+- tapOn:
+    id: "safe-route-primary-action"
+    waitToSettleTimeoutMs: 1000
+- assertVisible: "Resume route guidance"
+- assertVisible:
+    id: "safe-route-stop-action"
+- tapOn:
+    id: "safe-route-primary-action"
+    waitToSettleTimeoutMs: 1000
+- assertVisible: "Pause route guidance"
 - tapOn:
     id: "safe-route-stop-action"
     waitToSettleTimeoutMs: 1000

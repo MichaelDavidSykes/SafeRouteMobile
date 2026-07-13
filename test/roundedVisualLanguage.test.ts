@@ -255,17 +255,17 @@ describe("rounded visual language", () => {
     assert.match(liveMapControlsSource, /<Text[\s\S]*numberOfLines=\{1\}[\s\S]*styles\.controlButtonText/);
     assert.match(liveMapControlsSource, /const MAP_CONTROL_HIT_SLOP = 8/);
     assert.match(liveMapControlsSource, /hitSlop=\{MAP_CONTROL_HIT_SLOP\}/);
-    assert.match(controlButtonBlock, /width:\s*64/);
-    assert.match(controlButtonBlock, /maxWidth:\s*64/);
-    assert.match(controlButtonBlock, /minWidth:\s*64/);
+    assert.match(controlButtonBlock, /width:\s*76/);
+    assert.match(controlButtonBlock, /maxWidth:\s*76/);
+    assert.match(controlButtonBlock, /minWidth:\s*76/);
     assert.match(controlButtonBlock, /minHeight:\s*44/);
     assert.match(controlButtonBlock, /borderRadius:\s*radius\.pill/);
     assert.match(controlButtonBlock, /backgroundColor:\s*colors\.surfaceGlass/);
     assert.match(controlButtonBlock, /shadowOpacity:\s*0/);
     assert.match(controlButtonBlock, /elevation:\s*0/);
-    assert.match(controlButtonCompactBlock, /width:\s*64/);
-    assert.match(controlButtonCompactBlock, /maxWidth:\s*64/);
-    assert.match(controlButtonCompactBlock, /minWidth:\s*64/);
+    assert.match(controlButtonCompactBlock, /width:\s*76/);
+    assert.match(controlButtonCompactBlock, /maxWidth:\s*76/);
+    assert.match(controlButtonCompactBlock, /minWidth:\s*76/);
     assert.match(controlButtonCompactBlock, /minHeight:\s*44/);
     assert.match(controlButtonCompactBlock, /paddingHorizontal:\s*spacing\.xs/);
     assert.match(controlButtonTextBlock, /maxWidth:\s*["']100%["']/);
@@ -930,32 +930,32 @@ describe("rounded visual language", () => {
         liveHeaderStylesSource,
       )?.[1] || "";
     const routeListButtonPressedBlock =
-      /routeListButtonPressed:\s*\{([\s\S]*?)\n  \},\n  routeListButtonCompactNavigation/.exec(
+      /routeListButtonPressed:\s*\{([\s\S]*?)\n  \},\n  routeListButtonText/.exec(
         liveHeaderStylesSource,
       )?.[1] || "";
-    const minimalReturnBlock =
-      /routeListButtonMinimalActiveNavigation:\s*\{([\s\S]*?)\n  \},\n  routeListButtonText/.exec(
+    const activeBackButtonBlock =
+      /activeBackButton:\s*\{([\s\S]*?)\n  \},\n  activeBackButtonText/.exec(
         liveHeaderStylesSource,
       )?.[1] || "";
     const routeListButtonTextBlock =
-      /routeListButtonText:\s*\{([\s\S]*?)\n  \},\n  routeListButtonTextMinimalActiveNavigation/.exec(
+      /routeListButtonText:\s*\{([\s\S]*?)\n  \},\n  routeTitle/.exec(
         liveHeaderStylesSource,
       )?.[1] || "";
     const minimalHeaderBlock =
-      /headerPanelMinimalActiveNavigation:\s*\{([\s\S]*?)\n  \},\n  compactNavigationRow:/.exec(
-        liveHeaderStylesSource,
-      )?.[1] || "";
-    const minimalStatusBlock =
-      /statusPillMinimalActiveNavigation:\s*\{([\s\S]*?)\n  \},\n  statusPillLive/.exec(
+      /headerPanelMinimalActiveNavigation:\s*\{([\s\S]*?)\n  \},\n  activeBackButton:/.exec(
         liveHeaderStylesSource,
       )?.[1] || "";
     const statusPillBlock =
-      /statusPill:\s*\{([\s\S]*?)\n  \},\n  statusPillCompactNavigation/.exec(
+      /statusPill:\s*\{([\s\S]*?)\n  \},\n  statusPillLive/.exec(
         liveHeaderStylesSource,
       )?.[1] || "";
     const statusTextBlock =
-      /statusText:\s*\{([\s\S]*?)\n  \},\n  statusTextCompactNavigation/.exec(
+      /statusText:\s*\{([\s\S]*?)\n  \},\n  statusTextLive/.exec(
         liveHeaderStylesSource,
+      )?.[1] || "";
+    const compactHeaderBranch =
+      /headerPresentation\.compactNavigation \? \(([\s\S]*?)\n        \) : \(/.exec(
+        liveHeaderSource,
       )?.[1] || "";
 
     assert.doesNotMatch(liveHeaderSource, /SafeRouteLogo/);
@@ -971,10 +971,8 @@ describe("rounded visual language", () => {
     assert.doesNotMatch(liveHeaderSource, /styles\.routeSubtitle/);
     assert.doesNotMatch(liveHeaderStylesSource, /\brouteSubtitle:/);
     assert.match(liveHeaderSource, /presentation\.displayText/);
-    assert.match(liveHeaderSource, /minimal \? null : \(/);
     assert.match(liveHeaderSource, /presentation\.label/);
     assert.match(liveHeaderSource, /presentation\.accessibilityLabel/);
-    assert.match(liveHeaderStylesSource, /statusTextCompactNavigation/);
     assert.match(liveHeaderSource, /style=\{\(\{ pressed \}\) => \[/);
     assert.match(liveHeaderSource, /const LIVE_ROUTE_RETURN_HIT_SLOP = 6/);
     assert.match(liveHeaderSource, /hitSlop=\{LIVE_ROUTE_RETURN_HIT_SLOP\}/);
@@ -995,19 +993,17 @@ describe("rounded visual language", () => {
     assert.match(routeListButtonTextBlock, /flexShrink:\s*1/);
     assert.match(routeListButtonTextBlock, /textAlign:\s*["']center["']/);
     assert.equal(
-      (liveHeaderSource.match(/<Text\s+numberOfLines=\{1\}[\s\S]*?\{returnLabel\}/g) || []).length,
-      2,
+      (liveHeaderSource.match(/\{returnLabel\}/g) || []).length,
+      1,
     );
     assert.doesNotMatch(routeListButtonBlock, /surfaceElevated/);
     assert.match(routeListButtonPressedBlock, /backgroundColor:\s*colors\.appleBlueSoft/);
-    assert.match(minimalHeaderBlock, /borderRadius:\s*radius\.pill/);
-    assert.match(minimalHeaderBlock, /shadowOpacity:\s*0/);
-    assert.match(minimalHeaderBlock, /shadowRadius:\s*0/);
-    assert.match(minimalHeaderBlock, /elevation:\s*0/);
-    assert.match(minimalReturnBlock, /borderWidth:\s*0/);
-    assert.match(minimalReturnBlock, /backgroundColor:\s*["']transparent["']/);
-    assert.match(minimalStatusBlock, /paddingHorizontal:\s*spacing\.xs/);
-    assert.match(minimalStatusBlock, /backgroundColor:\s*["']transparent["']/);
+    assert.match(minimalHeaderBlock, /alignSelf:\s*"flex-start"/);
+    assert.match(activeBackButtonBlock, /minWidth:\s*64/);
+    assert.match(activeBackButtonBlock, /height:\s*controlSizes\.secondary/);
+    assert.match(activeBackButtonBlock, /borderRadius:\s*radius\.pill/);
+    assert.match(compactHeaderBranch, />\s*Back\s*</);
+    assert.doesNotMatch(compactHeaderBranch, /StatusPill|presentation\.label|returnLabel/);
     assert.match(statusPillBlock, /maxWidth:\s*136/);
     assert.match(statusPillBlock, /minWidth:\s*0/);
     assert.match(statusPillBlock, /flexShrink:\s*1/);
@@ -1302,6 +1298,10 @@ describe("rounded visual language", () => {
       /stopButton:\s*\{([\s\S]*?)\n  \},\n  stopButtonCompactNavigation:/.exec(
         routeSheetStylesSource,
       )?.[1] || "";
+    const startButtonBlock =
+      /startButton:\s*\{([\s\S]*?)\n  \},\n  startButtonCompactNavigation:/.exec(
+        routeSheetStylesSource,
+      )?.[1] || "";
     const stopButtonCompactBlock =
       /stopButtonCompactNavigation:\s*\{([\s\S]*?)\n  \},\n  stopButtonPressed:/.exec(
         routeSheetStylesSource,
@@ -1358,10 +1358,13 @@ describe("rounded visual language", () => {
     assert.match(routeSheetStylesSource, /\bsummaryCopyCompactNavigation:\s*\{[\s\S]*justifyContent:\s*"center"/);
     assert.match(routeSheetStylesSource, /startButtonText:[\s\S]*maxWidth:\s*"100%"/);
     assert.match(routeSheetStylesSource, /startButtonText:[\s\S]*flexShrink:\s*1/);
-    assert.match(stopButtonBlock, /maxWidth:\s*96/);
-    assert.match(stopButtonBlock, /flexShrink:\s*0/);
+    assert.match(startButtonBlock, /flex:\s*1/);
+    assert.match(stopButtonBlock, /flex:\s*1/);
+    assert.match(stopButtonBlock, /minHeight:\s*50/);
+    assert.doesNotMatch(stopButtonBlock, /maxWidth|minWidth|flexShrink/);
     assert.match(stopButtonBlock, /paddingHorizontal:\s*spacing\.md/);
-    assert.match(stopButtonCompactBlock, /maxWidth:\s*84/);
+    assert.match(stopButtonCompactBlock, /minHeight:\s*controlSizes\.secondary/);
+    assert.doesNotMatch(stopButtonCompactBlock, /maxWidth|minWidth/);
     assert.match(stopButtonCompactBlock, /paddingHorizontal:\s*spacing\.sm/);
     assert.match(stopButtonPressedBlock, /backgroundColor:\s*colors\.dangerSoft/);
     assert.match(stopButtonPressedBlock, /transform:\s*\[\{ scale:\s*0\.985 \}\]/);
@@ -1513,7 +1516,7 @@ describe("rounded visual language", () => {
 
     assert.match(controlsSource, /mapControlDisplayLabel/);
     assert.match(controlsSource, /compactControls/);
-    assert.match(controlsSource, /driveAlongActive=\{driveAlongActive && followModeEnabled\}/);
+    assert.match(controlsSource, /driveAlongActive=\{driveAlongActive\}/);
     assert.match(controlsSource, /compact=\{compactControls\}/);
     assert.match(controlsSource, /styles\.controlButtonText/);
     assert.match(
@@ -1535,8 +1538,8 @@ describe("rounded visual language", () => {
     assert.match(compactButtonBlock, /elevation:\s*0/);
     assert.doesNotMatch(compactControlsBlock, /\bleft:/);
     assert.match(overlayStylesSource, /controlButtonText:/);
-    assert.match(uiStateSource, /case 'fit':[\s\S]*return 'Route'/);
-    assert.match(uiStateSource, /case 'intelligence':[\s\S]*return 'Risk'/);
+    assert.match(uiStateSource, /case 'fit':[\s\S]*return 'Overview'/);
+    assert.match(uiStateSource, /case 'intelligence':[\s\S]*return 'Risks'/);
   });
 
   it("keeps route-picker filters quiet until they are useful", () => {

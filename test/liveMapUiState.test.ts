@@ -292,26 +292,6 @@ describe('live map UI state helpers', () => {
       hint: 'Shows the full route and pauses drive-along follow for map review.',
       state: { disabled: false }
     });
-    assert.deepEqual(mapControlAccessibility('follow', { active: true }), {
-      label: 'Turn follow mode off',
-      hint: 'Stops the map from following convoy movement.',
-      state: { disabled: false, selected: true }
-    });
-    assert.deepEqual(mapControlAccessibility('follow', { active: true, driveAlongActive: true }), {
-      label: 'Turn drive-along view off',
-      hint: 'Stops the map from following the route-facing navigation view.',
-      state: { disabled: false, selected: true }
-    });
-    assert.deepEqual(mapControlAccessibility('follow', { active: false, driveAlongActive: true }), {
-      label: 'Turn drive-along view on',
-      hint: 'Follows the convoy from a route-facing navigation view.',
-      state: { disabled: false, selected: false }
-    });
-    assert.deepEqual(mapControlAccessibility('follow', { active: false, disabled: true }), {
-      label: 'Drive-along starts with guidance',
-      hint: 'Start route guidance before changing the drive-along camera.',
-      state: { disabled: true, selected: false }
-    });
     assert.deepEqual(mapControlAccessibility('intelligence', { active: false }), {
       label: 'Show route risk notes',
       hint: 'Shows risk overlays on the map.',
@@ -322,49 +302,13 @@ describe('live map UI state helpers', () => {
       hint: 'Hides risk overlays from the map.',
       state: { disabled: false, selected: true }
     });
-    assert.deepEqual(mapControlAccessibility('reroute'), {
-      label: 'Reroute from current location',
-      hint: 'Finds a new risk-aware route from your current location.',
-      state: { disabled: false, selected: false }
-    });
-    assert.deepEqual(mapControlAccessibility('reroute', { disabled: true }), {
-      label: 'Reroute from current location',
-      hint: 'A reliable live location is required before rerouting.',
-      state: { disabled: true, selected: false }
-    });
-    assert.deepEqual(mapControlAccessibility('reroute', {
-      disabled: true,
-      rerouteUnavailableReason: 'cooldown'
-    }), {
-      label: 'Reroute from current location',
-      hint: 'Rerouting will be available again after the current route stabilizes.',
-      state: { disabled: true, selected: false }
-    });
-    assert.deepEqual(mapControlAccessibility('reroute', {
-      disabled: true,
-      rerouteUnavailableReason: 'failed'
-    }), {
-      label: 'Reroute from current location',
-      hint: 'Use Retry in the guidance card to try the failed reroute again.',
-      state: { disabled: true, selected: false }
-    });
-    assert.deepEqual(mapControlAccessibility('reroute', { active: true, disabled: true }), {
-      label: 'Finding a safer route',
-      hint: 'A new risk-aware route is being calculated.',
-      state: { disabled: true, selected: true }
-    });
   });
 
   it('keeps map-control visible labels short for compact iPhone map chrome', () => {
-    assert.equal(mapControlDisplayLabel('center', { hasLiveLocation: false }), 'Start');
-    assert.equal(mapControlDisplayLabel('center', { hasLiveLocation: true }), 'Me');
-    assert.equal(mapControlDisplayLabel('center', { driveAlongActive: true, hasLiveLocation: true }), 'Me');
-    assert.equal(mapControlDisplayLabel('fit'), 'Route');
-    assert.equal(mapControlDisplayLabel('follow'), 'Follow');
-    assert.equal(mapControlDisplayLabel('follow', { driveAlongActive: true }), 'Drive');
-    assert.equal(mapControlDisplayLabel('intelligence'), 'Risk');
-    assert.equal(mapControlDisplayLabel('reroute'), 'Reroute');
-    assert.equal(mapControlDisplayLabel('reroute', { active: true }), 'Routing');
+    assert.equal(mapControlDisplayLabel('center', { hasLiveLocation: false }), 'Center');
+    assert.equal(mapControlDisplayLabel('center', { hasLiveLocation: true }), 'Center');
+    assert.equal(mapControlDisplayLabel('fit'), 'Overview');
+    assert.equal(mapControlDisplayLabel('intelligence'), 'Risks');
   });
 
   it('hides route-intelligence chrome when a route has no overlays', () => {
@@ -386,11 +330,11 @@ describe('live map UI state helpers', () => {
     );
     assert.deepEqual(
       resolveVisibleMapControls({ routeIntelCount: 3, state: 'navigating' }),
-      ['fit', 'follow', 'reroute']
+      ['fit', 'center']
     );
     assert.deepEqual(
       resolveVisibleMapControls({ routeIntelCount: 3, state: 'off-route' }),
-      ['fit', 'follow', 'reroute']
+      ['fit', 'center']
     );
     assert.deepEqual(
       resolveVisibleMapControls({ routeIntelCount: 3, state: 'paused' }),
@@ -699,7 +643,7 @@ describe('live map UI state helpers', () => {
     );
   });
 
-  it('only shows the drive-along follow control while route guidance is active', () => {
+  it('identifies the route-facing camera lifecycle only during active guidance', () => {
     assert.equal(shouldShowDriveAlongControl('loaded'), false);
     assert.equal(shouldShowDriveAlongControl('paused'), false);
     assert.equal(shouldShowDriveAlongControl('stopped'), false);

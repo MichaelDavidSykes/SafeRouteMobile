@@ -86,10 +86,6 @@ export function resolveFullAccessNavigation({
   };
 }
 
-export function screenAfterAuthentication(): AppScreen {
-  return 'guest-map';
-}
-
 export function resolvePostAuthenticationNavigation(
   pendingFeature: GuestFullAccessFeature | null | undefined
 ): PostAuthenticationNavigation {

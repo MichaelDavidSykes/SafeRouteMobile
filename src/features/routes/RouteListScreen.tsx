@@ -172,9 +172,15 @@ export function RouteListScreen({
     void loadRoutes();
     return () => {
       loadRevisionRef.current += 1;
-      detailRevisionRef.current += 1;
     };
   }, [loadRoutes]);
+
+  useEffect(
+    () => () => {
+      detailRevisionRef.current += 1;
+    },
+    [],
+  );
 
   const handleChangeQuery = useCallback((nextQuery: string) => {
     setQuery(createRouteListSearchQueryValue(nextQuery));

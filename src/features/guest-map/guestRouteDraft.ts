@@ -9,7 +9,6 @@ export const GUEST_ROUTE_DRAFT_CURRENT_LOCATION_LABEL = 'Current location';
 
 // Keep the editable draft within the same stop budget as the road-route provider.
 export const GUEST_ROUTE_DRAFT_MAX_STOPS = 25;
-export const GUEST_ROUTE_DRAFT_MAX_WAYPOINTS = GUEST_ROUTE_DRAFT_MAX_STOPS - 2;
 
 export type GuestRouteDraftStopKind = RouteCheckpoint['kind'];
 
@@ -190,34 +189,12 @@ export function editGuestRouteDraftStop(
   });
 }
 
-export function editGuestRouteWaypoint(
-  draft: GuestRouteDraft,
-  waypointId: string,
-  label: string
-): GuestRouteDraft {
-  const waypoint = findGuestRouteDraftStop(draft, waypointId);
-  return waypoint?.kind === 'waypoint'
-    ? editGuestRouteDraftStop(draft, waypointId, label)
-    : draft;
-}
-
 export function selectGuestRouteDraftLocation(
   draft: GuestRouteDraft,
   stopId: string,
   selection: GuestRouteDraftLocationSelection
 ): GuestRouteDraft {
   return setGuestRouteDraftStop(draft, stopId, selection);
-}
-
-export function selectGuestRouteWaypoint(
-  draft: GuestRouteDraft,
-  waypointId: string,
-  selection: GuestRouteDraftLocationSelection
-): GuestRouteDraft {
-  const waypoint = findGuestRouteDraftStop(draft, waypointId);
-  return waypoint?.kind === 'waypoint'
-    ? selectGuestRouteDraftLocation(draft, waypointId, selection)
-    : draft;
 }
 
 export function setSelectedGuestRouteDraftStop(

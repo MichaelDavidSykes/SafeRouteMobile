@@ -1,5 +1,3 @@
-export type LiveRerouteStatus = "idle" | "monitoring" | "pending" | "failed";
-
 export type OffRouteSampleClassification =
   | "off-route"
   | "on-route"

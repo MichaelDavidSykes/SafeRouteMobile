@@ -305,8 +305,7 @@ describe('live map UI state helpers', () => {
   });
 
   it('keeps map-control visible labels short for compact iPhone map chrome', () => {
-    assert.equal(mapControlDisplayLabel('center', { hasLiveLocation: false }), 'Center');
-    assert.equal(mapControlDisplayLabel('center', { hasLiveLocation: true }), 'Center');
+    assert.equal(mapControlDisplayLabel('center'), 'Center');
     assert.equal(mapControlDisplayLabel('fit'), 'Overview');
     assert.equal(mapControlDisplayLabel('intelligence'), 'Risks');
   });

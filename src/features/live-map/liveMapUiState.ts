@@ -76,10 +76,7 @@ interface ControlAccessibilityCopy {
   };
 }
 
-export function mapControlDisplayLabel(
-  control: LiveMapControlId,
-  options: MapControlAccessibilityOptions = {}
-): string {
+export function mapControlDisplayLabel(control: LiveMapControlId): string {
   switch (control) {
     case 'center':
       return 'Center';

@@ -38,7 +38,7 @@ import {
 } from '../maps/safeRouteMapTheme';
 import { shouldRenderRouteCheckpointMarker } from '../maps/mapMarkerPresentation';
 import { isPreviewAccessToken } from '../auth/previewSession';
-import { ApiSessionExpiredError } from '../api/apiClient';
+import { getRequestSessionExpiry } from '../api/sessionExpiry';
 import { fetchSavedRoutes } from '../routes/routeApi';
 import {
   GUEST_MAP_REGION,
@@ -119,10 +119,13 @@ export function GuestMapScreen({
   const mapRef = useRef<MapView | null>(null);
   const activeRoadRouteRequestRef = useRef<AbortController | null>(null);
   const activeLocationSearchRef = useRef<AbortController | null>(null);
+  const activeRiskAreaRequestRef = useRef<AbortController | null>(null);
   const lastCenteredLocationRef = useRef<GuestMapCenteredLocation | null>(null);
+  const onSessionExpiredRef = useRef(onSessionExpired);
   const userMovedMapRef = useRef(false);
   const pendingOpenPreviewRef = useRef(false);
   const roadRouteRequestIdRef = useRef(0);
+  const riskAreaRequestIdRef = useRef(0);
   const sheetProgress = useRef(new Animated.Value(0)).current;
   const sheetGestureActionRef = useRef<(collapsed: boolean) => void>(() => undefined);
   const [routeDraft, dispatchRouteDraft] = useReducer(
@@ -196,8 +199,10 @@ export function GuestMapScreen({
   const viewportRisk = useViewportRiskAreas({
     accessToken: routingAccessToken,
     clientId: routingClientId,
+    onSessionExpired,
     region: mapRegion
   });
+  onSessionExpiredRef.current = onSessionExpired;
   const animateRouteSheet = (collapsed: boolean) => {
     setSheetCollapsed(collapsed);
     Keyboard.dismiss();
@@ -247,16 +252,37 @@ export function GuestMapScreen({
       if (active) {
         setRoutingClientId(result.selectedClientId || result.clients[0]?.id || null);
       }
-    }).catch(() => {
-      if (active) {
-        setRoutingClientId(null);
+    }).catch((error) => {
+      if (!active) {
+        return;
       }
+      const sessionExpiry = getRequestSessionExpiry({
+        authenticated: Boolean(
+          accessToken &&
+          !isPreviewAccessToken(accessToken) &&
+          onSessionExpiredRef.current
+        ),
+        error,
+        handled: false,
+        requestActive: active
+      });
+      if (sessionExpiry) {
+        onSessionExpiredRef.current?.(sessionExpiry.message);
+        return;
+      }
+      setRoutingClientId(null);
     });
 
     return () => {
       active = false;
     };
   }, [accessToken, authenticated]);
+
+  useEffect(() => () => {
+    activeRiskAreaRequestRef.current?.abort();
+    activeRiskAreaRequestRef.current = null;
+    riskAreaRequestIdRef.current += 1;
+  }, []);
 
   useEffect(() => {
     if (
@@ -478,6 +504,23 @@ export function GuestMapScreen({
     const riskZonesSnapshot = localRoutePlan.riskZones;
     const authenticatedSnapshot = authenticated;
     let acceptedRoadPreview = false;
+    let sessionExpiryHandled = false;
+
+    const handleRouteSessionExpiry = (error: unknown) => {
+      const sessionExpiry = getRequestSessionExpiry({
+        authenticated: Boolean(routingAccessToken && onSessionExpired),
+        error,
+        handled: sessionExpiryHandled,
+        requestActive: !controller.signal.aborted && roadRouteRequestIdRef.current === requestId
+      });
+      if (!sessionExpiry) {
+        return false;
+      }
+      sessionExpiryHandled = true;
+      controller.abort();
+      onSessionExpired?.(sessionExpiry.message);
+      return true;
+    };
 
     const openPendingPreview = (nextRoutePlan: SavedSafeRoutePlan) => {
       if (!pendingOpenPreviewRef.current) {
@@ -557,7 +600,10 @@ export function GuestMapScreen({
             }
             finalRoadPreview = riskAwarePreview;
           }
-        } catch {
+        } catch (error) {
+          if (handleRouteSessionExpiry(error)) {
+            return;
+          }
           if (!SAFEROUTE_PREVIEW_MODE_ENABLED) {
             return;
           }
@@ -593,7 +639,10 @@ export function GuestMapScreen({
           openPendingPreview(roadRoutePlan);
         }
       })
-      .catch(() => {
+      .catch((error) => {
+        if (handleRouteSessionExpiry(error)) {
+          return;
+        }
         // The finalizer fails closed instead of presenting checkpoint
         // connectors as drivable road geometry.
       })
@@ -601,7 +650,7 @@ export function GuestMapScreen({
         if (roadRouteRequestIdRef.current === requestId) {
           activeRoadRouteRequestRef.current = null;
           setRoadPreviewPending(false);
-          if (!acceptedRoadPreview) {
+          if (!acceptedRoadPreview && !sessionExpiryHandled) {
             pendingOpenPreviewRef.current = false;
             setRoutePlan(null);
             setRouteMessage('A road-snapped safe route is unavailable. Retry in a moment.');
@@ -800,28 +849,49 @@ export function GuestMapScreen({
       setRouteMessage('Your workspace is still loading. Try adding the risk area again.');
       return;
     }
+    activeRiskAreaRequestRef.current?.abort();
+    const requestId = riskAreaRequestIdRef.current + 1;
+    riskAreaRequestIdRef.current = requestId;
+    const controller = new AbortController();
+    activeRiskAreaRequestRef.current = controller;
     setRiskAreaSavePending(true);
     try {
       await createGuestRiskArea({
         accessToken,
         clientId: routingClientId,
         coordinate: action.coordinate,
-        locationLabel: action.label
+        locationLabel: action.label,
+        signal: controller.signal
       });
+      if (controller.signal.aborted || riskAreaRequestIdRef.current !== requestId) {
+        return;
+      }
       setMapAction(null);
       setRouteMessage('Risk area added for your workspace.');
       viewportRisk.retry();
     } catch (error) {
-      if (error instanceof ApiSessionExpiredError) {
+      if (controller.signal.aborted || riskAreaRequestIdRef.current !== requestId) {
+        return;
+      }
+      const sessionExpiry = getRequestSessionExpiry({
+        authenticated: Boolean(onSessionExpired),
+        error,
+        handled: false,
+        requestActive: true
+      });
+      if (sessionExpiry) {
         setMapAction(null);
-        onSessionExpired?.(error.message);
+        onSessionExpired?.(sessionExpiry.message);
       } else {
         setRouteMessage(error instanceof Error
           ? error.message
           : 'The risk area could not be added. Try again.');
       }
     } finally {
-      setRiskAreaSavePending(false);
+      if (riskAreaRequestIdRef.current === requestId) {
+        activeRiskAreaRequestRef.current = null;
+        setRiskAreaSavePending(false);
+      }
     }
   };
 

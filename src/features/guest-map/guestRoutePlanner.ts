@@ -603,13 +603,6 @@ function createCompactGuestRoutePreviewMetricLabel(label: string): string {
   return `${label.slice(0, GUEST_ROUTE_PREVIEW_METRIC_MAX_LENGTH - 1).trimEnd()}…`;
 }
 
-export function shouldShowGuestMapGateRow({
-  authenticated,
-  routePlotted
-}: GuestMapGateOptions): boolean {
-  return getGuestMapGateFeatures({ authenticated, routePlotted }).length > 0;
-}
-
 export function getGuestMapGateFeatures({
   authenticated,
   routePlotted

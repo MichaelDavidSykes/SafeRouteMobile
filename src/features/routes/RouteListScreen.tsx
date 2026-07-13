@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   ActivityIndicator,
   Pressable,
@@ -84,9 +84,13 @@ export function RouteListScreen({
   );
   const [detailLoadingId, setDetailLoadingId] = useState<string | null>(null);
   const [showingOfflineCopy, setShowingOfflineCopy] = useState(false);
+  const loadRevisionRef = useRef(0);
+  const detailRevisionRef = useRef(0);
 
   const loadRoutes = useCallback(
     async ({ refresh = false }: { refresh?: boolean } = {}) => {
+      const revision = loadRevisionRef.current + 1;
+      loadRevisionRef.current = revision;
       if (refresh) {
         setRefreshing(true);
       } else {
@@ -97,6 +101,9 @@ export function RouteListScreen({
       const cached = refresh
         ? null
         : await loadOfflineRoutes(userEmail, selectedClientId);
+      if (revision !== loadRevisionRef.current) {
+        return;
+      }
       if (cached) {
         setClients(cached.clients);
         setRoutes(cached.routes);
@@ -121,6 +128,9 @@ export function RouteListScreen({
           accessToken,
           selectedClientId || undefined,
         );
+        if (revision !== loadRevisionRef.current) {
+          return;
+        }
         setClients(result.clients);
         setSelectedClientId((currentClientId) =>
           reconcileSelectedClientId(result.clients, currentClientId),
@@ -129,12 +139,18 @@ export function RouteListScreen({
         setShowingOfflineCopy(false);
         void saveOfflineRoutes(userEmail, selectedClientId, result).catch(() => undefined);
       } catch (error) {
+        if (revision !== loadRevisionRef.current) {
+          return;
+        }
         if (error instanceof ApiSessionExpiredError) {
           onSessionExpired(error.message);
           return;
         }
         const offlineCopy =
           cached || (await loadOfflineRoutes(userEmail, selectedClientId));
+        if (revision !== loadRevisionRef.current) {
+          return;
+        }
         if (offlineCopy) {
           setClients(offlineCopy.clients);
           setRoutes(offlineCopy.routes);
@@ -143,8 +159,10 @@ export function RouteListScreen({
           setErrorState(createRouteSyncErrorState(error));
         }
       } finally {
-        setLoading(false);
-        setRefreshing(false);
+        if (revision === loadRevisionRef.current) {
+          setLoading(false);
+          setRefreshing(false);
+        }
       }
     },
     [accessToken, offline, onSessionExpired, selectedClientId, userEmail],
@@ -152,6 +170,10 @@ export function RouteListScreen({
 
   useEffect(() => {
     void loadRoutes();
+    return () => {
+      loadRevisionRef.current += 1;
+      detailRevisionRef.current += 1;
+    };
   }, [loadRoutes]);
 
   const handleChangeQuery = useCallback((nextQuery: string) => {
@@ -207,6 +229,8 @@ export function RouteListScreen({
   });
 
   const handleSelectRoute = async (route: SavedSafeRoutePlan) => {
+    const revision = detailRevisionRef.current + 1;
+    detailRevisionRef.current = revision;
     setDetailLoadingId(route.id);
     setErrorState(null);
 
@@ -214,6 +238,9 @@ export function RouteListScreen({
       const cached =
         (await loadOfflineRouteDetail(userEmail, route.id)) ||
         (hasUsableRoutePlan(route) ? route : null);
+      if (revision !== detailRevisionRef.current) {
+        return;
+      }
       if (cached) {
         setShowingOfflineCopy(true);
         setDetailLoadingId(null);
@@ -224,9 +251,15 @@ export function RouteListScreen({
 
     try {
       const routeDetail = await fetchRouteDetail(accessToken, route.id);
+      if (revision !== detailRevisionRef.current) {
+        return;
+      }
       void saveOfflineRouteDetail(userEmail, routeDetail).catch(() => undefined);
       onSelectRoute(routeDetail);
     } catch (error) {
+      if (revision !== detailRevisionRef.current) {
+        return;
+      }
       if (error instanceof ApiSessionExpiredError) {
         onSessionExpired(error.message);
         return;
@@ -234,6 +267,9 @@ export function RouteListScreen({
       const cached =
         (await loadOfflineRouteDetail(userEmail, route.id)) ||
         (hasUsableRoutePlan(route) ? route : null);
+      if (revision !== detailRevisionRef.current) {
+        return;
+      }
       if (cached) {
         setShowingOfflineCopy(true);
         onSelectRoute(cached);
@@ -244,7 +280,9 @@ export function RouteListScreen({
         });
       }
     } finally {
-      setDetailLoadingId(null);
+      if (revision === detailRevisionRef.current) {
+        setDetailLoadingId(null);
+      }
     }
   };
 

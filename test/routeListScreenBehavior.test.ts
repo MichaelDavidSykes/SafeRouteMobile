@@ -46,14 +46,27 @@ describe("route list screen behavior", () => {
     );
   });
 
-  it("invalidates pending list and detail work during effect cleanup", () => {
+  it("keeps list refresh cleanup scoped to pending list work", () => {
     const source = screenSource();
 
     assert.match(source, /const loadRevisionRef = useRef\(0\)/);
     assert.match(source, /const detailRevisionRef = useRef\(0\)/);
     assert.match(
       source,
-      /return \(\) => \{\s*loadRevisionRef\.current \+= 1;\s*detailRevisionRef\.current \+= 1;\s*\}/,
+      /void loadRoutes\(\);\s*return \(\) => \{\s*loadRevisionRef\.current \+= 1;\s*\};\s*\}, \[loadRoutes\]\)/,
+    );
+    assert.doesNotMatch(
+      source,
+      /void loadRoutes\(\);\s*return \(\) => \{[\s\S]*?detailRevisionRef\.current \+= 1;[\s\S]*?\}, \[loadRoutes\]\)/,
+    );
+  });
+
+  it("invalidates pending route details only when the screen unmounts", () => {
+    const source = screenSource();
+
+    assert.match(
+      source,
+      /useEffect\(\s*\(\) => \(\) => \{\s*detailRevisionRef\.current \+= 1;\s*\},\s*\[\],\s*\);/,
     );
   });
 

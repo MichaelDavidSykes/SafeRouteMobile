@@ -203,8 +203,6 @@ async function main() {
     boundary: 'denied-workspace-start',
     expectedPaths: [
       '/api/v1/users/me',
-      '/api/v1/mobile/safe-route/routes',
-      '/api/v1/users/me',
       '/api/v1/mobile/safe-route/routes'
     ],
     file: phases.deniedStart,

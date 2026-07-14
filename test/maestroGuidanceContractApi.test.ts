@@ -424,18 +424,10 @@ describe('Maestro guidance contract API', () => {
           phase: 'deniedStart',
           sequence: 3
         }),
-        entry({ path: '/api/v1/users/me', phase: 'deniedStart', sequence: 4 }),
-        entry({
-          path: '/api/v1/mobile/safe-route/routes',
-          phase: 'deniedStart',
-          sequence: 5
-        }),
-        deniedMarker(6, 'close')
+        deniedMarker(4, 'close')
       ], {
         boundary: 'denied-workspace-start',
         expectedPaths: [
-          '/api/v1/users/me',
-          '/api/v1/mobile/safe-route/routes',
           '/api/v1/users/me',
           '/api/v1/mobile/safe-route/routes'
         ],

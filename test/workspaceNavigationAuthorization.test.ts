@@ -61,7 +61,10 @@ describe("workspace navigation start authorization", () => {
       workspaceId: "workspace-b",
     });
 
-    assert.deepEqual(result, { status: "workspace-unavailable" });
+    assert.deepEqual(result, {
+      status: "workspace-unavailable",
+      workspaces: [WORKSPACES[0]],
+    });
   });
 
   it("rejects a request made stale after either authorization response", async () => {

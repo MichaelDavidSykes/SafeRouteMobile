@@ -159,11 +159,11 @@ describe('Maestro cold guidance contract matrix', () => {
     );
     assert.equal(
       (deniedBoundary.match(/'\/api\/v1\/users\/me'/g) || []).length,
-      2
+      1
     );
     assert.equal(
       (deniedBoundary.match(/'\/api\/v1\/mobile\/safe-route\/routes'/g) || []).length,
-      2
+      1
     );
 
     const deniedOutcome = read(

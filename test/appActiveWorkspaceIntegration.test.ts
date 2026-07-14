@@ -55,13 +55,19 @@ describe("App active workspace integration", () => {
     assert.match(app, /resolveWorkspaceAccessRecovery\([\s\S]*activeWorkspaceRef\.current\?\.id[\s\S]*normalizedWorkspaceId/);
     assert.match(app, /if \(recovery\.status === 'ignored'\) \{[\s\S]*return/);
     assert.match(app, /normalizedWorkspaceId = workspaceId\.trim\(\)/);
-    assert.match(app, /unavailableWorkspaceIdsRef\.current\.add\(normalizedWorkspaceId\)/);
+    assert.match(
+      app,
+      /unavailableWorkspaceIdsRef\.current = freshRecovery[\s\S]*normalizedWorkspaceId/,
+    );
     assert.match(app, /excludeUnavailableWorkspaces\([\s\S]*unavailableWorkspaceIdsRef\.current/);
     assert.match(app, /setAvailableWorkspaces\(recovery\.workspaces\)/);
     assert.match(app, /setActiveWorkspace\(recovery\.activeWorkspace\)/);
     assert.match(app, /navigationUnavailable[\s\S]*discardPersistedNavigation/);
     assert.match(app, /previewUnavailable[\s\S]*setSelectedRoute\(null\)/);
-    assert.match(app, /clearOfflineRouteWorkspace\(principalId, normalizedWorkspaceId\)/);
+    assert.match(
+      app,
+      /newlyUnavailableWorkspaceIds\.map\([\s\S]*clearOfflineRouteWorkspace\(principalId, workspaceId\)/,
+    );
     assert.match(app, /saveOfflineWorkspaceContext\(principalId, \{[\s\S]*workspaces: recovery\.workspaces/);
     assert.match(app, /setWorkspaceDiscoveryRevision\(\(revision\) => revision \+ 1\)/);
   });
@@ -77,7 +83,10 @@ describe("App active workspace integration", () => {
     assert.match(app, /previousUnavailableWorkspaceCount[\s\S]*workspaceAccessRestored[\s\S]*unavailableWorkspaceIds\.size < previousUnavailableWorkspaceCount/);
     assert.match(app, /workspaceAccessRestored[\s\S]*Workspace access refreshed\./);
     assert.match(app, /handleRetryWorkspaceCatalog[\s\S]*restoreUnavailableWorkspacesFromFreshCatalogRef\.current = true[\s\S]*setWorkspaceDiscoveryRevision/);
-    assert.match(app, /handleWorkspaceUnavailable[\s\S]*restoreUnavailableWorkspacesFromFreshCatalogRef\.current = false[\s\S]*unavailableWorkspaceIdsRef\.current\.add/);
+    assert.match(
+      app,
+      /handleWorkspaceUnavailable[\s\S]*restoreUnavailableWorkspacesFromFreshCatalogRef\.current = false[\s\S]*unavailableWorkspaceIdsRef\.current =/,
+    );
     assert.equal(
       (app.match(/onRetryWorkspaceCatalog=\{handleRetryWorkspaceCatalog\}/g) || []).length,
       3,
@@ -222,6 +231,18 @@ describe("App active workspace integration", () => {
     assert.match(
       app,
       /handleAuthorizeNavigationStart[\s\S]*authorizeWorkspaceNavigationStart\([\s\S]*getCurrentUser\(accessToken\)[\s\S]*fetchSavedRoutes\(accessToken\)/,
+    );
+    assert.match(
+      app,
+      /authorization\.status === 'workspace-unavailable'[\s\S]*handleWorkspaceUnavailable\(workspaceId, authorization\.workspaces\)/,
+    );
+    assert.match(
+      app,
+      /resolveFreshWorkspaceAccessRecovery\([\s\S]*unavailableWorkspaceIds: unavailableWorkspaceIdsRef\.current[\s\S]*setWorkspaceCatalogLoading\(!freshCatalog\)[\s\S]*if \(!freshCatalog\) \{[\s\S]*setWorkspaceDiscoveryRevision/,
+    );
+    assert.match(
+      app,
+      /newlyUnavailableWorkspaceIds\.map\(\(workspaceId\) =>[\s\S]*clearOfflineRouteWorkspace\(principalId, workspaceId\)/,
     );
     assert.match(
       app,

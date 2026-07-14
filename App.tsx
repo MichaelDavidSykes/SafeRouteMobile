@@ -77,6 +77,7 @@ import {
 import {
   excludeUnavailableWorkspaces,
   findAuthoritativelyUnavailableWorkspaceIds,
+  resolveFreshWorkspaceAccessRecovery,
   resolveWorkspaceAccessRecovery
 } from './src/features/workspaces/workspaceAccessRecovery';
 import { reconcileUnavailableWorkspaceIds } from './src/features/workspaces/workspaceMembershipRevalidation';
@@ -961,9 +962,31 @@ export default function App() {
     }).catch(() => undefined);
   }, [activeNavigationSession, activeWorkspace?.id, availableWorkspaces, session]);
 
-  const handleWorkspaceUnavailable = useCallback((workspaceId: string) => {
+  const handleWorkspaceUnavailable = useCallback((
+    workspaceId: string,
+    freshWorkspaces?: SafeRouteWorkspace[],
+  ) => {
     const normalizedWorkspaceId = workspaceId.trim();
-    const recovery = resolveWorkspaceAccessRecovery(
+    const freshCatalog = freshWorkspaces
+      ? normalizeWorkspaceCatalog(freshWorkspaces)
+      : null;
+    const currentNavigation = activeNavigationSessionRef.current;
+    const currentPreview = selectedRouteRef.current;
+    const freshRecovery = freshCatalog
+      ? resolveFreshWorkspaceAccessRecovery({
+          activeWorkspaceId: activeWorkspaceRef.current?.id,
+          candidateWorkspaceIds: [
+            currentNavigation?.routePlan.clientId,
+            currentPreview?.clientId,
+            activeWorkspaceRef.current?.id,
+          ],
+          freshWorkspaces: freshCatalog,
+          knownWorkspaces: availableWorkspacesRef.current,
+          unavailableWorkspaceId: normalizedWorkspaceId,
+          unavailableWorkspaceIds: unavailableWorkspaceIdsRef.current,
+        })
+      : null;
+    const recovery = freshRecovery || resolveWorkspaceAccessRecovery(
       availableWorkspacesRef.current,
       activeWorkspaceRef.current?.id,
       normalizedWorkspaceId,
@@ -973,19 +996,33 @@ export default function App() {
     }
 
     const unavailableWorkspace = activeWorkspaceRef.current;
+    const principalId = getAuthSessionPrincipalId(session);
     restoreUnavailableWorkspacesFromFreshCatalogRef.current = false;
-    unavailableWorkspaceIdsRef.current.add(normalizedWorkspaceId);
-    freshWorkspaceAuthorizationRef.current.workspaceIds.delete(normalizedWorkspaceId);
+    const newlyUnavailableWorkspaceIds = freshRecovery?.status === 'recovered'
+      ? freshRecovery.newlyUnavailableWorkspaceIds
+      : [normalizedWorkspaceId];
+    unavailableWorkspaceIdsRef.current = freshRecovery?.status === 'recovered'
+      ? freshRecovery.unavailableWorkspaceIds
+      : new Set([
+          ...unavailableWorkspaceIdsRef.current,
+          normalizedWorkspaceId,
+        ]);
+    if (freshCatalog) {
+      freshWorkspaceAuthorizationRef.current = {
+        principalId,
+        workspaceIds: new Set(recovery.workspaces.map((workspace) => workspace.id)),
+      };
+    } else {
+      freshWorkspaceAuthorizationRef.current.workspaceIds.delete(normalizedWorkspaceId);
+    }
     workspaceRequestRevisionRef.current += 1;
     availableWorkspacesRef.current = recovery.workspaces;
     setAvailableWorkspaces(recovery.workspaces);
     activeWorkspaceRef.current = recovery.activeWorkspace;
     setActiveWorkspace(recovery.activeWorkspace);
     setWorkspaceCatalogError('');
-    setWorkspaceCatalogLoading(true);
+    setWorkspaceCatalogLoading(!freshCatalog);
 
-    const currentNavigation = activeNavigationSessionRef.current;
-    const currentPreview = selectedRouteRef.current;
     const navigationUnavailable = currentNavigation?.routePlan.clientId === normalizedWorkspaceId;
     const previewUnavailable = currentPreview?.clientId === normalizedWorkspaceId;
     if (navigationUnavailable) {
@@ -1014,16 +1051,19 @@ export default function App() {
               : `${workspaceName} is no longer available. No workspace access remains for this account.`,
     );
 
-    const principalId = getAuthSessionPrincipalId(session);
     void Promise.allSettled([
-      clearOfflineRouteWorkspace(principalId, normalizedWorkspaceId),
+      ...newlyUnavailableWorkspaceIds.map((workspaceId) =>
+        clearOfflineRouteWorkspace(principalId, workspaceId)
+      ),
       saveOfflineWorkspaceContext(principalId, {
         activeWorkspaceId: recovery.activeWorkspace?.id || null,
         unavailableWorkspaceIds: Array.from(unavailableWorkspaceIdsRef.current),
         workspaces: recovery.workspaces,
       }),
     ]);
-    setWorkspaceDiscoveryRevision((revision) => revision + 1);
+    if (!freshCatalog) {
+      setWorkspaceDiscoveryRevision((revision) => revision + 1);
+    }
   }, [session]);
 
   const handleNavigationSessionChange = useCallback((nextSession: ActiveNavigationSession | null) => {
@@ -1113,7 +1153,7 @@ export default function App() {
         return 'Sign in again before starting guidance.';
       }
       if (authorization.status === 'workspace-unavailable') {
-        handleWorkspaceUnavailable(workspaceId);
+        handleWorkspaceUnavailable(workspaceId, authorization.workspaces);
         return 'This route closed because its workspace is no longer available.';
       }
 
@@ -1122,7 +1162,7 @@ export default function App() {
         unavailableWorkspaceIdsRef.current,
       );
       if (!findWorkspace(authorizedWorkspaces, workspaceId)) {
-        handleWorkspaceUnavailable(workspaceId);
+        handleWorkspaceUnavailable(workspaceId, authorization.workspaces);
         return 'This route closed because its workspace is no longer available.';
       }
 

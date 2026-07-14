@@ -13,6 +13,16 @@ export type WorkspaceAccessRecovery =
       workspaces: SafeRouteWorkspace[];
     };
 
+export type FreshWorkspaceAccessRecovery =
+  | { status: "ignored" }
+  | {
+      activeWorkspace: SafeRouteWorkspace | null;
+      newlyUnavailableWorkspaceIds: string[];
+      status: "recovered";
+      unavailableWorkspaceIds: Set<string>;
+      workspaces: SafeRouteWorkspace[];
+    };
+
 export function isWorkspaceUnavailableError(error: unknown): boolean {
   return isWorkspaceForbiddenError(error) ||
     (error instanceof ApiRequestError && error.statusCode === 404);
@@ -102,6 +112,60 @@ export function resolveWorkspaceAccessRecovery(
     activeWorkspace: resolveActiveWorkspace(remainingWorkspaces, null, null),
     status: "recovered",
     workspaces: remainingWorkspaces,
+  };
+}
+
+export function resolveFreshWorkspaceAccessRecovery({
+  activeWorkspaceId,
+  candidateWorkspaceIds,
+  freshWorkspaces,
+  knownWorkspaces,
+  unavailableWorkspaceId,
+  unavailableWorkspaceIds,
+}: {
+  activeWorkspaceId: string | null | undefined;
+  candidateWorkspaceIds?: Iterable<string | null | undefined>;
+  freshWorkspaces: SafeRouteWorkspace[];
+  knownWorkspaces: SafeRouteWorkspace[];
+  unavailableWorkspaceId: string | null | undefined;
+  unavailableWorkspaceIds: Iterable<string>;
+}): FreshWorkspaceAccessRecovery {
+  const unavailableId = normalizeWorkspaceId(unavailableWorkspaceId);
+  const existingUnavailableIds = new Set(
+    Array.from(unavailableWorkspaceIds, normalizeWorkspaceId).filter(Boolean),
+  );
+  const nextUnavailableIds = new Set(existingUnavailableIds);
+  if (unavailableId) {
+    nextUnavailableIds.add(unavailableId);
+  }
+  const omittedWorkspaceIds = findAuthoritativelyUnavailableWorkspaceIds({
+    candidateWorkspaceIds,
+    freshWorkspaces,
+    knownWorkspaces,
+  });
+  for (const workspaceId of omittedWorkspaceIds) {
+    nextUnavailableIds.add(workspaceId);
+  }
+
+  const freshCatalog = excludeUnavailableWorkspaces(
+    freshWorkspaces,
+    nextUnavailableIds,
+  );
+  const recovery = resolveWorkspaceAccessRecovery(
+    freshCatalog,
+    activeWorkspaceId,
+    unavailableId,
+  );
+  if (recovery.status === "ignored") {
+    return recovery;
+  }
+
+  return {
+    ...recovery,
+    newlyUnavailableWorkspaceIds: Array.from(nextUnavailableIds).filter(
+      (workspaceId) => !existingUnavailableIds.has(workspaceId),
+    ),
+    unavailableWorkspaceIds: nextUnavailableIds,
   };
 }
 

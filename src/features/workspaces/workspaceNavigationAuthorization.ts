@@ -12,7 +12,7 @@ export type WorkspaceNavigationAuthorizationResult =
     }
   | { status: "principal-mismatch" }
   | { status: "stale" }
-  | { status: "workspace-unavailable" };
+  | { status: "workspace-unavailable"; workspaces: SafeRouteWorkspace[] };
 
 interface AuthorizeWorkspaceNavigationStartOptions {
   expectedPrincipalId: string;
@@ -53,7 +53,7 @@ export async function authorizeWorkspaceNavigationStart({
 
   const workspace = findWorkspace(workspaces, normalizedWorkspaceId);
   if (!workspace) {
-    return { status: "workspace-unavailable" };
+    return { status: "workspace-unavailable", workspaces };
   }
 
   return {

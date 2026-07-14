@@ -12,6 +12,11 @@ export type OfflineWorkspaceContext = {
   workspaces: SafeRouteWorkspace[];
 };
 
+export type OfflineWorkspaceRecordWriter = (
+  key: string,
+  value: string,
+) => Promise<void>;
+
 type OfflineWorkspaceCacheRecord = {
   schema: number;
   storedAtMs: number;
@@ -59,4 +64,26 @@ export function parseOfflineWorkspaceCacheRecord(
   }
 
   return createOfflineWorkspaceCacheRecord(record.value, record.storedAtMs).value;
+}
+
+export function createSerializedWorkspaceRecordWriter(
+  writeRecord: OfflineWorkspaceRecordWriter,
+): OfflineWorkspaceRecordWriter {
+  const pendingWrites = new Map<string, Promise<void>>();
+
+  return async (key, value) => {
+    const previousWrite = pendingWrites.get(key) || Promise.resolve();
+    const currentWrite = previousWrite
+      .catch(() => undefined)
+      .then(() => writeRecord(key, value));
+    pendingWrites.set(key, currentWrite);
+
+    try {
+      await currentWrite;
+    } finally {
+      if (pendingWrites.get(key) === currentWrite) {
+        pendingWrites.delete(key);
+      }
+    }
+  };
 }

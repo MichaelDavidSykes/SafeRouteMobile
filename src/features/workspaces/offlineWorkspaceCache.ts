@@ -1,12 +1,16 @@
 import AsyncStorage from "@react-native-async-storage/async-storage";
 
 import {
+  createSerializedWorkspaceRecordWriter,
   createOfflineWorkspaceCacheRecord,
   parseOfflineWorkspaceCacheRecord,
   type OfflineWorkspaceContext,
 } from "./offlineWorkspaceCacheCore";
 
 const WORKSPACE_CONTEXT_KEY_PREFIX = "saferoute.offline.workspaces.v1";
+const writeWorkspaceRecord = createSerializedWorkspaceRecordWriter(
+  (key, value) => AsyncStorage.setItem(key, value),
+);
 
 function identityKey(userEmail: string): string {
   return encodeURIComponent(userEmail.trim().toLowerCase());
@@ -19,7 +23,7 @@ export async function saveOfflineWorkspaceContext(
   if (!userEmail.trim()) {
     return;
   }
-  await AsyncStorage.setItem(
+  await writeWorkspaceRecord(
     `${WORKSPACE_CONTEXT_KEY_PREFIX}.${identityKey(userEmail)}`,
     JSON.stringify(createOfflineWorkspaceCacheRecord(context)),
   );

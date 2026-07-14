@@ -22,6 +22,12 @@ describe("App active workspace integration", () => {
     assert.match(app, /<RouteListScreen[\s\S]*activeWorkspace=\{activeWorkspace\}[\s\S]*availableWorkspaces=\{availableWorkspaces\}/);
     assert.match(app, /<GuestMapScreen[\s\S]*activeWorkspace=\{activeWorkspace\}[\s\S]*availableWorkspaces=\{availableWorkspaces\}/);
     assert.match(app, /handleSelectSavedRoute[\s\S]*routePlan\.clientId !== activeWorkspace\.id[\s\S]*Choose the saved route again/);
+    assert.match(app, /canRetainNavigationWorkspace\([\s\S]*currentNavigation\?\.routePlan\.clientId/);
+    assert.match(app, /currentSavedPreview\?\.clientId/);
+    assert.match(app, /savedPreviewWorkspaceRevoked/);
+    assert.match(app, /Active guidance ended because this workspace is no longer available/);
+    assert.match(app, /This saved route closed because its workspace is no longer available/);
+    assert.match(app, /<GuestMapScreen[\s\S]*sessionNotice=/);
   });
 
   it("clears workspace context at authentication boundaries", () => {
@@ -43,6 +49,7 @@ describe("App active workspace integration", () => {
     assert.match(guest, /workspaceSelectionRequired = authenticated && !routingClientId/);
     assert.match(guest, /routeActionAccessibilityLabel = workspaceSelectionRequired/);
     assert.match(guest, /Choose the SafeRoute workspace above before plotting this route/);
+    assert.match(guest, /routeMessage \|\| sessionNotice \|\| locationErrorMessage/);
     assert.match(guest, /enabled: !workspaceSelectionRequired/);
     assert.match(guest, /cancelRoadRouteUpgrade\(\)[\s\S]*activeRiskAreaRequestRef\.current\?\.abort\(\)[\s\S]*setRoutePlan\(null\)/);
     assert.doesNotMatch(guest, /result\.clients\[0\]/);

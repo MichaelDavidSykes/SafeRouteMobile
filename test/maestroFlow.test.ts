@@ -153,6 +153,7 @@ describe("Maestro iOS preview smoke flow", () => {
     const flow = activeWorkspaceFlowSource();
     const scripts = packageJson().scripts;
     const mapSelectorIndex = flow.indexOf('id: "guest-map-workspace-selector"');
+    const centralOptionIndex = flow.indexOf('id: "guest-map-workspace-preview-routes"');
     const westOptionIndex = flow.indexOf('id: "guest-map-workspace-preview-west"');
     const routePickerIndex = flow.indexOf('id: "safe-route-picker"', westOptionIndex);
     const savedSelectorIndex = flow.indexOf('id: "safe-route-workspace-selector"');
@@ -167,7 +168,8 @@ describe("Maestro iOS preview smoke flow", () => {
       "node scripts/run-maestro.mjs test maestro/ios-preview-active-workspace.yaml",
     );
     assert.ok(mapSelectorIndex >= 0);
-    assert.ok(westOptionIndex > mapSelectorIndex);
+    assert.ok(centralOptionIndex > mapSelectorIndex);
+    assert.ok(westOptionIndex > centralOptionIndex);
     assert.ok(routePickerIndex > westOptionIndex);
     assert.ok(savedSelectorIndex > routePickerIndex);
     assert.ok(westRouteIndex > savedSelectorIndex);
@@ -352,14 +354,16 @@ describe("Maestro iOS preview smoke flow", () => {
       "node scripts/run-maestro.mjs test maestro/ios-preview-routes-empty.yaml",
     );
     assert.match(flow, /SAFEROUTE_PREVIEW_INITIAL_SCREEN=routes-empty/);
-    assert.match(flow, /local preview route\s*\n?#?\s*API returns an authenticated Saved picker with no route cards/);
+    assert.match(flow, /local preview route\s*\n?#?\s*API returns an authenticated workspace with no saved route cards/);
     assert.doesNotMatch(flow, /-\s*clearState/);
     assert.match(flow, /text:\s*"Close"[\s\S]*optional:\s*true/);
     assert.match(flow, /visible:\s*"Try again"[\s\S]*tapOn:\s*"Try again"/);
     assert.match(flow, /setLocation:\s*\n\s+latitude:\s*51\.5074\s*\n\s+longitude:\s*-0\.1278/);
     assert.match(flow, /id:\s*"safe-route-empty-state"/);
-    assert.match(flow, /No saved routes/);
-    assert.match(flow, /Save a plan, then open it on the map\./);
+    assert.match(
+      flow,
+      /No saved routes are available for Central Operations\. Switch workspaces or refresh after saving a plan\./,
+    );
     assert.match(flow, /assertNotVisible:[\s\S]*safe-route-card-sr-city-airport-alpha/);
     assert.match(flow, /assertNotVisible:[\s\S]*safe-route-card-sr-docklands-low-profile/);
     assert.match(flow, /id:\s*"route-list-map-return"/);

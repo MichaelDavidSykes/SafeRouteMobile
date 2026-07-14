@@ -106,6 +106,7 @@ interface GuestMapScreenProps {
   onSessionExpired?: (message?: string) => void;
   onRetryWorkspaceCatalog?: () => void;
   roadRoutePreviewFetcher?: GuestRoadRoutePreviewFetcher;
+  sessionNotice?: string;
   onSignIn: () => void;
   onWorkspaceChange?: (workspace: SafeRouteWorkspace) => void;
   workspaceCatalogError?: string;
@@ -123,6 +124,7 @@ export function GuestMapScreen({
   onSessionExpired,
   onRetryWorkspaceCatalog,
   roadRoutePreviewFetcher,
+  sessionNotice = '',
   onSignIn,
   onWorkspaceChange,
   workspaceCatalogError = '',
@@ -1281,9 +1283,9 @@ export function GuestMapScreen({
                 <Text style={styles.addStopButtonText}>Add stop</Text>
               </Pressable>
 
-              {routeMessage || (locationErrorMessage && isCurrentLocationLabel(origin)) ? (
+              {routeMessage || sessionNotice || (locationErrorMessage && isCurrentLocationLabel(origin)) ? (
                 <Text accessibilityRole="alert" style={styles.routeMessage}>
-                  {routeMessage || locationErrorMessage}
+                  {routeMessage || sessionNotice || locationErrorMessage}
                 </Text>
               ) : null}
 

@@ -58,6 +58,7 @@ import { ApiSessionExpiredError } from './src/features/api/apiClient';
 import { fetchSavedRoutes } from './src/features/routes/routeApi';
 import { loadOfflineRoutes } from './src/features/routes/offlineRouteCache';
 import {
+  canRetainNavigationWorkspace,
   findWorkspace,
   normalizeWorkspaceCatalog,
   resolveActiveWorkspace,
@@ -90,10 +91,18 @@ export default function App() {
   const sessionExpiryHandledRef = useRef(false);
   const workspaceRequestRevisionRef = useRef(0);
   const activeWorkspaceRef = useRef<SafeRouteWorkspace | null>(null);
+  const activeNavigationSessionRef = useRef<ActiveNavigationSession | null>(
+    activeNavigationSession,
+  );
+  const selectedRouteRef = useRef<SavedSafeRoutePlan | null>(selectedRoute);
+  const routePreviewSourceRef = useRef<RoutePreviewSource>(routePreviewSource);
   const authenticated = hasAuthenticatedSession(session);
   const sessionEpoch = sessionEpochRef.current;
   activeSessionTokenRef.current = session?.accessToken || null;
   activeWorkspaceRef.current = activeWorkspace;
+  activeNavigationSessionRef.current = activeNavigationSession;
+  selectedRouteRef.current = selectedRoute;
+  routePreviewSourceRef.current = routePreviewSource;
 
   const takePendingFullAccessFeature = () => {
     const pendingFeature = pendingFullAccessFeatureRef.current;
@@ -426,9 +435,41 @@ export default function App() {
         }
 
         const catalog = normalizeWorkspaceCatalog(result.clients);
+        const currentNavigation = activeNavigationSessionRef.current;
+        const currentSavedPreview = routePreviewSourceRef.current === 'saved'
+          ? selectedRouteRef.current
+          : null;
+        const navigationWorkspaceRevoked = !canRetainNavigationWorkspace(
+          catalog,
+          currentNavigation?.routePlan.clientId,
+        );
+        const savedPreviewWorkspaceRevoked = !canRetainNavigationWorkspace(
+          catalog,
+          currentSavedPreview?.clientId,
+        );
+        if (navigationWorkspaceRevoked || savedPreviewWorkspaceRevoked) {
+          if (navigationWorkspaceRevoked) {
+            activeNavigationSessionRef.current = null;
+            setActiveNavigationSession(null);
+            void Promise.allSettled([
+              stopBackgroundNavigation(),
+              clearActiveNavigationSession(),
+            ]);
+          }
+          selectedRouteRef.current = null;
+          setSelectedRoute(null);
+          setScreen((currentScreen) =>
+            currentScreen === 'route-preview' ? 'guest-map' : currentScreen,
+          );
+          setSessionMessage(
+            navigationWorkspaceRevoked
+              ? 'Active guidance ended because this workspace is no longer available.'
+              : 'This saved route closed because its workspace is no longer available.',
+          );
+        }
         const resolvedWorkspace = resolveActiveWorkspace(
           catalog,
-          activeNavigationSession?.routePlan.clientId || activeWorkspaceRef.current?.id,
+          activeNavigationSessionRef.current?.routePlan.clientId || activeWorkspaceRef.current?.id,
           result.selectedClientId,
         );
         setAvailableWorkspaces(catalog);
@@ -653,6 +694,9 @@ export default function App() {
             onOpenFullAccessFeature={openFullAccessFeature}
             onOpenRoutePreview={openRoutePreview}
             onSessionExpired={handleSessionExpired}
+            sessionNotice={session && !isPreviewAccessToken(session.accessToken)
+              ? sessionMessage
+              : ''}
             onRetryWorkspaceCatalog={() => {
               setWorkspaceDiscoveryRevision((revision) => revision + 1);
             }}

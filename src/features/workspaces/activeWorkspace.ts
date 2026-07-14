@@ -71,3 +71,13 @@ export function findWorkspace(
     (workspace) => workspace.id === normalizedId,
   ) || null;
 }
+
+export function canRetainNavigationWorkspace(
+  workspaces: SafeRouteWorkspace[],
+  navigationWorkspaceId?: string | null,
+): boolean {
+  const normalizedNavigationWorkspaceId = normalizeWorkspaceId(navigationWorkspaceId);
+  return !normalizedNavigationWorkspaceId || Boolean(
+    findWorkspace(workspaces, normalizedNavigationWorkspaceId),
+  );
+}

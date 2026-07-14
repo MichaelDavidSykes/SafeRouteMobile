@@ -38,9 +38,9 @@ describe("SafeRoute preview route API", () => {
     const result = loadPreviewSavedRoutes(undefined, { empty: true });
 
     assert.deepEqual(result, {
-      clients: [],
+      clients: [PREVIEW_CLIENTS[0]],
       routes: [],
-      selectedClientId: null,
+      selectedClientId: PREVIEW_CLIENTS[0].id,
     });
   });
 

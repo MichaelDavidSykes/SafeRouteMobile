@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 
 import {
-  canRetainNavigationWorkspace,
+  canRetainRouteWorkspace,
   findWorkspace,
   normalizeWorkspaceCatalog,
   resolveActiveWorkspace,
@@ -44,10 +44,13 @@ describe("active SafeRoute workspace", () => {
     assert.equal(findWorkspace(WORKSPACES, "missing"), null);
   });
 
-  it("retains public guidance but rejects guidance for a revoked workspace", () => {
-    assert.equal(canRetainNavigationWorkspace(WORKSPACES, null), true);
-    assert.equal(canRetainNavigationWorkspace(WORKSPACES, "workspace-b"), true);
-    assert.equal(canRetainNavigationWorkspace(WORKSPACES, "revoked"), false);
-    assert.equal(canRetainNavigationWorkspace([], "workspace-a"), false);
+  it("retains only public guest routes or routes in an authorized workspace", () => {
+    assert.equal(canRetainRouteWorkspace(WORKSPACES, "guest", null), true);
+    assert.equal(canRetainRouteWorkspace(WORKSPACES, "saved", null), false);
+    assert.equal(canRetainRouteWorkspace(WORKSPACES, "guest", "workspace-b"), true);
+    assert.equal(canRetainRouteWorkspace(WORKSPACES, "saved", "workspace-b"), true);
+    assert.equal(canRetainRouteWorkspace(WORKSPACES, "guest", "revoked"), false);
+    assert.equal(canRetainRouteWorkspace(WORKSPACES, "saved", "revoked"), false);
+    assert.equal(canRetainRouteWorkspace([], "guest", "workspace-a"), false);
   });
 });

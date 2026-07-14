@@ -127,6 +127,9 @@ export function normalizeActiveNavigationSession(
   if (!routePlan) {
     return null;
   }
+  if (routeContext === "saved" && !routePlan.clientId?.trim()) {
+    return null;
+  }
 
   const lastLocation =
     parsed.lastLocation === null || parsed.lastLocation === undefined

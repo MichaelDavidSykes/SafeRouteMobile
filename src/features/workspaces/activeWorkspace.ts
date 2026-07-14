@@ -72,12 +72,17 @@ export function findWorkspace(
   ) || null;
 }
 
-export function canRetainNavigationWorkspace(
+export function canRetainRouteWorkspace(
   workspaces: SafeRouteWorkspace[],
-  navigationWorkspaceId?: string | null,
+  routeContext: "guest" | "saved",
+  routeWorkspaceId?: string | null,
 ): boolean {
-  const normalizedNavigationWorkspaceId = normalizeWorkspaceId(navigationWorkspaceId);
-  return !normalizedNavigationWorkspaceId || Boolean(
-    findWorkspace(workspaces, normalizedNavigationWorkspaceId),
+  const normalizedRouteWorkspaceId = normalizeWorkspaceId(routeWorkspaceId);
+  if (!normalizedRouteWorkspaceId) {
+    return routeContext === "guest";
+  }
+
+  return Boolean(
+    findWorkspace(workspaces, normalizedRouteWorkspaceId),
   );
 }

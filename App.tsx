@@ -58,7 +58,7 @@ import { ApiSessionExpiredError } from './src/features/api/apiClient';
 import { fetchSavedRoutes } from './src/features/routes/routeApi';
 import { loadOfflineRoutes } from './src/features/routes/offlineRouteCache';
 import {
-  canRetainNavigationWorkspace,
+  canRetainRouteWorkspace,
   findWorkspace,
   normalizeWorkspaceCatalog,
   resolveActiveWorkspace,
@@ -436,18 +436,22 @@ export default function App() {
 
         const catalog = normalizeWorkspaceCatalog(result.clients);
         const currentNavigation = activeNavigationSessionRef.current;
-        const currentSavedPreview = routePreviewSourceRef.current === 'saved'
-          ? selectedRouteRef.current
-          : null;
-        const navigationWorkspaceRevoked = !canRetainNavigationWorkspace(
-          catalog,
-          currentNavigation?.routePlan.clientId,
-        );
-        const savedPreviewWorkspaceRevoked = !canRetainNavigationWorkspace(
-          catalog,
-          currentSavedPreview?.clientId,
-        );
-        if (navigationWorkspaceRevoked || savedPreviewWorkspaceRevoked) {
+        const currentPreview = selectedRouteRef.current;
+        const navigationWorkspaceRevoked = currentNavigation
+          ? !canRetainRouteWorkspace(
+              catalog,
+              currentNavigation.routeContext,
+              currentNavigation.routePlan.clientId,
+            )
+          : false;
+        const previewWorkspaceRevoked = currentPreview
+          ? !canRetainRouteWorkspace(
+              catalog,
+              routePreviewSourceRef.current,
+              currentPreview.clientId,
+            )
+          : false;
+        if (navigationWorkspaceRevoked || previewWorkspaceRevoked) {
           if (navigationWorkspaceRevoked) {
             activeNavigationSessionRef.current = null;
             setActiveNavigationSession(null);
@@ -464,7 +468,7 @@ export default function App() {
           setSessionMessage(
             navigationWorkspaceRevoked
               ? 'Active guidance ended because this workspace is no longer available.'
-              : 'This saved route closed because its workspace is no longer available.',
+              : 'This route closed because its workspace is no longer available.',
           );
         }
         const resolvedWorkspace = resolveActiveWorkspace(

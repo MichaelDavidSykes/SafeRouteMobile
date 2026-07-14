@@ -96,13 +96,32 @@ describe("active navigation session", () => {
   it("requires authentication only for sessions sourced from saved routes", () => {
     const guest = normalizeActiveNavigationSession(session(), nowMs);
     const saved = normalizeActiveNavigationSession(
-      session({ routeContext: "saved" }),
+      session({
+        routeContext: "saved",
+        routePlan: { ...SAVED_ROUTE_PLANS[0], clientId: "workspace-a" },
+      }),
       nowMs,
     );
 
     assert.ok(guest && canResumeActiveNavigationSession(guest, false));
     assert.ok(saved && !canResumeActiveNavigationSession(saved, false));
     assert.ok(saved && canResumeActiveNavigationSession(saved, true));
+  });
+
+  it("rejects saved guidance without an authorized workspace identity", () => {
+    assert.equal(
+      normalizeActiveNavigationSession(session({ routeContext: "saved" }), nowMs),
+      null,
+    );
+    assert.ok(
+      normalizeActiveNavigationSession(
+        session({
+          routeContext: "saved",
+          routePlan: { ...SAVED_ROUTE_PLANS[0], clientId: "workspace-a" },
+        }),
+        nowMs,
+      ),
+    );
   });
 
   it("merges only newer background locations", () => {

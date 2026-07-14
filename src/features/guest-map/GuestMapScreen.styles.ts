@@ -44,8 +44,8 @@ export const guestMapStyles = StyleSheet.create({
     elevation: 0
   },
   signInButtonAuthenticated: {
-    borderColor: 'rgba(10, 132, 255, 0.2)',
-    backgroundColor: colors.appleBlueSoft
+    borderColor: 'rgba(255, 255, 255, 0.92)',
+    backgroundColor: colors.surface
   },
   signInButtonPressed: {
     transform: [{ scale: 0.985 }]
@@ -59,7 +59,7 @@ export const guestMapStyles = StyleSheet.create({
     textAlign: 'center'
   },
   signInButtonTextAuthenticated: {
-    color: colors.appleBlue
+    color: colors.ink
   },
   riskLoadStatus: {
     minHeight: controlSizes.secondary,

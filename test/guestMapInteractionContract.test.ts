@@ -19,7 +19,7 @@ describe('guest map interaction contract', () => {
     assert.match(screen, /mapGuestRouteDraftToCheckpoints/);
     assert.match(screen, /checkpointCoordinates\.length >= 2/);
     assert.match(screen, /shouldRecenterGuestMap/);
-    assert.match(screen, /onMapReady=\{\(\) => setMapReady\(true\)\}/);
+    assert.match(screen, /onMapReady=\{\(\) => \{[\s\S]*setMapReady\(true\)/);
     assert.match(screen, /if \(!mapReady\)/);
     assert.match(screen, /onPanDrag=\{\(\) =>/);
   });

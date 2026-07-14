@@ -15,6 +15,8 @@ describe("SafeRoute dark map theme", () => {
     for (const mapSource of [guestMap, liveMap]) {
       assert.match(mapSource, /customMapStyle=\{SAFE_ROUTE_DARK_MAP_STYLE\}/);
       assert.match(mapSource, /userInterfaceStyle="dark"/);
+      assert.match(mapSource, /showsBuildings/);
+      assert.match(mapSource, /pitchEnabled/);
       assert.doesNotMatch(mapSource, /userInterfaceStyle="light"/);
       assert.match(mapSource, /SAFE_ROUTE_DARK_ROUTE_CASING/);
       assert.match(mapSource, /SAFE_ROUTE_DARK_ROUTE_GLOW/);
@@ -30,6 +32,7 @@ describe("SafeRoute dark map theme", () => {
     assert.match(theme, /mapFallback:\s*["']#101318["']/);
     assert.match(mapTheme, /featureType:\s*"water"/);
     assert.match(mapTheme, /featureType:\s*"road\.highway"/);
+    assert.match(mapTheme, /featureType:\s*"landscape\.man_made"/);
     assert.match(mapTheme, /featureType:\s*"poi\.park"/);
     assert.match(
       mapTheme,
@@ -40,6 +43,19 @@ describe("SafeRoute dark map theme", () => {
     assert.match(mapTheme, /SAFE_ROUTE_ROUTE_CASING_WIDTH\s*=\s*8/);
     assert.match(mapTheme, /SAFE_ROUTE_ROUTE_GLOW_WIDTH\s*=\s*6/);
     assert.match(mapTheme, /SAFE_ROUTE_ROUTE_CORE_WIDTH\s*=\s*4/);
+  });
+
+  it("uses muted native iOS tiles while retaining pitch and 3D buildings", () => {
+    const guestMap = source("src/features/guest-map/GuestMapScreen.tsx");
+    const liveMap = source("src/features/live-map/LiveMapCanvas.tsx");
+
+    for (const mapSource of [guestMap, liveMap]) {
+      assert.match(mapSource, /Platform\.OS === ["']ios["']\s*\? ["']mutedStandard["']/);
+      assert.match(mapSource, /showsBuildings/);
+      assert.match(mapSource, /pitchEnabled/);
+    }
+    assert.match(guestMap, /animateCamera\(\{ heading: 0, pitch: 38 \}/);
+    assert.match(guestMap, /rotateEnabled/);
   });
 
   it("keeps every production map free of forced light map styling", () => {

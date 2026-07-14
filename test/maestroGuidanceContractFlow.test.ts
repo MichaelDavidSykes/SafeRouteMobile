@@ -54,7 +54,10 @@ describe('Maestro cold guidance contract matrix', () => {
       'denied',
       'regained'
     ]) {
-      assert.match(runner, new RegExp(`runPhase\\([^\\n]+phases\\.${phase}\\)`));
+      assert.match(
+        runner,
+        new RegExp(`runPhase\\([\\s\\S]*?phases\\.${phase}\\n?\\s*\\)`)
+      );
     }
     assert.ok((runner.match(/await stopApi\(\)/g) || []).length >= 2);
     assert.match(runner, /Contract backend port remained bound during the workspace cold relaunch/);
@@ -77,4 +80,26 @@ describe('Maestro cold guidance contract matrix', () => {
       );
     }
   });
+
+  it('records phase-bound ordered request evidence before reporting success', () => {
+    const runner = read('scripts/run-maestro-guidance-contract.mjs');
+    const fixture = read('scripts/maestro-guidance-contract-api.mjs');
+
+    assert.match(runner, /const controlFile = join\(tempDirectory, 'control\.json'\)/);
+    assert.match(runner, /'--control-file', controlFile/);
+    assert.match(runner, /renameSync\(pendingControlFile, controlFile\)/);
+    assert.match(runner, /function runPhase\(phase, label, file\) \{[\s\S]*setControl\(phase\)/);
+    assert.match(
+      runner,
+      /assertRequestJournalIntegrity\(\);[\s\S]*SafeRoute cold guidance matrix passed/
+    );
+    assert.match(runner, /requiredPhases: \['wrongPrincipal', 'denied'\]/);
+    assert.match(runner, /expectedModeByPhase/);
+    assert.match(fixture, /authorizationClass: classifyAuthorization/);
+    assert.match(fixture, /entry\.authorized === \(entry\.authorizationClass === 'expected-bearer'\)/);
+    assert.match(fixture, /entry\.mode === expectedModeByPhase\[entry\.phase\]/);
+    assert.match(fixture, /sequence: sequence \+ 1/);
+    assert.match(fixture, /readExistingJournalLength\(requestLogFile\)/);
+  });
+
 });

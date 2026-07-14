@@ -2,6 +2,7 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import type { Region } from 'react-native-maps';
 
 import { getRequestSessionExpiry } from '../api/sessionExpiry';
+import { getRequestUnavailableWorkspaceId } from '../workspaces/workspaceAccessRecovery';
 import { fetchAreaRiskViewport } from './areaRiskApi';
 import {
   mergeRiskZonesById,
@@ -23,16 +24,20 @@ export function useViewportRiskAreas({
   clientId,
   enabled = true,
   onSessionExpired,
+  onWorkspaceUnavailable,
   region
 }: {
   accessToken?: string | null;
   clientId?: string | null;
   enabled?: boolean;
   onSessionExpired?: (message?: string) => void;
+  onWorkspaceUnavailable?: (workspaceId: string) => void;
   region: Region;
 }) {
   const cacheRef = useRef<ViewportRiskCache>(new Map());
+  const clientIdRef = useRef(clientId);
   const onSessionExpiredRef = useRef(onSessionExpired);
+  const onWorkspaceUnavailableRef = useRef(onWorkspaceUnavailable);
   const requestRevisionRef = useRef(0);
   const [zones, setZones] = useState<RiskZone[]>([]);
   const [loading, setLoading] = useState(false);
@@ -51,7 +56,9 @@ export function useViewportRiskAreas({
       region.longitudeDelta
     ]
   );
+  clientIdRef.current = clientId;
   onSessionExpiredRef.current = onSessionExpired;
+  onWorkspaceUnavailableRef.current = onWorkspaceUnavailable;
 
   useEffect(() => {
     const revision = requestRevisionRef.current + 1;
@@ -104,6 +111,7 @@ export function useViewportRiskAreas({
       const receivedZones: RiskZone[][] = [];
       let failedRequestCount = 0;
       let sessionExpiryHandled = false;
+      let workspaceUnavailableHandled = false;
       const downloads = missingRequests.map(async (request) => {
         try {
           const feed = await fetchAreaRiskViewport(request, {
@@ -127,7 +135,7 @@ export function useViewportRiskAreas({
             authenticated: Boolean(accessToken && onSessionExpiredRef.current),
             error,
             handled: sessionExpiryHandled,
-            requestActive: true
+            requestActive: clientIdRef.current === clientId
           });
           if (sessionExpiry) {
             sessionExpiryHandled = true;
@@ -136,6 +144,28 @@ export function useViewportRiskAreas({
             setLoading(false);
             setStatusMessage('');
             onSessionExpiredRef.current?.(sessionExpiry.message);
+            return;
+          }
+          const unavailableWorkspaceId = getRequestUnavailableWorkspaceId({
+            accessToken,
+            error,
+            handled: workspaceUnavailableHandled,
+            requestActive:
+              requestRevisionRef.current === revision &&
+              clientIdRef.current === clientId &&
+              Boolean(onWorkspaceUnavailableRef.current),
+            workspaceId: clientId
+          });
+          if (unavailableWorkspaceId) {
+            workspaceUnavailableHandled = true;
+            requestRevisionRef.current += 1;
+            controller.abort();
+            cacheRef.current.clear();
+            setZones([]);
+            setLoading(false);
+            setErrorMessage('');
+            setStatusMessage('');
+            onWorkspaceUnavailableRef.current?.(unavailableWorkspaceId);
             return;
           }
           failedRequestCount += 1;

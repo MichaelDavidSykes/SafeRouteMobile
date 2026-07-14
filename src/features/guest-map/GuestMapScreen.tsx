@@ -40,6 +40,7 @@ import { shouldRenderRouteCheckpointMarker } from '../maps/mapMarkerPresentation
 import { isPreviewAccessToken } from '../auth/previewSession';
 import { getRequestSessionExpiry } from '../api/sessionExpiry';
 import type { SafeRouteWorkspace } from '../workspaces/activeWorkspace';
+import { getRequestUnavailableWorkspaceId } from '../workspaces/workspaceAccessRecovery';
 import {
   GUEST_MAP_REGION,
   GUEST_ROUTE_LABEL_MAX_LENGTH,
@@ -104,6 +105,7 @@ interface GuestMapScreenProps {
   onOpenFullAccessFeature: (feature: GuestFullAccessFeature) => void;
   onOpenRoutePreview?: (routePlan: SavedSafeRoutePlan) => void;
   onSessionExpired?: (message?: string) => void;
+  onWorkspaceUnavailable?: (workspaceId: string) => void;
   onRetryWorkspaceCatalog?: () => void;
   roadRoutePreviewFetcher?: GuestRoadRoutePreviewFetcher;
   sessionNotice?: string;
@@ -122,6 +124,7 @@ export function GuestMapScreen({
   onOpenFullAccessFeature,
   onOpenRoutePreview,
   onSessionExpired,
+  onWorkspaceUnavailable,
   onRetryWorkspaceCatalog,
   roadRoutePreviewFetcher,
   sessionNotice = '',
@@ -138,6 +141,8 @@ export function GuestMapScreen({
   const activeRiskAreaRequestRef = useRef<AbortController | null>(null);
   const lastCenteredLocationRef = useRef<GuestMapCenteredLocation | null>(null);
   const onSessionExpiredRef = useRef(onSessionExpired);
+  const onWorkspaceUnavailableRef = useRef(onWorkspaceUnavailable);
+  const recoverWorkspaceAccessRef = useRef<(workspaceId: string) => void>(() => undefined);
   const userMovedMapRef = useRef(false);
   const pendingOpenPreviewRef = useRef(false);
   const roadRouteRequestIdRef = useRef(0);
@@ -177,6 +182,7 @@ export function GuestMapScreen({
     ? { latitude: liveLocation.latitude, longitude: liveLocation.longitude }
     : null;
   const routingClientId = authenticated ? activeWorkspace?.id || null : null;
+  const routingClientIdRef = useRef(routingClientId);
   const workspaceSelectionRequired = authenticated && !routingClientId;
   const routingAccessToken = !workspaceSelectionRequired && accessToken && !isPreviewAccessToken(accessToken)
     ? accessToken
@@ -240,9 +246,14 @@ export function GuestMapScreen({
     clientId: routingClientId,
     enabled: !workspaceSelectionRequired,
     onSessionExpired,
+    onWorkspaceUnavailable: onWorkspaceUnavailable
+      ? (workspaceId) => recoverWorkspaceAccessRef.current(workspaceId)
+      : undefined,
     region: mapRegion
   });
+  routingClientIdRef.current = routingClientId;
   onSessionExpiredRef.current = onSessionExpired;
+  onWorkspaceUnavailableRef.current = onWorkspaceUnavailable;
   const animateRouteSheet = (collapsed: boolean) => {
     setSheetCollapsed(collapsed);
     Keyboard.dismiss();
@@ -434,6 +445,14 @@ export function GuestMapScreen({
     setRouteMessage('');
   };
 
+  recoverWorkspaceAccessRef.current = (workspaceId) => {
+    if (routingClientIdRef.current !== workspaceId) {
+      return;
+    }
+    clearWorkspaceScopedMapState();
+    onWorkspaceUnavailableRef.current?.(workspaceId);
+  };
+
   useEffect(() => {
     setWorkspaceMenuOpen(false);
     clearWorkspaceScopedMapState();
@@ -531,15 +550,21 @@ export function GuestMapScreen({
     const checkpointsSnapshot = localRoutePlan.checkpoints;
     const riskZonesSnapshot = localRoutePlan.riskZones;
     const authenticatedSnapshot = authenticated;
+    const requestAccessToken = routingAccessToken;
+    const requestWorkspaceId = routingClientId;
     let acceptedRoadPreview = false;
     let sessionExpiryHandled = false;
+    let workspaceUnavailableHandled = false;
 
     const handleRouteSessionExpiry = (error: unknown) => {
       const sessionExpiry = getRequestSessionExpiry({
         authenticated: Boolean(routingAccessToken && onSessionExpired),
         error,
         handled: sessionExpiryHandled,
-        requestActive: !controller.signal.aborted && roadRouteRequestIdRef.current === requestId
+        requestActive:
+          !controller.signal.aborted &&
+          roadRouteRequestIdRef.current === requestId &&
+          routingClientIdRef.current === requestWorkspaceId
       });
       if (!sessionExpiry) {
         return false;
@@ -547,6 +572,27 @@ export function GuestMapScreen({
       sessionExpiryHandled = true;
       controller.abort();
       onSessionExpired?.(sessionExpiry.message);
+      return true;
+    };
+
+    const handleRouteWorkspaceUnavailable = (error: unknown) => {
+      const unavailableWorkspaceId = getRequestUnavailableWorkspaceId({
+        accessToken: requestAccessToken,
+        error,
+        handled: workspaceUnavailableHandled,
+        requestActive:
+          !controller.signal.aborted &&
+          roadRouteRequestIdRef.current === requestId &&
+          routingClientIdRef.current === requestWorkspaceId &&
+          Boolean(onWorkspaceUnavailableRef.current),
+        workspaceId: requestWorkspaceId
+      });
+      if (!unavailableWorkspaceId) {
+        return false;
+      }
+
+      workspaceUnavailableHandled = true;
+      recoverWorkspaceAccessRef.current(unavailableWorkspaceId);
       return true;
     };
 
@@ -562,8 +608,8 @@ export function GuestMapScreen({
     const routePreviewFetcher = roadRoutePreviewFetcher || ((options: GuestRoadRoutePreviewOptions) =>
       fetchSafeRouteRoadRoutePreview({
         ...options,
-        accessToken: routingAccessToken,
-        clientId: routingClientId
+        accessToken: requestAccessToken,
+        clientId: requestWorkspaceId
       }));
 
     const avoidRectangles = buildLiveRerouteAvoidRectangles(
@@ -582,7 +628,8 @@ export function GuestMapScreen({
         if (
           !roadPreview ||
           controller.signal.aborted ||
-          roadRouteRequestIdRef.current !== requestId
+          roadRouteRequestIdRef.current !== requestId ||
+          routingClientIdRef.current !== requestWorkspaceId
         ) {
           return;
         }
@@ -593,10 +640,8 @@ export function GuestMapScreen({
           const corridorRiskZones = await fetchAreaRiskAlongRoute(
             roadPreview.coordinates,
             {
-              accessToken: accessToken && !isPreviewAccessToken(accessToken)
-                ? accessToken
-                : null,
-              clientId: routingClientId || undefined,
+              accessToken: requestAccessToken,
+              clientId: requestWorkspaceId || undefined,
               maxChunks: 8,
               signal: controller.signal,
               timeoutMs: 9000
@@ -604,7 +649,8 @@ export function GuestMapScreen({
           );
           if (
             controller.signal.aborted ||
-            roadRouteRequestIdRef.current !== requestId
+            roadRouteRequestIdRef.current !== requestId ||
+            routingClientIdRef.current !== requestWorkspaceId
           ) {
             return;
           }
@@ -632,6 +678,9 @@ export function GuestMapScreen({
           if (handleRouteSessionExpiry(error)) {
             return;
           }
+          if (handleRouteWorkspaceUnavailable(error)) {
+            return;
+          }
           if (!SAFEROUTE_PREVIEW_MODE_ENABLED) {
             return;
           }
@@ -639,7 +688,8 @@ export function GuestMapScreen({
 
         if (
           controller.signal.aborted ||
-          roadRouteRequestIdRef.current !== requestId
+          roadRouteRequestIdRef.current !== requestId ||
+          routingClientIdRef.current !== requestWorkspaceId
         ) {
           return;
         }
@@ -659,8 +709,8 @@ export function GuestMapScreen({
         });
 
         if (roadRoutePlan) {
-          if (routingClientId) {
-            roadRoutePlan.clientId = routingClientId;
+          if (requestWorkspaceId) {
+            roadRoutePlan.clientId = requestWorkspaceId;
           }
           acceptedRoadPreview = true;
           setRoutePlan(roadRoutePlan);
@@ -671,14 +721,20 @@ export function GuestMapScreen({
         if (handleRouteSessionExpiry(error)) {
           return;
         }
+        if (handleRouteWorkspaceUnavailable(error)) {
+          return;
+        }
         // The finalizer fails closed instead of presenting checkpoint
         // connectors as drivable road geometry.
       })
       .finally(() => {
-        if (roadRouteRequestIdRef.current === requestId) {
+        if (
+          roadRouteRequestIdRef.current === requestId &&
+          routingClientIdRef.current === requestWorkspaceId
+        ) {
           activeRoadRouteRequestRef.current = null;
           setRoadPreviewPending(false);
-          if (!acceptedRoadPreview && !sessionExpiryHandled) {
+          if (!acceptedRoadPreview && !sessionExpiryHandled && !workspaceUnavailableHandled) {
             pendingOpenPreviewRef.current = false;
             setRoutePlan(null);
             setRouteMessage('A road-snapped safe route is unavailable. Retry in a moment.');
@@ -883,22 +939,32 @@ export function GuestMapScreen({
     const controller = new AbortController();
     activeRiskAreaRequestRef.current = controller;
     setRiskAreaSavePending(true);
+    const requestAccessToken = accessToken;
+    const requestWorkspaceId = routingClientId;
     try {
       await createGuestRiskArea({
-        accessToken,
-        clientId: routingClientId,
+        accessToken: requestAccessToken,
+        clientId: requestWorkspaceId,
         coordinate: action.coordinate,
         locationLabel: action.label,
         signal: controller.signal
       });
-      if (controller.signal.aborted || riskAreaRequestIdRef.current !== requestId) {
+      if (
+        controller.signal.aborted ||
+        riskAreaRequestIdRef.current !== requestId ||
+        routingClientIdRef.current !== requestWorkspaceId
+      ) {
         return;
       }
       setMapAction(null);
       setRouteMessage('Risk area added for your workspace.');
       viewportRisk.retry();
     } catch (error) {
-      if (controller.signal.aborted || riskAreaRequestIdRef.current !== requestId) {
+      if (
+        controller.signal.aborted ||
+        riskAreaRequestIdRef.current !== requestId ||
+        routingClientIdRef.current !== requestWorkspaceId
+      ) {
         return;
       }
       const sessionExpiry = getRequestSessionExpiry({
@@ -911,12 +977,26 @@ export function GuestMapScreen({
         setMapAction(null);
         onSessionExpired?.(sessionExpiry.message);
       } else {
-        setRouteMessage(error instanceof Error
-          ? error.message
-          : 'The risk area could not be added. Try again.');
+        const unavailableWorkspaceId = getRequestUnavailableWorkspaceId({
+          accessToken: requestAccessToken,
+          error,
+          handled: false,
+          requestActive: Boolean(onWorkspaceUnavailableRef.current),
+          workspaceId: requestWorkspaceId
+        });
+        if (unavailableWorkspaceId) {
+          recoverWorkspaceAccessRef.current(unavailableWorkspaceId);
+        } else {
+          setRouteMessage(error instanceof Error
+            ? error.message
+            : 'The risk area could not be added. Try again.');
+        }
       }
     } finally {
-      if (riskAreaRequestIdRef.current === requestId) {
+      if (
+        riskAreaRequestIdRef.current === requestId &&
+        routingClientIdRef.current === requestWorkspaceId
+      ) {
         activeRiskAreaRequestRef.current = null;
         setRiskAreaSavePending(false);
       }

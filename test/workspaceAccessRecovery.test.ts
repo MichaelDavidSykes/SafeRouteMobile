@@ -8,6 +8,7 @@ import {
 } from "../src/features/api/apiClientCore";
 import {
   excludeUnavailableWorkspaces,
+  getRequestUnavailableWorkspaceId,
   isWorkspaceForbiddenError,
   isWorkspaceUnavailableError,
   resolveWorkspaceAccessRecovery,
@@ -29,6 +30,72 @@ describe("workspace access recovery", () => {
     assert.equal(isWorkspaceUnavailableError(new ApiRequestError("Server", 500)), false);
     assert.equal(isWorkspaceUnavailableError(new ApiSessionExpiredError()), false);
     assert.equal(isWorkspaceUnavailableError(new Error("Forbidden")), false);
+  });
+
+  it("accepts only current authenticated workspace-scoped denials", () => {
+    const currentRequest = {
+      accessToken: " token-a ",
+      handled: false,
+      requestActive: true,
+      workspaceId: " workspace-a ",
+    };
+
+    assert.equal(getRequestUnavailableWorkspaceId({
+      ...currentRequest,
+      error: new ApiAuthorizationError(),
+    }), "workspace-a");
+    assert.equal(getRequestUnavailableWorkspaceId({
+      ...currentRequest,
+      error: new ApiRequestError("Missing", 404),
+    }), "workspace-a");
+
+    for (const rejected of [
+      { ...currentRequest, accessToken: "" },
+      { ...currentRequest, workspaceId: "" },
+      { ...currentRequest, handled: true },
+      { ...currentRequest, requestActive: false },
+    ]) {
+      assert.equal(getRequestUnavailableWorkspaceId({
+        ...rejected,
+        error: new ApiAuthorizationError(),
+      }), null);
+    }
+
+    for (const error of [
+      new ApiSessionExpiredError(),
+      new ApiRequestError("Offline", 0),
+      new ApiRequestError("Rate limited", 429),
+      new ApiRequestError("Server", 500),
+    ]) {
+      assert.equal(getRequestUnavailableWorkspaceId({
+        ...currentRequest,
+        error,
+      }), null);
+    }
+  });
+
+  it("deduplicates simultaneous denied viewport chunks", () => {
+    let handled = false;
+    let callbackCount = 0;
+
+    for (const error of [
+      new ApiAuthorizationError(),
+      new ApiRequestError("Missing", 404),
+    ]) {
+      const workspaceId = getRequestUnavailableWorkspaceId({
+        accessToken: "token-a",
+        error,
+        handled,
+        requestActive: true,
+        workspaceId: "workspace-a",
+      });
+      if (workspaceId) {
+        handled = true;
+        callbackCount += 1;
+      }
+    }
+
+    assert.equal(callbackCount, 1);
   });
 
   it("ignores a stale denial reported for a workspace that is no longer active", () => {

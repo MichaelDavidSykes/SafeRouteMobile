@@ -4,10 +4,11 @@ import { describe, it } from "node:test";
 
 const appSource = () => readFileSync("App.tsx", "utf8");
 const guestSource = () => readFileSync("src/features/guest-map/GuestMapScreen.tsx", "utf8");
+const operationsSource = () => readFileSync("src/features/operations/OperationsScreen.tsx", "utf8");
 const routesSource = () => readFileSync("src/features/routes/RouteListScreen.tsx", "utf8");
 
 describe("App active workspace integration", () => {
-  it("owns one authoritative catalog and shares the active workspace with Map and Saved", () => {
+  it("owns one authoritative catalog and shares the active workspace with Map, Saved, and Operations", () => {
     const app = appSource();
 
     assert.match(app, /availableWorkspaces, setAvailableWorkspaces/);
@@ -20,6 +21,7 @@ describe("App active workspace integration", () => {
     assert.match(app, /saveOfflineWorkspaceContext\(userEmail/);
     assert.match(app, /navigationWorkspace[\s\S]*activeWorkspaceId: navigationWorkspace\.id/);
     assert.match(app, /<RouteListScreen[\s\S]*activeWorkspace=\{activeWorkspace\}[\s\S]*availableWorkspaces=\{availableWorkspaces\}/);
+    assert.match(app, /<OperationsScreen[\s\S]*activeWorkspace=\{activeWorkspace\}[\s\S]*availableWorkspaces=\{availableWorkspaces\}/);
     assert.match(app, /<GuestMapScreen[\s\S]*activeWorkspace=\{activeWorkspace\}[\s\S]*availableWorkspaces=\{availableWorkspaces\}/);
     assert.match(app, /handleSelectSavedRoute[\s\S]*routePlan\.clientId !== activeWorkspace\.id[\s\S]*Choose the saved route again/);
     assert.match(app, /canRetainRouteWorkspace\([\s\S]*currentNavigation\.routeContext[\s\S]*currentNavigation\.routePlan\.clientId/);
@@ -28,6 +30,19 @@ describe("App active workspace integration", () => {
     assert.match(app, /Active guidance ended because this workspace is no longer available/);
     assert.match(app, /This route closed because its workspace is no longer available/);
     assert.match(app, /<GuestMapScreen[\s\S]*sessionNotice=/);
+  });
+
+  it("lets Operations update App's workspace and preserves catalog recovery plus guidance locks", () => {
+    const app = appSource();
+    const operations = operationsSource();
+
+    assert.match(app, /<OperationsScreen[\s\S]*onWorkspaceChange=\{handleActiveWorkspaceChange\}/);
+    assert.match(app, /<OperationsScreen[\s\S]*onRetryWorkspaceCatalog=/);
+    assert.match(app, /<OperationsScreen[\s\S]*workspaceCatalogError=\{workspaceCatalogError\}/);
+    assert.match(app, /<OperationsScreen[\s\S]*workspaceCatalogLoading=\{workspaceCatalogLoading\}/);
+    assert.match(app, /<OperationsScreen[\s\S]*workspaceSwitchDisabled=\{Boolean\(activeNavigationSession\)\}/);
+    assert.match(operations, /onWorkspaceChange\(nextWorkspace\)/);
+    assert.match(operations, /activeWorkspaceIdRef\.current = nextWorkspace\.id/);
   });
 
   it("clears workspace context at authentication boundaries", () => {
@@ -65,6 +80,7 @@ describe("App active workspace integration", () => {
     assert.match(routes, /Choose workspace/);
     assert.match(routes, /No workspace access/);
     assert.doesNotMatch(routes, /setClients\(result\.clients\)/);
+    assert.doesNotMatch(operationsSource(), /clients\[0\]|resolveOperationsClientId/);
   });
 
   it("blocks a cross-workspace switch while guidance remains resumable", () => {

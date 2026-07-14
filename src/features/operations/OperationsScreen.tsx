@@ -13,7 +13,6 @@ import { createSessionNoticeState } from "../auth/sessionNoticeState";
 import { ApiSessionExpiredError } from "../api/apiClient";
 import type { SavedSafeRoutePlan } from "../live-map/liveMapTypes";
 import { fetchSavedRoutes } from "../routes/routeApi";
-import type { MobileSafeRouteClient } from "../routes/routeMapper";
 import { createRouteSyncErrorState, type RouteListErrorState } from "../routes/routeListErrors";
 import {
   createRouteListMapReturnState,
@@ -23,12 +22,12 @@ import { colors } from "../../theme";
 import { uiTestIds } from "../../testing/uiTestIds";
 import { operationsStyles as styles } from "./OperationsScreen.styles";
 import { fetchOperationsState } from "./operationsApi";
-import { createEmptyOperationsState } from "./operationsApiCore";
 import type { SafeRouteOperationsState } from "./operationsTypes";
+import type { SafeRouteWorkspace } from "../workspaces/activeWorkspace";
+import { loadOperationsWorkspaceData } from "./operationsWorkspaceLoadCore";
 import {
   createCalendarRows,
   createConvoyRows,
-  createOperationsClientFilterOptions,
   createOperationsEmptyState,
   createOperationsLoadingLabel,
   createOperationsSubtitle,
@@ -36,45 +35,63 @@ import {
   createOperationsSyncWarningState,
   createOperationsTabOptions,
   createOperationsTitle,
+  createOperationsWorkspaceOptions,
+  createOperationsWorkspaceState,
   createPlannedRouteRows,
-  resolveOperationsClientId,
-  shouldShowOperationsClientFilters,
+  shouldShowOperationsWorkspaceSelector,
   type OperationsConvoyRow,
   type OperationsRouteRow,
   type OperationsTab
 } from "./operationsUiState";
 
+const OPERATIONS_ERROR_ACTION_HIT_SLOP = 6;
+
 interface OperationsScreenProps {
   accessToken: string;
+  activeWorkspace: SafeRouteWorkspace | null;
+  availableWorkspaces: SafeRouteWorkspace[];
   initialTab: OperationsTab;
   sessionNotice?: string;
   userEmail: string;
   onBackToMap: () => void;
+  onRetryWorkspaceCatalog: () => void;
   onSessionExpired: (message?: string) => void;
   onSignOut: () => void;
+  onWorkspaceChange: (workspace: SafeRouteWorkspace) => void;
+  workspaceCatalogError: string;
+  workspaceCatalogLoading: boolean;
+  workspaceSwitchDisabled: boolean;
 }
 
 export function OperationsScreen({
   accessToken,
+  activeWorkspace,
+  availableWorkspaces,
   initialTab,
   onBackToMap,
+  onRetryWorkspaceCatalog,
   onSessionExpired,
   onSignOut,
+  onWorkspaceChange,
   sessionNotice,
-  userEmail
+  userEmail,
+  workspaceCatalogError,
+  workspaceCatalogLoading,
+  workspaceSwitchDisabled
 }: OperationsScreenProps) {
   const [activeTab, setActiveTab] = useState<OperationsTab>(initialTab);
-  const [clients, setClients] = useState<MobileSafeRouteClient[]>([]);
-  const [selectedClientId, setSelectedClientId] = useState<string | null>(null);
   const [routes, setRoutes] = useState<SavedSafeRoutePlan[]>([]);
   const [operationsState, setOperationsState] = useState<SafeRouteOperationsState | null>(null);
   const [operationsWarning, setOperationsWarning] = useState<string | null>(null);
+  const [loadedWorkspaceId, setLoadedWorkspaceId] = useState<string | null>(null);
   const [clientMenuOpen, setClientMenuOpen] = useState(false);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [errorState, setErrorState] = useState<RouteListErrorState | null>(null);
-  const selectedClientIdRef = useRef<string | null>(null);
   const loadRevisionRef = useRef(0);
+  const selectedWorkspaceId = activeWorkspace?.id || null;
+  const activeWorkspaceIdRef = useRef<string | null>(selectedWorkspaceId);
+  activeWorkspaceIdRef.current = selectedWorkspaceId;
 
   useEffect(() => {
     setActiveTab(initialTab);
@@ -82,56 +99,59 @@ export function OperationsScreen({
 
   const loadOperations = useCallback(
     async ({
-      clientId = selectedClientIdRef.current,
       refresh = false
-    }: { clientId?: string | null; refresh?: boolean } = {}) => {
+    }: { refresh?: boolean } = {}) => {
       const revision = loadRevisionRef.current + 1;
       loadRevisionRef.current = revision;
+      const requestWorkspaceId = selectedWorkspaceId;
+      const requestOwnsWorkspace = () =>
+        revision === loadRevisionRef.current &&
+        activeWorkspaceIdRef.current === requestWorkspaceId;
       if (refresh) {
         setRefreshing(true);
       } else {
         setLoading(true);
       }
+      setLoadedWorkspaceId(null);
+      setRoutes([]);
+      setOperationsState(null);
       setErrorState(null);
       setOperationsWarning(null);
 
+      if (!requestWorkspaceId) {
+        setLoading(false);
+        setRefreshing(false);
+        return;
+      }
+
       try {
-        const result = await fetchSavedRoutes(accessToken, clientId || undefined);
-        if (revision !== loadRevisionRef.current) {
+        const result = await loadOperationsWorkspaceData({
+          loadOperations: () => fetchOperationsState(accessToken, requestWorkspaceId),
+          loadRoutes: () => fetchSavedRoutes(accessToken, requestWorkspaceId),
+          ownsRequest: requestOwnsWorkspace,
+          workspaceId: requestWorkspaceId
+        });
+        if (result.status === "stale" || !requestOwnsWorkspace()) {
           return;
         }
-        const nextClientId = resolveOperationsClientId(
-          result.clients,
-          clientId,
-          result.selectedClientId
-        );
+        if (result.status === "loaded") {
+          setRoutes(result.routes);
+          setLoadedWorkspaceId(requestWorkspaceId);
+          setOperationsState(result.operationsState);
+          return;
+        }
 
-        setClients(result.clients);
-        selectedClientIdRef.current = nextClientId;
-        setSelectedClientId(nextClientId);
+        if (result.error instanceof ApiSessionExpiredError) {
+          onSessionExpired(result.error.message);
+          return;
+        }
         setRoutes(result.routes);
-
-        if (!nextClientId) {
-          setOperationsState(createEmptyOperationsState());
-          return;
-        }
-
-        try {
-          const nextOperationsState = await fetchOperationsState(accessToken, nextClientId);
-          if (revision !== loadRevisionRef.current) {
-            return;
-          }
-          setOperationsState(nextOperationsState);
-        } catch (operationsError) {
-          if (revision !== loadRevisionRef.current) {
-            return;
-          }
-          const warning = createOperationsSyncWarningState(operationsError);
-          setOperationsWarning(warning.message);
-          setOperationsState(null);
-        }
+        setLoadedWorkspaceId(requestWorkspaceId);
+        const warning = createOperationsSyncWarningState(result.error);
+        setOperationsWarning(warning.message);
+        setOperationsState(null);
       } catch (error) {
-        if (revision !== loadRevisionRef.current) {
+        if (!requestOwnsWorkspace()) {
           return;
         }
         if (error instanceof ApiSessionExpiredError) {
@@ -140,13 +160,13 @@ export function OperationsScreen({
         }
         setErrorState(createRouteSyncErrorState(error));
       } finally {
-        if (revision === loadRevisionRef.current) {
+        if (requestOwnsWorkspace()) {
           setLoading(false);
           setRefreshing(false);
         }
       }
     },
-    [accessToken, onSessionExpired]
+    [accessToken, onSessionExpired, selectedWorkspaceId]
   );
 
   useEffect(() => {
@@ -157,18 +177,31 @@ export function OperationsScreen({
   }, [loadOperations]);
 
   const tabOptions = useMemo(() => createOperationsTabOptions(activeTab), [activeTab]);
-  const clientFilterOptions = useMemo(
-    () => createOperationsClientFilterOptions(clients, selectedClientId),
-    [clients, selectedClientId]
+  const workspaceOptions = useMemo(
+    () => createOperationsWorkspaceOptions(availableWorkspaces, selectedWorkspaceId),
+    [availableWorkspaces, selectedWorkspaceId]
   );
-  const selectedClientOption = clientFilterOptions.find((client) => client.selected)
-    || clientFilterOptions[0];
-  const plannedRows = useMemo(() => createPlannedRouteRows(routes, operationsState), [operationsState, routes]);
-  const calendarRows = useMemo(() => createCalendarRows(routes, operationsState), [operationsState, routes]);
-  const convoyRows = useMemo(() => createConvoyRows(routes, operationsState), [operationsState, routes]);
+  const selectedWorkspaceOption = workspaceOptions.find((workspace) => workspace.selected);
+  const workspaceOwnsResults = Boolean(
+    selectedWorkspaceId && loadedWorkspaceId === selectedWorkspaceId
+  );
+  const visibleRoutes = workspaceOwnsResults ? routes : [];
+  const visibleOperationsState = workspaceOwnsResults ? operationsState : null;
+  const plannedRows = useMemo(
+    () => createPlannedRouteRows(visibleRoutes, visibleOperationsState),
+    [visibleOperationsState, visibleRoutes]
+  );
+  const calendarRows = useMemo(
+    () => createCalendarRows(visibleRoutes, visibleOperationsState),
+    [visibleOperationsState, visibleRoutes]
+  );
+  const convoyRows = useMemo(
+    () => createConvoyRows(visibleRoutes, visibleOperationsState),
+    [visibleOperationsState, visibleRoutes]
+  );
   const summaryState = useMemo(
-    () => createOperationsSummaryState(routes, operationsState),
-    [operationsState, routes]
+    () => createOperationsSummaryState(visibleRoutes, visibleOperationsState),
+    [visibleOperationsState, visibleRoutes]
   );
   const emptyState = createOperationsEmptyState(activeTab);
   const mapReturnState = createRouteListMapReturnState();
@@ -177,6 +210,12 @@ export function OperationsScreen({
   const title = createOperationsTitle(activeTab);
   const subtitle = createOperationsSubtitle(activeTab);
   const loadingLabel = createOperationsLoadingLabel(activeTab);
+  const workspaceState = createOperationsWorkspaceState({
+    activeWorkspaceId: selectedWorkspaceId,
+    availableWorkspaceCount: availableWorkspaces.length,
+    errorMessage: workspaceCatalogError,
+    loading: workspaceCatalogLoading
+  });
 
   const handleRetry = () => {
     void loadOperations();
@@ -259,66 +298,90 @@ export function OperationsScreen({
         ))}
       </View>
 
-      {shouldShowOperationsClientFilters(clientFilterOptions) && selectedClientOption ? (
+      {shouldShowOperationsWorkspaceSelector(workspaceOptions) ? (
         <View style={styles.clientFilter}>
           <Pressable
-            accessibilityHint="Opens the tenant selector."
-            accessibilityLabel={`Tenant, ${selectedClientOption.label}`}
+            accessibilityHint={workspaceSwitchDisabled
+              ? "End active guidance before changing workspace."
+              : "Opens the active workspace menu."}
+            accessibilityLabel={`Workspace, ${selectedWorkspaceOption?.label || "Choose workspace"}`}
             accessibilityRole="button"
-            accessibilityState={{ expanded: clientMenuOpen }}
-            testID={uiTestIds.operationsClientSelector}
+            accessibilityState={{
+              disabled: workspaceSwitchDisabled,
+              expanded: clientMenuOpen
+            }}
+            disabled={workspaceSwitchDisabled}
+            testID={uiTestIds.operationsWorkspaceSelector}
             style={({ pressed }) => [
               styles.clientSelector,
               clientMenuOpen ? styles.clientSelectorOpen : null,
-              pressed ? styles.tabPressed : null
+              pressed && !workspaceSwitchDisabled ? styles.tabPressed : null
             ]}
-            onPress={() => setClientMenuOpen((open) => !open)}
+            onPress={() => {
+              if (!workspaceSwitchDisabled) {
+                setClientMenuOpen((open) => !open);
+              }
+            }}
           >
             <View style={styles.clientSelectorCopy}>
-              <Text style={styles.clientSelectorLabel}>Tenant</Text>
+              <Text style={styles.clientSelectorLabel}>Workspace</Text>
               <Text numberOfLines={1} style={styles.clientSelectorValue}>
-                {selectedClientOption.label}
+                {selectedWorkspaceOption?.label || "Choose workspace"}
               </Text>
             </View>
             <Text style={styles.clientSelectorAction}>
               {clientMenuOpen ? "Close" : "Change"}
             </Text>
           </Pressable>
-          {clientMenuOpen ? (
+          {clientMenuOpen && !workspaceSwitchDisabled ? (
             <View style={styles.clientMenu}>
               <ScrollView
                 nestedScrollEnabled
                 contentContainerStyle={styles.clientMenuContent}
                 showsVerticalScrollIndicator={false}
               >
-                {clientFilterOptions.map((client) => (
+                {workspaceOptions.map((workspace) => (
                   <Pressable
-                    key={client.id}
-                    accessibilityHint={client.accessibilityHint}
-                    accessibilityLabel={client.accessibilityLabel}
+                    key={workspace.id}
+                    accessibilityHint={workspace.accessibilityHint}
+                    accessibilityLabel={workspace.accessibilityLabel}
                     accessibilityRole="button"
-                    accessibilityState={{ selected: client.selected }}
-                    testID={uiTestIds.operationsClientTab(client.id)}
+                    accessibilityState={{ selected: workspace.selected }}
+                    testID={uiTestIds.operationsWorkspaceOption(workspace.id)}
                     style={({ pressed }) => [
                       styles.clientMenuItem,
-                      client.selected ? styles.clientMenuItemSelected : null,
+                      workspace.selected ? styles.clientMenuItemSelected : null,
                       pressed ? styles.clientMenuItemPressed : null
                     ]}
                     onPress={() => {
+                      const nextWorkspace = availableWorkspaces.find(
+                        (candidate) => candidate.id === workspace.id
+                      );
+                      if (!nextWorkspace || nextWorkspace.id === selectedWorkspaceId) {
+                        setClientMenuOpen(false);
+                        return;
+                      }
                       setClientMenuOpen(false);
-                      selectedClientIdRef.current = client.id;
-                      setSelectedClientId(client.id);
-                      void loadOperations({ clientId: client.id });
+                      loadRevisionRef.current += 1;
+                      activeWorkspaceIdRef.current = nextWorkspace.id;
+                      setLoadedWorkspaceId(null);
+                      setRoutes([]);
+                      setOperationsState(null);
+                      setOperationsWarning(null);
+                      setErrorState(null);
+                      setLoading(true);
+                      setRefreshing(false);
+                      onWorkspaceChange(nextWorkspace);
                     }}
                   >
                     <Text
                       numberOfLines={1}
                       style={[
                         styles.clientMenuItemText,
-                        client.selected ? styles.clientMenuItemTextSelected : null
+                        workspace.selected ? styles.clientMenuItemTextSelected : null
                       ]}
                     >
-                      {client.label}
+                      {workspace.label}
                     </Text>
                   </Pressable>
                 ))}
@@ -328,7 +391,7 @@ export function OperationsScreen({
         </View>
       ) : null}
 
-      {!loading ? (
+      {!workspaceState && !loading && !errorState && workspaceOwnsResults ? (
         <View
           accessible
           accessibilityLabel={summaryState.accessibilityLabel}
@@ -343,8 +406,12 @@ export function OperationsScreen({
         </View>
       ) : null}
 
-      {operationsWarning ? (
-        <View accessibilityRole="alert" style={styles.warningBox}>
+      {!workspaceState && workspaceOwnsResults && operationsWarning ? (
+        <View
+          accessibilityRole="alert"
+          testID={uiTestIds.operationsSyncWarning}
+          style={styles.warningBox}
+        >
           <Text
             accessibilityLabel={operationsWarning}
             numberOfLines={2}
@@ -355,8 +422,41 @@ export function OperationsScreen({
         </View>
       ) : null}
 
-      {errorState ? (
-        <View accessibilityRole="alert" style={styles.errorBox}>
+      {workspaceState ? (
+        <View style={styles.loadingState}>
+          <View
+            accessible
+            accessibilityLabel={workspaceState.accessibilityLabel}
+            accessibilityRole={workspaceState.loading ? "progressbar" : "summary"}
+            testID={uiTestIds.operationsWorkspaceState}
+            style={styles.emptyState}
+          >
+            {workspaceState.loading ? <ActivityIndicator color={colors.appleBlue} /> : null}
+            <Text numberOfLines={1} style={styles.emptyTitle}>{workspaceState.title}</Text>
+            <Text numberOfLines={2} style={styles.emptyCopy}>{workspaceState.copy}</Text>
+          </View>
+          {workspaceState.retry ? (
+            <Pressable
+              accessibilityLabel="Retry loading SafeRoute workspaces"
+              accessibilityRole="button"
+              hitSlop={OPERATIONS_ERROR_ACTION_HIT_SLOP}
+              testID={uiTestIds.operationsWorkspaceRetry}
+              style={({ pressed }) => [
+                styles.retryButton,
+                pressed ? styles.retryButtonPressed : null
+              ]}
+              onPress={onRetryWorkspaceCatalog}
+            >
+              <Text numberOfLines={1} style={styles.retryText}>Retry</Text>
+            </Pressable>
+          ) : null}
+        </View>
+      ) : errorState ? (
+        <View
+          accessibilityRole="alert"
+          testID={uiTestIds.operationsErrorState}
+          style={styles.errorBox}
+        >
           <View style={styles.errorCopy}>
             <Text style={styles.errorTitle}>{errorState.title}</Text>
             <Text
@@ -370,6 +470,8 @@ export function OperationsScreen({
           <Pressable
             accessibilityLabel={errorState.retryAccessibilityLabel}
             accessibilityRole="button"
+            hitSlop={OPERATIONS_ERROR_ACTION_HIT_SLOP}
+            testID={uiTestIds.operationsRetry}
             style={({ pressed }) => [
               styles.retryButton,
               pressed ? styles.retryButtonPressed : null
@@ -381,57 +483,60 @@ export function OperationsScreen({
         </View>
       ) : null}
 
-      {loading ? (
-        <View style={styles.loadingState}>
-          <View
-            accessible
-            accessibilityLabel={loadingLabel}
-            accessibilityRole="progressbar"
-            style={styles.loadingCard}
-          >
-            <ActivityIndicator color={colors.appleBlue} />
-            <Text style={styles.loadingTitle}>{loadingLabel}</Text>
-          </View>
-        </View>
-      ) : (
-        <ScrollView
-          contentContainerStyle={styles.list}
-          refreshControl={
-            <RefreshControl
-              refreshing={refreshing}
-              tintColor={colors.ink}
-              onRefresh={() => loadOperations({ refresh: true })}
-            />
-          }
-          showsVerticalScrollIndicator={false}
-        >
-          {activeTab === "planned-routes"
-            ? plannedRows.map((row) => <OperationsRouteCard key={row.id} row={row} />)
-            : null}
-          {activeTab === "calendar"
-            ? calendarRows.map((row) => <OperationsRouteCard key={row.id} row={row} calendar />)
-            : null}
-          {activeTab === "convoy-management"
-            ? convoyRows.map((row) => <OperationsConvoyCard key={row.id} row={row} />)
-            : null}
-
-          {shouldShowEmptyState({
-            activeTab,
-            calendarRows,
-            convoyRows,
-            plannedRows
-          }) ? (
+      {!workspaceState && !errorState ? (
+        loading ? (
+          <View style={styles.loadingState}>
             <View
               accessible
-              accessibilityLabel={emptyState.accessibilityLabel}
-              style={styles.emptyState}
+              accessibilityLabel={loadingLabel}
+              accessibilityRole="progressbar"
+              style={styles.loadingCard}
             >
-              <Text style={styles.emptyTitle}>{emptyState.title}</Text>
-              <Text style={styles.emptyCopy}>{emptyState.copy}</Text>
+              <ActivityIndicator color={colors.appleBlue} />
+              <Text style={styles.loadingTitle}>{loadingLabel}</Text>
             </View>
-          ) : null}
-        </ScrollView>
-      )}
+          </View>
+        ) : (
+          <ScrollView
+            contentContainerStyle={styles.list}
+            refreshControl={
+              <RefreshControl
+                refreshing={refreshing}
+                tintColor={colors.ink}
+                onRefresh={() => loadOperations({ refresh: true })}
+              />
+            }
+            showsVerticalScrollIndicator={false}
+          >
+            {activeTab === "planned-routes"
+              ? plannedRows.map((row) => <OperationsRouteCard key={row.id} row={row} />)
+              : null}
+            {activeTab === "calendar"
+              ? calendarRows.map((row) => <OperationsRouteCard key={row.id} row={row} calendar />)
+              : null}
+            {activeTab === "convoy-management"
+              ? convoyRows.map((row) => <OperationsConvoyCard key={row.id} row={row} />)
+              : null}
+
+            {shouldShowEmptyState({
+              activeTab,
+              calendarRows,
+              convoyRows,
+              plannedRows
+            }) ? (
+              <View
+                accessible
+                accessibilityLabel={emptyState.accessibilityLabel}
+                testID={uiTestIds.operationsEmptyState}
+                style={styles.emptyState}
+              >
+                <Text style={styles.emptyTitle}>{emptyState.title}</Text>
+                <Text style={styles.emptyCopy}>{emptyState.copy}</Text>
+              </View>
+            ) : null}
+          </ScrollView>
+        )
+      ) : null}
     </SafeAreaView>
   );
 }

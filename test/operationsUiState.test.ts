@@ -6,7 +6,6 @@ import { loadPreviewOperationsState } from "../src/features/operations/previewOp
 import {
   createCalendarRows,
   createConvoyRows,
-  createOperationsClientFilterOptions,
   createOperationsEmptyState,
   createOperationsLoadingLabel,
   createOperationsSubtitle,
@@ -14,9 +13,10 @@ import {
   createOperationsSyncWarningState,
   createOperationsTabOptions,
   createOperationsTitle,
+  createOperationsWorkspaceOptions,
+  createOperationsWorkspaceState,
   createPlannedRouteRows,
-  resolveOperationsClientId,
-  shouldShowOperationsClientFilters
+  shouldShowOperationsWorkspaceSelector
 } from "../src/features/operations/operationsUiState";
 
 describe("view-only operations UI state", () => {
@@ -48,26 +48,67 @@ describe("view-only operations UI state", () => {
     assert.equal(createOperationsLoadingLabel("convoy-management"), "Loading convoys");
   });
 
-  it("keeps operations client selection stable and concise", () => {
-    const clients = [
+  it("keeps the controlled workspace visible, selected, and concise", () => {
+    const workspaces = [
       { id: "client-1", name: "Very Long Workspace Name That Needs Compacting" },
       { id: "client-2", name: "Bravo" }
     ];
-    const options = createOperationsClientFilterOptions(clients, "client-1");
+    const options = createOperationsWorkspaceOptions(workspaces, "client-1");
 
-    assert.equal(resolveOperationsClientId(clients, "missing", "client-2"), "client-2");
-    assert.equal(resolveOperationsClientId(clients, "client-1", "client-2"), "client-1");
-    assert.equal(shouldShowOperationsClientFilters(options), true);
+    assert.equal(shouldShowOperationsWorkspaceSelector(options), true);
+    assert.equal(
+      shouldShowOperationsWorkspaceSelector(createOperationsWorkspaceOptions([workspaces[0]], "client-1")),
+      true,
+    );
     assert.equal(options[0].selected, true);
     assert.ok(options[0].label.endsWith("…"));
     assert.match(options[0].accessibilityLabel, /selected/);
+  });
+
+  it("describes loading, required-choice, unavailable, and no-access workspace states", () => {
+    assert.equal(createOperationsWorkspaceState({
+      activeWorkspaceId: "workspace-a",
+      availableWorkspaceCount: 2,
+      errorMessage: "",
+      loading: false,
+    }), null);
+    assert.deepEqual(createOperationsWorkspaceState({
+      activeWorkspaceId: null,
+      availableWorkspaceCount: 0,
+      errorMessage: "",
+      loading: true,
+    }), {
+      accessibilityLabel: "Loading SafeRoute workspaces.",
+      copy: "Checking the workspaces available to this account.",
+      loading: true,
+      retry: false,
+      title: "Loading workspaces",
+    });
+    assert.equal(createOperationsWorkspaceState({
+      activeWorkspaceId: null,
+      availableWorkspaceCount: 2,
+      errorMessage: "",
+      loading: false,
+    })?.title, "Choose workspace");
+    assert.deepEqual(createOperationsWorkspaceState({
+      activeWorkspaceId: null,
+      availableWorkspaceCount: 0,
+      errorMessage: "Workspaces could not be loaded. Retry.",
+      loading: false,
+    })?.retry, true);
+    assert.equal(createOperationsWorkspaceState({
+      activeWorkspaceId: null,
+      availableWorkspaceCount: 0,
+      errorMessage: "",
+      loading: false,
+    })?.title, "No workspace access");
   });
 
   it("maps synced trip manifests into planned rows with schedule, route, vehicle, and person data", () => {
     const operationsState = loadPreviewOperationsState("preview-routes");
     const plannedRows = createPlannedRouteRows(SAVED_ROUTE_PLANS, operationsState);
 
-    assert.equal(plannedRows.length, 3);
+    assert.equal(plannedRows.length, 2);
     assert.match(plannedRows[0].title, /Airport transfer window/);
     assert.match(plannedRows[0].endpointLabel, /Mayfair, London → London City Airport/);
     assert.match(plannedRows[0].metaLabel, /window/);
@@ -80,7 +121,7 @@ describe("view-only operations UI state", () => {
     const operationsState = loadPreviewOperationsState("preview-routes");
     const calendarRows = createCalendarRows(SAVED_ROUTE_PLANS, operationsState);
 
-    assert.equal(calendarRows.length, 3);
+    assert.equal(calendarRows.length, 2);
     assert.match(calendarRows[0].badgeLabel, /·/);
     assert.match(calendarRows[0].scheduleLabel, /·/);
     assert.match(calendarRows[0].endpointLabel, /→/);
@@ -125,11 +166,11 @@ describe("view-only operations UI state", () => {
     const summary = createOperationsSummaryState(SAVED_ROUTE_PLANS, operationsState);
 
     assert.deepEqual(summary.metrics, [
-      { label: "Trips", value: "3" },
-      { label: "Scheduled", value: "3" },
-      { label: "Convoys", value: "3" }
+      { label: "Trips", value: "2" },
+      { label: "Scheduled", value: "2" },
+      { label: "Convoys", value: "2" }
     ]);
-    assert.match(summary.accessibilityLabel, /3 trips/);
+    assert.match(summary.accessibilityLabel, /2 trips/);
   });
 
   it("keeps empty and warning copy specific to the active operations view", () => {
@@ -146,12 +187,6 @@ describe("view-only operations UI state", () => {
     assert.deepEqual(createOperationsSyncWarningState(new Error("Operations offline")), {
       message: "Operations offline. Showing saved routes only.",
       accessibilityLabel: "Operations offline. Showing saved routes only."
-    });
-    const expiredError = new Error("Your session expired");
-    expiredError.name = "ApiSessionExpiredError";
-    assert.deepEqual(createOperationsSyncWarningState(expiredError), {
-      message: "Live calendar and convoy details are temporarily unavailable. Showing saved routes only.",
-      accessibilityLabel: "Live calendar and convoy details are temporarily unavailable. Showing saved routes only."
     });
   });
 });

@@ -2,9 +2,14 @@ import { SAVED_ROUTE_PLANS } from "../live-map/demoRoute";
 import type { SafeRouteOperationsState } from "./operationsTypes";
 
 export const PREVIEW_OPERATIONS_CLIENT_ID = "preview-routes";
+export const PREVIEW_OPERATIONS_WEST_CLIENT_ID = "preview-west";
 
 export function loadPreviewOperationsState(clientId?: string | null): SafeRouteOperationsState {
   const normalizedClientId = String(clientId || "").trim() || PREVIEW_OPERATIONS_CLIENT_ID;
+
+  if (normalizedClientId === PREVIEW_OPERATIONS_WEST_CLIENT_ID) {
+    return createWestPreviewOperationsState();
+  }
 
   if (normalizedClientId !== PREVIEW_OPERATIONS_CLIENT_ID) {
     return {
@@ -16,10 +21,9 @@ export function loadPreviewOperationsState(clientId?: string | null): SafeRouteO
     };
   }
 
-  const [airportRoute, docklandsRoute, westboundRoute] = SAVED_ROUTE_PLANS;
+  const [airportRoute, docklandsRoute] = SAVED_ROUTE_PLANS;
   const now = createPreviewMovementDate(0, 9, 30);
   const later = createPreviewMovementDate(1, 14, 15);
-  const standby = createPreviewMovementDate(3, 8, 45);
 
   return {
     client_id: PREVIEW_OPERATIONS_CLIENT_ID,
@@ -167,33 +171,75 @@ export function loadPreviewOperationsState(clientId?: string | null): SafeRouteO
         is_active: true,
         created_at: now,
         updated_at: now
-      },
+      }
+    ]
+  };
+}
+
+function createWestPreviewOperationsState(): SafeRouteOperationsState {
+  const westboundRoute = SAVED_ROUTE_PLANS[2];
+  const now = createPreviewMovementDate(0, 8, 45);
+  const movementDate = createPreviewMovementDate(3, 8, 45);
+
+  return {
+    client_id: PREVIEW_OPERATIONS_WEST_CLIENT_ID,
+    updated_at: now,
+    people: [
+      {
+        id: "person-west-driver",
+        client_id: PREVIEW_OPERATIONS_WEST_CLIENT_ID,
+        name: "West driver",
+        callsign: "West 1",
+        role: "driver",
+        contact: null,
+        notes: null,
+        is_active: true,
+        created_at: now,
+        updated_at: now
+      }
+    ],
+    vehicles: [
+      {
+        id: "vehicle-west-lead",
+        client_id: PREVIEW_OPERATIONS_WEST_CLIENT_ID,
+        callsign: "West lead",
+        make: "Range Rover",
+        model: "Sport",
+        vehicle_type: "lead",
+        protection_profile: "armored",
+        seat_count: 4,
+        is_active: true,
+        created_at: now,
+        updated_at: now
+      }
+    ],
+    trips: [
       {
         id: "trip-westbound-standby",
-        client_id: PREVIEW_OPERATIONS_CLIENT_ID,
+        client_id: PREVIEW_OPERATIONS_WEST_CLIENT_ID,
         name: "Westbound standby",
         status: "draft",
-        movement_date: null,
+        movement_date: movementDate,
         duration_minutes: 120,
         origin: westboundRoute?.origin || "Westminster",
         destination: westboundRoute?.destination || "Heathrow T5",
         route_ids: westboundRoute ? [westboundRoute.id] : [],
-        vehicle_ids: [],
-        person_ids: [],
+        vehicle_ids: ["vehicle-west-lead"],
+        person_ids: ["person-west-driver"],
         route_assignments: westboundRoute
           ? [
               {
                 route_id: westboundRoute.id,
-                vehicle_ids: [],
-                person_ids: [],
-                movement_date: standby,
+                vehicle_ids: ["vehicle-west-lead"],
+                person_ids: ["person-west-driver"],
+                movement_date: movementDate,
                 duration_minutes: 120,
                 status: "draft",
                 notes: "Standby movement window"
               }
             ]
           : [],
-        lead_vehicle_id: null,
+        lead_vehicle_id: "vehicle-west-lead",
         plan_color: "#f59e0b",
         notes: null,
         is_active: true,

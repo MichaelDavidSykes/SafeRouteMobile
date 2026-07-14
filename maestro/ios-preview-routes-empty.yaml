@@ -67,16 +67,17 @@ appId: host.exp.Exponent
           timeout: 3000
 # Requires the Expo listener to be started with SAFEROUTE_ENABLE_PREVIEW_MODE=true
 # and SAFEROUTE_PREVIEW_INITIAL_SCREEN=routes-empty so the local preview route
-# API returns an authenticated Saved picker with no route cards.
+# API returns an authenticated workspace with no saved route cards.
 - extendedWaitUntil:
     visible:
       id: "safe-route-picker"
     timeout: 30000
 - assertVisible: "Choose route"
-- assertVisible:
-    id: "safe-route-empty-state"
-- assertVisible: "No saved routes"
-- assertVisible: "Save a plan, then open it on the map."
+- extendedWaitUntil:
+    visible:
+      id: "safe-route-empty-state"
+    timeout: 30000
+- assertVisible: "No saved routes are available for Central Operations. Switch workspaces or refresh after saving a plan."
 - assertNotVisible:
     id: "safe-route-card-sr-city-airport-alpha"
 - assertNotVisible:

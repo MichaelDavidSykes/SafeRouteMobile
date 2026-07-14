@@ -61,7 +61,17 @@ appId: host.exp.Exponent
     visible:
       id: "guest-map-workspace-selector"
     timeout: 30000
-- assertVisible: "Workspace, Central Operations"
+- tapOn:
+    id: "guest-map-workspace-selector"
+    waitToSettleTimeoutMs: 1000
+- assertVisible:
+    id: "guest-map-workspace-preview-routes"
+- tapOn:
+    id: "guest-map-workspace-preview-routes"
+    waitToSettleTimeoutMs: 1000
+- extendedWaitUntil:
+    visible: "Workspace, Central Operations"
+    timeout: 12000
 - tapOn:
     id: "guest-map-workspace-selector"
     waitToSettleTimeoutMs: 1000

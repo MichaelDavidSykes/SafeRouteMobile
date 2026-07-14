@@ -35,9 +35,9 @@ export function loadPreviewSavedRoutes(
 ): SavedRouteSyncResult {
   if (options.empty) {
     return {
-      clients: [],
+      clients: [PREVIEW_CLIENTS[0]],
       routes: [],
-      selectedClientId: null,
+      selectedClientId: PREVIEW_CLIENTS[0].id,
     };
   }
 

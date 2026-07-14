@@ -3,6 +3,7 @@ import { describe, it } from "node:test";
 
 import {
   OFFLINE_WORKSPACE_CACHE_MAX_AGE_MS,
+  createSerializedWorkspaceRecordWriter,
   createOfflineWorkspaceCacheRecord,
   parseOfflineWorkspaceCacheRecord,
 } from "../src/features/workspaces/offlineWorkspaceCacheCore";
@@ -39,5 +40,28 @@ describe("offline active workspace cache", () => {
     );
     assert.equal(parseOfflineWorkspaceCacheRecord(record, 999), null);
     assert.equal(parseOfflineWorkspaceCacheRecord({}), null);
+  });
+
+  it("serializes writes so a slower old selection cannot replace the latest workspace", async () => {
+    let releaseFirstWrite: (() => void) | null = null;
+    const firstWriteGate = new Promise<void>((resolve) => {
+      releaseFirstWrite = resolve;
+    });
+    const completedValues: string[] = [];
+    const writeRecord = createSerializedWorkspaceRecordWriter(async (_key, value) => {
+      if (value === "workspace-a") {
+        await firstWriteGate;
+      }
+      completedValues.push(value);
+    });
+
+    const firstWrite = writeRecord("member@example.com", "workspace-a");
+    const latestWrite = writeRecord("member@example.com", "workspace-b");
+    await Promise.resolve();
+    assert.deepEqual(completedValues, []);
+
+    releaseFirstWrite?.();
+    await Promise.all([firstWrite, latestWrite]);
+    assert.deepEqual(completedValues, ["workspace-a", "workspace-b"]);
   });
 });

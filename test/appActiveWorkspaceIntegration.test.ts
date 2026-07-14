@@ -40,7 +40,7 @@ describe("App active workspace integration", () => {
     assert.match(app, /<OperationsScreen[\s\S]*onWorkspaceChange=\{handleActiveWorkspaceChange\}/);
     assert.match(app, /<OperationsScreen[\s\S]*onRetryWorkspaceCatalog=/);
     assert.match(app, /<OperationsScreen[\s\S]*workspaceCatalogError=\{workspaceCatalogError\}/);
-    assert.match(app, /<OperationsScreen[\s\S]*workspaceCatalogLoading=\{workspaceCatalogLoading\}/);
+    assert.match(app, /<OperationsScreen[\s\S]*workspaceCatalogLoading=\{workspaceCatalogBusy\}/);
     assert.match(app, /<OperationsScreen[\s\S]*workspaceSwitchDisabled=\{navigationWorkspaceLocked\}/);
     assert.match(app, /<OperationsScreen[\s\S]*onWorkspaceUnavailable=\{handleWorkspaceUnavailable\}/);
     assert.match(app, /<RouteListScreen[\s\S]*onWorkspaceUnavailable=\{handleWorkspaceUnavailable\}/);
@@ -77,6 +77,14 @@ describe("App active workspace integration", () => {
     assert.match(app, /previousUnavailableWorkspaceCount[\s\S]*workspaceAccessRestored[\s\S]*unavailableWorkspaceIds\.size < previousUnavailableWorkspaceCount/);
     assert.match(app, /workspaceAccessRestored[\s\S]*Workspace access refreshed\./);
     assert.match(app, /handleRetryWorkspaceCatalog[\s\S]*restoreUnavailableWorkspacesFromFreshCatalogRef\.current = true[\s\S]*setWorkspaceDiscoveryRevision/);
+    assert.match(app, /handleRetryWorkspaceCatalog[\s\S]*setWorkspaceCatalogRetrying\(true\)[\s\S]*setWorkspaceDiscoveryRevision/);
+    assert.match(app, /handleRetryWorkspaceCatalog[\s\S]*workspaceCatalogRetryingRef\.current[\s\S]*return;[\s\S]*workspaceCatalogRetryingRef\.current = true/);
+    assert.match(app, /shouldOfferWorkspaceAccessRefresh\(\{[\s\S]*catalogError: Boolean\(workspaceCatalogError\)[\s\S]*catalogRetrying: workspaceCatalogRetrying/);
+    assert.equal(
+      (app.match(/workspaceCatalogLoading=\{workspaceCatalogBusy\}/g) || []).length,
+      3,
+    );
+    assert.match(app, /finally \{[\s\S]*setWorkspaceCatalogLoading\(false\)[\s\S]*setWorkspaceCatalogRetrying\(false\)/);
     assert.match(app, /handleWorkspaceUnavailable[\s\S]*restoreUnavailableWorkspacesFromFreshCatalogRef\.current = false[\s\S]*unavailableWorkspaceIdsRef\.current\.add/);
     assert.equal(
       (app.match(/onRetryWorkspaceCatalog=\{handleRetryWorkspaceCatalog\}/g) || []).length,
@@ -84,6 +92,10 @@ describe("App active workspace integration", () => {
     );
     assert.equal(
       (app.match(/workspaceAccessRefreshAvailable=\{workspaceAccessRefreshAvailable\}/g) || []).length,
+      3,
+    );
+    assert.equal(
+      (app.match(/workspaceAccessRecoveryPending=\{workspaceAccessRecoveryPending\}/g) || []).length,
       3,
     );
     assert.match(guestSource(), /workspaceAccessRefreshAvailable[\s\S]*<WorkspaceAccessRefreshControl/);
@@ -94,11 +106,16 @@ describe("App active workspace integration", () => {
         source,
         /<WorkspaceAccessRefreshControl[\s\S]*availableWorkspaceCount=\{availableWorkspaces\.length\}/,
       );
+      assert.match(
+        source,
+        /<WorkspaceAccessRefreshControl[\s\S]*accessRecoveryPending=\{workspaceAccessRecoveryPending\}[\s\S]*verificationUnavailable=\{Boolean\(workspaceCatalogError\)\}/,
+      );
     }
     assert.match(workspaceRefreshSource(), /accessibilityLabel=\{state\.accessibilityLabel\}/);
     assert.match(workspaceRefreshSource(), /accessibilityLiveRegion="polite"/);
     assert.match(workspaceRefreshSource(), /accessibilityState=\{\{ disabled: loading, busy: loading \}\}/);
     assert.match(workspaceRefreshSource(), /shouldStackWorkspaceAccessControl\(\{ fontScale, width \}\)/);
+    assert.match(workspaceRefreshSource(), /useNetworkAvailability\(\)/);
     assert.doesNotMatch(workspaceRefreshSource(), /numberOfLines=/);
     assert.match(workspaceRefreshSource(), /testID=\{uiTestIds\.workspaceAccessRefresh\}/);
   });
@@ -124,6 +141,7 @@ describe("App active workspace integration", () => {
     assert.match(guest, /routeActionDisabled =[\s\S]*workspaceAuthorizationRequired/);
     assert.match(guest, /Reconnect to verify workspace access before plotting this route/);
     assert.match(guest, /routeActionAccessibilityLabel = workspaceSelectionRequired/);
+    assert.match(guest, /retryAvailable =[\s\S]*!loading && Boolean\(onRetry && errorMessage\)/);
     assert.match(guest, /Choose the SafeRoute workspace above before plotting this route/);
     assert.match(guest, /routeMessage \|\| sessionNotice \|\| locationErrorMessage/);
     assert.match(guest, /enabled: !workspaceSelectionRequired && !workspaceAuthorizationRequired/);
@@ -282,7 +300,7 @@ describe("App active workspace integration", () => {
     assert.match(app, /activeSessionPrincipalIdRef\.current/);
     assert.match(app, /principalId=\{sessionPrincipalId\}/);
     assert.match(app, /handleNavigationSessionChange[\s\S]*pendingNavigationRestoreRef\.current[\s\S]*return false/);
-    assert.match(guest, /retryAvailable = Boolean\(onRetry && errorMessage\)[\s\S]*catalogUnavailable \|\| switchDisabled/);
+    assert.match(guest, /retryAvailable =[\s\S]*!loading && Boolean\(onRetry && errorMessage\)[\s\S]*catalogUnavailable \|\| switchDisabled/);
     assert.match(guest, /disabled = retryAvailable[\s\S]*\? false[\s\S]*switchDisabled/);
     assert.match(guest, /onPress=\{retryAvailable \? onRetry : onToggle\}/);
     assert.match(liveMap, /accepted === false[\s\S]*clearActiveNavigationSession\(\)[\s\S]*return[\s\S]*saveActiveNavigationSession/);

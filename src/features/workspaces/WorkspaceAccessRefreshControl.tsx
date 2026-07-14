@@ -9,22 +9,34 @@ import {
 
 import { uiTestIds } from "../../testing/uiTestIds";
 import { colors, controlSizes, radius, spacing, typeScale } from "../../theme";
+import { useNetworkAvailability } from "../api/useNetworkAvailability";
 import {
   createWorkspaceAccessRefreshState,
   shouldStackWorkspaceAccessControl,
 } from "./workspaceAccessRefreshState";
 
 export function WorkspaceAccessRefreshControl({
+  accessRecoveryPending,
   availableWorkspaceCount,
   loading,
   onRefresh,
+  verificationUnavailable,
 }: {
+  accessRecoveryPending: boolean;
   availableWorkspaceCount: number;
   loading: boolean;
   onRefresh: () => void;
+  verificationUnavailable: boolean;
 }) {
   const { fontScale, width } = useWindowDimensions();
-  const state = createWorkspaceAccessRefreshState({ availableWorkspaceCount, loading });
+  const { offline } = useNetworkAvailability();
+  const state = createWorkspaceAccessRefreshState({
+    accessRecoveryPending,
+    availableWorkspaceCount,
+    loading,
+    offline,
+    verificationUnavailable,
+  });
   const stacked = shouldStackWorkspaceAccessControl({ fontScale, width });
 
   return (

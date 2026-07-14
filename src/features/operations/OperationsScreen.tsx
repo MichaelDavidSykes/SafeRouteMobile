@@ -62,6 +62,7 @@ interface OperationsScreenProps {
   onWorkspaceChange: (workspace: SafeRouteWorkspace) => void;
   workspaceCatalogError: string;
   workspaceCatalogLoading: boolean;
+  workspaceAccessRecoveryPending: boolean;
   workspaceAccessRefreshAvailable: boolean;
   workspaceSwitchDisabled: boolean;
 }
@@ -81,6 +82,7 @@ export function OperationsScreen({
   userEmail,
   workspaceCatalogError,
   workspaceCatalogLoading,
+  workspaceAccessRecoveryPending,
   workspaceAccessRefreshAvailable,
   workspaceSwitchDisabled
 }: OperationsScreenProps) {
@@ -411,8 +413,10 @@ export function OperationsScreen({
       {workspaceAccessRefreshAvailable &&
       (availableWorkspaces.length > 0 || !workspaceCatalogError) ? (
         <WorkspaceAccessRefreshControl
+          accessRecoveryPending={workspaceAccessRecoveryPending}
           availableWorkspaceCount={availableWorkspaces.length}
           loading={workspaceCatalogLoading}
+          verificationUnavailable={Boolean(workspaceCatalogError)}
           onRefresh={() => {
             setClientMenuOpen(false);
             onRetryWorkspaceCatalog();

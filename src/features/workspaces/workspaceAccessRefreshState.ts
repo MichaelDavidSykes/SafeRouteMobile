@@ -7,11 +7,17 @@ export interface WorkspaceAccessRefreshState {
 }
 
 export function createWorkspaceAccessRefreshState({
+  accessRecoveryPending,
   availableWorkspaceCount,
   loading,
+  offline,
+  verificationUnavailable,
 }: {
+  accessRecoveryPending: boolean;
   availableWorkspaceCount: number;
   loading: boolean;
+  offline: boolean;
+  verificationUnavailable: boolean;
 }): WorkspaceAccessRefreshState {
   const hasAvailableWorkspace = availableWorkspaceCount > 0;
 
@@ -29,7 +35,7 @@ export function createWorkspaceAccessRefreshState({
     };
   }
 
-  if (hasAvailableWorkspace) {
+  if (accessRecoveryPending && hasAvailableWorkspace) {
     return {
       accessibilityHint: "Checks whether an administrator restored another workspace membership.",
       accessibilityLabel: "Workspace access changed. Check for restored access.",
@@ -39,14 +45,70 @@ export function createWorkspaceAccessRefreshState({
     };
   }
 
+  if (accessRecoveryPending || (!hasAvailableWorkspace && !verificationUnavailable)) {
+    return {
+      accessibilityHint: "Checks whether an administrator restored workspace membership.",
+      accessibilityLabel:
+        "No workspace access. Ask an administrator to restore access, then check again.",
+      actionLabel: "Check again",
+      detail: "Ask an admin to restore access, then check again",
+      title: "No workspace access",
+    };
+  }
+
+  if (verificationUnavailable) {
+    return {
+      accessibilityHint: offline
+        ? "Reconnect, then activate this control to check current workspace membership."
+        : "Retries checking current workspace membership.",
+      accessibilityLabel: offline
+        ? "Workspace access not verified. Reconnect, then check current access."
+        : "Workspace access not verified. Try checking current access again.",
+      actionLabel: offline ? "Check again" : "Try again",
+      detail: offline
+        ? "Reconnect, then check current access"
+        : "Try again to check current access",
+      title: "Workspace access not verified",
+    };
+  }
+
   return {
-    accessibilityHint: "Checks whether an administrator restored workspace membership.",
-    accessibilityLabel:
-      "No workspace access. Ask an administrator to restore access, then check again.",
+    accessibilityHint: "Checks current workspace membership.",
+    accessibilityLabel: "Check current workspace access.",
     actionLabel: "Check again",
-    detail: "Ask an admin to restore access, then check again",
-    title: "No workspace access",
+    detail: "Check current access",
+    title: "Workspace access",
   };
+}
+
+export function shouldOfferWorkspaceAccessRefresh({
+  accessRecoveryPending,
+  authenticated,
+  availableWorkspaceCount,
+  catalogError,
+  catalogLoading,
+  catalogRetrying,
+}: {
+  accessRecoveryPending: boolean;
+  authenticated: boolean;
+  availableWorkspaceCount: number;
+  catalogError: boolean;
+  catalogLoading: boolean;
+  catalogRetrying: boolean;
+}): boolean {
+  if (!authenticated) {
+    return false;
+  }
+
+  if (accessRecoveryPending) {
+    return true;
+  }
+
+  if (catalogRetrying) {
+    return true;
+  }
+
+  return !catalogLoading && (catalogError || availableWorkspaceCount === 0);
 }
 
 export function shouldStackWorkspaceAccessControl({

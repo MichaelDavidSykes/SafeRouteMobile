@@ -54,7 +54,7 @@ export function trackingLabelForPermissionStatus(status: PermissionStatus): stri
   }
 
   if (status === 'checking') {
-    return 'Checking';
+    return 'Locating';
   }
 
   if (status === 'idle') {

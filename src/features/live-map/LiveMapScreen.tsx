@@ -1069,7 +1069,9 @@ export function LiveMapScreen({
       activeNavigationState === "navigating" ||
       activeNavigationState === "off-route"
     ) {
+      lastDriveAlongCameraPoseRef.current = null;
       setNavigationState("paused");
+      setFollowModeEnabled(false);
       return;
     }
 
@@ -1151,6 +1153,16 @@ export function LiveMapScreen({
   ]);
 
   const handleStopRoute = () => {
+    // Commit the visible stop state before any persistence or native tracking
+    // cleanup so the End button always responds on the next frame.
+    setNavigationState("stopped");
+    setRouteStep(0);
+    setProgressFloorMeters(0);
+    setFollowModeEnabled(false);
+    setBackgroundTrackingRequested(false);
+    setPendingNavigationStart(false);
+    lastDriveAlongCameraPoseRef.current = null;
+
     const stoppedRerouteState = stopLiveRerouteMonitoring(
       rerouteStateRef.current,
       Date.now(),
@@ -1160,12 +1172,6 @@ export function LiveMapScreen({
     onNavigationSessionChangeRef.current?.(null);
     void clearActiveNavigationSession();
     void stopBackgroundNavigation();
-    setNavigationState("stopped");
-    setRouteStep(0);
-    setProgressFloorMeters(0);
-    setFollowModeEnabled(false);
-    setBackgroundTrackingRequested(false);
-    setPendingNavigationStart(false);
     fitRoute();
   };
 

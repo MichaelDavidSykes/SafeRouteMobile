@@ -1306,10 +1306,16 @@ describe("rounded visual language", () => {
     assert.match(routeSheetSource, /styles\.remainingMetricLine/);
     assert.match(routeSheetSource, /uiTestIds\.liveMapRemainingMetrics/);
     assert.doesNotMatch(routeSheetSource, /DemoDrive|demoButton|Simulate|Simulation/);
-    assert.match(routeSheetSource, /const ROUTE_SUMMARY_ACTION_HIT_SLOP = 6;/);
+    assert.match(routeSheetSource, /const ROUTE_SUMMARY_ACTION_HIT_SLOP = 12;/);
     assert.equal(
       routeSheetSource.match(/hitSlop=\{ROUTE_SUMMARY_ACTION_HIT_SLOP\}/g)
         ?.length,
+      2,
+    );
+    assert.equal(
+      routeSheetSource.match(
+        /pressRetentionOffset=\{ROUTE_SUMMARY_ACTION_PRESS_RETENTION_OFFSET\}/g,
+      )?.length,
       2,
     );
     assert.match(routeSheetSource, /style=\{\(\{ pressed \}\) => \[/);

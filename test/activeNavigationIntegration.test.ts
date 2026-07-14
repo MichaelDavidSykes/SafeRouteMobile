@@ -106,6 +106,35 @@ describe("production navigation reliability integration", () => {
     );
   });
 
+  it("updates pause and end-route controls before cleanup work", () => {
+    const liveMapSource = source("src/features/live-map/LiveMapScreen.tsx");
+    const primaryActionBlock = liveMapSource.slice(
+      liveMapSource.indexOf("const handlePrimaryNavigationAction"),
+      liveMapSource.indexOf("const liveNavigationBlockedReason"),
+    );
+    const stopActionBlock = liveMapSource.slice(
+      liveMapSource.indexOf("const handleStopRoute"),
+      liveMapSource.indexOf("const handleRiskZonePress"),
+    );
+
+    assert.match(
+      primaryActionBlock,
+      /setNavigationState\("paused"\);[\s\S]*setFollowModeEnabled\(false\);/,
+    );
+    assert.ok(
+      stopActionBlock.indexOf('setNavigationState("stopped")') <
+        stopActionBlock.indexOf("stopLiveRerouteMonitoring"),
+    );
+    assert.ok(
+      stopActionBlock.indexOf('setNavigationState("stopped")') <
+        stopActionBlock.indexOf("clearActiveNavigationSession"),
+    );
+    assert.ok(
+      stopActionBlock.indexOf('setNavigationState("stopped")') <
+        stopActionBlock.indexOf("stopBackgroundNavigation"),
+    );
+  });
+
   it("filters foreground samples and recovers the newest background fix", () => {
     const locationHookSource = source(
       "src/features/live-map/useLiveLocation.ts",

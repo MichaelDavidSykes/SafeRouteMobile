@@ -70,10 +70,10 @@ describe("live route summary presentation", () => {
     assert.deepEqual(
       createRouteSummaryPrimaryAction(
         "loaded",
-        "Checking foreground location access before live guidance can start.",
+        "Finding your current location before guidance can start.",
       ),
       {
-        label: "Checking location",
+        label: "Locating…",
       },
     );
     assert.deepEqual(

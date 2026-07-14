@@ -29,8 +29,9 @@ describe("navigation start authorization gate", () => {
       commits += 1;
     };
 
-    const first = runNavigationStartAuthorization({ authorize, commit, gate });
-    const duplicate = await runNavigationStartAuthorization({ authorize, commit, gate });
+    const validate = () => null;
+    const first = runNavigationStartAuthorization({ authorize, commit, gate, validate });
+    const duplicate = await runNavigationStartAuthorization({ authorize, commit, gate, validate });
 
     assert.equal(gate.pending, true);
     assert.equal(commits, 0);
@@ -58,6 +59,7 @@ describe("navigation start authorization gate", () => {
           commits += 1;
         },
         gate,
+        validate: () => null,
       });
 
       assert.equal(result.status, "blocked");
@@ -77,12 +79,38 @@ describe("navigation start authorization gate", () => {
         commits += 1;
       },
       gate,
+      validate: () => null,
     });
 
     cancelNavigationStartAuthorization(gate);
     authorization.resolve(null);
 
     assert.deepEqual(await resultPromise, { status: "stale" });
+    assert.equal(gate.pending, false);
+    assert.equal(commits, 0);
+  });
+
+  it("revalidates current route eligibility after deferred authorization", async () => {
+    const authorization = deferred<string | null>();
+    const gate = createNavigationStartAuthorizationGate();
+    let currentBlockedReason: string | null = null;
+    let commits = 0;
+    const resultPromise = runNavigationStartAuthorization({
+      authorize: () => authorization.promise,
+      commit: () => {
+        commits += 1;
+      },
+      gate,
+      validate: () => currentBlockedReason,
+    });
+
+    currentBlockedReason = "A severe risk now intersects this route.";
+    authorization.resolve(null);
+
+    assert.deepEqual(await resultPromise, {
+      status: "blocked",
+      message: currentBlockedReason,
+    });
     assert.equal(gate.pending, false);
     assert.equal(commits, 0);
   });

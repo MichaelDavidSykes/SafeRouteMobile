@@ -237,7 +237,7 @@ describe("App active workspace integration", () => {
     );
     assert.match(
       liveMap,
-      /authorizeAndStartNavigation[\s\S]*runNavigationStartAuthorization\([\s\S]*authorize: \(\) => onAuthorizeNavigationStartRef\.current\(liveRoutePlan\)[\s\S]*commit: commitNavigationStart/,
+      /authorizeAndStartNavigation[\s\S]*runNavigationStartAuthorization\([\s\S]*authorize: \(\) => onAuthorizeNavigationStartRef\.current\(liveRoutePlan\)[\s\S]*commit: commitNavigationStart[\s\S]*validate: \(\) => navigationStartBlockedReasonRef\.current/,
     );
     assert.match(
       liveMap,

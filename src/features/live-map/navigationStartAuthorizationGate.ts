@@ -27,10 +27,12 @@ export async function runNavigationStartAuthorization({
   authorize,
   commit,
   gate,
+  validate,
 }: {
   authorize: () => Promise<string | null>;
   commit: () => void;
   gate: NavigationStartAuthorizationGate;
+  validate: () => string | null;
 }): Promise<NavigationStartAuthorizationGateResult> {
   if (gate.pending) {
     return { status: "duplicate" };
@@ -47,6 +49,14 @@ export async function runNavigationStartAuthorization({
     }
     if (blockedMessage) {
       return { status: "blocked", message: blockedMessage };
+    }
+
+    const commitBlockedMessage = validate();
+    if (gate.attempt !== attempt) {
+      return { status: "stale" };
+    }
+    if (commitBlockedMessage) {
+      return { status: "blocked", message: commitBlockedMessage };
     }
 
     commit();

@@ -139,6 +139,7 @@ export function LiveMapScreen({
   const progressRef = useRef<ReturnType<typeof calculateRouteProgress>>(null);
   const activeSessionSnapshotRef = useRef<ActiveNavigationSession | null>(null);
   const navigationAuthorizationGateRef = useRef(createNavigationStartAuthorizationGate());
+  const navigationStartBlockedReasonRef = useRef<string | null>(null);
   const onAuthorizeNavigationStartRef = useRef(onAuthorizeNavigationStart);
   const onNavigationSessionChangeRef = useRef(onNavigationSessionChange);
   const onWorkspaceUnavailableRef = useRef(onWorkspaceUnavailable);
@@ -391,6 +392,7 @@ export function LiveMapScreen({
     permissionStatus,
     routeCoordinateCount: liveRoutePlan.route.coordinates.length,
   });
+  navigationStartBlockedReasonRef.current = navigationBlockedReason;
   const locationNotice = navigationAuthorizationNotice || (
     navigationState === "loaded" ||
     navigationState === "paused" ||
@@ -1094,6 +1096,7 @@ export function LiveMapScreen({
       authorize: () => onAuthorizeNavigationStartRef.current(liveRoutePlan),
       commit: commitNavigationStart,
       gate,
+      validate: () => navigationStartBlockedReasonRef.current,
     });
     if (result.status === "stale" || result.status === "duplicate") {
       return;

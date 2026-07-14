@@ -95,6 +95,7 @@ if (!supportedEnvironments.includes(appEnvironment)) {
 const enableDemoDriveOverride = trimmedEnv('SAFEROUTE_ENABLE_DEMO_DRIVE');
 const enablePreviewModeOverride = trimmedEnv('SAFEROUTE_ENABLE_PREVIEW_MODE');
 const previewInitialScreenOverride = trimmedEnv('SAFEROUTE_PREVIEW_INITIAL_SCREEN');
+const sourceRevisionOverride = trimmedEnv('SAFEROUTE_SOURCE_REVISION');
 const safeRouteDemoDriveEnabled =
   appEnvironment !== 'production' &&
   (enableDemoDriveOverride ? enableDemoDriveOverride.toLowerCase() === 'true' : true);
@@ -105,6 +106,9 @@ const safeRoutePreviewInitialScreen = normalizePreviewInitialScreen(
   previewInitialScreenOverride,
   safeRoutePreviewModeEnabled
 );
+if (sourceRevisionOverride && !/^[0-9a-f]{40}$/i.test(sourceRevisionOverride)) {
+  throw new Error('SAFEROUTE_SOURCE_REVISION must be a full 40-character Git commit SHA.');
+}
 const productionApiUrlOverride = trimmedEnv('SAFEROUTE_PROD_API_URL');
 const apiUrls = {
   development: firstConfiguredValue(trimmedEnv('SAFEROUTE_DEV_API_URL'), trimmedEnv('SAFEROUTE_API_URL'), 'https://api.lunarchain.net'),
@@ -203,7 +207,10 @@ module.exports = {
       safeRouteApiVersion,
       safeRouteDemoDriveEnabled,
       safeRoutePreviewInitialScreen,
-      safeRoutePreviewModeEnabled
+      safeRoutePreviewModeEnabled,
+      ...(sourceRevisionOverride
+        ? { safeRouteSourceRevision: sourceRevisionOverride.toLowerCase() }
+        : {})
     }
   }
 };

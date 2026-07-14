@@ -89,7 +89,17 @@ describe("App active workspace integration", () => {
     assert.match(guestSource(), /workspaceAccessRefreshAvailable[\s\S]*<WorkspaceAccessRefreshControl/);
     assert.match(routesSource(), /workspaceAccessRefreshAvailable[\s\S]*<WorkspaceAccessRefreshControl/);
     assert.match(operationsSource(), /workspaceAccessRefreshAvailable[\s\S]*<WorkspaceAccessRefreshControl/);
-    assert.match(workspaceRefreshSource(), /accessibilityLabel=\{loading \? "Refreshing workspace access" : "Refresh workspace access"\}/);
+    for (const source of [guestSource(), routesSource(), operationsSource()]) {
+      assert.match(
+        source,
+        /<WorkspaceAccessRefreshControl[\s\S]*availableWorkspaceCount=\{availableWorkspaces\.length\}/,
+      );
+    }
+    assert.match(workspaceRefreshSource(), /accessibilityLabel=\{state\.accessibilityLabel\}/);
+    assert.match(workspaceRefreshSource(), /accessibilityLiveRegion="polite"/);
+    assert.match(workspaceRefreshSource(), /accessibilityState=\{\{ disabled: loading, busy: loading \}\}/);
+    assert.match(workspaceRefreshSource(), /shouldStackWorkspaceAccessControl\(\{ fontScale, width \}\)/);
+    assert.doesNotMatch(workspaceRefreshSource(), /numberOfLines=/);
     assert.match(workspaceRefreshSource(), /testID=\{uiTestIds\.workspaceAccessRefresh\}/);
   });
 

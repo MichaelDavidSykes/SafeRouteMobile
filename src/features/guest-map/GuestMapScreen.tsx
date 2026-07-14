@@ -1326,6 +1326,7 @@ export function GuestMapScreen({
                   {workspaceAccessRefreshAvailable &&
                   (availableWorkspaces.length > 0 || !workspaceCatalogError) ? (
                     <WorkspaceAccessRefreshControl
+                      availableWorkspaceCount={availableWorkspaces.length}
                       loading={workspaceCatalogLoading}
                       onRefresh={() => {
                         setWorkspaceMenuOpen(false);

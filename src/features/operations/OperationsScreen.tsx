@@ -411,6 +411,7 @@ export function OperationsScreen({
       {workspaceAccessRefreshAvailable &&
       (availableWorkspaces.length > 0 || !workspaceCatalogError) ? (
         <WorkspaceAccessRefreshControl
+          availableWorkspaceCount={availableWorkspaces.length}
           loading={workspaceCatalogLoading}
           onRefresh={() => {
             setClientMenuOpen(false);

@@ -1,19 +1,21 @@
 #!/usr/bin/env node
 import { spawn, spawnSync } from 'node:child_process';
-import { mkdtempSync, openSync, readFileSync, writeFileSync } from 'node:fs';
+import { mkdtempSync, openSync, readFileSync, renameSync, writeFileSync } from 'node:fs';
 import net from 'node:net';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
 import {
   GUIDANCE_CONTRACT_API_PORT,
-  GUIDANCE_CONTRACT_MODES
+  GUIDANCE_CONTRACT_MODES,
+  assertGuidanceContractRequestJournal
 } from './maestro-guidance-contract-api.mjs';
 
 const METRO_PORT = 8081;
 const EXPO_GO_BUNDLE_ID = 'host.exp.Exponent';
 const tempDirectory = mkdtempSync(join(tmpdir(), 'saferoute-guidance-contract-'));
-const stateFile = join(tempDirectory, 'mode.txt');
+const controlFile = join(tempDirectory, 'control.json');
+const pendingControlFile = join(tempDirectory, 'control.pending.json');
 const requestLogFile = join(tempDirectory, 'requests.jsonl');
 const serverLogFile = join(tempDirectory, 'server.log');
 const serverLogFd = openSync(serverLogFile, 'a');
@@ -34,6 +36,21 @@ const phases = {
   regained: 'maestro/ios-guidance-contract-regained.yaml'
 };
 
+const expectedModeByPhase = Object.freeze({
+  reset: GUIDANCE_CONTRACT_MODES.active,
+  publicSeed: GUIDANCE_CONTRACT_MODES.active,
+  publicResume: GUIDANCE_CONTRACT_MODES.offline,
+  workspaceSeed: GUIDANCE_CONTRACT_MODES.active,
+  workspaceOffline: GUIDANCE_CONTRACT_MODES.offline,
+  workspaceReconnect: GUIDANCE_CONTRACT_MODES.active,
+  workspaceReseed: GUIDANCE_CONTRACT_MODES.active,
+  wrongPrincipal: GUIDANCE_CONTRACT_MODES.wrongPrincipal,
+  wrongPrincipalRelaunch: GUIDANCE_CONTRACT_MODES.wrongPrincipal,
+  denialSeed: GUIDANCE_CONTRACT_MODES.active,
+  denied: GUIDANCE_CONTRACT_MODES.denied,
+  regained: GUIDANCE_CONTRACT_MODES.active
+});
+
 async function main() {
   if (!(await isPortListening(METRO_PORT))) {
     throw new Error(
@@ -45,10 +62,10 @@ async function main() {
     throw new Error(`Port ${GUIDANCE_CONTRACT_API_PORT} is already in use.`);
   }
 
-  await startApi(GUIDANCE_CONTRACT_MODES.active);
-  runPhase('reset to a signed-out map', phases.reset);
+  await startApi('reset');
+  runPhase('reset', 'reset to a signed-out map', phases.reset);
   const publicPreviewCount = requestCount('/api/v1/mobile/safe-route/route-preview');
-  runPhase('create signed-out public guidance', phases.publicSeed);
+  runPhase('publicSeed', 'create signed-out public guidance', phases.publicSeed);
   assertCondition(
     requestCount('/api/v1/mobile/safe-route/route-preview') > publicPreviewCount,
     'Public guidance did not exercise the contract route-preview endpoint.'
@@ -59,9 +76,13 @@ async function main() {
     !(await isPortListening(GUIDANCE_CONTRACT_API_PORT)),
     'Contract backend port remained bound during the public cold relaunch.'
   );
-  runPhase('resume public guidance with backend absent', phases.publicResume);
+  runPhase(
+    'publicResume',
+    'resume public guidance with backend absent',
+    phases.publicResume
+  );
 
-  await startApi(GUIDANCE_CONTRACT_MODES.active);
+  await startApi('workspaceSeed');
   const protectedTrafficBaseline = {
     user: authorizedRequestCount('/api/v1/users/me'),
     catalog: authorizedRequestCount('/api/v1/mobile/safe-route/routes'),
@@ -69,7 +90,11 @@ async function main() {
       '/api/v1/mobile/safe-route/routes/guidance-contract-route'
     )
   };
-  runPhase('create principal-A workspace guidance', phases.workspaceSeed);
+  runPhase(
+    'workspaceSeed',
+    'create principal-A workspace guidance',
+    phases.workspaceSeed
+  );
   assertProtectedContractTraffic(protectedTrafficBaseline);
 
   await stopApi();
@@ -77,39 +102,67 @@ async function main() {
     !(await isPortListening(GUIDANCE_CONTRACT_API_PORT)),
     'Contract backend port remained bound during the workspace cold relaunch.'
   );
-  runPhase('suspend workspace guidance with backend absent', phases.workspaceOffline);
+  runPhase(
+    'workspaceOffline',
+    'suspend workspace guidance with backend absent',
+    phases.workspaceOffline
+  );
 
   const reconnectUserCount = authorizedRequestCount('/api/v1/users/me');
   const reconnectCatalogCount = requestCount(
     '/api/v1/mobile/safe-route/routes',
     ''
   );
-  await startApi(GUIDANCE_CONTRACT_MODES.active);
-  runPhase('readmit exact-principal guidance after Retry', phases.workspaceReconnect);
+  await startApi('workspaceReconnect');
+  runPhase(
+    'workspaceReconnect',
+    'readmit exact-principal guidance after Retry',
+    phases.workspaceReconnect
+  );
   assertCondition(
     authorizedRequestCount('/api/v1/users/me') === reconnectUserCount + 1 &&
       requestCount('/api/v1/mobile/safe-route/routes', '') === reconnectCatalogCount + 1,
     'Workspace Retry did not issue one fresh principal check and one unscoped catalog request.'
   );
 
-  runPhase('persist another principal-A journey', phases.workspaceReseed);
-  setMode(GUIDANCE_CONTRACT_MODES.wrongPrincipal);
-  runPhase('reject the same email with a different stable principal', phases.wrongPrincipal);
-  runPhase('prove wrong-principal cleanup survives another cold launch', phases.wrongPrincipalRelaunch);
+  runPhase(
+    'workspaceReseed',
+    'persist another principal-A journey',
+    phases.workspaceReseed
+  );
+  runPhase(
+    'wrongPrincipal',
+    'reject the same email with a different stable principal',
+    phases.wrongPrincipal
+  );
+  runPhase(
+    'wrongPrincipalRelaunch',
+    'prove wrong-principal cleanup survives another cold launch',
+    phases.wrongPrincipalRelaunch
+  );
 
-  setMode(GUIDANCE_CONTRACT_MODES.active);
-  runPhase('sign out principal B and create a fresh principal-A journey', phases.denialSeed);
-  setMode(GUIDANCE_CONTRACT_MODES.denied);
-  runPhase('discard guidance after authoritative catalog denial', phases.denied);
+  runPhase(
+    'denialSeed',
+    'sign out principal B and create a fresh principal-A journey',
+    phases.denialSeed
+  );
+  runPhase(
+    'denied',
+    'discard guidance after authoritative catalog denial',
+    phases.denied
+  );
 
-  setMode(GUIDANCE_CONTRACT_MODES.active);
   const regainCatalogCount = requestCount('/api/v1/mobile/safe-route/routes');
   const regainUnscopedCount = requestCount('/api/v1/mobile/safe-route/routes', '');
   const regainScopedCount = requestCount(
     '/api/v1/mobile/safe-route/routes',
     '?client_id=guidance-workspace'
   );
-  runPhase('restore workspace access without resurrecting denied guidance', phases.regained);
+  runPhase(
+    'regained',
+    'restore workspace access without resurrecting denied guidance',
+    phases.regained
+  );
   assertCondition(
     requestCount('/api/v1/mobile/safe-route/routes') === regainCatalogCount + 3 &&
       requestCount('/api/v1/mobile/safe-route/routes', '') === regainUnscopedCount + 2 &&
@@ -120,17 +173,18 @@ async function main() {
     'Regain should cold-check once, explicitly refresh once, and then load one scoped Saved list.'
   );
 
+  assertRequestJournalIntegrity();
   process.stdout.write(
     `SafeRoute cold guidance matrix passed. Request journal: ${requestLogFile}\n`
   );
 }
 
-async function startApi(mode) {
-  setMode(mode);
+async function startApi(phase) {
+  setControl(phase);
   apiProcess = spawn(process.execPath, [
     'scripts/maestro-guidance-contract-api.mjs',
     '--port', String(GUIDANCE_CONTRACT_API_PORT),
-    '--state-file', stateFile,
+    '--control-file', controlFile,
     '--request-log', requestLogFile
   ], {
     cwd: process.cwd(),
@@ -159,12 +213,16 @@ async function stopApi() {
   await waitForPort(GUIDANCE_CONTRACT_API_PORT, false);
 }
 
-function setMode(mode) {
-  writeFileSync(stateFile, `${mode}\n`, 'utf8');
+function setControl(phase) {
+  const mode = expectedModeByPhase[phase];
+  assertCondition(mode, `No contract mode is configured for ${phase}.`);
+  writeFileSync(pendingControlFile, JSON.stringify({ mode, phase }), 'utf8');
+  renameSync(pendingControlFile, controlFile);
 }
 
-function runPhase(label, file) {
-  process.stdout.write(`\n[guidance-contract] ${label}\n`);
+function runPhase(phase, label, file) {
+  setControl(phase);
+  process.stdout.write(`\n[guidance-contract] ${phase}: ${label}\n`);
   const result = spawnSync(process.execPath, ['scripts/run-maestro.mjs', 'test', file], {
     cwd: process.cwd(),
     env: { ...process.env, MAESTRO_RETRIES: '0' },
@@ -184,6 +242,13 @@ function readRequestJournal() {
   } catch {
     return [];
   }
+}
+
+function assertRequestJournalIntegrity() {
+  assertGuidanceContractRequestJournal(readRequestJournal(), {
+    expectedModeByPhase,
+    requiredPhases: ['wrongPrincipal', 'denied']
+  });
 }
 
 function requestCount(path, search) {

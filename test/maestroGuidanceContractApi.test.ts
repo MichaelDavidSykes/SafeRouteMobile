@@ -1,9 +1,14 @@
 import assert from 'node:assert/strict';
+import { mkdtempSync, readFileSync, rmSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
 import { describe, it } from 'node:test';
 
 import {
   GUIDANCE_CONTRACT_MODES,
+  assertGuidanceContractRequestJournal,
   createGuidanceContractAccessToken,
+  createGuidanceContractRequestJournal,
   startGuidanceContractApi
 } from '../scripts/maestro-guidance-contract-api.mjs';
 
@@ -24,11 +29,21 @@ describe('Maestro guidance contract API', () => {
 
   it('enforces Bearer auth and models principal, denial, regain, and connection loss', async () => {
     let mode = GUIDANCE_CONTRACT_MODES.active;
-    const requests: Array<{ authorized: boolean; path: string }> = [];
+    let phase = 'workspaceSeed';
+    const requests: Array<{
+      authorizationClass: string;
+      authorized: boolean;
+      method: string;
+      mode: string;
+      path: string;
+      phase: string;
+      search: string;
+    }> = [];
     const server = await startGuidanceContractApi({
       port: 0,
       readMode: () => mode,
-      requestLog: (entry: { authorized: boolean; path: string }) => requests.push(entry)
+      readPhase: () => phase,
+      requestLog: (entry: (typeof requests)[number]) => requests.push(entry)
     });
     const address = server.address();
     assert.ok(address && typeof address === 'object');
@@ -120,9 +135,110 @@ describe('Maestro guidance contract API', () => {
       }));
 
       assert.equal(requests[0].authorized, false);
+      assert.equal(requests[0].authorizationClass, 'none');
+      assert.equal(requests[0].method, 'POST');
+      assert.equal(requests[0].mode, GUIDANCE_CONTRACT_MODES.active);
+      assert.equal(requests[0].phase, 'workspaceSeed');
+      assert.equal(requests[0].search, '');
       assert.ok(requests.some((entry) => entry.authorized && entry.path.endsWith('/routes')));
+      assert.ok(requests.some((entry) => entry.authorizationClass === 'unexpected'));
+      phase = 'regained';
+      const health = await fetch(
+        `http://127.0.0.1:${address.port}/__guidance_contract__/health`
+      );
+      assert.equal(health.status, 200);
+      assert.equal(requests.at(-1)?.phase, 'regained');
     } finally {
       await new Promise<void>((resolve) => server.close(() => resolve()));
     }
+  });
+
+  it('continues a durable monotonic request sequence across fixture restarts', () => {
+    const directory = mkdtempSync(join(tmpdir(), 'saferoute-guidance-journal-test-'));
+    const requestLogFile = join(directory, 'requests.jsonl');
+
+    try {
+      const appendFirst = createGuidanceContractRequestJournal({
+        now: () => 100,
+        requestLogFile
+      });
+      appendFirst({ method: 'GET', path: '/first', phase: 'reset' });
+
+      const appendAfterRestart = createGuidanceContractRequestJournal({
+        now: () => 200,
+        requestLogFile
+      });
+      appendAfterRestart({ method: 'POST', path: '/second', phase: 'publicSeed' });
+
+      const entries = readFileSync(requestLogFile, 'utf8')
+        .trim()
+        .split('\n')
+        .map((line) => JSON.parse(line));
+      assert.deepEqual(entries.map((entry) => entry.sequence), [1, 2]);
+      assert.deepEqual(entries.map((entry) => entry.timestampMs), [100, 200]);
+      assert.deepEqual(entries.map((entry) => entry.phase), ['reset', 'publicSeed']);
+    } finally {
+      rmSync(directory, { force: true, recursive: true });
+    }
+  });
+
+  it('rejects inconsistent or incomplete request evidence', () => {
+    const expectedModeByPhase = {
+      wrongPrincipal: GUIDANCE_CONTRACT_MODES.wrongPrincipal,
+      denied: GUIDANCE_CONTRACT_MODES.denied
+    };
+    const entry = ({
+      authorizationClass = 'expected-bearer',
+      authorized = true,
+      mode = GUIDANCE_CONTRACT_MODES.wrongPrincipal,
+      phase = 'wrongPrincipal',
+      sequence = 1
+    } = {}) => ({
+      authorizationClass,
+      authorized,
+      method: 'GET',
+      mode,
+      path: '/api/v1/users/me',
+      phase,
+      search: '',
+      sequence,
+      timestampMs: 100
+    });
+    const validEntries = [
+      entry(),
+      entry({
+        authorizationClass: 'none',
+        authorized: false,
+        mode: GUIDANCE_CONTRACT_MODES.denied,
+        phase: 'denied',
+        sequence: 2
+      })
+    ];
+
+    assert.doesNotThrow(() =>
+      assertGuidanceContractRequestJournal(validEntries, {
+        expectedModeByPhase,
+        requiredPhases: ['wrongPrincipal', 'denied']
+      })
+    );
+    assert.throws(
+      () => assertGuidanceContractRequestJournal([
+        entry({ mode: GUIDANCE_CONTRACT_MODES.denied })
+      ], { expectedModeByPhase }),
+      /phase\/mode mismatch/
+    );
+    assert.throws(
+      () => assertGuidanceContractRequestJournal([
+        entry({ authorizationClass: 'none', authorized: true })
+      ], { expectedModeByPhase }),
+      /metadata was invalid/
+    );
+    assert.throws(
+      () => assertGuidanceContractRequestJournal([entry()], {
+        expectedModeByPhase,
+        requiredPhases: ['wrongPrincipal', 'denied']
+      }),
+      /no evidence for denied/
+    );
   });
 });

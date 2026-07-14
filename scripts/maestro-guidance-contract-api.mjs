@@ -100,17 +100,23 @@ export function createGuidanceContractRoute() {
 }
 
 export function createGuidanceContractHandler({
-  readMode,
+  readControl,
+  readMode = () => GUIDANCE_CONTRACT_MODES.offline,
+  readPhase = () => 'unassigned',
   requestLog = () => undefined
 }) {
   return async (request, response) => {
-    const mode = normalizeMode(readMode());
+    const { mode, phase } = normalizeControlSnapshot(
+      readControl ? readControl() : { mode: readMode(), phase: readPhase() }
+    );
     const url = new URL(request.url || '/', 'http://127.0.0.1');
     requestLog({
+      authorizationClass: classifyAuthorization(request.headers.authorization),
       authorized: hasExpectedBearerAuthorization(request.headers.authorization),
       method: request.method || 'GET',
       mode,
       path: url.pathname,
+      phase,
       search: url.search
     });
 
@@ -285,10 +291,17 @@ export function createGuidanceContractHandler({
 export function startGuidanceContractApi({
   host = '127.0.0.1',
   port = GUIDANCE_CONTRACT_API_PORT,
+  readControl,
   readMode,
+  readPhase,
   requestLog
 }) {
-  const server = createServer(createGuidanceContractHandler({ readMode, requestLog }));
+  const server = createServer(createGuidanceContractHandler({
+    readControl,
+    readMode,
+    readPhase,
+    requestLog
+  }));
   return new Promise((resolve, reject) => {
     server.once('error', reject);
     server.listen(port, host, () => {
@@ -298,11 +311,35 @@ export function startGuidanceContractApi({
   });
 }
 
+function normalizeControlSnapshot(value) {
+  return {
+    mode: normalizeMode(value?.mode),
+    phase: normalizePhase(value?.phase)
+  };
+}
+
 function normalizeMode(value) {
   const normalized = String(value || '').trim();
   return Object.values(GUIDANCE_CONTRACT_MODES).includes(normalized)
     ? normalized
     : GUIDANCE_CONTRACT_MODES.offline;
+}
+
+function normalizePhase(value) {
+  const normalized = String(value || '').trim();
+  return /^[a-z][A-Za-z0-9-]{0,63}$/.test(normalized)
+    ? normalized
+    : 'unassigned';
+}
+
+function classifyAuthorization(value) {
+  const authorization = String(value || '').trim();
+  if (!authorization) {
+    return 'none';
+  }
+  return hasExpectedBearerAuthorization(authorization)
+    ? 'expected-bearer'
+    : 'unexpected';
 }
 
 function isProtectedPath(pathname) {
@@ -430,15 +467,104 @@ function interpolateCoordinates(coordinates) {
   return interpolated;
 }
 
+export function assertGuidanceContractRequestJournal(entries, {
+  expectedModeByPhase,
+  requiredPhases = []
+}) {
+  if (!Array.isArray(entries) || entries.length === 0) {
+    throw new Error('Guidance contract request journal was empty.');
+  }
+
+  const phaseOrder = Object.keys(expectedModeByPhase);
+  const validAuthorizationClasses = new Set([
+    'expected-bearer',
+    'none',
+    'unexpected'
+  ]);
+  let previousPhaseIndex = -1;
+
+  entries.forEach((entry, index) => {
+    const phaseIndex = phaseOrder.indexOf(entry.phase);
+    assertJournalCondition(
+      entry.sequence === index + 1,
+      `Guidance contract request journal sequence broke at line ${index + 1}.`
+    );
+    assertJournalCondition(
+      phaseIndex >= previousPhaseIndex && phaseIndex >= 0,
+      `Guidance contract request journal phase order broke at line ${index + 1}.`
+    );
+    assertJournalCondition(
+      entry.mode === expectedModeByPhase[entry.phase],
+      `Guidance contract request journal phase/mode mismatch at line ${index + 1}.`
+    );
+    assertJournalCondition(
+      typeof entry.authorized === 'boolean' &&
+        validAuthorizationClasses.has(entry.authorizationClass) &&
+        entry.authorized === (entry.authorizationClass === 'expected-bearer') &&
+        typeof entry.method === 'string' && /^[A-Z]+$/.test(entry.method) &&
+        typeof entry.path === 'string' && entry.path.startsWith('/') &&
+        typeof entry.search === 'string' &&
+        Number.isFinite(entry.timestampMs),
+      `Guidance contract request journal metadata was invalid at line ${index + 1}.`
+    );
+    previousPhaseIndex = phaseIndex;
+  });
+
+  for (const phase of requiredPhases) {
+    assertJournalCondition(
+      entries.some((entry) => entry.phase === phase),
+      `Guidance contract request journal had no evidence for ${phase}.`
+    );
+  }
+}
+
+function assertJournalCondition(condition, message) {
+  if (!condition) {
+    throw new Error(message);
+  }
+}
+
+export function createGuidanceContractRequestJournal({
+  now = () => Date.now(),
+  requestLogFile
+}) {
+  let sequence = readExistingJournalLength(requestLogFile);
+  return (entry) => {
+    const journalEntry = {
+      ...entry,
+      sequence: sequence + 1,
+      timestampMs: now()
+    };
+    sequence += 1;
+    appendFileSync(requestLogFile, `${JSON.stringify(journalEntry)}\n`);
+    return journalEntry;
+  };
+}
+
+function readExistingJournalLength(requestLogFile) {
+  try {
+    return readFileSync(requestLogFile, 'utf8')
+      .split('\n')
+      .filter(Boolean)
+      .length;
+  } catch {
+    return 0;
+  }
+}
+
 function parseCliArguments(argumentsList) {
-  const parsed = { port: GUIDANCE_CONTRACT_API_PORT, requestLogFile: '', stateFile: '' };
+  const parsed = {
+    controlFile: '',
+    port: GUIDANCE_CONTRACT_API_PORT,
+    requestLogFile: ''
+  };
   for (let index = 0; index < argumentsList.length; index += 1) {
     const argument = argumentsList[index];
     if (argument === '--port') {
       parsed.port = Number(argumentsList[index + 1]);
       index += 1;
-    } else if (argument === '--state-file') {
-      parsed.stateFile = String(argumentsList[index + 1] || '').trim();
+    } else if (argument === '--control-file') {
+      parsed.controlFile = String(argumentsList[index + 1] || '').trim();
       index += 1;
     } else if (argument === '--request-log') {
       parsed.requestLogFile = String(argumentsList[index + 1] || '').trim();
@@ -448,32 +574,35 @@ function parseCliArguments(argumentsList) {
   if (!Number.isInteger(parsed.port) || parsed.port <= 0 || parsed.port > 65535) {
     throw new Error('Guidance contract API port must be a valid TCP port.');
   }
-  if (!parsed.stateFile) {
-    throw new Error('Guidance contract API requires --state-file.');
+  if (!parsed.controlFile) {
+    throw new Error('Guidance contract API requires --control-file.');
+  }
+  if (!parsed.requestLogFile) {
+    throw new Error('Guidance contract API requires --request-log.');
   }
   return parsed;
 }
 
 async function runCli() {
-  const { port, requestLogFile, stateFile } = parseCliArguments(process.argv.slice(2));
-  const readMode = () => {
+  const { controlFile, port, requestLogFile } = parseCliArguments(
+    process.argv.slice(2)
+  );
+  const readControl = () => {
     try {
-      return readFileSync(stateFile, 'utf8');
+      return JSON.parse(readFileSync(controlFile, 'utf8'));
     } catch {
-      return GUIDANCE_CONTRACT_MODES.offline;
+      return { mode: GUIDANCE_CONTRACT_MODES.offline, phase: 'unassigned' };
     }
   };
+  const appendRequest = createGuidanceContractRequestJournal({ requestLogFile });
   const server = await startGuidanceContractApi({
     port,
-    readMode,
+    readControl,
     requestLog: (entry) => {
-      process.stdout.write(`[guidance-contract-api] ${entry.mode} ${entry.method} ${entry.path}\n`);
-      if (requestLogFile) {
-        appendFileSync(requestLogFile, `${JSON.stringify({
-          ...entry,
-          timestampMs: Date.now()
-        })}\n`);
-      }
+      const journalEntry = appendRequest(entry);
+      process.stdout.write(
+        `[guidance-contract-api] #${journalEntry.sequence} ${entry.phase} ${entry.mode} ${entry.method} ${entry.path}\n`
+      );
     }
   });
   process.stdout.write(`[guidance-contract-api] listening on 127.0.0.1:${port}\n`);

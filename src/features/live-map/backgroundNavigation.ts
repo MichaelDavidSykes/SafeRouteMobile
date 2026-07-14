@@ -40,6 +40,12 @@ export interface BackgroundNavigationAuthorization {
   routeId: string;
 }
 
+export interface BackgroundNavigationStopVerification {
+  nativeTracking: "active" | "not-started" | "unknown" | "unsupported";
+  runtimePermit: "active" | "none" | "pending";
+  stopped: boolean;
+}
+
 const backgroundNavigationLifecycle =
   createBackgroundNavigationLifecycleCoordinator<BackgroundNavigationAuthorization>(
     (left, right) =>
@@ -271,6 +277,37 @@ export async function stopBackgroundNavigation(
       void revokeBackgroundNavigationPermit();
     },
   );
+}
+
+export async function confirmBackgroundNavigationStopped(): Promise<BackgroundNavigationStopVerification> {
+  const runtimePermit = getRuntimeBackgroundNavigationPermitStatus();
+  if (!isBackgroundNavigationRuntimeSupported({
+    executionEnvironment: String(Constants.executionEnvironment || ""),
+    platform: Platform.OS,
+  })) {
+    return {
+      nativeTracking: "unsupported",
+      runtimePermit,
+      stopped: runtimePermit === "none",
+    };
+  }
+
+  try {
+    const started = await Location.hasStartedLocationUpdatesAsync(
+      SAFEROUTE_BACKGROUND_LOCATION_TASK,
+    );
+    return {
+      nativeTracking: started ? "active" : "not-started",
+      runtimePermit,
+      stopped: !started && runtimePermit === "none",
+    };
+  } catch {
+    return {
+      nativeTracking: "unknown",
+      runtimePermit,
+      stopped: false,
+    };
+  }
 }
 
 async function stopStaleBackgroundNavigation(): Promise<BackgroundNavigationResult> {

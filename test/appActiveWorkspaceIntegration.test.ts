@@ -74,7 +74,7 @@ describe("App active workspace integration", () => {
     );
     assert.match(
       app,
-      /await Promise\.all\(\[[\s\S]*navigationCleanup[\s\S]*persistOfflineWorkspaceRecovery[\s\S]*clearOfflineRouteWorkspace/,
+      /await Promise\.all\(\[[\s\S]*navigationCleanup[\s\S]*persistWorkspaceRecoveryWithEvidence[\s\S]*clearOfflineRouteWorkspace/,
     );
     assert.match(app, /workspaceRecoveryPersistence === 'failed'[\s\S]*workspaceIds: new Set<string>\(\)/);
     assert.match(
@@ -240,7 +240,7 @@ describe("App active workspace integration", () => {
     );
     assert.match(
       app,
-      /purgeStagedWorkspaceCaches[\s\S]*Array\.from\(stagedUnavailableWorkspaceIds\)\.map[\s\S]*if \(workspaceAccessRestored\)[\s\S]*stagedPersistence = await persistOfflineWorkspaceRecovery[\s\S]*fallbackUnavailableWorkspaceIds: stagedUnavailableWorkspaceIds[\s\S]*return persistOfflineWorkspaceRecovery[\s\S]*requireFallback: workspaceAccessRestored/,
+      /purgeStagedWorkspaceCaches[\s\S]*Array\.from\(stagedUnavailableWorkspaceIds\)\.map[\s\S]*if \(workspaceAccessRestored\)[\s\S]*stagedPersistence = await persistWorkspaceRecoveryWithEvidence[\s\S]*fallbackUnavailableWorkspaceIds: stagedUnavailableWorkspaceIds[\s\S]*return persistWorkspaceRecoveryWithEvidence[\s\S]*requireFallback: workspaceAccessRestored/,
     );
     assert.match(
       app,
@@ -278,7 +278,7 @@ describe("App active workspace integration", () => {
     );
     assert.match(
       startAuthorization,
-      /persistOfflineWorkspaceRecovery\([\s\S]*Array\.from\(reconciliation\.unavailableWorkspaceIds\)\.map[\s\S]*await Promise\.all\([\s\S]*persistenceResult === 'failed'[\s\S]*freshWorkspaceAuthorizationRef\.current =/,
+      /persistWorkspaceRecoveryWithEvidence\([\s\S]*Array\.from\(reconciliation\.unavailableWorkspaceIds\)\.map[\s\S]*await Promise\.all\([\s\S]*persistenceResult === 'failed'[\s\S]*freshWorkspaceAuthorizationRef\.current =/,
     );
     assert.match(
       app,
@@ -346,14 +346,15 @@ describe("App active workspace integration", () => {
     assert.match(app, /performPersistedNavigationCleanup[\s\S]*stopBackgroundNavigation\(\)[\s\S]*clearActiveNavigationSession\(\)/);
     assert.match(app, /navigationCleanupRequiredRef = useRef\(false\)/);
     assert.match(app, /performPersistedNavigationCleanup[\s\S]*cleanup\[1\]\.value === true/);
-    assert.match(app, /navigationCleanupRequiredRef\.current = !durableClearSucceeded/);
+    assert.match(app, /confirmBackgroundNavigationStopped/);
+    assert.match(app, /navigationCleanupRequiredRef\.current = !cleanupSucceeded/);
     assert.match(app, /!durableClearSucceeded[\s\S]*Saved guidance could not be removed/);
     assert.match(app, /handleRetryNavigationCleanup[\s\S]*Saved guidance removed/);
     assert.match(app, /navigationCleanupRequiredRef\.current \|\|[\s\S]*canResumeActiveNavigationSession/);
     assert.match(app, /handleNavigationSessionChange[\s\S]*navigationCleanupRequiredRef\.current/);
     assert.match(app, /openRoutePreview[\s\S]*navigationCleanupRequiredRef\.current[\s\S]*Finish saved-guidance cleanup/);
     assert.match(app, /NavigationCleanupNotice[\s\S]*onRetry=/);
-    assert.match(app, /unavailableWorkspaceIdsRef\.current = stagedUnavailableWorkspaceIds[\s\S]*availableWorkspacesRef\.current = stagedCatalog[\s\S]*currentNavigationCleanup[\s\S]*persistOfflineWorkspaceRecovery/);
+    assert.match(app, /unavailableWorkspaceIdsRef\.current = stagedUnavailableWorkspaceIds[\s\S]*availableWorkspacesRef\.current = stagedCatalog[\s\S]*currentNavigationCleanup[\s\S]*persistWorkspaceRecoveryWithEvidence/);
     assert.match(app, /recoveryPersistence !== 'persisted'[\s\S]*return;[\s\S]*if \(workspaceAccessRestored\) \{[\s\S]*unavailableWorkspaceIdsRef\.current = unavailableWorkspaceIds[\s\S]*availableWorkspacesRef\.current = catalog/);
     const persistenceIndex = app.indexOf(
       'const workspaceRecoveryPersistence = (async () => {',

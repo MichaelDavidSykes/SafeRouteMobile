@@ -105,7 +105,9 @@ describe('Maestro cold guidance contract matrix', () => {
     const fixture = read('scripts/maestro-guidance-contract-api.mjs');
 
     assert.match(runner, /const controlFile = join\(tempDirectory, 'control\.json'\)/);
+    assert.match(runner, /const evidenceLogFile = join\(tempDirectory, 'evidence\.jsonl'\)/);
     assert.match(runner, /'--control-file', controlFile/);
+    assert.match(runner, /'--evidence-log', evidenceLogFile/);
     assert.match(runner, /renameSync\(pendingControlFile, controlFile\)/);
     assert.match(runner, /function runPhase\(phase, label, file\) \{[\s\S]*setControl\(phase\)/);
     assert.match(
@@ -123,6 +125,21 @@ describe('Maestro cold guidance contract matrix', () => {
     assert.match(fixture, /event: 'completion'/);
     assert.match(fixture, /semanticOutcome/);
     assert.match(runner, /await stopApi\(\);\s*assertRequestJournalIntegrity\(\);/);
+    assert.match(
+      runner,
+      /assertRequestJournalIntegrity\(\);\s*assertEvidenceJournalIntegrity\(\);[\s\S]*Device evidence:/,
+    );
+    assert.match(runner, /minimumOccurredAtMs: evidenceWindowStartedAtMs/);
+    for (const type of [
+      'navigation.persisted',
+      'restore.suspended',
+      'restore.ready',
+      'workspace.recovery.settled',
+      'navigation.cleanup.settled',
+      'tracking.stop.settled',
+    ]) {
+      assert.match(runner, new RegExp(`'${type.replace('.', '\\\.')}'`));
+    }
     assert.match(runner, /kill\('SIGTERM'\)[\s\S]*kill\('SIGKILL'\)/);
     assert.match(runner, /waitForStartBoundaryMarkerOutcome/);
   });

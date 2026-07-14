@@ -4,6 +4,7 @@ import { StyleSheet, View } from 'react-native';
 import { SafeAreaProvider, initialWindowMetrics } from 'react-native-safe-area-context';
 
 import {
+  SAFEROUTE_GUIDANCE_CONTRACT_EVIDENCE_ENABLED,
   SAFEROUTE_PREVIEW_INITIAL_SCREEN,
   SAFEROUTE_PREVIEW_MODE_ENABLED
 } from './src/config/env';
@@ -34,7 +35,10 @@ import {
   clearActiveNavigationSession,
   loadActiveNavigationSession
 } from './src/features/live-map/activeNavigationSession';
-import { stopBackgroundNavigation } from './src/features/live-map/backgroundNavigation';
+import {
+  confirmBackgroundNavigationStopped,
+  stopBackgroundNavigation,
+} from './src/features/live-map/backgroundNavigation';
 import { ResumeNavigationButton } from './src/features/live-map/ResumeNavigationButton';
 import {
   DEFAULT_SIGN_IN_PROMPT,
@@ -91,6 +95,10 @@ import { authorizeWorkspaceNavigationStart } from './src/features/workspaces/wor
 import { SuspendedNavigationNotice } from './src/features/live-map/SuspendedNavigationNotice';
 import { NavigationCleanupNotice } from './src/features/live-map/NavigationCleanupNotice';
 import { isNavigationStartRequestCurrent } from './src/features/live-map/navigationStartRequestIdentity';
+import {
+  flushGuidanceContractEvidence,
+  recordGuidanceContractEvidence,
+} from './src/testing/guidanceContractEvidence';
 import type { SuspendedNavigationStatus } from './src/features/live-map/suspendedNavigationState';
 
 type PendingNavigationRestore = {
@@ -101,6 +109,9 @@ type PendingNavigationRestore = {
 type NavigationCleanupStatus = 'idle' | 'checking' | 'failed';
 
 export default function App() {
+  useEffect(() => {
+    void flushGuidanceContractEvidence();
+  }, []);
   const { offline } = useNetworkAvailability();
   const [session, setSession] = useState<AuthSession | null>(null);
   const [selectedRoute, setSelectedRoute] = useState<SavedSafeRoutePlan | null>(null);
@@ -231,6 +242,28 @@ export default function App() {
     setSelectedRoute(nextNavigationSession.routePlan);
     setRoutePreviewSource(nextNavigationSession.routeContext);
     setScreen('route-preview');
+    void recordGuidanceContractEvidence({
+      authorization: {
+        catalog: nextNavigationSession.accessScope.kind === 'workspace'
+          ? 'fresh-authorized'
+          : 'not-checked',
+        principal: nextNavigationSession.accessScope.kind === 'workspace'
+          ? 'matching'
+          : 'none',
+      },
+      cause: nextNavigationSession.accessScope.kind === 'workspace'
+        ? 'workspace-fresh-authorized'
+        : 'public-cold-restore',
+      durability: { activeNavigation: 'present' },
+      navigationInstanceId: nextNavigationSession.navigationInstanceId,
+      outcome: 'ready',
+      routeId: nextNavigationSession.routePlan.route.id,
+      type: 'restore.ready',
+      unavailableWorkspaceIds: [],
+      workspaceId: nextNavigationSession.accessScope.kind === 'workspace'
+        ? nextNavigationSession.accessScope.clientId
+        : null,
+    });
     return true;
   };
 
@@ -255,7 +288,9 @@ export default function App() {
     setPendingNavigationRestore({ session: pendingSession, status });
   };
 
-  const performPersistedNavigationCleanup = async () => {
+  const performPersistedNavigationCleanup = async (
+    evidenceSession: ActiveNavigationSession | null,
+  ) => {
     if (navigationCleanupPromiseRef.current) {
       return navigationCleanupPromiseRef.current;
     }
@@ -265,12 +300,65 @@ export default function App() {
     const cleanupPromise = Promise.allSettled([
       stopBackgroundNavigation(),
       clearActiveNavigationSession(),
-    ]).then((cleanup) => {
+    ]).then(async (cleanup) => {
       const durableClearSucceeded =
         cleanup[1].status === 'fulfilled' && cleanup[1].value === true;
-      navigationCleanupRequiredRef.current = !durableClearSucceeded;
-      setNavigationCleanupStatus(durableClearSucceeded ? 'idle' : 'failed');
-      return durableClearSucceeded;
+      const trackingVerification =
+        cleanup[0].status === 'fulfilled' && durableClearSucceeded
+          ? await confirmBackgroundNavigationStopped()
+          : {
+              nativeTracking: 'unknown' as const,
+              runtimePermit: 'unknown' as const,
+              stopped: false,
+            };
+      const cleanupSucceeded = durableClearSucceeded && trackingVerification.stopped;
+      const workspaceId = evidenceSession?.accessScope.kind === 'workspace'
+        ? evidenceSession.accessScope.clientId
+        : null;
+      await Promise.all([
+        recordGuidanceContractEvidence({
+          authorization: {
+            catalog: 'not-checked',
+            principal: evidenceSession?.accessScope.kind === 'workspace'
+              ? 'matching'
+              : 'none',
+          },
+          cause: 'navigation-discard',
+          durability: {
+            activeNavigation: durableClearSucceeded ? 'revoked' : 'unknown',
+            persistedPermit: durableClearSucceeded ? 'revoked' : 'unknown',
+          },
+          navigationInstanceId: evidenceSession?.navigationInstanceId || null,
+          outcome: durableClearSucceeded ? 'cleared' : 'failed',
+          routeId: evidenceSession?.routePlan.route.id || null,
+          type: 'navigation.cleanup.settled',
+          unavailableWorkspaceIds: workspaceId ? [workspaceId] : [],
+          workspaceId,
+        }),
+        recordGuidanceContractEvidence({
+          authorization: {
+            catalog: 'not-checked',
+            principal: evidenceSession?.accessScope.kind === 'workspace'
+              ? 'matching'
+              : 'none',
+          },
+          cause: 'navigation-discard',
+          durability: {
+            nativeTracking: trackingVerification.nativeTracking,
+            persistedPermit: durableClearSucceeded ? 'revoked' : 'unknown',
+            runtimePermit: trackingVerification.runtimePermit,
+          },
+          navigationInstanceId: evidenceSession?.navigationInstanceId || null,
+          outcome: trackingVerification.stopped ? 'off' : 'unknown',
+          routeId: evidenceSession?.routePlan.route.id || null,
+          type: 'tracking.stop.settled',
+          unavailableWorkspaceIds: workspaceId ? [workspaceId] : [],
+          workspaceId,
+        }),
+      ]);
+      navigationCleanupRequiredRef.current = !cleanupSucceeded;
+      setNavigationCleanupStatus(cleanupSucceeded ? 'idle' : 'failed');
+      return cleanupSucceeded;
     }).finally(() => {
       navigationCleanupPromiseRef.current = null;
     });
@@ -279,13 +367,15 @@ export default function App() {
   };
 
   const discardPersistedNavigation = async (message?: string) => {
+    const evidenceSession =
+      pendingNavigationRestoreRef.current || activeNavigationSessionRef.current;
     pendingNavigationRestoreRef.current = null;
     setPendingNavigationRestore(null);
     activeNavigationSessionRef.current = null;
     selectedRouteRef.current = null;
     setActiveNavigationSession(null);
     setSelectedRoute(null);
-    const durableClearSucceeded = await performPersistedNavigationCleanup();
+    const durableClearSucceeded = await performPersistedNavigationCleanup(evidenceSession);
     if (!durableClearSucceeded) {
       setSessionMessage(
         'Saved guidance could not be removed. Retry cleanup before starting another route.',
@@ -299,7 +389,7 @@ export default function App() {
   };
 
   const handleRetryNavigationCleanup = async () => {
-    const durableClearSucceeded = await performPersistedNavigationCleanup();
+    const durableClearSucceeded = await performPersistedNavigationCleanup(null);
     setSessionMessage(
       durableClearSucceeded
         ? 'Saved guidance removed. You can start another route.'
@@ -427,6 +517,7 @@ export default function App() {
               stagePendingNavigationRestore(persistedNavigation);
               setSessionMessage('Checking workspace access before restoring guidance…');
               await stopBackgroundNavigation();
+              await recordNavigationRestoreSuspended(persistedNavigation);
             } else {
               await discardPersistedNavigation(
                 'Active guidance belongs to another signed-in account. Plot the route again.',
@@ -512,6 +603,7 @@ export default function App() {
         stagePendingNavigationRestore(persistedNavigation);
         setSessionMessage('Checking workspace access before restoring guidance…');
         await stopBackgroundNavigation();
+        await recordNavigationRestoreSuspended(persistedNavigation);
         setScreen('guest-map');
       } else {
         await discardPersistedNavigation(
@@ -866,7 +958,7 @@ export default function App() {
           );
         const workspaceRecoveryPersistence = (async () => {
           if (workspaceAccessRestored) {
-            const stagedPersistence = await persistOfflineWorkspaceRecovery(
+            const stagedPersistence = await persistWorkspaceRecoveryWithEvidence(
               principalId,
               {
                 activeWorkspaceId: stagedResolvedWorkspace?.id || null,
@@ -877,13 +969,14 @@ export default function App() {
               {
                 fallbackUnavailableWorkspaceIds: stagedUnavailableWorkspaceIds,
               },
+              'catalog-restoration-staged',
             );
             if (stagedPersistence !== 'persisted') {
               return stagedPersistence;
             }
           }
 
-          return persistOfflineWorkspaceRecovery(
+          return persistWorkspaceRecoveryWithEvidence(
             principalId,
             {
               activeWorkspaceId: resolvedWorkspace?.id || null,
@@ -895,6 +988,9 @@ export default function App() {
               fallbackUnavailableWorkspaceIds: stagedUnavailableWorkspaceIds,
               requireFallback: workspaceAccessRestored,
             },
+            workspaceAccessRestored
+              ? 'catalog-restoration-final'
+              : 'catalog-reconciliation',
           );
         })();
         const [, , recoveryPersistence] = await Promise.all([
@@ -1160,7 +1256,7 @@ export default function App() {
     }
     const [, workspaceRecoveryPersistence] = await Promise.all([
       navigationCleanup,
-      persistOfflineWorkspaceRecovery(
+      persistWorkspaceRecoveryWithEvidence(
         principalId,
         {
           activeWorkspaceId: recovery.activeWorkspace?.id || null,
@@ -1170,6 +1266,8 @@ export default function App() {
         Array.from(unavailableWorkspaceIdsRef.current).map((workspaceId) =>
           () => clearOfflineRouteWorkspace(principalId, workspaceId)
         ),
+        undefined,
+        'workspace-access-loss',
       ),
     ]);
     if (!recoveryIsCurrent()) {
@@ -1309,7 +1407,7 @@ export default function App() {
             'Active guidance ended because this workspace is no longer available.',
           )
         : Promise.resolve(true);
-      const recoveryPersistence = persistOfflineWorkspaceRecovery(
+      const recoveryPersistence = persistWorkspaceRecoveryWithEvidence(
         principalId,
         {
           activeWorkspaceId: reconciliation.activeWorkspace?.id || null,
@@ -1319,6 +1417,8 @@ export default function App() {
         Array.from(reconciliation.unavailableWorkspaceIds).map((unavailableWorkspaceId) =>
           () => clearOfflineRouteWorkspace(principalId, unavailableWorkspaceId)
         ),
+        undefined,
+        'navigation-start-revalidation',
       );
       const [, persistenceResult] = await Promise.all([
         navigationCleanup,
@@ -1674,6 +1774,80 @@ export default function App() {
       </View>
     </SafeAreaProvider>
   );
+}
+
+async function recordNavigationRestoreSuspended(
+  navigation: ActiveNavigationSession,
+): Promise<void> {
+  if (!SAFEROUTE_GUIDANCE_CONTRACT_EVIDENCE_ENABLED) {
+    return;
+  }
+  const trackingVerification = await confirmBackgroundNavigationStopped();
+  const workspaceId = navigation.accessScope.kind === 'workspace'
+    ? navigation.accessScope.clientId
+    : null;
+  await recordGuidanceContractEvidence({
+    authorization: {
+      catalog: 'unavailable',
+      principal: navigation.accessScope.kind === 'workspace' ? 'matching' : 'none',
+    },
+    cause: 'workspace-authorization-pending',
+    durability: {
+      activeNavigation: 'present',
+      nativeTracking: trackingVerification.nativeTracking,
+      runtimePermit: trackingVerification.runtimePermit,
+    },
+    navigationInstanceId: navigation.navigationInstanceId,
+    outcome: trackingVerification.stopped ? 'suspended' : 'tracking-unknown',
+    routeId: navigation.routePlan.route.id,
+    type: 'restore.suspended',
+    unavailableWorkspaceIds: [],
+    workspaceId,
+  });
+}
+
+async function persistWorkspaceRecoveryWithEvidence(
+  principalId: string,
+  context: Parameters<typeof persistOfflineWorkspaceRecovery>[1],
+  purgeWorkspaceCaches: Parameters<typeof persistOfflineWorkspaceRecovery>[2],
+  options: Parameters<typeof persistOfflineWorkspaceRecovery>[3] = undefined,
+  cause = 'workspace-recovery',
+) {
+  const result = await persistOfflineWorkspaceRecovery(
+    principalId,
+    context,
+    purgeWorkspaceCaches,
+    options,
+  );
+  const unavailableWorkspaceIds = Array.from(context.unavailableWorkspaceIds || []);
+  await recordGuidanceContractEvidence({
+    authorization: {
+      catalog: unavailableWorkspaceIds.length ? 'fresh-denied' : 'fresh-authorized',
+      principal: 'matching',
+    },
+    cause,
+    durability: {
+      routeCache:
+        result === 'persisted' && purgeWorkspaceCaches.length > 0
+          ? 'purged'
+          : result === 'failed'
+            ? 'failed'
+            : 'unknown',
+      workspaceContext:
+        result === 'persisted'
+          ? 'persisted'
+          : result === 'revoked'
+            ? 'revoked'
+            : 'failed',
+    },
+    navigationInstanceId: null,
+    outcome: result,
+    routeId: null,
+    type: 'workspace.recovery.settled',
+    unavailableWorkspaceIds,
+    workspaceId: unavailableWorkspaceIds[0] || context.activeWorkspaceId || null,
+  });
+  return result;
 }
 
 function screenForAuthenticatedPreview(

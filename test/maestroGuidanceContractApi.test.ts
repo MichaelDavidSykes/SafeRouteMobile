@@ -5,11 +5,14 @@ import { join } from 'node:path';
 import { describe, it } from 'node:test';
 
 import {
+  GUIDANCE_CONTRACT_EVIDENCE_PATH,
   GUIDANCE_CONTRACT_MODES,
   GUIDANCE_START_BOUNDARY_PATH,
+  assertGuidanceContractEvidenceJournal,
   assertGuidanceContractRequestJournal,
   assertGuidanceStartTrafficBoundary,
   createGuidanceContractAccessToken,
+  createGuidanceContractEvidenceJournal,
   createGuidanceContractRequestJournal,
   startGuidanceContractApi
 } from '../scripts/maestro-guidance-contract-api.mjs';
@@ -27,6 +30,255 @@ describe('Maestro guidance contract API', () => {
     assert.equal(payload.iat, 9_999);
     assert.equal(payload.exp, 96_400);
     assert.equal(signature, 'guidance-contract-signature');
+  });
+
+  it('acknowledges exact device evidence and rejects missing headers or ID conflicts', async () => {
+    const recorded = new Map<string, string>();
+    const server = await startGuidanceContractApi({
+      evidenceLog: (entry: Record<string, unknown>) => {
+        const fingerprint = JSON.stringify(entry);
+        const previous = recorded.get(String(entry.eventId));
+        if (previous) {
+          return previous === fingerprint ? 'duplicate' : 'conflict';
+        }
+        recorded.set(String(entry.eventId), fingerprint);
+        return 'recorded';
+      },
+      port: 0,
+      readControl: () => ({ mode: GUIDANCE_CONTRACT_MODES.active, phase: 'workspaceStart' })
+    });
+    const address = server.address();
+    assert.ok(address && typeof address === 'object');
+    const endpoint = `http://127.0.0.1:${address.port}${GUIDANCE_CONTRACT_EVIDENCE_PATH}`;
+    const body = {
+      authorization: { catalog: 'fresh-authorized', principal: 'matching' },
+      cause: 'navigation-state-persist',
+      durability: { activeNavigation: 'present' },
+      eventId: 'evidence-event-1',
+      navigationInstanceId: 'navigation-1',
+      occurredAtMs: 100,
+      outcome: 'persisted',
+      routeId: 'route-1',
+      schema: 1,
+      sourceRevision: 'a'.repeat(40),
+      type: 'navigation.persisted',
+      unavailableWorkspaceIds: [],
+      workspaceId: 'workspace-1'
+    };
+    try {
+      assert.equal((await fetch(endpoint, {
+        body: JSON.stringify(body),
+        headers: { 'Content-Type': 'application/json' },
+        method: 'POST'
+      })).status, 403);
+      const send = (value: object) => fetch(endpoint, {
+        body: JSON.stringify(value),
+        headers: {
+          'Content-Type': 'application/json',
+          'X-SafeRoute-Guidance-Contract-Evidence': '1'
+        },
+        method: 'POST'
+      });
+      const recordedResponse = await send(body);
+      assert.equal(recordedResponse.status, 200);
+      assert.deepEqual((await recordedResponse.json()).data, {
+        event_id: 'evidence-event-1',
+        result: 'recorded'
+      });
+      assert.equal((await send(body)).status, 200);
+      assert.equal((await send({ ...body, outcome: 'different' })).status, 409);
+    } finally {
+      await new Promise<void>((resolve) => server.close(() => resolve()));
+    }
+  });
+
+  it('journals correlated durable lifecycle evidence across API restarts', () => {
+    const directory = mkdtempSync(join(tmpdir(), 'saferoute-evidence-'));
+    const evidenceLogFile = join(directory, 'evidence.jsonl');
+    const append = createGuidanceContractEvidenceJournal({
+      evidenceLogFile,
+      now: () => 500
+    });
+    const persisted = {
+      authorization: { catalog: 'fresh-authorized', principal: 'matching' },
+      cause: 'navigation-state-persist',
+      durability: { activeNavigation: 'present' },
+      eventId: 'evidence-event-1',
+      navigationInstanceId: 'navigation-1',
+      occurredAtMs: 100,
+      outcome: 'persisted',
+      routeId: 'route-1',
+      schema: 1,
+      sourceRevision: 'a'.repeat(40),
+      type: 'navigation.persisted',
+      unavailableWorkspaceIds: [],
+      workspaceId: 'workspace-1'
+    };
+    const suspended = {
+      ...persisted,
+      authorization: { catalog: 'unavailable', principal: 'matching' },
+      cause: 'workspace-authorization-pending',
+      durability: {
+        activeNavigation: 'present',
+        nativeTracking: 'not-started',
+        runtimePermit: 'none'
+      },
+      eventId: 'evidence-event-2',
+      occurredAtMs: 200,
+      outcome: 'suspended',
+      type: 'restore.suspended'
+    };
+    const ready = {
+      ...persisted,
+      eventId: 'evidence-event-3',
+      occurredAtMs: 300,
+      outcome: 'ready',
+      type: 'restore.ready'
+    };
+    const recovery = {
+      ...persisted,
+      authorization: { catalog: 'fresh-denied', principal: 'matching' },
+      cause: 'workspace-access-loss',
+      durability: { routeCache: 'purged', workspaceContext: 'persisted' },
+      eventId: 'evidence-event-4',
+      navigationInstanceId: null,
+      occurredAtMs: 350,
+      outcome: 'persisted',
+      routeId: null,
+      type: 'workspace.recovery.settled',
+      unavailableWorkspaceIds: ['workspace-1']
+    };
+    const cleanup = {
+      ...persisted,
+      authorization: { catalog: 'not-checked', principal: 'matching' },
+      cause: 'navigation-discard',
+      durability: { activeNavigation: 'revoked', persistedPermit: 'revoked' },
+      eventId: 'evidence-event-5',
+      occurredAtMs: 400,
+      outcome: 'cleared',
+      type: 'navigation.cleanup.settled'
+    };
+    const tracking = {
+      ...cleanup,
+      durability: {
+        nativeTracking: 'not-started',
+        persistedPermit: 'revoked',
+        runtimePermit: 'none'
+      },
+      eventId: 'evidence-event-6',
+      occurredAtMs: 410,
+      outcome: 'off',
+      type: 'tracking.stop.settled'
+    };
+    try {
+      assert.equal(append(persisted, {
+        mode: GUIDANCE_CONTRACT_MODES.active,
+        phase: 'workspaceStart'
+      }), 'recorded');
+      assert.equal(append(persisted, {
+        mode: GUIDANCE_CONTRACT_MODES.active,
+        phase: 'workspaceStart'
+      }), 'duplicate');
+      assert.equal(append({ ...persisted, outcome: 'changed' }, {
+        mode: GUIDANCE_CONTRACT_MODES.active,
+        phase: 'workspaceStart'
+      }), 'conflict');
+      assert.equal(append(suspended, {
+        mode: GUIDANCE_CONTRACT_MODES.offline,
+        phase: 'workspaceOffline'
+      }), 'recorded');
+      assert.equal(append(ready, {
+        mode: GUIDANCE_CONTRACT_MODES.active,
+        phase: 'workspaceReconnect'
+      }), 'recorded');
+      assert.equal(append(recovery, {
+        mode: GUIDANCE_CONTRACT_MODES.denied,
+        phase: 'denied'
+      }), 'recorded');
+      assert.equal(append(cleanup, {
+        mode: GUIDANCE_CONTRACT_MODES.denied,
+        phase: 'denied'
+      }), 'recorded');
+      assert.equal(append(tracking, {
+        mode: GUIDANCE_CONTRACT_MODES.denied,
+        phase: 'denied'
+      }), 'recorded');
+      const entries = readFileSync(evidenceLogFile, 'utf8')
+        .trim()
+        .split('\n')
+        .map((line) => JSON.parse(line));
+      assert.doesNotThrow(() => assertGuidanceContractEvidenceJournal(entries, {
+        expectedSourceRevision: 'a'.repeat(40),
+        requiredTypes: ['navigation.persisted', 'restore.suspended']
+      }));
+      assert.doesNotThrow(() => assertGuidanceContractEvidenceJournal(entries, {
+        expectedSourceRevision: 'a'.repeat(40),
+        requiredTypes: [
+          'navigation.persisted',
+          'restore.suspended',
+          'restore.ready',
+          'workspace.recovery.settled',
+          'navigation.cleanup.settled',
+          'tracking.stop.settled'
+        ]
+      }));
+      const lifecycleEntry = (
+        entry: Record<string, unknown>,
+        sequence: number,
+        eventId: string,
+        navigationInstanceId: string,
+      ) => ({
+        ...entry,
+        eventId,
+        navigationInstanceId,
+        sequence,
+      });
+      assert.throws(() => assertGuidanceContractEvidenceJournal([
+        lifecycleEntry(entries[0], 1, 'split-persist-a', 'navigation-a'),
+        lifecycleEntry(entries[4], 2, 'split-cleanup-a', 'navigation-a'),
+        lifecycleEntry(entries[0], 3, 'split-persist-b', 'navigation-b'),
+        lifecycleEntry(entries[5], 4, 'split-tracking-b', 'navigation-b'),
+        lifecycleEntry(entries[4], 5, 'split-cleanup-c', 'navigation-c'),
+        lifecycleEntry(entries[5], 6, 'split-tracking-c', 'navigation-c'),
+      ], {
+        expectedSourceRevision: 'a'.repeat(40),
+        requiredTypes: [
+          'navigation.persisted',
+          'navigation.cleanup.settled',
+          'tracking.stop.settled'
+        ]
+      }), /no correlated navigation cleanup and tracking stop/);
+      assert.throws(() => assertGuidanceContractEvidenceJournal([
+        entries[0],
+        {
+          ...entries[1],
+          durability: { ...entries[1].durability, nativeTracking: 'active' }
+        }
+      ], {
+        expectedSourceRevision: 'a'.repeat(40),
+        requiredTypes: ['navigation.persisted', 'restore.suspended']
+      }), /no successful restore\.suspended event/);
+      assert.throws(() => assertGuidanceContractEvidenceJournal([
+        entries[0],
+        { ...entries[1], serverPhase: 'reset' }
+      ], {
+        expectedSourceRevision: 'a'.repeat(40),
+        requiredTypes: ['navigation.persisted', 'restore.suspended']
+      }), /no successful restore\.suspended event/);
+      assert.throws(() => assertGuidanceContractEvidenceJournal(entries, {
+        expectedSourceRevision: 'a'.repeat(40),
+        minimumOccurredAtMs: 150,
+        requiredTypes: ['navigation.persisted']
+      }), /no successful navigation\.persisted event/);
+      assert.throws(() => assertGuidanceContractEvidenceJournal([
+        { ...entries[1], sequence: 1 },
+      ], {
+        expectedSourceRevision: 'a'.repeat(40),
+        requiredTypes: ['restore.suspended']
+      }), /persisted-navigation correlation/);
+    } finally {
+      rmSync(directory, { force: true, recursive: true });
+    }
   });
 
   it('enforces Bearer auth and models principal, denial, regain, and connection loss', async () => {

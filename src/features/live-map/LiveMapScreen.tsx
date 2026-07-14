@@ -86,6 +86,7 @@ import {
   clearActiveNavigationSession,
   saveActiveNavigationSession,
 } from "./activeNavigationSession";
+import { recordGuidanceContractEvidence } from "../../testing/guidanceContractEvidence";
 import { normalizeReliableLocationSample } from "./locationSignal";
 import { useNetworkAvailability } from "../api/useNetworkAvailability";
 import { getRequestSessionExpiry } from "../api/sessionExpiry";
@@ -140,6 +141,8 @@ export function LiveMapScreen({
   );
   const progressRef = useRef<ReturnType<typeof calculateRouteProgress>>(null);
   const activeSessionSnapshotRef = useRef<ActiveNavigationSession | null>(null);
+  const navigationPersistenceRevisionRef = useRef(0);
+  const persistedEvidenceNavigationIdRef = useRef<string | null>(null);
   const navigationAuthorizationGateRef = useRef(createNavigationStartAuthorizationGate());
   const navigationStartBlockedReasonRef = useRef<string | null>(null);
   const onAuthorizeNavigationStartRef = useRef(onAuthorizeNavigationStart);
@@ -283,6 +286,7 @@ export function LiveMapScreen({
     rerouteStateRef.current = stoppedRerouteState;
     setRerouteState(stoppedRerouteState);
     activeSessionSnapshotRef.current = null;
+    navigationPersistenceRevisionRef.current += 1;
     onWorkspaceUnavailableRef.current?.(normalizedWorkspaceId);
     onNavigationSessionChangeRef.current?.(null);
     void clearActiveNavigationSession();
@@ -805,6 +809,8 @@ export function LiveMapScreen({
         : null;
     const nextRoutePlan = nextResumeSession?.routePlan || routePlan;
     activeRerouteRequestRef.current?.abort();
+    navigationPersistenceRevisionRef.current += 1;
+    persistedEvidenceNavigationIdRef.current = null;
     activeRerouteRequestRef.current = null;
     setActiveRoutePlan(nextRoutePlan);
     liveRoutePlanRef.current = nextRoutePlan;
@@ -853,6 +859,7 @@ export function LiveMapScreen({
 
     if (navigationState === "stopped" || navigationState === "arrived") {
       activeSessionSnapshotRef.current = null;
+      navigationPersistenceRevisionRef.current += 1;
       onNavigationSessionChangeRef.current?.(null);
       void clearActiveNavigationSession();
       return;
@@ -862,21 +869,57 @@ export function LiveMapScreen({
       return;
     }
 
-    const persistCurrentSession = () => {
+    const persistCurrentSession = async () => {
       const snapshot = activeSessionSnapshotRef.current;
       if (!snapshot) {
         return;
       }
       const accepted = onNavigationSessionChangeRef.current?.(snapshot);
       if (accepted === false) {
+        navigationPersistenceRevisionRef.current += 1;
         void clearActiveNavigationSession();
         return;
       }
-      void saveActiveNavigationSession(snapshot);
+      const persistenceRevision = navigationPersistenceRevisionRef.current;
+      const saved = await saveActiveNavigationSession(snapshot);
+      if (
+        !saved ||
+        persistenceRevision !== navigationPersistenceRevisionRef.current ||
+        activeSessionSnapshotRef.current?.navigationInstanceId !==
+          snapshot.navigationInstanceId ||
+        persistedEvidenceNavigationIdRef.current === snapshot.navigationInstanceId
+      ) {
+        return;
+      }
+      const evidenceRecorded = await recordGuidanceContractEvidence({
+        authorization: {
+          catalog: snapshot.accessScope.kind === "workspace"
+            ? "fresh-authorized"
+            : "not-checked",
+          principal: snapshot.accessScope.kind === "workspace" ? "matching" : "none",
+        },
+        cause: "navigation-state-persist",
+        durability: {
+          activeNavigation: "present",
+        },
+        navigationInstanceId: snapshot.navigationInstanceId,
+        outcome: "persisted",
+        routeId: snapshot.routePlan.route.id,
+        type: "navigation.persisted",
+        unavailableWorkspaceIds: [],
+        workspaceId: snapshot.accessScope.kind === "workspace"
+          ? snapshot.accessScope.clientId
+          : null,
+      });
+      if (evidenceRecorded) {
+        persistedEvidenceNavigationIdRef.current = snapshot.navigationInstanceId;
+      }
     };
 
-    persistCurrentSession();
-    const interval = setInterval(persistCurrentSession, 5_000);
+    void persistCurrentSession();
+    const interval = setInterval(() => {
+      void persistCurrentSession();
+    }, 5_000);
     return () => clearInterval(interval);
   }, [activeRoutePlan.route.id, demoDriveActive, navigationState, routeContext]);
 
@@ -1200,6 +1243,7 @@ export function LiveMapScreen({
     );
     commitRerouteState(stoppedRerouteState);
     activeSessionSnapshotRef.current = null;
+    navigationPersistenceRevisionRef.current += 1;
     onNavigationSessionChangeRef.current?.(null);
     void clearActiveNavigationSession();
     void stopBackgroundNavigation();

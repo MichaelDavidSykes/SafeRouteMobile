@@ -16,6 +16,7 @@ import {
   GUIDANCE_CONTRACT_API_PORT,
   GUIDANCE_CONTRACT_MODES,
   GUIDANCE_START_BOUNDARY_PATH,
+  assertGuidanceContractEvidenceJournal,
   assertGuidanceContractRequestJournal,
   assertGuidanceStartTrafficBoundary,
   isGuidanceStartProtectedTraffic
@@ -34,12 +35,22 @@ const METRO_PORT = 8081;
 const EXPO_GO_BUNDLE_ID = 'host.exp.Exponent';
 const tempDirectory = mkdtempSync(join(tmpdir(), 'saferoute-guidance-contract-'));
 const controlFile = join(tempDirectory, 'control.json');
+const evidenceLogFile = join(tempDirectory, 'evidence.jsonl');
 const pendingControlFile = join(tempDirectory, 'control.pending.json');
 const requestLogFile = join(tempDirectory, 'requests.jsonl');
 const serverLogFile = join(tempDirectory, 'server.log');
 const serverLogFd = openSync(serverLogFile, 'a');
+const evidenceWindowStartedAtMs = Date.now();
 let apiProcess = null;
 const completedStartBoundaries = [];
+const requiredEvidenceTypes = [
+  'navigation.persisted',
+  'restore.suspended',
+  'restore.ready',
+  'workspace.recovery.settled',
+  'navigation.cleanup.settled',
+  'tracking.stop.settled'
+];
 
 const phases = {
   reset: 'maestro/ios-guidance-contract-reset.yaml',
@@ -320,8 +331,10 @@ async function main() {
 
   await stopApi();
   assertRequestJournalIntegrity();
+  assertEvidenceJournalIntegrity();
   process.stdout.write(
-    `SafeRoute cold guidance matrix passed. Request journal: ${requestLogFile}\n`
+    `SafeRoute cold guidance matrix passed. Request journal: ${requestLogFile}. ` +
+    `Device evidence: ${evidenceLogFile}\n`
   );
 }
 
@@ -331,7 +344,8 @@ async function startApi(phase) {
     'scripts/maestro-guidance-contract-api.mjs',
     '--port', String(GUIDANCE_CONTRACT_API_PORT),
     '--control-file', controlFile,
-    '--request-log', requestLogFile
+    '--request-log', requestLogFile,
+    '--evidence-log', evidenceLogFile
   ], {
     cwd: process.cwd(),
     env: process.env,
@@ -536,6 +550,17 @@ function readRequestJournal() {
   }
 }
 
+function readEvidenceJournal() {
+  try {
+    return readFileSync(evidenceLogFile, 'utf8')
+      .split('\n')
+      .filter(Boolean)
+      .map((line) => JSON.parse(line));
+  } catch {
+    return [];
+  }
+}
+
 function assertRequestJournalIntegrity() {
   const entries = readRequestJournal();
   assertGuidanceContractRequestJournal(entries, {
@@ -545,6 +570,14 @@ function assertRequestJournalIntegrity() {
   for (const boundary of completedStartBoundaries) {
     assertGuidanceStartTrafficBoundary(entries, boundary);
   }
+}
+
+function assertEvidenceJournalIntegrity() {
+  assertGuidanceContractEvidenceJournal(readEvidenceJournal(), {
+    expectedSourceRevision: readCurrentSourceRevision(),
+    minimumOccurredAtMs: evidenceWindowStartedAtMs,
+    requiredTypes: requiredEvidenceTypes
+  });
 }
 
 function requestCount(path, search) {
@@ -646,5 +679,7 @@ try {
   await stopApi().catch(() => undefined);
   if (process.exitCode) {
     process.stderr.write(`Guidance contract server log: ${serverLogFile}\n`);
+    process.stderr.write(`Guidance contract request journal: ${requestLogFile}\n`);
+    process.stderr.write(`Guidance contract device evidence: ${evidenceLogFile}\n`);
   }
 }

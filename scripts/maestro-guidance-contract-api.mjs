@@ -13,6 +13,45 @@ export const GUIDANCE_CONTRACT_MODES = Object.freeze({
 });
 
 export const GUIDANCE_START_BOUNDARY_PATH = '/__guidance_contract__/boundary';
+export const GUIDANCE_CONTRACT_EVIDENCE_PATH = '/__guidance_contract__/evidence';
+export const GUIDANCE_CONTRACT_EVIDENCE_TYPES = Object.freeze([
+  'navigation.persisted',
+  'restore.suspended',
+  'restore.ready',
+  'workspace.recovery.settled',
+  'navigation.cleanup.settled',
+  'tracking.stop.settled'
+]);
+const GUIDANCE_CONTRACT_EVIDENCE_PHASES = Object.freeze({
+  'navigation.persisted': new Set([
+    'publicStart',
+    'workspaceStart',
+    'workspaceReconnect',
+    'workspaceReseedStart',
+    'denialSeedStart'
+  ]),
+  'restore.suspended': new Set(['workspaceOffline', 'workspaceReconnect']),
+  'restore.ready': new Set(['workspacePrepare', 'workspaceReconnect']),
+  'workspace.recovery.settled': new Set([
+    'deniedStart',
+    'workspaceReconnect',
+    'wrongPrincipal',
+    'denied',
+    'regained'
+  ]),
+  'navigation.cleanup.settled': new Set([
+    'wrongPrincipalStart',
+    'deniedStart',
+    'wrongPrincipal',
+    'denied'
+  ]),
+  'tracking.stop.settled': new Set([
+    'wrongPrincipalStart',
+    'deniedStart',
+    'wrongPrincipal',
+    'denied'
+  ])
+});
 
 const ACCOUNT_EMAIL = 'driver@example.com';
 const ACCOUNT_A = Object.freeze({
@@ -105,6 +144,7 @@ export function createGuidanceContractRoute() {
 
 export function createGuidanceContractHandler({
   createRequestId = randomUUID,
+  evidenceLog = () => 'recorded',
   now = () => Date.now(),
   readControl,
   readMode = () => GUIDANCE_CONTRACT_MODES.offline,
@@ -197,6 +237,48 @@ export function createGuidanceContractHandler({
         data: { boundary, edge },
         message: 'Guidance Start boundary recorded.'
       }, `boundary-${edge}`);
+      return;
+    }
+
+    if (request.method === 'POST' && url.pathname === GUIDANCE_CONTRACT_EVIDENCE_PATH) {
+      if (request.headers['x-saferoute-guidance-contract-evidence'] !== '1') {
+        sendApiError(
+          response,
+          403,
+          'Guidance contract evidence header is required.',
+          {},
+          'evidence-header-rejected'
+        );
+        return;
+      }
+      const evidence = normalizeGuidanceContractEvidence(await readJsonBody(request));
+      if (!evidence) {
+        sendApiError(
+          response,
+          400,
+          'Guidance contract evidence was invalid.',
+          {},
+          'evidence-invalid'
+        );
+        return;
+      }
+      const result = evidenceLog(evidence, { mode, phase });
+      if (result === 'conflict') {
+        sendApiError(
+          response,
+          409,
+          'Guidance contract evidence event ID was reused with different content.',
+          {},
+          'evidence-conflict'
+        );
+        return;
+      }
+      sendApiSuccess(response, {
+        data: { event_id: evidence.eventId, result },
+        message: result === 'duplicate'
+          ? 'Guidance contract evidence was already recorded.'
+          : 'Guidance contract evidence recorded.'
+      }, result === 'duplicate' ? 'evidence-duplicate' : `evidence-${evidence.type}`);
       return;
     }
 
@@ -367,6 +449,7 @@ export function createGuidanceContractHandler({
 
 export function startGuidanceContractApi({
   createRequestId,
+  evidenceLog,
   host = '127.0.0.1',
   now,
   port = GUIDANCE_CONTRACT_API_PORT,
@@ -377,6 +460,7 @@ export function startGuidanceContractApi({
 }) {
   const server = createServer(createGuidanceContractHandler({
     createRequestId,
+    evidenceLog,
     now,
     readControl,
     readMode,
@@ -392,11 +476,339 @@ export function startGuidanceContractApi({
   });
 }
 
+export function normalizeGuidanceContractEvidence(value) {
+  if (!value || typeof value !== 'object' || Array.isArray(value) || value.schema !== 1) {
+    return null;
+  }
+  const eventId = normalizeEvidenceString(value.eventId, 128);
+  const sourceRevision = normalizeEvidenceString(value.sourceRevision, 40).toLowerCase();
+  const type = normalizeEvidenceString(value.type, 64);
+  const cause = normalizeEvidenceString(value.cause, 96);
+  const outcome = normalizeEvidenceString(value.outcome, 96);
+  const occurredAtMs = Number(value.occurredAtMs);
+  if (
+    !/^[A-Za-z0-9._:-]{8,128}$/.test(eventId) ||
+    !/^[0-9a-f]{40}$/.test(sourceRevision) ||
+    !GUIDANCE_CONTRACT_EVIDENCE_TYPES.includes(type) ||
+    !cause ||
+    !outcome ||
+    !Number.isFinite(occurredAtMs) ||
+    occurredAtMs <= 0
+  ) {
+    return null;
+  }
+  const navigationInstanceId = normalizeOptionalEvidenceString(value.navigationInstanceId);
+  const routeId = normalizeOptionalEvidenceString(value.routeId);
+  const workspaceId = normalizeOptionalEvidenceString(value.workspaceId);
+  if (
+    navigationInstanceId === undefined ||
+    routeId === undefined ||
+    workspaceId === undefined
+  ) {
+    return null;
+  }
+  const unavailableWorkspaceIds = Array.isArray(value.unavailableWorkspaceIds)
+    ? Array.from(new Set(value.unavailableWorkspaceIds
+        .map((workspace) => normalizeEvidenceString(workspace, 160))
+        .filter(Boolean)))
+        .slice(0, 20)
+    : [];
+  return {
+    authorization: normalizeEvidenceRecord(value.authorization, {
+      catalog: ['fresh-authorized', 'fresh-denied', 'not-checked', 'unavailable'],
+      principal: ['matching', 'mismatched', 'none', 'unknown']
+    }),
+    cause,
+    durability: normalizeEvidenceRecord(value.durability, {
+      activeNavigation: ['absent', 'present', 'revoked', 'unknown'],
+      nativeTracking: ['active', 'not-started', 'stopped', 'unknown', 'unsupported'],
+      persistedPermit: ['present', 'revoked', 'unknown'],
+      routeCache: ['failed', 'purged', 'unknown'],
+      runtimePermit: ['active', 'none', 'pending', 'unknown'],
+      workspaceContext: ['failed', 'persisted', 'revoked', 'unknown']
+    }),
+    eventId,
+    navigationInstanceId,
+    occurredAtMs,
+    outcome,
+    routeId,
+    schema: 1,
+    sourceRevision,
+    type,
+    unavailableWorkspaceIds,
+    workspaceId
+  };
+}
+
+export function createGuidanceContractEvidenceJournal({
+  evidenceLogFile,
+  now = () => Date.now()
+}) {
+  const existing = readJsonLines(evidenceLogFile);
+  const recordedEvents = new Map(existing.flatMap((entry) => {
+    const normalized = normalizeGuidanceContractEvidence(entry);
+    return normalized ? [[normalized.eventId, JSON.stringify(normalized)]] : [];
+  }));
+  let sequence = existing.length;
+  return (evidence, { mode, phase }) => {
+    const fingerprint = JSON.stringify(evidence);
+    const existingFingerprint = recordedEvents.get(evidence.eventId);
+    if (existingFingerprint) {
+      return existingFingerprint === fingerprint ? 'duplicate' : 'conflict';
+    }
+    recordedEvents.set(evidence.eventId, fingerprint);
+    sequence += 1;
+    appendFileSync(evidenceLogFile, `${JSON.stringify({
+      ...evidence,
+      receivedAtMs: now(),
+      sequence,
+      serverMode: mode,
+      serverPhase: phase
+    })}\n`);
+    return 'recorded';
+  };
+}
+
+export function assertGuidanceContractEvidenceJournal(entries, {
+  expectedSourceRevision,
+  minimumOccurredAtMs = 0,
+  requiredTypes = []
+}) {
+  if (!Array.isArray(entries) || entries.length === 0) {
+    throw new Error('Guidance contract device evidence journal was empty.');
+  }
+  const eventIds = new Set();
+  const normalizedEntries = [];
+  entries.forEach((entry, index) => {
+    const normalized = normalizeGuidanceContractEvidence(entry);
+    assertJournalCondition(
+      normalized &&
+        normalized.sourceRevision === expectedSourceRevision &&
+        entry.sequence === index + 1 &&
+        Number.isFinite(entry.receivedAtMs) &&
+        entry.receivedAtMs >= normalized.occurredAtMs &&
+        typeof entry.serverPhase === 'string' &&
+        typeof entry.serverMode === 'string' &&
+        !eventIds.has(normalized.eventId),
+      `Guidance contract device evidence was invalid at line ${index + 1}.`
+    );
+    eventIds.add(normalized.eventId);
+    normalizedEntries.push(normalized);
+  });
+  const evidenceWindowEntries = normalizedEntries.flatMap((event, index) =>
+    event.occurredAtMs >= minimumOccurredAtMs
+      ? [{ event, index, journal: entries[index] }]
+      : []
+  );
+  for (const type of requiredTypes) {
+    assertJournalCondition(
+      evidenceWindowEntries.some(({ event, journal }) =>
+        event.type === type && isSuccessfulGuidanceContractEvidence(event, journal)
+      ),
+      `Guidance contract device evidence had no successful ${type} event.`
+    );
+  }
+  const persistedByNavigation = new Map();
+  evidenceWindowEntries.forEach(({ event, index, journal }) => {
+    if (
+      event.type === 'navigation.persisted' &&
+      isSuccessfulGuidanceContractEvidence(event, journal) &&
+      !persistedByNavigation.has(event.navigationInstanceId)
+    ) {
+      persistedByNavigation.set(event.navigationInstanceId, { entry: event, index });
+    }
+  });
+  assertJournalCondition(
+    !requiredTypes.includes('navigation.persisted') || persistedByNavigation.size > 0,
+    'Guidance contract device evidence had no durable correlated navigation persistence.'
+  );
+  for (const type of ['restore.suspended', 'restore.ready', 'navigation.cleanup.settled', 'tracking.stop.settled']) {
+    if (!requiredTypes.includes(type)) {
+      continue;
+    }
+    const correlated = evidenceWindowEntries.some(({ event, index, journal }) => {
+      if (
+        event.type !== type ||
+        !isSuccessfulGuidanceContractEvidence(event, journal)
+      ) {
+        return false;
+      }
+      const persisted = persistedByNavigation.get(event.navigationInstanceId);
+      return Boolean(
+        persisted &&
+        persisted.index < index &&
+        persisted.entry.routeId === event.routeId &&
+        persisted.entry.workspaceId === event.workspaceId
+      );
+    });
+    assertJournalCondition(
+      correlated,
+      `Guidance contract device evidence had no persisted-navigation correlation for ${type}.`
+    );
+  }
+  if (requiredTypes.includes('restore.suspended') && requiredTypes.includes('restore.ready')) {
+    const completeRestore = evidenceWindowEntries.some(({ event: ready, index: readyIndex, journal }) => {
+      if (
+        ready.type !== 'restore.ready' ||
+        !isSuccessfulGuidanceContractEvidence(ready, journal)
+      ) {
+        return false;
+      }
+      return evidenceWindowEntries.some(({ event: suspended, index: suspendedIndex, journal: suspendedJournal }) => {
+        if (
+          suspended.type !== 'restore.suspended' ||
+          suspendedIndex >= readyIndex ||
+          !isSuccessfulGuidanceContractEvidence(suspended, suspendedJournal) ||
+          suspended.navigationInstanceId !== ready.navigationInstanceId ||
+          suspended.routeId !== ready.routeId ||
+          suspended.workspaceId !== ready.workspaceId
+        ) {
+          return false;
+        }
+        const persisted = persistedByNavigation.get(ready.navigationInstanceId);
+        return Boolean(persisted && persisted.index < suspendedIndex);
+      });
+    });
+    assertJournalCondition(
+      completeRestore,
+      'Guidance contract device evidence had no complete persisted, suspended, and ready workspace lifecycle.'
+    );
+  }
+  if (
+    requiredTypes.includes('navigation.cleanup.settled') &&
+    requiredTypes.includes('tracking.stop.settled')
+  ) {
+    const completeCleanup = evidenceWindowEntries.some(({ event: cleanup, index: cleanupIndex, journal }) => {
+      if (
+        cleanup.type !== 'navigation.cleanup.settled' ||
+        !isSuccessfulGuidanceContractEvidence(cleanup, journal)
+      ) {
+        return false;
+      }
+      const persisted = persistedByNavigation.get(cleanup.navigationInstanceId);
+      if (
+        !persisted ||
+        persisted.index >= cleanupIndex ||
+        persisted.entry.routeId !== cleanup.routeId ||
+        persisted.entry.workspaceId !== cleanup.workspaceId
+      ) {
+        return false;
+      }
+      return evidenceWindowEntries.some(({ event: tracking, index: trackingIndex, journal: trackingJournal }) =>
+        tracking.type === 'tracking.stop.settled' &&
+        trackingIndex > cleanupIndex &&
+        isSuccessfulGuidanceContractEvidence(tracking, trackingJournal) &&
+        tracking.navigationInstanceId === cleanup.navigationInstanceId &&
+        tracking.routeId === cleanup.routeId &&
+        tracking.workspaceId === cleanup.workspaceId
+      );
+    });
+    assertJournalCondition(
+      completeCleanup,
+      'Guidance contract device evidence had no correlated navigation cleanup and tracking stop.'
+    );
+  }
+  if (requiredTypes.includes('workspace.recovery.settled')) {
+    assertJournalCondition(
+      evidenceWindowEntries.some(({ event, journal }) =>
+        event.type === 'workspace.recovery.settled' &&
+        isSuccessfulGuidanceContractEvidence(event, journal)
+      ),
+      'Guidance contract device evidence had no durable workspace recovery result.'
+    );
+  }
+}
+
+function isSuccessfulGuidanceContractEvidence(event, journal) {
+  if (!GUIDANCE_CONTRACT_EVIDENCE_PHASES[event.type]?.has(journal.serverPhase)) {
+    return false;
+  }
+  const workspaceLifecycle = Boolean(
+    event.navigationInstanceId &&
+    event.routeId &&
+    event.workspaceId
+  );
+  if (event.type === 'navigation.persisted') {
+    return workspaceLifecycle &&
+      event.authorization.catalog === 'fresh-authorized' &&
+      event.authorization.principal === 'matching' &&
+      event.outcome === 'persisted' &&
+      event.durability.activeNavigation === 'present';
+  }
+  if (event.type === 'restore.suspended') {
+    return workspaceLifecycle &&
+      event.authorization.catalog === 'unavailable' &&
+      event.authorization.principal === 'matching' &&
+      event.outcome === 'suspended' &&
+      event.durability.activeNavigation === 'present' &&
+      ['not-started', 'stopped', 'unsupported'].includes(event.durability.nativeTracking) &&
+      event.durability.runtimePermit === 'none';
+  }
+  if (event.type === 'restore.ready') {
+    return workspaceLifecycle &&
+      event.authorization.catalog === 'fresh-authorized' &&
+      event.authorization.principal === 'matching' &&
+      event.outcome === 'ready' &&
+      event.durability.activeNavigation === 'present';
+  }
+  if (event.type === 'workspace.recovery.settled') {
+    return Boolean(
+      event.workspaceId &&
+      event.unavailableWorkspaceIds.includes(event.workspaceId) &&
+      event.authorization.catalog === 'fresh-denied' &&
+      event.authorization.principal === 'matching' &&
+      event.outcome === 'persisted' &&
+      event.durability.routeCache === 'purged' &&
+      event.durability.workspaceContext === 'persisted'
+    );
+  }
+  if (event.type === 'navigation.cleanup.settled') {
+    return workspaceLifecycle &&
+      event.authorization.catalog === 'not-checked' &&
+      event.authorization.principal === 'matching' &&
+      event.outcome === 'cleared' &&
+      event.durability.activeNavigation === 'revoked' &&
+      event.durability.persistedPermit === 'revoked';
+  }
+  return event.type === 'tracking.stop.settled' &&
+    workspaceLifecycle &&
+    event.authorization.catalog === 'not-checked' &&
+    event.authorization.principal === 'matching' &&
+    event.outcome === 'off' &&
+    ['not-started', 'stopped', 'unsupported'].includes(event.durability.nativeTracking) &&
+    event.durability.runtimePermit === 'none' &&
+    event.durability.persistedPermit === 'revoked';
+}
+
 function normalizeControlSnapshot(value) {
   return {
     mode: normalizeMode(value?.mode),
     phase: normalizePhase(value?.phase)
   };
+}
+
+function normalizeEvidenceString(value, maxLength) {
+  const normalized = typeof value === 'string' ? value.trim() : '';
+  return normalized.length <= maxLength && /^[A-Za-z0-9._:/ -]*$/.test(normalized)
+    ? normalized
+    : '';
+}
+
+function normalizeOptionalEvidenceString(value) {
+  if (value === null || value === undefined || value === '') {
+    return null;
+  }
+  const normalized = normalizeEvidenceString(value, 160);
+  return normalized || undefined;
+}
+
+function normalizeEvidenceRecord(value, fields) {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) {
+    return {};
+  }
+  return Object.fromEntries(Object.entries(fields).flatMap(([field, allowed]) =>
+    allowed.includes(value[field]) ? [[field, value[field]]] : []
+  ));
 }
 
 function normalizeMode(value) {
@@ -907,9 +1319,21 @@ function readExistingJournalLength(requestLogFile) {
   }
 }
 
+function readJsonLines(file) {
+  try {
+    return readFileSync(file, 'utf8')
+      .split('\n')
+      .filter(Boolean)
+      .map((line) => JSON.parse(line));
+  } catch {
+    return [];
+  }
+}
+
 function parseCliArguments(argumentsList) {
   const parsed = {
     controlFile: '',
+    evidenceLogFile: '',
     port: GUIDANCE_CONTRACT_API_PORT,
     requestLogFile: ''
   };
@@ -924,6 +1348,9 @@ function parseCliArguments(argumentsList) {
     } else if (argument === '--request-log') {
       parsed.requestLogFile = String(argumentsList[index + 1] || '').trim();
       index += 1;
+    } else if (argument === '--evidence-log') {
+      parsed.evidenceLogFile = String(argumentsList[index + 1] || '').trim();
+      index += 1;
     }
   }
   if (!Number.isInteger(parsed.port) || parsed.port <= 0 || parsed.port > 65535) {
@@ -935,11 +1362,14 @@ function parseCliArguments(argumentsList) {
   if (!parsed.requestLogFile) {
     throw new Error('Guidance contract API requires --request-log.');
   }
+  if (!parsed.evidenceLogFile) {
+    throw new Error('Guidance contract API requires --evidence-log.');
+  }
   return parsed;
 }
 
 async function runCli() {
-  const { controlFile, port, requestLogFile } = parseCliArguments(
+  const { controlFile, evidenceLogFile, port, requestLogFile } = parseCliArguments(
     process.argv.slice(2)
   );
   const readControl = () => {
@@ -950,7 +1380,9 @@ async function runCli() {
     }
   };
   const appendRequest = createGuidanceContractRequestJournal({ requestLogFile });
+  const appendEvidence = createGuidanceContractEvidenceJournal({ evidenceLogFile });
   const server = await startGuidanceContractApi({
+    evidenceLog: appendEvidence,
     port,
     readControl,
     requestLog: (entry) => {

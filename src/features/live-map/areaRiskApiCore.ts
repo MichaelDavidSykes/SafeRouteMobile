@@ -3,12 +3,14 @@ import type { Region } from 'react-native-maps';
 import type { RiskSeverity, RiskZone } from './liveMapTypes';
 
 export const AREA_RISK_ENDPOINT_PATH = '/intel/map/area-risk';
-export const MIN_VIEWPORT_RISK_ZOOM = 8;
-export const DEFAULT_DETAIL_AREA_RISK_MAX_RECORDS = 60;
-export const DEFAULT_REGIONAL_AREA_RISK_MAX_RECORDS = 36;
+export const MIN_VIEWPORT_RISK_ZOOM = 0;
+export const DEFAULT_DETAIL_AREA_RISK_MAX_RECORDS = 100;
+export const DEFAULT_REGIONAL_AREA_RISK_MAX_RECORDS = 120;
+export const DEFAULT_GLOBAL_AREA_RISK_MAX_RECORDS = 120;
 export const MAX_AREA_RISK_RECORDS = 160;
 export const AREA_RISK_CACHE_COORDINATE_QUANTUM = 0.05;
 export const AREA_RISK_CACHE_ZOOM_QUANTUM = 0.5;
+export const AREA_RISK_VIEWPORT_PADDING_RATIO = 0.35;
 
 export type AreaRiskScope = 'global' | 'regional' | 'detail';
 
@@ -37,6 +39,7 @@ export interface AreaRiskViewportRequestOptions {
   clientId?: string;
   countries?: string[];
   detailMaxRecords?: number;
+  globalMaxRecords?: number;
   minZoom?: number;
   refresh?: boolean;
   regionalMaxRecords?: number;
@@ -109,8 +112,9 @@ export function approximateMapZoom(region: Pick<Region, 'longitudeDelta'>): numb
 }
 
 /**
- * Returns no request below the viewport zoom gate, one request normally, and
- * two bounded requests when the viewport crosses the antimeridian.
+ * Returns one stable padded request normally and two bounded requests when
+ * the viewport crosses the antimeridian. World views use one canonical global
+ * partition so panning at low zoom does not repeatedly refetch the same feed.
  */
 export function regionToAreaRiskViewportRequests(
   region: Region | null | undefined,
@@ -132,35 +136,32 @@ export function regionToAreaRiskViewportRequests(
 
   const latitudeDelta = clamp(positiveFiniteNumber(region.latitudeDelta) ?? 0.04, 0.002, 170);
   const longitudeDelta = clamp(positiveFiniteNumber(region.longitudeDelta) ?? 0.04, 0.002, 360);
-  const south = clamp(region.latitude - latitudeDelta / 2, -85, 85);
-  const north = clamp(region.latitude + latitudeDelta / 2, -85, 85);
-  if (north <= south) {
+  const scope: AreaRiskScope = zoom < 4 ? 'global' : (zoom >= 9 ? 'detail' : 'regional');
+  const rawBounds: AreaRiskBounds = scope === 'global'
+    ? { south: -85, west: -180, north: 85, east: 180 }
+    : stablePaddedViewportBounds(region, latitudeDelta, longitudeDelta, zoom);
+  if (rawBounds.north <= rawBounds.south) {
     return [];
   }
 
-  const centerLongitude = wrapLongitude(region.longitude);
-  const rawBounds: AreaRiskBounds = longitudeDelta >= 360
-    ? { south, west: -180, north, east: 180 }
-    : {
-        south,
-        west: centerLongitude - longitudeDelta / 2,
-        north,
-        east: centerLongitude + longitudeDelta / 2
-      };
-  const scope: AreaRiskScope = zoom >= 9 ? 'detail' : 'regional';
   const maxRecords = clampInteger(
-    scope === 'detail'
-      ? options.detailMaxRecords ?? DEFAULT_DETAIL_AREA_RISK_MAX_RECORDS
-      : options.regionalMaxRecords ?? DEFAULT_REGIONAL_AREA_RISK_MAX_RECORDS,
+    scope === 'global'
+      ? options.globalMaxRecords ?? DEFAULT_GLOBAL_AREA_RISK_MAX_RECORDS
+      : scope === 'detail'
+        ? options.detailMaxRecords ?? DEFAULT_DETAIL_AREA_RISK_MAX_RECORDS
+        : options.regionalMaxRecords ?? DEFAULT_REGIONAL_AREA_RISK_MAX_RECORDS,
     1,
     MAX_AREA_RISK_RECORDS,
-    scope === 'detail'
-      ? DEFAULT_DETAIL_AREA_RISK_MAX_RECORDS
-      : DEFAULT_REGIONAL_AREA_RISK_MAX_RECORDS
+    scope === 'global'
+      ? DEFAULT_GLOBAL_AREA_RISK_MAX_RECORDS
+      : scope === 'detail'
+        ? DEFAULT_DETAIL_AREA_RISK_MAX_RECORDS
+        : DEFAULT_REGIONAL_AREA_RISK_MAX_RECORDS
   );
   const clientId = cleanOptionalText(options.clientId, 80) ?? undefined;
   const countries = normalizeCountryHints(options.countries);
 
+  const stableZoom = quantizedNumber(zoom, AREA_RISK_CACHE_ZOOM_QUANTUM);
   return splitBoundsAtAntimeridian(rawBounds).map((bounds) => ({
     bbox: formatBbox(bounds),
     ...(clientId ? { clientId } : {}),
@@ -172,8 +173,62 @@ export function regionToAreaRiskViewportRequests(
     minLon: bounds.west,
     ...(options.refresh === true ? { refresh: true } : {}),
     scope,
-    zoom
+    zoom: stableZoom
   }));
+}
+
+function stablePaddedViewportBounds(
+  region: Pick<Region, 'latitude' | 'longitude'>,
+  latitudeDelta: number,
+  longitudeDelta: number,
+  zoom: number
+): AreaRiskBounds {
+  const latitudePadding = latitudeDelta * AREA_RISK_VIEWPORT_PADDING_RATIO;
+  const longitudePadding = longitudeDelta * AREA_RISK_VIEWPORT_PADDING_RATIO;
+  const gridSize = areaRiskViewportGridSize(zoom);
+  const south = clamp(
+    floorToQuantum(region.latitude - latitudeDelta / 2 - latitudePadding, gridSize),
+    -85,
+    85
+  );
+  const north = clamp(
+    ceilToQuantum(region.latitude + latitudeDelta / 2 + latitudePadding, gridSize),
+    -85,
+    85
+  );
+  const expandedLongitudeDelta = Math.min(
+    360,
+    longitudeDelta + longitudePadding * 2
+  );
+  if (expandedLongitudeDelta >= 360) {
+    return { south, west: -180, north, east: 180 };
+  }
+  const centerLongitude = wrapLongitude(region.longitude);
+  return {
+    south,
+    west: floorToQuantum(centerLongitude - expandedLongitudeDelta / 2, gridSize),
+    north,
+    east: ceilToQuantum(centerLongitude + expandedLongitudeDelta / 2, gridSize)
+  };
+}
+
+function areaRiskViewportGridSize(zoom: number): number {
+  if (zoom >= 13) {
+    return 0.02;
+  }
+  if (zoom >= 11) {
+    return 0.05;
+  }
+  if (zoom >= 9) {
+    return 0.1;
+  }
+  if (zoom >= 7) {
+    return 0.5;
+  }
+  if (zoom >= 4) {
+    return 2;
+  }
+  return 360;
 }
 
 /** The configured API base contributes /api/v1 to this endpoint-relative path. */
@@ -616,8 +671,8 @@ function splitBoundsAtAntimeridian(bounds: AreaRiskBounds): AreaRiskBounds[] {
     return [{ south, west: -180, north, east: 180 }];
   }
 
-  const west = wrapLongitude(bounds.west);
-  const east = wrapLongitude(bounds.east);
+  const west = roundCoordinate(wrapLongitude(bounds.west));
+  const east = roundCoordinate(wrapLongitude(bounds.east));
   if (west < east) {
     return [{ south, west, north, east }];
   }
@@ -706,6 +761,18 @@ function quantizedValue(value: unknown, quantum: number): string {
   const normalized = Object.is(quantized, -0) ? 0 : quantized;
   const decimals = Math.min(6, Math.max(1, Math.ceil(-Math.log10(quantum)) + 1));
   return normalized.toFixed(decimals);
+}
+
+function quantizedNumber(value: unknown, quantum: number): number {
+  return Number(quantizedValue(value, quantum));
+}
+
+function floorToQuantum(value: number, quantum: number): number {
+  return roundCoordinate(Math.floor(value / quantum) * quantum);
+}
+
+function ceilToQuantum(value: number, quantum: number): number {
+  return roundCoordinate(Math.ceil(value / quantum) * quantum);
 }
 
 function unwrapDataEnvelope(value: unknown): unknown {

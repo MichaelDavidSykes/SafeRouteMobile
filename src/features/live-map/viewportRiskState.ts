@@ -25,6 +25,16 @@ export interface ViewportRiskCachePruneOptions {
 
 export type ViewportRiskCache = Map<string, ViewportRiskCacheEntry>;
 
+export function resolveViewportRiskDisplayZones(
+  retainedZones: readonly RiskZone[],
+  nextViewportZones: readonly RiskZone[],
+  replacementReady: boolean
+): RiskZone[] {
+  return replacementReady
+    ? mergeRiskZonesById(nextViewportZones)
+    : mergeRiskZonesById(retainedZones, nextViewportZones);
+}
+
 export function viewportRiskCacheKey(
   request: AreaRiskViewportRequest,
   options?: AreaRiskCacheKeyOptions

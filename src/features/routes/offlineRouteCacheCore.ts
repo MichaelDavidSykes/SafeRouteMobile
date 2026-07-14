@@ -55,6 +55,44 @@ export function parseOfflineRouteCacheRecord(
   };
 }
 
+export function removeWorkspaceFromOfflineRouteCache(
+  value: SavedRouteSyncResult,
+  workspaceId: string,
+): SavedRouteSyncResult {
+  const normalizedWorkspaceId = workspaceId.trim();
+  if (!normalizedWorkspaceId) {
+    return {
+      clients: value.clients.slice(0, OFFLINE_ROUTE_CACHE_MAX_ROUTES),
+      routes: value.routes.filter(hasUsableRoutePlan).slice(0, OFFLINE_ROUTE_CACHE_MAX_ROUTES),
+      selectedClientId: value.selectedClientId,
+    };
+  }
+
+  return {
+    clients: value.clients
+      .filter((client) => client.id !== normalizedWorkspaceId)
+      .slice(0, OFFLINE_ROUTE_CACHE_MAX_ROUTES),
+    routes: value.routes
+      .filter((route) => route.clientId !== normalizedWorkspaceId)
+      .filter(hasUsableRoutePlan)
+      .slice(0, OFFLINE_ROUTE_CACHE_MAX_ROUTES),
+    selectedClientId:
+      value.selectedClientId === normalizedWorkspaceId
+        ? null
+        : value.selectedClientId,
+  };
+}
+
+export function removeWorkspaceFromOfflineRouteCacheRecord(
+  record: OfflineRouteCacheRecord,
+  workspaceId: string,
+): OfflineRouteCacheRecord {
+  return createOfflineRouteCacheRecord(
+    removeWorkspaceFromOfflineRouteCache(record.value, workspaceId),
+    record.storedAtMs,
+  );
+}
+
 export function hasUsableRoutePlan(value: unknown): value is SavedSafeRoutePlan {
   if (!value || typeof value !== "object") {
     return false;

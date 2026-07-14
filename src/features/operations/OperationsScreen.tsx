@@ -57,6 +57,7 @@ interface OperationsScreenProps {
   onRetryWorkspaceCatalog: () => void;
   onSessionExpired: (message?: string) => void;
   onSignOut: () => void;
+  onWorkspaceUnavailable: (workspaceId: string) => void;
   onWorkspaceChange: (workspace: SafeRouteWorkspace) => void;
   workspaceCatalogError: string;
   workspaceCatalogLoading: boolean;
@@ -72,6 +73,7 @@ export function OperationsScreen({
   onRetryWorkspaceCatalog,
   onSessionExpired,
   onSignOut,
+  onWorkspaceUnavailable,
   onWorkspaceChange,
   sessionNotice,
   userEmail,
@@ -134,6 +136,18 @@ export function OperationsScreen({
         if (result.status === "stale" || !requestOwnsWorkspace()) {
           return;
         }
+        if (result.status === "workspace-unavailable") {
+          loadRevisionRef.current += 1;
+          activeWorkspaceIdRef.current = null;
+          setLoadedWorkspaceId(null);
+          setRoutes([]);
+          setOperationsState(null);
+          setOperationsWarning(null);
+          setErrorState(null);
+          setClientMenuOpen(false);
+          onWorkspaceUnavailable(requestWorkspaceId);
+          return;
+        }
         if (result.status === "loaded") {
           setRoutes(result.routes);
           setLoadedWorkspaceId(requestWorkspaceId);
@@ -166,7 +180,7 @@ export function OperationsScreen({
         }
       }
     },
-    [accessToken, onSessionExpired, selectedWorkspaceId]
+    [accessToken, onSessionExpired, onWorkspaceUnavailable, selectedWorkspaceId]
   );
 
   useEffect(() => {

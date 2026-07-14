@@ -68,6 +68,7 @@ interface RouteListScreenProps {
   accessToken: string;
   activeWorkspace: SafeRouteWorkspace | null;
   availableWorkspaces: SafeRouteWorkspace[];
+  cacheIdentity: string;
   sessionNotice?: string;
   userEmail: string;
   onBackToMap: () => void;
@@ -87,6 +88,7 @@ export function RouteListScreen({
   accessToken,
   activeWorkspace,
   availableWorkspaces,
+  cacheIdentity,
   onBackToMap,
   onRetryWorkspaceCatalog,
   onSelectRoute,
@@ -160,12 +162,12 @@ export function RouteListScreen({
 
       let cached = refresh
         ? null
-        : await loadOfflineRoutes(userEmail, requestWorkspaceId);
+        : await loadOfflineRoutes(cacheIdentity, requestWorkspaceId);
       if (!requestOwnsWorkspace()) {
         return;
       }
       if (!cached && offline && !refresh) {
-        cached = await loadOfflineRoutes(userEmail, null);
+        cached = await loadOfflineRoutes(cacheIdentity, null);
         if (!requestOwnsWorkspace()) {
           return;
         }
@@ -202,7 +204,7 @@ export function RouteListScreen({
         };
         setRoutes(scopedResult.routes);
         setShowingOfflineCopy(false);
-        void saveOfflineRoutes(userEmail, requestWorkspaceId, scopedResult).catch(() => undefined);
+        void saveOfflineRoutes(cacheIdentity, requestWorkspaceId, scopedResult).catch(() => undefined);
       } catch (error) {
         if (!requestOwnsWorkspace()) {
           return;
@@ -216,12 +218,12 @@ export function RouteListScreen({
           return;
         }
         let offlineCopy =
-          cached || (await loadOfflineRoutes(userEmail, requestWorkspaceId));
+          cached || (await loadOfflineRoutes(cacheIdentity, requestWorkspaceId));
         if (!requestOwnsWorkspace()) {
           return;
         }
         if (!offlineCopy) {
-          offlineCopy = await loadOfflineRoutes(userEmail, null);
+          offlineCopy = await loadOfflineRoutes(cacheIdentity, null);
           if (!requestOwnsWorkspace()) {
             return;
           }
@@ -241,11 +243,11 @@ export function RouteListScreen({
     },
     [
       accessToken,
+      cacheIdentity,
       offline,
       onSessionExpired,
       recoverUnavailableWorkspace,
       selectedClientId,
-      userEmail,
     ],
   );
 
@@ -370,7 +372,7 @@ export function RouteListScreen({
 
     if (offline) {
       const cached =
-        (await loadOfflineRouteDetail(userEmail, route.id)) ||
+        (await loadOfflineRouteDetail(cacheIdentity, route.id)) ||
         (hasUsableRoutePlan(route) ? route : null);
       if (!requestOwnsWorkspace()) {
         return;
@@ -409,7 +411,7 @@ export function RouteListScreen({
         });
         return;
       }
-      void saveOfflineRouteDetail(userEmail, routeDetail).catch(() => undefined);
+      void saveOfflineRouteDetail(cacheIdentity, routeDetail).catch(() => undefined);
       onSelectRoute(routeDetail);
     } catch (error) {
       if (!requestOwnsWorkspace()) {
@@ -424,7 +426,7 @@ export function RouteListScreen({
         return;
       }
       const cached =
-        (await loadOfflineRouteDetail(userEmail, route.id)) ||
+        (await loadOfflineRouteDetail(cacheIdentity, route.id)) ||
         (hasUsableRoutePlan(route) ? route : null);
       if (!requestOwnsWorkspace()) {
         return;

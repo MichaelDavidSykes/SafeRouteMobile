@@ -74,7 +74,8 @@ function normalizePreviewInitialScreen(value, previewModeEnabled) {
     normalized === 'login-code' ||
     normalized === 'operations' ||
     normalized === 'routes-empty' ||
-    normalized === 'session-expired'
+    normalized === 'session-expired' ||
+    normalized === 'workspace-choice'
   ) {
     return normalized;
   }

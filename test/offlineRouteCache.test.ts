@@ -19,13 +19,14 @@ describe("offline saved route cache", () => {
       clients: [{ id: "client-a", name: "Client A" }],
       routes: [route],
       selectedClientId: "client-a",
-    }, 1_000);
-    const restored = parseOfflineRouteCacheRecord(record, 2_000);
+    }, "user-a", 1_000);
+    const restored = parseOfflineRouteCacheRecord(record, "user-a", 2_000);
 
     assert.equal(restored?.routes[0].id, route.id);
     assert.deepEqual(restored?.routes[0].route.coordinates, route.route.coordinates);
     assert.deepEqual(restored?.routes[0].riskZones, route.riskZones);
     assert.deepEqual(restored?.routes[0].checkpoints, route.checkpoints);
+    assert.equal(parseOfflineRouteCacheRecord(record, "user-b", 2_000), null);
   });
 
   it("fails closed for expired, future, malformed, or incomplete records", () => {
@@ -33,18 +34,23 @@ describe("offline saved route cache", () => {
     assert.ok(route);
     const record = createOfflineRouteCacheRecord({
       clients: [], routes: [route], selectedClientId: null,
-    }, 1_000);
+    }, "user-a", 1_000);
     assert.equal(
-      parseOfflineRouteCacheRecord(record, 1_000 + OFFLINE_ROUTE_CACHE_MAX_AGE_MS + 1),
+      parseOfflineRouteCacheRecord(
+        record,
+        "user-a",
+        1_000 + OFFLINE_ROUTE_CACHE_MAX_AGE_MS + 1,
+      ),
       null,
     );
-    assert.equal(parseOfflineRouteCacheRecord(record, 999), null);
-    assert.equal(parseOfflineRouteCacheRecord({}), null);
+    assert.equal(parseOfflineRouteCacheRecord(record, "user-a", 999), null);
+    assert.equal(parseOfflineRouteCacheRecord({}, "user-a"), null);
+    assert.equal(parseOfflineRouteCacheRecord({ ...record, schema: 1 }, "user-a", 2_000), null);
     assert.deepEqual(
       parseOfflineRouteCacheRecord({
         ...record,
         value: { clients: [], routes: [{ id: "bad" }], selectedClientId: null },
-      }, 2_000)?.routes,
+      }, "user-a", 2_000)?.routes,
       [],
     );
   });
@@ -81,7 +87,7 @@ describe("offline saved route cache", () => {
         { ...SAVED_ROUTE_PLANS[1], clientId: "client-b" },
       ],
       selectedClientId: "client-b",
-    }, 1_000);
+    }, "user-a", 1_000);
 
     const pruned = removeWorkspaceFromOfflineRouteCacheRecord(record, "client-b");
     assert.equal(pruned.storedAtMs, 1_000);

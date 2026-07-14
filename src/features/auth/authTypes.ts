@@ -1,11 +1,13 @@
 export interface AuthenticatedUser {
   email: string;
+  id?: string;
   name?: string;
 }
 
 export interface AuthSession {
   accessToken: string;
   email: string;
+  principalId?: string;
   user?: AuthenticatedUser;
 }
 

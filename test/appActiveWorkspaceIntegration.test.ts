@@ -17,9 +17,9 @@ describe("App active workspace integration", () => {
     assert.match(app, /fetchSavedRoutes\(accessToken\)/);
     assert.match(app, /normalizeWorkspaceCatalog\(result\.clients\)/);
     assert.match(app, /resolveActiveWorkspace\([\s\S]*result\.selectedClientId/);
-    assert.match(app, /loadOfflineWorkspaceContext\(userEmail\)/);
-    assert.match(app, /loadOfflineRoutes\(userEmail, null\)/);
-    assert.match(app, /saveOfflineWorkspaceContext\(userEmail/);
+    assert.match(app, /loadOfflineWorkspaceContext\(principalId\)/);
+    assert.match(app, /loadOfflineRoutes\(principalId, null\)/);
+    assert.match(app, /saveOfflineWorkspaceContext\(principalId/);
     assert.match(app, /navigationWorkspace[\s\S]*activeWorkspaceId: navigationWorkspace\.id/);
     assert.match(app, /<RouteListScreen[\s\S]*activeWorkspace=\{activeWorkspace\}[\s\S]*availableWorkspaces=\{availableWorkspaces\}/);
     assert.match(app, /<OperationsScreen[\s\S]*activeWorkspace=\{activeWorkspace\}[\s\S]*availableWorkspaces=\{availableWorkspaces\}/);
@@ -61,8 +61,8 @@ describe("App active workspace integration", () => {
     assert.match(app, /setActiveWorkspace\(recovery\.activeWorkspace\)/);
     assert.match(app, /navigationUnavailable[\s\S]*clearActiveNavigationSession/);
     assert.match(app, /previewUnavailable[\s\S]*setSelectedRoute\(null\)/);
-    assert.match(app, /clearOfflineRouteWorkspace\(userEmail, normalizedWorkspaceId\)/);
-    assert.match(app, /saveOfflineWorkspaceContext\(userEmail, \{[\s\S]*workspaces: recovery\.workspaces/);
+    assert.match(app, /clearOfflineRouteWorkspace\(principalId, normalizedWorkspaceId\)/);
+    assert.match(app, /saveOfflineWorkspaceContext\(principalId, \{[\s\S]*workspaces: recovery\.workspaces/);
     assert.match(app, /setWorkspaceDiscoveryRevision\(\(revision\) => revision \+ 1\)/);
   });
 
@@ -119,7 +119,7 @@ describe("App active workspace integration", () => {
     assert.match(routes, /selectedClientId = activeWorkspace\?\.id \|\| null/);
     assert.match(routes, /fetchSavedRoutes\([\s\S]*requestWorkspaceId/);
     assert.match(routes, /routesForWorkspace\(result\.routes, requestWorkspaceId\)/);
-    assert.match(routes, /!cached && offline && !refresh[\s\S]*loadOfflineRoutes\(userEmail, null\)/);
+    assert.match(routes, /!cached && offline && !refresh[\s\S]*loadOfflineRoutes\(cacheIdentity, null\)/);
     assert.match(routes, /routeDetail\.clientId !== selectedClientId/);
     assert.match(routes, /activeWorkspaceIdRef\.current === selectedClientId/);
     assert.match(routes, /isWorkspaceUnavailableError\(error\)[\s\S]*recoverUnavailableWorkspace\(requestWorkspaceId\)/);
@@ -147,12 +147,16 @@ describe("App active workspace integration", () => {
     const liveMap = readFileSync("src/features/live-map/LiveMapScreen.tsx", "utf8");
 
     assert.match(app, /pendingNavigationRestoreRef = useRef<ActiveNavigationSession \| null>\(null\)/);
+    assert.match(app, /loadActiveNavigationSession\(\);[\s\S]*!persistedNavigation \|\| persistedNavigation\.accessScope\.kind === 'workspace'[\s\S]*await stopBackgroundNavigation\(\);[\s\S]*const storedSession = await loadAuthSession\(\)/);
     assert.match(app, /persistedNavigation\?\.accessScope\.kind === 'workspace'[\s\S]*pendingNavigationRestoreRef\.current = persistedNavigation/);
+    assert.match(app, /hasMatchingAuthPrincipal\([\s\S]*persistedNavigation\.accessScope\.principalId/);
     assert.match(app, /pendingNavigationRestoreRef\.current = persistedNavigation;[\s\S]*stopBackgroundNavigation\(\)/);
     assert.match(app, /fetchSavedRoutes\(accessToken\)[\s\S]*pendingNavigationWorkspace = findWorkspace\([\s\S]*openActiveNavigationSession\([\s\S]*pendingNavigation,[\s\S]*true,[\s\S]*resolvedWorkspace\?\.id/);
     assert.match(app, /pendingNavigation && !pendingNavigationWorkspace[\s\S]*discardPersistedNavigation\([\s\S]*Plot the route again/);
     assert.match(app, /discardPersistedNavigation[\s\S]*stopBackgroundNavigation\(\)[\s\S]*clearActiveNavigationSession\(\)/);
     assert.match(app, /handleNavigationSessionChange[\s\S]*canResumeActiveNavigationSession[\s\S]*return false/);
+    assert.match(app, /activeSessionPrincipalIdRef\.current/);
+    assert.match(app, /principalId=\{sessionPrincipalId\}/);
     assert.match(app, /handleNavigationSessionChange[\s\S]*pendingNavigationRestoreRef\.current[\s\S]*return false/);
     assert.match(guest, /retryAvailable = Boolean\(onRetry && errorMessage\)[\s\S]*catalogUnavailable \|\| switchDisabled/);
     assert.match(guest, /disabled = retryAvailable[\s\S]*\? false[\s\S]*switchDisabled/);

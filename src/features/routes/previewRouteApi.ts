@@ -5,6 +5,7 @@ import type { MobileSafeRouteClient } from "./routeMapper";
 
 type PreviewSavedRoutesOptions = {
   empty?: boolean;
+  noPreference?: boolean;
 };
 
 export const PREVIEW_CLIENTS: MobileSafeRouteClient[] = [
@@ -52,7 +53,9 @@ export function loadPreviewSavedRoutes(
   return {
     clients: selectedClient ? [selectedClient] : PREVIEW_CLIENTS,
     routes: normalizedClientId && !selectedClient ? [] : routes,
-    selectedClientId: selectedClient?.id || (normalizedClientId ? null : PREVIEW_CLIENTS[0].id),
+    selectedClientId: selectedClient?.id || (
+      normalizedClientId || options.noPreference ? null : PREVIEW_CLIENTS[0].id
+    ),
   };
 }
 

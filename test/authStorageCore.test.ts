@@ -5,7 +5,10 @@ import { describe, it } from 'node:test';
 
 import {
   createDeviceOnlySecureStoreOptions,
-  createStoredAuthSession
+  createStoredAuthSession,
+  parseStoredAuthSession,
+  serializeSignedOutAuthSession,
+  serializeStoredAuthSession
 } from '../src/features/auth/authStorageCore';
 import { restoreSavedSession } from '../src/features/auth/sessionRestore';
 
@@ -32,6 +35,7 @@ describe('stored auth session normalization', () => {
 
     const result = await restoreSavedSession(storedSession, async () => ({
       email: 'repaired@example.com',
+      id: 'user-repaired',
       name: 'Repaired Driver'
     }));
 
@@ -47,10 +51,55 @@ describe('stored auth session normalization', () => {
   });
 
   it('trims secure-store token and email values before reuse', () => {
-    assert.deepEqual(createStoredAuthSession(' token-123 ', ' Driver@Example.com '), {
+    assert.deepEqual(createStoredAuthSession(' token-123 ', ' Driver@Example.com ', ' user-123 '), {
       accessToken: 'token-123',
-      email: 'Driver@Example.com'
+      email: 'Driver@Example.com',
+      principalId: 'user-123'
     });
+  });
+
+  it('round-trips one atomic identity-bearing session envelope', () => {
+    const serialized = serializeStoredAuthSession({
+      accessToken: ' token-123 ',
+      email: 'driver@example.com',
+      principalId: ' user-123 '
+    });
+
+    assert.ok(serialized);
+    assert.deepEqual(parseStoredAuthSession(serialized), {
+      accessToken: 'token-123',
+      email: 'driver@example.com',
+      principalId: 'user-123'
+    });
+    assert.equal(serializeStoredAuthSession({ accessToken: 'token', email: 'driver@example.com' }), null);
+    assert.equal(parseStoredAuthSession('{"schema":2,"session":{"accessToken":"token"}}'), null);
+    assert.equal(parseStoredAuthSession('{bad-json'), null);
+  });
+
+  it('uses an authoritative signed-out envelope that cannot fall back to legacy credentials', () => {
+    const tombstone = serializeSignedOutAuthSession();
+
+    assert.deepEqual(JSON.parse(tombstone), { schema: 2, signedOut: true });
+    assert.equal(parseStoredAuthSession(tombstone), null);
+
+    const authStorageSource = readFileSync(
+      join(process.cwd(), 'src/features/auth/authStorage.ts'),
+      'utf8'
+    );
+    const tombstoneWriteIndex = authStorageSource.indexOf(
+      'SecureStore.setItemAsync(\n    AUTH_SESSION_KEY,\n    serializeSignedOutAuthSession()'
+    );
+    const legacyCleanupIndex = authStorageSource.indexOf(
+      'SecureStore.deleteItemAsync(ACCESS_TOKEN_KEY)',
+      tombstoneWriteIndex
+    );
+
+    assert.ok(tombstoneWriteIndex >= 0);
+    assert.ok(legacyCleanupIndex > tombstoneWriteIndex);
+    assert.doesNotMatch(
+      authStorageSource.slice(tombstoneWriteIndex),
+      /deleteItemAsync\(AUTH_SESSION_KEY\)/
+    );
   });
 
   it('uses device-only keychain accessibility when the runtime supports it', () => {
@@ -65,11 +114,9 @@ describe('stored auth session normalization', () => {
     assert.match(authStorageSource, /SecureStore\.WHEN_UNLOCKED_THIS_DEVICE_ONLY/);
     assert.match(
       authStorageSource,
-      /setItemAsync\(ACCESS_TOKEN_KEY, session\.accessToken, DEVICE_ONLY_SECURE_STORE_OPTIONS\)/
+      /setItemAsync\(AUTH_SESSION_KEY, serialized, DEVICE_ONLY_SECURE_STORE_OPTIONS\)/
     );
-    assert.match(
-      authStorageSource,
-      /setItemAsync\(EMAIL_KEY, session\.email, DEVICE_ONLY_SECURE_STORE_OPTIONS\)/
-    );
+    assert.doesNotMatch(authStorageSource, /setItemAsync\(ACCESS_TOKEN_KEY/);
+    assert.doesNotMatch(authStorageSource, /setItemAsync\(EMAIL_KEY/);
   });
 });

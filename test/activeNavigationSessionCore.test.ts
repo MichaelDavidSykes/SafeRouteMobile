@@ -93,18 +93,18 @@ describe("active navigation session", () => {
     );
   });
 
-  it("resumes public guidance only while signed out and workspace guidance only for the active client", () => {
+  it("resumes public guidance only while signed out and workspace guidance only for the active principal and client", () => {
     const publicGuest = normalizeActiveNavigationSession(session(), nowMs);
     const workspaceGuest = normalizeActiveNavigationSession(
       session({
-        accessScope: { clientId: "workspace-a", kind: "workspace" },
+        accessScope: { clientId: "workspace-a", kind: "workspace", principalId: "user-a" },
         routePlan: { ...SAVED_ROUTE_PLANS[0], clientId: "workspace-a" },
       }),
       nowMs,
     );
     const saved = normalizeActiveNavigationSession(
       session({
-        accessScope: { clientId: "workspace-a", kind: "workspace" },
+        accessScope: { clientId: "workspace-a", kind: "workspace", principalId: "user-a" },
         routeContext: "saved",
         routePlan: { ...SAVED_ROUTE_PLANS[0], clientId: " workspace-a " },
       }),
@@ -117,14 +117,22 @@ describe("active navigation session", () => {
     assert.ok(workspaceGuest && !canResumeActiveNavigationSession(workspaceGuest, true));
     assert.ok(
       workspaceGuest &&
-        !canResumeActiveNavigationSession(workspaceGuest, true, "workspace-b"),
+        !canResumeActiveNavigationSession(workspaceGuest, true, "workspace-b", "user-a"),
     );
     assert.ok(
       workspaceGuest &&
-        canResumeActiveNavigationSession(workspaceGuest, true, " workspace-a "),
+        canResumeActiveNavigationSession(workspaceGuest, true, " workspace-a ", " user-a "),
+    );
+    assert.ok(
+      workspaceGuest &&
+        !canResumeActiveNavigationSession(workspaceGuest, true, "workspace-a", "user-b"),
+    );
+    assert.ok(
+      workspaceGuest &&
+        !canResumeActiveNavigationSession(workspaceGuest, true, "workspace-a", ""),
     );
     assert.ok(saved && !canResumeActiveNavigationSession(saved, false));
-    assert.ok(saved && canResumeActiveNavigationSession(saved, true, "workspace-a"));
+    assert.ok(saved && canResumeActiveNavigationSession(saved, true, "workspace-a", "user-a"));
   });
 
   it("rejects saved guidance without an authorized workspace identity", () => {
@@ -135,7 +143,7 @@ describe("active navigation session", () => {
     assert.ok(
       normalizeActiveNavigationSession(
         session({
-          accessScope: { clientId: "workspace-a", kind: "workspace" },
+          accessScope: { clientId: "workspace-a", kind: "workspace", principalId: "user-a" },
           routeContext: "saved",
           routePlan: { ...SAVED_ROUTE_PLANS[0], clientId: "workspace-a" },
         }),
@@ -145,6 +153,7 @@ describe("active navigation session", () => {
   });
 
   it("rejects legacy and contradictory access scopes", () => {
+    assert.ok(normalizeActiveNavigationSession(session({ version: 2 }), nowMs));
     assert.equal(
       normalizeActiveNavigationSession(session({ version: 1 }), nowMs),
       null,
@@ -162,8 +171,19 @@ describe("active navigation session", () => {
     assert.equal(
       normalizeActiveNavigationSession(
         session({
-          accessScope: { clientId: "workspace-b", kind: "workspace" },
+          accessScope: { clientId: "workspace-b", kind: "workspace", principalId: "user-a" },
           routePlan: { ...SAVED_ROUTE_PLANS[0], clientId: "workspace-a" },
+        }),
+        nowMs,
+      ),
+      null,
+    );
+    assert.equal(
+      normalizeActiveNavigationSession(
+        session({
+          accessScope: { clientId: "workspace-a", kind: "workspace" },
+          routePlan: { ...SAVED_ROUTE_PLANS[0], clientId: "workspace-a" },
+          version: 2,
         }),
         nowMs,
       ),

@@ -11,7 +11,8 @@ export type SafeRoutePreviewInitialScreen =
   | 'operations'
   | 'routes'
   | 'routes-empty'
-  | 'session-expired';
+  | 'session-expired'
+  | 'workspace-choice';
 
 export type SafeRouteExtra = {
   safeRouteApiUrl?: string;
@@ -116,7 +117,8 @@ function normalizePreviewInitialScreen(
     normalized === 'login-code' ||
     normalized === 'operations' ||
     normalized === 'routes-empty' ||
-    normalized === 'session-expired'
+    normalized === 'session-expired' ||
+    normalized === 'workspace-choice'
   ) {
     return normalized;
   }

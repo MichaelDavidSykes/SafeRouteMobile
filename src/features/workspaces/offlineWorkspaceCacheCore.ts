@@ -5,11 +5,15 @@ import {
 } from "./activeWorkspace";
 
 export const OFFLINE_WORKSPACE_CACHE_MAX_AGE_MS = 30 * 24 * 60 * 60 * 1000;
-const OFFLINE_WORKSPACE_CACHE_SCHEMA = 1;
+const OFFLINE_WORKSPACE_CACHE_SCHEMA = 2;
 
 export type OfflineWorkspaceContext = {
   activeWorkspaceId: string | null;
   workspaces: SafeRouteWorkspace[];
+};
+
+export type OfflineWorkspaceSnapshot = OfflineWorkspaceContext & {
+  principalId: string;
 };
 
 export type OfflineWorkspaceRecordWriter = (
@@ -18,6 +22,7 @@ export type OfflineWorkspaceRecordWriter = (
 ) => Promise<void>;
 
 type OfflineWorkspaceCacheRecord = {
+  principalId: string;
   schema: number;
   storedAtMs: number;
   value: OfflineWorkspaceContext;
@@ -25,8 +30,10 @@ type OfflineWorkspaceCacheRecord = {
 
 export function createOfflineWorkspaceCacheRecord(
   value: OfflineWorkspaceContext,
+  principalIdValue: string,
   nowMs = Date.now(),
 ): OfflineWorkspaceCacheRecord {
+  const principalId = normalizePrincipalId(principalIdValue);
   const workspaces = normalizeWorkspaceCatalog(value.workspaces);
   const activeWorkspace = resolveActiveWorkspace(
     workspaces,
@@ -35,6 +42,7 @@ export function createOfflineWorkspaceCacheRecord(
   );
 
   return {
+    principalId,
     schema: OFFLINE_WORKSPACE_CACHE_SCHEMA,
     storedAtMs: nowMs,
     value: {
@@ -46,13 +54,18 @@ export function createOfflineWorkspaceCacheRecord(
 
 export function parseOfflineWorkspaceCacheRecord(
   value: unknown,
+  expectedPrincipalIdValue: string,
   nowMs = Date.now(),
-): OfflineWorkspaceContext | null {
+): OfflineWorkspaceSnapshot | null {
   if (!value || typeof value !== "object") {
     return null;
   }
   const record = value as Partial<OfflineWorkspaceCacheRecord>;
+  const expectedPrincipalId = normalizePrincipalId(expectedPrincipalIdValue);
+  const principalId = normalizePrincipalId(record.principalId);
   if (
+    !expectedPrincipalId ||
+    principalId !== expectedPrincipalId ||
     record.schema !== OFFLINE_WORKSPACE_CACHE_SCHEMA ||
     !Number.isFinite(record.storedAtMs) ||
     (record.storedAtMs as number) > nowMs ||
@@ -63,7 +76,19 @@ export function parseOfflineWorkspaceCacheRecord(
     return null;
   }
 
-  return createOfflineWorkspaceCacheRecord(record.value, record.storedAtMs).value;
+  const normalized = createOfflineWorkspaceCacheRecord(
+    record.value,
+    principalId,
+    record.storedAtMs,
+  ).value;
+  return {
+    ...normalized,
+    principalId,
+  };
+}
+
+function normalizePrincipalId(value: unknown): string {
+  return typeof value === "string" ? value.trim() : "";
 }
 
 export function createSerializedWorkspaceRecordWriter(

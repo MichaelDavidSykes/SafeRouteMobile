@@ -31,12 +31,18 @@ export async function prepareAuthenticatedSession(
         ...nextSession,
         accessToken,
         email: user.email || fallbackEmail,
+        principalId: user.id,
         user
       }
     : {
         accessToken,
-        email: fallbackEmail
+        email: fallbackEmail,
+        principalId: nextSession.principalId
       };
+
+  if (!String(acceptedSession.principalId || '').trim()) {
+    throw new Error('Unable to verify the LunarChain account identity. Check your connection and retry.');
+  }
 
   await saveSession(acceptedSession);
 

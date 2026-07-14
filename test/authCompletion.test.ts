@@ -23,6 +23,7 @@ describe('auth completion', () => {
         assert.equal(accessToken, 'token-123');
         return {
           email: 'canonical@example.com',
+          id: 'user-canonical',
           name: 'Canonical User'
         };
       }
@@ -31,8 +32,10 @@ describe('auth completion', () => {
     assert.deepEqual(savedSession, {
       ...session,
       email: 'canonical@example.com',
+      principalId: 'user-canonical',
       user: {
         email: 'canonical@example.com',
+        id: 'user-canonical',
         name: 'Canonical User'
       }
     });
@@ -48,7 +51,7 @@ describe('auth completion', () => {
           async () => {
             throw new Error('SecureStore unavailable');
           },
-          async () => ({ email: 'user@example.com' })
+          async () => ({ email: 'user@example.com', id: 'user-123' })
         ),
       /SecureStore unavailable/
     );
@@ -80,10 +83,28 @@ describe('auth completion', () => {
     assert.equal(saved, false);
   });
 
-  it('keeps the signed-in session when the user refresh request is temporarily unavailable', async () => {
+  it('requires fresh account identity before persisting a newly authenticated session', async () => {
+    let saved = false;
+    await assert.rejects(
+      () => prepareAuthenticatedSession(
+        session,
+        async () => {
+          saved = true;
+        },
+        async () => {
+          throw new Error('Network request failed');
+        }
+      ),
+      /verify the LunarChain account identity/i,
+    );
+    assert.equal(saved, false);
+  });
+
+  it('retains an already trusted principal during a transient user refresh failure', async () => {
+    const trustedSession = { ...session, principalId: 'user-123' };
     let savedSession: AuthSession | undefined;
     const result = await prepareAuthenticatedSession(
-      session,
+      trustedSession,
       async (nextSession) => {
         savedSession = nextSession;
       },
@@ -92,9 +113,8 @@ describe('auth completion', () => {
       }
     );
 
-    assert.deepEqual(savedSession, session);
-    assert.equal(result.email, 'typed@example.com');
-    assert.equal(result.user, undefined);
+    assert.deepEqual(savedSession, trustedSession);
+    assert.equal(result.principalId, 'user-123');
   });
 
   it('rejects and does not persist sessions that fail online auth validation', async () => {

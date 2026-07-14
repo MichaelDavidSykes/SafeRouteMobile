@@ -483,7 +483,7 @@ export const guestMapStyles = StyleSheet.create({
     backgroundColor: colors.surfaceTranslucent
   },
   collapsedSheetButton: {
-    minHeight: 76,
+    minHeight: 64,
     flexDirection: 'row',
     alignItems: 'center',
     gap: spacing.sm,
@@ -507,11 +507,6 @@ export const guestMapStyles = StyleSheet.create({
     color: colors.muted,
     fontSize: typeScale.xs,
     fontWeight: '600'
-  },
-  collapsedSheetAction: {
-    color: colors.appleBlue,
-    fontSize: typeScale.xs,
-    fontWeight: '800'
   },
   markerHitArea: {
     width: 32,

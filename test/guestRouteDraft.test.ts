@@ -18,6 +18,7 @@ import {
   mapGuestRouteDraftToCheckpoints,
   removeGuestRouteWaypoint,
   reorderGuestRouteWaypoint,
+  resolveGuestRouteDraftNextStopInputId,
   resolveGuestRouteDraftStopCoordinate,
   selectGuestRouteDraftLocation,
   setGuestRouteCurrentLocation,
@@ -267,6 +268,27 @@ describe('guest route draft state', () => {
     assert.equal(canExportGuestRouteDraft(draft), false);
     assert.equal(exportGuestRouteDraftCoordinates(draft), null);
     assert.equal(mapGuestRouteDraftToCheckpoints(draft), null);
+  });
+
+  it('focuses the next unresolved stop and otherwise returns to the destination', () => {
+    const emptyDraft = createGuestRouteDraft();
+    assert.equal(
+      resolveGuestRouteDraftNextStopInputId(emptyDraft),
+      GUEST_ROUTE_DRAFT_DESTINATION_ID
+    );
+
+    let draft = createGuestRouteDraft({
+      origin: originSelection,
+      destination: destinationSelection
+    });
+    draft = addGuestRouteWaypoint(draft, { label: '' });
+    assert.equal(resolveGuestRouteDraftNextStopInputId(draft), 'guest-waypoint-1');
+
+    draft = setGuestRouteWaypoint(draft, 'guest-waypoint-1', waypointSelections[0]);
+    assert.equal(
+      resolveGuestRouteDraftNextStopInputId(draft),
+      GUEST_ROUTE_DRAFT_DESTINATION_ID
+    );
   });
 
   it('enforces the maximum stop count without reusing IDs', () => {

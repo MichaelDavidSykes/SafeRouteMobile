@@ -14,7 +14,7 @@ describe("authenticated Map workspace recovery integration", () => {
 
     assert.match(liveProps, /onWorkspaceUnavailable=\{handleWorkspaceUnavailable\}/);
     assert.match(guestProps, /onWorkspaceUnavailable=\{handleWorkspaceUnavailable\}/);
-    assert.match(app, /handleNavigationSessionChange[\s\S]*unavailableWorkspaceIdsRef\.current\.has\(workspaceId\)[\s\S]*activeWorkspaceRef\.current\?\.id !== workspaceId/);
+    assert.match(app, /handleNavigationSessionChange[\s\S]*canResumeActiveNavigationSession\([\s\S]*activeWorkspaceRef\.current\?\.id[\s\S]*unavailableWorkspaceIdsRef\.current\.has\(workspaceId\)[\s\S]*return false/);
     assert.match(app, /openRoutePreview[\s\S]*unavailableWorkspaceIdsRef\.current\.has\(routeWorkspaceId\)[\s\S]*Plot the route again/);
     assert.match(app, /onNavigationSessionChange=\{handleNavigationSessionChange\}/);
   });

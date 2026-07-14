@@ -14,7 +14,8 @@ import {
 } from './guestRoadRouteProvider';
 import {
   buildSafeRoutePreviewPayload,
-  normalizeSafeRoutePreviewResponse
+  normalizeSafeRoutePreviewResponse,
+  resolveSafeRoutePreviewRequestMode
 } from './safeRouteRoadRouteProviderCore';
 
 export type SafeRouteRoadRoutePreviewOptions = GuestRoadRoutePreviewOptions & {
@@ -27,18 +28,24 @@ const SAFE_ROUTE_PREVIEW_TIMEOUT_MS = 8000;
 export async function fetchSafeRouteRoadRoutePreview(
   options: SafeRouteRoadRoutePreviewOptions
 ): Promise<GuestRoadRoutePreview | null> {
-  const accessToken = String(options.accessToken || '').trim();
-  const clientId = String(options.clientId || '').trim();
+  const requestMode = resolveSafeRoutePreviewRequestMode(options);
   const avoidRectangles = options.avoidRectangles || [];
 
-  if (accessToken && clientId) {
+  if (requestMode.kind === 'invalid') {
+    throw new ApiRequestError(
+      'Choose an active SafeRoute workspace before planning this route.',
+      400
+    );
+  }
+
+  if (requestMode.kind === 'workspace') {
     const response = await apiRequest<unknown>(
       '/convoy-routes/route-preview',
-      accessToken,
+      requestMode.accessToken,
       {
         body: JSON.stringify(buildSafeRoutePreviewPayload({
           avoidRectangles,
-          clientId,
+          clientId: requestMode.clientId,
           stops: options.stops
         })),
         method: 'POST',
@@ -51,13 +58,10 @@ export async function fetchSafeRouteRoadRoutePreview(
       options.stops,
       avoidRectangles.length
     );
-    if (normalized || avoidRectangles.length) {
-      return normalized;
-    }
+    return normalized;
   }
 
-
-  if (!accessToken || !clientId) {
+  if (requestMode.kind === 'public') {
     try {
       const authenticatedPayload = buildSafeRoutePreviewPayload({
         avoidRectangles,

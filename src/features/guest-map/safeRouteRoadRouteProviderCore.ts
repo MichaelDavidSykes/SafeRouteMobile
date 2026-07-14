@@ -23,8 +23,36 @@ type SafeRouteRoutePreviewPayload = {
   }>;
 };
 
+export type SafeRoutePreviewRequestMode =
+  | { accessToken: string; clientId: string; kind: 'workspace' }
+  | { kind: 'public' }
+  | { kind: 'invalid' };
+
 const SAFE_ROUTE_STOP_MATCH_METERS = 1200;
 const SAFE_ROUTE_FALLBACK_SPEED_METERS_PER_SECOND = 6.5;
+
+export function resolveSafeRoutePreviewRequestMode({
+  accessToken,
+  clientId
+}: {
+  accessToken?: string | null;
+  clientId?: string | null;
+}): SafeRoutePreviewRequestMode {
+  const normalizedAccessToken = String(accessToken || '').trim();
+  const normalizedClientId = String(clientId || '').trim();
+
+  if (normalizedAccessToken && normalizedClientId) {
+    return {
+      accessToken: normalizedAccessToken,
+      clientId: normalizedClientId,
+      kind: 'workspace'
+    };
+  }
+  if (!normalizedAccessToken) {
+    return { kind: 'public' };
+  }
+  return { kind: 'invalid' };
+}
 
 export function buildSafeRoutePreviewPayload({
   avoidRectangles,

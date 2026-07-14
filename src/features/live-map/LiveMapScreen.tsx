@@ -92,7 +92,7 @@ import { getRequestUnavailableWorkspaceId } from "../workspaces/workspaceAccessR
 interface LiveMapScreenProps {
   accessToken?: string | null;
   initialNavigationSession?: ActiveNavigationSession | null;
-  onNavigationSessionChange?: (session: ActiveNavigationSession | null) => void;
+  onNavigationSessionChange?: (session: ActiveNavigationSession | null) => boolean | void;
   onSessionExpired?: (message?: string) => void;
   onWorkspaceUnavailable?: (workspaceId: string) => void;
   returnAccessibilityLabel?: string;
@@ -794,7 +794,11 @@ export function LiveMapScreen({
       if (!snapshot) {
         return;
       }
-      onNavigationSessionChangeRef.current?.(snapshot);
+      const accepted = onNavigationSessionChangeRef.current?.(snapshot);
+      if (accepted === false) {
+        void clearActiveNavigationSession();
+        return;
+      }
       void saveActiveNavigationSession(snapshot);
     };
 

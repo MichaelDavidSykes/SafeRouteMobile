@@ -93,19 +93,38 @@ describe("active navigation session", () => {
     );
   });
 
-  it("requires authentication only for sessions sourced from saved routes", () => {
-    const guest = normalizeActiveNavigationSession(session(), nowMs);
-    const saved = normalizeActiveNavigationSession(
+  it("resumes public guidance only while signed out and workspace guidance only for the active client", () => {
+    const publicGuest = normalizeActiveNavigationSession(session(), nowMs);
+    const workspaceGuest = normalizeActiveNavigationSession(
       session({
-        routeContext: "saved",
+        accessScope: { clientId: "workspace-a", kind: "workspace" },
         routePlan: { ...SAVED_ROUTE_PLANS[0], clientId: "workspace-a" },
       }),
       nowMs,
     );
+    const saved = normalizeActiveNavigationSession(
+      session({
+        accessScope: { clientId: "workspace-a", kind: "workspace" },
+        routeContext: "saved",
+        routePlan: { ...SAVED_ROUTE_PLANS[0], clientId: " workspace-a " },
+      }),
+      nowMs,
+    );
 
-    assert.ok(guest && canResumeActiveNavigationSession(guest, false));
+    assert.ok(publicGuest && canResumeActiveNavigationSession(publicGuest, false));
+    assert.ok(publicGuest && !canResumeActiveNavigationSession(publicGuest, true));
+    assert.ok(workspaceGuest && !canResumeActiveNavigationSession(workspaceGuest, false));
+    assert.ok(workspaceGuest && !canResumeActiveNavigationSession(workspaceGuest, true));
+    assert.ok(
+      workspaceGuest &&
+        !canResumeActiveNavigationSession(workspaceGuest, true, "workspace-b"),
+    );
+    assert.ok(
+      workspaceGuest &&
+        canResumeActiveNavigationSession(workspaceGuest, true, " workspace-a "),
+    );
     assert.ok(saved && !canResumeActiveNavigationSession(saved, false));
-    assert.ok(saved && canResumeActiveNavigationSession(saved, true));
+    assert.ok(saved && canResumeActiveNavigationSession(saved, true, "workspace-a"));
   });
 
   it("rejects saved guidance without an authorized workspace identity", () => {
@@ -116,11 +135,39 @@ describe("active navigation session", () => {
     assert.ok(
       normalizeActiveNavigationSession(
         session({
+          accessScope: { clientId: "workspace-a", kind: "workspace" },
           routeContext: "saved",
           routePlan: { ...SAVED_ROUTE_PLANS[0], clientId: "workspace-a" },
         }),
         nowMs,
       ),
+    );
+  });
+
+  it("rejects legacy and contradictory access scopes", () => {
+    assert.equal(
+      normalizeActiveNavigationSession(session({ version: 1 }), nowMs),
+      null,
+    );
+    assert.equal(
+      normalizeActiveNavigationSession(
+        session({
+          accessScope: { kind: "public" },
+          routePlan: { ...SAVED_ROUTE_PLANS[0], clientId: "workspace-a" },
+        }),
+        nowMs,
+      ),
+      null,
+    );
+    assert.equal(
+      normalizeActiveNavigationSession(
+        session({
+          accessScope: { clientId: "workspace-b", kind: "workspace" },
+          routePlan: { ...SAVED_ROUTE_PLANS[0], clientId: "workspace-a" },
+        }),
+        nowMs,
+      ),
+      null,
     );
   });
 

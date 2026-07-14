@@ -1,0 +1,12 @@
+appId: host.exp.Exponent
+---
+- extendedWaitUntil:
+    visible:
+      id: "safe-route-login"
+    timeout: 30000
+- assertNotVisible:
+    id: "safe-route-live-map"
+- assertNotVisible:
+    id: "safe-route-stop-action"
+- assertNotVisible:
+    id: "safe-route-resume-action"

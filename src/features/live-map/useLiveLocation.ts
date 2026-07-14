@@ -31,7 +31,9 @@ export type { PermissionStatus } from './liveLocationState';
 
 interface UseLiveLocationOptions {
   backgroundAccessScope?: ActiveNavigationAccessScope | null;
+  backgroundNavigationInstanceId?: string | null;
   backgroundRouteId?: string | null;
+  backgroundTrackingRequested?: boolean;
   initialLocationSample?: ReliableLocationSample | null;
   manageBackgroundNavigation?: boolean;
   navigationActive?: boolean;
@@ -40,7 +42,9 @@ interface UseLiveLocationOptions {
 
 export function useLiveLocation({
   backgroundAccessScope = null,
+  backgroundNavigationInstanceId = null,
   backgroundRouteId = null,
+  backgroundTrackingRequested = false,
   initialLocationSample = null,
   manageBackgroundNavigation = false,
   navigationActive = false,
@@ -215,12 +219,17 @@ export function useLiveLocation({
     };
 
     const restoreBackgroundLocation = async () => {
-      if (!backgroundRouteId || !backgroundAccessScope) {
+      if (
+        !backgroundRouteId ||
+        !backgroundAccessScope ||
+        !backgroundNavigationInstanceId
+      ) {
         return;
       }
       const backgroundLocation = await loadBackgroundNavigationLocation(
         backgroundRouteId,
         backgroundAccessScope,
+        backgroundNavigationInstanceId || "",
       );
       if (mounted && backgroundLocation) {
         acceptReliableSample(backgroundLocation);
@@ -230,7 +239,11 @@ export function useLiveLocation({
     const appStateSubscription = AppState.addEventListener('change', (nextState) => {
       if (nextState === 'active') {
         void restoreBackgroundLocation();
-        if (manageBackgroundNavigation && navigationActiveRef.current) {
+        if (
+          manageBackgroundNavigation &&
+          navigationActiveRef.current &&
+          backgroundTrackingRequested
+        ) {
           void inspectBackgroundNavigation().then((nextResult) => {
             if (mounted) {
               setBackgroundStatus(nextResult.status);
@@ -258,7 +271,9 @@ export function useLiveLocation({
     acceptLocationObject,
     acceptReliableSample,
     backgroundAccessScope,
+    backgroundNavigationInstanceId,
     backgroundRouteId,
+    backgroundTrackingRequested,
     manageBackgroundNavigation,
     navigationActive,
     permissionRequested
@@ -272,24 +287,37 @@ export function useLiveLocation({
     let mounted = true;
     if (!navigationActive) {
       setBackgroundStatus('idle');
-      void stopBackgroundNavigation(
-        backgroundRouteId && backgroundAccessScope
-          ? { accessScope: backgroundAccessScope, routeId: backgroundRouteId }
-          : null,
-      );
+      void stopBackgroundNavigation();
       return () => {
         mounted = false;
       };
     }
 
     setBackgroundStatus('checking');
-    if (!backgroundRouteId || !backgroundAccessScope) {
+    if (
+      !backgroundRouteId ||
+      !backgroundAccessScope ||
+      !backgroundNavigationInstanceId
+    ) {
       setBackgroundStatus('error');
       void stopBackgroundNavigation();
       return;
     }
+    if (!backgroundTrackingRequested) {
+      void stopBackgroundNavigation()
+        .then(() => inspectBackgroundNavigation())
+        .then((nextResult) => {
+          if (mounted) {
+            setBackgroundStatus(nextResult.status);
+          }
+        });
+      return () => {
+        mounted = false;
+      };
+    }
     void startBackgroundNavigationIfAuthorized({
       accessScope: backgroundAccessScope,
+      navigationInstanceId: backgroundNavigationInstanceId,
       routeId: backgroundRouteId,
     }).then((nextResult) => {
       if (mounted) {
@@ -300,7 +328,14 @@ export function useLiveLocation({
     return () => {
       mounted = false;
     };
-  }, [backgroundAccessScope, backgroundRouteId, manageBackgroundNavigation, navigationActive]);
+  }, [
+    backgroundAccessScope,
+    backgroundNavigationInstanceId,
+    backgroundRouteId,
+    backgroundTrackingRequested,
+    manageBackgroundNavigation,
+    navigationActive,
+  ]);
 
   const enableBackgroundTracking = useCallback(async () => {
     if (!manageBackgroundNavigation) {
@@ -315,19 +350,30 @@ export function useLiveLocation({
     if (mountedRef.current) {
       setBackgroundStatus('requesting');
     }
-    if (!backgroundRouteId || !backgroundAccessScope) {
+    if (
+      !backgroundRouteId ||
+      !backgroundAccessScope ||
+      !backgroundNavigationInstanceId
+    ) {
       await stopBackgroundNavigation();
       return false;
     }
     const nextResult = await requestAndStartBackgroundNavigation({
       accessScope: backgroundAccessScope,
+      navigationInstanceId: backgroundNavigationInstanceId,
       routeId: backgroundRouteId,
     });
     if (mountedRef.current) {
       setBackgroundStatus(nextResult.status);
     }
     return nextResult.status === 'active';
-  }, [backgroundAccessScope, backgroundRouteId, backgroundStatus, manageBackgroundNavigation]);
+  }, [
+    backgroundAccessScope,
+    backgroundNavigationInstanceId,
+    backgroundRouteId,
+    backgroundStatus,
+    manageBackgroundNavigation,
+  ]);
 
   const refreshBackgroundTrackingStatus = useCallback(async () => {
     if (!manageBackgroundNavigation) {

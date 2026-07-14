@@ -18,9 +18,15 @@ describe("production navigation reliability integration", () => {
     assert.match(taskSource, /TaskManager\.defineTask/);
     assert.match(taskSource, /saveBackgroundNavigationLocation/);
     assert.match(taskSource, /location\.mocked !== true/);
+    assert.match(taskSource, /runtimePermitStatus === "none"/);
+    assert.match(taskSource, /getPersistedActiveNavigationAuthorization/);
+    assert.match(taskSource, /authorization\.navigationInstanceId/);
+    assert.match(taskSource, /runtimePermitStatus === "pending"/);
+    assert.match(taskSource, /stopUnauthorizedBackgroundNavigationTask/);
+    assert.match(taskSource, /stopLocationUpdatesAsync/);
     assert.match(
       source("src/features/live-map/activeNavigationSession.ts"),
-      /normalizeBackgroundNavigationPermit[\s\S]*backgroundNavigationScopesMatch/,
+      /runtimeBackgroundNavigationPermit\.matches\(permit\)[\s\S]*isBackgroundNavigationWriteAuthorized/,
     );
   });
 
@@ -39,9 +45,21 @@ describe("production navigation reliability integration", () => {
     assert.match(backgroundSource, /foregroundService:/);
     assert.doesNotMatch(sessionCoreSource, /accessToken|password|loginCode/);
     assert.match(backgroundSource, /await revokeBackgroundNavigationPermit\(\)/);
-    assert.match(backgroundSource, /grantBackgroundNavigationPermit/);
+    assert.match(backgroundSource, /prepareBackgroundNavigationPermit/);
+    assert.match(backgroundSource, /activateBackgroundNavigationPermit/);
     assert.match(backgroundSource, /backgroundNavigationLifecycle\.requestStart/);
     assert.match(backgroundSource, /backgroundNavigationLifecycle\.requestStop/);
+    const authorizedStart = backgroundSource.slice(
+      backgroundSource.indexOf("async function startAuthorizedBackgroundNavigation"),
+    );
+    assert.ok(
+      authorizedStart.indexOf("prepareBackgroundNavigationPermit") <
+        authorizedStart.indexOf("Location.startLocationUpdatesAsync"),
+    );
+    assert.ok(
+      authorizedStart.indexOf("Location.startLocationUpdatesAsync") <
+        authorizedStart.indexOf("activateBackgroundNavigationPermit"),
+    );
   });
 
   it("persists, restores, resumes, and clears active navigation sessions", () => {
@@ -55,6 +73,18 @@ describe("production navigation reliability integration", () => {
     assert.match(liveMapSource, /createActiveNavigationSession/);
     assert.match(liveMapSource, /saveActiveNavigationSession/);
     assert.match(liveMapSource, /initialNavigationSession/);
+    assert.match(
+      liveMapSource,
+      /resumedNavigationSession\?\.navigationInstanceId[\s\S]*createActiveNavigationInstanceId/,
+    );
+    assert.match(
+      liveMapSource,
+      /backgroundTrackingRequested[\s\S]*resumedNavigationSession\?\.backgroundTrackingEnabled/,
+    );
+    assert.match(
+      liveMapSource,
+      /navigationState === "loaded" \|\| navigationState === "stopped"[\s\S]*setNavigationInstanceId\(createActiveNavigationInstanceId\(startedAtMs\)\)/,
+    );
     assert.match(liveMapSource, /setInterval\(persistCurrentSession, 5_000\)/);
   });
 
@@ -68,6 +98,14 @@ describe("production navigation reliability integration", () => {
     assert.match(locationHookSource, /AppState\.addEventListener/);
     assert.match(locationHookSource, /location\.mocked === true/);
     assert.match(locationHookSource, /Low accuracy/);
+    assert.match(
+      locationHookSource,
+      /if \(!navigationActive\)[\s\S]*stopBackgroundNavigation\(\)/,
+    );
+    assert.match(
+      locationHookSource,
+      /if \(!backgroundTrackingRequested\)[\s\S]*stopBackgroundNavigation\(\)[\s\S]*inspectBackgroundNavigation\(\)/,
+    );
   });
 
   it("keeps background permission UI compact and text-led", () => {

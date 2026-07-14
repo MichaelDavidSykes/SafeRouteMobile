@@ -2,7 +2,10 @@ import * as Location from "expo-location";
 import * as TaskManager from "expo-task-manager";
 
 import {
-  getPersistedActiveRouteId,
+  getPersistedActiveNavigationAuthorization,
+  hasCurrentBackgroundNavigationAuthorization,
+  getRuntimeBackgroundNavigationPermitStatus,
+  revokeBackgroundNavigationPermit,
   saveBackgroundNavigationLocation,
 } from "./activeNavigationSession";
 import { SAFEROUTE_BACKGROUND_LOCATION_TASK } from "./backgroundNavigation";
@@ -16,12 +19,21 @@ if (!TaskManager.isTaskDefined(SAFEROUTE_BACKGROUND_LOCATION_TASK)) {
   TaskManager.defineTask<BackgroundLocationTaskData>(
     SAFEROUTE_BACKGROUND_LOCATION_TASK,
     async ({ data, error }) => {
+      const runtimePermitStatus = getRuntimeBackgroundNavigationPermitStatus();
+      if (runtimePermitStatus === "pending") {
+        return;
+      }
+      if (runtimePermitStatus === "none") {
+        await stopUnauthorizedBackgroundNavigationTask();
+        return;
+      }
       if (error || !Array.isArray(data?.locations)) {
         return;
       }
 
-      const routeId = await getPersistedActiveRouteId();
-      if (!routeId) {
+      const authorization = await getPersistedActiveNavigationAuthorization();
+      if (!authorization) {
+        await stopUnauthorizedBackgroundNavigationTask();
         return;
       }
 
@@ -44,7 +56,33 @@ if (!TaskManager.isTaskDefined(SAFEROUTE_BACKGROUND_LOCATION_TASK)) {
         return;
       }
 
-      await saveBackgroundNavigationLocation(routeId, sample);
+      if ((await saveBackgroundNavigationLocation(
+        authorization.routeId,
+        authorization.navigationInstanceId,
+        sample,
+      )) === "unauthorized") {
+        await stopUnauthorizedBackgroundNavigationTask();
+      }
     },
   );
+}
+
+async function stopUnauthorizedBackgroundNavigationTask(): Promise<void> {
+  if (await hasCurrentBackgroundNavigationAuthorization()) {
+    return;
+  }
+  await revokeBackgroundNavigationPermit();
+  try {
+    if (
+      await Location.hasStartedLocationUpdatesAsync(
+        SAFEROUTE_BACKGROUND_LOCATION_TASK,
+      )
+    ) {
+      await Location.stopLocationUpdatesAsync(
+        SAFEROUTE_BACKGROUND_LOCATION_TASK,
+      );
+    }
+  } catch {
+    // The missing process-local permit still prevents background writes.
+  }
 }

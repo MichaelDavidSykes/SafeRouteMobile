@@ -5,6 +5,7 @@ import {
   ACTIVE_NAVIGATION_SESSION_MAX_PAYLOAD_BYTES,
   ACTIVE_NAVIGATION_SESSION_MAX_AGE_MS,
   canResumeActiveNavigationSession,
+  createActiveNavigationInstanceId,
   createActiveNavigationSession,
   mergeActiveNavigationLocation,
   normalizeActiveNavigationSession,
@@ -39,12 +40,18 @@ function session(overrides: Record<string, unknown> = {}) {
 
 describe("active navigation session", () => {
   it("round-trips a bounded active route session", () => {
-    const serialized = serializeActiveNavigationSession(session());
+    const original = session();
+    const serialized = serializeActiveNavigationSession(original);
     const normalized = normalizeActiveNavigationSession(serialized, nowMs);
 
     assert.ok(serialized);
     assert.equal(normalized?.routePlan.id, SAVED_ROUTE_PLANS[0].id);
     assert.equal(normalized?.navigationState, "navigating");
+    assert.equal(
+      normalized?.navigationInstanceId,
+      original.navigationInstanceId,
+    );
+    assert.equal(normalized?.navigationStartedAtMs, nowMs);
     assert.equal(normalized?.progressFloorMeters, 250);
   });
 
@@ -61,6 +68,13 @@ describe("active navigation session", () => {
       null,
     );
     assert.equal(normalizeActiveNavigationSession("not-json", nowMs), null);
+    assert.equal(
+      normalizeActiveNavigationSession(
+        session({ navigationInstanceId: "", version: 4 }),
+        nowMs,
+      ),
+      null,
+    );
     assert.equal(
       normalizeActiveNavigationSession(
         session({
@@ -154,6 +168,11 @@ describe("active navigation session", () => {
 
   it("rejects legacy and contradictory access scopes", () => {
     assert.ok(normalizeActiveNavigationSession(session({ version: 2 }), nowMs));
+    const migratedV3 = normalizeActiveNavigationSession(
+      session({ version: 3 }),
+      nowMs,
+    );
+    assert.match(migratedV3?.navigationInstanceId || "", /^legacy-/);
     assert.equal(
       normalizeActiveNavigationSession(session({ version: 1 }), nowMs),
       null,
@@ -189,6 +208,14 @@ describe("active navigation session", () => {
       ),
       null,
     );
+  });
+
+  it("creates a bounded unique journey identity", () => {
+    assert.notEqual(
+      createActiveNavigationInstanceId(nowMs, 0.1),
+      createActiveNavigationInstanceId(nowMs, 0.2),
+    );
+    assert.match(createActiveNavigationInstanceId(nowMs, 0.1), /^nav-/);
   });
 
   it("merges only newer background locations", () => {

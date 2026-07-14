@@ -1,0 +1,21 @@
+appId: host.exp.Exponent
+---
+- waitForAnimationToEnd:
+    timeout: 3000
+- setLocation:
+    latitude: 51.5077
+    longitude: -0.1275
+- waitForAnimationToEnd:
+    timeout: 1000
+- setLocation:
+    latitude: 51.5078
+    longitude: -0.1274
+- extendedWaitUntil:
+    visible:
+      id: "safe-route-stop-action"
+    timeout: 15000
+- assertVisible:
+    id: "safe-route-remaining-metrics"
+- waitForAnimationToEnd:
+    timeout: 3000
+- stopApp

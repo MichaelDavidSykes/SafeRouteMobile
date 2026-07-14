@@ -30,3 +30,17 @@ export function reconcileUnavailableWorkspaceIds({
 
   return unavailable;
 }
+
+export function findRestoredWorkspaceIds(
+  previousUnavailableWorkspaceIds: Iterable<string>,
+  nextUnavailableWorkspaceIds: Iterable<string>,
+): string[] {
+  const nextUnavailableIds = new Set(
+    Array.from(nextUnavailableWorkspaceIds, normalizeWorkspaceId).filter(Boolean),
+  );
+  return Array.from(
+    new Set(
+      Array.from(previousUnavailableWorkspaceIds, normalizeWorkspaceId).filter(Boolean),
+    ),
+  ).filter((workspaceId) => !nextUnavailableIds.has(workspaceId));
+}

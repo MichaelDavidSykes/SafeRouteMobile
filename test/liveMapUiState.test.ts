@@ -15,6 +15,7 @@ import {
   mapControlAccessibility,
   mapControlDisplayLabel,
   primaryRouteActionAccessibility,
+  resolveNavigationStatusNotice,
   resolveVisibleMapControls,
   routeStartBlockedReason,
   routeStatusPillPresentation,
@@ -179,6 +180,56 @@ describe('live map UI state helpers', () => {
       accessibilityLabel: 'Location status. Provider retry pending…',
       displayText: 'Location unavailable'
     });
+    assert.deepEqual(
+      createLiveLocationNoticePresentation(
+        'Checking workspace access before starting guidance…'
+      ),
+      {
+        accessibilityLabel:
+          'Access status. Checking workspace access before starting guidance…',
+        displayText: 'Checking access'
+      }
+    );
+    assert.deepEqual(
+      createLiveLocationNoticePresentation(
+        'Workspace access could not be verified. Reconnect and try again.'
+      ),
+      {
+        accessibilityLabel:
+          'Access status. Workspace access could not be verified. Reconnect and try again.',
+        displayText: 'Retry access'
+      }
+    );
+  });
+
+  it('keeps access retry status coherent with current route readiness', () => {
+    assert.equal(
+      resolveNavigationStatusNotice({
+        authorizationNotice:
+          'Checking workspace access before starting guidance…',
+        authorizationPending: true,
+        readinessNotice: 'Waiting for a live location fix before guidance can start.'
+      }),
+      'Checking workspace access before starting guidance…'
+    );
+    assert.equal(
+      resolveNavigationStatusNotice({
+        authorizationNotice:
+          'Workspace access could not be verified. Reconnect and try again.',
+        authorizationPending: false,
+        readinessNotice: 'A severe risk now intersects this route.'
+      }),
+      'A severe risk now intersects this route.'
+    );
+    assert.equal(
+      resolveNavigationStatusNotice({
+        authorizationNotice:
+          'Workspace access could not be verified. Reconnect and try again.',
+        authorizationPending: false,
+        readinessNotice: null
+      }),
+      'Workspace access could not be verified. Reconnect and try again.'
+    );
   });
 
   it('keeps route endpoint chrome as one normalized text line', () => {
@@ -506,6 +557,30 @@ describe('live map UI state helpers', () => {
       hint: 'Starts live route guidance for this saved route.',
       state: { disabled: false }
     });
+    assert.deepEqual(
+      primaryRouteActionAccessibility(
+        'loaded',
+        null,
+        'Workspace access could not be verified. Reconnect and try again.'
+      ),
+      {
+        label: 'Retry workspace access',
+        hint: 'Checks workspace access again before starting route guidance.',
+        state: { disabled: false }
+      }
+    );
+    assert.deepEqual(
+      primaryRouteActionAccessibility(
+        'loaded',
+        'Waiting for a live location fix before guidance can start.',
+        'Workspace access could not be verified. Reconnect and try again.'
+      ),
+      {
+        label: 'Start route. Waiting for a live location fix before guidance can start.',
+        hint: 'Waiting for a live location fix before guidance can start.',
+        state: { disabled: true }
+      }
+    );
     assert.deepEqual(primaryRouteActionAccessibility('navigating'), {
       label: 'Pause route guidance',
       hint: 'Pauses live route guidance for this saved route.',

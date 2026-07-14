@@ -249,6 +249,38 @@ describe("offline active workspace cache", () => {
     ]);
   });
 
+  it("serializes ordinary context saves and loads behind an in-flight recovery", async () => {
+    const executeWorkspaceOperation = createSerializedWorkspaceRecoveryExecutor();
+    let releaseRecovery: (() => void) | null = null;
+    let markRecoveryStarted: (() => void) | null = null;
+    const recoveryGate = new Promise<void>((resolve) => {
+      releaseRecovery = resolve;
+    });
+    const recoveryStarted = new Promise<void>((resolve) => {
+      markRecoveryStarted = resolve;
+    });
+    const calls: string[] = [];
+    const recovery = executeWorkspaceOperation("user-a", async () => {
+      calls.push("recovery-start");
+      markRecoveryStarted?.();
+      await recoveryGate;
+      calls.push("recovery-end");
+    });
+    await recoveryStarted;
+    const save = executeWorkspaceOperation("user-a", async () => {
+      calls.push("save");
+    });
+    const load = executeWorkspaceOperation("user-a", async () => {
+      calls.push("load");
+    });
+
+    await Promise.resolve();
+    assert.deepEqual(calls, ["recovery-start"]);
+    releaseRecovery?.();
+    await Promise.all([recovery, save, load]);
+    assert.deepEqual(calls, ["recovery-start", "recovery-end", "save", "load"]);
+  });
+
   it("retains a revocation until a previously failed purge is retried", async () => {
     const executeRecovery = createSerializedWorkspaceRecoveryExecutor();
     let fallback: string | null = null;
@@ -328,6 +360,14 @@ describe("offline active workspace cache", () => {
     assert.match(
       source,
       /loadOfflineWorkspaceContext[\s\S]*executeWorkspaceRecovery\(recoveryRevocationKey\(principalId\)/,
+    );
+    assert.match(
+      source,
+      /saveOfflineWorkspaceContext\([\s\S]*executeWorkspaceRecovery\([\s\S]*saveOfflineWorkspaceContextInternal/,
+    );
+    assert.match(
+      source,
+      /persistOfflineWorkspaceRecovery\([\s\S]*executeWorkspaceRecovery\([\s\S]*persistPrimary: \[[\s\S]*saveOfflineWorkspaceContextInternal/,
     );
   });
 });

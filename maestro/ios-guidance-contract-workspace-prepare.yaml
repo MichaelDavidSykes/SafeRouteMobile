@@ -85,3 +85,9 @@ appId: host.exp.Exponent
     visible:
       id: "safe-route-live-map"
     timeout: 20000
+- assertVisible:
+    id: "safe-route-primary-action"
+- assertNotVisible:
+    id: "safe-route-stop-action"
+- assertNotVisible:
+    id: "safe-route-remaining-metrics"

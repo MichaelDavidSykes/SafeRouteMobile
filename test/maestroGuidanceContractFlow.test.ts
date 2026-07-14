@@ -26,12 +26,15 @@ describe('Maestro cold guidance contract matrix', () => {
     assert.match(workspacePreparation, /id: "guest-map-primary-action"/);
     assert.match(workspacePreparation, /id: "safe-route-card-guidance-contract-route"/);
     assert.match(workspacePreparation, /id: "safe-route-live-map"/);
-    assert.doesNotMatch(workspacePreparation, /id: "safe-route-primary-action"/);
+    assert.match(workspacePreparation, /assertVisible:[\s\S]*id: "safe-route-primary-action"/);
+    assert.doesNotMatch(
+      workspacePreparation,
+      /tapOn:[\s\S]{0,80}id: "safe-route-primary-action"/,
+    );
 
     for (const path of [
       'maestro/ios-guidance-contract-public-seed.yaml',
       'maestro/ios-guidance-contract-workspace-seed.yaml',
-      'maestro/ios-guidance-contract-workspace-reseed.yaml',
       'maestro/ios-guidance-contract-wrong-principal-start.yaml',
       'maestro/ios-guidance-contract-denied-start.yaml'
     ]) {
@@ -49,6 +52,7 @@ describe('Maestro cold guidance contract matrix', () => {
     const runner = read('scripts/run-maestro-guidance-contract.mjs');
 
     for (const phase of [
+      'reset',
       'publicPrepare',
       'publicStart',
       'publicResume',
@@ -61,10 +65,11 @@ describe('Maestro cold guidance contract matrix', () => {
       'deniedPrepare',
       'deniedStart',
       'workspaceReseedPrepare',
-      'workspaceReseed',
+      'workspaceReseedStart',
       'wrongPrincipal',
       'wrongPrincipalRelaunch',
-      'denialSeed',
+      'denialSeedPrepare',
+      'denialSeedStart',
       'denied',
       'regained'
     ]) {
@@ -120,10 +125,12 @@ describe('Maestro cold guidance contract matrix', () => {
     const runner = read('scripts/run-maestro-guidance-contract.mjs');
     const fixture = read('scripts/maestro-guidance-contract-api.mjs');
 
-    assert.match(runner, /waitForStartAuthorizationTrafficQuiet/);
+    assert.match(runner, /waitForGuidanceStartTrafficQuiet/);
+    assert.match(runner, /writeStartBoundaryMarker\(boundary, 'armed'\)/);
     assert.match(runner, /writeStartBoundaryMarker\(boundary, 'open'\)/);
     assert.match(runner, /writeStartBoundaryMarker\(boundary, 'close'\)/);
-    assert.match(runner, /assertStartAuthorizationTrafficRemainsQuiet/);
+    assert.match(runner, /writeStartBoundaryMarker\(boundary, 'settled'\)/);
+    assert.match(runner, /assertGuidanceStartTrafficRemainsQuiet/);
     assert.match(runner, /assertGuidanceStartTrafficBoundary/);
     assert.match(
       runner,
@@ -145,23 +152,45 @@ describe('Maestro cold guidance contract matrix', () => {
       runner,
       /boundary: 'denied-workspace-start'[\s\S]*'\/api\/v1\/users\/me'[\s\S]*'\/api\/v1\/mobile\/safe-route\/routes'/
     );
+    assert.match(
+      runner,
+      /boundary: 'workspace-reseed-start'[\s\S]*'\/api\/v1\/users\/me'[\s\S]*'\/api\/v1\/mobile\/safe-route\/routes'/
+    );
+    assert.match(
+      runner,
+      /boundary: 'denial-seed-start'[\s\S]*'\/api\/v1\/users\/me'[\s\S]*'\/api\/v1\/mobile\/safe-route\/routes'/
+    );
     assert.match(fixture, /GUIDANCE_START_BOUNDARY_PATH/);
     assert.match(fixture, /entry\.search === ''/);
     assert.match(fixture, /entry\.authorizationClass === 'expected-bearer'/);
 
-    const quietIndex = runner.indexOf('await waitForStartAuthorizationTrafficQuiet();');
+    const quietIndex = runner.indexOf('await waitForGuidanceStartTrafficQuiet({');
+    const armedIndex = runner.indexOf("await writeStartBoundaryMarker(boundary, 'armed');");
     const openIndex = runner.indexOf("await writeStartBoundaryMarker(boundary, 'open');");
     const modeSwitchIndex = runner.indexOf('setControl(phase);', quietIndex);
     const outcomeIndex = runner.indexOf('runMaestroPhase(phase, `${label} outcome`, outcomeFile);');
     const outcomeQuietIndex = runner.indexOf(
-      'await waitForStartAuthorizationTrafficQuiet();',
+      'await waitForGuidanceStartTrafficQuiet({',
       outcomeIndex,
     );
     const closeIndex = runner.indexOf("await writeStartBoundaryMarker(boundary, 'close');");
-    assert.ok(quietIndex >= 0 && openIndex > quietIndex);
+    const quarantineIndex = runner.indexOf(
+      'await assertGuidanceStartTrafficRemainsQuiet({',
+      closeIndex,
+    );
+    const settledIndex = runner.indexOf("await writeStartBoundaryMarker(boundary, 'settled');");
+    assert.ok(quietIndex >= 0 && armedIndex > quietIndex && openIndex > armedIndex);
     assert.ok(modeSwitchIndex > openIndex, 'Start mode must switch only after the open marker');
     assert.ok(outcomeIndex > modeSwitchIndex && outcomeQuietIndex > outcomeIndex);
     assert.ok(closeIndex > outcomeQuietIndex, 'Start boundary must close only after traffic is quiet');
+    assert.ok(
+      quarantineIndex > closeIndex && settledIndex > quarantineIndex,
+      'Start boundary must remain quarantined before it settles',
+    );
+    assert.match(
+      runner,
+      /Public preparation did not exercise the contract route-preview endpoint\.'[\s\S]*boundary: 'public-start'/,
+    );
 
     const deniedBoundary = runner.slice(
       runner.indexOf("boundary: 'denied-workspace-start'"),
@@ -181,6 +210,22 @@ describe('Maestro cold guidance contract matrix', () => {
     );
     assert.match(deniedOutcome, /visible: "Refresh workspace access"/);
     assert.match(deniedOutcome, /assertNotVisible: "Refreshing workspace access"/);
+    assert.match(
+      deniedOutcome,
+      /This route closed because its workspace is no longer available\./,
+    );
+    assert.match(
+      read('maestro/ios-guidance-contract-wrong-principal-start-outcome.yaml'),
+      /Workspace access belongs to another signed-in account\. Sign in again\./,
+    );
+    for (const path of [
+      'maestro/ios-guidance-contract-public-start-outcome.yaml',
+      'maestro/ios-guidance-contract-workspace-start-outcome.yaml',
+      'maestro/ios-guidance-contract-workspace-reseed-start-outcome.yaml',
+      'maestro/ios-guidance-contract-denial-seed-start-outcome.yaml'
+    ]) {
+      assert.match(read(path), /id: "safe-route-remaining-metrics"/);
+    }
   });
 
 });

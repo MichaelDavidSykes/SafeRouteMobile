@@ -43,6 +43,16 @@ export async function saveOfflineWorkspaceContext(
   if (!principalId.trim()) {
     return;
   }
+  await executeWorkspaceRecovery(
+    recoveryRevocationKey(principalId),
+    () => saveOfflineWorkspaceContextInternal(principalId, context),
+  );
+}
+
+async function saveOfflineWorkspaceContextInternal(
+  principalId: string,
+  context: OfflineWorkspaceContext,
+): Promise<void> {
   await writeWorkspaceRecord(
     `${WORKSPACE_CONTEXT_KEY_PREFIX}.${identityKey(principalId)}`,
     JSON.stringify(createOfflineWorkspaceCacheRecord(context, principalId)),
@@ -77,7 +87,7 @@ export async function persistOfflineWorkspaceRecovery(
         DEVICE_ONLY_SECURE_STORE_OPTIONS,
       ),
       persistPrimary: [
-        () => saveOfflineWorkspaceContext(principalId, context),
+        () => saveOfflineWorkspaceContextInternal(principalId, context),
         ...purgeWorkspaceCaches,
       ],
       requireFallback,

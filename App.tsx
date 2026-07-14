@@ -1062,6 +1062,13 @@ export default function App() {
     freshWorkspaces?: SafeRouteWorkspace[],
   ) => {
     const normalizedWorkspaceId = workspaceId.trim();
+    const recoveryAccessToken = activeSessionTokenRef.current;
+    const recoveryPrincipalId = activeSessionPrincipalIdRef.current;
+    const recoverySessionEpoch = sessionEpochRef.current;
+    const recoveryIsCurrent = () =>
+      activeSessionTokenRef.current === recoveryAccessToken &&
+      activeSessionPrincipalIdRef.current === recoveryPrincipalId &&
+      sessionEpochRef.current === recoverySessionEpoch;
     const freshCatalog = freshWorkspaces
       ? normalizeWorkspaceCatalog(freshWorkspaces)
       : null;
@@ -1092,7 +1099,7 @@ export default function App() {
     }
 
     const unavailableWorkspace = activeWorkspaceRef.current;
-    const principalId = getAuthSessionPrincipalId(session);
+    const principalId = recoveryPrincipalId;
     restoreUnavailableWorkspacesFromFreshCatalogRef.current = false;
     unavailableWorkspaceIdsRef.current = freshRecovery?.status === 'recovered'
       ? freshRecovery.unavailableWorkspaceIds
@@ -1165,6 +1172,9 @@ export default function App() {
         ),
       ),
     ]);
+    if (!recoveryIsCurrent()) {
+      return;
+    }
     if (workspaceRecoveryPersistence === 'failed') {
       freshWorkspaceAuthorizationRef.current = {
         principalId,
@@ -1175,7 +1185,7 @@ export default function App() {
         'Workspace access closed. Retry access before starting another route.',
       );
     }
-  }, [session]);
+  }, []);
 
   const handleNavigationSessionChange = useCallback((nextSession: ActiveNavigationSession | null) => {
     if (!nextSession) {

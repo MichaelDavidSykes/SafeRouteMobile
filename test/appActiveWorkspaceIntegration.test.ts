@@ -77,6 +77,14 @@ describe("App active workspace integration", () => {
       /await Promise\.all\(\[[\s\S]*navigationCleanup[\s\S]*persistOfflineWorkspaceRecovery[\s\S]*clearOfflineRouteWorkspace/,
     );
     assert.match(app, /workspaceRecoveryPersistence === 'failed'[\s\S]*workspaceIds: new Set<string>\(\)/);
+    assert.match(
+      app,
+      /recoveryAccessToken = activeSessionTokenRef\.current[\s\S]*recoveryPrincipalId = activeSessionPrincipalIdRef\.current[\s\S]*recoverySessionEpoch = sessionEpochRef\.current[\s\S]*recoveryIsCurrent = \(\) =>/,
+    );
+    assert.match(
+      app,
+      /const \[, workspaceRecoveryPersistence\] = await Promise\.all\([\s\S]*if \(!recoveryIsCurrent\(\)\) \{[\s\S]*return;[\s\S]*workspaceRecoveryPersistence === 'failed'/,
+    );
     assert.match(app, /setWorkspaceDiscoveryRevision\(\(revision\) => revision \+ 1\)/);
   });
 

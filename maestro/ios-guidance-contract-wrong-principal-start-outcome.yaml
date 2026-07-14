@@ -4,9 +4,12 @@ appId: host.exp.Exponent
     visible:
       id: "safe-route-login"
     timeout: 30000
+- assertVisible: "Workspace access belongs to another signed-in account. Sign in again."
 - assertNotVisible:
     id: "safe-route-live-map"
 - assertNotVisible:
     id: "safe-route-stop-action"
 - assertNotVisible:
     id: "safe-route-resume-action"
+- assertNotVisible:
+    id: "safe-route-remaining-metrics"

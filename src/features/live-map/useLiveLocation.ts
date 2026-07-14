@@ -77,7 +77,10 @@ export function useLiveLocation({
   const [timestampMs, setTimestampMs] = useState<number | null>(
     initialReliableLocationRef.current?.timestampMs || null
   );
-  const [permissionStatus, setPermissionStatus] = useState<PermissionStatus>('idle');
+  // The hook always inspects the current foreground permission on mount. Mark
+  // that brief preflight as pending so route actions cannot race it and appear
+  // to ignore the first tap.
+  const [permissionStatus, setPermissionStatus] = useState<PermissionStatus>('checking');
   const [errorMessage, setErrorMessage] = useState('');
   const [locationQuality, setLocationQuality] = useState<'degraded' | 'good'>('degraded');
   const [backgroundStatus, setBackgroundStatus] = useState<BackgroundNavigationStatus>('idle');

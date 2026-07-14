@@ -120,7 +120,7 @@ export function routeStartBlockedReason({
   }
 
   if (permissionStatus === 'checking') {
-    return 'Checking foreground location access before live guidance can start.';
+    return 'Finding your current location before guidance can start.';
   }
 
   if (!hasLiveCoordinate) {
@@ -198,8 +198,8 @@ function liveLocationNoticeDisplayText(notice: string): string {
     return 'Re-sync route';
   }
 
-  if (normalized.includes('checking')) {
-    return 'Checking location';
+  if (normalized.includes('checking') || normalized.includes('finding')) {
+    return 'Finding current location';
   }
 
   if (normalized.includes('waiting') || normalized.includes('location fix')) {

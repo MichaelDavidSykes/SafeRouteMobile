@@ -24,7 +24,7 @@ describe('live location state helpers', () => {
 
   it('uses short production copy for iOS location states', () => {
     assert.equal(trackingLabelForPermissionStatus('idle'), 'Ready');
-    assert.equal(trackingLabelForPermissionStatus('checking'), 'Checking');
+    assert.equal(trackingLabelForPermissionStatus('checking'), 'Locating');
     assert.equal(trackingLabelForPermissionStatus('granted'), 'Live');
     assert.equal(trackingLabelForPermissionStatus('denied'), 'Location off');
     assert.equal(

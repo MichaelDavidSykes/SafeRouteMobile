@@ -322,7 +322,7 @@ export default function App() {
       setWorkspaceCatalogLoading(true);
       if (previewInitialScreen === 'guidance-suspended') {
         stagePendingNavigationRestore(createPreviewSuspendedNavigationSession());
-        setSessionMessage('Checking workspace access before restoring guidance…');
+        setSessionMessage('Restoring your saved route…');
       }
       setSession(createPreviewAuthSession());
       if (previewInitialScreen !== 'guidance-suspended') {
@@ -410,7 +410,7 @@ export default function App() {
               restoreResult.session,
             )) {
               stagePendingNavigationRestore(persistedNavigation);
-              setSessionMessage('Checking workspace access before restoring guidance…');
+              setSessionMessage('Restoring your saved route…');
               await stopBackgroundNavigation();
             } else {
               await discardPersistedNavigation(
@@ -495,7 +495,7 @@ export default function App() {
         persistedSession,
       )) {
         stagePendingNavigationRestore(persistedNavigation);
-        setSessionMessage('Checking workspace access before restoring guidance…');
+        setSessionMessage('Restoring your saved route…');
         await stopBackgroundNavigation();
         setScreen('guest-map');
       } else {
@@ -901,7 +901,7 @@ export default function App() {
   const handleRetryWorkspaceCatalog = useCallback(() => {
     if (pendingNavigationRestoreRef.current) {
       setPendingNavigationRestoreStatus('checking');
-      setSessionMessage('Checking workspace access before restoring guidance…');
+      setSessionMessage('Restoring your saved route…');
     }
     restoreUnavailableWorkspacesFromFreshCatalogRef.current = true;
     setWorkspaceDiscoveryRevision((revision) => revision + 1);

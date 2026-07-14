@@ -101,8 +101,8 @@ function createBlockedRouteActionLabel(
     return null;
   }
 
-  if (reason.includes("checking")) {
-    return "Checking location";
+  if (reason.includes("checking") || reason.includes("finding")) {
+    return "Locating…";
   }
 
   if (reason.includes("geometry") || reason.includes("re-sync")) {

@@ -27,7 +27,8 @@ import {
 } from "./routeSummaryPresentation";
 import type { BackgroundNavigationPresentation } from "./backgroundNavigationState";
 
-const ROUTE_SUMMARY_ACTION_HIT_SLOP = 6;
+const ROUTE_SUMMARY_ACTION_HIT_SLOP = 12;
+const ROUTE_SUMMARY_ACTION_PRESS_RETENTION_OFFSET = 20;
 
 interface LiveMapRouteSummarySheetProps {
   backgroundNavigationPresentation?: BackgroundNavigationPresentation | null;
@@ -221,6 +222,7 @@ export function LiveMapRouteSummarySheet({
           accessibilityState={primaryAccessibility.state}
           disabled={primaryDisabled}
           hitSlop={ROUTE_SUMMARY_ACTION_HIT_SLOP}
+          pressRetentionOffset={ROUTE_SUMMARY_ACTION_PRESS_RETENTION_OFFSET}
           testID={uiTestIds.liveMapPrimaryAction}
           style={({ pressed }) => [
             styles.startButton,
@@ -247,6 +249,7 @@ export function LiveMapRouteSummarySheet({
             accessibilityRole="button"
             accessibilityState={stopAccessibility.state}
             hitSlop={ROUTE_SUMMARY_ACTION_HIT_SLOP}
+            pressRetentionOffset={ROUTE_SUMMARY_ACTION_PRESS_RETENTION_OFFSET}
             testID={uiTestIds.liveMapStopAction}
             style={({ pressed }) => [
               styles.stopButton,

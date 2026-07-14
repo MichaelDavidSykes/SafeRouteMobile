@@ -37,7 +37,7 @@ export function SuspendedNavigationNotice({
       <Text numberOfLines={2} style={styles.message}>{presentation.message}</Text>
       <View style={styles.actions}>
         <Pressable
-          accessibilityLabel={checking ? "Checking workspace access" : "Retry workspace access"}
+          accessibilityLabel={checking ? "Restoring saved route" : "Retry workspace access"}
           accessibilityRole="button"
           accessibilityState={{ busy: checking, disabled: checking }}
           disabled={checking}

@@ -60,7 +60,7 @@ describe('live map UI state helpers', () => {
     );
     assert.equal(
       routeStartBlockedReason({ demoDriveActive: false, hasLiveCoordinate: false, permissionStatus: 'checking' }),
-      'Checking foreground location access before live guidance can start.'
+      'Finding your current location before guidance can start.'
     );
     assert.equal(
       routeStartBlockedReason({ demoDriveActive: false, hasLiveCoordinate: false, permissionStatus: 'granted' }),
@@ -181,6 +181,16 @@ describe('live map UI state helpers', () => {
         accessibilityLabel:
           'Location status. Waiting for a live location fix before guidance can start.',
         displayText: 'Location needed'
+      }
+    );
+    assert.deepEqual(
+      createLiveLocationNoticePresentation(
+        'Finding your current location before guidance can start.'
+      ),
+      {
+        accessibilityLabel:
+          'Location status. Finding your current location before guidance can start.',
+        displayText: 'Finding current location'
       }
     );
     assert.deepEqual(

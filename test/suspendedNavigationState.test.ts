@@ -8,9 +8,9 @@ describe("suspended navigation presentation", () => {
     assert.deepEqual(
       createSuspendedNavigationPresentation({ offline: false, status: "checking" }),
       {
-        message: "Guidance stays off until this workspace is verified.",
-        retryLabel: "Checking…",
-        title: "Checking workspace access",
+        message: "Confirming this saved route is ready to resume.",
+        retryLabel: "Restoring…",
+        title: "Restoring route",
       },
     );
   });

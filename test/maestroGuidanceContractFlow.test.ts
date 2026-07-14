@@ -116,7 +116,7 @@ describe('Maestro cold guidance contract matrix', () => {
     }
     assert.match(
       read('maestro/ios-guidance-contract-public-resume.yaml'),
-      /id: "safe-route-stop-action"[\s\S]*waitForAnimationToEnd:[\s\S]*timeout: 2500[\s\S]*id: "safe-route-return"[\s\S]*retryTapIfNoChange: true/,
+      /id: "safe-route-stop-action"[\s\S]*waitToSettleTimeoutMs: 1000[\s\S]*waitForAnimationToEnd:[\s\S]*timeout: 2500[\s\S]*id: "safe-route-return"[\s\S]*retryTapIfNoChange: true/,
     );
   });
 

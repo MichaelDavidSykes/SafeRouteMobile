@@ -11,6 +11,7 @@ appId: host.exp.Exponent
     id: "safe-route-suspended-navigation"
 - tapOn:
     id: "safe-route-stop-action"
+    waitToSettleTimeoutMs: 1000
 - waitForAnimationToEnd:
     timeout: 2500
 - runFlow:

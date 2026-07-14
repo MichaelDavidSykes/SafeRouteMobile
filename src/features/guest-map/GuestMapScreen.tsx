@@ -67,6 +67,7 @@ import {
   searchGuestLocations,
   type GuestLocationSearchResult
 } from './guestLocationSearch';
+import { resolveGuestRouteDraftSearchInputs } from './guestRouteDraftResolution';
 import {
   addGuestRouteWaypoint,
   canAddGuestRouteWaypoint,
@@ -143,6 +144,7 @@ export function GuestMapScreen({
   const mapRef = useRef<MapView | null>(null);
   const activeRoadRouteRequestRef = useRef<AbortController | null>(null);
   const activeLocationSearchRef = useRef<AbortController | null>(null);
+  const activeDraftResolutionRef = useRef<AbortController | null>(null);
   const activeRiskAreaRequestRef = useRef<AbortController | null>(null);
   const lastCenteredLocationRef = useRef<GuestMapCenteredLocation | null>(null);
   const onSessionExpiredRef = useRef(onSessionExpired);
@@ -175,6 +177,7 @@ export function GuestMapScreen({
   const [workspaceMenuOpen, setWorkspaceMenuOpen] = useState(false);
   const [selectedRiskZone, setSelectedRiskZone] = useState<RiskZone | null>(null);
   const [routePlan, setRoutePlan] = useState<SavedSafeRoutePlan | null>(null);
+  const [routeResolutionPending, setRouteResolutionPending] = useState(false);
   const [roadPreviewPending, setRoadPreviewPending] = useState(false);
   const [riskAreaSavePending, setRiskAreaSavePending] = useState(false);
   const {
@@ -216,6 +219,7 @@ export function GuestMapScreen({
   });
   const routeActionDisabled =
     routeAction.disabled ||
+    routeResolutionPending ||
     roadPreviewPending ||
     workspaceSelectionRequired ||
     workspaceAuthorizationRequired;
@@ -226,8 +230,10 @@ export function GuestMapScreen({
       : availableWorkspaces.length
         ? 'Choose workspace'
         : 'No workspace access';
-  const routeActionLabel = roadPreviewPending
-    ? 'Finding safest route…'
+  const routeActionLabel = routeResolutionPending
+    ? 'Resolving route points…'
+    : roadPreviewPending
+      ? 'Finding safest route…'
     : workspaceSelectionRequired
       ? workspaceBlockingActionLabel
       : workspaceAuthorizationRequired
@@ -449,6 +455,9 @@ export function GuestMapScreen({
   }, []);
 
   const cancelRoadRouteUpgrade = () => {
+    activeDraftResolutionRef.current?.abort();
+    activeDraftResolutionRef.current = null;
+    setRouteResolutionPending(false);
     roadRouteRequestIdRef.current += 1;
     pendingOpenPreviewRef.current = false;
     activeRoadRouteRequestRef.current?.abort();
@@ -512,12 +521,52 @@ export function GuestMapScreen({
         longitude: GUEST_MAP_REGION.longitude
       });
     }
+    const typedStopIds = getGuestRouteDraftUnresolvedStopIds(plottingDraft)
+      .filter((stopId) => findGuestRouteDraftStop(plottingDraft, stopId)?.resolution.type === 'unresolved');
+    if (typedStopIds.length) {
+      const controller = new AbortController();
+      activeDraftResolutionRef.current = controller;
+      setRouteResolutionPending(true);
+      try {
+        plottingDraft = await resolveGuestRouteDraftSearchInputs({
+          draft: plottingDraft,
+          search: (query, options) => searchGuestLocations(query, {
+            ...options,
+            serviceBaseUrl: LUNARCHAIN_API_BASE
+          }),
+          signal: controller.signal
+        });
+        if (controller.signal.aborted) {
+          return;
+        }
+        for (const stopId of typedStopIds) {
+          const stop = findGuestRouteDraftStop(plottingDraft, stopId);
+          if (stop?.resolution.type === 'coordinate') {
+            dispatchRouteDraft({
+              selection: {
+                coordinate: stop.resolution.coordinate,
+                label: stop.label
+              },
+              stopId,
+              type: 'stop/select'
+            });
+          }
+        }
+      } finally {
+        if (activeDraftResolutionRef.current === controller) {
+          activeDraftResolutionRef.current = null;
+          setRouteResolutionPending(false);
+        }
+      }
+    }
     const unresolvedStopIds = getGuestRouteDraftUnresolvedStopIds(plottingDraft);
     if (unresolvedStopIds.length) {
       const firstStopId = unresolvedStopIds[0];
       const firstStop = findGuestRouteDraftStop(plottingDraft, firstStopId);
       setRouteMessage(
-        firstStopId === GUEST_ROUTE_DRAFT_ORIGIN_ID && permissionStatus !== 'denied'
+        firstStopId === GUEST_ROUTE_DRAFT_ORIGIN_ID &&
+          isCurrentLocationLabel(firstStop?.label || '') &&
+          permissionStatus !== 'denied'
           ? 'Finding your current location…'
           : `Choose ${firstStop?.kind === 'waypoint' ? 'this stop' : firstStop?.kind || 'a stop'} from the search results.`
       );
@@ -542,9 +591,9 @@ export function GuestMapScreen({
       authenticated,
       checkpoints,
       destinationCoordinate: resolvedDestinationCoordinate,
-      origin,
+      origin: plottingDraft.origin.label,
       originCoordinate: resolvedOriginCoordinate,
-      destination,
+      destination: plottingDraft.destination.label,
       riskZones: viewportRisk.zones
     });
     // A straight checkpoint connector is useful as an internal request

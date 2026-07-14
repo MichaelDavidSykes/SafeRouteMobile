@@ -348,7 +348,8 @@ export function mapControlAccessibility(
 
 export function primaryRouteActionAccessibility(
   state: NavigationLifecycle,
-  disabledReason?: string | null
+  disabledReason?: string | null,
+  actionStatusReason?: string | null
 ): ControlAccessibilityCopy {
   const normalizedDisabledReason = normalizeRouteActionDisabledReason(disabledReason);
   if (normalizedDisabledReason) {
@@ -356,6 +357,20 @@ export function primaryRouteActionAccessibility(
       label: `Start route. ${normalizedDisabledReason}`,
       hint: normalizedDisabledReason,
       state: { disabled: true }
+    };
+  }
+
+  const normalizedActionStatusReason = actionStatusReason?.trim().replace(/\s+/g, ' ');
+  if (
+    normalizedActionStatusReason &&
+    isWorkspaceAccessNotice(normalizedActionStatusReason) &&
+    (normalizedActionStatusReason.toLowerCase().includes('reconnect') ||
+      normalizedActionStatusReason.toLowerCase().includes('verified'))
+  ) {
+    return {
+      label: 'Retry workspace access',
+      hint: 'Checks workspace access again before starting route guidance.',
+      state: { disabled: false }
     };
   }
 

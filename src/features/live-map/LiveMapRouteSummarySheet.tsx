@@ -36,6 +36,7 @@ interface LiveMapRouteSummarySheetProps {
   onEnableBackgroundNavigation: () => void;
   onPrimaryAction: () => void;
   onStopRoute: () => void;
+  primaryActionStatusReason?: string | null;
   primaryDisabledReason?: string | null;
   progress: RouteProgressSnapshot | null;
   route: RoutePath;
@@ -50,6 +51,7 @@ export function LiveMapRouteSummarySheet({
   onEnableBackgroundNavigation,
   onPrimaryAction,
   onStopRoute,
+  primaryActionStatusReason,
   primaryDisabledReason,
   progress,
   route,
@@ -59,11 +61,12 @@ export function LiveMapRouteSummarySheet({
   const routeIntelCount = routePlan.riskZones.length;
   const primary = createRouteSummaryPrimaryAction(
     navigationState,
-    primaryDisabledReason,
+    primaryDisabledReason || primaryActionStatusReason,
   );
   const primaryAccessibility = primaryRouteActionAccessibility(
     navigationState,
     primaryDisabledReason,
+    primaryActionStatusReason,
   );
   const stopAccessibility = stopRouteAccessibility(navigationState);
   const primaryDisabled = Boolean(primaryAccessibility.state.disabled);

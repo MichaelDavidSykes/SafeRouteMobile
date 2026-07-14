@@ -393,6 +393,10 @@ export function LiveMapScreen({
     routeCoordinateCount: liveRoutePlan.route.coordinates.length,
   });
   navigationStartBlockedReasonRef.current = navigationBlockedReason;
+  const navigationAuthorizationRetryNotice =
+    navigationAuthorizationNotice?.toLowerCase().includes("reconnect")
+      ? navigationAuthorizationNotice
+      : null;
   const locationNotice = navigationAuthorizationNotice || (
     navigationState === "loaded" ||
     navigationState === "paused" ||
@@ -1273,6 +1277,7 @@ export function LiveMapScreen({
         routeContext={routeContext}
         onSetAlertsVisible={setAlertsVisible}
         onStopRoute={handleStopRoute}
+        primaryActionStatusReason={navigationAuthorizationRetryNotice}
         primaryDisabledReason={
           navigationAuthorizationPending
             ? "Checking workspace access before starting guidance…"

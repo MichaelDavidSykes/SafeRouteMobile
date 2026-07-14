@@ -526,6 +526,30 @@ describe('live map UI state helpers', () => {
       hint: 'Starts live route guidance for this saved route.',
       state: { disabled: false }
     });
+    assert.deepEqual(
+      primaryRouteActionAccessibility(
+        'loaded',
+        null,
+        'Workspace access could not be verified. Reconnect and try again.'
+      ),
+      {
+        label: 'Retry workspace access',
+        hint: 'Checks workspace access again before starting route guidance.',
+        state: { disabled: false }
+      }
+    );
+    assert.deepEqual(
+      primaryRouteActionAccessibility(
+        'loaded',
+        'Waiting for a live location fix before guidance can start.',
+        'Workspace access could not be verified. Reconnect and try again.'
+      ),
+      {
+        label: 'Start route. Waiting for a live location fix before guidance can start.',
+        hint: 'Waiting for a live location fix before guidance can start.',
+        state: { disabled: true }
+      }
+    );
     assert.deepEqual(primaryRouteActionAccessibility('navigating'), {
       label: 'Pause route guidance',
       hint: 'Pauses live route guidance for this saved route.',

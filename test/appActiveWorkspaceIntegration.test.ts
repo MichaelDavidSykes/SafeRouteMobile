@@ -137,7 +137,7 @@ describe("App active workspace integration", () => {
     const app = appSource();
 
     assert.match(app, /handleActiveWorkspaceChange[\s\S]*activeNavigationSession[\s\S]*workspace\?\.id !== activeWorkspace\?\.id[\s\S]*return/);
-    assert.match(app, /navigationWorkspaceLocked = Boolean\([\s\S]*activeNavigationSession \|\| pendingNavigationRestoreRef\.current/);
+    assert.match(app, /navigationWorkspaceLocked = Boolean\([\s\S]*activeNavigationSession \|\| pendingNavigationRestore/);
     assert.match(app, /workspaceSwitchDisabled=\{navigationWorkspaceLocked\}/);
   });
 
@@ -147,10 +147,11 @@ describe("App active workspace integration", () => {
     const liveMap = readFileSync("src/features/live-map/LiveMapScreen.tsx", "utf8");
 
     assert.match(app, /pendingNavigationRestoreRef = useRef<ActiveNavigationSession \| null>\(null\)/);
-    assert.match(app, /loadActiveNavigationSession\(\);[\s\S]*!persistedNavigation \|\| persistedNavigation\.accessScope\.kind === 'workspace'[\s\S]*await stopBackgroundNavigation\(\);[\s\S]*const storedSession = await loadAuthSession\(\)/);
-    assert.match(app, /persistedNavigation\?\.accessScope\.kind === 'workspace'[\s\S]*pendingNavigationRestoreRef\.current = persistedNavigation/);
+    assert.match(app, /await stopBackgroundNavigation\(\);[\s\S]*loadActiveNavigationSession\(\);[\s\S]*const storedSession = await loadAuthSession\(\)/);
+    assert.match(app, /catch \{[\s\S]*clearAuthSession\(\)\.catch\(\(\) => undefined\)[\s\S]*openActiveNavigationSession\(persistedNavigation, false/);
+    assert.match(app, /persistedNavigation\?\.accessScope\.kind === 'workspace'[\s\S]*stagePendingNavigationRestore\(persistedNavigation\)/);
     assert.match(app, /hasMatchingAuthPrincipal\([\s\S]*persistedNavigation\.accessScope\.principalId/);
-    assert.match(app, /pendingNavigationRestoreRef\.current = persistedNavigation;[\s\S]*stopBackgroundNavigation\(\)/);
+    assert.match(app, /stagePendingNavigationRestore\(persistedNavigation\);[\s\S]*stopBackgroundNavigation\(\)/);
     assert.match(app, /fetchSavedRoutes\(accessToken\)[\s\S]*pendingNavigationWorkspace = findWorkspace\([\s\S]*openActiveNavigationSession\([\s\S]*pendingNavigation,[\s\S]*true,[\s\S]*resolvedWorkspace\?\.id/);
     assert.match(app, /pendingNavigation && !pendingNavigationWorkspace[\s\S]*discardPersistedNavigation\([\s\S]*Plot the route again/);
     assert.match(app, /discardPersistedNavigation[\s\S]*stopBackgroundNavigation\(\)[\s\S]*clearActiveNavigationSession\(\)/);
@@ -162,5 +163,10 @@ describe("App active workspace integration", () => {
     assert.match(guest, /disabled = retryAvailable[\s\S]*\? false[\s\S]*switchDisabled/);
     assert.match(guest, /onPress=\{retryAvailable \? onRetry : onToggle\}/);
     assert.match(liveMap, /accepted === false[\s\S]*clearActiveNavigationSession\(\)[\s\S]*return[\s\S]*saveActiveNavigationSession/);
+    assert.match(app, /stagePendingNavigationRestore\(persistedNavigation\)/);
+    assert.match(app, /pendingNavigationRestoreRef\.current[\s\S]*setPendingNavigationRestoreStatus\('paused'\)/);
+    assert.match(app, /SuspendedNavigationNotice[\s\S]*onRetry=\{handleRetryWorkspaceCatalog\}/);
+    assert.match(app, /discardPersistedNavigation\('Suspended route ended\.'\)/);
+    assert.match(app, /wasOffline[\s\S]*reconnectRetryPendingRef\.current = true[\s\S]*pendingNavigationRestore\?\.status === 'paused'[\s\S]*!workspaceCatalogLoading[\s\S]*handleRetryWorkspaceCatalog\(\)/);
   });
 });

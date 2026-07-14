@@ -15,6 +15,7 @@ import { clearAuthSession, loadAuthSession, saveAuthSession } from './src/featur
 import {
   createPreviewLoginCodeChallenge,
   createPreviewAuthSession,
+  createPreviewSuspendedNavigationSession,
   isPreviewAccessToken,
   PREVIEW_EXPIRED_SESSION_NOTICE,
   PREVIEW_SESSION_NOTICE
@@ -56,6 +57,7 @@ import {
   waitForSessionCleanup
 } from './src/features/api/sessionExpiry';
 import { ApiSessionExpiredError } from './src/features/api/apiClient';
+import { useNetworkAvailability } from './src/features/api/useNetworkAvailability';
 import { fetchSavedRoutes } from './src/features/routes/routeApi';
 import {
   clearOfflineRouteWorkspace,
@@ -77,8 +79,16 @@ import {
   resolveWorkspaceAccessRecovery
 } from './src/features/workspaces/workspaceAccessRecovery';
 import { reconcileUnavailableWorkspaceIds } from './src/features/workspaces/workspaceMembershipRevalidation';
+import { SuspendedNavigationNotice } from './src/features/live-map/SuspendedNavigationNotice';
+import type { SuspendedNavigationStatus } from './src/features/live-map/suspendedNavigationState';
+
+type PendingNavigationRestore = {
+  session: ActiveNavigationSession;
+  status: SuspendedNavigationStatus;
+};
 
 export default function App() {
+  const { offline } = useNetworkAvailability();
   const [session, setSession] = useState<AuthSession | null>(null);
   const [selectedRoute, setSelectedRoute] = useState<SavedSafeRoutePlan | null>(null);
   const [activeNavigationSession, setActiveNavigationSession] =
@@ -93,6 +103,8 @@ export default function App() {
   const [workspaceCatalogLoading, setWorkspaceCatalogLoading] = useState(false);
   const [workspaceCatalogError, setWorkspaceCatalogError] = useState('');
   const [workspaceDiscoveryRevision, setWorkspaceDiscoveryRevision] = useState(0);
+  const [pendingNavigationRestore, setPendingNavigationRestore] =
+    useState<PendingNavigationRestore | null>(null);
   const pendingFullAccessFeatureRef = useRef<GuestFullAccessFeature | null>(null);
   const activeSessionTokenRef = useRef(session?.accessToken || null);
   const activeSessionPrincipalIdRef = useRef(getAuthSessionPrincipalId(session));
@@ -113,7 +125,7 @@ export default function App() {
   const authenticated = hasAuthenticatedSession(session);
   const sessionPrincipalId = getAuthSessionPrincipalId(session);
   const navigationWorkspaceLocked = Boolean(
-    activeNavigationSession || pendingNavigationRestoreRef.current,
+    activeNavigationSession || pendingNavigationRestore,
   );
   const sessionEpoch = sessionEpochRef.current;
   activeSessionTokenRef.current = session?.accessToken || null;
@@ -166,6 +178,7 @@ export default function App() {
     }
 
     pendingNavigationRestoreRef.current = null;
+    setPendingNavigationRestore(null);
     activeNavigationSessionRef.current = nextNavigationSession;
     selectedRouteRef.current = nextNavigationSession.routePlan;
     setActiveNavigationSession(nextNavigationSession);
@@ -175,8 +188,30 @@ export default function App() {
     return true;
   };
 
+  const stagePendingNavigationRestore = (
+    nextNavigationSession: ActiveNavigationSession,
+  ) => {
+    pendingNavigationRestoreRef.current = nextNavigationSession;
+    setPendingNavigationRestore({
+      session: nextNavigationSession,
+      status: 'checking',
+    });
+  };
+
+  const setPendingNavigationRestoreStatus = (
+    status: SuspendedNavigationStatus,
+  ) => {
+    const pendingSession = pendingNavigationRestoreRef.current;
+    if (!pendingSession) {
+      setPendingNavigationRestore(null);
+      return;
+    }
+    setPendingNavigationRestore({ session: pendingSession, status });
+  };
+
   const discardPersistedNavigation = (message?: string) => {
     pendingNavigationRestoreRef.current = null;
+    setPendingNavigationRestore(null);
     activeNavigationSessionRef.current = null;
     selectedRouteRef.current = null;
     setActiveNavigationSession(null);
@@ -218,8 +253,14 @@ export default function App() {
       setAuthPrompt('');
       unavailableWorkspaceIdsRef.current.clear();
       setWorkspaceCatalogLoading(true);
+      if (previewInitialScreen === 'guidance-suspended') {
+        stagePendingNavigationRestore(createPreviewSuspendedNavigationSession());
+        setSessionMessage('Checking workspace access before restoring guidance…');
+      }
       setSession(createPreviewAuthSession());
-      setSessionMessage(PREVIEW_SESSION_NOTICE);
+      if (previewInitialScreen !== 'guidance-suspended') {
+        setSessionMessage(PREVIEW_SESSION_NOTICE);
+      }
       const pendingFeature = takePendingFullAccessFeature();
       if (pendingFeature) {
         openAuthenticatedFeature(pendingFeature);
@@ -241,12 +282,10 @@ export default function App() {
       let persistedNavigation: ActiveNavigationSession | null = null;
 
       try {
+        await stopBackgroundNavigation();
         persistedNavigation = SAFEROUTE_PREVIEW_MODE_ENABLED
           ? null
           : await loadActiveNavigationSession();
-        if (!persistedNavigation || persistedNavigation.accessScope.kind === 'workspace') {
-          await stopBackgroundNavigation();
-        }
         const storedSession = await loadAuthSession();
         if (!mounted) {
           return;
@@ -303,7 +342,7 @@ export default function App() {
               persistedNavigation.accessScope.principalId,
               restoreResult.session,
             )) {
-              pendingNavigationRestoreRef.current = persistedNavigation;
+              stagePendingNavigationRestore(persistedNavigation);
               setSessionMessage('Checking workspace access before restoring guidance…');
               await stopBackgroundNavigation();
             } else {
@@ -326,7 +365,7 @@ export default function App() {
           }
         }
       } catch {
-        await clearAuthSession();
+        await clearAuthSession().catch(() => undefined);
         if (
           mounted &&
           (!persistedNavigation ||
@@ -388,7 +427,7 @@ export default function App() {
         persistedNavigation.accessScope.principalId,
         persistedSession,
       )) {
-        pendingNavigationRestoreRef.current = persistedNavigation;
+        stagePendingNavigationRestore(persistedNavigation);
         setSessionMessage('Checking workspace access before restoring guidance…');
         await stopBackgroundNavigation();
         setScreen('guest-map');
@@ -423,6 +462,7 @@ export default function App() {
     activeSessionPrincipalIdRef.current = '';
     sessionExpiryHandledRef.current = true;
     pendingNavigationRestoreRef.current = null;
+    setPendingNavigationRestore(null);
     await stopBackgroundNavigation();
     await clearActiveNavigationSession();
     await clearAuthSession();
@@ -470,6 +510,7 @@ export default function App() {
     activeSessionTokenRef.current = null;
     activeSessionPrincipalIdRef.current = '';
     pendingNavigationRestoreRef.current = null;
+    setPendingNavigationRestore(null);
     pendingFullAccessFeatureRef.current = screen === 'operations'
       ? fullAccessFeatureForOperationsTab(operationsTab)
       : screen === 'routes'
@@ -673,6 +714,12 @@ export default function App() {
           void handleSessionExpired(error.message);
           return;
         }
+        if (pendingNavigationRestoreRef.current) {
+          setPendingNavigationRestoreStatus('paused');
+          setSessionMessage(
+            'Guidance paused until workspace access can be verified.',
+          );
+        }
         setWorkspaceCatalogError('Workspaces could not be loaded. Retry.');
       } finally {
         if (revision === workspaceRequestRevisionRef.current) {
@@ -689,9 +736,39 @@ export default function App() {
   }, [authenticated, session?.accessToken, workspaceDiscoveryRevision]);
 
   const handleRetryWorkspaceCatalog = useCallback(() => {
+    if (pendingNavigationRestoreRef.current) {
+      setPendingNavigationRestoreStatus('checking');
+      setSessionMessage('Checking workspace access before restoring guidance…');
+    }
     restoreUnavailableWorkspacesFromFreshCatalogRef.current = true;
     setWorkspaceDiscoveryRevision((revision) => revision + 1);
   }, []);
+
+  const previousOfflineRef = useRef(offline);
+  const reconnectRetryPendingRef = useRef(false);
+  useEffect(() => {
+    const wasOffline = previousOfflineRef.current;
+    previousOfflineRef.current = offline;
+    if (offline || !pendingNavigationRestore) {
+      reconnectRetryPendingRef.current = false;
+    } else if (wasOffline) {
+      reconnectRetryPendingRef.current = true;
+    }
+    if (
+      !offline &&
+      reconnectRetryPendingRef.current &&
+      pendingNavigationRestore?.status === 'paused' &&
+      !workspaceCatalogLoading
+    ) {
+      reconnectRetryPendingRef.current = false;
+      handleRetryWorkspaceCatalog();
+    }
+  }, [
+    handleRetryWorkspaceCatalog,
+    offline,
+    pendingNavigationRestore?.status,
+    workspaceCatalogLoading,
+  ]);
 
   const handleActiveWorkspaceChange = useCallback((workspace: SafeRouteWorkspace | null) => {
     if (
@@ -1043,6 +1120,17 @@ export default function App() {
             onPress={() => {
               void resumeActiveNavigation();
             }}
+          />
+        ) : null}
+        {pendingNavigationRestore && screen !== 'login' ? (
+          <SuspendedNavigationNotice
+            offline={offline}
+            routeName={pendingNavigationRestore.session.routePlan.name}
+            status={pendingNavigationRestore.status}
+            onEnd={() => {
+              discardPersistedNavigation('Suspended route ended.');
+            }}
+            onRetry={handleRetryWorkspaceCatalog}
           />
         ) : null}
       </View>

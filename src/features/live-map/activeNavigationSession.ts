@@ -12,16 +12,25 @@ import {
   normalizeReliableLocationSample,
   type ReliableLocationSample,
 } from "./locationSignal";
+import {
+  backgroundNavigationScopesMatch,
+  createBackgroundNavigationPermit,
+  isBackgroundNavigationWriteAuthorized,
+  normalizeBackgroundNavigationPermit,
+} from "./backgroundNavigationPermitCore";
 
 const ACTIVE_NAVIGATION_SESSION_KEY =
   "@saferoute/active-navigation-session-v1";
 const BACKGROUND_NAVIGATION_LOCATION_KEY =
   "@saferoute/background-navigation-location-v1";
-const BACKGROUND_NAVIGATION_LOCATION_VERSION = 1;
+const BACKGROUND_NAVIGATION_PERMIT_KEY =
+  "@saferoute/background-navigation-permit-v1";
+const BACKGROUND_NAVIGATION_LOCATION_VERSION = 2;
 const BACKGROUND_LOCATION_MAX_AGE_MS = RELIABLE_LOCATION_MAX_WALL_AGE_MS;
 let navigationStorageMutationQueue: Promise<void> = Promise.resolve();
 
 interface BackgroundNavigationLocationEnvelope {
+  accessScope: ActiveNavigationSession["accessScope"];
   routeId: string;
   sample: ReliableLocationSample;
   version: typeof BACKGROUND_NAVIGATION_LOCATION_VERSION;
@@ -63,6 +72,7 @@ export async function loadActiveNavigationSession(
 
     const backgroundLocation = await loadBackgroundNavigationLocation(
       session.routePlan.route.id,
+      session.accessScope,
       nowMs,
     );
     return mergeActiveNavigationLocation(session, backgroundLocation);
@@ -77,9 +87,41 @@ export async function clearActiveNavigationSession(): Promise<void> {
       await AsyncStorage.multiRemove([
         ACTIVE_NAVIGATION_SESSION_KEY,
         BACKGROUND_NAVIGATION_LOCATION_KEY,
+        BACKGROUND_NAVIGATION_PERMIT_KEY,
       ]);
     } catch {
       // Session cleanup is best effort; invalid records fail closed on the next load.
+    }
+  });
+}
+
+export async function grantBackgroundNavigationPermit(
+  routeId: string,
+  accessScope: ActiveNavigationSession["accessScope"],
+): Promise<boolean> {
+  const permit = createBackgroundNavigationPermit(routeId, accessScope);
+  if (!permit) {
+    return false;
+  }
+  return enqueueNavigationStorageMutation(async () => {
+    try {
+      await AsyncStorage.setItem(
+        BACKGROUND_NAVIGATION_PERMIT_KEY,
+        JSON.stringify(permit),
+      );
+      return true;
+    } catch {
+      return false;
+    }
+  });
+}
+
+export async function revokeBackgroundNavigationPermit(): Promise<void> {
+  await enqueueNavigationStorageMutation(async () => {
+    try {
+      await AsyncStorage.removeItem(BACKGROUND_NAVIGATION_PERMIT_KEY);
+    } catch {
+      // Native stop remains best effort, so the task also rejects missing permits.
     }
   });
 }
@@ -94,14 +136,32 @@ export async function saveBackgroundNavigationLocation(
     return false;
   }
 
-  const envelope: BackgroundNavigationLocationEnvelope = {
-    routeId: normalizedRouteId,
-    sample,
-    version: BACKGROUND_NAVIGATION_LOCATION_VERSION,
-  };
-
   return enqueueNavigationStorageMutation(async () => {
     try {
+      const [permitValue, sessionValue] = await Promise.all([
+        AsyncStorage.getItem(BACKGROUND_NAVIGATION_PERMIT_KEY),
+        AsyncStorage.getItem(ACTIVE_NAVIGATION_SESSION_KEY),
+      ]);
+      const permit = normalizeBackgroundNavigationPermit(permitValue);
+      const session = normalizeActiveNavigationSession(sessionValue);
+      if (
+        !permit ||
+        !session ||
+        !isBackgroundNavigationWriteAuthorized({
+          permitValue: permit,
+          routeIdValue: normalizedRouteId,
+          sessionAccessScope: session.accessScope,
+          sessionRouteIdValue: session.routePlan.route.id,
+        })
+      ) {
+        return false;
+      }
+      const envelope: BackgroundNavigationLocationEnvelope = {
+        accessScope: session.accessScope,
+        routeId: normalizedRouteId,
+        sample,
+        version: BACKGROUND_NAVIGATION_LOCATION_VERSION,
+      };
       await AsyncStorage.setItem(
         BACKGROUND_NAVIGATION_LOCATION_KEY,
         JSON.stringify(envelope),
@@ -115,6 +175,7 @@ export async function saveBackgroundNavigationLocation(
 
 export async function loadBackgroundNavigationLocation(
   routeId: string,
+  accessScope: ActiveNavigationSession["accessScope"],
   nowMs = Date.now(),
 ): Promise<ReliableLocationSample | null> {
   try {
@@ -131,6 +192,7 @@ export async function loadBackgroundNavigationLocation(
     if (
       parsed.version !== BACKGROUND_NAVIGATION_LOCATION_VERSION ||
       parsed.routeId !== routeId ||
+      !backgroundNavigationScopesMatch(parsed.accessScope, accessScope) ||
       !sample ||
       sample.timestampMs > nowMs + RELIABLE_LOCATION_FUTURE_TOLERANCE_MS ||
       nowMs - sample.timestampMs > BACKGROUND_LOCATION_MAX_AGE_MS

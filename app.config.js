@@ -71,6 +71,7 @@ function normalizePreviewInitialScreen(value, previewModeEnabled) {
 
   if (
     normalized === 'login' ||
+    normalized === 'guidance-suspended' ||
     normalized === 'login-code' ||
     normalized === 'operations' ||
     normalized === 'routes-empty' ||

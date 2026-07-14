@@ -10,6 +10,9 @@ import { loadPreviewRouteDetail, loadPreviewSavedRoutes } from './previewRouteAp
 
 export async function fetchSavedRoutes(accessToken: string, clientId?: string): Promise<SavedRouteSyncResult> {
   if (SAFEROUTE_PREVIEW_MODE_ENABLED && isPreviewAccessToken(accessToken)) {
+    if (SAFEROUTE_PREVIEW_INITIAL_SCREEN === 'guidance-suspended') {
+      throw new Error('Preview workspace access is unavailable.');
+    }
     return loadPreviewSavedRoutes(clientId, {
       empty: SAFEROUTE_PREVIEW_INITIAL_SCREEN === 'routes-empty',
       noPreference: SAFEROUTE_PREVIEW_INITIAL_SCREEN === 'workspace-choice',

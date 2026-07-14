@@ -152,6 +152,15 @@ describe('SafeRoute runtime config', () => {
       resolveSafeRouteRuntimeConfig({
         safeRouteEnvironment: 'development',
         safeRoutePreviewModeEnabled: true,
+        safeRoutePreviewInitialScreen: ' guidance-suspended '
+      }).previewInitialScreen,
+      'guidance-suspended'
+    );
+
+    assert.equal(
+      resolveSafeRouteRuntimeConfig({
+        safeRouteEnvironment: 'development',
+        safeRoutePreviewModeEnabled: true,
         safeRoutePreviewInitialScreen: ' route-detail '
       }).previewInitialScreen,
       'guest-map'

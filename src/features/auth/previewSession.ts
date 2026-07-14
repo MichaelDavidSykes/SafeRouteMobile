@@ -1,4 +1,6 @@
 import type { AuthSession, TwoFactorChallenge } from "./authTypes";
+import { createActiveNavigationSession } from "../live-map/activeNavigationSessionCore";
+import { SAVED_ROUTE_PLANS } from "../live-map/demoRoute";
 
 export const PREVIEW_ACCESS_TOKEN = "__saferoute_preview_session__";
 export const PREVIEW_PRINCIPAL_ID = "preview-user";
@@ -26,6 +28,21 @@ export function createPreviewLoginCodeChallenge(): TwoFactorChallenge {
     email: "preview.operator@lunarchain.local",
     method: "email",
   };
+}
+
+export function createPreviewSuspendedNavigationSession() {
+  return createActiveNavigationSession({
+    backgroundTrackingEnabled: true,
+    followModeEnabled: true,
+    navigationState: "navigating",
+    principalId: PREVIEW_PRINCIPAL_ID,
+    progressFloorMeters: 0,
+    routeContext: "saved",
+    routePlan: {
+      ...SAVED_ROUTE_PLANS[0],
+      clientId: "preview-routes",
+    },
+  });
 }
 
 export function isPreviewAccessToken(accessToken: string | null | undefined): boolean {

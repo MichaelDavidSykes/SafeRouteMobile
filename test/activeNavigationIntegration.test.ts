@@ -18,6 +18,10 @@ describe("production navigation reliability integration", () => {
     assert.match(taskSource, /TaskManager\.defineTask/);
     assert.match(taskSource, /saveBackgroundNavigationLocation/);
     assert.match(taskSource, /location\.mocked !== true/);
+    assert.match(
+      source("src/features/live-map/activeNavigationSession.ts"),
+      /normalizeBackgroundNavigationPermit[\s\S]*backgroundNavigationScopesMatch/,
+    );
   });
 
   it("uses battery-bounded automotive background tracking without persisting credentials", () => {
@@ -34,6 +38,10 @@ describe("production navigation reliability integration", () => {
     assert.match(backgroundSource, /distanceInterval:\s*5/);
     assert.match(backgroundSource, /foregroundService:/);
     assert.doesNotMatch(sessionCoreSource, /accessToken|password|loginCode/);
+    assert.match(backgroundSource, /await revokeBackgroundNavigationPermit\(\)/);
+    assert.match(backgroundSource, /grantBackgroundNavigationPermit/);
+    assert.match(backgroundSource, /backgroundNavigationLifecycle\.requestStart/);
+    assert.match(backgroundSource, /backgroundNavigationLifecycle\.requestStop/);
   });
 
   it("persists, restores, resumes, and clears active navigation sessions", () => {

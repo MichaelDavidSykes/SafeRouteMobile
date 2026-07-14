@@ -4,6 +4,7 @@ import { describe, it } from "node:test";
 import {
   createPreviewAuthSession,
   createPreviewLoginCodeChallenge,
+  createPreviewSuspendedNavigationSession,
   isPreviewAccessToken,
   PREVIEW_ACCESS_TOKEN,
   PREVIEW_EXPIRED_SESSION_NOTICE,
@@ -40,6 +41,18 @@ describe("SafeRoute preview session", () => {
       email: "preview.operator@lunarchain.local",
       method: "email",
     });
+  });
+
+  it("creates principal-bound workspace guidance for the suspended-access preview", () => {
+    const session = createPreviewSuspendedNavigationSession();
+
+    assert.deepEqual(session.accessScope, {
+      clientId: "preview-routes",
+      kind: "workspace",
+      principalId: "preview-user",
+    });
+    assert.equal(session.routePlan.clientId, "preview-routes");
+    assert.equal(session.navigationState, "navigating");
   });
 
   it("recognizes only the trimmed preview token", () => {

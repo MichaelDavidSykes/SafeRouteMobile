@@ -43,6 +43,11 @@ const workspaceChoiceFlowSource = () =>
     join(process.cwd(), "maestro/ios-preview-workspace-choice.yaml"),
     "utf8",
   );
+const suspendedGuidanceFlowSource = () =>
+  readFileSync(
+    join(process.cwd(), "maestro/ios-preview-guidance-suspended.yaml"),
+    "utf8",
+  );
 const riskAreasFlowSource = () =>
   readFileSync(
     join(process.cwd(), "maestro/ios-preview-risk-areas.yaml"),
@@ -229,6 +234,29 @@ describe("Maestro iOS preview smoke flow", () => {
     assert.ok(operationsIndex > savedIndex);
     assert.match(flow, /assertVisible: "Workspace, West Corridor"/);
     assert.match(flow, /assertNotVisible:\s*\n\s+id: "safe-route-card-sr-city-airport-alpha"/);
+  });
+
+  it("exercises paused workspace guidance retry and end actions", () => {
+    const flow = suspendedGuidanceFlowSource();
+    const scripts = packageJson().scripts;
+    const noticeIndex = flow.indexOf('id: "safe-route-suspended-navigation"');
+    const retryIndex = flow.indexOf('id: "safe-route-suspended-navigation-retry"');
+    const endIndex = flow.indexOf('id: "safe-route-suspended-navigation-end"');
+
+    assert.equal(
+      scripts["start:maestro:ios:preview:guidance-suspended"],
+      "SAFEROUTE_ENABLE_PREVIEW_MODE=true SAFEROUTE_PREVIEW_INITIAL_SCREEN=guidance-suspended NODE_OPTIONS=--dns-result-order=ipv4first expo start --localhost --port 8081",
+    );
+    assert.equal(
+      scripts["test:maestro:ios:guidance-suspended"],
+      "node scripts/run-maestro.mjs test maestro/ios-preview-guidance-suspended.yaml",
+    );
+    assert.ok(noticeIndex >= 0);
+    assert.ok(retryIndex > noticeIndex);
+    assert.ok(endIndex > retryIndex);
+    assert.match(flow, /assertNotVisible:[\s\S]*safe-route-live-map/);
+    assert.match(flow, /tapOn:[\s\S]*safe-route-suspended-navigation-retry/);
+    assert.match(flow, /tapOn:[\s\S]*safe-route-suspended-navigation-end/);
   });
 
   it("plots a guest route before opening the live map", () => {

@@ -45,13 +45,41 @@ appId: host.exp.Exponent
           id: "guest-map-primary-action"
 - extendedWaitUntil:
     visible:
-      id: "safe-route-card-guidance-contract-route"
+      id: "safe-route-workspace-selector"
+    timeout: 20000
+- tapOn:
+    id: "safe-route-workspace-selector"
+- tapOn:
+    id: "safe-route-workspace-66a1b2c3d4e5f60718293a41"
+- extendedWaitUntil:
+    visible:
+      id: "safe-route-card-66b1b2c3d4e5f60718293b41"
+    timeout: 30000
+- tapOn:
+    id: "safe-route-card-66b1b2c3d4e5f60718293b41"
+- extendedWaitUntil:
+    visible:
+      id: "safe-route-live-map"
+    timeout: 20000
+- tapOn:
+    id: "safe-route-return"
+- extendedWaitUntil:
+    visible:
+      id: "safe-route-workspace-selector"
+    timeout: 10000
+- tapOn:
+    id: "safe-route-workspace-selector"
+- tapOn:
+    id: "safe-route-workspace-66a1b2c3d4e5f60718293a40"
+- extendedWaitUntil:
+    visible:
+      id: "safe-route-card-66b1b2c3d4e5f60718293b40"
     timeout: 30000
 - setLocation:
     latitude: 51.5077
     longitude: -0.1275
 - tapOn:
-    id: "safe-route-card-guidance-contract-route"
+    id: "safe-route-card-66b1b2c3d4e5f60718293b40"
 - extendedWaitUntil:
     visible:
       id: "safe-route-live-map"

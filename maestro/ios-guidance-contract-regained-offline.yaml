@@ -1,0 +1,48 @@
+appId: host.exp.Exponent
+---
+- stopApp
+- runFlow: subflows/ios-open-expo-project.yaml
+- extendedWaitUntil:
+    visible:
+      id: "guest-map-primary-action"
+    timeout: 30000
+- tapOn:
+    id: "guest-map-primary-action"
+- extendedWaitUntil:
+    visible:
+      id: "safe-route-card-66b1b2c3d4e5f60718293b40"
+    timeout: 20000
+- assertVisible: "Cold restart verification v2"
+- assertNotVisible: "Cold restart verification v1"
+- assertNotVisible:
+    id: "safe-route-card-66b1b2c3d4e5f60718293b41"
+- tapOn:
+    id: "safe-route-card-66b1b2c3d4e5f60718293b40"
+- extendedWaitUntil:
+    visible:
+      id: "safe-route-live-map"
+    timeout: 20000
+- assertVisible: "Cold restart verification v2"
+- tapOn:
+    id: "safe-route-return"
+- extendedWaitUntil:
+    visible:
+      id: "safe-route-workspace-selector"
+    timeout: 10000
+- tapOn:
+    id: "safe-route-workspace-selector"
+- tapOn:
+    id: "safe-route-workspace-66a1b2c3d4e5f60718293a41"
+- extendedWaitUntil:
+    visible:
+      id: "safe-route-card-66b1b2c3d4e5f60718293b41"
+    timeout: 20000
+- assertVisible: "Support continuity route"
+- tapOn:
+    id: "safe-route-card-66b1b2c3d4e5f60718293b41"
+- extendedWaitUntil:
+    visible:
+      id: "safe-route-live-map"
+    timeout: 20000
+- assertVisible: "Support continuity route"
+- stopApp

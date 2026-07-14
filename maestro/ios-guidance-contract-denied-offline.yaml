@@ -1,0 +1,25 @@
+appId: host.exp.Exponent
+---
+- stopApp
+- runFlow: subflows/ios-open-expo-project.yaml
+- extendedWaitUntil:
+    visible:
+      id: "guest-map-primary-action"
+    timeout: 30000
+- tapOn:
+    id: "guest-map-primary-action"
+- extendedWaitUntil:
+    visible:
+      id: "safe-route-card-66b1b2c3d4e5f60718293b41"
+    timeout: 20000
+- assertVisible: "Support continuity route"
+- assertNotVisible:
+    id: "safe-route-card-66b1b2c3d4e5f60718293b40"
+- tapOn:
+    id: "safe-route-card-66b1b2c3d4e5f60718293b41"
+- extendedWaitUntil:
+    visible:
+      id: "safe-route-live-map"
+    timeout: 20000
+- assertVisible: "Support continuity route"
+- stopApp

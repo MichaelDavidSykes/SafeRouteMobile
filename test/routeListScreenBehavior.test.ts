@@ -85,6 +85,29 @@ describe("route list screen behavior", () => {
     );
   });
 
+  it("records detail durability only for a dedicated cached detail record", () => {
+    const detailSource = sourceBetween(
+      screenSource(),
+      "const handleSelectRoute = async",
+      "const handleRetry",
+    );
+
+    assert.equal(
+      (detailSource.match(/const cachedDetail = await loadOfflineRouteDetail/g) || [])
+        .length,
+      2,
+    );
+    assert.equal(
+      (detailSource.match(/if \(cachedDetail\) \{[\s\S]*?"saved-detail-readback"/g) || [])
+        .length,
+      2,
+    );
+    assert.doesNotMatch(
+      detailSource,
+      /recordOfflineRouteCacheReadback\(\s*\[cached\],[\s\S]*?"saved-detail-readback"/,
+    );
+  });
+
   it("keeps list refresh cleanup scoped to pending list work", () => {
     const source = screenSource();
 

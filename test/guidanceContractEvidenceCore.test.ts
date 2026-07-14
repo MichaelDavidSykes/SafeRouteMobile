@@ -12,6 +12,7 @@ const revision = "a".repeat(40);
 
 function evidence(eventId: string, occurredAtMs: number) {
   const event = createGuidanceContractEvidenceEvent({
+    appLaunchId: "launch-evidence-1",
     authorization: { catalog: "fresh-authorized", principal: "matching" },
     cause: "navigation-state-persist",
     durability: { activeNavigation: "present" },
@@ -45,6 +46,11 @@ describe("guidance contract device evidence", () => {
     assert.equal(createGuidanceContractEvidenceEvent({
       ...event,
       cause: "unsafe\nvalue",
+      sourceRevision: revision,
+    }), null);
+    assert.equal(createGuidanceContractEvidenceEvent({
+      ...event,
+      appLaunchId: "bad launch id",
       sourceRevision: revision,
     }), null);
     assert.deepEqual(parseGuidanceContractEvidenceSpool("not-json"), []);

@@ -15,9 +15,12 @@ import { join } from 'node:path';
 import {
   GUIDANCE_CONTRACT_API_PORT,
   GUIDANCE_CONTRACT_MODES,
+  GUIDANCE_CONTRACT_ROUTE_IDS,
+  GUIDANCE_CONTRACT_WORKSPACES,
   GUIDANCE_START_BOUNDARY_PATH,
   assertGuidanceContractEvidenceJournal,
   assertGuidanceContractRequestJournal,
+  assertGuidanceContractRouteCacheReadbackEvidence,
   assertGuidanceStartTrafficBoundary,
   isGuidanceStartProtectedTraffic
 } from './maestro-guidance-contract-api.mjs';
@@ -48,6 +51,7 @@ const requiredEvidenceTypes = [
   'restore.suspended',
   'restore.ready',
   'workspace.recovery.settled',
+  'route.cache.readback',
   'navigation.cleanup.settled',
   'tracking.stop.settled'
 ];
@@ -75,7 +79,10 @@ const phases = {
   denialSeedStart: 'maestro/ios-guidance-contract-workspace-seed.yaml',
   denialSeedStartOutcome: 'maestro/ios-guidance-contract-denial-seed-start-outcome.yaml',
   denied: 'maestro/ios-guidance-contract-denied.yaml',
-  regained: 'maestro/ios-guidance-contract-regained.yaml'
+  deniedOffline: 'maestro/ios-guidance-contract-denied-offline.yaml',
+  regained: 'maestro/ios-guidance-contract-regained.yaml',
+  regainedOffline: 'maestro/ios-guidance-contract-regained-offline.yaml',
+  readbackEvidence: 'maestro/ios-guidance-contract-evidence-flush.yaml'
 };
 
 const expectedModeByPhase = Object.freeze({
@@ -98,7 +105,10 @@ const expectedModeByPhase = Object.freeze({
   denialSeedPrepare: GUIDANCE_CONTRACT_MODES.active,
   denialSeedStart: GUIDANCE_CONTRACT_MODES.active,
   denied: GUIDANCE_CONTRACT_MODES.denied,
-  regained: GUIDANCE_CONTRACT_MODES.active
+  deniedOffline: GUIDANCE_CONTRACT_MODES.offline,
+  regained: GUIDANCE_CONTRACT_MODES.active,
+  regainedOffline: GUIDANCE_CONTRACT_MODES.offline,
+  readbackEvidence: GUIDANCE_CONTRACT_MODES.active
 });
 
 async function main() {
@@ -159,7 +169,7 @@ async function main() {
     user: authorizedRequestCount('/api/v1/users/me'),
     catalog: authorizedRequestCount('/api/v1/mobile/safe-route/routes'),
     detail: authorizedRequestCount(
-      '/api/v1/mobile/safe-route/routes/guidance-contract-route'
+      `/api/v1/mobile/safe-route/routes/${GUIDANCE_CONTRACT_ROUTE_IDS.denied}`
     )
   };
   runPhase('workspacePrepare', 'prepare principal-A workspace guidance', phases.workspacePrepare);
@@ -236,7 +246,7 @@ async function main() {
     boundary: 'denied-workspace-start',
     expectedOutcomes: [
       { semanticOutcome: 'principal-a', statusCode: 200 },
-      { semanticOutcome: 'catalog-denied', statusCode: 200 }
+      { semanticOutcome: 'catalog-survivor', statusCode: 200 }
     ],
     expectedPaths: [
       '/api/v1/users/me',
@@ -308,11 +318,30 @@ async function main() {
     phases.denied
   );
 
+  await stopApi();
+  assertCondition(
+    !(await isPortListening(GUIDANCE_CONTRACT_API_PORT)),
+    'Contract backend port remained bound during denied survivor cache readback.'
+  );
+  runPhase(
+    'deniedOffline',
+    'cold-read the retained survivor after denied cache purge',
+    phases.deniedOffline
+  );
+  await startApi('regained');
+
   const regainCatalogCount = requestCount('/api/v1/mobile/safe-route/routes');
   const regainUnscopedCount = requestCount('/api/v1/mobile/safe-route/routes', '');
   const regainScopedCount = requestCount(
     '/api/v1/mobile/safe-route/routes',
-    '?client_id=guidance-workspace'
+    `?client_id=${GUIDANCE_CONTRACT_WORKSPACES.denied.id}`
+  );
+  const regainSurvivorScopedCount = requestCount(
+    '/api/v1/mobile/safe-route/routes',
+    `?client_id=${GUIDANCE_CONTRACT_WORKSPACES.survivor.id}`
+  );
+  const regainDetailCount = requestCount(
+    `/api/v1/mobile/safe-route/routes/${GUIDANCE_CONTRACT_ROUTE_IDS.denied}`
   );
   runPhase(
     'regained',
@@ -320,13 +349,38 @@ async function main() {
     phases.regained
   );
   assertCondition(
-    requestCount('/api/v1/mobile/safe-route/routes') === regainCatalogCount + 3 &&
+    requestCount('/api/v1/mobile/safe-route/routes') === regainCatalogCount + 4 &&
       requestCount('/api/v1/mobile/safe-route/routes', '') === regainUnscopedCount + 2 &&
       requestCount(
         '/api/v1/mobile/safe-route/routes',
-        '?client_id=guidance-workspace'
-      ) === regainScopedCount + 1,
-    'Regain should cold-check once, explicitly refresh once, and then load one scoped Saved list.'
+        `?client_id=${GUIDANCE_CONTRACT_WORKSPACES.denied.id}`
+      ) === regainScopedCount + 1 &&
+      requestCount(
+        '/api/v1/mobile/safe-route/routes',
+        `?client_id=${GUIDANCE_CONTRACT_WORKSPACES.survivor.id}`
+      ) === regainSurvivorScopedCount + 1 &&
+      requestCount(
+        `/api/v1/mobile/safe-route/routes/${GUIDANCE_CONTRACT_ROUTE_IDS.denied}`
+      ) === regainDetailCount + 1,
+    'Regain should cold-check once, explicitly refresh once, then load survivor and restored scoped Saved lists.'
+  );
+
+  await stopApi();
+  assertCondition(
+    !(await isPortListening(GUIDANCE_CONTRACT_API_PORT)),
+    'Contract backend port remained bound during regained route cache readback.'
+  );
+  runPhase(
+    'regainedOffline',
+    'read back only the regained route version with the backend absent',
+    phases.regainedOffline
+  );
+
+  await startApi('readbackEvidence');
+  runPhase(
+    'readbackEvidence',
+    'flush durable survivor and regained cache readback evidence',
+    phases.readbackEvidence
   );
 
   await stopApi();
@@ -573,10 +627,15 @@ function assertRequestJournalIntegrity() {
 }
 
 function assertEvidenceJournalIntegrity() {
-  assertGuidanceContractEvidenceJournal(readEvidenceJournal(), {
+  const entries = readEvidenceJournal();
+  assertGuidanceContractEvidenceJournal(entries, {
     expectedSourceRevision: readCurrentSourceRevision(),
     minimumOccurredAtMs: evidenceWindowStartedAtMs,
     requiredTypes: requiredEvidenceTypes
+  });
+  assertGuidanceContractRouteCacheReadbackEvidence(entries, {
+    expectedSourceRevision: readCurrentSourceRevision(),
+    minimumOccurredAtMs: evidenceWindowStartedAtMs
   });
 }
 
@@ -599,7 +658,7 @@ function assertProtectedContractTraffic(baseline) {
   for (const [label, path] of Object.entries({
     user: '/api/v1/users/me',
     catalog: '/api/v1/mobile/safe-route/routes',
-    detail: '/api/v1/mobile/safe-route/routes/guidance-contract-route'
+    detail: `/api/v1/mobile/safe-route/routes/${GUIDANCE_CONTRACT_ROUTE_IDS.denied}`
   })) {
     assertCondition(
       authorizedRequestCount(path) > baseline[label],

@@ -16,11 +16,12 @@ import {
 
 const EVIDENCE_STORAGE_KEY = "@saferoute/guidance-contract-evidence-v1";
 const EVIDENCE_PATH = "/__guidance_contract__/evidence";
+const APP_LAUNCH_ID = createAppLaunchId();
 let evidenceMutationQueue: Promise<void> = Promise.resolve();
 
 export type GuidanceContractEvidenceInput = Omit<
   CreateGuidanceContractEvidenceInput,
-  "sourceRevision"
+  "appLaunchId" | "sourceRevision"
 >;
 
 export async function recordGuidanceContractEvidence(
@@ -31,6 +32,7 @@ export async function recordGuidanceContractEvidence(
   }
   const event = createGuidanceContractEvidenceEvent({
     ...input,
+    appLaunchId: APP_LAUNCH_ID,
     sourceRevision: SAFEROUTE_SOURCE_REVISION,
   });
   if (!event) {
@@ -60,6 +62,10 @@ export async function recordGuidanceContractEvidence(
       return false;
     }
   });
+}
+
+function createAppLaunchId(): string {
+  return `launch-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 14)}`;
 }
 
 export async function flushGuidanceContractEvidence(): Promise<boolean> {

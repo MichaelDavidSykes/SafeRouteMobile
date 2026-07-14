@@ -1,6 +1,8 @@
 appId: host.exp.Exponent
 ---
 - openLink: exp://localhost:8081
+- waitForAnimationToEnd:
+    timeout: 1500
 - runFlow:
     when:
       visible: "Open"
@@ -8,14 +10,8 @@ appId: host.exp.Exponent
       - tapOn: "Open"
 - waitForAnimationToEnd:
     timeout: 3000
-- openLink: exp://localhost:8081
-- runFlow:
-    when:
-      visible: "Open"
-    commands:
-      - tapOn: "Open"
 - waitForAnimationToEnd:
-    timeout: 8000
+    timeout: 5000
 - runFlow:
     when:
       visible: "Continue"

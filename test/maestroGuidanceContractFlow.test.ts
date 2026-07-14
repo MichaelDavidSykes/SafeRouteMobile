@@ -11,6 +11,7 @@ describe('Maestro cold guidance contract matrix', () => {
     assert.match(subflow, /^appId: host\.exp\.Exponent/m);
     assert.match(subflow, /^---$/m);
     assert.match(subflow, /openLink: exp:\/\/localhost:8081/);
+    assert.equal((subflow.match(/openLink: exp:\/\/localhost:8081/g) || []).length, 1);
     assert.match(subflow, /id: "saferoute-app-root"/);
   });
 
@@ -24,7 +25,14 @@ describe('Maestro cold guidance contract matrix', () => {
     );
     assert.match(workspacePreparation, /id: "safe-route-login-primary-action"/);
     assert.match(workspacePreparation, /id: "guest-map-primary-action"/);
-    assert.match(workspacePreparation, /id: "safe-route-card-guidance-contract-route"/);
+    assert.match(
+      workspacePreparation,
+      /id: "safe-route-workspace-66a1b2c3d4e5f60718293a40"/,
+    );
+    assert.match(
+      workspacePreparation,
+      /id: "safe-route-card-66b1b2c3d4e5f60718293b40"/,
+    );
     assert.match(workspacePreparation, /id: "safe-route-live-map"/);
     assert.match(workspacePreparation, /assertVisible:[\s\S]*id: "safe-route-primary-action"/);
     assert.doesNotMatch(
@@ -71,7 +79,10 @@ describe('Maestro cold guidance contract matrix', () => {
       'denialSeedPrepare',
       'denialSeedStart',
       'denied',
-      'regained'
+      'deniedOffline',
+      'regained',
+      'regainedOffline',
+      'readbackEvidence'
     ]) {
       assert.match(
         runner,
@@ -85,6 +96,7 @@ describe('Maestro cold guidance contract matrix', () => {
       /reconnectUserCount = authorizedRequestCount\('\/api\/v1\/users\/me'\)[\s\S]*reconnectCatalogCount = requestCount\([\s\S]*'\/api\/v1\/mobile\/safe-route\/routes',[\s\S]*''[\s\S]*one fresh principal check and one unscoped catalog request/,
     );
     assert.match(runner, /without resurrecting denied guidance/);
+    assert.match(runner, /read back only the regained route version with the backend absent/);
   });
 
   it('accepts either immediate map cleanup or the preview return action after ending guidance', () => {
@@ -135,6 +147,7 @@ describe('Maestro cold guidance contract matrix', () => {
       'restore.suspended',
       'restore.ready',
       'workspace.recovery.settled',
+      'route.cache.readback',
       'navigation.cleanup.settled',
       'tracking.stop.settled',
     ]) {
@@ -193,7 +206,7 @@ describe('Maestro cold guidance contract matrix', () => {
     );
     assert.match(
       runner,
-      /boundary: 'denied-workspace-start'[\s\S]*semanticOutcome: 'catalog-denied'[\s\S]*statusCode: 200/
+      /boundary: 'denied-workspace-start'[\s\S]*semanticOutcome: 'catalog-survivor'[\s\S]*statusCode: 200/
     );
     assert.match(
       runner,
@@ -266,6 +279,48 @@ describe('Maestro cold guidance contract matrix', () => {
     ]) {
       assert.match(read(path), /id: "safe-route-remaining-metrics"/);
     }
+  });
+
+  it('proves survivor continuity and rejects the stale route version before offline readback', () => {
+    const fixture = read('scripts/maestro-guidance-contract-api.mjs');
+    const deniedOffline = read('maestro/ios-guidance-contract-denied-offline.yaml');
+    const regained = read('maestro/ios-guidance-contract-regained.yaml');
+    const regainedOffline = read('maestro/ios-guidance-contract-regained-offline.yaml');
+    const denialPreparation = read(
+      'maestro/ios-guidance-contract-denial-seed-prepare.yaml',
+    );
+
+    assert.match(fixture, /id: '66a1b2c3d4e5f60718293a40'/);
+    assert.match(fixture, /id: '66a1b2c3d4e5f60718293a41'/);
+    assert.match(fixture, /deniedV1: '66c1b2c3d4e5f60718293c40'/);
+    assert.match(fixture, /deniedV2: '66c1b2c3d4e5f60718293c41'/);
+    assert.match(fixture, /denied\s*\?\s*\[GUIDANCE_CONTRACT_WORKSPACES\.survivor\]/);
+    assert.match(fixture, /denied\s*\?\s*\[survivorRoute\]/);
+    assert.match(fixture, /status: 'ready'/);
+    assert.match(fixture, /selected_client_id: requestedWorkspace\?\.id \|\| null/);
+
+    assert.match(
+      denialPreparation,
+      /safe-route-workspace-66a1b2c3d4e5f60718293a41[\s\S]*safe-route-card-66b1b2c3d4e5f60718293b41[\s\S]*safe-route-workspace-66a1b2c3d4e5f60718293a40/,
+    );
+    assert.match(deniedOffline, /runFlow: subflows\/ios-open-expo-project\.yaml/);
+    assert.match(deniedOffline, /safe-route-card-66b1b2c3d4e5f60718293b41/);
+    assert.match(deniedOffline, /assertNotVisible:[\s\S]*safe-route-card-66b1b2c3d4e5f60718293b40/);
+    assert.match(regained, /Workspace, Support Operations/);
+    assert.match(regained, /Cold restart verification v2/);
+    assert.match(regained, /assertNotVisible: "Cold restart verification v1"/);
+    assert.match(regainedOffline, /Cold restart verification v2/);
+    assert.match(regainedOffline, /assertNotVisible: "Cold restart verification v1"/);
+    assert.match(regainedOffline, /safe-route-card-66b1b2c3d4e5f60718293b40/);
+    assert.match(regainedOffline, /safe-route-card-66b1b2c3d4e5f60718293b41/);
+    assert.match(
+      read('maestro/ios-guidance-contract-evidence-flush.yaml'),
+      /runFlow: subflows\/ios-open-expo-project\.yaml/,
+    );
+    assert.match(
+      read('scripts/maestro-guidance-contract-api.mjs'),
+      /assertGuidanceContractRouteCacheReadbackEvidence[\s\S]*deniedV2[\s\S]*saved-list-readback[\s\S]*saved-detail-readback[\s\S]*deniedV1/,
+    );
   });
 
 });

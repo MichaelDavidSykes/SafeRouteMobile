@@ -7,9 +7,13 @@ import { describe, it } from 'node:test';
 import {
   GUIDANCE_CONTRACT_EVIDENCE_PATH,
   GUIDANCE_CONTRACT_MODES,
+  GUIDANCE_CONTRACT_ROUTE_IDS,
+  GUIDANCE_CONTRACT_ROUTE_VARIANT_IDS,
+  GUIDANCE_CONTRACT_WORKSPACES,
   GUIDANCE_START_BOUNDARY_PATH,
   assertGuidanceContractEvidenceJournal,
   assertGuidanceContractRequestJournal,
+  assertGuidanceContractRouteCacheReadbackEvidence,
   assertGuidanceStartTrafficBoundary,
   createGuidanceContractAccessToken,
   createGuidanceContractEvidenceJournal,
@@ -51,6 +55,7 @@ describe('Maestro guidance contract API', () => {
     assert.ok(address && typeof address === 'object');
     const endpoint = `http://127.0.0.1:${address.port}${GUIDANCE_CONTRACT_EVIDENCE_PATH}`;
     const body = {
+      appLaunchId: 'launch-evidence-1',
       authorization: { catalog: 'fresh-authorized', principal: 'matching' },
       cause: 'navigation-state-persist',
       durability: { activeNavigation: 'present' },
@@ -100,6 +105,7 @@ describe('Maestro guidance contract API', () => {
       now: () => 500
     });
     const persisted = {
+      appLaunchId: 'launch-evidence-1',
       authorization: { catalog: 'fresh-authorized', principal: 'matching' },
       cause: 'navigation-state-persist',
       durability: { activeNavigation: 'present' },
@@ -170,6 +176,19 @@ describe('Maestro guidance contract API', () => {
       outcome: 'off',
       type: 'tracking.stop.settled'
     };
+    const cacheReadback = {
+      ...persisted,
+      authorization: { catalog: 'unavailable', principal: 'matching' },
+      cause: 'saved-list-readback',
+      durability: { routeCache: 'present' },
+      eventId: 'evidence-event-7',
+      navigationInstanceId: null,
+      occurredAtMs: 420,
+      outcome: 'readable',
+      routeId: GUIDANCE_CONTRACT_ROUTE_VARIANT_IDS.survivor,
+      type: 'route.cache.readback',
+      workspaceId: GUIDANCE_CONTRACT_WORKSPACES.survivor.id
+    };
     try {
       assert.equal(append(persisted, {
         mode: GUIDANCE_CONTRACT_MODES.active,
@@ -203,6 +222,10 @@ describe('Maestro guidance contract API', () => {
         mode: GUIDANCE_CONTRACT_MODES.denied,
         phase: 'denied'
       }), 'recorded');
+      assert.equal(append(cacheReadback, {
+        mode: GUIDANCE_CONTRACT_MODES.active,
+        phase: 'regained'
+      }), 'recorded');
       const entries = readFileSync(evidenceLogFile, 'utf8')
         .trim()
         .split('\n')
@@ -218,6 +241,7 @@ describe('Maestro guidance contract API', () => {
           'restore.suspended',
           'restore.ready',
           'workspace.recovery.settled',
+          'route.cache.readback',
           'navigation.cleanup.settled',
           'tracking.stop.settled'
         ]
@@ -276,6 +300,102 @@ describe('Maestro guidance contract API', () => {
         expectedSourceRevision: 'a'.repeat(40),
         requiredTypes: ['restore.suspended']
       }), /persisted-navigation correlation/);
+
+      const routeReadback = (
+        cause: 'saved-detail-readback' | 'saved-list-readback',
+        eventId: string,
+        routeId: string,
+        serverPhase: string,
+        workspaceId: string,
+      ) => ({
+        ...cacheReadback,
+        cause,
+        eventId,
+        routeId,
+        serverPhase,
+        workspaceId,
+      });
+      const routeReadbacks = [
+        {
+          ...recovery,
+          eventId: 'exact-denied-recovery',
+          occurredAtMs: 405,
+          serverPhase: 'denied',
+          unavailableWorkspaceIds: [GUIDANCE_CONTRACT_WORKSPACES.denied.id],
+          workspaceId: GUIDANCE_CONTRACT_WORKSPACES.denied.id,
+        },
+        routeReadback(
+          'saved-list-readback',
+          'survivor-list-readback',
+          GUIDANCE_CONTRACT_ROUTE_VARIANT_IDS.survivor,
+          'regained',
+          GUIDANCE_CONTRACT_WORKSPACES.survivor.id,
+        ),
+        routeReadback(
+          'saved-detail-readback',
+          'survivor-detail-readback',
+          GUIDANCE_CONTRACT_ROUTE_VARIANT_IDS.survivor,
+          'regained',
+          GUIDANCE_CONTRACT_WORKSPACES.survivor.id,
+        ),
+        routeReadback(
+          'saved-list-readback',
+          'regained-list-readback',
+          GUIDANCE_CONTRACT_ROUTE_VARIANT_IDS.deniedV2,
+          'readbackEvidence',
+          GUIDANCE_CONTRACT_WORKSPACES.denied.id,
+        ),
+        routeReadback(
+          'saved-detail-readback',
+          'regained-detail-readback',
+          GUIDANCE_CONTRACT_ROUTE_VARIANT_IDS.deniedV2,
+          'readbackEvidence',
+          GUIDANCE_CONTRACT_WORKSPACES.denied.id,
+        ),
+      ];
+      const readbackOptions = {
+        expectedSourceRevision: 'a'.repeat(40),
+        minimumOccurredAtMs: 400,
+      };
+      assert.doesNotThrow(() =>
+        assertGuidanceContractRouteCacheReadbackEvidence(
+          routeReadbacks,
+          readbackOptions,
+        ));
+      assert.throws(() =>
+        assertGuidanceContractRouteCacheReadbackEvidence([
+          ...routeReadbacks,
+          {
+            ...routeReadbacks[3],
+            appLaunchId: 'launch-evidence-2',
+            eventId: 'regained-detail-readback-2',
+          },
+        ], readbackOptions),
+      /one-launch list\/detail durability/);
+      assert.throws(() =>
+        assertGuidanceContractRouteCacheReadbackEvidence([
+          ...routeReadbacks,
+          routeReadback(
+            'saved-list-readback',
+            'stale-regained-list-readback',
+            GUIDANCE_CONTRACT_ROUTE_VARIANT_IDS.deniedV1,
+            'readbackEvidence',
+            GUIDANCE_CONTRACT_WORKSPACES.denied.id,
+          ),
+        ], readbackOptions),
+      /accepted the stale pre-denial route variant/);
+      assert.throws(() =>
+        assertGuidanceContractRouteCacheReadbackEvidence([
+          {
+            ...routeReadbacks[0],
+            unavailableWorkspaceIds: [
+              GUIDANCE_CONTRACT_WORKSPACES.denied.id,
+              GUIDANCE_CONTRACT_WORKSPACES.survivor.id,
+            ],
+          },
+          ...routeReadbacks.slice(1),
+        ], readbackOptions),
+      /not correlated with an earlier exact denied-workspace purge/);
     } finally {
       rmSync(directory, { force: true, recursive: true });
     }
@@ -322,30 +442,54 @@ describe('Maestro guidance contract API', () => {
       const userA = await fetch(`${base}/users/me`, {
         headers: { Authorization: authorization }
       });
-      assert.equal((await userA.json()).data._id, 'guidance-driver-a');
+      assert.equal((await userA.json()).data._id, '66d1b2c3d4e5f60718293d40');
 
       mode = GUIDANCE_CONTRACT_MODES.wrongPrincipal;
       const userB = await fetch(`${base}/users/me`, {
         headers: { Authorization: authorization }
       });
-      assert.equal((await userB.json()).data._id, 'guidance-driver-b');
+      assert.equal((await userB.json()).data._id, '66d1b2c3d4e5f60718293d41');
 
       mode = GUIDANCE_CONTRACT_MODES.denied;
       const deniedCatalog = await fetch(`${base}/mobile/safe-route/routes`, {
         headers: { Authorization: authorization }
       });
-      assert.deepEqual((await deniedCatalog.json()).data.clients, []);
+      const deniedCatalogBody = await deniedCatalog.json();
+      assert.deepEqual(deniedCatalogBody.data.clients, [
+        GUIDANCE_CONTRACT_WORKSPACES.survivor
+      ]);
+      assert.deepEqual(
+        deniedCatalogBody.data.routes.map((route: { id: string }) => route.id),
+        [GUIDANCE_CONTRACT_ROUTE_IDS.survivor]
+      );
       assert.equal((await fetch(
-        `${base}/mobile/safe-route/routes?client_id=guidance-workspace`,
+        `${base}/mobile/safe-route/routes?client_id=${GUIDANCE_CONTRACT_WORKSPACES.denied.id}`,
         { headers: { Authorization: authorization } }
       )).status, 403);
+      const survivorScopedCatalog = await fetch(
+        `${base}/mobile/safe-route/routes?client_id=${GUIDANCE_CONTRACT_WORKSPACES.survivor.id}`,
+        { headers: { Authorization: authorization } }
+      );
+      assert.equal(survivorScopedCatalog.status, 200);
+      const survivorScopedCatalogBody = await survivorScopedCatalog.json();
+      assert.deepEqual(survivorScopedCatalogBody.data.clients, [
+        GUIDANCE_CONTRACT_WORKSPACES.survivor
+      ]);
+      assert.deepEqual(
+        survivorScopedCatalogBody.data.routes.map((route: { id: string }) => route.id),
+        [GUIDANCE_CONTRACT_ROUTE_IDS.survivor]
+      );
+      assert.equal(
+        survivorScopedCatalogBody.data.selected_client_id,
+        GUIDANCE_CONTRACT_WORKSPACES.survivor.id
+      );
       assert.equal((await fetch(
         `${base}/mobile/safe-route/routes?client_id=missing-workspace`,
         { headers: { Authorization: authorization } }
       )).status, 404);
       assert.equal((await fetch(`${base}/convoy-routes/route-preview`, {
         body: JSON.stringify({
-          client_id: 'guidance-workspace',
+          client_id: GUIDANCE_CONTRACT_WORKSPACES.denied.id,
           waypoints: [
             { lat: 51.5074, lon: -0.1278 },
             { lat: 51.5053, lon: 0.0553 }
@@ -358,11 +502,11 @@ describe('Maestro guidance contract API', () => {
         method: 'POST'
       })).status, 403);
       assert.equal((await fetch(
-        `${base}/intel/map/area-risk?client_id=guidance-workspace`,
+        `${base}/intel/map/area-risk?client_id=${GUIDANCE_CONTRACT_WORKSPACES.denied.id}`,
         { headers: { Authorization: authorization } }
       )).status, 403);
       assert.equal((await fetch(
-        `${base}/intel/map/area-risk?client_id=guidance-workspace`
+        `${base}/intel/map/area-risk?client_id=${GUIDANCE_CONTRACT_WORKSPACES.denied.id}`
       )).status, 200);
       assert.equal((await fetch(`${base}/intel/map/area-risk`, {
         headers: { Authorization: 'Bearer invalid' }
@@ -376,16 +520,83 @@ describe('Maestro guidance contract API', () => {
         headers: { Authorization: authorization }
       });
       const restoredCatalogBody = await restoredCatalog.json();
-      assert.equal(restoredCatalogBody.data.clients[0].id, 'guidance-workspace');
+      assert.deepEqual(
+        new Set(restoredCatalogBody.data.clients.map((client: { id: string }) => client.id)),
+        new Set(Object.values(GUIDANCE_CONTRACT_WORKSPACES).map((workspace) => workspace.id))
+      );
+      assert.equal(
+        restoredCatalogBody.data.routes.find(
+          (route: { id: string }) => route.id === GUIDANCE_CONTRACT_ROUTE_IDS.denied
+        ).route.id,
+        GUIDANCE_CONTRACT_ROUTE_VARIANT_IDS.deniedV1
+      );
       assert.equal(restoredCatalogBody.data.selected_client_id, null);
       const scopedCatalog = await fetch(
-        `${base}/mobile/safe-route/routes?client_id=guidance-workspace`,
+        `${base}/mobile/safe-route/routes?client_id=${GUIDANCE_CONTRACT_WORKSPACES.denied.id}`,
         { headers: { Authorization: authorization } }
       );
       assert.equal(
         (await scopedCatalog.json()).data.selected_client_id,
-        'guidance-workspace'
+        GUIDANCE_CONTRACT_WORKSPACES.denied.id
       );
+
+      phase = 'regained';
+      const regainedCatalog = await fetch(`${base}/mobile/safe-route/routes`, {
+        headers: { Authorization: authorization }
+      });
+      const regainedCatalogBody = await regainedCatalog.json();
+      const regainedRoute = regainedCatalogBody.data.routes.find(
+        (route: { id: string }) => route.id === GUIDANCE_CONTRACT_ROUTE_IDS.denied
+      );
+      assert.equal(regainedRoute.name, 'Cold restart verification v2');
+      assert.equal(regainedRoute.route.id, GUIDANCE_CONTRACT_ROUTE_VARIANT_IDS.deniedV2);
+      assert.notEqual(
+        regainedRoute.route.id,
+        GUIDANCE_CONTRACT_ROUTE_VARIANT_IDS.deniedV1
+      );
+      const regainedDetail = await fetch(
+        `${base}/mobile/safe-route/routes/${GUIDANCE_CONTRACT_ROUTE_IDS.denied}`,
+        { headers: { Authorization: authorization } }
+      );
+      const regainedDetailBody = await regainedDetail.json();
+      assert.equal(regainedDetailBody.data.id, GUIDANCE_CONTRACT_ROUTE_IDS.denied);
+      assert.equal(
+        regainedDetailBody.data.route.id,
+        GUIDANCE_CONTRACT_ROUTE_VARIANT_IDS.deniedV2
+      );
+      assert.deepEqual(regainedDetailBody.data.route_alerts, []);
+      assert.deepEqual(regainedDetailBody.data.vehicles, []);
+      assert.equal(regainedDetailBody.data.waypoints.length, 2);
+      assert.equal(
+        regainedDetailBody.data.metadata.route_variant_id,
+        GUIDANCE_CONTRACT_ROUTE_VARIANT_IDS.deniedV2
+      );
+
+      phase = 'readbackEvidence';
+      const readbackCatalog = await fetch(`${base}/mobile/safe-route/routes`, {
+        headers: { Authorization: authorization }
+      });
+      const readbackCatalogBody = await readbackCatalog.json();
+      assert.equal(
+        readbackCatalogBody.data.routes.find(
+          (route: { id: string }) => route.id === GUIDANCE_CONTRACT_ROUTE_IDS.denied
+        ).route.id,
+        GUIDANCE_CONTRACT_ROUTE_VARIANT_IDS.deniedV2
+      );
+      const readbackDetail = await fetch(
+        `${base}/mobile/safe-route/routes/${GUIDANCE_CONTRACT_ROUTE_IDS.denied}`,
+        { headers: { Authorization: authorization } }
+      );
+      assert.equal(
+        (await readbackDetail.json()).data.route.id,
+        GUIDANCE_CONTRACT_ROUTE_VARIANT_IDS.deniedV2
+      );
+
+      phase = 'regained';
+      assert.equal((await fetch(
+        `${base}/mobile/safe-route/routes/junk/${GUIDANCE_CONTRACT_ROUTE_IDS.denied}`,
+        { headers: { Authorization: authorization } }
+      )).status, 404);
 
       mode = GUIDANCE_CONTRACT_MODES.offline;
       await assert.rejects(fetch(`${base}/users/me`, {
@@ -476,7 +687,7 @@ describe('Maestro guidance contract API', () => {
         ['request', undefined, undefined],
         ['completion', 200, 'principal-a'],
         ['request', undefined, undefined],
-        ['completion', 200, 'catalog-denied'],
+        ['completion', 200, 'catalog-survivor'],
         ['request', undefined, undefined],
         ['completion', null, 'connection-destroyed']
       ]
@@ -802,7 +1013,7 @@ describe('Maestro guidance contract API', () => {
         entry({ path: '/api/v1/users/me', sequence: 3 }),
         entry({
           path: '/api/v1/mobile/safe-route/routes',
-          search: '?client_id=guidance-workspace',
+          search: '?client_id=66a1b2c3d4e5f60718293a40',
           sequence: 4
         }),
         marker(5, 'close'),
@@ -984,7 +1195,7 @@ describe('Maestro guidance contract API', () => {
       userRequest,
       completion(4, userRequest, 'principal-a'),
       catalogRequest,
-      completion(6, catalogRequest, 'catalog-denied'),
+      completion(6, catalogRequest, 'catalog-survivor'),
       marker(7, 'close'),
       marker(8, 'settled')
     ];
@@ -992,7 +1203,7 @@ describe('Maestro guidance contract API', () => {
       boundary: 'denied-workspace-start',
       expectedOutcomes: [
         { semanticOutcome: 'principal-a', statusCode: 200 },
-        { semanticOutcome: 'catalog-denied', statusCode: 200 }
+        { semanticOutcome: 'catalog-survivor', statusCode: 200 }
       ],
       expectedPaths: [
         '/api/v1/users/me',
@@ -1028,7 +1239,7 @@ describe('Maestro guidance contract API', () => {
         userRequest,
         { ...catalogRequest, sequence: 4, timestampMs: 400 },
         completion(5, userRequest, 'principal-a'),
-        completion(6, catalogRequest, 'catalog-denied'),
+        completion(6, catalogRequest, 'catalog-survivor'),
         marker(7, 'close'),
         marker(8, 'settled')
       ], options),
@@ -1038,7 +1249,7 @@ describe('Maestro guidance contract API', () => {
       () => assertGuidanceStartTrafficBoundary([
         ...entries.slice(0, 5),
         marker(6, 'close'),
-        completion(7, catalogRequest, 'catalog-denied'),
+        completion(7, catalogRequest, 'catalog-survivor'),
         marker(8, 'settled')
       ], options),
       /did not complete with the expected response outcome/

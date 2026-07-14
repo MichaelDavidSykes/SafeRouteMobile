@@ -6,6 +6,7 @@ export const GUIDANCE_CONTRACT_EVIDENCE_TYPES = [
   "restore.suspended",
   "restore.ready",
   "workspace.recovery.settled",
+  "route.cache.readback",
   "navigation.cleanup.settled",
   "tracking.stop.settled",
 ] as const;
@@ -17,7 +18,7 @@ export type GuidanceContractEvidenceDurability = {
   activeNavigation?: "absent" | "present" | "revoked" | "unknown";
   nativeTracking?: "active" | "not-started" | "stopped" | "unknown" | "unsupported";
   persistedPermit?: "present" | "revoked" | "unknown";
-  routeCache?: "failed" | "purged" | "unknown";
+  routeCache?: "failed" | "present" | "purged" | "unknown";
   runtimePermit?: "active" | "none" | "pending" | "unknown";
   workspaceContext?: "failed" | "persisted" | "revoked" | "unknown";
 };
@@ -28,6 +29,7 @@ export type GuidanceContractEvidenceAuthorization = {
 };
 
 export interface GuidanceContractEvidenceEvent {
+  appLaunchId: string;
   authorization: GuidanceContractEvidenceAuthorization;
   cause: string;
   durability: GuidanceContractEvidenceDurability;
@@ -87,6 +89,7 @@ export function normalizeGuidanceContractEvidenceEvent(
   }
 
   const eventId = safeString(value.eventId, 128);
+  const appLaunchId = safeString(value.appLaunchId, 128);
   const sourceRevision = safeString(value.sourceRevision, 40).toLowerCase();
   const type = safeString(value.type, 64);
   const cause = safeString(value.cause, 96);
@@ -94,6 +97,7 @@ export function normalizeGuidanceContractEvidenceEvent(
   const occurredAtMs = Number(value.occurredAtMs);
   if (
     !EVENT_ID_PATTERN.test(eventId) ||
+    !EVENT_ID_PATTERN.test(appLaunchId) ||
     !REVISION_PATTERN.test(sourceRevision) ||
     !TYPE_SET.has(type) ||
     !cause ||
@@ -123,6 +127,7 @@ export function normalizeGuidanceContractEvidenceEvent(
     : [];
 
   return {
+    appLaunchId,
     authorization: normalizeAuthorization(value.authorization),
     cause,
     durability: normalizeDurability(value.durability),
@@ -214,7 +219,7 @@ function normalizeDurability(value: unknown): GuidanceContractEvidenceDurability
   const activeNavigation = oneOf(value.activeNavigation, ["absent", "present", "revoked", "unknown"]);
   const nativeTracking = oneOf(value.nativeTracking, ["active", "not-started", "stopped", "unknown", "unsupported"]);
   const persistedPermit = oneOf(value.persistedPermit, ["present", "revoked", "unknown"]);
-  const routeCache = oneOf(value.routeCache, ["failed", "purged", "unknown"]);
+  const routeCache = oneOf(value.routeCache, ["failed", "present", "purged", "unknown"]);
   const runtimePermit = oneOf(value.runtimePermit, ["active", "none", "pending", "unknown"]);
   const workspaceContext = oneOf(value.workspaceContext, ["failed", "persisted", "revoked", "unknown"]);
   return {

@@ -19,6 +19,7 @@ export const GUIDANCE_CONTRACT_EVIDENCE_TYPES = Object.freeze([
   'restore.suspended',
   'restore.ready',
   'workspace.recovery.settled',
+  'route.cache.readback',
   'navigation.cleanup.settled',
   'tracking.stop.settled'
 ]);
@@ -39,6 +40,7 @@ const GUIDANCE_CONTRACT_EVIDENCE_PHASES = Object.freeze({
     'denied',
     'regained'
   ]),
+  'route.cache.readback': new Set(['regained', 'readbackEvidence']),
   'navigation.cleanup.settled': new Set([
     'wrongPrincipalStart',
     'deniedStart',
@@ -55,17 +57,28 @@ const GUIDANCE_CONTRACT_EVIDENCE_PHASES = Object.freeze({
 
 const ACCOUNT_EMAIL = 'driver@example.com';
 const ACCOUNT_A = Object.freeze({
-  _id: 'guidance-driver-a',
+  _id: '66d1b2c3d4e5f60718293d40',
   email: ACCOUNT_EMAIL,
   name: 'Guidance Driver A'
 });
 const ACCOUNT_B = Object.freeze({
-  _id: 'guidance-driver-b',
+  _id: '66d1b2c3d4e5f60718293d41',
   email: ACCOUNT_EMAIL,
   name: 'Guidance Driver B'
 });
-const WORKSPACE = Object.freeze({ id: 'guidance-workspace', name: 'Guidance Operations' });
-const ROUTE_ID = 'guidance-contract-route';
+export const GUIDANCE_CONTRACT_WORKSPACES = Object.freeze({
+  denied: Object.freeze({ id: '66a1b2c3d4e5f60718293a40', name: 'Guidance Operations' }),
+  survivor: Object.freeze({ id: '66a1b2c3d4e5f60718293a41', name: 'Support Operations' })
+});
+export const GUIDANCE_CONTRACT_ROUTE_IDS = Object.freeze({
+  denied: '66b1b2c3d4e5f60718293b40',
+  survivor: '66b1b2c3d4e5f60718293b41'
+});
+export const GUIDANCE_CONTRACT_ROUTE_VARIANT_IDS = Object.freeze({
+  deniedV1: '66c1b2c3d4e5f60718293c40',
+  deniedV2: '66c1b2c3d4e5f60718293c41',
+  survivor: '66c1b2c3d4e5f60718293c42'
+});
 const RESPONSE_SEMANTIC_OUTCOME = Symbol('guidanceContractSemanticOutcome');
 const ROUTE_COORDINATES = Object.freeze([
   { latitude: 51.5074, longitude: -0.1278 },
@@ -74,6 +87,10 @@ const ROUTE_COORDINATES = Object.freeze([
   { latitude: 51.5088, longitude: 0.0121 },
   { latitude: 51.5053, longitude: 0.0553 }
 ]);
+
+function isPostRegainPhase(phase) {
+  return phase === 'regained' || phase === 'readbackEvidence';
+}
 
 export function createGuidanceContractAccessToken(nowSeconds = Math.floor(Date.now() / 1000)) {
   const header = base64Url({ alg: 'HS256', typ: 'JWT' });
@@ -86,7 +103,32 @@ export function createGuidanceContractAccessToken(nowSeconds = Math.floor(Date.n
   return `${header}.${payload}.guidance-contract-signature`;
 }
 
-export function createGuidanceContractRoute() {
+export function createGuidanceContractRoute({
+  detail = false,
+  version = 'v1',
+  workspace = 'denied'
+} = {}) {
+  const survivor = workspace === 'survivor';
+  const regained = !survivor && version === 'v2';
+  const routeId = survivor
+    ? GUIDANCE_CONTRACT_ROUTE_IDS.survivor
+    : GUIDANCE_CONTRACT_ROUTE_IDS.denied;
+  const routeVariantId = survivor
+    ? GUIDANCE_CONTRACT_ROUTE_VARIANT_IDS.survivor
+    : regained
+      ? GUIDANCE_CONTRACT_ROUTE_VARIANT_IDS.deniedV2
+      : GUIDANCE_CONTRACT_ROUTE_VARIANT_IDS.deniedV1;
+  const routeWorkspace = survivor
+    ? GUIDANCE_CONTRACT_WORKSPACES.survivor
+    : GUIDANCE_CONTRACT_WORKSPACES.denied;
+  const routeName = survivor
+    ? 'Support continuity route'
+    : `Cold restart verification ${regained ? 'v2' : 'v1'}`;
+  const routeCoordinates = regained
+    ? ROUTE_COORDINATES.map((coordinate, index) => index < 2
+      ? coordinate
+      : { latitude: coordinate.latitude + 0.0004, longitude: coordinate.longitude })
+    : ROUTE_COORDINATES;
   return {
     checkpoints: [
       {
@@ -98,47 +140,84 @@ export function createGuidanceContractRoute() {
       },
       {
         caption: 'London City Airport',
-        coordinate: ROUTE_COORDINATES.at(-1),
+        coordinate: routeCoordinates.at(-1),
         id: 'guidance-destination',
         kind: 'destination',
         label: 'London City Airport'
       }
     ],
-    client: WORKSPACE,
-    client_id: WORKSPACE.id,
-    client_name: WORKSPACE.name,
-    convoy_callsign: 'SR-VERIFY',
+    client: routeWorkspace,
+    client_id: routeWorkspace.id,
+    client_name: routeWorkspace.name,
+    convoy_callsign: survivor ? 'SR-SUPPORT' : 'SR-VERIFY',
     description: 'Deterministic contract geometry for cold-process authorization evidence.',
     destination: {
-      coordinate: ROUTE_COORDINATES.at(-1),
+      coordinate: routeCoordinates.at(-1),
+      id: 'guidance-destination',
       label: 'London City Airport'
     },
-    id: ROUTE_ID,
+    id: routeId,
+    is_active: true,
     mobile_status: 'ready',
-    name: 'Cold restart verification',
-    operation: 'Authorization continuity',
+    name: routeName,
+    operation: survivor ? 'Support continuity' : 'Authorization continuity',
     origin: {
       coordinate: ROUTE_COORDINATES[0],
+      id: 'guidance-origin',
       label: 'Current location'
     },
     risk_overlays: [],
+    route_alerts: [],
     route: {
       color: '#30d158',
-      coordinates: ROUTE_COORDINATES,
+      coordinates: routeCoordinates,
       description: 'Follow the verified road geometry to London City Airport.',
       distance_label: '8.4 mi',
       distance_meters: 13500,
       eta_label: '24 min',
       eta_seconds: 1440,
-      id: `${ROUTE_ID}-geometry`,
-      label: 'Authorization fixture route',
+      id: routeVariantId,
+      label: survivor
+        ? 'Support survivor route'
+        : `Authorization fixture route ${regained ? 'v2' : 'v1'}`,
       next_distance_meters: 500,
-      next_instruction: 'Continue east toward London City Airport',
+      next_instruction: regained
+        ? 'Continue east on the freshly restored route'
+        : survivor
+          ? 'Continue east on the retained support route'
+          : 'Continue east toward London City Airport',
       risk_level: 'low',
       risk_score: 12
     },
-    status: 'active',
-    updated_at: new Date(0).toISOString()
+    status: 'ready',
+    updated_at: regained
+      ? '2026-07-14T12:00:00.000Z'
+      : survivor
+        ? '2026-06-15T12:00:00.000Z'
+        : '2026-06-01T12:00:00.000Z',
+    vehicles: [],
+    ...(detail ? {
+      metadata: {
+        fixture: 'guidance-contract',
+        route_variant_id: routeVariantId
+      },
+      waypoints: [
+        {
+          caption: 'Current location',
+          coordinate: ROUTE_COORDINATES[0],
+          id: 'guidance-origin',
+          kind: 'origin',
+          label: 'Current location'
+        },
+        {
+          caption: 'London City Airport',
+          coordinate: routeCoordinates.at(-1),
+          id: 'guidance-destination',
+          kind: 'destination',
+          label: 'London City Airport'
+        }
+      ]
+    } : {})
   };
 }
 
@@ -337,39 +416,76 @@ export function createGuidanceContractHandler({
 
     if (request.method === 'GET' && url.pathname === '/api/v1/mobile/safe-route/routes') {
       const denied = mode === GUIDANCE_CONTRACT_MODES.denied;
+      const regained = isPostRegainPhase(phase);
       const requestedWorkspaceId = String(url.searchParams.get('client_id') || '').trim();
-      if (requestedWorkspaceId && requestedWorkspaceId !== WORKSPACE.id) {
+      const requestedWorkspace = Object.values(GUIDANCE_CONTRACT_WORKSPACES)
+        .find((workspace) => workspace.id === requestedWorkspaceId);
+      if (requestedWorkspaceId && !requestedWorkspace) {
         sendApiError(response, 404, 'Workspace was not found.');
         return;
       }
-      if (denied && requestedWorkspaceId === WORKSPACE.id) {
+      if (
+        denied &&
+        requestedWorkspaceId === GUIDANCE_CONTRACT_WORKSPACES.denied.id
+      ) {
         sendApiError(response, 403, 'Workspace membership is unavailable.');
         return;
       }
-      const route = createGuidanceContractRoute();
+      const deniedRoute = createGuidanceContractRoute({
+        version: regained ? 'v2' : 'v1',
+        workspace: 'denied'
+      });
+      const survivorRoute = createGuidanceContractRoute({ workspace: 'survivor' });
+      const clients = denied
+        ? [GUIDANCE_CONTRACT_WORKSPACES.survivor]
+        : Object.values(GUIDANCE_CONTRACT_WORKSPACES);
+      const routes = denied
+        ? [survivorRoute]
+        : [deniedRoute, survivorRoute];
       sendApiSuccess(response, {
         data: {
-          clients: denied ? [] : [WORKSPACE],
-          routes: denied ? [] : [route],
-          selected_client_id: requestedWorkspaceId && !denied ? WORKSPACE.id : null
+          clients: requestedWorkspace ? [requestedWorkspace] : clients,
+          routes: requestedWorkspace
+            ? routes.filter((route) => route.client_id === requestedWorkspace.id)
+            : routes,
+          selected_client_id: requestedWorkspace?.id || null
         },
         message: 'SafeRoute routes loaded.'
-      }, denied ? 'catalog-denied' : 'catalog-active');
+      }, denied ? 'catalog-survivor' : regained ? 'catalog-regained' : 'catalog-active');
       return;
     }
 
-    if (
-      request.method === 'GET' &&
-      url.pathname === `/api/v1/mobile/safe-route/routes/${ROUTE_ID}`
-    ) {
-      if (mode === GUIDANCE_CONTRACT_MODES.denied) {
+    const routeDetailMatch = url.pathname.match(
+      /^\/api\/v1\/mobile\/safe-route\/routes\/([0-9a-f]{24})$/i
+    );
+    if (request.method === 'GET' && routeDetailMatch) {
+      const requestedRouteId = routeDetailMatch[1];
+      const requestedWorkspace = requestedRouteId === GUIDANCE_CONTRACT_ROUTE_IDS.denied
+        ? 'denied'
+        : requestedRouteId === GUIDANCE_CONTRACT_ROUTE_IDS.survivor
+          ? 'survivor'
+          : null;
+      if (!requestedWorkspace) {
+        sendApiError(response, 404, 'SafeRoute route was not found.');
+        return;
+      }
+      if (
+        mode === GUIDANCE_CONTRACT_MODES.denied &&
+        requestedWorkspace === 'denied'
+      ) {
         sendApiError(response, 403, 'Workspace membership is unavailable.');
         return;
       }
       sendApiSuccess(response, {
-        data: createGuidanceContractRoute(),
+        data: createGuidanceContractRoute({
+          detail: true,
+          version: isPostRegainPhase(phase) ? 'v2' : 'v1',
+          workspace: requestedWorkspace
+        }),
         message: 'SafeRoute route loaded.'
-      });
+      }, requestedWorkspace === 'denied' && isPostRegainPhase(phase)
+        ? 'route-detail-regained'
+        : 'route-detail-active');
       return;
     }
 
@@ -381,11 +497,15 @@ export function createGuidanceContractHandler({
       const body = await readJsonBody(request);
       if (url.pathname === '/api/v1/convoy-routes/route-preview') {
         const requestedWorkspaceId = String(body?.client_id || '').trim();
-        if (requestedWorkspaceId !== WORKSPACE.id) {
+        if (!Object.values(GUIDANCE_CONTRACT_WORKSPACES)
+          .some((workspace) => workspace.id === requestedWorkspaceId)) {
           sendApiError(response, 404, 'Workspace was not found.');
           return;
         }
-        if (mode === GUIDANCE_CONTRACT_MODES.denied) {
+        if (
+          mode === GUIDANCE_CONTRACT_MODES.denied &&
+          requestedWorkspaceId === GUIDANCE_CONTRACT_WORKSPACES.denied.id
+        ) {
           sendApiError(response, 403, 'Workspace membership is unavailable.');
           return;
         }
@@ -419,13 +539,18 @@ export function createGuidanceContractHandler({
     if (request.method === 'GET' && url.pathname === '/api/v1/intel/map/area-risk') {
       const requestedWorkspaceId = String(url.searchParams.get('client_id') || '').trim();
       const authenticated = hasExpectedBearerAuthorization(request.headers.authorization);
-      if (authenticated && requestedWorkspaceId && requestedWorkspaceId !== WORKSPACE.id) {
+      if (
+        authenticated &&
+        requestedWorkspaceId &&
+        !Object.values(GUIDANCE_CONTRACT_WORKSPACES)
+          .some((workspace) => workspace.id === requestedWorkspaceId)
+      ) {
         sendApiError(response, 404, 'Workspace was not found.');
         return;
       }
       if (
         authenticated &&
-        requestedWorkspaceId === WORKSPACE.id &&
+        requestedWorkspaceId === GUIDANCE_CONTRACT_WORKSPACES.denied.id &&
         mode === GUIDANCE_CONTRACT_MODES.denied
       ) {
         sendApiError(response, 403, 'Workspace membership is unavailable.');
@@ -481,6 +606,7 @@ export function normalizeGuidanceContractEvidence(value) {
     return null;
   }
   const eventId = normalizeEvidenceString(value.eventId, 128);
+  const appLaunchId = normalizeEvidenceString(value.appLaunchId, 128);
   const sourceRevision = normalizeEvidenceString(value.sourceRevision, 40).toLowerCase();
   const type = normalizeEvidenceString(value.type, 64);
   const cause = normalizeEvidenceString(value.cause, 96);
@@ -488,6 +614,7 @@ export function normalizeGuidanceContractEvidence(value) {
   const occurredAtMs = Number(value.occurredAtMs);
   if (
     !/^[A-Za-z0-9._:-]{8,128}$/.test(eventId) ||
+    !/^[A-Za-z0-9._:-]{8,128}$/.test(appLaunchId) ||
     !/^[0-9a-f]{40}$/.test(sourceRevision) ||
     !GUIDANCE_CONTRACT_EVIDENCE_TYPES.includes(type) ||
     !cause ||
@@ -514,6 +641,7 @@ export function normalizeGuidanceContractEvidence(value) {
         .slice(0, 20)
     : [];
   return {
+    appLaunchId,
     authorization: normalizeEvidenceRecord(value.authorization, {
       catalog: ['fresh-authorized', 'fresh-denied', 'not-checked', 'unavailable'],
       principal: ['matching', 'mismatched', 'none', 'unknown']
@@ -523,7 +651,7 @@ export function normalizeGuidanceContractEvidence(value) {
       activeNavigation: ['absent', 'present', 'revoked', 'unknown'],
       nativeTracking: ['active', 'not-started', 'stopped', 'unknown', 'unsupported'],
       persistedPermit: ['present', 'revoked', 'unknown'],
-      routeCache: ['failed', 'purged', 'unknown'],
+      routeCache: ['failed', 'present', 'purged', 'unknown'],
       runtimePermit: ['active', 'none', 'pending', 'unknown'],
       workspaceContext: ['failed', 'persisted', 'revoked', 'unknown']
     }),
@@ -719,6 +847,79 @@ export function assertGuidanceContractEvidenceJournal(entries, {
   }
 }
 
+export function assertGuidanceContractRouteCacheReadbackEvidence(entries, {
+  expectedSourceRevision,
+  minimumOccurredAtMs = 0
+}) {
+  const evidenceWindowEntries = Array.isArray(entries) ? entries.filter((entry) =>
+    entry.sourceRevision === expectedSourceRevision &&
+    entry.occurredAtMs >= minimumOccurredAtMs
+  ) : [];
+  const currentEntries = evidenceWindowEntries.filter(
+    (entry) => entry.type === 'route.cache.readback'
+  );
+  const deniedRecoveryIndex = evidenceWindowEntries.findIndex((entry) =>
+    entry.type === 'workspace.recovery.settled' &&
+    entry.serverPhase === 'denied' &&
+    entry.workspaceId === GUIDANCE_CONTRACT_WORKSPACES.denied.id &&
+    entry.unavailableWorkspaceIds?.includes(GUIDANCE_CONTRACT_WORKSPACES.denied.id) &&
+    !entry.unavailableWorkspaceIds?.includes(GUIDANCE_CONTRACT_WORKSPACES.survivor.id) &&
+    entry.authorization?.catalog === 'fresh-denied' &&
+    entry.authorization?.principal === 'matching' &&
+    entry.outcome === 'persisted' &&
+    entry.durability?.routeCache === 'purged' &&
+    entry.durability?.workspaceContext === 'persisted'
+  );
+  const survivorReadbackIndex = evidenceWindowEntries.findIndex((entry) =>
+    entry.type === 'route.cache.readback' &&
+    entry.serverPhase === 'regained' &&
+    entry.routeId === GUIDANCE_CONTRACT_ROUTE_VARIANT_IDS.survivor &&
+    entry.workspaceId === GUIDANCE_CONTRACT_WORKSPACES.survivor.id
+  );
+  assertJournalCondition(
+    deniedRecoveryIndex >= 0 && survivorReadbackIndex > deniedRecoveryIndex,
+    'Survivor readback was not correlated with an earlier exact denied-workspace purge.'
+  );
+  for (const expectation of [
+    {
+      phase: 'regained',
+      routeId: GUIDANCE_CONTRACT_ROUTE_VARIANT_IDS.survivor,
+      workspaceId: GUIDANCE_CONTRACT_WORKSPACES.survivor.id
+    },
+    {
+      phase: 'readbackEvidence',
+      routeId: GUIDANCE_CONTRACT_ROUTE_VARIANT_IDS.deniedV2,
+      workspaceId: GUIDANCE_CONTRACT_WORKSPACES.denied.id
+    }
+  ]) {
+    const matching = currentEntries.filter((entry) =>
+      entry.serverPhase === expectation.phase &&
+      entry.routeId === expectation.routeId &&
+      entry.workspaceId === expectation.workspaceId &&
+      entry.outcome === 'readable' &&
+      entry.durability?.routeCache === 'present'
+    );
+    const causes = new Set(matching.map((entry) => entry.cause));
+    const launches = new Set(matching.map((entry) => entry.appLaunchId));
+    assertJournalCondition(
+      causes.has('saved-list-readback') &&
+        causes.has('saved-detail-readback') &&
+        launches.size === 1 &&
+        matching.every(
+          (entry) => evidenceWindowEntries.indexOf(entry) > deniedRecoveryIndex
+        ),
+      `Route cache readback did not prove one-launch list/detail durability for ${expectation.workspaceId}.`
+    );
+  }
+  assertJournalCondition(
+    !currentEntries.some((entry) =>
+      entry.serverPhase === 'readbackEvidence' &&
+      entry.routeId === GUIDANCE_CONTRACT_ROUTE_VARIANT_IDS.deniedV1
+    ),
+    'Regained cache readback accepted the stale pre-denial route variant.'
+  );
+}
+
 function isSuccessfulGuidanceContractEvidence(event, journal) {
   if (!GUIDANCE_CONTRACT_EVIDENCE_PHASES[event.type]?.has(journal.serverPhase)) {
     return false;
@@ -760,6 +961,16 @@ function isSuccessfulGuidanceContractEvidence(event, journal) {
       event.outcome === 'persisted' &&
       event.durability.routeCache === 'purged' &&
       event.durability.workspaceContext === 'persisted'
+    );
+  }
+  if (event.type === 'route.cache.readback') {
+    return Boolean(
+      event.routeId &&
+      event.workspaceId &&
+      event.authorization.catalog === 'unavailable' &&
+      event.authorization.principal === 'matching' &&
+      event.outcome === 'readable' &&
+      event.durability.routeCache === 'present'
     );
   }
   if (event.type === 'navigation.cleanup.settled') {

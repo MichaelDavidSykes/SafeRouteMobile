@@ -6,6 +6,7 @@ import {
   LIVE_ROUTE_ENDPOINT_LABEL_MAX_LENGTH,
   LIVE_ROUTE_STATUS_LABEL_MAX_LENGTH,
   LIVE_ROUTE_TITLE_MAX_LENGTH,
+  ROUTE_START_PROXIMITY_THRESHOLD_METERS,
   createLiveLocationNoticePresentation,
   createRouteEndpointLinePresentation,
   createRouteHeaderPresentation,
@@ -17,6 +18,7 @@ import {
   primaryRouteActionAccessibility,
   resolveVisibleMapControls,
   routeStartBlockedReason,
+  routeStartProximityBlockedReason,
   routeStatusPillPresentation,
   shouldShowNativeUserLocation,
   shouldShowDriveAlongControl,
@@ -79,6 +81,33 @@ describe('live map UI state helpers', () => {
     );
     assert.equal(
       routeStartBlockedReason({ demoDriveActive: true, hasLiveCoordinate: false, permissionStatus: 'denied' }),
+      null
+    );
+  });
+
+  it('blocks fresh guidance when the live location is away from the route start', () => {
+    const routeStart = { latitude: 51.5074, longitude: -0.1278 };
+
+    assert.equal(ROUTE_START_PROXIMITY_THRESHOLD_METERS, 250);
+    assert.equal(
+      routeStartProximityBlockedReason({
+        currentCoordinate: { latitude: 51.508, longitude: -0.1278 },
+        routeStartCoordinate: routeStart
+      }),
+      null
+    );
+    assert.equal(
+      routeStartProximityBlockedReason({
+        currentCoordinate: { latitude: 53.4808, longitude: -2.2426 },
+        routeStartCoordinate: routeStart
+      }),
+      'Move within 250 m of the route start before starting guidance.'
+    );
+    assert.equal(
+      routeStartProximityBlockedReason({
+        currentCoordinate: null,
+        routeStartCoordinate: routeStart
+      }),
       null
     );
   });
@@ -152,6 +181,16 @@ describe('live map UI state helpers', () => {
         accessibilityLabel:
           'Location status. Waiting for a live location fix before guidance can start.',
         displayText: 'Location needed'
+      }
+    );
+    assert.deepEqual(
+      createLiveLocationNoticePresentation(
+        'Move within 250 m of the route start before starting guidance.'
+      ),
+      {
+        accessibilityLabel:
+          'Location status. Move within 250 m of the route start before starting guidance.',
+        displayText: 'Too far from route start'
       }
     );
     assert.deepEqual(

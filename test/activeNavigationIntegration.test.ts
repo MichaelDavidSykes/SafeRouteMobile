@@ -88,6 +88,24 @@ describe("production navigation reliability integration", () => {
     assert.match(liveMapSource, /setInterval\(persistCurrentSession, 5_000\)/);
   });
 
+  it("requires a fresh route start to be near the live vehicle location", () => {
+    const liveMapSource = source("src/features/live-map/LiveMapScreen.tsx");
+
+    assert.match(liveMapSource, /routeStartProximityBlockedReason/);
+    assert.match(
+      liveMapSource,
+      /navigationState === "loaded" \|\| navigationState === "stopped"[\s\S]*currentCoordinate: rawVehicleCoordinate[\s\S]*routeStartCoordinate: liveRoutePlan\.route\.coordinates\[0\]/,
+    );
+    assert.match(
+      liveMapSource,
+      /navigationBlockedReason =[\s\S]*riskStartBlockedReason[\s\S]*startProximityBlockedReason/,
+    );
+    assert.match(
+      liveMapSource,
+      /riskStartBlockedReason \|\|[\s\S]*startProximityBlockedReason[\s\S]*setPendingNavigationStart\(false\)/,
+    );
+  });
+
   it("filters foreground samples and recovers the newest background fix", () => {
     const locationHookSource = source(
       "src/features/live-map/useLiveLocation.ts",

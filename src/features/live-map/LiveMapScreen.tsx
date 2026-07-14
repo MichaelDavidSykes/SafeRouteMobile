@@ -15,6 +15,7 @@ import {
   DEFAULT_ROUTE_INTELLIGENCE_VISIBLE,
   liveLocationNotice,
   routeStartBlockedReason,
+  routeStartProximityBlockedReason,
   type NavigationLifecycle,
 } from "./liveMapUiState";
 import { resolveLiveMapOverlayLayout } from "./liveMapLayout";
@@ -372,17 +373,29 @@ export function LiveMapScreen({
     () => routeRiskStartBlockedReason(liveRoutePlan),
     [liveRoutePlan],
   );
-  const navigationBlockedReason = riskStartBlockedReason || routeStartBlockedReason({
+  const startProximityBlockedReason =
+    !demoDriveActive &&
+    (navigationState === "loaded" || navigationState === "stopped")
+      ? routeStartProximityBlockedReason({
+          currentCoordinate: rawVehicleCoordinate,
+          routeStartCoordinate: liveRoutePlan.route.coordinates[0],
+        })
+      : null;
+  const locationStartBlockedReason = routeStartBlockedReason({
     demoDriveActive,
     hasLiveCoordinate: Boolean(rawVehicleCoordinate),
     permissionStatus,
     routeCoordinateCount: liveRoutePlan.route.coordinates.length,
   });
+  const navigationBlockedReason =
+    riskStartBlockedReason ||
+    locationStartBlockedReason ||
+    startProximityBlockedReason;
   const locationNotice = (
     navigationState === "loaded" ||
     navigationState === "paused" ||
     navigationState === "stopped"
-      ? riskStartBlockedReason
+      ? riskStartBlockedReason || startProximityBlockedReason
       : null
   ) || liveLocationNotice({
     demoDriveActive,
@@ -1104,7 +1117,11 @@ export function LiveMapScreen({
       return;
     }
 
-    if (permissionStatus === "denied" || riskStartBlockedReason) {
+    if (
+      permissionStatus === "denied" ||
+      riskStartBlockedReason ||
+      startProximityBlockedReason
+    ) {
       setPendingNavigationStart(false);
       return;
     }
@@ -1130,6 +1147,7 @@ export function LiveMapScreen({
     permissionStatus,
     rawVehicleCoordinate,
     riskStartBlockedReason,
+    startProximityBlockedReason,
   ]);
 
   const handleStopRoute = () => {

@@ -235,9 +235,20 @@ describe("App active workspace integration", () => {
       app,
       /handleNavigationSessionChange[\s\S]*freshWorkspaceAuthorizationRef\.current\.workspaceIds\.has\(workspaceId\)/,
     );
+    const authorizationStart = liveMap.indexOf("const authorizeAndStartNavigation");
+    const authorizationEnd = liveMap.indexOf("const handlePrimaryNavigationAction", authorizationStart);
+    const authorizationFlow = liveMap.slice(authorizationStart, authorizationEnd);
+    assert.match(
+      authorizationFlow,
+      /runNavigationStartAuthorization\([\s\S]*authorize: \(\) => onAuthorizeNavigationStartRef\.current\(routePlan\)[\s\S]*commit: commitNavigationStart[\s\S]*validate: \(\) => navigationStartBlockedReasonRef\.current/,
+    );
+    assert.doesNotMatch(
+      authorizationFlow,
+      /onAuthorizeNavigationStartRef\.current\(liveRoutePlan\)/,
+    );
     assert.match(
       liveMap,
-      /authorizeAndStartNavigation[\s\S]*runNavigationStartAuthorization\([\s\S]*authorize: \(\) => onAuthorizeNavigationStartRef\.current\(liveRoutePlan\)[\s\S]*commit: commitNavigationStart[\s\S]*validate: \(\) => navigationStartBlockedReasonRef\.current/,
+      /activeSessionSnapshotRef\.current =[\s\S]*routePlan: liveRoutePlan/,
     );
     assert.match(
       liveMap,

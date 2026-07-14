@@ -1093,7 +1093,7 @@ export function LiveMapScreen({
     setNavigationAuthorizationNotice("Checking workspace access before starting guidance…");
 
     const result = await runNavigationStartAuthorization({
-      authorize: () => onAuthorizeNavigationStartRef.current(liveRoutePlan),
+      authorize: () => onAuthorizeNavigationStartRef.current(routePlan),
       commit: commitNavigationStart,
       gate,
       validate: () => navigationStartBlockedReasonRef.current,

@@ -351,6 +351,14 @@ export function getGuestRouteDraftUnresolvedStopIds(draft: GuestRouteDraft): str
     .map((stop) => stop.id);
 }
 
+export function resolveGuestRouteDraftNextStopInputId(
+  draft: GuestRouteDraft
+): string {
+  return getGuestRouteDraftUnresolvedStopIds(draft).find(
+    (stopId) => stopId !== GUEST_ROUTE_DRAFT_ORIGIN_ID
+  ) ?? GUEST_ROUTE_DRAFT_DESTINATION_ID;
+}
+
 export function hasUnresolvedGuestRouteDraftInput(draft: GuestRouteDraft): boolean {
   return getGuestRouteDraftUnresolvedStopIds(draft).length > 0;
 }

@@ -36,4 +36,16 @@ describe('guest map interaction contract', () => {
     assert.match(screen, /handleSelectRiskZone[\s\S]*animateRouteSheet\(true\)/);
     assert.doesNotMatch(screen, /Ionicons|MaterialIcons|FontAwesome/);
   });
+
+  it('turns the collapsed card into a one-tap next-stop search', () => {
+    assert.match(screen, /accessibilityLabel="Search for the next stop"/);
+    assert.match(screen, />\s*Search for a location\s*</);
+    assert.match(screen, /handleCollapsedLocationSearch/);
+    assert.match(
+      screen,
+      /resolveGuestRouteDraftNextStopInputId\(routeDraft\)[\s\S]*animateRouteSheet\(false\)[\s\S]*focusRouteStopInput\(nextStopId\)/
+    );
+    assert.match(screen, /routeInputRefs\.current\.get\(stopId\)\?\.focus\(\)/);
+    assert.doesNotMatch(screen, />Expand<\/Text>/);
+  });
 });

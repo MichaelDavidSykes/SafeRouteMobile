@@ -79,6 +79,7 @@ import {
   getGuestRouteDraftUnresolvedStopIds,
   guestRouteDraftReducer,
   mapGuestRouteDraftToCheckpoints,
+  resolveGuestRouteDraftNextStopInputId,
   resolveGuestRouteDraftStopCoordinate,
   setGuestRouteCurrentLocation,
   shouldUseGuestMapSelectionAsDestination
@@ -156,6 +157,8 @@ export function GuestMapScreen({
   const riskAreaRequestIdRef = useRef(0);
   const sheetProgress = useRef(new Animated.Value(0)).current;
   const sheetGestureActionRef = useRef<(collapsed: boolean) => void>(() => undefined);
+  const routeInputRefs = useRef(new Map<string, TextInput>());
+  const pendingInputFocusFrameRef = useRef<number | null>(null);
   const [routeDraft, dispatchRouteDraft] = useReducer(
     guestRouteDraftReducer,
     undefined,
@@ -283,10 +286,18 @@ export function GuestMapScreen({
   routingClientIdRef.current = routingClientId;
   onSessionExpiredRef.current = onSessionExpired;
   onWorkspaceUnavailableRef.current = onWorkspaceUnavailable;
+  const cancelPendingRouteInputFocus = () => {
+    if (pendingInputFocusFrameRef.current === null) {
+      return;
+    }
+    cancelAnimationFrame(pendingInputFocusFrameRef.current);
+    pendingInputFocusFrameRef.current = null;
+  };
   const animateRouteSheet = (collapsed: boolean) => {
+    cancelPendingRouteInputFocus();
     setSheetCollapsed(collapsed);
-    Keyboard.dismiss();
     if (collapsed) {
+      Keyboard.dismiss();
       setActiveInput(null);
     }
     Animated.spring(sheetProgress, {
@@ -296,6 +307,19 @@ export function GuestMapScreen({
       toValue: collapsed ? 1 : 0,
       useNativeDriver: true
     }).start();
+  };
+  const focusRouteStopInput = (stopId: string) => {
+    setActiveInput(stopId);
+    cancelPendingRouteInputFocus();
+    pendingInputFocusFrameRef.current = requestAnimationFrame(() => {
+      pendingInputFocusFrameRef.current = null;
+      routeInputRefs.current.get(stopId)?.focus();
+    });
+  };
+  const handleCollapsedLocationSearch = () => {
+    const nextStopId = resolveGuestRouteDraftNextStopInputId(routeDraft);
+    animateRouteSheet(false);
+    focusRouteStopInput(nextStopId);
   };
   sheetGestureActionRef.current = animateRouteSheet;
   const sheetPanResponder = useMemo(
@@ -320,6 +344,7 @@ export function GuestMapScreen({
   }, [liveCoordinate?.latitude, liveCoordinate?.longitude]);
 
   useEffect(() => () => {
+    cancelPendingRouteInputFocus();
     activeRiskAreaRequestRef.current?.abort();
     activeRiskAreaRequestRef.current = null;
     riskAreaRequestIdRef.current += 1;
@@ -1399,6 +1424,13 @@ export function GuestMapScreen({
                   placeholder={originInputCopy.placeholder}
                   testID={uiTestIds.guestMapOriginInput}
                   value={origin}
+                  inputRef={(input) => {
+                    if (input) {
+                      routeInputRefs.current.set(GUEST_ROUTE_DRAFT_ORIGIN_ID, input);
+                    } else {
+                      routeInputRefs.current.delete(GUEST_ROUTE_DRAFT_ORIGIN_ID);
+                    }
+                  }}
                   onChangeText={handleOriginChange}
                   onFocus={() => setActiveInput(GUEST_ROUTE_DRAFT_ORIGIN_ID)}
                 />
@@ -1411,6 +1443,13 @@ export function GuestMapScreen({
                     index={index}
                     stopId={waypoint.id}
                     value={waypoint.label}
+                    inputRef={(input) => {
+                      if (input) {
+                        routeInputRefs.current.set(waypoint.id, input);
+                      } else {
+                        routeInputRefs.current.delete(waypoint.id);
+                      }
+                    }}
                     onChangeText={(value) => handleStopChange(waypoint.id, value)}
                     onFocus={() => setActiveInput(waypoint.id)}
                     onMove={(toIndex) => handleReorderWaypoint(waypoint.id, toIndex)}
@@ -1423,6 +1462,13 @@ export function GuestMapScreen({
                   placeholder={destinationInputCopy.placeholder}
                   testID={uiTestIds.guestMapDestinationInput}
                   value={destination}
+                  inputRef={(input) => {
+                    if (input) {
+                      routeInputRefs.current.set(GUEST_ROUTE_DRAFT_DESTINATION_ID, input);
+                    } else {
+                      routeInputRefs.current.delete(GUEST_ROUTE_DRAFT_DESTINATION_ID);
+                    }
+                  }}
                   onChangeText={handleDestinationChange}
                   onFocus={() => setActiveInput(GUEST_ROUTE_DRAFT_DESTINATION_ID)}
                   onSubmitEditing={routePlan ? handleOpenPreview : () => void handlePlotRoute()}
@@ -1510,31 +1556,26 @@ export function GuestMapScreen({
             ]}
           >
             <Pressable
-              accessibilityHint="Expands route planning controls."
-              accessibilityLabel={`Route from ${origin || 'start point'} to ${destination || 'destination'}`}
+              accessibilityHint="Opens route planning, focuses the next stop, and shows the keyboard."
+              accessibilityLabel="Search for the next stop"
               accessibilityRole="button"
               testID={uiTestIds.guestMapCollapsedSheet}
               style={({ pressed }) => [
                 styles.collapsedSheetButton,
                 pressed ? styles.collapsedSheetPressed : null
               ]}
-              onPress={() => animateRouteSheet(false)}
+              onPress={handleCollapsedLocationSearch}
             >
               <View style={styles.collapsedSheetCopy}>
                 <Text numberOfLines={1} style={styles.collapsedSheetTitle}>
-                  {destination || 'Where to?'}
+                  Search for a location
                 </Text>
                 <Text numberOfLines={1} style={styles.collapsedSheetSubtitle}>
-                  {routeDraft.waypoints.length
-                    ? `${origin} · ${routeDraft.waypoints.length} stop${routeDraft.waypoints.length === 1 ? '' : 's'}`
-                    : origin}
+                  {destination
+                    ? `Current route to ${destination}`
+                    : `From ${origin || 'current location'}`}
                 </Text>
               </View>
-              {routePlan ? (
-                <RoutePreview authenticated={authenticated} inline routePlan={routePlan} />
-              ) : (
-                <Text style={styles.collapsedSheetAction}>Expand</Text>
-              )}
             </Pressable>
           </Animated.View>
         </View>
@@ -1675,6 +1716,7 @@ function resolveRoadPreviewStops(routePlan: SavedSafeRoutePlan) {
 function RouteInput({
   accessibilityHint,
   label,
+  inputRef,
   onChangeText,
   onFocus,
   onSubmitEditing,
@@ -1686,6 +1728,7 @@ function RouteInput({
   accessibilityHint: string;
   divided?: boolean;
   label: string;
+  inputRef?: (input: TextInput | null) => void;
   onChangeText: (value: string) => void;
   onFocus?: () => void;
   onSubmitEditing?: () => void;
@@ -1696,6 +1739,7 @@ function RouteInput({
   return (
     <View style={[styles.inputRow, divided ? styles.inputRowDivider : null]}>
       <TextInput
+        ref={inputRef}
         accessibilityHint={accessibilityHint}
         accessibilityLabel={label}
         autoCapitalize="words"
@@ -1721,6 +1765,7 @@ function WaypointInput({
   canMoveUp,
   divided,
   index,
+  inputRef,
   onChangeText,
   onFocus,
   onMove,
@@ -1732,6 +1777,7 @@ function WaypointInput({
   canMoveUp: boolean;
   divided?: boolean;
   index: number;
+  inputRef?: (input: TextInput | null) => void;
   onChangeText: (value: string) => void;
   onFocus: () => void;
   onMove: (toIndex: number) => void;
@@ -1742,6 +1788,7 @@ function WaypointInput({
   return (
     <View style={[styles.waypointRow, divided ? styles.inputRowDivider : null]}>
       <TextInput
+        ref={inputRef}
         accessibilityHint="Enter a place, address, or coordinate for this stop."
         accessibilityLabel={`Stop ${index + 1}`}
         autoCapitalize="words"

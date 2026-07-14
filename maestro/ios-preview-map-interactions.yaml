@@ -101,6 +101,7 @@ appId: host.exp.Exponent
     visible:
       id: "guest-map-add-waypoint"
     timeout: 5000
+- hideKeyboard
 - longPressOn:
     point: "50%,38%"
 - extendedWaitUntil:

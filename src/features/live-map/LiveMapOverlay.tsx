@@ -35,6 +35,7 @@ interface LiveMapOverlayProps {
   onRetryReroute: () => void;
   onSetAlertsVisible: (updater: (value: boolean) => boolean) => void;
   onStopRoute: () => void;
+  primaryActionStatusReason?: string | null;
   primaryDisabledReason?: string | null;
   progress: RouteProgressSnapshot | null;
   liveRiskAlert: LiveRouteRiskAlert | null;
@@ -65,6 +66,7 @@ export function LiveMapOverlay({
   onRetryReroute,
   onSetAlertsVisible,
   onStopRoute,
+  primaryActionStatusReason,
   primaryDisabledReason,
   progress,
   liveRiskAlert,
@@ -131,6 +133,7 @@ export function LiveMapOverlay({
         route={routePlan.route}
         routeContext={routeContext}
         routePlan={routePlan}
+        primaryActionStatusReason={primaryActionStatusReason}
         primaryDisabledReason={primaryDisabledReason}
         onEnableBackgroundNavigation={onEnableBackgroundNavigation}
         onPrimaryAction={onPrimaryAction}

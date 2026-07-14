@@ -1,21 +1,25 @@
 appId: host.exp.Exponent
 ---
-- tapOn:
-    id: "safe-route-primary-action"
 - waitForAnimationToEnd:
     timeout: 3000
 - setLocation:
-    latitude: 51.5077
-    longitude: -0.1275
+    latitude: 51.5076
+    longitude: -0.1276
 - waitForAnimationToEnd:
     timeout: 1000
 - setLocation:
-    latitude: 51.5078
-    longitude: -0.1274
+    latitude: 51.5077
+    longitude: -0.1275
 - extendedWaitUntil:
     visible:
       id: "safe-route-stop-action"
     timeout: 15000
+- tapOn:
+    id: "safe-route-primary-action"
+- assertVisible: "Resume route guidance"
+- tapOn:
+    id: "safe-route-primary-action"
+- assertVisible: "Pause route guidance"
 - waitForAnimationToEnd:
     timeout: 3000
 - stopApp

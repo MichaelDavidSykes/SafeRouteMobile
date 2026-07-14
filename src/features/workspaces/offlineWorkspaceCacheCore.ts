@@ -24,6 +24,8 @@ export type OfflineWorkspaceRecordWriter = (
   value: string,
 ) => Promise<void>;
 
+export type WorkspaceRecoveryPersistenceResult = "failed" | "persisted" | "revoked";
+
 type OfflineWorkspaceCacheRecord = {
   principalId: string;
   schema: number;
@@ -140,4 +142,73 @@ export function createSerializedWorkspaceRecordWriter(
       }
     }
   };
+}
+
+export async function persistWorkspaceRecoveryWithFallback({
+  clearFallback,
+  persistFallback,
+  persistPrimary,
+}: {
+  clearFallback: () => Promise<void>;
+  persistFallback: () => Promise<void>;
+  persistPrimary: Array<() => Promise<void>>;
+}): Promise<WorkspaceRecoveryPersistenceResult> {
+  let fallbackPersisted = false;
+  try {
+    await persistFallback();
+    fallbackPersisted = true;
+  } catch {
+    // Independent primary records can still make the recovery durable.
+  }
+
+  const primaryResults = await Promise.allSettled(
+    persistPrimary.map((persist) => persist()),
+  );
+  if (primaryResults.some((result) => result.status === "rejected")) {
+    return fallbackPersisted ? "revoked" : "failed";
+  }
+
+  if (!fallbackPersisted) {
+    return "persisted";
+  }
+
+  try {
+    await clearFallback();
+    return "persisted";
+  } catch {
+    // Retaining the independent revocation is safe and suppresses stale caches.
+    return "revoked";
+  }
+}
+
+export function createWorkspaceRecoveryRevocationRecord(
+  principalIdValue: string,
+  unavailableWorkspaceIds: Iterable<string>,
+): string {
+  return JSON.stringify({
+    principalId: normalizePrincipalId(principalIdValue),
+    unavailableWorkspaceIds: normalizeWorkspaceIds(unavailableWorkspaceIds),
+  });
+}
+
+export function parseWorkspaceRecoveryRevocationRecord(
+  raw: string,
+  principalIdValue: string,
+): string[] | null {
+  const principalId = normalizePrincipalId(principalIdValue);
+  try {
+    const record = JSON.parse(raw) as {
+      principalId?: unknown;
+      unavailableWorkspaceIds?: unknown;
+    };
+    if (
+      normalizePrincipalId(record.principalId) !== principalId ||
+      !Array.isArray(record.unavailableWorkspaceIds)
+    ) {
+      return null;
+    }
+    return normalizeWorkspaceIds(record.unavailableWorkspaceIds);
+  } catch {
+    return null;
+  }
 }

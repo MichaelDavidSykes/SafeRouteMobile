@@ -51,18 +51,32 @@ describe("App active workspace integration", () => {
   it("owns fail-closed Operations workspace recovery and rejects stale denied-workspace catalogs", () => {
     const app = appSource();
 
-    assert.match(app, /handleWorkspaceUnavailable = useCallback/);
+    assert.match(app, /handleWorkspaceUnavailable = useCallback\(async/);
     assert.match(app, /resolveWorkspaceAccessRecovery\([\s\S]*activeWorkspaceRef\.current\?\.id[\s\S]*normalizedWorkspaceId/);
     assert.match(app, /if \(recovery\.status === 'ignored'\) \{[\s\S]*return/);
     assert.match(app, /normalizedWorkspaceId = workspaceId\.trim\(\)/);
-    assert.match(app, /unavailableWorkspaceIdsRef\.current\.add\(normalizedWorkspaceId\)/);
+    assert.match(
+      app,
+      /unavailableWorkspaceIdsRef\.current = freshRecovery[\s\S]*normalizedWorkspaceId/,
+    );
     assert.match(app, /excludeUnavailableWorkspaces\([\s\S]*unavailableWorkspaceIdsRef\.current/);
     assert.match(app, /setAvailableWorkspaces\(recovery\.workspaces\)/);
     assert.match(app, /setActiveWorkspace\(recovery\.activeWorkspace\)/);
+    assert.match(
+      app,
+      /resolveWorkspaceSurfaceClosure\(\{[\s\S]*navigationWorkspaceId: currentNavigation\?\.routePlan\.clientId[\s\S]*previewWorkspaceId: currentPreview\?\.clientId[\s\S]*unavailableWorkspaceIds: unavailableWorkspaceIdsRef\.current/,
+    );
     assert.match(app, /navigationUnavailable[\s\S]*discardPersistedNavigation/);
     assert.match(app, /previewUnavailable[\s\S]*setSelectedRoute\(null\)/);
-    assert.match(app, /clearOfflineRouteWorkspace\(principalId, normalizedWorkspaceId\)/);
-    assert.match(app, /saveOfflineWorkspaceContext\(principalId, \{[\s\S]*workspaces: recovery\.workspaces/);
+    assert.match(
+      app,
+      /newlyUnavailableWorkspaceIds\.map\([\s\S]*clearOfflineRouteWorkspace\(principalId, workspaceId\)/,
+    );
+    assert.match(
+      app,
+      /await Promise\.all\(\[[\s\S]*navigationCleanup[\s\S]*persistOfflineWorkspaceRecovery[\s\S]*clearOfflineRouteWorkspace/,
+    );
+    assert.match(app, /workspaceRecoveryPersistence === 'failed'[\s\S]*workspaceIds: new Set<string>\(\)/);
     assert.match(app, /setWorkspaceDiscoveryRevision\(\(revision\) => revision \+ 1\)/);
   });
 
@@ -77,7 +91,10 @@ describe("App active workspace integration", () => {
     assert.match(app, /previousUnavailableWorkspaceCount[\s\S]*workspaceAccessRestored[\s\S]*unavailableWorkspaceIds\.size < previousUnavailableWorkspaceCount/);
     assert.match(app, /workspaceAccessRestored[\s\S]*Workspace access refreshed\./);
     assert.match(app, /handleRetryWorkspaceCatalog[\s\S]*restoreUnavailableWorkspacesFromFreshCatalogRef\.current = true[\s\S]*setWorkspaceDiscoveryRevision/);
-    assert.match(app, /handleWorkspaceUnavailable[\s\S]*restoreUnavailableWorkspacesFromFreshCatalogRef\.current = false[\s\S]*unavailableWorkspaceIdsRef\.current\.add/);
+    assert.match(
+      app,
+      /handleWorkspaceUnavailable[\s\S]*restoreUnavailableWorkspacesFromFreshCatalogRef\.current = false[\s\S]*unavailableWorkspaceIdsRef\.current =/,
+    );
     assert.equal(
       (app.match(/onRetryWorkspaceCatalog=\{handleRetryWorkspaceCatalog\}/g) || []).length,
       3,
@@ -211,7 +228,64 @@ describe("App active workspace integration", () => {
     );
     assert.match(
       app,
-      /const workspaceContextPersistence = saveOfflineWorkspaceContext\([\s\S]*\)\.catch\(\(\) => undefined\)/,
+      /persistOfflineWorkspaceRecovery\([\s\S]*unavailableWorkspaceIds: Array\.from\(unavailableWorkspaceIds\)[\s\S]*authoritativelyUnavailableWorkspaceIds\.map/,
+    );
+  });
+
+  it("revalidates the current principal and catalog immediately before workspace guidance starts", () => {
+    const app = appSource();
+    const liveMap = readFileSync("src/features/live-map/LiveMapScreen.tsx", "utf8");
+
+    assert.match(
+      app,
+      /handleAuthorizeNavigationStart[\s\S]*authorizeWorkspaceNavigationStart\([\s\S]*getCurrentUser\(accessToken\)[\s\S]*fetchSavedRoutes\(accessToken\)/,
+    );
+    assert.match(
+      app,
+      /authorization\.status === 'workspace-unavailable'[\s\S]*await handleWorkspaceUnavailable\(workspaceId, authorization\.workspaces\)/,
+    );
+    assert.match(
+      app,
+      /resolveFreshWorkspaceAccessRecovery\([\s\S]*unavailableWorkspaceIds: unavailableWorkspaceIdsRef\.current[\s\S]*setWorkspaceCatalogLoading\(!freshCatalog\)[\s\S]*if \(!freshCatalog\) \{[\s\S]*setWorkspaceDiscoveryRevision/,
+    );
+    assert.match(
+      app,
+      /newlyUnavailableWorkspaceIds\.map\(\(workspaceId\) =>[\s\S]*clearOfflineRouteWorkspace\(principalId, workspaceId\)/,
+    );
+    assert.match(
+      app,
+      /routePreviewRevisionRef[\s\S]*lastRenderedSelectedRouteRef[\s\S]*routePreviewRevisionRef\.current \+= 1/,
+    );
+    assert.match(
+      app,
+      /handleAuthorizeNavigationStart[\s\S]*routePlan,[\s\S]*routePreviewRevision: routePreviewRevisionRef\.current[\s\S]*isNavigationStartRequestCurrent\(request/,
+    );
+    assert.match(
+      app,
+      /onAuthorizeNavigationStart=\{handleAuthorizeNavigationStart\}/,
+    );
+    assert.match(
+      app,
+      /handleNavigationSessionChange[\s\S]*freshWorkspaceAuthorizationRef\.current\.workspaceIds\.has\(workspaceId\)/,
+    );
+    const authorizationStart = liveMap.indexOf("const authorizeAndStartNavigation");
+    const authorizationEnd = liveMap.indexOf("const handlePrimaryNavigationAction", authorizationStart);
+    const authorizationFlow = liveMap.slice(authorizationStart, authorizationEnd);
+    assert.match(
+      authorizationFlow,
+      /runNavigationStartAuthorization\([\s\S]*authorize: \(\) => onAuthorizeNavigationStartRef\.current\(routePlan\)[\s\S]*commit: commitNavigationStart[\s\S]*validate: \(\) => navigationStartBlockedReasonRef\.current/,
+    );
+    assert.doesNotMatch(
+      authorizationFlow,
+      /onAuthorizeNavigationStartRef\.current\(liveRoutePlan\)/,
+    );
+    assert.match(
+      liveMap,
+      /activeSessionSnapshotRef\.current =[\s\S]*routePlan: liveRoutePlan/,
+    );
+    assert.match(
+      liveMap,
+      /Checking workspace access before starting guidance/,
     );
   });
 
@@ -251,23 +325,20 @@ describe("App active workspace integration", () => {
     assert.match(app, /handleNavigationSessionChange[\s\S]*navigationCleanupRequiredRef\.current/);
     assert.match(app, /openRoutePreview[\s\S]*navigationCleanupRequiredRef\.current[\s\S]*Finish saved-guidance cleanup/);
     assert.match(app, /NavigationCleanupNotice[\s\S]*onRetry=/);
-    assert.match(app, /unavailableWorkspaceIdsRef\.current = unavailableWorkspaceIds[\s\S]*availableWorkspacesRef\.current = catalog[\s\S]*currentNavigationCleanup[\s\S]*routeCacheCleanup/);
+    assert.match(app, /unavailableWorkspaceIdsRef\.current = unavailableWorkspaceIds[\s\S]*availableWorkspacesRef\.current = catalog[\s\S]*currentNavigationCleanup[\s\S]*persistOfflineWorkspaceRecovery/);
     const persistenceIndex = app.indexOf(
-      'const workspaceContextPersistence = saveOfflineWorkspaceContext',
-    );
-    const routeCleanupIndex = app.indexOf(
-      'const routeCacheCleanup = authoritativelyUnavailableWorkspaceIds.length',
+      'const workspaceRecoveryPersistence = persistOfflineWorkspaceRecovery',
     );
     const cleanupAwaitIndex = app.indexOf(
-      'await Promise.all([\n          currentNavigationCleanup',
+      'const [, , recoveryPersistence] = await Promise.all([',
     );
     assert.ok(persistenceIndex >= 0);
-    assert.ok(routeCleanupIndex > persistenceIndex);
-    assert.ok(cleanupAwaitIndex > routeCleanupIndex);
+    assert.ok(cleanupAwaitIndex > persistenceIndex);
     assert.match(
       app.slice(cleanupAwaitIndex, cleanupAwaitIndex + 250),
-      /workspaceContextPersistence[\s\S]*routeCacheCleanup/,
+      /currentNavigationCleanup[\s\S]*pendingNavigationCleanup[\s\S]*workspaceRecoveryPersistence/,
     );
+    assert.match(app, /recoveryPersistence === 'failed'[\s\S]*workspaceIds: new Set<string>\(\)/);
     assert.match(app, /handleNavigationSessionChange[\s\S]*canResumeActiveNavigationSession[\s\S]*return false/);
     assert.match(app, /activeSessionPrincipalIdRef\.current/);
     assert.match(app, /principalId=\{sessionPrincipalId\}/);

@@ -1,0 +1,48 @@
+appId: host.exp.Exponent
+---
+- stopApp
+- setLocation:
+    latitude: 51.5074
+    longitude: -0.1278
+- openLink: exp://localhost:8081
+- runFlow:
+    when:
+      visible: "Open"
+    commands:
+      - tapOn: "Open"
+- waitForAnimationToEnd:
+    timeout: 3000
+- openLink: exp://localhost:8081
+- runFlow:
+    when:
+      visible: "Open"
+    commands:
+      - tapOn: "Open"
+- extendedWaitUntil:
+    visible:
+      id: "saferoute-app-root"
+    timeout: 45000
+- extendedWaitUntil:
+    visible:
+      id: "safe-route-suspended-navigation"
+    timeout: 15000
+- assertVisible: "Guidance paused"
+- assertVisible:
+    id: "safe-route-suspended-navigation-retry"
+- assertVisible:
+    id: "safe-route-suspended-navigation-end"
+- assertNotVisible:
+    id: "safe-route-live-map"
+- tapOn:
+    id: "safe-route-suspended-navigation-retry"
+    waitToSettleTimeoutMs: 1000
+- extendedWaitUntil:
+    visible: "Guidance paused"
+    timeout: 10000
+- tapOn:
+    id: "safe-route-suspended-navigation-end"
+    waitToSettleTimeoutMs: 1000
+- assertNotVisible:
+    id: "safe-route-suspended-navigation"
+- assertVisible:
+    id: "guest-map-workspace-selector"

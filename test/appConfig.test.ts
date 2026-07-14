@@ -322,6 +322,11 @@ describe('Expo production configuration', () => {
       SAFEROUTE_ENABLE_PREVIEW_MODE: 'true',
       SAFEROUTE_PREVIEW_INITIAL_SCREEN: ' workspace-choice '
     });
+    const suspendedGuidanceExpo = loadExpoConfig({
+      SAFEROUTE_APP_ENV: 'development',
+      SAFEROUTE_ENABLE_PREVIEW_MODE: 'true',
+      SAFEROUTE_PREVIEW_INITIAL_SCREEN: ' guidance-suspended '
+    });
     const disabledPreviewExpo = loadExpoConfig({
       SAFEROUTE_APP_ENV: 'development',
       SAFEROUTE_PREVIEW_INITIAL_SCREEN: 'routes'
@@ -348,6 +353,7 @@ describe('Expo production configuration', () => {
     assert.equal(expiredSessionExpo.extra.safeRoutePreviewModeEnabled, true);
     assert.equal(expiredSessionExpo.extra.safeRoutePreviewInitialScreen, 'session-expired');
     assert.equal(workspaceChoiceExpo.extra.safeRoutePreviewInitialScreen, 'workspace-choice');
+    assert.equal(suspendedGuidanceExpo.extra.safeRoutePreviewInitialScreen, 'guidance-suspended');
     assert.equal(disabledPreviewExpo.extra.safeRoutePreviewModeEnabled, false);
     assert.equal(disabledPreviewExpo.extra.safeRoutePreviewInitialScreen, 'guest-map');
     assert.equal(productionExpo.extra.safeRoutePreviewModeEnabled, false);

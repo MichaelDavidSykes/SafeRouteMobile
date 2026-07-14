@@ -6,6 +6,7 @@ const SUPPORTED_ENVIRONMENTS = ['development', 'staging', PRODUCTION_ENVIRONMENT
 export type SafeRouteAppEnvironment = (typeof SUPPORTED_ENVIRONMENTS)[number];
 export type SafeRoutePreviewInitialScreen =
   | 'guest-map'
+  | 'guidance-suspended'
   | 'login'
   | 'login-code'
   | 'operations'
@@ -114,6 +115,7 @@ function normalizePreviewInitialScreen(
 
   if (
     normalized === 'login' ||
+    normalized === 'guidance-suspended' ||
     normalized === 'login-code' ||
     normalized === 'operations' ||
     normalized === 'routes-empty' ||

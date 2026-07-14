@@ -1,6 +1,13 @@
 import { Platform } from "react-native";
 import Constants from "expo-constants";
 import * as Location from "expo-location";
+import type { ActiveNavigationAccessScope } from "./activeNavigationSessionCore";
+import {
+  grantBackgroundNavigationPermit,
+  revokeBackgroundNavigationPermit,
+} from "./activeNavigationSession";
+import { backgroundNavigationScopesMatch } from "./backgroundNavigationPermitCore";
+import { createBackgroundNavigationLifecycleCoordinator } from "./backgroundNavigationLifecycleCore";
 import { isBackgroundNavigationRuntimeSupported } from "./backgroundNavigationRuntime";
 
 export { isBackgroundNavigationRuntimeSupported } from "./backgroundNavigationRuntime";
@@ -22,6 +29,18 @@ export interface BackgroundNavigationResult {
   message: string;
   status: BackgroundNavigationStatus;
 }
+
+export interface BackgroundNavigationAuthorization {
+  accessScope: ActiveNavigationAccessScope;
+  routeId: string;
+}
+
+const backgroundNavigationLifecycle =
+  createBackgroundNavigationLifecycleCoordinator<BackgroundNavigationAuthorization>(
+    (left, right) =>
+      left.routeId.trim() === right.routeId.trim() &&
+      backgroundNavigationScopesMatch(left.accessScope, right.accessScope),
+  );
 
 export const SAFEROUTE_BACKGROUND_LOCATION_OPTIONS: Location.LocationTaskOptions = {
   accuracy: Location.Accuracy.BestForNavigation,
@@ -90,10 +109,29 @@ export async function inspectBackgroundNavigation(): Promise<BackgroundNavigatio
   }
 }
 
-export async function startBackgroundNavigationIfAuthorized(): Promise<BackgroundNavigationResult> {
+export function startBackgroundNavigationIfAuthorized(
+  authorization: BackgroundNavigationAuthorization,
+): Promise<BackgroundNavigationResult> {
+  return backgroundNavigationLifecycle.requestStart(
+    authorization,
+    () => startBackgroundNavigationIfAuthorizedInternal(authorization),
+    stopStaleBackgroundNavigation,
+  );
+}
+
+async function startBackgroundNavigationIfAuthorizedInternal(
+  authorization: BackgroundNavigationAuthorization,
+): Promise<BackgroundNavigationResult> {
+  await revokeBackgroundNavigationPermit();
   const inspected = await inspectBackgroundNavigation();
-  if (inspected.status === "active" || inspected.status === "unsupported") {
+  if (inspected.status === "unsupported") {
     return inspected;
+  }
+  if (inspected.status === "active") {
+    return authorizeStartedBackgroundNavigation(
+      authorization,
+      inspected,
+    );
   }
 
   try {
@@ -106,13 +144,43 @@ export async function startBackgroundNavigationIfAuthorized(): Promise<Backgroun
       SAFEROUTE_BACKGROUND_LOCATION_TASK,
       SAFEROUTE_BACKGROUND_LOCATION_OPTIONS,
     );
-    return result("active", "Background guidance is active.");
+    return authorizeStartedBackgroundNavigation(
+      authorization,
+      result("active", "Background guidance is active."),
+    );
   } catch {
     return result("error", "Background guidance could not be started.");
   }
 }
 
-export async function requestAndStartBackgroundNavigation(): Promise<BackgroundNavigationResult> {
+async function authorizeStartedBackgroundNavigation(
+  authorization: BackgroundNavigationAuthorization,
+  activeResult: BackgroundNavigationResult,
+): Promise<BackgroundNavigationResult> {
+  if (await grantBackgroundNavigationPermit(
+      authorization.routeId,
+      authorization.accessScope,
+    )) {
+    return activeResult;
+  }
+  await stopBackgroundNavigationInternal();
+  return result("error", "Background guidance could not be authorized.");
+}
+
+export function requestAndStartBackgroundNavigation(
+  authorization: BackgroundNavigationAuthorization,
+): Promise<BackgroundNavigationResult> {
+  return backgroundNavigationLifecycle.requestStart(
+    authorization,
+    () => requestAndStartBackgroundNavigationInternal(authorization),
+    stopStaleBackgroundNavigation,
+  );
+}
+
+async function requestAndStartBackgroundNavigationInternal(
+  authorization: BackgroundNavigationAuthorization,
+): Promise<BackgroundNavigationResult> {
+  await revokeBackgroundNavigationPermit();
   if (!isBackgroundNavigationRuntimeSupported({
     executionEnvironment: String(Constants.executionEnvironment || ""),
     platform: Platform.OS,
@@ -149,13 +217,34 @@ export async function requestAndStartBackgroundNavigation(): Promise<BackgroundN
       SAFEROUTE_BACKGROUND_LOCATION_TASK,
       SAFEROUTE_BACKGROUND_LOCATION_OPTIONS,
     );
-    return result("active", "Background guidance is active.");
+    return authorizeStartedBackgroundNavigation(
+      authorization,
+      result("active", "Background guidance is active."),
+    );
   } catch {
     return result("error", "Background guidance could not be started.");
   }
 }
 
-export async function stopBackgroundNavigation(): Promise<void> {
+export async function stopBackgroundNavigation(
+  expectedAuthorization: BackgroundNavigationAuthorization | null = null,
+): Promise<void> {
+  await backgroundNavigationLifecycle.requestStop(
+    expectedAuthorization,
+    stopBackgroundNavigationInternal,
+    () => {
+      void revokeBackgroundNavigationPermit();
+    },
+  );
+}
+
+async function stopStaleBackgroundNavigation(): Promise<BackgroundNavigationResult> {
+  await stopBackgroundNavigationInternal();
+  return result("idle", "Background guidance is off.");
+}
+
+async function stopBackgroundNavigationInternal(): Promise<void> {
+  await revokeBackgroundNavigationPermit();
   if (!isBackgroundNavigationRuntimeSupported({
     executionEnvironment: String(Constants.executionEnvironment || ""),
     platform: Platform.OS,

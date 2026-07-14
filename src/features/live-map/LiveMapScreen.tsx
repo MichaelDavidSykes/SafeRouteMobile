@@ -171,6 +171,16 @@ export function LiveMapScreen({
     (navigationState === "navigating" || navigationState === "off-route");
   const locationTrackingRequested =
     liveLocationRequested || navigationLocationTrackingActive;
+  const backgroundAccessScope = useMemo<ActiveNavigationSession["accessScope"]>(
+    () => activeRoutePlan.clientId?.trim()
+      ? {
+          clientId: activeRoutePlan.clientId.trim(),
+          kind: "workspace",
+          principalId: String(principalId || "").trim(),
+        }
+      : { kind: "public" },
+    [activeRoutePlan.clientId, principalId],
+  );
   const {
     backgroundStatus,
     coordinate,
@@ -180,6 +190,7 @@ export function LiveMapScreen({
     timestampMs,
     trackingLabel,
   } = useLiveLocation({
+    backgroundAccessScope,
     backgroundRouteId: activeRoutePlan.route.id,
     initialLocationSample: resumedNavigationSession?.lastLocation || null,
     manageBackgroundNavigation: true,

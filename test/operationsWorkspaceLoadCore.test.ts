@@ -128,7 +128,7 @@ describe("operations workspace load ownership", () => {
     );
   });
 
-  it("preserves manifest-request 401s for the central session-expiry handler", async () => {
+  it("preserves manifest-request 401s for an authenticated saved-route fallback", async () => {
     const error = new ApiSessionExpiredError();
     const result = await loadOperationsWorkspaceData({
       loadOperations: async () => {

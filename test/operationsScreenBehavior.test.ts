@@ -62,14 +62,17 @@ describe("operations screen behavior", () => {
     assert.doesNotMatch(text, /setClients\(result\.clients\)/);
   });
 
-  it("expires the central session for either route or manifest 401s", () => {
+  it("expires centrally only when the authenticated route request rejects the session", () => {
     const text = screenSource();
     const expiryCalls = text.match(/instanceof ApiSessionExpiredError\)[\s\S]{0,100}onSessionExpired/g) || [];
 
-    assert.equal(expiryCalls.length, 2);
-    assert.match(text, /result\.error instanceof ApiSessionExpiredError/);
+    assert.equal(expiryCalls.length, 1);
+    assert.match(
+      text,
+      /result\.error instanceof ApiSessionExpiredError[\s\S]*Trip and convoy manifests could not sync/
+    );
     assert.match(text, /error instanceof ApiSessionExpiredError/);
-    assert.match(text, /createOperationsSyncWarningState\(result\.error\)/);
+    assert.match(text, /createOperationsSyncWarningState\(/);
   });
 
   it("fails closed and reports only an owned workspace 403 or 404 to App", () => {
@@ -83,7 +86,7 @@ describe("operations screen behavior", () => {
     assert.match(text, /setRoutes\(\[\]\)[\s\S]*setOperationsState\(null\)[\s\S]*onWorkspaceUnavailable\(requestWorkspaceId\)/);
     assert.ok(
       text.indexOf('result.status === "workspace-unavailable"') <
-        text.indexOf("createOperationsSyncWarningState(result.error)"),
+        text.indexOf("createOperationsSyncWarningState("),
     );
   });
 

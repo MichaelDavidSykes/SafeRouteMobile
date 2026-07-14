@@ -158,13 +158,13 @@ export function OperationsScreen({
           return;
         }
 
-        if (result.error instanceof ApiSessionExpiredError) {
-          onSessionExpired(result.error.message);
-          return;
-        }
         setRoutes(result.routes);
         setLoadedWorkspaceId(requestWorkspaceId);
-        const warning = createOperationsSyncWarningState(result.error);
+        const warning = createOperationsSyncWarningState(
+          result.error instanceof ApiSessionExpiredError
+            ? new Error("Trip and convoy manifests could not sync")
+            : result.error
+        );
         setOperationsWarning(warning.message);
         setOperationsState(null);
       } catch (error) {

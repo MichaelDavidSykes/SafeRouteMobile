@@ -12,6 +12,8 @@ describe('LunarChain auth API requests', () => {
     assert.match(authApiSource, /headers:\s*buildAuthContentHeaders\('application\/x-www-form-urlencoded'\)/);
     assert.match(authApiSource, /headers:\s*buildAuthContentHeaders\('application\/json'\)/);
     assert.match(authApiSource, /Authorization:\s*`Bearer \$\{accessToken\}`/);
+    assert.match(authApiSource, /payload\._id \|\| payload\.id/);
+    assert.match(authApiSource, /id,\s*\n\s*name: payload\.name/);
     assert.doesNotMatch(authApiSource, /X-SafeRoute-Client|buildMobileClientHeaders|buildMobileAuthHeaders/);
   });
 });

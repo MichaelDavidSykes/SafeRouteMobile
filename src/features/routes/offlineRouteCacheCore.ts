@@ -3,9 +3,10 @@ import type { SavedRouteSyncResult } from "./routeApiCore";
 
 export const OFFLINE_ROUTE_CACHE_MAX_AGE_MS = 30 * 24 * 60 * 60 * 1000;
 export const OFFLINE_ROUTE_CACHE_MAX_ROUTES = 50;
-const OFFLINE_ROUTE_CACHE_SCHEMA = 1;
+const OFFLINE_ROUTE_CACHE_SCHEMA = 2;
 
 export interface OfflineRouteCacheRecord {
+  principalId: string;
   schema: number;
   storedAtMs: number;
   value: SavedRouteSyncResult;
@@ -13,9 +14,11 @@ export interface OfflineRouteCacheRecord {
 
 export function createOfflineRouteCacheRecord(
   value: SavedRouteSyncResult,
+  principalIdValue: string,
   nowMs = Date.now(),
 ): OfflineRouteCacheRecord {
   return {
+    principalId: normalizePrincipalId(principalIdValue),
     schema: OFFLINE_ROUTE_CACHE_SCHEMA,
     storedAtMs: nowMs,
     value: {
@@ -28,13 +31,17 @@ export function createOfflineRouteCacheRecord(
 
 export function parseOfflineRouteCacheRecord(
   value: unknown,
+  expectedPrincipalIdValue: string,
   nowMs = Date.now(),
 ): SavedRouteSyncResult | null {
   if (!value || typeof value !== "object") {
     return null;
   }
   const record = value as Partial<OfflineRouteCacheRecord>;
+  const expectedPrincipalId = normalizePrincipalId(expectedPrincipalIdValue);
   if (
+    !expectedPrincipalId ||
+    normalizePrincipalId(record.principalId) !== expectedPrincipalId ||
     record.schema !== OFFLINE_ROUTE_CACHE_SCHEMA ||
     !Number.isFinite(record.storedAtMs) ||
     (record.storedAtMs as number) > nowMs ||
@@ -89,8 +96,13 @@ export function removeWorkspaceFromOfflineRouteCacheRecord(
 ): OfflineRouteCacheRecord {
   return createOfflineRouteCacheRecord(
     removeWorkspaceFromOfflineRouteCache(record.value, workspaceId),
+    record.principalId,
     record.storedAtMs,
   );
+}
+
+function normalizePrincipalId(value: unknown): string {
+  return typeof value === "string" ? value.trim() : "";
 }
 
 export function hasUsableRoutePlan(value: unknown): value is SavedSafeRoutePlan {

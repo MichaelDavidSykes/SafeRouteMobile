@@ -15,8 +15,10 @@ describe("SafeRoute preview session", () => {
     assert.deepEqual(createPreviewAuthSession(), {
       accessToken: PREVIEW_ACCESS_TOKEN,
       email: "preview@lunarchain.local",
+      principalId: "preview-user",
       user: {
         email: "preview@lunarchain.local",
+        id: "preview-user",
         name: "SafeRoute Preview",
       },
     });

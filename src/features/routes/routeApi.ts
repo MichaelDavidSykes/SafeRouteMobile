@@ -12,6 +12,7 @@ export async function fetchSavedRoutes(accessToken: string, clientId?: string): 
   if (SAFEROUTE_PREVIEW_MODE_ENABLED && isPreviewAccessToken(accessToken)) {
     return loadPreviewSavedRoutes(clientId, {
       empty: SAFEROUTE_PREVIEW_INITIAL_SCREEN === 'routes-empty',
+      noPreference: SAFEROUTE_PREVIEW_INITIAL_SCREEN === 'workspace-choice',
     });
   }
 

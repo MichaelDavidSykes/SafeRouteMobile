@@ -38,6 +38,11 @@ const activeWorkspaceFlowSource = () =>
     join(process.cwd(), "maestro/ios-preview-active-workspace.yaml"),
     "utf8",
   );
+const workspaceChoiceFlowSource = () =>
+  readFileSync(
+    join(process.cwd(), "maestro/ios-preview-workspace-choice.yaml"),
+    "utf8",
+  );
 const riskAreasFlowSource = () =>
   readFileSync(
     join(process.cwd(), "maestro/ios-preview-risk-areas.yaml"),
@@ -198,6 +203,32 @@ describe("Maestro iOS preview smoke flow", () => {
     assert.match(flow, /assertNotVisible:\s*\n\s+id: "safe-route-card-sr-city-airport-alpha"/);
     assert.match(flow, /assertNotVisible:\s*\n\s+id: "safe-route-operations-route-trip-airport-transfer-sr-city-airport-alpha-0"/);
     assert.match(flow, /assertNotVisible:\s*\n\s+id: "safe-route-operations-route-trip-westbound-standby-sr-westbound-heathrow-0"/);
+  });
+
+  it("requires an explicit first workspace choice before cross-surface access", () => {
+    const flow = workspaceChoiceFlowSource();
+    const scripts = packageJson().scripts;
+    const choiceIndex = flow.indexOf('visible: "Workspace, Choose workspace"');
+    const centralIndex = flow.indexOf('id: "guest-map-workspace-preview-routes"');
+    const westIndex = flow.indexOf('id: "guest-map-workspace-preview-west"');
+    const savedIndex = flow.indexOf('id: "safe-route-picker"', westIndex);
+    const operationsIndex = flow.indexOf('id: "safe-route-operations"', savedIndex);
+
+    assert.equal(
+      scripts["start:maestro:ios:preview:workspace-choice"],
+      "SAFEROUTE_ENABLE_PREVIEW_MODE=true SAFEROUTE_PREVIEW_INITIAL_SCREEN=workspace-choice NODE_OPTIONS=--dns-result-order=ipv4first expo start --localhost --port 8081",
+    );
+    assert.equal(
+      scripts["test:maestro:ios:workspace-choice"],
+      "node scripts/run-maestro.mjs test maestro/ios-preview-workspace-choice.yaml",
+    );
+    assert.ok(choiceIndex >= 0);
+    assert.ok(centralIndex > choiceIndex);
+    assert.ok(westIndex > centralIndex);
+    assert.ok(savedIndex > westIndex);
+    assert.ok(operationsIndex > savedIndex);
+    assert.match(flow, /assertVisible: "Workspace, West Corridor"/);
+    assert.match(flow, /assertNotVisible:\s*\n\s+id: "safe-route-card-sr-city-airport-alpha"/);
   });
 
   it("plots a guest route before opening the live map", () => {

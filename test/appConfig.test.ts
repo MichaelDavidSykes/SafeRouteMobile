@@ -317,6 +317,11 @@ describe('Expo production configuration', () => {
       SAFEROUTE_ENABLE_PREVIEW_MODE: 'true',
       SAFEROUTE_PREVIEW_INITIAL_SCREEN: ' session-expired '
     });
+    const workspaceChoiceExpo = loadExpoConfig({
+      SAFEROUTE_APP_ENV: 'development',
+      SAFEROUTE_ENABLE_PREVIEW_MODE: 'true',
+      SAFEROUTE_PREVIEW_INITIAL_SCREEN: ' workspace-choice '
+    });
     const disabledPreviewExpo = loadExpoConfig({
       SAFEROUTE_APP_ENV: 'development',
       SAFEROUTE_PREVIEW_INITIAL_SCREEN: 'routes'
@@ -342,6 +347,7 @@ describe('Expo production configuration', () => {
     assert.equal(loginCodeExpo.extra.safeRoutePreviewInitialScreen, 'login-code');
     assert.equal(expiredSessionExpo.extra.safeRoutePreviewModeEnabled, true);
     assert.equal(expiredSessionExpo.extra.safeRoutePreviewInitialScreen, 'session-expired');
+    assert.equal(workspaceChoiceExpo.extra.safeRoutePreviewInitialScreen, 'workspace-choice');
     assert.equal(disabledPreviewExpo.extra.safeRoutePreviewModeEnabled, false);
     assert.equal(disabledPreviewExpo.extra.safeRoutePreviewInitialScreen, 'guest-map');
     assert.equal(productionExpo.extra.safeRoutePreviewModeEnabled, false);

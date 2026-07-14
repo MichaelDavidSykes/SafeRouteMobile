@@ -1,0 +1,106 @@
+appId: host.exp.Exponent
+---
+- stopApp
+- setLocation:
+    latitude: 51.5074
+    longitude: -0.1278
+- openLink: exp://localhost:8081
+- runFlow:
+    when:
+      visible: "Open"
+    commands:
+      - tapOn: "Open"
+- waitForAnimationToEnd:
+    timeout: 3000
+- openLink: exp://localhost:8081
+- runFlow:
+    when:
+      visible: "Open"
+    commands:
+      - tapOn: "Open"
+- waitForAnimationToEnd:
+    timeout: 10000
+- runFlow:
+    when:
+      visible: "Continue"
+    commands:
+      - tapOn: "Continue"
+      - waitForAnimationToEnd:
+          timeout: 1000
+- tapOn:
+    text: "Close"
+    optional: true
+- runFlow:
+    when:
+      visible: "Allow While Using App"
+    commands:
+      - tapOn: "Allow While Using App"
+      - waitForAnimationToEnd:
+          timeout: 3000
+- extendedWaitUntil:
+    visible:
+      id: "saferoute-app-root"
+    timeout: 45000
+- runFlow:
+    when:
+      visible:
+        id: "safe-route-return"
+    commands:
+      - tapOn:
+          id: "safe-route-return"
+          waitToSettleTimeoutMs: 1000
+- runFlow:
+    when:
+      visible:
+        id: "safe-route-picker"
+    commands:
+      - tapOn:
+          id: "route-list-map-return"
+          waitToSettleTimeoutMs: 1000
+- extendedWaitUntil:
+    visible: "Workspace, Choose workspace"
+    timeout: 30000
+- assertVisible:
+    id: "guest-map-workspace-selector"
+- assertVisible: "Choose workspace"
+- tapOn:
+    id: "guest-map-workspace-selector"
+    waitToSettleTimeoutMs: 1000
+- assertVisible:
+    id: "guest-map-workspace-preview-routes"
+- assertVisible:
+    id: "guest-map-workspace-preview-west"
+- tapOn:
+    id: "guest-map-workspace-preview-west"
+    waitToSettleTimeoutMs: 1000
+- assertVisible: "Workspace, West Corridor"
+- tapOn:
+    id: "guest-map-primary-action"
+    waitToSettleTimeoutMs: 1000
+- extendedWaitUntil:
+    visible:
+      id: "safe-route-picker"
+    timeout: 20000
+- assertVisible: "Workspace, West Corridor"
+- assertVisible:
+    id: "safe-route-card-sr-westbound-heathrow"
+- assertNotVisible:
+    id: "safe-route-card-sr-city-airport-alpha"
+- tapOn:
+    id: "route-list-map-return"
+    waitToSettleTimeoutMs: 1000
+- extendedWaitUntil:
+    visible: "Workspace, West Corridor"
+    timeout: 12000
+- tapOn:
+    id: "guest-map-gate-planned-trips"
+    waitToSettleTimeoutMs: 1000
+- extendedWaitUntil:
+    visible:
+      id: "safe-route-operations"
+    timeout: 20000
+- assertVisible: "Workspace, West Corridor"
+- assertVisible:
+    id: "safe-route-operations-route-trip-westbound-standby-sr-westbound-heathrow-0"
+- assertNotVisible:
+    id: "safe-route-operations-route-trip-airport-transfer-sr-city-airport-alpha-0"

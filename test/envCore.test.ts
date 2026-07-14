@@ -143,6 +143,15 @@ describe('SafeRoute runtime config', () => {
       resolveSafeRouteRuntimeConfig({
         safeRouteEnvironment: 'development',
         safeRoutePreviewModeEnabled: true,
+        safeRoutePreviewInitialScreen: ' workspace-choice '
+      }).previewInitialScreen,
+      'workspace-choice'
+    );
+
+    assert.equal(
+      resolveSafeRouteRuntimeConfig({
+        safeRouteEnvironment: 'development',
+        safeRoutePreviewModeEnabled: true,
         safeRoutePreviewInitialScreen: ' route-detail '
       }).previewInitialScreen,
       'guest-map'

@@ -44,6 +44,14 @@ describe("SafeRoute preview route API", () => {
     });
   });
 
+  it("exposes two workspaces without silently choosing one for first-run QA", () => {
+    const result = loadPreviewSavedRoutes(undefined, { noPreference: true });
+
+    assert.deepEqual(result.clients, PREVIEW_CLIENTS);
+    assert.equal(result.selectedClientId, null);
+    assert.equal(result.routes.length, SAVED_ROUTE_PLANS.length);
+  });
+
   it("loads preview route detail by id and fails clearly for stale fixture ids", () => {
     assert.equal(
       loadPreviewRouteDetail(` ${SAVED_ROUTE_PLANS[1].id} `).id,

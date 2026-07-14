@@ -28,18 +28,21 @@ function accessToken(overrides: Record<string, unknown> = {}): string {
 describe('saved LunarChain session restore', () => {
   const storedSession: AuthSession = {
     accessToken: accessToken(),
-    email: 'saved@example.com'
+    email: 'saved@example.com',
+    principalId: 'user-saved'
   };
 
   it('restores and refreshes the stored user when online validation succeeds', async () => {
     const result = await restoreSavedSession(storedSession, async () => ({
       email: 'fresh@example.com',
+      id: 'user-fresh',
       name: 'Fresh User'
     }));
 
     assert.equal(result.status, 'restored');
     assert.equal(result.validatedOnline, true);
     assert.equal(result.session.email, 'fresh@example.com');
+    assert.equal(result.session.principalId, 'user-fresh');
     assert.equal(result.session.user?.name, 'Fresh User');
   });
 
@@ -51,6 +54,7 @@ describe('saved LunarChain session restore', () => {
       },
       async () => ({
         email: 'fresh@example.com',
+        id: 'user-fresh',
         name: 'Fresh User'
       })
     );
@@ -211,5 +215,19 @@ describe('saved LunarChain session restore', () => {
 
     assert.equal(result.status, 'expired');
     assert.match(result.message, /online validation/i);
+  });
+
+  it('requires a trusted principal and matching token subject before offline restore', async () => {
+    for (const session of [
+      { ...storedSession, principalId: undefined },
+      { ...storedSession, email: 'another@example.com' }
+    ]) {
+      const result = await restoreSavedSession(session, async () => {
+        throw new Error('Network request failed');
+      });
+
+      assert.equal(result.status, 'expired');
+      assert.match(result.message, /online validation/i);
+    }
   });
 });

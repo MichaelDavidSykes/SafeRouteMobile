@@ -95,6 +95,7 @@ interface LiveMapScreenProps {
   onNavigationSessionChange?: (session: ActiveNavigationSession | null) => boolean | void;
   onSessionExpired?: (message?: string) => void;
   onWorkspaceUnavailable?: (workspaceId: string) => void;
+  principalId?: string | null;
   returnAccessibilityLabel?: string;
   returnLabel?: string;
   routeContext?: "guest" | "saved";
@@ -109,6 +110,7 @@ export function LiveMapScreen({
   onNavigationSessionChange,
   onSessionExpired,
   onWorkspaceUnavailable,
+  principalId,
   returnAccessibilityLabel = "Return to saved routes",
   returnLabel = "Routes",
   routePlan,
@@ -320,6 +322,7 @@ export function LiveMapScreen({
             timestampMs,
           }),
           navigationState,
+          principalId,
           progressFloorMeters,
           routeContext,
           routePlan: liveRoutePlan,

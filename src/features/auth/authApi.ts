@@ -1,5 +1,5 @@
 import { LUNARCHAIN_API_BASE } from '../../config/env';
-import { fetchWithTimeout, type SafeRouteRequestOptions } from '../api/apiClientCore';
+import { ApiSessionExpiredError, fetchWithTimeout, type SafeRouteRequestOptions } from '../api/apiClientCore';
 import type { AuthSession, AuthenticatedUser, PasswordLoginResult } from './authTypes';
 import { assertAuthResponseOk } from './authApiCore';
 import { buildAuthContentHeaders, buildPasswordLoginBody, normalizeEmail, unwrapAuthData } from './authPayload';
@@ -83,11 +83,19 @@ export async function getCurrentUser(accessToken: string): Promise<Authenticated
   });
 
   const body = await assertAuthResponseOk(response, 'Unable to validate the saved session.');
-  const payload = unwrapAuthData(body) as { email?: string; sub?: string; name?: string };
+  const payload = unwrapAuthData(body) as { _id?: string; id?: string; email?: string; sub?: string; name?: string };
   const email = normalizeEmail(payload.email || payload.sub || '');
+  const id = String(payload._id || payload.id || '').trim();
+
+  if (!id) {
+    throw new ApiSessionExpiredError(
+      'Your LunarChain session could not be validated. Sign in again.'
+    );
+  }
 
   return {
     email,
+    id,
     name: payload.name
   };
 }

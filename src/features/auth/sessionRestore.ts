@@ -76,6 +76,7 @@ export async function restoreSavedSession(
       session: {
         ...normalizedStoredSession,
         email: user.email || normalizedStoredSession.email,
+        principalId: user.id,
         user
       }
     };
@@ -87,7 +88,14 @@ export async function restoreSavedSession(
       };
     }
 
-    if (!offlineAccessClaims || !normalizedStoredSession.email) {
+    const storedEmail = normalizedStoredSession.email.trim().toLowerCase();
+    const storedPrincipalId = String(normalizedStoredSession.principalId || '').trim();
+    if (
+      !offlineAccessClaims ||
+      !storedEmail ||
+      !storedPrincipalId ||
+      offlineAccessClaims.sub.trim().toLowerCase() !== storedEmail
+    ) {
       return {
         status: 'expired',
         message: ONLINE_VALIDATION_REQUIRED_MESSAGE

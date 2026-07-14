@@ -5,41 +5,44 @@ import {
   createOfflineWorkspaceCacheRecord,
   parseOfflineWorkspaceCacheRecord,
   type OfflineWorkspaceContext,
+  type OfflineWorkspaceSnapshot,
 } from "./offlineWorkspaceCacheCore";
 
-const WORKSPACE_CONTEXT_KEY_PREFIX = "saferoute.offline.workspaces.v1";
+const WORKSPACE_CONTEXT_KEY_PREFIX = "saferoute.offline.workspaces.v2";
 const writeWorkspaceRecord = createSerializedWorkspaceRecordWriter(
   (key, value) => AsyncStorage.setItem(key, value),
 );
 
-function identityKey(userEmail: string): string {
-  return encodeURIComponent(userEmail.trim().toLowerCase());
+function identityKey(principalId: string): string {
+  return encodeURIComponent(principalId.trim());
 }
 
 export async function saveOfflineWorkspaceContext(
-  userEmail: string,
+  principalId: string,
   context: OfflineWorkspaceContext,
 ): Promise<void> {
-  if (!userEmail.trim()) {
+  if (!principalId.trim()) {
     return;
   }
   await writeWorkspaceRecord(
-    `${WORKSPACE_CONTEXT_KEY_PREFIX}.${identityKey(userEmail)}`,
-    JSON.stringify(createOfflineWorkspaceCacheRecord(context)),
+    `${WORKSPACE_CONTEXT_KEY_PREFIX}.${identityKey(principalId)}`,
+    JSON.stringify(createOfflineWorkspaceCacheRecord(context, principalId)),
   );
 }
 
 export async function loadOfflineWorkspaceContext(
-  userEmail: string,
-): Promise<OfflineWorkspaceContext | null> {
-  if (!userEmail.trim()) {
+  principalId: string,
+): Promise<OfflineWorkspaceSnapshot | null> {
+  if (!principalId.trim()) {
     return null;
   }
   try {
     const raw = await AsyncStorage.getItem(
-      `${WORKSPACE_CONTEXT_KEY_PREFIX}.${identityKey(userEmail)}`,
+      `${WORKSPACE_CONTEXT_KEY_PREFIX}.${identityKey(principalId)}`,
     );
-    return raw ? parseOfflineWorkspaceCacheRecord(JSON.parse(raw)) : null;
+    return raw
+      ? parseOfflineWorkspaceCacheRecord(JSON.parse(raw), principalId)
+      : null;
   } catch {
     return null;
   }

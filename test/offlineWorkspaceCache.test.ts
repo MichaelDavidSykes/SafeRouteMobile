@@ -17,29 +17,38 @@ const CONTEXT = {
 };
 
 describe("offline active workspace cache", () => {
-  it("round-trips a user-scoped validated catalog and active workspace", () => {
-    const record = createOfflineWorkspaceCacheRecord(CONTEXT, 1_000);
+  it("round-trips a principal-scoped validated catalog and active workspace", () => {
+    const record = createOfflineWorkspaceCacheRecord(CONTEXT, "user-a", 1_000);
 
-    assert.deepEqual(parseOfflineWorkspaceCacheRecord(record, 2_000), CONTEXT);
+    assert.deepEqual(parseOfflineWorkspaceCacheRecord(record, "user-a", 2_000), {
+      ...CONTEXT,
+      principalId: "user-a",
+    });
+    assert.equal(parseOfflineWorkspaceCacheRecord(record, "user-b", 2_000), null);
   });
 
   it("drops stale active ids and rejects expired, future, or malformed records", () => {
-    const record = createOfflineWorkspaceCacheRecord(CONTEXT, 1_000);
+    const record = createOfflineWorkspaceCacheRecord(CONTEXT, "user-a", 1_000);
     const staleActive = createOfflineWorkspaceCacheRecord({
       ...CONTEXT,
       activeWorkspaceId: "revoked",
-    }, 1_000);
+    }, "user-a", 1_000);
 
     assert.equal(staleActive.value.activeWorkspaceId, null);
     assert.equal(
       parseOfflineWorkspaceCacheRecord(
         record,
+        "user-a",
         1_000 + OFFLINE_WORKSPACE_CACHE_MAX_AGE_MS + 1,
       ),
       null,
     );
-    assert.equal(parseOfflineWorkspaceCacheRecord(record, 999), null);
-    assert.equal(parseOfflineWorkspaceCacheRecord({}), null);
+    assert.equal(parseOfflineWorkspaceCacheRecord(record, "user-a", 999), null);
+    assert.equal(parseOfflineWorkspaceCacheRecord({}, "user-a"), null);
+    assert.equal(
+      parseOfflineWorkspaceCacheRecord({ ...record, schema: 1 }, "user-a", 2_000),
+      null,
+    );
   });
 
   it("serializes writes so a slower old selection cannot replace the latest workspace", async () => {

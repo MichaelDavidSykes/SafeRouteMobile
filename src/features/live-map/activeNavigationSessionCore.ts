@@ -7,7 +7,7 @@ import {
   type ReliableLocationSample,
 } from "./locationSignal";
 
-export const ACTIVE_NAVIGATION_SESSION_VERSION = 2;
+export const ACTIVE_NAVIGATION_SESSION_VERSION = 3;
 export const ACTIVE_NAVIGATION_SESSION_MAX_AGE_MS = 24 * 60 * 60 * 1000;
 export const ACTIVE_NAVIGATION_SESSION_MAX_PAYLOAD_BYTES = 2_000_000;
 const ACTIVE_NAVIGATION_FUTURE_TOLERANCE_MS = 5 * 60 * 1000;
@@ -22,7 +22,7 @@ export type PersistedNavigationLifecycle = Extract<
 
 export type ActiveNavigationAccessScope =
   | { kind: "public" }
-  | { clientId: string; kind: "workspace" };
+  | { clientId: string; kind: "workspace"; principalId: string };
 
 export interface ActiveNavigationSession {
   accessScope: ActiveNavigationAccessScope;
@@ -42,6 +42,7 @@ export interface CreateActiveNavigationSessionOptions {
   followModeEnabled: boolean;
   lastLocation?: ReliableLocationSample | null;
   navigationState: PersistedNavigationLifecycle;
+  principalId?: string | null;
   progressFloorMeters: number;
   routeContext: "guest" | "saved";
   routePlan: SavedSafeRoutePlan;
@@ -61,15 +62,17 @@ export function createActiveNavigationSession({
   followModeEnabled,
   lastLocation = null,
   navigationState,
+  principalId,
   progressFloorMeters,
   routeContext,
   routePlan,
   savedAtMs = Date.now(),
 }: CreateActiveNavigationSessionOptions): ActiveNavigationSession {
   const clientId = normalizeClientId(routePlan.clientId);
+  const normalizedPrincipalId = normalizePrincipalId(principalId);
   return {
     accessScope: clientId
-      ? { clientId, kind: "workspace" }
+      ? { clientId, kind: "workspace", principalId: normalizedPrincipalId }
       : { kind: "public" },
     backgroundTrackingEnabled,
     followModeEnabled,
@@ -104,7 +107,17 @@ export function normalizeActiveNavigationSession(
   nowMs = Date.now(),
 ): ActiveNavigationSession | null {
   const parsed = parseActiveNavigationSessionValue(value);
-  if (!isRecord(parsed) || parsed.version !== ACTIVE_NAVIGATION_SESSION_VERSION) {
+  if (!isRecord(parsed)) {
+    return null;
+  }
+  const migratablePublicV2 =
+    parsed.version === 2 &&
+    isRecord(parsed.accessScope) &&
+    parsed.accessScope.kind === "public";
+  if (
+    parsed.version !== ACTIVE_NAVIGATION_SESSION_VERSION &&
+    !migratablePublicV2
+  ) {
     return null;
   }
 
@@ -181,14 +194,18 @@ export function canResumeActiveNavigationSession(
   session: ActiveNavigationSession,
   authenticated: boolean,
   activeWorkspaceId?: string | null,
+  principalId?: string | null,
 ): boolean {
   if (session.accessScope.kind === "public") {
     return !authenticated;
   }
 
+  const currentPrincipalId = normalizePrincipalId(principalId);
   return (
     authenticated &&
-    session.accessScope.clientId === normalizeClientId(activeWorkspaceId)
+    Boolean(session.accessScope.principalId && currentPrincipalId) &&
+    session.accessScope.clientId === normalizeClientId(activeWorkspaceId) &&
+    session.accessScope.principalId === currentPrincipalId
   );
 }
 
@@ -297,19 +314,26 @@ function normalizeActiveNavigationAccessScope(
 
   const clientId = normalizeClientId(routeClientId);
   if (value.kind === "public") {
-    return routeContext === "guest" && !clientId ? { kind: "public" } : null;
+    return routeContext === "guest" && !clientId && !normalizePrincipalId(value.principalId)
+      ? { kind: "public" }
+      : null;
   }
   if (value.kind !== "workspace") {
     return null;
   }
 
   const scopedClientId = normalizeClientId(value.clientId);
-  return scopedClientId && scopedClientId === clientId
-    ? { clientId: scopedClientId, kind: "workspace" }
+  const principalId = normalizePrincipalId(value.principalId);
+  return scopedClientId && scopedClientId === clientId && principalId
+    ? { clientId: scopedClientId, kind: "workspace", principalId }
     : null;
 }
 
 function normalizeClientId(value: unknown): string {
+  return typeof value === "string" ? value.trim() : "";
+}
+
+function normalizePrincipalId(value: unknown): string {
   return typeof value === "string" ? value.trim() : "";
 }
 

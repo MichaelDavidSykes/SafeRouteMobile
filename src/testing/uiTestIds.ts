@@ -42,13 +42,19 @@ export const uiTestIds = {
   operationsScreen: "safe-route-operations",
   operationsMapReturn: "safe-route-operations-map-return",
   operationsSignOut: "safe-route-operations-sign-out",
-  operationsClientSelector: "safe-route-operations-client-selector",
+  operationsWorkspaceSelector: "safe-route-operations-workspace-selector",
+  operationsWorkspaceState: "safe-route-operations-workspace-state",
+  operationsWorkspaceRetry: "safe-route-operations-workspace-retry",
+  operationsErrorState: "safe-route-operations-error-state",
+  operationsRetry: "safe-route-operations-retry",
+  operationsSyncWarning: "safe-route-operations-sync-warning",
+  operationsEmptyState: "safe-route-operations-empty-state",
   operationsTab: (tabId: string) =>
     `safe-route-operations-tab-${normalizeTestIdSegment(tabId)}`,
   operationsRouteCard: (routeId: string) =>
     `safe-route-operations-route-${normalizeTestIdSegment(routeId)}`,
-  operationsClientTab: (clientId: string) =>
-    `safe-route-operations-client-${normalizeTestIdSegment(clientId)}`,
+  operationsWorkspaceOption: (workspaceId: string) =>
+    `safe-route-operations-workspace-${normalizeTestIdSegment(workspaceId)}`,
   operationsConvoyCard: (convoyId: string) =>
     `safe-route-operations-convoy-${normalizeTestIdSegment(convoyId)}`,
   savedRouteCard: (routeId: string) =>

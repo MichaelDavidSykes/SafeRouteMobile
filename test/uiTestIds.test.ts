@@ -59,7 +59,14 @@ describe("UI test identifiers", () => {
     assert.equal(uiTestIds.operationsScreen, "safe-route-operations");
     assert.equal(uiTestIds.operationsMapReturn, "safe-route-operations-map-return");
     assert.equal(uiTestIds.operationsSignOut, "safe-route-operations-sign-out");
-    assert.equal(uiTestIds.operationsClientSelector, "safe-route-operations-client-selector");
+    assert.equal(
+      uiTestIds.operationsWorkspaceSelector,
+      "safe-route-operations-workspace-selector",
+    );
+    assert.equal(
+      uiTestIds.operationsWorkspaceState,
+      "safe-route-operations-workspace-state",
+    );
     assert.equal(
       uiTestIds.operationsTab("convoy management"),
       "safe-route-operations-tab-convoy-management",
@@ -69,8 +76,8 @@ describe("UI test identifiers", () => {
       "safe-route-operations-route-sr-city-airport",
     );
     assert.equal(
-      uiTestIds.operationsClientTab("Client/Alpha"),
-      "safe-route-operations-client-client-alpha",
+      uiTestIds.operationsWorkspaceOption("Client/Alpha"),
+      "safe-route-operations-workspace-client-alpha",
     );
     assert.equal(
       uiTestIds.operationsConvoyCard("Alpha convoy"),

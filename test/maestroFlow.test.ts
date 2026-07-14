@@ -149,7 +149,7 @@ describe("Maestro iOS preview smoke flow", () => {
     assert.ok(firstGuestGateIndex > firstMapReturnIndex);
   });
 
-  it("keeps one selected workspace from the map through the Saved picker", () => {
+  it("keeps one selected workspace across Map, Saved, and Operations", () => {
     const flow = activeWorkspaceFlowSource();
     const scripts = packageJson().scripts;
     const mapSelectorIndex = flow.indexOf('id: "guest-map-workspace-selector"');
@@ -158,6 +158,23 @@ describe("Maestro iOS preview smoke flow", () => {
     const routePickerIndex = flow.indexOf('id: "safe-route-picker"', westOptionIndex);
     const savedSelectorIndex = flow.indexOf('id: "safe-route-workspace-selector"');
     const westRouteIndex = flow.indexOf('id: "safe-route-card-sr-westbound-heathrow"');
+    const operationsIndex = flow.indexOf('id: "safe-route-operations"', westRouteIndex);
+    const operationsSelectorIndex = flow.indexOf(
+      'id: "safe-route-operations-workspace-selector"',
+      operationsIndex,
+    );
+    const westOperationsRouteIndex = flow.indexOf(
+      'id: "safe-route-operations-route-trip-westbound-standby-sr-westbound-heathrow-0"',
+      operationsSelectorIndex,
+    );
+    const centralOperationsOptionIndex = flow.indexOf(
+      'id: "safe-route-operations-workspace-preview-routes"',
+      westOperationsRouteIndex,
+    );
+    const centralOperationsRouteIndex = flow.indexOf(
+      'id: "safe-route-operations-route-trip-airport-transfer-sr-city-airport-alpha-0"',
+      centralOperationsOptionIndex,
+    );
 
     assert.equal(
       scripts["start:maestro:ios:preview:active-workspace"],
@@ -173,7 +190,14 @@ describe("Maestro iOS preview smoke flow", () => {
     assert.ok(routePickerIndex > westOptionIndex);
     assert.ok(savedSelectorIndex > routePickerIndex);
     assert.ok(westRouteIndex > savedSelectorIndex);
+    assert.ok(operationsIndex > westRouteIndex);
+    assert.ok(operationsSelectorIndex > operationsIndex);
+    assert.ok(westOperationsRouteIndex > operationsSelectorIndex);
+    assert.ok(centralOperationsOptionIndex > westOperationsRouteIndex);
+    assert.ok(centralOperationsRouteIndex > centralOperationsOptionIndex);
     assert.match(flow, /assertNotVisible:\s*\n\s+id: "safe-route-card-sr-city-airport-alpha"/);
+    assert.match(flow, /assertNotVisible:\s*\n\s+id: "safe-route-operations-route-trip-airport-transfer-sr-city-airport-alpha-0"/);
+    assert.match(flow, /assertNotVisible:\s*\n\s+id: "safe-route-operations-route-trip-westbound-standby-sr-westbound-heathrow-0"/);
   });
 
   it("plots a guest route before opening the live map", () => {

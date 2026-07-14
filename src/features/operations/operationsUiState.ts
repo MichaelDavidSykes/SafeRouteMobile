@@ -1,5 +1,5 @@
 import type { SavedSafeRoutePlan } from "../live-map/liveMapTypes";
-import type { MobileSafeRouteClient } from "../routes/routeMapper";
+import type { SafeRouteWorkspace } from "../workspaces/activeWorkspace";
 import type {
   SafeRouteOperationsState,
   SafeRoutePerson,
@@ -17,12 +17,20 @@ export type OperationsTabOption = {
   selected: boolean;
 };
 
-export type OperationsClientFilterOption = {
+export type OperationsWorkspaceOption = {
   accessibilityHint: string;
   accessibilityLabel: string;
   id: string;
   label: string;
   selected: boolean;
+};
+
+export type OperationsWorkspaceState = {
+  accessibilityLabel: string;
+  copy: string;
+  loading: boolean;
+  retry: boolean;
+  title: string;
 };
 
 export type OperationsEmptyState = {
@@ -98,46 +106,87 @@ export function createOperationsTabOptions(activeTab: OperationsTab): Operations
   }));
 }
 
-export function createOperationsClientFilterOptions(
-  clients: MobileSafeRouteClient[],
-  selectedClientId: string | null
-): OperationsClientFilterOption[] {
-  return clients.map((client) => {
-    const selected = client.id === selectedClientId;
-    const clientName = normalizeLabel(client.name, "Workspace");
-    const label = createCompactLabel(clientName, OPERATIONS_CLIENT_DISPLAY_MAX_LENGTH, "Workspace");
+export function createOperationsWorkspaceOptions(
+  workspaces: SafeRouteWorkspace[],
+  activeWorkspaceId: string | null
+): OperationsWorkspaceOption[] {
+  return workspaces.map((workspace) => {
+    const selected = workspace.id === activeWorkspaceId;
+    const workspaceName = normalizeLabel(workspace.name, "Workspace");
+    const label = createCompactLabel(workspaceName, OPERATIONS_CLIENT_DISPLAY_MAX_LENGTH, "Workspace");
 
     return {
-      id: client.id,
+      id: workspace.id,
       label,
       selected,
-      accessibilityHint: `Shows view-only SafeRoute operations for ${clientName}.`,
-      accessibilityLabel: `Show SafeRoute operations for ${clientName}${selected ? ", selected" : ""}`
+      accessibilityHint: `Uses ${workspaceName} for view-only SafeRoute operations.`,
+      accessibilityLabel: `Use workspace ${workspaceName}${selected ? ", selected" : ""}`
     };
   });
 }
 
-export function resolveOperationsClientId(
-  clients: MobileSafeRouteClient[],
-  selectedClientId: string | null,
-  preferredClientId?: string | null
-): string | null {
-  const selected = normalizeLabel(selectedClientId || "", "");
-  const preferred = normalizeLabel(preferredClientId || "", "");
-
-  if (selected && clients.some((client) => client.id === selected)) {
-    return selected;
-  }
-
-  if (preferred && clients.some((client) => client.id === preferred)) {
-    return preferred;
-  }
-
-  return clients[0]?.id || null;
+export function shouldShowOperationsWorkspaceSelector(
+  options: OperationsWorkspaceOption[]
+): boolean {
+  return options.length > 0;
 }
 
-export function shouldShowOperationsClientFilters(options: OperationsClientFilterOption[]): boolean {
-  return options.length > 1;
+export function createOperationsWorkspaceState({
+  activeWorkspaceId,
+  availableWorkspaceCount,
+  errorMessage,
+  loading
+}: {
+  activeWorkspaceId: string | null;
+  availableWorkspaceCount: number;
+  errorMessage: string;
+  loading: boolean;
+}): OperationsWorkspaceState | null {
+  if (activeWorkspaceId) {
+    return null;
+  }
+
+  if (loading && availableWorkspaceCount === 0) {
+    return {
+      accessibilityLabel: "Loading SafeRoute workspaces.",
+      copy: "Checking the workspaces available to this account.",
+      loading: true,
+      retry: false,
+      title: "Loading workspaces"
+    };
+  }
+
+  if (availableWorkspaceCount > 0) {
+    return {
+      accessibilityLabel: errorMessage
+        ? "Choose a cached workspace to show its offline operations."
+        : "Choose a workspace to show its operations.",
+      copy: errorMessage
+        ? "Choose a saved workspace. Reconnect to refresh workspace access."
+        : "Choose the workspace whose operations you need.",
+      loading: false,
+      retry: false,
+      title: "Choose workspace"
+    };
+  }
+
+  if (errorMessage) {
+    return {
+      accessibilityLabel: "Workspaces unavailable. Retry loading your SafeRoute workspaces.",
+      copy: errorMessage,
+      loading: false,
+      retry: true,
+      title: "Workspaces unavailable"
+    };
+  }
+
+  return {
+    accessibilityLabel: "No SafeRoute workspace access is available for this account.",
+    copy: "Ask an administrator to add this account to a SafeRoute workspace.",
+    loading: false,
+    retry: false,
+    title: "No workspace access"
+  };
 }
 
 export function createOperationsTitle(tab: OperationsTab): string {
@@ -193,11 +242,9 @@ export function createOperationsEmptyState(tab: OperationsTab): OperationsEmptyS
 }
 
 export function createOperationsSyncWarningState(error: unknown): OperationsSyncWarningState {
-  const message = error instanceof Error && error.name === "ApiSessionExpiredError"
-    ? "Live calendar and convoy details are temporarily unavailable"
-    : error instanceof Error && error.message.trim()
-      ? error.message.trim()
-      : "Trip and convoy manifests could not sync.";
+  const message = error instanceof Error && error.message.trim()
+    ? error.message.trim()
+    : "Trip and convoy manifests could not sync.";
 
   const sentence = message.endsWith(".") ? message : `${message}.`;
 

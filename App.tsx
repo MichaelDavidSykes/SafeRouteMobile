@@ -682,12 +682,21 @@ export default function App() {
         ) : screen === 'operations' && session && authenticated ? (
           <OperationsScreen
             accessToken={session.accessToken}
+            activeWorkspace={activeWorkspace}
+            availableWorkspaces={availableWorkspaces}
             initialTab={operationsTab}
             sessionNotice={routeListSessionNotice}
             userEmail={session.user?.email || session.email}
             onBackToMap={returnToMapHome}
+            onRetryWorkspaceCatalog={() => {
+              setWorkspaceDiscoveryRevision((revision) => revision + 1);
+            }}
             onSessionExpired={handleSessionExpired}
             onSignOut={handleSignOut}
+            onWorkspaceChange={handleActiveWorkspaceChange}
+            workspaceCatalogError={workspaceCatalogError}
+            workspaceCatalogLoading={workspaceCatalogLoading}
+            workspaceSwitchDisabled={Boolean(activeNavigationSession)}
           />
         ) : (
           <GuestMapScreen

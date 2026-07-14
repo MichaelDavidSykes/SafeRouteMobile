@@ -42,6 +42,7 @@ describe("App active workspace integration", () => {
     assert.match(app, /<OperationsScreen[\s\S]*workspaceCatalogLoading=\{workspaceCatalogLoading\}/);
     assert.match(app, /<OperationsScreen[\s\S]*workspaceSwitchDisabled=\{Boolean\(activeNavigationSession\)\}/);
     assert.match(app, /<OperationsScreen[\s\S]*onWorkspaceUnavailable=\{handleWorkspaceUnavailable\}/);
+    assert.match(app, /<RouteListScreen[\s\S]*onWorkspaceUnavailable=\{handleWorkspaceUnavailable\}/);
     assert.match(operations, /onWorkspaceChange\(nextWorkspace\)/);
     assert.match(operations, /activeWorkspaceIdRef\.current = nextWorkspace\.id/);
   });
@@ -88,11 +89,13 @@ describe("App active workspace integration", () => {
     assert.match(guest, /cancelRoadRouteUpgrade\(\)[\s\S]*activeRiskAreaRequestRef\.current\?\.abort\(\)[\s\S]*setRoutePlan\(null\)/);
     assert.doesNotMatch(guest, /result\.clients\[0\]/);
     assert.match(routes, /selectedClientId = activeWorkspace\?\.id \|\| null/);
-    assert.match(routes, /fetchSavedRoutes\([\s\S]*selectedClientId \|\| undefined/);
-    assert.match(routes, /routesForWorkspace\(result\.routes, selectedClientId\)/);
+    assert.match(routes, /fetchSavedRoutes\([\s\S]*requestWorkspaceId/);
+    assert.match(routes, /routesForWorkspace\(result\.routes, requestWorkspaceId\)/);
     assert.match(routes, /!cached && offline && !refresh[\s\S]*loadOfflineRoutes\(userEmail, null\)/);
     assert.match(routes, /routeDetail\.clientId !== selectedClientId/);
     assert.match(routes, /activeWorkspaceIdRef\.current === selectedClientId/);
+    assert.match(routes, /isWorkspaceUnavailableError\(error\)[\s\S]*recoverUnavailableWorkspace\(requestWorkspaceId\)/);
+    assert.match(routes, /isWorkspaceForbiddenError\(error\)[\s\S]*recoverUnavailableWorkspace\(selectedClientId\)/);
     assert.match(routes, /setRoutes\(\[\]\)[\s\S]*onWorkspaceChange\(workspace\)/);
     assert.match(routes, /workspaceCatalogLoading/);
     assert.match(routes, /Workspaces unavailable/);

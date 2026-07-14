@@ -26,23 +26,62 @@ describe("route list screen behavior", () => {
     assert.match(loadSource, /loadRevisionRef\.current = revision/);
     assert.match(
       loadSource,
-      /await loadOfflineRoutes[\s\S]*?revision !== loadRevisionRef\.current[\s\S]*?if \(cached\)/,
+      /await loadOfflineRoutes[\s\S]*?!requestOwnsWorkspace\(\)[\s\S]*?if \(cached\)/,
     );
     assert.match(
       loadSource,
-      /await fetchSavedRoutes[\s\S]*?revision !== loadRevisionRef\.current[\s\S]*?routesForWorkspace\(result\.routes, selectedClientId\)[\s\S]*?setRoutes\(scopedResult\.routes\)/,
+      /await fetchSavedRoutes[\s\S]*?!requestOwnsWorkspace\(\)[\s\S]*?routesForWorkspace\(result\.routes, requestWorkspaceId\)[\s\S]*?setRoutes\(scopedResult\.routes\)/,
     );
     assert.match(
       loadSource,
-      /catch \(error\)[\s\S]*?revision !== loadRevisionRef\.current[\s\S]*?error instanceof ApiSessionExpiredError/,
+      /catch \(error\)[\s\S]*?!requestOwnsWorkspace\(\)[\s\S]*?error instanceof ApiSessionExpiredError/,
     );
     assert.match(
       loadSource,
-      /cached \|\| \(await loadOfflineRoutes[\s\S]*?revision !== loadRevisionRef\.current[\s\S]*?if \(offlineCopy\)/,
+      /cached \|\| \(await loadOfflineRoutes[\s\S]*?!requestOwnsWorkspace\(\)[\s\S]*?if \(offlineCopy\)/,
     );
     assert.match(
       loadSource,
-      /finally[\s\S]*?revision === loadRevisionRef\.current[\s\S]*?setLoading\(false\)[\s\S]*?setRefreshing\(false\)/,
+      /finally[\s\S]*?requestOwnsWorkspace\(\)[\s\S]*?setLoading\(false\)[\s\S]*?setRefreshing\(false\)/,
+    );
+  });
+
+  it("treats an owned saved-list 403 or 404 as workspace loss before cached fallback", () => {
+    const loadSource = sourceBetween(
+      screenSource(),
+      "const loadRoutes = useCallback(",
+      "const handleChangeQuery",
+    );
+
+    assert.match(
+      loadSource,
+      /const requestWorkspaceId = selectedClientId[\s\S]*?revision === loadRevisionRef\.current[\s\S]*?activeWorkspaceIdRef\.current === requestWorkspaceId/,
+    );
+    assert.match(
+      loadSource,
+      /error instanceof ApiSessionExpiredError[\s\S]*?isWorkspaceUnavailableError\(error\)[\s\S]*?recoverUnavailableWorkspace\(requestWorkspaceId\)[\s\S]*?cached \|\| \(await loadOfflineRoutes/,
+    );
+    assert.match(
+      screenSource(),
+      /const recoverUnavailableWorkspace = useCallback[\s\S]*?loadRevisionRef\.current \+= 1[\s\S]*?detailRevisionRef\.current \+= 1[\s\S]*?activeWorkspaceIdRef\.current = null[\s\S]*?setRoutes\(\[\]\)[\s\S]*?setShowingOfflineCopy\(false\)[\s\S]*?setDetailLoadingId\(null\)[\s\S]*?setLoading\(false\)[\s\S]*?setRefreshing\(false\)[\s\S]*?onWorkspaceUnavailable\(workspaceId\)/,
+    );
+  });
+
+  it("recovers an owned route-detail 403 while keeping detail 404 route-specific", () => {
+    const detailSource = sourceBetween(
+      screenSource(),
+      "const handleSelectRoute = async",
+      "const handleRetry",
+    );
+
+    assert.doesNotMatch(detailSource, /isWorkspaceUnavailableError|onWorkspaceUnavailable/);
+    assert.match(
+      detailSource,
+      /error instanceof ApiSessionExpiredError[\s\S]*?isWorkspaceForbiddenError\(error\)[\s\S]*?recoverUnavailableWorkspace\(selectedClientId\)[\s\S]*?loadOfflineRouteDetail/,
+    );
+    assert.match(
+      detailSource,
+      /catch \(error\)[\s\S]*?loadOfflineRouteDetail[\s\S]*?createRouteDetailErrorState\(error, route\.name\)/,
     );
   });
 
@@ -102,7 +141,7 @@ describe("route list screen behavior", () => {
 
     assert.match(
       source,
-      /const workspace = availableWorkspaces\.find[\s\S]*?detailRevisionRef\.current \+= 1;[\s\S]*?setDetailLoadingId\(null\);[\s\S]*?onWorkspaceChange\(workspace\)/,
+      /const workspace = availableWorkspaces\.find[\s\S]*?loadRevisionRef\.current \+= 1;[\s\S]*?detailRevisionRef\.current \+= 1;[\s\S]*?setDetailLoadingId\(null\);[\s\S]*?onWorkspaceChange\(workspace\)/,
     );
   });
 });

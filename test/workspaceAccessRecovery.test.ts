@@ -8,6 +8,7 @@ import {
 } from "../src/features/api/apiClientCore";
 import {
   excludeUnavailableWorkspaces,
+  isWorkspaceForbiddenError,
   isWorkspaceUnavailableError,
   resolveWorkspaceAccessRecovery,
 } from "../src/features/workspaces/workspaceAccessRecovery";
@@ -20,6 +21,8 @@ const WORKSPACES = [
 
 describe("workspace access recovery", () => {
   it("classifies only request-level workspace 403 and 404 errors", () => {
+    assert.equal(isWorkspaceForbiddenError(new ApiAuthorizationError()), true);
+    assert.equal(isWorkspaceForbiddenError(new ApiRequestError("Missing", 404)), false);
     assert.equal(isWorkspaceUnavailableError(new ApiAuthorizationError()), true);
     assert.equal(isWorkspaceUnavailableError(new ApiRequestError("Missing", 404)), true);
     assert.equal(isWorkspaceUnavailableError(new ApiRequestError("Offline", 0)), false);

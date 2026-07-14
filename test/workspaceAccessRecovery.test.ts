@@ -14,6 +14,7 @@ import {
   isWorkspaceIdUnavailable,
   isWorkspaceUnavailableError,
   resolveFreshWorkspaceAccessRecovery,
+  resolveWorkspaceSurfaceClosure,
   resolveWorkspaceAccessRecovery,
 } from "../src/features/workspaces/workspaceAccessRecovery";
 
@@ -161,6 +162,14 @@ describe("workspace access recovery", () => {
       false,
     );
     assert.equal(isWorkspaceIdUnavailable("", ["workspace-a"]), false);
+    assert.deepEqual(
+      resolveWorkspaceSurfaceClosure({
+        navigationWorkspaceId: "route-only",
+        previewWorkspaceId: "workspace-b",
+        unavailableWorkspaceIds: ["workspace-a", "workspace-b", "route-only"],
+      }),
+      { navigationUnavailable: true, previewUnavailable: true },
+    );
   });
 
   it("detects cached and route-bound workspaces omitted by a fresh authoritative catalog", () => {

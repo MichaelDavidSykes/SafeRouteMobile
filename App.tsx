@@ -72,14 +72,14 @@ import {
 } from './src/features/workspaces/activeWorkspace';
 import {
   loadOfflineWorkspaceContext,
-  saveOfflineWorkspaceContext,
-  saveOfflineWorkspaceContextFailClosed
+  persistOfflineWorkspaceRecovery,
+  saveOfflineWorkspaceContext
 } from './src/features/workspaces/offlineWorkspaceCache';
 import {
   excludeUnavailableWorkspaces,
   findAuthoritativelyUnavailableWorkspaceIds,
-  isWorkspaceIdUnavailable,
   resolveFreshWorkspaceAccessRecovery,
+  resolveWorkspaceSurfaceClosure,
   resolveWorkspaceAccessRecovery
 } from './src/features/workspaces/workspaceAccessRecovery';
 import { reconcileUnavailableWorkspaceIds } from './src/features/workspaces/workspaceMembershipRevalidation';
@@ -833,26 +833,38 @@ export default function App() {
               'Active guidance could not be restored because its workspace is no longer available. Plot the route again.',
             )
           : Promise.resolve(true);
-        const workspaceContextPersistence = saveOfflineWorkspaceContext(principalId, {
-          activeWorkspaceId: resolvedWorkspace?.id || null,
-          unavailableWorkspaceIds: Array.from(unavailableWorkspaceIds),
-          workspaces: catalog,
-        }).catch(() => undefined);
-        const routeCacheCleanup = authoritativelyUnavailableWorkspaceIds.length
-          ? Promise.allSettled(
-            authoritativelyUnavailableWorkspaceIds.map((workspaceId) =>
-              clearOfflineRouteWorkspace(principalId, workspaceId),
-            ),
-          )
-          : Promise.resolve([]);
-        await Promise.all([
+        const workspaceRecoveryPersistence = persistOfflineWorkspaceRecovery(
+          principalId,
+          {
+            activeWorkspaceId: resolvedWorkspace?.id || null,
+            unavailableWorkspaceIds: Array.from(unavailableWorkspaceIds),
+            workspaces: catalog,
+          },
+          authoritativelyUnavailableWorkspaceIds.map((workspaceId) =>
+            () => clearOfflineRouteWorkspace(principalId, workspaceId)
+          ),
+        );
+        const [, , recoveryPersistence] = await Promise.all([
           currentNavigationCleanup,
           pendingNavigationCleanup,
-          workspaceContextPersistence,
-          routeCacheCleanup,
+          workspaceRecoveryPersistence,
         ]);
         if (!requestIsCurrent()) {
           return;
+        }
+        if (recoveryPersistence === 'failed') {
+          freshWorkspaceAuthorizationRef.current = {
+            principalId,
+            workspaceIds: new Set<string>(),
+          };
+          setWorkspaceCatalogError('Offline workspace cleanup needs retry.');
+          setSessionMessage(
+            'Workspace access refreshed, but offline safety needs retry before another route.',
+          );
+          return;
+        }
+        if (recoveryPersistence === 'revoked') {
+          setWorkspaceCatalogError('Offline workspace access stays locked until retry.');
         }
         let navigationRestoreRejected = pendingNavigationRejected;
         if (previewWorkspaceRevoked && !navigationWorkspaceRevoked) {
@@ -1026,14 +1038,12 @@ export default function App() {
     setWorkspaceCatalogError('');
     setWorkspaceCatalogLoading(!freshCatalog);
 
-    const navigationUnavailable = isWorkspaceIdUnavailable(
-      currentNavigation?.routePlan.clientId,
-      unavailableWorkspaceIdsRef.current,
-    );
-    const previewUnavailable = isWorkspaceIdUnavailable(
-      currentPreview?.clientId,
-      unavailableWorkspaceIdsRef.current,
-    );
+    const { navigationUnavailable, previewUnavailable } =
+      resolveWorkspaceSurfaceClosure({
+        navigationWorkspaceId: currentNavigation?.routePlan.clientId,
+        previewWorkspaceId: currentPreview?.clientId,
+        unavailableWorkspaceIds: unavailableWorkspaceIdsRef.current,
+      });
     const navigationCleanup = navigationUnavailable
       ? discardPersistedNavigation(
           'Active guidance ended because this workspace is no longer available.',
@@ -1063,17 +1073,30 @@ export default function App() {
     if (!freshCatalog) {
       setWorkspaceDiscoveryRevision((revision) => revision + 1);
     }
-    await Promise.all([
+    const [, workspaceRecoveryPersistence] = await Promise.all([
       navigationCleanup,
-      ...newlyUnavailableWorkspaceIds.map((workspaceId) =>
-        clearOfflineRouteWorkspace(principalId, workspaceId).catch(() => undefined)
+      persistOfflineWorkspaceRecovery(
+        principalId,
+        {
+          activeWorkspaceId: recovery.activeWorkspace?.id || null,
+          unavailableWorkspaceIds: Array.from(unavailableWorkspaceIdsRef.current),
+          workspaces: recovery.workspaces,
+        },
+        newlyUnavailableWorkspaceIds.map((workspaceId) =>
+          () => clearOfflineRouteWorkspace(principalId, workspaceId)
+        ),
       ),
-      saveOfflineWorkspaceContextFailClosed(principalId, {
-        activeWorkspaceId: recovery.activeWorkspace?.id || null,
-        unavailableWorkspaceIds: Array.from(unavailableWorkspaceIdsRef.current),
-        workspaces: recovery.workspaces,
-      }),
     ]);
+    if (workspaceRecoveryPersistence === 'failed') {
+      freshWorkspaceAuthorizationRef.current = {
+        principalId,
+        workspaceIds: new Set<string>(),
+      };
+      setWorkspaceCatalogError('Offline workspace cleanup needs retry.');
+      setSessionMessage(
+        'Workspace access closed. Retry access before starting another route.',
+      );
+    }
   }, [session]);
 
   const handleNavigationSessionChange = useCallback((nextSession: ActiveNavigationSession | null) => {

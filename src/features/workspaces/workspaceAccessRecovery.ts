@@ -23,6 +23,11 @@ export type FreshWorkspaceAccessRecovery =
       workspaces: SafeRouteWorkspace[];
     };
 
+export type WorkspaceSurfaceClosure = {
+  navigationUnavailable: boolean;
+  previewUnavailable: boolean;
+};
+
 export function isWorkspaceUnavailableError(error: unknown): boolean {
   return isWorkspaceForbiddenError(error) ||
     (error instanceof ApiRequestError && error.statusCode === 404);
@@ -85,6 +90,28 @@ export function isWorkspaceIdUnavailable(
     }
   }
   return false;
+}
+
+export function resolveWorkspaceSurfaceClosure({
+  navigationWorkspaceId,
+  previewWorkspaceId,
+  unavailableWorkspaceIds,
+}: {
+  navigationWorkspaceId?: string | null;
+  previewWorkspaceId?: string | null;
+  unavailableWorkspaceIds: Iterable<string>;
+}): WorkspaceSurfaceClosure {
+  const unavailableIds = Array.from(unavailableWorkspaceIds);
+  return {
+    navigationUnavailable: isWorkspaceIdUnavailable(
+      navigationWorkspaceId,
+      unavailableIds,
+    ),
+    previewUnavailable: isWorkspaceIdUnavailable(
+      previewWorkspaceId,
+      unavailableIds,
+    ),
+  };
 }
 
 export function findAuthoritativelyUnavailableWorkspaceIds({

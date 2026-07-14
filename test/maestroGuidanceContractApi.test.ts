@@ -526,5 +526,21 @@ describe('Maestro guidance contract API', () => {
       }),
       /expected 0 protected requests but recorded 1/
     );
+    assert.throws(
+      () => assertGuidanceStartTrafficBoundary([
+        marker(1, 'open'),
+        entry({
+          path: '/api/v1/intel/map/area-risk',
+          sequence: 2
+        }),
+        marker(3, 'close')
+      ], {
+        boundary: 'active-start',
+        expectedPaths: [],
+        openPhase: 'workspacePrepare',
+        phase: 'workspaceStart'
+      }),
+      /expected 0 protected requests but recorded 1/
+    );
   });
 });

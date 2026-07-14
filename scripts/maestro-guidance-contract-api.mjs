@@ -592,7 +592,7 @@ export function assertGuidanceStartTrafficBoundary(entries, {
     (entry) =>
       entry.sequence > open.sequence &&
       entry.sequence < close.sequence &&
-      isNavigationStartAuthorizationPath(entry.path)
+      isGuidanceStartProtectedTraffic(entry)
   );
 
   assertJournalCondition(
@@ -612,12 +612,10 @@ export function assertGuidanceStartTrafficBoundary(entries, {
   });
 }
 
-function isNavigationStartAuthorizationPath(pathname) {
-  return (
-    pathname === '/api/v1/users/me' ||
-    pathname === '/api/v1/mobile/safe-route/routes' ||
-    pathname.startsWith('/api/v1/mobile/safe-route/routes/') ||
-    pathname === '/api/v1/convoy-routes/route-preview'
+export function isGuidanceStartProtectedTraffic(entry) {
+  return Boolean(
+    entry &&
+      (isProtectedPath(entry.path) || entry.authorizationClass !== 'none')
   );
 }
 

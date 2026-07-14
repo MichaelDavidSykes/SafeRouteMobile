@@ -17,7 +17,8 @@ import {
   GUIDANCE_CONTRACT_MODES,
   GUIDANCE_START_BOUNDARY_PATH,
   assertGuidanceContractRequestJournal,
-  assertGuidanceStartTrafficBoundary
+  assertGuidanceStartTrafficBoundary,
+  isGuidanceStartProtectedTraffic
 } from './maestro-guidance-contract-api.mjs';
 import {
   assertGuidanceSourceCheckoutClean,
@@ -411,7 +412,7 @@ async function waitForExpectedStartTraffic(boundary, expectedPaths) {
       const protectedCount = entries.filter(
         (entry) =>
           entry.sequence > open.sequence &&
-          isStartAuthorizationPath(entry.path)
+          isGuidanceStartProtectedTraffic(entry)
       ).length;
       if (protectedCount >= expectedPaths.length) {
         return;
@@ -426,18 +427,9 @@ async function waitForExpectedStartTraffic(boundary, expectedPaths) {
 
 function startAuthorizationTrafficFingerprint() {
   return readRequestJournal()
-    .filter((entry) => isStartAuthorizationPath(entry.path))
+    .filter(isGuidanceStartProtectedTraffic)
     .map((entry) => entry.sequence)
     .join(',');
-}
-
-function isStartAuthorizationPath(path) {
-  return (
-    path === '/api/v1/users/me' ||
-    path === '/api/v1/mobile/safe-route/routes' ||
-    path.startsWith('/api/v1/mobile/safe-route/routes/') ||
-    path === '/api/v1/convoy-routes/route-preview'
-  );
 }
 
 function readRequestJournal() {

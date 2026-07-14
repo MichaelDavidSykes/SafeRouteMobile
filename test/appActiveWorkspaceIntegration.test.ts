@@ -64,11 +64,7 @@ describe("App active workspace integration", () => {
     assert.match(app, /setActiveWorkspace\(recovery\.activeWorkspace\)/);
     assert.match(
       app,
-      /navigationUnavailable = isWorkspaceIdUnavailable\([\s\S]*currentNavigation\?\.routePlan\.clientId[\s\S]*unavailableWorkspaceIdsRef\.current/,
-    );
-    assert.match(
-      app,
-      /previewUnavailable = isWorkspaceIdUnavailable\([\s\S]*currentPreview\?\.clientId[\s\S]*unavailableWorkspaceIdsRef\.current/,
+      /resolveWorkspaceSurfaceClosure\(\{[\s\S]*navigationWorkspaceId: currentNavigation\?\.routePlan\.clientId[\s\S]*previewWorkspaceId: currentPreview\?\.clientId[\s\S]*unavailableWorkspaceIds: unavailableWorkspaceIdsRef\.current/,
     );
     assert.match(app, /navigationUnavailable[\s\S]*discardPersistedNavigation/);
     assert.match(app, /previewUnavailable[\s\S]*setSelectedRoute\(null\)/);
@@ -76,11 +72,11 @@ describe("App active workspace integration", () => {
       app,
       /newlyUnavailableWorkspaceIds\.map\([\s\S]*clearOfflineRouteWorkspace\(principalId, workspaceId\)/,
     );
-    assert.match(app, /saveOfflineWorkspaceContext\(principalId, \{[\s\S]*workspaces: recovery\.workspaces/);
     assert.match(
       app,
-      /await Promise\.all\(\[[\s\S]*navigationCleanup[\s\S]*clearOfflineRouteWorkspace[\s\S]*saveOfflineWorkspaceContextFailClosed/,
+      /await Promise\.all\(\[[\s\S]*navigationCleanup[\s\S]*persistOfflineWorkspaceRecovery[\s\S]*clearOfflineRouteWorkspace/,
     );
+    assert.match(app, /workspaceRecoveryPersistence === 'failed'[\s\S]*workspaceIds: new Set<string>\(\)/);
     assert.match(app, /setWorkspaceDiscoveryRevision\(\(revision\) => revision \+ 1\)/);
   });
 
@@ -232,7 +228,7 @@ describe("App active workspace integration", () => {
     );
     assert.match(
       app,
-      /const workspaceContextPersistence = saveOfflineWorkspaceContext\([\s\S]*\)\.catch\(\(\) => undefined\)/,
+      /persistOfflineWorkspaceRecovery\([\s\S]*unavailableWorkspaceIds: Array\.from\(unavailableWorkspaceIds\)[\s\S]*authoritativelyUnavailableWorkspaceIds\.map/,
     );
   });
 
@@ -329,23 +325,20 @@ describe("App active workspace integration", () => {
     assert.match(app, /handleNavigationSessionChange[\s\S]*navigationCleanupRequiredRef\.current/);
     assert.match(app, /openRoutePreview[\s\S]*navigationCleanupRequiredRef\.current[\s\S]*Finish saved-guidance cleanup/);
     assert.match(app, /NavigationCleanupNotice[\s\S]*onRetry=/);
-    assert.match(app, /unavailableWorkspaceIdsRef\.current = unavailableWorkspaceIds[\s\S]*availableWorkspacesRef\.current = catalog[\s\S]*currentNavigationCleanup[\s\S]*routeCacheCleanup/);
+    assert.match(app, /unavailableWorkspaceIdsRef\.current = unavailableWorkspaceIds[\s\S]*availableWorkspacesRef\.current = catalog[\s\S]*currentNavigationCleanup[\s\S]*persistOfflineWorkspaceRecovery/);
     const persistenceIndex = app.indexOf(
-      'const workspaceContextPersistence = saveOfflineWorkspaceContext',
-    );
-    const routeCleanupIndex = app.indexOf(
-      'const routeCacheCleanup = authoritativelyUnavailableWorkspaceIds.length',
+      'const workspaceRecoveryPersistence = persistOfflineWorkspaceRecovery',
     );
     const cleanupAwaitIndex = app.indexOf(
-      'await Promise.all([\n          currentNavigationCleanup',
+      'const [, , recoveryPersistence] = await Promise.all([',
     );
     assert.ok(persistenceIndex >= 0);
-    assert.ok(routeCleanupIndex > persistenceIndex);
-    assert.ok(cleanupAwaitIndex > routeCleanupIndex);
+    assert.ok(cleanupAwaitIndex > persistenceIndex);
     assert.match(
       app.slice(cleanupAwaitIndex, cleanupAwaitIndex + 250),
-      /workspaceContextPersistence[\s\S]*routeCacheCleanup/,
+      /currentNavigationCleanup[\s\S]*pendingNavigationCleanup[\s\S]*workspaceRecoveryPersistence/,
     );
+    assert.match(app, /recoveryPersistence === 'failed'[\s\S]*workspaceIds: new Set<string>\(\)/);
     assert.match(app, /handleNavigationSessionChange[\s\S]*canResumeActiveNavigationSession[\s\S]*return false/);
     assert.match(app, /activeSessionPrincipalIdRef\.current/);
     assert.match(app, /principalId=\{sessionPrincipalId\}/);

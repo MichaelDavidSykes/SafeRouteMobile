@@ -1,12 +1,15 @@
 import assert from "node:assert/strict";
+import { readFileSync } from "node:fs";
 import { describe, it } from "node:test";
 
 import {
   OFFLINE_WORKSPACE_CACHE_MAX_AGE_MS,
+  createWorkspaceRecoveryRevocationRecord,
   createSerializedWorkspaceRecordWriter,
   createOfflineWorkspaceCacheRecord,
   parseOfflineWorkspaceCacheRecord,
-  persistOrClearWorkspaceRecovery,
+  parseWorkspaceRecoveryRevocationRecord,
+  persistWorkspaceRecoveryWithFallback,
 } from "../src/features/workspaces/offlineWorkspaceCacheCore";
 
 const CONTEXT = {
@@ -98,30 +101,79 @@ describe("offline active workspace cache", () => {
     );
   });
 
-  it("removes the stale catalog when denied-workspace persistence fails", async () => {
+  it("round-trips a principal-bound fallback recovery revocation", () => {
+    const record = createWorkspaceRecoveryRevocationRecord(
+      " user-a ",
+      ["workspace-b", " workspace-a ", "workspace-b"],
+    );
+    assert.deepEqual(
+      parseWorkspaceRecoveryRevocationRecord(record, "user-a"),
+      ["workspace-a", "workspace-b"],
+    );
+    assert.equal(parseWorkspaceRecoveryRevocationRecord(record, "user-b"), null);
+    assert.equal(parseWorkspaceRecoveryRevocationRecord("invalid", "user-a"), null);
+  });
+
+  it("awaits every primary recovery write before clearing its fallback revocation", async () => {
     const calls: string[] = [];
-    const result = await persistOrClearWorkspaceRecovery({
-      persist: async () => {
-        calls.push("persist");
-        throw new Error("storage write failed");
+    const result = await persistWorkspaceRecoveryWithFallback({
+      persistFallback: async () => {
+        calls.push("fallback");
       },
-      clear: async () => {
-        calls.push("clear");
+      persistPrimary: [
+        async () => { calls.push("context"); },
+        async () => { calls.push("purge-a"); },
+        async () => { calls.push("purge-b"); },
+      ],
+      clearFallback: async () => {
+        calls.push("clear-fallback");
       },
     });
 
-    assert.equal(result, "cleared");
-    assert.deepEqual(calls, ["persist", "clear"]);
+    assert.equal(result, "persisted");
+    assert.deepEqual(
+      calls,
+      ["fallback", "context", "purge-a", "purge-b", "clear-fallback"],
+    );
+  });
+
+  it("retains a fallback revocation whenever primary recovery is incomplete", async () => {
     assert.equal(
-      await persistOrClearWorkspaceRecovery({
-        persist: async () => {
-          throw new Error("storage write failed");
-        },
-        clear: async () => {
-          throw new Error("storage clear failed");
+      await persistWorkspaceRecoveryWithFallback({
+        persistFallback: async () => undefined,
+        persistPrimary: [
+          async () => undefined,
+          async () => { throw new Error("route purge failed"); },
+        ],
+        clearFallback: async () => {
+          throw new Error("must not clear");
         },
       }),
+      "revoked",
+    );
+    assert.equal(
+      await persistWorkspaceRecoveryWithFallback({
+        persistFallback: async () => {
+          throw new Error("fallback failed");
+        },
+        persistPrimary: [async () => { throw new Error("context failed"); }],
+        clearFallback: async () => undefined,
+      }),
       "failed",
+    );
+  });
+
+  it("checks the independent recovery revocation before any workspace cache", () => {
+    const source = readFileSync(
+      "src/features/workspaces/offlineWorkspaceCache.ts",
+      "utf8",
+    );
+    const revocationRead = source.indexOf("SecureStore.getItemAsync");
+    const workspaceRead = source.indexOf("AsyncStorage.getItem");
+    assert.ok(revocationRead >= 0 && workspaceRead > revocationRead);
+    assert.match(
+      source,
+      /recoveryRevocation !== null[\s\S]*createRevokedWorkspaceSnapshot/,
     );
   });
 });

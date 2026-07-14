@@ -1,25 +1,37 @@
 import AsyncStorage from "@react-native-async-storage/async-storage";
+import * as SecureStore from "expo-secure-store";
 
 import {
+  createWorkspaceRecoveryRevocationRecord,
   createSerializedWorkspaceRecordWriter,
   createOfflineWorkspaceCacheRecord,
   parseOfflineWorkspaceCacheRecord,
-  persistOrClearWorkspaceRecovery,
+  parseWorkspaceRecoveryRevocationRecord,
+  persistWorkspaceRecoveryWithFallback,
   type OfflineWorkspaceContext,
   type OfflineWorkspaceSnapshot,
   type WorkspaceRecoveryPersistenceResult,
 } from "./offlineWorkspaceCacheCore";
 
 const WORKSPACE_CONTEXT_KEY_PREFIX = "saferoute.offline.workspaces.v2";
-const CLEAR_WORKSPACE_CONTEXT_SENTINEL = "";
+const WORKSPACE_RECOVERY_REVOCATION_KEY_PREFIX = "saferoute.workspace-revocation.v1";
+const DEVICE_ONLY_SECURE_STORE_OPTIONS: SecureStore.SecureStoreOptions =
+  typeof SecureStore.WHEN_UNLOCKED_THIS_DEVICE_ONLY === "number"
+    ? { keychainAccessible: SecureStore.WHEN_UNLOCKED_THIS_DEVICE_ONLY }
+    : {};
 const writeWorkspaceRecord = createSerializedWorkspaceRecordWriter(
-  (key, value) => value === CLEAR_WORKSPACE_CONTEXT_SENTINEL
-    ? AsyncStorage.removeItem(key)
-    : AsyncStorage.setItem(key, value),
+  (key, value) => AsyncStorage.setItem(key, value),
 );
 
 function identityKey(principalId: string): string {
   return encodeURIComponent(principalId.trim());
+}
+
+function recoveryRevocationKey(principalId: string): string {
+  const encodedPrincipalId = Array.from(principalId.trim())
+    .map((character) => character.codePointAt(0)?.toString(16) || "")
+    .join("-");
+  return `${WORKSPACE_RECOVERY_REVOCATION_KEY_PREFIX}.${encodedPrincipalId}`;
 }
 
 export async function saveOfflineWorkspaceContext(
@@ -35,20 +47,29 @@ export async function saveOfflineWorkspaceContext(
   );
 }
 
-export async function saveOfflineWorkspaceContextFailClosed(
+export async function persistOfflineWorkspaceRecovery(
   principalId: string,
   context: OfflineWorkspaceContext,
+  purgeWorkspaceCaches: Array<() => Promise<void>>,
 ): Promise<WorkspaceRecoveryPersistenceResult> {
   if (!principalId.trim()) {
     return "failed";
   }
-  const key = `${WORKSPACE_CONTEXT_KEY_PREFIX}.${identityKey(principalId)}`;
-  const serializedContext = JSON.stringify(
-    createOfflineWorkspaceCacheRecord(context, principalId),
-  );
-  return persistOrClearWorkspaceRecovery({
-    clear: () => writeWorkspaceRecord(key, CLEAR_WORKSPACE_CONTEXT_SENTINEL),
-    persist: () => writeWorkspaceRecord(key, serializedContext),
+  const revocationKey = recoveryRevocationKey(principalId);
+  return persistWorkspaceRecoveryWithFallback({
+    clearFallback: () => SecureStore.deleteItemAsync(revocationKey),
+    persistFallback: () => SecureStore.setItemAsync(
+      revocationKey,
+      createWorkspaceRecoveryRevocationRecord(
+        principalId,
+        context.unavailableWorkspaceIds || [],
+      ),
+      DEVICE_ONLY_SECURE_STORE_OPTIONS,
+    ),
+    persistPrimary: [
+      () => saveOfflineWorkspaceContext(principalId, context),
+      ...purgeWorkspaceCaches,
+    ],
   });
 }
 
@@ -58,6 +79,24 @@ export async function loadOfflineWorkspaceContext(
   if (!principalId.trim()) {
     return null;
   }
+  let recoveryRevocation: string | null;
+  try {
+    recoveryRevocation = await SecureStore.getItemAsync(
+      recoveryRevocationKey(principalId),
+    );
+  } catch {
+    return createRevokedWorkspaceSnapshot(principalId, []);
+  }
+  if (recoveryRevocation !== null) {
+    return createRevokedWorkspaceSnapshot(
+      principalId,
+      parseWorkspaceRecoveryRevocationRecord(
+        recoveryRevocation,
+        principalId,
+      ) || [],
+    );
+  }
+
   try {
     const raw = await AsyncStorage.getItem(
       `${WORKSPACE_CONTEXT_KEY_PREFIX}.${identityKey(principalId)}`,
@@ -68,4 +107,16 @@ export async function loadOfflineWorkspaceContext(
   } catch {
     return null;
   }
+}
+
+function createRevokedWorkspaceSnapshot(
+  principalId: string,
+  unavailableWorkspaceIds: string[],
+): OfflineWorkspaceSnapshot {
+  return {
+    activeWorkspaceId: null,
+    principalId: principalId.trim(),
+    unavailableWorkspaceIds,
+    workspaces: [],
+  };
 }

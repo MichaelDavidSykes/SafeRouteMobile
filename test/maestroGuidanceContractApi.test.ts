@@ -6,7 +6,9 @@ import { describe, it } from 'node:test';
 
 import {
   GUIDANCE_CONTRACT_MODES,
+  GUIDANCE_START_BOUNDARY_PATH,
   assertGuidanceContractRequestJournal,
+  assertGuidanceStartTrafficBoundary,
   createGuidanceContractAccessToken,
   createGuidanceContractRequestJournal,
   startGuidanceContractApi
@@ -148,6 +150,19 @@ describe('Maestro guidance contract API', () => {
       );
       assert.equal(health.status, 200);
       assert.equal(requests.at(-1)?.phase, 'regained');
+      const marker = await fetch(
+        `http://127.0.0.1:${address.port}${GUIDANCE_START_BOUNDARY_PATH}?boundary=active-start&edge=open`,
+        { method: 'POST' }
+      );
+      assert.equal(marker.status, 200);
+      assert.deepEqual((await marker.json()).data, {
+        boundary: 'active-start',
+        edge: 'open'
+      });
+      assert.equal((await fetch(
+        `http://127.0.0.1:${address.port}${GUIDANCE_START_BOUNDARY_PATH}?boundary=INVALID&edge=open`,
+        { method: 'POST' }
+      )).status, 400);
     } finally {
       await new Promise<void>((resolve) => server.close(() => resolve()));
     }
@@ -239,6 +254,273 @@ describe('Maestro guidance contract API', () => {
         requiredPhases: ['wrongPrincipal', 'denied']
       }),
       /no evidence for denied/
+    );
+  });
+
+  it('proves exact protected traffic between fresh Start markers', () => {
+    const entry = ({
+      authorizationClass = 'expected-bearer',
+      authorized = true,
+      method = 'GET',
+      path,
+      phase = 'workspaceStart',
+      search = '',
+      sequence
+    }: {
+      authorizationClass?: string;
+      authorized?: boolean;
+      method?: string;
+      path: string;
+      phase?: string;
+      search?: string;
+      sequence: number;
+    }) => ({
+      authorizationClass,
+      authorized,
+      method,
+      mode: GUIDANCE_CONTRACT_MODES.active,
+      path,
+      phase,
+      search,
+      sequence,
+      timestampMs: sequence * 100
+    });
+    const marker = (
+      sequence: number,
+      edge: 'armed' | 'open' | 'close' | 'settled',
+      {
+        boundary = 'active-start',
+        openPhase = 'workspacePrepare',
+        phase = 'workspaceStart'
+      } = {}
+    ) => entry({
+      authorizationClass: 'none',
+      authorized: false,
+      method: 'POST',
+      path: GUIDANCE_START_BOUNDARY_PATH,
+      phase: edge === 'armed' || edge === 'open' ? openPhase : phase,
+      search: `?boundary=${boundary}&edge=${edge}`,
+      sequence
+    });
+    const options = {
+      boundary: 'active-start',
+      expectedPaths: [
+        '/api/v1/users/me',
+        '/api/v1/mobile/safe-route/routes'
+      ],
+      openPhase: 'workspacePrepare',
+      phase: 'workspaceStart'
+    };
+    const activeEntries = [
+      marker(1, 'armed'),
+      marker(2, 'open'),
+      entry({ path: '/api/v1/users/me', sequence: 3 }),
+      entry({ path: '/api/v1/mobile/safe-route/routes', sequence: 4 }),
+      marker(5, 'close'),
+      marker(6, 'settled')
+    ];
+
+    assert.doesNotThrow(() =>
+      assertGuidanceStartTrafficBoundary(activeEntries, options)
+    );
+    assert.doesNotThrow(() =>
+      assertGuidanceStartTrafficBoundary([
+        marker(1, 'armed', {
+          boundary: 'public-start',
+          openPhase: 'publicPrepare',
+          phase: 'publicStart'
+        }),
+        entry({
+          authorizationClass: 'none',
+          authorized: false,
+          path: '/api/v1/mobile/safe-route/route-preview',
+          phase: 'publicPrepare',
+          sequence: 2
+        }),
+        marker(3, 'open', {
+          boundary: 'public-start',
+          openPhase: 'publicPrepare',
+          phase: 'publicStart'
+        }),
+        marker(4, 'close', {
+          boundary: 'public-start',
+          openPhase: 'publicPrepare',
+          phase: 'publicStart'
+        }),
+        marker(5, 'settled', {
+          boundary: 'public-start',
+          openPhase: 'publicPrepare',
+          phase: 'publicStart'
+        })
+      ], {
+        boundary: 'public-start',
+        expectedPaths: [],
+        openPhase: 'publicPrepare',
+        phase: 'publicStart'
+      })
+    );
+    assert.doesNotThrow(() =>
+      assertGuidanceStartTrafficBoundary([
+        marker(1, 'armed', {
+          boundary: 'wrong-principal-start',
+          openPhase: 'wrongPrincipalPrepare',
+          phase: 'wrongPrincipalStart'
+        }),
+        marker(2, 'open', {
+          boundary: 'wrong-principal-start',
+          openPhase: 'wrongPrincipalPrepare',
+          phase: 'wrongPrincipalStart'
+        }),
+        entry({
+          path: '/api/v1/users/me',
+          phase: 'wrongPrincipalStart',
+          sequence: 3
+        }),
+        marker(4, 'close', {
+          boundary: 'wrong-principal-start',
+          openPhase: 'wrongPrincipalPrepare',
+          phase: 'wrongPrincipalStart'
+        }),
+        marker(5, 'settled', {
+          boundary: 'wrong-principal-start',
+          openPhase: 'wrongPrincipalPrepare',
+          phase: 'wrongPrincipalStart'
+        })
+      ], {
+        boundary: 'wrong-principal-start',
+        expectedPaths: ['/api/v1/users/me'],
+        openPhase: 'wrongPrincipalPrepare',
+        phase: 'wrongPrincipalStart'
+      })
+    );
+
+    assert.throws(
+      () => assertGuidanceStartTrafficBoundary(activeEntries.slice(0, -1), options),
+      /one armed, open, close, and settled marker/
+    );
+    assert.throws(
+      () => assertGuidanceStartTrafficBoundary([
+        ...activeEntries,
+        marker(7, 'open')
+      ], options),
+      /one armed, open, close, and settled marker/
+    );
+    assert.throws(
+      () => assertGuidanceStartTrafficBoundary([
+        marker(2, 'armed'),
+        marker(1, 'open'),
+        ...activeEntries.slice(2)
+      ], options),
+      /markers were out of order/
+    );
+    assert.throws(
+      () => assertGuidanceStartTrafficBoundary([
+        { ...marker(1, 'armed'), phase: 'workspaceStart' },
+        ...activeEntries.slice(1)
+      ], options),
+      /used invalid markers/
+    );
+    assert.throws(
+      () => assertGuidanceStartTrafficBoundary([
+        marker(1, 'armed'),
+        entry({ path: '/api/v1/users/me', phase: 'workspacePrepare', sequence: 2 }),
+        marker(3, 'open'),
+        entry({ path: '/api/v1/users/me', sequence: 4 }),
+        entry({ path: '/api/v1/mobile/safe-route/routes', sequence: 5 }),
+        marker(6, 'close'),
+        marker(7, 'settled')
+      ], options),
+      /protected traffic while arming/
+    );
+    assert.throws(
+      () => assertGuidanceStartTrafficBoundary([
+        marker(1, 'armed'),
+        marker(2, 'open'),
+        entry({ path: '/api/v1/mobile/safe-route/routes', sequence: 3 }),
+        entry({ path: '/api/v1/users/me', sequence: 4 }),
+        marker(5, 'close'),
+        marker(6, 'settled')
+      ], options),
+      /exact authorization contract/
+    );
+    for (const invalidEntry of [
+      entry({ method: 'POST', path: '/api/v1/users/me', sequence: 3 }),
+      entry({ path: '/api/v1/users/me', phase: 'nextPhase', sequence: 3 }),
+      entry({
+        authorizationClass: 'none',
+        authorized: false,
+        path: '/api/v1/users/me',
+        sequence: 3
+      }),
+      entry({
+        authorizationClass: 'unexpected',
+        authorized: false,
+        path: '/api/v1/users/me',
+        sequence: 3
+      })
+    ]) {
+      assert.throws(
+        () => assertGuidanceStartTrafficBoundary([
+          marker(1, 'armed'),
+          marker(2, 'open'),
+          invalidEntry,
+          entry({ path: '/api/v1/mobile/safe-route/routes', sequence: 4 }),
+          marker(5, 'close'),
+          marker(6, 'settled')
+        ], options),
+        /exact authorization contract/
+      );
+    }
+    assert.throws(
+      () => assertGuidanceStartTrafficBoundary([
+        marker(1, 'armed'),
+        marker(2, 'open'),
+        entry({ path: '/api/v1/users/me', sequence: 3 }),
+        entry({
+          path: '/api/v1/mobile/safe-route/routes',
+          search: '?client_id=guidance-workspace',
+          sequence: 4
+        }),
+        marker(5, 'close'),
+        marker(6, 'settled')
+      ], options),
+      /exact authorization contract/
+    );
+    assert.throws(
+      () => assertGuidanceStartTrafficBoundary([
+        marker(1, 'armed'),
+        marker(2, 'open'),
+        entry({ path: '/api/v1/users/me', sequence: 3 }),
+        entry({ path: '/api/v1/mobile/safe-route/routes', sequence: 4 }),
+        entry({ path: '/api/v1/intel/map/area-risk', sequence: 5 }),
+        marker(6, 'close'),
+        marker(7, 'settled')
+      ], options),
+      /expected 2 protected requests but recorded 3/
+    );
+    for (const phase of ['workspaceStart', 'nextPhase']) {
+      assert.throws(
+        () => assertGuidanceStartTrafficBoundary([
+          ...activeEntries.slice(0, -1),
+          entry({
+            path: '/api/v1/mobile/safe-route/routes',
+            phase,
+            sequence: 6
+          }),
+          marker(7, 'settled')
+        ], options),
+        /protected traffic during post-close quarantine/
+      );
+    }
+    assert.throws(
+      () => assertGuidanceStartTrafficBoundary([
+        ...activeEntries,
+        entry({
+          path: '/api/v1/mobile/safe-route/routes',
+          sequence: 7
+        })
+      ], options),
+      /protected traffic outside its markers/
     );
   });
 });

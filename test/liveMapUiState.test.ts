@@ -651,7 +651,7 @@ describe('live map UI state helpers', () => {
     assert.equal(shouldShowDriveAlongControl('off-route'), true);
   });
 
-  it('keeps route intelligence collapsed by default for a cleaner map', () => {
-    assert.equal(DEFAULT_ROUTE_INTELLIGENCE_VISIBLE, false);
+  it('keeps route intelligence visible by default', () => {
+    assert.equal(DEFAULT_ROUTE_INTELLIGENCE_VISIBLE, true);
   });
 });

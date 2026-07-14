@@ -3,6 +3,7 @@ import { describe, it } from "node:test";
 
 import { createGuestRoutePlan } from "../src/features/guest-map/guestRoutePlanner";
 import { SAVED_ROUTE_PLANS } from "../src/features/live-map/demoRoute";
+import { DEFAULT_ROUTE_INTELLIGENCE_VISIBLE } from "../src/features/live-map/liveMapUiState";
 import {
   auditRouteRiskAvoidance,
   buildRouteRiskAlertSegment,
@@ -232,6 +233,23 @@ describe("SafeRoute risk-aware route behavior", () => {
         riskZones: routePlan.riskZones,
       }),
       [],
+    );
+  });
+
+  it("shows every risk area and route alert by default", () => {
+    const routePlan = createGuestRoutePlan({
+      origin: "HQ",
+      destination: "London City Airport",
+    });
+
+    assert.deepEqual(
+      resolveVisibleRiskZones({
+        alertsVisible: DEFAULT_ROUTE_INTELLIGENCE_VISIBLE,
+        liveRiskAlert: null,
+        navigationState: "loaded",
+        riskZones: routePlan.riskZones,
+      }).map((zone) => zone.id),
+      routePlan.riskZones.map((zone) => zone.id),
     );
   });
 

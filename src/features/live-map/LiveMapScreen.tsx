@@ -76,6 +76,7 @@ import { uiTestIds } from "../../testing/uiTestIds";
 import { stopBackgroundNavigation } from "./backgroundNavigation";
 import { createBackgroundNavigationPresentation } from "./backgroundNavigationState";
 import {
+  createActiveNavigationInstanceId,
   createActiveNavigationSession,
   isPersistedNavigationLifecycle,
   type ActiveNavigationSession,
@@ -146,6 +147,16 @@ export function LiveMapScreen({
   const [liveLocationRequested, setLiveLocationRequested] = useState(
     Boolean(resumedNavigationSession),
   );
+  const [backgroundTrackingRequested, setBackgroundTrackingRequested] =
+    useState(Boolean(resumedNavigationSession?.backgroundTrackingEnabled));
+  const [navigationInstanceId, setNavigationInstanceId] = useState(
+    () =>
+      resumedNavigationSession?.navigationInstanceId ||
+      createActiveNavigationInstanceId(),
+  );
+  const [navigationStartedAtMs, setNavigationStartedAtMs] = useState(
+    () => resumedNavigationSession?.navigationStartedAtMs || Date.now(),
+  );
   const [pendingNavigationStart, setPendingNavigationStart] = useState(false);
   const [routeStep, setRouteStep] = useState(0);
   const [activeRoutePlan, setActiveRoutePlan] = useState(
@@ -191,7 +202,9 @@ export function LiveMapScreen({
     trackingLabel,
   } = useLiveLocation({
     backgroundAccessScope,
+    backgroundNavigationInstanceId: navigationInstanceId,
     backgroundRouteId: activeRoutePlan.route.id,
+    backgroundTrackingRequested,
     initialLocationSample: resumedNavigationSession?.lastLocation || null,
     manageBackgroundNavigation: true,
     navigationActive: navigationLocationTrackingActive,
@@ -262,6 +275,7 @@ export function LiveMapScreen({
     setPendingNavigationStart(false);
     setSelectedRiskZoneId(null);
     setFollowModeEnabled(false);
+    setBackgroundTrackingRequested(false);
   };
   const viewportRisk = useViewportRiskAreas({
     accessToken: liveApiAccessToken,
@@ -322,7 +336,7 @@ export function LiveMapScreen({
   activeSessionSnapshotRef.current =
     !demoDriveActive && isPersistedNavigationLifecycle(navigationState)
       ? createActiveNavigationSession({
-          backgroundTrackingEnabled: backgroundStatus === "active",
+          backgroundTrackingEnabled: backgroundTrackingRequested,
           followModeEnabled,
           lastLocation: normalizeReliableLocationSample({
             accuracyMeters: coordinate?.accuracy,
@@ -332,6 +346,8 @@ export function LiveMapScreen({
             speedMetersPerSecond: coordinate?.speed,
             timestampMs,
           }),
+          navigationInstanceId,
+          navigationStartedAtMs,
           navigationState,
           principalId,
           progressFloorMeters,
@@ -773,6 +789,17 @@ export function LiveMapScreen({
     setRouteStep(0);
     setProgressFloorMeters(nextResumeSession?.progressFloorMeters || 0);
     setFollowModeEnabled(nextResumeSession?.followModeEnabled ?? true);
+    setBackgroundTrackingRequested(
+      Boolean(nextResumeSession?.backgroundTrackingEnabled),
+    );
+    if (nextResumeSession) {
+      setNavigationInstanceId(nextResumeSession.navigationInstanceId);
+      setNavigationStartedAtMs(nextResumeSession.navigationStartedAtMs);
+    } else {
+      const preparedAtMs = Date.now();
+      setNavigationInstanceId(createActiveNavigationInstanceId(preparedAtMs));
+      setNavigationStartedAtMs(preparedAtMs);
+    }
     setLiveLocationRequested(Boolean(nextResumeSession));
     setPendingNavigationStart(false);
     setSelectedRiskZoneId(null);
@@ -877,6 +904,7 @@ export function LiveMapScreen({
 
     if (progress.isArrived) {
       setNavigationState("arrived");
+      setBackgroundTrackingRequested(false);
       void stopBackgroundNavigation();
       return;
     }
@@ -1042,6 +1070,11 @@ export function LiveMapScreen({
       return;
     }
 
+    if (navigationState === "loaded" || navigationState === "stopped") {
+      const startedAtMs = Date.now();
+      setNavigationInstanceId(createActiveNavigationInstanceId(startedAtMs));
+      setNavigationStartedAtMs(startedAtMs);
+    }
     lastDriveAlongCameraPoseRef.current = null;
     setNavigationState("navigating");
     setFollowModeEnabled(true);
@@ -1060,6 +1093,11 @@ export function LiveMapScreen({
     }
 
     if (demoDriveActive) {
+      if (navigationState === "loaded" || navigationState === "stopped") {
+        const startedAtMs = Date.now();
+        setNavigationInstanceId(createActiveNavigationInstanceId(startedAtMs));
+        setNavigationStartedAtMs(startedAtMs);
+      }
       setPendingNavigationStart(false);
       setNavigationState("navigating");
       setFollowModeEnabled(true);
@@ -1076,12 +1114,18 @@ export function LiveMapScreen({
     }
 
     setPendingNavigationStart(false);
+    if (navigationState === "loaded" || navigationState === "stopped") {
+      const startedAtMs = Date.now();
+      setNavigationInstanceId(createActiveNavigationInstanceId(startedAtMs));
+      setNavigationStartedAtMs(startedAtMs);
+    }
     lastDriveAlongCameraPoseRef.current = null;
     setNavigationState("navigating");
     setFollowModeEnabled(true);
   }, [
     demoDriveActive,
     navigationBlockedReason,
+    navigationState,
     pendingNavigationStart,
     permissionStatus,
     rawVehicleCoordinate,
@@ -1102,6 +1146,7 @@ export function LiveMapScreen({
     setRouteStep(0);
     setProgressFloorMeters(0);
     setFollowModeEnabled(false);
+    setBackgroundTrackingRequested(false);
     setPendingNavigationStart(false);
     fitRoute();
   };
@@ -1163,7 +1208,11 @@ export function LiveMapScreen({
         onCenterVehicle={centerOnVehicle}
         onChangeRoute={onChangeRoute}
         onEnableBackgroundNavigation={() => {
-          void enableBackgroundTracking();
+          void enableBackgroundTracking().then((enabled) => {
+            if (enabled) {
+              setBackgroundTrackingRequested(true);
+            }
+          });
         }}
         onFitRoute={fitRouteFromControl}
         onOpenRiskAlert={handleOpenRiskAlert}

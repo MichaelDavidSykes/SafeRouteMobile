@@ -7,7 +7,7 @@ import {
   type ReliableLocationSample,
 } from "./locationSignal";
 
-export const ACTIVE_NAVIGATION_SESSION_VERSION = 3;
+export const ACTIVE_NAVIGATION_SESSION_VERSION = 4;
 export const ACTIVE_NAVIGATION_SESSION_MAX_AGE_MS = 24 * 60 * 60 * 1000;
 export const ACTIVE_NAVIGATION_SESSION_MAX_PAYLOAD_BYTES = 2_000_000;
 const ACTIVE_NAVIGATION_FUTURE_TOLERANCE_MS = 5 * 60 * 1000;
@@ -29,6 +29,8 @@ export interface ActiveNavigationSession {
   backgroundTrackingEnabled: boolean;
   followModeEnabled: boolean;
   lastLocation: ReliableLocationSample | null;
+  navigationInstanceId: string;
+  navigationStartedAtMs: number;
   navigationState: PersistedNavigationLifecycle;
   progressFloorMeters: number;
   routeContext: "guest" | "saved";
@@ -41,6 +43,8 @@ export interface CreateActiveNavigationSessionOptions {
   backgroundTrackingEnabled?: boolean;
   followModeEnabled: boolean;
   lastLocation?: ReliableLocationSample | null;
+  navigationInstanceId?: string;
+  navigationStartedAtMs?: number;
   navigationState: PersistedNavigationLifecycle;
   principalId?: string | null;
   progressFloorMeters: number;
@@ -61,15 +65,20 @@ export function createActiveNavigationSession({
   backgroundTrackingEnabled = false,
   followModeEnabled,
   lastLocation = null,
+  navigationInstanceId,
   navigationState,
   principalId,
   progressFloorMeters,
   routeContext,
   routePlan,
   savedAtMs = Date.now(),
+  navigationStartedAtMs = savedAtMs,
 }: CreateActiveNavigationSessionOptions): ActiveNavigationSession {
   const clientId = normalizeClientId(routePlan.clientId);
   const normalizedPrincipalId = normalizePrincipalId(principalId);
+  const normalizedNavigationStartedAtMs =
+    normalizeNavigationStartedAtMs(navigationStartedAtMs, savedAtMs) ||
+    savedAtMs;
   return {
     accessScope: clientId
       ? { clientId, kind: "workspace", principalId: normalizedPrincipalId }
@@ -77,6 +86,10 @@ export function createActiveNavigationSession({
     backgroundTrackingEnabled,
     followModeEnabled,
     lastLocation: lastLocation ? { ...lastLocation } : null,
+    navigationInstanceId:
+      normalizeNavigationInstanceId(navigationInstanceId) ||
+      createActiveNavigationInstanceId(savedAtMs),
+    navigationStartedAtMs: normalizedNavigationStartedAtMs,
     navigationState,
     progressFloorMeters: normalizeProgressFloorForRoute(
       progressFloorMeters,
@@ -114,9 +127,11 @@ export function normalizeActiveNavigationSession(
     parsed.version === 2 &&
     isRecord(parsed.accessScope) &&
     parsed.accessScope.kind === "public";
+  const migratableV3 = parsed.version === 3;
   if (
     parsed.version !== ACTIVE_NAVIGATION_SESSION_VERSION &&
-    !migratablePublicV2
+    !migratablePublicV2 &&
+    !migratableV3
   ) {
     return null;
   }
@@ -162,6 +177,21 @@ export function normalizeActiveNavigationSession(
     return null;
   }
 
+  const navigationInstanceId =
+    parsed.version === ACTIVE_NAVIGATION_SESSION_VERSION
+      ? normalizeNavigationInstanceId(parsed.navigationInstanceId)
+      : createLegacyNavigationInstanceId(savedAtMs, routePlan.route.id);
+  if (!navigationInstanceId) {
+    return null;
+  }
+  const navigationStartedAtMs =
+    parsed.version === ACTIVE_NAVIGATION_SESSION_VERSION
+      ? normalizeNavigationStartedAtMs(parsed.navigationStartedAtMs, savedAtMs)
+      : savedAtMs;
+  if (!navigationStartedAtMs) {
+    return null;
+  }
+
   const lastLocation =
     parsed.lastLocation === null || parsed.lastLocation === undefined
       ? null
@@ -178,6 +208,8 @@ export function normalizeActiveNavigationSession(
     backgroundTrackingEnabled: parsed.backgroundTrackingEnabled === true,
     followModeEnabled: parsed.followModeEnabled !== false,
     lastLocation: recentLastLocation,
+    navigationInstanceId,
+    navigationStartedAtMs,
     navigationState,
     progressFloorMeters: normalizeProgressFloorForRoute(
       parsed.progressFloorMeters,
@@ -188,6 +220,18 @@ export function normalizeActiveNavigationSession(
     savedAtMs,
     version: ACTIVE_NAVIGATION_SESSION_VERSION,
   };
+}
+
+export function createActiveNavigationInstanceId(
+  nowMs = Date.now(),
+  randomValue = Math.random(),
+): string {
+  const timestamp = Math.max(1, Math.floor(nowMs)).toString(36);
+  const entropy = Math.floor(
+    Math.max(0, Math.min(0.9999999999999999, randomValue)) *
+      Number.MAX_SAFE_INTEGER,
+  ).toString(36);
+  return `nav-${timestamp}-${entropy}`;
 }
 
 export function canResumeActiveNavigationSession(
@@ -245,6 +289,34 @@ function parseActiveNavigationSessionValue(value: unknown): unknown {
   } catch {
     return null;
   }
+}
+
+function normalizeNavigationInstanceId(value: unknown): string {
+  const normalized = typeof value === "string" ? value.trim() : "";
+  return normalized.length >= 8 && normalized.length <= 160 ? normalized : "";
+}
+
+function createLegacyNavigationInstanceId(
+  savedAtMs: number,
+  routeId: string,
+): string {
+  const routeFingerprint = [...routeId].reduce(
+    (hash, character) => (hash * 31 + character.charCodeAt(0)) >>> 0,
+    0,
+  );
+  return `legacy-${Math.floor(savedAtMs).toString(36)}-${routeFingerprint.toString(36)}`;
+}
+
+function normalizeNavigationStartedAtMs(
+  value: unknown,
+  savedAtMs: number,
+): number {
+  const startedAtMs = Number(value);
+  return Number.isFinite(startedAtMs) &&
+    startedAtMs > 0 &&
+    startedAtMs <= savedAtMs
+    ? startedAtMs
+    : 0;
 }
 
 function normalizeStoredRoutePlan(value: unknown): SavedSafeRoutePlan | null {

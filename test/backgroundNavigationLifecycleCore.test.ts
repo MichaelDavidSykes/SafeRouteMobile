@@ -3,7 +3,11 @@ import { describe, it } from "node:test";
 
 import { createBackgroundNavigationLifecycleCoordinator } from "../src/features/live-map/backgroundNavigationLifecycleCore";
 
-type Authorization = { routeId: string };
+type Authorization = { navigationInstanceId: string; routeId: string };
+
+const matchesAuthorization = (left: Authorization, right: Authorization) =>
+  left.routeId === right.routeId &&
+  left.navigationInstanceId === right.navigationInstanceId;
 
 function deferred() {
   let resolve!: () => void;
@@ -16,7 +20,7 @@ function deferred() {
 describe("background navigation lifecycle coordinator", () => {
   it("serializes a stop behind an in-flight start and cleans the stale result", async () => {
     const coordinator = createBackgroundNavigationLifecycleCoordinator<Authorization>(
-      (left, right) => left.routeId === right.routeId,
+      matchesAuthorization,
     );
     const startGate = deferred();
     const startEntered = deferred();
@@ -24,7 +28,7 @@ describe("background navigation lifecycle coordinator", () => {
     const events: string[] = [];
 
     const start = coordinator.requestStart(
-      { routeId: "route-a" },
+      { navigationInstanceId: "navigation-a", routeId: "route-a" },
       async () => {
         events.push("start-a");
         startEntered.resolve();
@@ -41,7 +45,7 @@ describe("background navigation lifecycle coordinator", () => {
     );
     await startEntered.promise;
     const stop = coordinator.requestStop(
-      { routeId: "route-a" },
+      { navigationInstanceId: "navigation-a", routeId: "route-a" },
       async () => {
         authorizedRoute = null;
         events.push("stop-a");
@@ -57,14 +61,14 @@ describe("background navigation lifecycle coordinator", () => {
 
   it("lets a newer route replace a stale start without an old cleanup stopping it", async () => {
     const coordinator = createBackgroundNavigationLifecycleCoordinator<Authorization>(
-      (left, right) => left.routeId === right.routeId,
+      matchesAuthorization,
     );
     const startGate = deferred();
     const startEntered = deferred();
     let authorizedRoute: string | null = null;
 
     const startA = coordinator.requestStart(
-      { routeId: "route-a" },
+      { navigationInstanceId: "navigation-a", routeId: "route-a" },
       async () => {
         startEntered.resolve();
         await startGate.promise;
@@ -78,7 +82,7 @@ describe("background navigation lifecycle coordinator", () => {
     );
     await startEntered.promise;
     const startB = coordinator.requestStart(
-      { routeId: "route-b" },
+      { navigationInstanceId: "navigation-b", routeId: "route-b" },
       async () => {
         authorizedRoute = "route-b";
         return "active-b";
@@ -92,7 +96,7 @@ describe("background navigation lifecycle coordinator", () => {
     assert.equal(authorizedRoute, "route-b");
     assert.equal(
       await coordinator.requestStop(
-        { routeId: "route-a" },
+        { navigationInstanceId: "navigation-a", routeId: "route-a" },
         async () => {
           authorizedRoute = null;
         },
@@ -100,5 +104,44 @@ describe("background navigation lifecycle coordinator", () => {
       false,
     );
     assert.equal(authorizedRoute, "route-b");
+  });
+
+  it("treats a same-route restart as a distinct navigation instance", async () => {
+    const coordinator =
+      createBackgroundNavigationLifecycleCoordinator<Authorization>(
+        matchesAuthorization,
+      );
+    const oldStartGate = deferred();
+    const oldStartEntered = deferred();
+    const events: string[] = [];
+
+    const oldStart = coordinator.requestStart(
+      { navigationInstanceId: "navigation-old", routeId: "route-a" },
+      async () => {
+        oldStartEntered.resolve();
+        await oldStartGate.promise;
+        events.push("old-grant");
+        return "old-active";
+      },
+      async () => {
+        events.push("old-stopped");
+        return "old-stale";
+      },
+    );
+    await oldStartEntered.promise;
+    const newStart = coordinator.requestStart(
+      { navigationInstanceId: "navigation-new", routeId: "route-a" },
+      async () => {
+        events.push("new-grant");
+        return "new-active";
+      },
+      async () => "new-stale",
+    );
+
+    oldStartGate.resolve();
+
+    assert.equal(await oldStart, "old-stale");
+    assert.equal(await newStart, "new-active");
+    assert.deepEqual(events, ["old-grant", "old-stopped", "new-grant"]);
   });
 });

@@ -13,6 +13,7 @@ import {
   isWorkspaceForbiddenError,
   isWorkspaceIdUnavailable,
   isWorkspaceUnavailableError,
+  reconcileFreshWorkspaceCatalog,
   resolveFreshWorkspaceAccessRecovery,
   resolveWorkspaceSurfaceClosure,
   resolveWorkspaceAccessRecovery,
@@ -202,6 +203,25 @@ describe("workspace access recovery", () => {
     );
   });
 
+  it("keeps an explicit request denial authoritative over a stale fresh catalog", () => {
+    assert.deepEqual(
+      resolveFreshWorkspaceAccessRecovery({
+        activeWorkspaceId: "workspace-a",
+        freshWorkspaces: WORKSPACES,
+        knownWorkspaces: WORKSPACES,
+        unavailableWorkspaceId: "workspace-a",
+        unavailableWorkspaceIds: [],
+      }),
+      {
+        activeWorkspace: null,
+        newlyUnavailableWorkspaceIds: ["workspace-a"],
+        status: "recovered",
+        unavailableWorkspaceIds: new Set(["workspace-a"]),
+        workspaces: [WORKSPACES[1], WORKSPACES[2]],
+      },
+    );
+  });
+
   it("tombstones every known and route-bound workspace omitted by one fresh catalog", () => {
     assert.deepEqual(
       resolveFreshWorkspaceAccessRecovery({
@@ -226,6 +246,24 @@ describe("workspace access recovery", () => {
           "route-only",
         ]),
         workspaces: [WORKSPACES[2]],
+      },
+    );
+  });
+
+  it("reconciles omissions even when the authorized target workspace remains available", () => {
+    assert.deepEqual(
+      reconcileFreshWorkspaceCatalog({
+        activeWorkspaceId: "workspace-a",
+        candidateWorkspaceIds: ["workspace-a", "workspace-b"],
+        freshWorkspaces: [WORKSPACES[0], WORKSPACES[2]],
+        knownWorkspaces: WORKSPACES,
+        unavailableWorkspaceIds: [],
+      }),
+      {
+        activeWorkspace: WORKSPACES[0],
+        newlyUnavailableWorkspaceIds: ["workspace-b"],
+        unavailableWorkspaceIds: new Set(["workspace-b"]),
+        workspaces: [WORKSPACES[0], WORKSPACES[2]],
       },
     );
   });

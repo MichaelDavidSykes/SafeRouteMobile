@@ -610,6 +610,17 @@ export function assertGuidanceStartTrafficBoundary(entries, {
       `Guidance Start boundary ${normalizedBoundary} request ${index + 1} did not match the exact authorization contract.`
     );
   });
+
+  const escapedProtectedEntries = entries.filter(
+    (entry) =>
+      entry.phase === normalizedPhase &&
+      isGuidanceStartProtectedTraffic(entry) &&
+      !(entry.sequence > open.sequence && entry.sequence < close.sequence)
+  );
+  assertJournalCondition(
+    escapedProtectedEntries.length === 0,
+    `Guidance Start boundary ${normalizedBoundary} recorded protected traffic outside its markers.`
+  );
 }
 
 export function isGuidanceStartProtectedTraffic(entry) {

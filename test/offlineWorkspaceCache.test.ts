@@ -5,6 +5,7 @@ import { describe, it } from "node:test";
 import {
   OFFLINE_WORKSPACE_CACHE_MAX_AGE_MS,
   createWorkspaceRecoveryRevocationRecord,
+  createSerializedWorkspaceRecoveryExecutor,
   createSerializedWorkspaceRecordWriter,
   createOfflineWorkspaceCacheRecord,
   parseOfflineWorkspaceCacheRecord,
@@ -163,6 +164,155 @@ describe("offline active workspace cache", () => {
     );
   });
 
+  it("does not begin an explicit restoration without a durable fallback", async () => {
+    const calls: string[] = [];
+    assert.equal(
+      await persistWorkspaceRecoveryWithFallback({
+        persistFallback: async () => {
+          calls.push("fallback");
+          throw new Error("secure storage unavailable");
+        },
+        persistPrimary: [async () => {
+          calls.push("primary");
+        }],
+        clearFallback: async () => {
+          calls.push("clear");
+        },
+        requireFallback: true,
+      }),
+      "failed",
+    );
+    assert.deepEqual(calls, ["fallback"]);
+  });
+
+  it("serializes each principal recovery through fallback clear or retention", async () => {
+    let releaseFirstPrimary: (() => void) | null = null;
+    let markFirstPrimaryStarted: (() => void) | null = null;
+    const firstPrimaryGate = new Promise<void>((resolve) => {
+      releaseFirstPrimary = resolve;
+    });
+    const firstPrimaryStarted = new Promise<void>((resolve) => {
+      markFirstPrimaryStarted = resolve;
+    });
+    const executeRecovery = createSerializedWorkspaceRecoveryExecutor();
+    const calls: string[] = [];
+    let fallback: string | null = null;
+
+    const firstRecovery = executeRecovery("user-a", () =>
+      persistWorkspaceRecoveryWithFallback({
+        persistFallback: async () => {
+          fallback = "first";
+          calls.push("first-fallback");
+        },
+        persistPrimary: [async () => {
+          calls.push("first-primary-start");
+          markFirstPrimaryStarted?.();
+          await firstPrimaryGate;
+          calls.push("first-primary-end");
+        }],
+        clearFallback: async () => {
+          fallback = null;
+          calls.push("first-clear");
+        },
+      })
+    );
+    await firstPrimaryStarted;
+
+    const secondRecovery = executeRecovery("user-a", () =>
+      persistWorkspaceRecoveryWithFallback({
+        persistFallback: async () => {
+          fallback = "second";
+          calls.push("second-fallback");
+        },
+        persistPrimary: [async () => {
+          calls.push("second-primary");
+          throw new Error("route purge failed");
+        }],
+        clearFallback: async () => {
+          throw new Error("must not clear the second fallback");
+        },
+      })
+    );
+    assert.deepEqual(calls, ["first-fallback", "first-primary-start"]);
+
+    releaseFirstPrimary?.();
+    assert.equal(await firstRecovery, "persisted");
+    assert.equal(await secondRecovery, "revoked");
+    assert.equal(fallback, "second");
+    assert.deepEqual(calls, [
+      "first-fallback",
+      "first-primary-start",
+      "first-primary-end",
+      "first-clear",
+      "second-fallback",
+      "second-primary",
+    ]);
+  });
+
+  it("retains a revocation until a previously failed purge is retried", async () => {
+    const executeRecovery = createSerializedWorkspaceRecoveryExecutor();
+    let fallback: string | null = null;
+    let purgeAttempts = 0;
+    const recover = () => executeRecovery("user-a", () =>
+      persistWorkspaceRecoveryWithFallback({
+        persistFallback: async () => {
+          fallback = "workspace-b";
+        },
+        persistPrimary: [async () => {
+          purgeAttempts += 1;
+          if (purgeAttempts === 1) {
+            throw new Error("route purge failed");
+          }
+        }],
+        clearFallback: async () => {
+          fallback = null;
+        },
+      })
+    );
+
+    assert.equal(await recover(), "revoked");
+    assert.equal(fallback, "workspace-b");
+    assert.equal(await recover(), "persisted");
+    assert.equal(fallback, null);
+    assert.equal(purgeAttempts, 2);
+  });
+
+  it("does not clear a restoration fallback until the old workspace cache is purged", async () => {
+    const executeRecovery = createSerializedWorkspaceRecoveryExecutor();
+    let fallback: string | null = null;
+    let staleRouteCache = true;
+    let purgeAttempts = 0;
+    const restore = () => executeRecovery("user-a", () =>
+      persistWorkspaceRecoveryWithFallback({
+        persistFallback: async () => {
+          fallback = "workspace-b";
+        },
+        persistPrimary: [
+          async () => undefined,
+          async () => {
+            purgeAttempts += 1;
+            if (purgeAttempts === 1) {
+              throw new Error("old workspace purge failed");
+            }
+            staleRouteCache = false;
+          },
+        ],
+        clearFallback: async () => {
+          fallback = null;
+        },
+        requireFallback: true,
+      })
+    );
+
+    assert.equal(await restore(), "revoked");
+    assert.equal(fallback, "workspace-b");
+    assert.equal(staleRouteCache, true);
+    assert.equal(await restore(), "persisted");
+    assert.equal(fallback, null);
+    assert.equal(staleRouteCache, false);
+    assert.equal(purgeAttempts, 2);
+  });
+
   it("checks the independent recovery revocation before any workspace cache", () => {
     const source = readFileSync(
       "src/features/workspaces/offlineWorkspaceCache.ts",
@@ -174,6 +324,10 @@ describe("offline active workspace cache", () => {
     assert.match(
       source,
       /recoveryRevocation !== null[\s\S]*createRevokedWorkspaceSnapshot/,
+    );
+    assert.match(
+      source,
+      /loadOfflineWorkspaceContext[\s\S]*executeWorkspaceRecovery\(recoveryRevocationKey\(principalId\)/,
     );
   });
 });

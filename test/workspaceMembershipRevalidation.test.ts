@@ -1,7 +1,10 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 
-import { reconcileUnavailableWorkspaceIds } from "../src/features/workspaces/workspaceMembershipRevalidation";
+import {
+  findRestoredWorkspaceIds,
+  reconcileUnavailableWorkspaceIds,
+} from "../src/features/workspaces/workspaceMembershipRevalidation";
 
 const WORKSPACES = [
   { id: "workspace-a", name: "Central" },
@@ -49,5 +52,15 @@ describe("workspace membership revalidation", () => {
 
     assert.deepEqual([...unavailable], ["workspace-a"]);
     assert.deepEqual([...currentUnavailable], ["workspace-a", "workspace-b"]);
+  });
+
+  it("detects restoration even when a different omission keeps the set size unchanged", () => {
+    assert.deepEqual(
+      findRestoredWorkspaceIds(
+        ["workspace-a"],
+        ["workspace-b"],
+      ),
+      ["workspace-a"],
+    );
   });
 });

@@ -123,7 +123,12 @@ describe('Maestro cold guidance contract matrix', () => {
     assert.match(runner, /waitForStartAuthorizationTrafficQuiet/);
     assert.match(runner, /writeStartBoundaryMarker\(boundary, 'open'\)/);
     assert.match(runner, /writeStartBoundaryMarker\(boundary, 'close'\)/);
+    assert.match(runner, /assertStartAuthorizationTrafficRemainsQuiet/);
     assert.match(runner, /assertGuidanceStartTrafficBoundary/);
+    assert.match(
+      runner,
+      /completedStartBoundaries\.push[\s\S]*function assertRequestJournalIntegrity[\s\S]*for \(const boundary of completedStartBoundaries\)[\s\S]*assertGuidanceStartTrafficBoundary\(entries, boundary\)/,
+    );
     assert.match(
       runner,
       /boundary: 'public-start'[\s\S]*expectedPaths: \[\]/

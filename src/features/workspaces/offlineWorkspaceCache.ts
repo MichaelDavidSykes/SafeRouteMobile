@@ -3,6 +3,7 @@ import * as SecureStore from "expo-secure-store";
 
 import {
   createWorkspaceRecoveryRevocationRecord,
+  createSerializedWorkspaceRecoveryExecutor,
   createSerializedWorkspaceRecordWriter,
   createOfflineWorkspaceCacheRecord,
   parseOfflineWorkspaceCacheRecord,
@@ -22,6 +23,7 @@ const DEVICE_ONLY_SECURE_STORE_OPTIONS: SecureStore.SecureStoreOptions =
 const writeWorkspaceRecord = createSerializedWorkspaceRecordWriter(
   (key, value) => AsyncStorage.setItem(key, value),
 );
+const executeWorkspaceRecovery = createSerializedWorkspaceRecoveryExecutor();
 
 function identityKey(principalId: string): string {
   return encodeURIComponent(principalId.trim());
@@ -51,26 +53,36 @@ export async function persistOfflineWorkspaceRecovery(
   principalId: string,
   context: OfflineWorkspaceContext,
   purgeWorkspaceCaches: Array<() => Promise<void>>,
+  {
+    fallbackUnavailableWorkspaceIds = context.unavailableWorkspaceIds || [],
+    requireFallback = false,
+  }: {
+    fallbackUnavailableWorkspaceIds?: Iterable<string>;
+    requireFallback?: boolean;
+  } = {},
 ): Promise<WorkspaceRecoveryPersistenceResult> {
   if (!principalId.trim()) {
     return "failed";
   }
   const revocationKey = recoveryRevocationKey(principalId);
-  return persistWorkspaceRecoveryWithFallback({
-    clearFallback: () => SecureStore.deleteItemAsync(revocationKey),
-    persistFallback: () => SecureStore.setItemAsync(
-      revocationKey,
-      createWorkspaceRecoveryRevocationRecord(
-        principalId,
-        context.unavailableWorkspaceIds || [],
+  return executeWorkspaceRecovery(revocationKey, () =>
+    persistWorkspaceRecoveryWithFallback({
+      clearFallback: () => SecureStore.deleteItemAsync(revocationKey),
+      persistFallback: () => SecureStore.setItemAsync(
+        revocationKey,
+        createWorkspaceRecoveryRevocationRecord(
+          principalId,
+          fallbackUnavailableWorkspaceIds,
+        ),
+        DEVICE_ONLY_SECURE_STORE_OPTIONS,
       ),
-      DEVICE_ONLY_SECURE_STORE_OPTIONS,
-    ),
-    persistPrimary: [
-      () => saveOfflineWorkspaceContext(principalId, context),
-      ...purgeWorkspaceCaches,
-    ],
-  });
+      persistPrimary: [
+        () => saveOfflineWorkspaceContext(principalId, context),
+        ...purgeWorkspaceCaches,
+      ],
+      requireFallback,
+    }),
+  );
 }
 
 export async function loadOfflineWorkspaceContext(
@@ -79,34 +91,36 @@ export async function loadOfflineWorkspaceContext(
   if (!principalId.trim()) {
     return null;
   }
-  let recoveryRevocation: string | null;
-  try {
-    recoveryRevocation = await SecureStore.getItemAsync(
-      recoveryRevocationKey(principalId),
-    );
-  } catch {
-    return createRevokedWorkspaceSnapshot(principalId, []);
-  }
-  if (recoveryRevocation !== null) {
-    return createRevokedWorkspaceSnapshot(
-      principalId,
-      parseWorkspaceRecoveryRevocationRecord(
-        recoveryRevocation,
+  return executeWorkspaceRecovery(recoveryRevocationKey(principalId), async () => {
+    let recoveryRevocation: string | null;
+    try {
+      recoveryRevocation = await SecureStore.getItemAsync(
+        recoveryRevocationKey(principalId),
+      );
+    } catch {
+      return createRevokedWorkspaceSnapshot(principalId, []);
+    }
+    if (recoveryRevocation !== null) {
+      return createRevokedWorkspaceSnapshot(
         principalId,
-      ) || [],
-    );
-  }
+        parseWorkspaceRecoveryRevocationRecord(
+          recoveryRevocation,
+          principalId,
+        ) || [],
+      );
+    }
 
-  try {
-    const raw = await AsyncStorage.getItem(
-      `${WORKSPACE_CONTEXT_KEY_PREFIX}.${identityKey(principalId)}`,
-    );
-    return raw
-      ? parseOfflineWorkspaceCacheRecord(JSON.parse(raw), principalId)
-      : null;
-  } catch {
-    return null;
-  }
+    try {
+      const raw = await AsyncStorage.getItem(
+        `${WORKSPACE_CONTEXT_KEY_PREFIX}.${identityKey(principalId)}`,
+      );
+      return raw
+        ? parseOfflineWorkspaceCacheRecord(JSON.parse(raw), principalId)
+        : null;
+    } catch {
+      return null;
+    }
+  });
 }
 
 function createRevokedWorkspaceSnapshot(

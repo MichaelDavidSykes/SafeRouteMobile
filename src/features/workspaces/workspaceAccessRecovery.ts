@@ -23,6 +23,13 @@ export type FreshWorkspaceAccessRecovery =
       workspaces: SafeRouteWorkspace[];
     };
 
+export type FreshWorkspaceCatalogReconciliation = {
+  activeWorkspace: SafeRouteWorkspace | null;
+  newlyUnavailableWorkspaceIds: string[];
+  unavailableWorkspaceIds: Set<string>;
+  workspaces: SafeRouteWorkspace[];
+};
+
 export type WorkspaceSurfaceClosure = {
   navigationUnavailable: boolean;
   previewUnavailable: boolean;
@@ -175,28 +182,16 @@ export function resolveFreshWorkspaceAccessRecovery({
   unavailableWorkspaceIds: Iterable<string>;
 }): FreshWorkspaceAccessRecovery {
   const unavailableId = normalizeWorkspaceId(unavailableWorkspaceId);
-  const existingUnavailableIds = new Set(
-    Array.from(unavailableWorkspaceIds, normalizeWorkspaceId).filter(Boolean),
-  );
-  const nextUnavailableIds = new Set(existingUnavailableIds);
-  if (unavailableId) {
-    nextUnavailableIds.add(unavailableId);
-  }
-  const omittedWorkspaceIds = findAuthoritativelyUnavailableWorkspaceIds({
+  const reconciliation = reconcileFreshWorkspaceCatalog({
+    activeWorkspaceId,
+    additionalUnavailableWorkspaceIds: [unavailableId],
     candidateWorkspaceIds,
     freshWorkspaces,
     knownWorkspaces,
+    unavailableWorkspaceIds,
   });
-  for (const workspaceId of omittedWorkspaceIds) {
-    nextUnavailableIds.add(workspaceId);
-  }
-
-  const freshCatalog = excludeUnavailableWorkspaces(
-    freshWorkspaces,
-    nextUnavailableIds,
-  );
   const recovery = resolveWorkspaceAccessRecovery(
-    freshCatalog,
+    reconciliation.workspaces,
     activeWorkspaceId,
     unavailableId,
   );
@@ -206,10 +201,59 @@ export function resolveFreshWorkspaceAccessRecovery({
 
   return {
     ...recovery,
+    newlyUnavailableWorkspaceIds: reconciliation.newlyUnavailableWorkspaceIds,
+    unavailableWorkspaceIds: reconciliation.unavailableWorkspaceIds,
+  };
+}
+
+export function reconcileFreshWorkspaceCatalog({
+  activeWorkspaceId,
+  additionalUnavailableWorkspaceIds,
+  candidateWorkspaceIds,
+  freshWorkspaces,
+  knownWorkspaces,
+  unavailableWorkspaceIds,
+}: {
+  activeWorkspaceId: string | null | undefined;
+  additionalUnavailableWorkspaceIds?: Iterable<string | null | undefined>;
+  candidateWorkspaceIds?: Iterable<string | null | undefined>;
+  freshWorkspaces: SafeRouteWorkspace[];
+  knownWorkspaces: SafeRouteWorkspace[];
+  unavailableWorkspaceIds: Iterable<string>;
+}): FreshWorkspaceCatalogReconciliation {
+  const existingUnavailableIds = new Set(
+    Array.from(unavailableWorkspaceIds, normalizeWorkspaceId).filter(Boolean),
+  );
+  const nextUnavailableIds = new Set(existingUnavailableIds);
+  for (const workspaceIdValue of additionalUnavailableWorkspaceIds || []) {
+    const workspaceId = normalizeWorkspaceId(workspaceIdValue);
+    if (workspaceId) {
+      nextUnavailableIds.add(workspaceId);
+    }
+  }
+  for (const workspaceId of findAuthoritativelyUnavailableWorkspaceIds({
+    candidateWorkspaceIds,
+    freshWorkspaces,
+    knownWorkspaces,
+  })) {
+    nextUnavailableIds.add(workspaceId);
+  }
+  const workspaces = excludeUnavailableWorkspaces(
+    freshWorkspaces,
+    nextUnavailableIds,
+  );
+
+  return {
+    activeWorkspace: resolveActiveWorkspace(
+      workspaces,
+      activeWorkspaceId,
+      null,
+    ),
     newlyUnavailableWorkspaceIds: Array.from(nextUnavailableIds).filter(
       (workspaceId) => !existingUnavailableIds.has(workspaceId),
     ),
     unavailableWorkspaceIds: nextUnavailableIds,
+    workspaces,
   };
 }
 

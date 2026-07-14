@@ -542,5 +542,23 @@ describe('Maestro guidance contract API', () => {
       }),
       /expected 0 protected requests but recorded 1/
     );
+    assert.throws(
+      () => assertGuidanceStartTrafficBoundary([
+        marker(1, 'open'),
+        entry({ path: '/api/v1/users/me', sequence: 2 }),
+        entry({ path: '/api/v1/mobile/safe-route/routes', sequence: 3 }),
+        marker(4, 'close'),
+        entry({ path: '/api/v1/mobile/safe-route/routes', sequence: 5 }),
+      ], {
+        boundary: 'active-start',
+        expectedPaths: [
+          '/api/v1/users/me',
+          '/api/v1/mobile/safe-route/routes'
+        ],
+        openPhase: 'workspacePrepare',
+        phase: 'workspaceStart'
+      }),
+      /protected traffic outside its markers/
+    );
   });
 });

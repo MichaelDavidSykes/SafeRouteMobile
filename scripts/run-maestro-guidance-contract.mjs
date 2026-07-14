@@ -34,6 +34,7 @@ const requestLogFile = join(tempDirectory, 'requests.jsonl');
 const serverLogFile = join(tempDirectory, 'server.log');
 const serverLogFd = openSync(serverLogFile, 'a');
 let apiProcess = null;
+const completedStartBoundaries = [];
 
 const phases = {
   reset: 'maestro/ios-guidance-contract-reset.yaml',
@@ -338,12 +339,14 @@ async function runStartBoundary({
   runMaestroPhase(phase, `${label} outcome`, outcomeFile);
   await waitForStartAuthorizationTrafficQuiet();
   await writeStartBoundaryMarker(boundary, 'close');
+  await assertStartAuthorizationTrafficRemainsQuiet();
   assertGuidanceStartTrafficBoundary(readRequestJournal(), {
     boundary,
     expectedPaths,
     openPhase,
     phase
   });
+  completedStartBoundaries.push({ boundary, expectedPaths, openPhase, phase });
 }
 
 function runMaestroPhase(phase, label, file) {
@@ -388,6 +391,17 @@ async function waitForStartAuthorizationTrafficQuiet() {
     }
   }
   throw new Error('Guidance Start authorization traffic did not become quiet within five seconds.');
+}
+
+async function assertStartAuthorizationTrafficRemainsQuiet() {
+  const fingerprint = startAuthorizationTrafficFingerprint();
+  const deadline = Date.now() + 1000;
+  while (Date.now() < deadline) {
+    await new Promise((resolve) => setTimeout(resolve, 100));
+    if (startAuthorizationTrafficFingerprint() !== fingerprint) {
+      throw new Error('Guidance Start authorization traffic escaped its closed boundary.');
+    }
+  }
 }
 
 async function waitForExpectedStartTraffic(boundary, expectedPaths) {
@@ -444,10 +458,14 @@ function readRequestJournal() {
 }
 
 function assertRequestJournalIntegrity() {
-  assertGuidanceContractRequestJournal(readRequestJournal(), {
+  const entries = readRequestJournal();
+  assertGuidanceContractRequestJournal(entries, {
     expectedModeByPhase,
     requiredPhases: ['wrongPrincipal', 'denied']
   });
+  for (const boundary of completedStartBoundaries) {
+    assertGuidanceStartTrafficBoundary(entries, boundary);
+  }
 }
 
 function requestCount(path, search) {

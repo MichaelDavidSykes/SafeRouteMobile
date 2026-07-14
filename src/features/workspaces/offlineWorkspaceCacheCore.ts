@@ -144,14 +144,41 @@ export function createSerializedWorkspaceRecordWriter(
   };
 }
 
+export type SerializedWorkspaceRecoveryExecutor = <Result>(
+  key: string,
+  operation: () => Promise<Result>,
+) => Promise<Result>;
+
+export function createSerializedWorkspaceRecoveryExecutor(): SerializedWorkspaceRecoveryExecutor {
+  const pendingRecoveries = new Map<string, Promise<unknown>>();
+
+  return async <Result>(key: string, operation: () => Promise<Result>) => {
+    const previousRecovery = pendingRecoveries.get(key) || Promise.resolve();
+    const currentRecovery = previousRecovery
+      .catch(() => undefined)
+      .then(operation);
+    pendingRecoveries.set(key, currentRecovery);
+
+    try {
+      return await currentRecovery;
+    } finally {
+      if (pendingRecoveries.get(key) === currentRecovery) {
+        pendingRecoveries.delete(key);
+      }
+    }
+  };
+}
+
 export async function persistWorkspaceRecoveryWithFallback({
   clearFallback,
   persistFallback,
   persistPrimary,
+  requireFallback = false,
 }: {
   clearFallback: () => Promise<void>;
   persistFallback: () => Promise<void>;
   persistPrimary: Array<() => Promise<void>>;
+  requireFallback?: boolean;
 }): Promise<WorkspaceRecoveryPersistenceResult> {
   let fallbackPersisted = false;
   try {
@@ -159,6 +186,9 @@ export async function persistWorkspaceRecoveryWithFallback({
     fallbackPersisted = true;
   } catch {
     // Independent primary records can still make the recovery durable.
+  }
+  if (requireFallback && !fallbackPersisted) {
+    return "failed";
   }
 
   const primaryResults = await Promise.allSettled(

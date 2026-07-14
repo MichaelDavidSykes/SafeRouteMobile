@@ -156,15 +156,26 @@ export function createLiveLocationNoticePresentation(
   if (!trimmedNotice) {
     return null;
   }
+  const workspaceAccessNotice = isWorkspaceAccessNotice(trimmedNotice);
 
   return {
-    accessibilityLabel: `Location status. ${createLiveMapAccessibilitySentence(trimmedNotice)}`,
+    accessibilityLabel: `${workspaceAccessNotice ? 'Access' : 'Location'} status. ${createLiveMapAccessibilitySentence(trimmedNotice)}`,
     displayText: liveLocationNoticeDisplayText(trimmedNotice)
   };
 }
 
 function liveLocationNoticeDisplayText(notice: string): string {
   const normalized = notice.toLowerCase();
+
+  if (isWorkspaceAccessNotice(normalized)) {
+    if (normalized.includes('checking')) {
+      return 'Checking access';
+    }
+    if (normalized.includes('reconnect') || normalized.includes('verified')) {
+      return 'Retry access';
+    }
+    return 'Access unavailable';
+  }
 
   if (normalized.includes('geometry') || normalized.includes('re-sync')) {
     return 'Re-sync route';
@@ -192,6 +203,14 @@ function liveLocationNoticeDisplayText(notice: string): string {
   }
 
   return 'Location unavailable';
+}
+
+function isWorkspaceAccessNotice(notice: string): boolean {
+  const normalized = notice.toLowerCase();
+  return (
+    normalized.includes('workspace access') ||
+    normalized.includes('access could not be verified')
+  );
 }
 
 function routeGeometryBlockedReason(routeCoordinateCount?: number): string | null {

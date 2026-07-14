@@ -225,7 +225,11 @@ describe("App active workspace integration", () => {
     );
     assert.match(
       app,
-      /requestSessionEpoch[\s\S]*requestIsCurrent[\s\S]*sessionEpochRef\.current === requestSessionEpoch[\s\S]*selectedRouteRef\.current\?\.route\.id === routeId[\s\S]*activeWorkspaceRef\.current\?\.id === workspaceId/,
+      /routePreviewRevisionRef[\s\S]*lastRenderedSelectedRouteRef[\s\S]*routePreviewRevisionRef\.current \+= 1/,
+    );
+    assert.match(
+      app,
+      /handleAuthorizeNavigationStart[\s\S]*routePlan,[\s\S]*routePreviewRevision: routePreviewRevisionRef\.current[\s\S]*isNavigationStartRequestCurrent\(request/,
     );
     assert.match(
       app,

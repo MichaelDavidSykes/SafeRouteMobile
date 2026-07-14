@@ -179,6 +179,26 @@ describe('live map UI state helpers', () => {
       accessibilityLabel: 'Location status. Provider retry pending…',
       displayText: 'Location unavailable'
     });
+    assert.deepEqual(
+      createLiveLocationNoticePresentation(
+        'Checking workspace access before starting guidance…'
+      ),
+      {
+        accessibilityLabel:
+          'Access status. Checking workspace access before starting guidance…',
+        displayText: 'Checking access'
+      }
+    );
+    assert.deepEqual(
+      createLiveLocationNoticePresentation(
+        'Workspace access could not be verified. Reconnect and try again.'
+      ),
+      {
+        accessibilityLabel:
+          'Access status. Workspace access could not be verified. Reconnect and try again.',
+        displayText: 'Retry access'
+      }
+    );
   });
 
   it('keeps route endpoint chrome as one normalized text line', () => {

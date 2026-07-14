@@ -22,6 +22,7 @@ import {
 } from './backgroundNavigation';
 import {
   applyReliableLocationSample,
+  canAcceptLocationSource,
   createLocationSignalState,
   isReliableLocationSampleRecent,
   type ReliableLocationSample
@@ -120,7 +121,7 @@ export function useLiveLocation({
   }, []);
 
   const acceptLocationObject = useCallback((location: Location.LocationObject | null | undefined) => {
-    if (!location?.coords || location.mocked === true) {
+    if (!location?.coords || !canAcceptLocationSource(location.mocked, __DEV__)) {
       return false;
     }
 

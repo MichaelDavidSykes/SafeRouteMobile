@@ -4,6 +4,10 @@ import { describe, it } from "node:test";
 import {
   ACTIVE_NAVIGATION_SESSION_MAX_PAYLOAD_BYTES,
   ACTIVE_NAVIGATION_SESSION_MAX_AGE_MS,
+  ensurePersistedNavigationRevocation,
+  hasPersistedNavigationRevocation,
+  persistAuthorizedNavigationSession,
+  revokePersistedActiveNavigationSession,
   canResumeActiveNavigationSession,
   createActiveNavigationInstanceId,
   createActiveNavigationSession,
@@ -326,5 +330,106 @@ describe("active navigation session", () => {
     assert.ok(restored);
     assert.equal(restored.lastLocation, null);
     assert.equal(restored.progressFloorMeters, 250);
+  });
+
+  it("uses an invalid revocation record when physical removal fails", async () => {
+    const writes: string[] = [];
+    const revoked = await revokePersistedActiveNavigationSession(
+      async () => {
+        writes.push("revoked");
+      },
+      async () => {
+        throw new Error("remove failed");
+      },
+    );
+
+    assert.equal(revoked, true);
+    assert.deepEqual(writes, ["revoked"]);
+  });
+
+  it("reports revocation failure only when neither overwrite nor removal succeeds", async () => {
+    const revoked = await revokePersistedActiveNavigationSession(
+      async () => {
+        throw new Error("write failed");
+      },
+      async () => {
+        throw new Error("remove failed");
+      },
+    );
+
+    assert.equal(revoked, false);
+  });
+
+  it("uses an independent fallback tombstone when primary navigation storage cannot clear", async () => {
+    const calls: string[] = [];
+    const revoked = await ensurePersistedNavigationRevocation(
+      async () => false,
+      async () => {
+        calls.push("fallback-written");
+      },
+      async () => {
+        calls.push("fallback-cleared");
+      },
+    );
+
+    assert.equal(revoked, true);
+    assert.deepEqual(calls, ["fallback-written"]);
+  });
+
+  it("fails revocation only when primary and fallback storage both fail", async () => {
+    const revoked = await ensurePersistedNavigationRevocation(
+      async () => false,
+      async () => {
+        throw new Error("fallback failed");
+      },
+      async () => undefined,
+    );
+
+    assert.equal(revoked, false);
+  });
+
+  it("clears a fallback tombstone before treating a new session save as durable", async () => {
+    let storedSession = "old-session";
+    let fallbackRevoked = true;
+
+    const saved = await persistAuthorizedNavigationSession(
+      async () => {
+        storedSession = "new-session";
+      },
+      async () => {
+        fallbackRevoked = false;
+      },
+    );
+
+    assert.equal(saved, true);
+    assert.equal(fallbackRevoked, false);
+    assert.equal(storedSession, "new-session");
+    assert.equal(await hasPersistedNavigationRevocation(
+      async () => fallbackRevoked ? "revoked" : null,
+      "revoked",
+    ), false);
+  });
+
+  it("fails a new session save closed while its fallback tombstone cannot clear", async () => {
+    const saved = await persistAuthorizedNavigationSession(
+      async () => undefined,
+      async () => {
+        throw new Error("fallback clear failed");
+      },
+    );
+
+    assert.equal(saved, false);
+  });
+
+  it("propagates fallback tombstone read errors so cold restore fails closed", async () => {
+    await assert.rejects(
+      hasPersistedNavigationRevocation(
+        async () => {
+          throw new Error("fallback read failed");
+        },
+        "revoked",
+      ),
+      /fallback read failed/,
+    );
   });
 });

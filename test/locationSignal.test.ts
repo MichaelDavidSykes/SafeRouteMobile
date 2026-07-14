@@ -3,6 +3,7 @@ import { describe, it } from "node:test";
 
 import {
   applyReliableLocationSample,
+  canAcceptLocationSource,
   createLocationSignalState,
   isReliableLocationSampleRecent,
   normalizeReliableLocationSample,
@@ -31,6 +32,13 @@ describe("reliable live-location signal", () => {
       null,
     );
     assert.equal(normalizeReliableLocationSample(null), null);
+  });
+
+  it("accepts simulator-provided locations only in development runtimes", () => {
+    assert.equal(canAcceptLocationSource(false, false), true);
+    assert.equal(canAcceptLocationSource(undefined, false), true);
+    assert.equal(canAcceptLocationSource(true, false), false);
+    assert.equal(canAcceptLocationSource(true, true), true);
   });
 
   it("rejects stale samples without moving the accepted position", () => {

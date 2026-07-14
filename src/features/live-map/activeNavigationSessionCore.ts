@@ -10,6 +10,7 @@ import {
 export const ACTIVE_NAVIGATION_SESSION_VERSION = 4;
 export const ACTIVE_NAVIGATION_SESSION_MAX_AGE_MS = 24 * 60 * 60 * 1000;
 export const ACTIVE_NAVIGATION_SESSION_MAX_PAYLOAD_BYTES = 2_000_000;
+export const REVOKED_ACTIVE_NAVIGATION_SESSION = '{"revoked":true,"version":0}';
 const ACTIVE_NAVIGATION_FUTURE_TOLERANCE_MS = 5 * 60 * 1000;
 const MAX_ROUTE_COORDINATES = 20_000;
 const MAX_RISK_ZONES = 5_000;
@@ -51,6 +52,75 @@ export interface CreateActiveNavigationSessionOptions {
   routeContext: "guest" | "saved";
   routePlan: SavedSafeRoutePlan;
   savedAtMs?: number;
+}
+
+export async function revokePersistedActiveNavigationSession(
+  writeRevocation: () => Promise<void>,
+  removeRecords: () => Promise<void>,
+): Promise<boolean> {
+  let revocationWritten = false;
+  try {
+    await writeRevocation();
+    revocationWritten = true;
+  } catch {
+    // A successful removal below is also a durable revocation.
+  }
+
+  try {
+    await removeRecords();
+    return true;
+  } catch {
+    return revocationWritten;
+  }
+}
+
+export async function ensurePersistedNavigationRevocation(
+  revokePrimaryRecords: () => Promise<boolean>,
+  writeFallbackRevocation: () => Promise<void>,
+  clearFallbackRevocation: () => Promise<void>,
+): Promise<boolean> {
+  let primaryRevoked = false;
+  try {
+    primaryRevoked = await revokePrimaryRecords();
+  } catch {
+    primaryRevoked = false;
+  }
+
+  if (primaryRevoked) {
+    try {
+      await clearFallbackRevocation();
+    } catch {
+      // The primary record is already durably invalid.
+    }
+    return true;
+  }
+
+  try {
+    await writeFallbackRevocation();
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+export async function persistAuthorizedNavigationSession(
+  writeSession: () => Promise<void>,
+  clearFallbackRevocation: () => Promise<void>,
+): Promise<boolean> {
+  try {
+    await writeSession();
+    await clearFallbackRevocation();
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+export async function hasPersistedNavigationRevocation(
+  readFallbackRevocation: () => Promise<string | null>,
+  revokedValue: string,
+): Promise<boolean> {
+  return (await readFallbackRevocation()) === revokedValue;
 }
 
 export function isPersistedNavigationLifecycle(

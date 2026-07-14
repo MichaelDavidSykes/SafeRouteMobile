@@ -96,7 +96,10 @@ describe("production navigation reliability integration", () => {
     assert.match(locationHookSource, /applyReliableLocationSample/);
     assert.match(locationHookSource, /loadBackgroundNavigationLocation/);
     assert.match(locationHookSource, /AppState\.addEventListener/);
-    assert.match(locationHookSource, /location\.mocked === true/);
+    assert.match(
+      locationHookSource,
+      /canAcceptLocationSource\(location\.mocked, __DEV__\)/,
+    );
     assert.match(locationHookSource, /Low accuracy/);
     assert.match(
       locationHookSource,

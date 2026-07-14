@@ -1,0 +1,32 @@
+appId: host.exp.Exponent
+---
+- tapOn:
+    id: "safe-route-suspended-navigation-retry"
+- extendedWaitUntil:
+    visible:
+      id: "safe-route-live-map"
+    timeout: 30000
+- assertVisible:
+    id: "safe-route-stop-action"
+- assertNotVisible:
+    id: "safe-route-suspended-navigation"
+- tapOn:
+    id: "safe-route-stop-action"
+- runFlow:
+    when:
+      visible:
+        id: "safe-route-return"
+    commands:
+      - tapOn:
+          id: "safe-route-return"
+- runFlow:
+    when:
+      visible:
+        id: "guest-map-primary-action"
+    commands:
+      - tapOn:
+          id: "guest-map-primary-action"
+- extendedWaitUntil:
+    visible:
+      id: "safe-route-picker"
+    timeout: 10000

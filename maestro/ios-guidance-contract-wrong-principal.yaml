@@ -1,0 +1,15 @@
+appId: host.exp.Exponent
+---
+- runFlow: subflows/ios-open-expo-project.yaml
+- extendedWaitUntil:
+    visible: "Active guidance belongs to another signed-in account. Plot the route again."
+    timeout: 30000
+- assertNotVisible:
+    id: "safe-route-live-map"
+- assertNotVisible:
+    id: "safe-route-suspended-navigation"
+- assertNotVisible:
+    id: "safe-route-resume-action"
+- assertVisible:
+    id: "guest-map-primary-action"
+- stopApp

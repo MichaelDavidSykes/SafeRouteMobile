@@ -62,16 +62,23 @@ describe('SafeRoute route API core', () => {
     assert.equal(result.selectedClientId, 'client-1');
   });
 
-  it('treats malformed saved-route list payloads as an empty picker state', async () => {
-    const responses: unknown[] = [null, 'maintenance page'];
+  it('rejects malformed unscoped catalogs instead of treating them as membership loss', async () => {
+    const responses: unknown[] = [
+      null,
+      'maintenance page',
+      { clients: 'malformed', routes: [] },
+      { clients: [{ id: 'client-1' }, null], routes: [] },
+      { clients: [{ id: 42 }], routes: [] },
+      { clients: [{ id: { value: 'client-1' } }], routes: [] },
+      { clients: [{ id: ['client-1'] }], routes: [] }
+    ];
 
     for (const response of responses) {
       const request: RouteApiRequester = async () => response as never;
-      const result = await loadSavedRoutes(request, 'token-1');
-
-      assert.deepEqual(result.clients, []);
-      assert.deepEqual(result.routes, []);
-      assert.equal(result.selectedClientId, null);
+      await assert.rejects(
+        () => loadSavedRoutes(request, 'token-1'),
+        /workspace access could not be verified/i
+      );
     }
   });
 
@@ -118,7 +125,7 @@ describe('SafeRoute route API core', () => {
         routes: []
       }) as never;
 
-    const result = await loadSavedRoutes(request, 'token-1');
+    const result = await loadSavedRoutes(request, 'token-1', 'client-1');
 
     assert.deepEqual(result.clients, [
       { id: 'client-1', name: 'Acme Security' },

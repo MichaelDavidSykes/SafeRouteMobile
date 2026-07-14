@@ -5,15 +5,18 @@ import {
 } from "./activeWorkspace";
 
 export const OFFLINE_WORKSPACE_CACHE_MAX_AGE_MS = 30 * 24 * 60 * 60 * 1000;
-const OFFLINE_WORKSPACE_CACHE_SCHEMA = 2;
+const OFFLINE_WORKSPACE_CACHE_SCHEMA = 3;
+const LEGACY_OFFLINE_WORKSPACE_CACHE_SCHEMA = 2;
 
 export type OfflineWorkspaceContext = {
   activeWorkspaceId: string | null;
+  unavailableWorkspaceIds?: string[];
   workspaces: SafeRouteWorkspace[];
 };
 
-export type OfflineWorkspaceSnapshot = OfflineWorkspaceContext & {
+export type OfflineWorkspaceSnapshot = Omit<OfflineWorkspaceContext, "unavailableWorkspaceIds"> & {
   principalId: string;
+  unavailableWorkspaceIds: string[];
 };
 
 export type OfflineWorkspaceRecordWriter = (
@@ -25,7 +28,7 @@ type OfflineWorkspaceCacheRecord = {
   principalId: string;
   schema: number;
   storedAtMs: number;
-  value: OfflineWorkspaceContext;
+  value: OfflineWorkspaceContext & { unavailableWorkspaceIds: string[] };
 };
 
 export function createOfflineWorkspaceCacheRecord(
@@ -34,7 +37,13 @@ export function createOfflineWorkspaceCacheRecord(
   nowMs = Date.now(),
 ): OfflineWorkspaceCacheRecord {
   const principalId = normalizePrincipalId(principalIdValue);
-  const workspaces = normalizeWorkspaceCatalog(value.workspaces);
+  const unavailableWorkspaceIds = normalizeWorkspaceIds(
+    value.unavailableWorkspaceIds || [],
+  );
+  const unavailableIds = new Set(unavailableWorkspaceIds);
+  const workspaces = normalizeWorkspaceCatalog(value.workspaces).filter(
+    (workspace) => !unavailableIds.has(workspace.id),
+  );
   const activeWorkspace = resolveActiveWorkspace(
     workspaces,
     value.activeWorkspaceId,
@@ -47,6 +56,7 @@ export function createOfflineWorkspaceCacheRecord(
     storedAtMs: nowMs,
     value: {
       activeWorkspaceId: activeWorkspace?.id || null,
+      unavailableWorkspaceIds,
       workspaces,
     },
   };
@@ -66,18 +76,27 @@ export function parseOfflineWorkspaceCacheRecord(
   if (
     !expectedPrincipalId ||
     principalId !== expectedPrincipalId ||
-    record.schema !== OFFLINE_WORKSPACE_CACHE_SCHEMA ||
+    (record.schema !== OFFLINE_WORKSPACE_CACHE_SCHEMA &&
+      record.schema !== LEGACY_OFFLINE_WORKSPACE_CACHE_SCHEMA) ||
     !Number.isFinite(record.storedAtMs) ||
     (record.storedAtMs as number) > nowMs ||
     nowMs - (record.storedAtMs as number) > OFFLINE_WORKSPACE_CACHE_MAX_AGE_MS ||
     !record.value ||
-    !Array.isArray(record.value.workspaces)
+    !Array.isArray(record.value.workspaces) ||
+    (record.schema === OFFLINE_WORKSPACE_CACHE_SCHEMA &&
+      !Array.isArray(record.value.unavailableWorkspaceIds))
   ) {
     return null;
   }
 
   const normalized = createOfflineWorkspaceCacheRecord(
-    record.value,
+    {
+      ...record.value,
+      unavailableWorkspaceIds:
+        record.schema === OFFLINE_WORKSPACE_CACHE_SCHEMA
+          ? record.value.unavailableWorkspaceIds
+          : [],
+    },
     principalId,
     record.storedAtMs,
   ).value;
@@ -89,6 +108,16 @@ export function parseOfflineWorkspaceCacheRecord(
 
 function normalizePrincipalId(value: unknown): string {
   return typeof value === "string" ? value.trim() : "";
+}
+
+function normalizeWorkspaceIds(values: Iterable<unknown>): string[] {
+  return Array.from(
+    new Set(
+      Array.from(values, (value) =>
+        typeof value === "string" ? value.trim() : "",
+      ).filter(Boolean),
+    ),
+  ).sort();
 }
 
 export function createSerializedWorkspaceRecordWriter(

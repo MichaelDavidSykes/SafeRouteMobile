@@ -1,0 +1,24 @@
+appId: host.exp.Exponent
+---
+- runFlow: subflows/ios-open-expo-project.yaml
+- extendedWaitUntil:
+    visible:
+      id: "safe-route-live-map"
+    timeout: 20000
+- assertVisible:
+    id: "safe-route-stop-action"
+- assertNotVisible:
+    id: "safe-route-suspended-navigation"
+- tapOn:
+    id: "safe-route-stop-action"
+- runFlow:
+    when:
+      visible:
+        id: "safe-route-return"
+    commands:
+      - tapOn:
+          id: "safe-route-return"
+- extendedWaitUntil:
+    visible:
+      id: "guest-map-primary-action"
+    timeout: 10000

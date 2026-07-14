@@ -8,6 +8,7 @@ import {
 } from "../src/features/api/apiClientCore";
 import {
   excludeUnavailableWorkspaces,
+  findAuthoritativelyUnavailableWorkspaceIds,
   getRequestUnavailableWorkspaceId,
   isWorkspaceForbiddenError,
   isWorkspaceUnavailableError,
@@ -145,6 +146,17 @@ describe("workspace access recovery", () => {
         ["workspace-b", "missing"],
       ),
       [WORKSPACES[0], WORKSPACES[2]],
+    );
+  });
+
+  it("detects cached and route-bound workspaces omitted by a fresh authoritative catalog", () => {
+    assert.deepEqual(
+      findAuthoritativelyUnavailableWorkspaceIds({
+        candidateWorkspaceIds: ["workspace-c", " route-only ", ""],
+        freshWorkspaces: [WORKSPACES[0]],
+        knownWorkspaces: WORKSPACES.slice(0, 2),
+      }),
+      ["workspace-b", "workspace-c", "route-only"],
     );
   });
 });

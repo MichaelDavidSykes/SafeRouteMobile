@@ -23,6 +23,7 @@ describe("offline active workspace cache", () => {
     assert.deepEqual(parseOfflineWorkspaceCacheRecord(record, "user-a", 2_000), {
       ...CONTEXT,
       principalId: "user-a",
+      unavailableWorkspaceIds: [],
     });
     assert.equal(parseOfflineWorkspaceCacheRecord(record, "user-b", 2_000), null);
   });
@@ -72,5 +73,27 @@ describe("offline active workspace cache", () => {
     releaseFirstWrite?.();
     await Promise.all([firstWrite, latestWrite]);
     assert.deepEqual(completedValues, ["workspace-a", "workspace-b"]);
+  });
+
+  it("atomically excludes durable denied workspace ids from the cached catalog", () => {
+    const record = createOfflineWorkspaceCacheRecord({
+      ...CONTEXT,
+      unavailableWorkspaceIds: [" workspace-b ", "workspace-b", ""],
+    }, "user-a", 1_000);
+
+    assert.deepEqual(parseOfflineWorkspaceCacheRecord(record, "user-a", 2_000), {
+      activeWorkspaceId: "workspace-a",
+      principalId: "user-a",
+      unavailableWorkspaceIds: ["workspace-b"],
+      workspaces: [CONTEXT.workspaces[0]],
+    });
+    assert.equal(parseOfflineWorkspaceCacheRecord(record, "user-b", 2_000), null);
+    assert.equal(
+      parseOfflineWorkspaceCacheRecord({
+        ...record,
+        value: { ...record.value, unavailableWorkspaceIds: "workspace-b" },
+      }, "user-a", 2_000),
+      null,
+    );
   });
 });

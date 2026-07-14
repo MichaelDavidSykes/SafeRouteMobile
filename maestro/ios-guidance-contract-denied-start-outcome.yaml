@@ -1,0 +1,20 @@
+appId: host.exp.Exponent
+---
+- extendedWaitUntil:
+    visible:
+      id: "guest-map-primary-action"
+    timeout: 30000
+- extendedWaitUntil:
+    visible:
+      id: "workspace-access-refresh"
+    timeout: 30000
+- extendedWaitUntil:
+    visible: "Refresh workspace access"
+    timeout: 30000
+- assertNotVisible: "Refreshing workspace access"
+- assertNotVisible:
+    id: "safe-route-live-map"
+- assertNotVisible:
+    id: "safe-route-stop-action"
+- assertNotVisible:
+    id: "safe-route-resume-action"

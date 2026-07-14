@@ -1,0 +1,23 @@
+appId: host.exp.Exponent
+---
+- tapOn:
+    id: "guest-map-destination-input"
+- inputText: "51.5053, 0.0553"
+- extendedWaitUntil:
+    visible:
+      id: "guest-map-search-coordinate-51-505300-0-055300"
+    timeout: 10000
+- tapOn:
+    id: "guest-map-search-coordinate-51-505300-0-055300"
+- tapOn:
+    id: "guest-map-plot-action"
+- extendedWaitUntil:
+    visible:
+      id: "guest-map-route-preview"
+    timeout: 30000
+- tapOn:
+    id: "guest-map-plot-action"
+- extendedWaitUntil:
+    visible:
+      id: "safe-route-live-map"
+    timeout: 15000

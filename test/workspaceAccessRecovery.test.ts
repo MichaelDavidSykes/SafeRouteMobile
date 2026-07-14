@@ -12,6 +12,7 @@ import {
   getRequestUnavailableWorkspaceId,
   isWorkspaceForbiddenError,
   isWorkspaceUnavailableError,
+  resolveFreshWorkspaceAccessRecovery,
   resolveWorkspaceAccessRecovery,
 } from "../src/features/workspaces/workspaceAccessRecovery";
 
@@ -157,6 +158,53 @@ describe("workspace access recovery", () => {
         knownWorkspaces: WORKSPACES.slice(0, 2),
       }),
       ["workspace-b", "workspace-c", "route-only"],
+    );
+  });
+
+  it("keeps prior tombstones out of a fresh denied-Start survivor catalog", () => {
+    assert.deepEqual(
+      resolveFreshWorkspaceAccessRecovery({
+        activeWorkspaceId: "workspace-a",
+        freshWorkspaces: [WORKSPACES[1], WORKSPACES[2]],
+        knownWorkspaces: WORKSPACES,
+        unavailableWorkspaceId: "workspace-a",
+        unavailableWorkspaceIds: ["workspace-b"],
+      }),
+      {
+        activeWorkspace: WORKSPACES[2],
+        newlyUnavailableWorkspaceIds: ["workspace-a"],
+        status: "recovered",
+        unavailableWorkspaceIds: new Set(["workspace-b", "workspace-a"]),
+        workspaces: [WORKSPACES[2]],
+      },
+    );
+  });
+
+  it("tombstones every known and route-bound workspace omitted by one fresh catalog", () => {
+    assert.deepEqual(
+      resolveFreshWorkspaceAccessRecovery({
+        activeWorkspaceId: "workspace-a",
+        candidateWorkspaceIds: ["route-only"],
+        freshWorkspaces: [WORKSPACES[2]],
+        knownWorkspaces: WORKSPACES,
+        unavailableWorkspaceId: "workspace-a",
+        unavailableWorkspaceIds: [],
+      }),
+      {
+        activeWorkspace: WORKSPACES[2],
+        newlyUnavailableWorkspaceIds: [
+          "workspace-a",
+          "workspace-b",
+          "route-only",
+        ],
+        status: "recovered",
+        unavailableWorkspaceIds: new Set([
+          "workspace-a",
+          "workspace-b",
+          "route-only",
+        ]),
+        workspaces: [WORKSPACES[2]],
+      },
     );
   });
 });

@@ -14,27 +14,34 @@ describe('Maestro cold guidance contract matrix', () => {
     assert.match(subflow, /id: "saferoute-app-root"/);
   });
 
-  it('follows map-first sign-in and waits for a simulator location fix before guidance', () => {
+  it('prepares map-first routes before Start-only guidance flows', () => {
     assert.doesNotMatch(
       read('package.json'),
       /SAFEROUTE_ENABLE_GUIDANCE_CONTRACT_FIXTURE/,
     );
-    for (const path of [
-      'maestro/ios-guidance-contract-workspace-seed.yaml',
-      'maestro/ios-guidance-contract-denial-seed.yaml'
-    ]) {
-      const flow = read(path);
-      const loginIndex = flow.indexOf('id: "safe-route-login-primary-action"');
-      const savedIndex = flow.indexOf('id: "guest-map-primary-action"', loginIndex);
-      const startTapIndex = flow.indexOf('id: "safe-route-primary-action"', savedIndex);
-      const liveFixIndex = flow.indexOf('latitude:', startTapIndex);
-      const stopIndex = flow.indexOf('id: "safe-route-stop-action"', liveFixIndex);
+    const workspacePreparation = read(
+      'maestro/ios-guidance-contract-workspace-prepare.yaml'
+    );
+    assert.match(workspacePreparation, /id: "safe-route-login-primary-action"/);
+    assert.match(workspacePreparation, /id: "guest-map-primary-action"/);
+    assert.match(workspacePreparation, /id: "safe-route-card-guidance-contract-route"/);
+    assert.match(workspacePreparation, /id: "safe-route-live-map"/);
+    assert.doesNotMatch(workspacePreparation, /id: "safe-route-primary-action"/);
 
-      assert.ok(loginIndex >= 0, `${path} must submit login`);
-      assert.ok(savedIndex > loginIndex, `${path} must reopen Saved from the signed-in map`);
-      assert.ok(startTapIndex > savedIndex, `${path} must request guidance start`);
-      assert.ok(liveFixIndex > startTapIndex, `${path} must deliver a fresh simulator location`);
-      assert.ok(stopIndex > liveFixIndex, `${path} must verify guidance started`);
+    for (const path of [
+      'maestro/ios-guidance-contract-public-seed.yaml',
+      'maestro/ios-guidance-contract-workspace-seed.yaml',
+      'maestro/ios-guidance-contract-workspace-reseed.yaml',
+      'maestro/ios-guidance-contract-wrong-principal-start.yaml',
+      'maestro/ios-guidance-contract-denied-start.yaml'
+    ]) {
+      const commands = read(path)
+        .split('\n')
+        .filter((line) => line.trim() && !line.startsWith('appId:') && line !== '---');
+      assert.deepEqual(commands.slice(0, 2), [
+        '- tapOn:',
+        '    id: "safe-route-primary-action"'
+      ], `${path} must make Start its first command`);
     }
   });
 
@@ -42,11 +49,18 @@ describe('Maestro cold guidance contract matrix', () => {
     const runner = read('scripts/run-maestro-guidance-contract.mjs');
 
     for (const phase of [
-      'publicSeed',
+      'publicPrepare',
+      'publicStart',
       'publicResume',
-      'workspaceSeed',
+      'workspacePrepare',
+      'workspaceStart',
       'workspaceOffline',
       'workspaceReconnect',
+      'wrongPrincipalPrepare',
+      'wrongPrincipalStart',
+      'deniedPrepare',
+      'deniedStart',
+      'workspaceReseedPrepare',
       'workspaceReseed',
       'wrongPrincipal',
       'wrongPrincipalRelaunch',
@@ -56,7 +70,7 @@ describe('Maestro cold guidance contract matrix', () => {
     ]) {
       assert.match(
         runner,
-        new RegExp(`runPhase\\([\\s\\S]*?phases\\.${phase}\\n?\\s*\\)`)
+        new RegExp(`(?:runPhase\\(\\s*'${phase}'|phase: '${phase}')`)
       );
     }
     assert.ok((runner.match(/await stopApi\(\)/g) || []).length >= 2);
@@ -100,6 +114,63 @@ describe('Maestro cold guidance contract matrix', () => {
     assert.match(fixture, /entry\.mode === expectedModeByPhase\[entry\.phase\]/);
     assert.match(fixture, /sequence: sequence \+ 1/);
     assert.match(fixture, /readExistingJournalLength\(requestLogFile\)/);
+  });
+
+  it('brackets fresh Start taps and asserts exact protected traffic', () => {
+    const runner = read('scripts/run-maestro-guidance-contract.mjs');
+    const fixture = read('scripts/maestro-guidance-contract-api.mjs');
+
+    assert.match(runner, /waitForStartAuthorizationTrafficQuiet/);
+    assert.match(runner, /writeStartBoundaryMarker\(boundary, 'open'\)/);
+    assert.match(runner, /writeStartBoundaryMarker\(boundary, 'close'\)/);
+    assert.match(runner, /assertGuidanceStartTrafficBoundary/);
+    assert.match(
+      runner,
+      /boundary: 'public-start'[\s\S]*expectedPaths: \[\]/
+    );
+    assert.match(
+      runner,
+      /boundary: 'active-workspace-start'[\s\S]*'\/api\/v1\/users\/me'[\s\S]*'\/api\/v1\/mobile\/safe-route\/routes'/
+    );
+    assert.match(
+      runner,
+      /boundary: 'wrong-principal-start'[\s\S]*expectedPaths: \['\/api\/v1\/users\/me'\]/
+    );
+    assert.match(
+      runner,
+      /boundary: 'denied-workspace-start'[\s\S]*'\/api\/v1\/users\/me'[\s\S]*'\/api\/v1\/mobile\/safe-route\/routes'/
+    );
+    assert.match(fixture, /GUIDANCE_START_BOUNDARY_PATH/);
+    assert.match(fixture, /entry\.search === ''/);
+    assert.match(fixture, /entry\.authorizationClass === 'expected-bearer'/);
+
+    const quietIndex = runner.indexOf('await waitForStartAuthorizationTrafficQuiet();');
+    const openIndex = runner.indexOf("await writeStartBoundaryMarker(boundary, 'open');");
+    const modeSwitchIndex = runner.indexOf('setControl(phase);', quietIndex);
+    const outcomeIndex = runner.indexOf('runMaestroPhase(phase, `${label} outcome`, outcomeFile);');
+    const closeIndex = runner.indexOf("await writeStartBoundaryMarker(boundary, 'close');");
+    assert.ok(quietIndex >= 0 && openIndex > quietIndex);
+    assert.ok(modeSwitchIndex > openIndex, 'Start mode must switch only after the open marker');
+    assert.ok(outcomeIndex > modeSwitchIndex && closeIndex > outcomeIndex);
+
+    const deniedBoundary = runner.slice(
+      runner.indexOf("boundary: 'denied-workspace-start'"),
+      runner.indexOf("phase: 'deniedStart'")
+    );
+    assert.equal(
+      (deniedBoundary.match(/'\/api\/v1\/users\/me'/g) || []).length,
+      1
+    );
+    assert.equal(
+      (deniedBoundary.match(/'\/api\/v1\/mobile\/safe-route\/routes'/g) || []).length,
+      1
+    );
+
+    const deniedOutcome = read(
+      'maestro/ios-guidance-contract-denied-start-outcome.yaml'
+    );
+    assert.match(deniedOutcome, /visible: "Refresh workspace access"/);
+    assert.match(deniedOutcome, /assertNotVisible: "Refreshing workspace access"/);
   });
 
 });

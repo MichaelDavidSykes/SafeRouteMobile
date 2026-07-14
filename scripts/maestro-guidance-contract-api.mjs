@@ -11,6 +11,8 @@ export const GUIDANCE_CONTRACT_MODES = Object.freeze({
   wrongPrincipal: 'active-b'
 });
 
+export const GUIDANCE_START_BOUNDARY_PATH = '/__guidance_contract__/boundary';
+
 const ACCOUNT_EMAIL = 'driver@example.com';
 const ACCOUNT_A = Object.freeze({
   _id: 'guidance-driver-a',
@@ -122,6 +124,20 @@ export function createGuidanceContractHandler({
 
     if (url.pathname === '/__guidance_contract__/health') {
       sendJson(response, 200, { mode, status: 'ready' });
+      return;
+    }
+
+    if (request.method === 'POST' && url.pathname === GUIDANCE_START_BOUNDARY_PATH) {
+      const boundary = String(url.searchParams.get('boundary') || '').trim();
+      const edge = String(url.searchParams.get('edge') || '').trim();
+      if (!/^[a-z][a-z0-9-]{0,63}$/.test(boundary) || !['open', 'close'].includes(edge)) {
+        sendApiError(response, 400, 'A valid boundary and edge are required.');
+        return;
+      }
+      sendApiSuccess(response, {
+        data: { boundary, edge },
+        message: 'Guidance Start boundary recorded.'
+      });
       return;
     }
 
@@ -516,6 +532,80 @@ export function assertGuidanceContractRequestJournal(entries, {
       `Guidance contract request journal had no evidence for ${phase}.`
     );
   }
+}
+
+export function assertGuidanceStartTrafficBoundary(entries, {
+  boundary,
+  expectedPaths,
+  phase
+}) {
+  const normalizedBoundary = String(boundary || '').trim();
+  const normalizedPhase = String(phase || '').trim();
+  const expected = Array.isArray(expectedPaths) ? expectedPaths : [];
+  const markers = entries.filter((entry) => {
+    if (entry.path !== GUIDANCE_START_BOUNDARY_PATH) {
+      return false;
+    }
+    const parameters = new URLSearchParams(entry.search);
+    return parameters.get('boundary') === normalizedBoundary;
+  });
+  const openMarkers = markers.filter(
+    (entry) => new URLSearchParams(entry.search).get('edge') === 'open'
+  );
+  const closeMarkers = markers.filter(
+    (entry) => new URLSearchParams(entry.search).get('edge') === 'close'
+  );
+
+  assertJournalCondition(
+    openMarkers.length === 1 && closeMarkers.length === 1,
+    `Guidance Start boundary ${normalizedBoundary} must have one open and one close marker.`
+  );
+  const open = openMarkers[0];
+  const close = closeMarkers[0];
+  assertJournalCondition(
+    open.sequence < close.sequence,
+    `Guidance Start boundary ${normalizedBoundary} closed before it opened.`
+  );
+  assertJournalCondition(
+    close.phase === normalizedPhase &&
+      open.method === 'POST' &&
+      close.method === 'POST' &&
+      open.authorized === false &&
+      close.authorized === false,
+    `Guidance Start boundary ${normalizedBoundary} used invalid markers.`
+  );
+
+  const protectedEntries = entries.filter(
+    (entry) =>
+      entry.sequence > open.sequence &&
+      entry.sequence < close.sequence &&
+      isNavigationStartAuthorizationPath(entry.path)
+  );
+
+  assertJournalCondition(
+    protectedEntries.length === expected.length,
+    `Guidance Start boundary ${normalizedBoundary} expected ${expected.length} protected requests but recorded ${protectedEntries.length}.`
+  );
+  protectedEntries.forEach((entry, index) => {
+    assertJournalCondition(
+      entry.phase === normalizedPhase &&
+        entry.method === 'GET' &&
+        entry.path === expected[index] &&
+        entry.search === '' &&
+        entry.authorized === true &&
+        entry.authorizationClass === 'expected-bearer',
+      `Guidance Start boundary ${normalizedBoundary} request ${index + 1} did not match the exact authorization contract.`
+    );
+  });
+}
+
+function isNavigationStartAuthorizationPath(pathname) {
+  return (
+    pathname === '/api/v1/users/me' ||
+    pathname === '/api/v1/mobile/safe-route/routes' ||
+    pathname.startsWith('/api/v1/mobile/safe-route/routes/') ||
+    pathname === '/api/v1/convoy-routes/route-preview'
+  );
 }
 
 function assertJournalCondition(condition, message) {

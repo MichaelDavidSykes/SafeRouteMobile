@@ -109,6 +109,7 @@ describe('live reroute plan integration', () => {
       targets
     });
 
+    assert.equal(next.id, routePlan.id);
     assert.equal(next.route.id, 'route-1-reroute-4');
     assert.deepEqual(next.route.coordinates, preview.coordinates);
     assert.equal(next.route.distance, '5.2 km');

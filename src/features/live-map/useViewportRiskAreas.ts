@@ -5,6 +5,7 @@ import { getRequestSessionExpiry } from '../api/sessionExpiry';
 import { getRequestUnavailableWorkspaceId } from '../workspaces/workspaceAccessRecovery';
 import { fetchAreaRiskViewport } from './areaRiskApi';
 import {
+  areaRiskViewportRequestKey,
   mergeRiskZonesById,
   regionToAreaRiskViewportRequests,
   type AreaRiskViewportRequest
@@ -13,10 +14,11 @@ import type { RiskZone } from './liveMapTypes';
 import {
   cacheViewportRiskZones,
   getCachedViewportRiskZones,
+  resolveViewportRiskDisplayZones,
   type ViewportRiskCache
 } from './viewportRiskState';
 
-export const VIEWPORT_RISK_DEBOUNCE_MS = 140;
+export const VIEWPORT_RISK_DEBOUNCE_MS = 450;
 export const VIEWPORT_RISK_TIMEOUT_MS = 6000;
 
 export function useViewportRiskAreas({
@@ -39,6 +41,8 @@ export function useViewportRiskAreas({
   const onSessionExpiredRef = useRef(onSessionExpired);
   const onWorkspaceUnavailableRef = useRef(onWorkspaceUnavailable);
   const requestRevisionRef = useRef(0);
+  const requestsRef = useRef<AreaRiskViewportRequest[]>([]);
+  const zonesRef = useRef<RiskZone[]>([]);
   const [zones, setZones] = useState<RiskZone[]>([]);
   const [loading, setLoading] = useState(false);
   const [errorMessage, setErrorMessage] = useState('');
@@ -56,6 +60,12 @@ export function useViewportRiskAreas({
       region.longitudeDelta
     ]
   );
+  const requestSignature = useMemo(
+    () => requests.map((request) => areaRiskViewportRequestKey(request)).join('|'),
+    [requests]
+  );
+  requestsRef.current = requests;
+  zonesRef.current = zones;
   clientIdRef.current = clientId;
   onSessionExpiredRef.current = onSessionExpired;
   onWorkspaceUnavailableRef.current = onWorkspaceUnavailable;
@@ -64,6 +74,7 @@ export function useViewportRiskAreas({
     const revision = requestRevisionRef.current + 1;
     requestRevisionRef.current = revision;
     const controller = new AbortController();
+    const activeRequests = requestsRef.current;
 
     if (!enabled) {
       setLoading(false);
@@ -73,17 +84,18 @@ export function useViewportRiskAreas({
       return () => controller.abort();
     }
 
-    if (!requests.length) {
+    if (!activeRequests.length) {
       setLoading(false);
-      setZones([]);
       setErrorMessage('');
-      setStatusMessage('Zoom in to load risk areas.');
+      setStatusMessage(
+        zonesRef.current.length ? '' : 'Risk areas are waiting for a valid map view.'
+      );
       return () => controller.abort();
     }
 
     const cachedZones: RiskZone[][] = [];
     const missingRequests: AreaRiskViewportRequest[] = [];
-    for (const request of requests) {
+    for (const request of activeRequests) {
       const cached = getCachedViewportRiskZones(cacheRef.current, request);
       if (cached) {
         cachedZones.push(cached);
@@ -101,15 +113,17 @@ export function useViewportRiskAreas({
     }
 
     const cachedResult = mergeRiskZonesById(...cachedZones);
-    // Paint cached chunks immediately rather than holding the previous
-    // viewport on screen while its replacement is downloaded.
-    setZones(cachedResult);
+    const retainedZones = zonesRef.current;
+    // Keep already-rendered overlays in place until the stable replacement
+    // partition arrives. Minor map adjustments therefore never flash empty.
+    setZones(resolveViewportRiskDisplayZones(retainedZones, cachedResult, false));
     setLoading(true);
     setErrorMessage('');
     setStatusMessage('Loading risk areas…');
     const timer = setTimeout(() => {
       const receivedZones: RiskZone[][] = [];
       let failedRequestCount = 0;
+      let successfulRequestCount = 0;
       let sessionExpiryHandled = false;
       let workspaceUnavailableHandled = false;
       const downloads = missingRequests.map(async (request) => {
@@ -123,10 +137,15 @@ export function useViewportRiskAreas({
             return;
           }
           cacheViewportRiskZones(cacheRef.current, request, feed.zones);
+          successfulRequestCount += 1;
           receivedZones.push(feed.zones);
           // Antimeridian views have two chunks. Reveal the first successful
           // chunk as soon as it lands instead of waiting for the slower one.
-          setZones(mergeRiskZonesById(...cachedZones, ...receivedZones));
+          setZones(resolveViewportRiskDisplayZones(
+            retainedZones,
+            mergeRiskZonesById(...cachedZones, ...receivedZones),
+            false
+          ));
         } catch (error) {
           if (controller.signal.aborted || requestRevisionRef.current !== revision) {
             return;
@@ -177,9 +196,19 @@ export function useViewportRiskAreas({
           return;
         }
         const nextZones = mergeRiskZonesById(...cachedZones, ...receivedZones);
-        setZones(nextZones);
-        if (failedRequestCount === missingRequests.length && !cachedResult.length) {
+        const allMissingRequestsFailed =
+          failedRequestCount === missingRequests.length && successfulRequestCount === 0;
+        const replacementReady = failedRequestCount === 0;
+        setZones(resolveViewportRiskDisplayZones(
+          retainedZones,
+          allMissingRequestsFailed ? cachedResult : nextZones,
+          replacementReady
+        ));
+        if (allMissingRequestsFailed) {
           setErrorMessage('Risk areas could not be updated. Move the map or retry.');
+          setStatusMessage('');
+        } else if (!replacementReady) {
+          setErrorMessage('Some risk areas could not be updated. Retry when convenient.');
           setStatusMessage('');
         } else {
           setErrorMessage('');
@@ -193,7 +222,7 @@ export function useViewportRiskAreas({
       clearTimeout(timer);
       controller.abort();
     };
-  }, [accessToken, enabled, requests, retryRevision]);
+  }, [accessToken, enabled, requestSignature, retryRevision]);
 
   return {
     errorMessage,

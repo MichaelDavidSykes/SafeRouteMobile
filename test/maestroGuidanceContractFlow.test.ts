@@ -118,6 +118,10 @@ describe('Maestro cold guidance contract matrix', () => {
       read('maestro/ios-guidance-contract-public-resume.yaml'),
       /id: "safe-route-stop-action"[\s\S]*waitToSettleTimeoutMs: 1000[\s\S]*waitForAnimationToEnd:[\s\S]*timeout: 2500[\s\S]*id: "safe-route-return"[\s\S]*retryTapIfNoChange: true/,
     );
+    assert.match(
+      read('maestro/ios-guidance-contract-reset.yaml'),
+      /id: "safe-route-stop-action"[\s\S]*waitToSettleTimeoutMs: 1000/,
+    );
   });
 
   it('records phase-bound ordered request evidence before reporting success', () => {

@@ -41,8 +41,27 @@ describe("App active workspace integration", () => {
     assert.match(app, /<OperationsScreen[\s\S]*workspaceCatalogError=\{workspaceCatalogError\}/);
     assert.match(app, /<OperationsScreen[\s\S]*workspaceCatalogLoading=\{workspaceCatalogLoading\}/);
     assert.match(app, /<OperationsScreen[\s\S]*workspaceSwitchDisabled=\{Boolean\(activeNavigationSession\)\}/);
+    assert.match(app, /<OperationsScreen[\s\S]*onWorkspaceUnavailable=\{handleWorkspaceUnavailable\}/);
     assert.match(operations, /onWorkspaceChange\(nextWorkspace\)/);
     assert.match(operations, /activeWorkspaceIdRef\.current = nextWorkspace\.id/);
+  });
+
+  it("owns fail-closed Operations workspace recovery and rejects stale denied-workspace catalogs", () => {
+    const app = appSource();
+
+    assert.match(app, /handleWorkspaceUnavailable = useCallback/);
+    assert.match(app, /resolveWorkspaceAccessRecovery\([\s\S]*activeWorkspaceRef\.current\?\.id[\s\S]*normalizedWorkspaceId/);
+    assert.match(app, /if \(recovery\.status === 'ignored'\) \{[\s\S]*return/);
+    assert.match(app, /normalizedWorkspaceId = workspaceId\.trim\(\)/);
+    assert.match(app, /unavailableWorkspaceIdsRef\.current\.add\(normalizedWorkspaceId\)/);
+    assert.match(app, /excludeUnavailableWorkspaces\([\s\S]*unavailableWorkspaceIdsRef\.current/);
+    assert.match(app, /setAvailableWorkspaces\(recovery\.workspaces\)/);
+    assert.match(app, /setActiveWorkspace\(recovery\.activeWorkspace\)/);
+    assert.match(app, /navigationUnavailable[\s\S]*clearActiveNavigationSession/);
+    assert.match(app, /previewUnavailable[\s\S]*setSelectedRoute\(null\)/);
+    assert.match(app, /clearOfflineRouteWorkspace\(userEmail, normalizedWorkspaceId\)/);
+    assert.match(app, /saveOfflineWorkspaceContext\(userEmail, \{[\s\S]*workspaces: recovery\.workspaces/);
+    assert.match(app, /setWorkspaceDiscoveryRevision\(\(revision\) => revision \+ 1\)/);
   });
 
   it("clears workspace context at authentication boundaries", () => {

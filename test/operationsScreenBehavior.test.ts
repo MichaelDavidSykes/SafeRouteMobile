@@ -72,6 +72,21 @@ describe("operations screen behavior", () => {
     assert.match(text, /createOperationsSyncWarningState\(result\.error\)/);
   });
 
+  it("fails closed and reports only an owned workspace 403 or 404 to App", () => {
+    const text = `${screenSource()}\n${loaderSource()}`;
+
+    assert.match(text, /isWorkspaceUnavailableError\(error\)/);
+    assert.match(text, /status: "workspace-unavailable"/);
+    assert.match(text, /result\.status === "workspace-unavailable"/);
+    assert.match(text, /loadRevisionRef\.current \+= 1/);
+    assert.match(text, /activeWorkspaceIdRef\.current = null/);
+    assert.match(text, /setRoutes\(\[\]\)[\s\S]*setOperationsState\(null\)[\s\S]*onWorkspaceUnavailable\(requestWorkspaceId\)/);
+    assert.ok(
+      text.indexOf('result.status === "workspace-unavailable"') <
+        text.indexOf("createOperationsSyncWarningState(result.error)"),
+    );
+  });
+
   it("keeps Operations view-only while exposing stable cards and tabs", () => {
     const text = screenSource();
 

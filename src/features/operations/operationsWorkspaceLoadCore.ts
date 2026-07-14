@@ -1,5 +1,6 @@
 import type { SavedSafeRoutePlan } from "../live-map/liveMapTypes";
 import type { SavedRouteSyncResult } from "../routes/routeApiCore";
+import { isWorkspaceUnavailableError } from "../workspaces/workspaceAccessRecovery";
 import type { SafeRouteOperationsState } from "./operationsTypes";
 
 type OperationsWorkspaceLoadOptions = {
@@ -11,6 +12,7 @@ type OperationsWorkspaceLoadOptions = {
 
 export type OperationsWorkspaceLoadResult =
   | { status: "stale" }
+  | { status: "workspace-unavailable" }
   | {
       operationsState: SafeRouteOperationsState;
       routes: SavedSafeRoutePlan[];
@@ -35,7 +37,18 @@ export async function loadOperationsWorkspaceData({
   ownsRequest,
   workspaceId,
 }: OperationsWorkspaceLoadOptions): Promise<OperationsWorkspaceLoadResult> {
-  const routeResult = await loadRoutes();
+  let routeResult: SavedRouteSyncResult;
+  try {
+    routeResult = await loadRoutes();
+  } catch (error) {
+    if (!ownsRequest()) {
+      return { status: "stale" };
+    }
+    if (isWorkspaceUnavailableError(error)) {
+      return { status: "workspace-unavailable" };
+    }
+    throw error;
+  }
   if (!ownsRequest()) {
     return { status: "stale" };
   }
@@ -55,6 +68,9 @@ export async function loadOperationsWorkspaceData({
   } catch (error) {
     if (!ownsRequest()) {
       return { status: "stale" };
+    }
+    if (isWorkspaceUnavailableError(error)) {
+      return { status: "workspace-unavailable" };
     }
 
     return {

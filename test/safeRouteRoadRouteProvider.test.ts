@@ -3,7 +3,8 @@ import { describe, it } from 'node:test';
 
 import {
   buildSafeRoutePreviewPayload,
-  normalizeSafeRoutePreviewResponse
+  normalizeSafeRoutePreviewResponse,
+  resolveSafeRoutePreviewRequestMode
 } from '../src/features/guest-map/safeRouteRoadRouteProviderCore';
 
 const stops = [
@@ -12,6 +13,24 @@ const stops = [
 ];
 
 describe('SafeRoute road route provider', () => {
+  it('allows only complete workspace identity or a genuinely public request', () => {
+    assert.deepEqual(resolveSafeRoutePreviewRequestMode({
+      accessToken: ' token ',
+      clientId: ' tenant-1 '
+    }), {
+      accessToken: 'token',
+      clientId: 'tenant-1',
+      kind: 'workspace'
+    });
+    assert.deepEqual(resolveSafeRoutePreviewRequestMode({}), { kind: 'public' });
+    assert.deepEqual(resolveSafeRoutePreviewRequestMode({ accessToken: 'token' }), {
+      kind: 'invalid'
+    });
+    assert.deepEqual(resolveSafeRoutePreviewRequestMode({ clientId: 'preview-only' }), {
+      kind: 'public'
+    });
+  });
+
   it('builds the authenticated planner payload with bounded avoid rectangles', () => {
     assert.deepEqual(buildSafeRoutePreviewPayload({
       clientId: ' tenant-1 ',

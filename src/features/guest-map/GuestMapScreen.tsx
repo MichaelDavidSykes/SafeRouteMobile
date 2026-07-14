@@ -1492,25 +1492,30 @@ function GuestWorkspaceSelector({
 }) {
   const waitingForCatalog = loading && !workspaces.length;
   const catalogUnavailable = Boolean(errorMessage) && !workspaces.length;
-  const disabled = switchDisabled || waitingForCatalog || (!errorMessage && !workspaces.length);
+  const retryAvailable = Boolean(onRetry && errorMessage) && (catalogUnavailable || switchDisabled);
+  const disabled = retryAvailable
+    ? false
+    : switchDisabled || waitingForCatalog || (!errorMessage && !workspaces.length);
   const value = activeWorkspace?.name || (workspaces.length
     ? 'Choose workspace'
     : loading
       ? 'Loading…'
       : errorMessage ? 'Unavailable' : 'No workspace');
-  const action = switchDisabled
-    ? 'Route active'
-    : catalogUnavailable
-      ? 'Retry'
-      : menuOpen ? 'Close' : errorMessage ? 'Offline' : 'Change';
+  const action = retryAvailable
+    ? 'Retry'
+    : switchDisabled
+      ? 'Route active'
+      : catalogUnavailable
+        ? 'Retry'
+        : menuOpen ? 'Close' : errorMessage ? 'Offline' : 'Change';
 
   return (
     <View style={styles.workspacePicker}>
       <Pressable
-        accessibilityHint={switchDisabled
-          ? 'End active guidance before changing workspace.'
-          : catalogUnavailable
-            ? 'Retries loading your SafeRoute workspaces.'
+        accessibilityHint={retryAvailable
+          ? 'Retries loading your SafeRoute workspaces.'
+          : switchDisabled
+            ? 'End active guidance before changing workspace.'
             : 'Opens the active workspace menu.'}
         accessibilityLabel={`Workspace, ${value}`}
         accessibilityRole={waitingForCatalog ? "progressbar" : "button"}
@@ -1522,7 +1527,7 @@ function GuestWorkspaceSelector({
           menuOpen ? styles.workspaceSelectorOpen : null,
           pressed ? styles.workspaceSelectorPressed : null
         ]}
-        onPress={catalogUnavailable ? onRetry : onToggle}
+        onPress={retryAvailable ? onRetry : onToggle}
       >
         <View style={styles.workspaceSelectorCopy}>
           <Text numberOfLines={1} style={styles.workspaceSelectorLabel}>Workspace</Text>

@@ -19,6 +19,7 @@ const BACKGROUND_NAVIGATION_LOCATION_KEY =
   "@saferoute/background-navigation-location-v1";
 const BACKGROUND_NAVIGATION_LOCATION_VERSION = 1;
 const BACKGROUND_LOCATION_MAX_AGE_MS = RELIABLE_LOCATION_MAX_WALL_AGE_MS;
+let navigationStorageMutationQueue: Promise<void> = Promise.resolve();
 
 interface BackgroundNavigationLocationEnvelope {
   routeId: string;
@@ -34,18 +35,21 @@ export async function saveActiveNavigationSession(
     return false;
   }
 
-  try {
-    await AsyncStorage.setItem(ACTIVE_NAVIGATION_SESSION_KEY, serialized);
-    return true;
-  } catch {
-    return false;
-  }
+  return enqueueNavigationStorageMutation(async () => {
+    try {
+      await AsyncStorage.setItem(ACTIVE_NAVIGATION_SESSION_KEY, serialized);
+      return true;
+    } catch {
+      return false;
+    }
+  });
 }
 
 export async function loadActiveNavigationSession(
   nowMs = Date.now(),
 ): Promise<ActiveNavigationSession | null> {
   try {
+    await navigationStorageMutationQueue;
     const serialized = await AsyncStorage.getItem(
       ACTIVE_NAVIGATION_SESSION_KEY,
     );
@@ -68,14 +72,16 @@ export async function loadActiveNavigationSession(
 }
 
 export async function clearActiveNavigationSession(): Promise<void> {
-  try {
-    await AsyncStorage.multiRemove([
-      ACTIVE_NAVIGATION_SESSION_KEY,
-      BACKGROUND_NAVIGATION_LOCATION_KEY,
-    ]);
-  } catch {
-    // Session cleanup is best effort; invalid records fail closed on the next load.
-  }
+  await enqueueNavigationStorageMutation(async () => {
+    try {
+      await AsyncStorage.multiRemove([
+        ACTIVE_NAVIGATION_SESSION_KEY,
+        BACKGROUND_NAVIGATION_LOCATION_KEY,
+      ]);
+    } catch {
+      // Session cleanup is best effort; invalid records fail closed on the next load.
+    }
+  });
 }
 
 export async function saveBackgroundNavigationLocation(
@@ -94,15 +100,17 @@ export async function saveBackgroundNavigationLocation(
     version: BACKGROUND_NAVIGATION_LOCATION_VERSION,
   };
 
-  try {
-    await AsyncStorage.setItem(
-      BACKGROUND_NAVIGATION_LOCATION_KEY,
-      JSON.stringify(envelope),
-    );
-    return true;
-  } catch {
-    return false;
-  }
+  return enqueueNavigationStorageMutation(async () => {
+    try {
+      await AsyncStorage.setItem(
+        BACKGROUND_NAVIGATION_LOCATION_KEY,
+        JSON.stringify(envelope),
+      );
+      return true;
+    } catch {
+      return false;
+    }
+  });
 }
 
 export async function loadBackgroundNavigationLocation(
@@ -110,6 +118,7 @@ export async function loadBackgroundNavigationLocation(
   nowMs = Date.now(),
 ): Promise<ReliableLocationSample | null> {
   try {
+    await navigationStorageMutationQueue;
     const serialized = await AsyncStorage.getItem(
       BACKGROUND_NAVIGATION_LOCATION_KEY,
     );
@@ -138,4 +147,15 @@ export async function loadBackgroundNavigationLocation(
 export async function getPersistedActiveRouteId(): Promise<string | null> {
   const session = await loadActiveNavigationSession();
   return session?.routePlan.route.id || null;
+}
+
+function enqueueNavigationStorageMutation<T>(
+  mutation: () => Promise<T>,
+): Promise<T> {
+  const result = navigationStorageMutationQueue.then(mutation, mutation);
+  navigationStorageMutationQueue = result.then(
+    () => undefined,
+    () => undefined,
+  );
+  return result;
 }

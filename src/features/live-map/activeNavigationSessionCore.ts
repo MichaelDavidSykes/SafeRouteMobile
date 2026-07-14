@@ -7,7 +7,7 @@ import {
   type ReliableLocationSample,
 } from "./locationSignal";
 
-export const ACTIVE_NAVIGATION_SESSION_VERSION = 1;
+export const ACTIVE_NAVIGATION_SESSION_VERSION = 2;
 export const ACTIVE_NAVIGATION_SESSION_MAX_AGE_MS = 24 * 60 * 60 * 1000;
 export const ACTIVE_NAVIGATION_SESSION_MAX_PAYLOAD_BYTES = 2_000_000;
 const ACTIVE_NAVIGATION_FUTURE_TOLERANCE_MS = 5 * 60 * 1000;
@@ -20,7 +20,12 @@ export type PersistedNavigationLifecycle = Extract<
   "navigating" | "off-route" | "paused"
 >;
 
+export type ActiveNavigationAccessScope =
+  | { kind: "public" }
+  | { clientId: string; kind: "workspace" };
+
 export interface ActiveNavigationSession {
+  accessScope: ActiveNavigationAccessScope;
   backgroundTrackingEnabled: boolean;
   followModeEnabled: boolean;
   lastLocation: ReliableLocationSample | null;
@@ -61,7 +66,11 @@ export function createActiveNavigationSession({
   routePlan,
   savedAtMs = Date.now(),
 }: CreateActiveNavigationSessionOptions): ActiveNavigationSession {
+  const clientId = normalizeClientId(routePlan.clientId);
   return {
+    accessScope: clientId
+      ? { clientId, kind: "workspace" }
+      : { kind: "public" },
     backgroundTrackingEnabled,
     followModeEnabled,
     lastLocation: lastLocation ? { ...lastLocation } : null,
@@ -131,6 +140,15 @@ export function normalizeActiveNavigationSession(
     return null;
   }
 
+  const accessScope = normalizeActiveNavigationAccessScope(
+    parsed.accessScope,
+    routeContext,
+    routePlan.clientId,
+  );
+  if (!accessScope) {
+    return null;
+  }
+
   const lastLocation =
     parsed.lastLocation === null || parsed.lastLocation === undefined
       ? null
@@ -143,6 +161,7 @@ export function normalizeActiveNavigationSession(
     : null;
 
   return {
+    accessScope,
     backgroundTrackingEnabled: parsed.backgroundTrackingEnabled === true,
     followModeEnabled: parsed.followModeEnabled !== false,
     lastLocation: recentLastLocation,
@@ -161,8 +180,16 @@ export function normalizeActiveNavigationSession(
 export function canResumeActiveNavigationSession(
   session: ActiveNavigationSession,
   authenticated: boolean,
+  activeWorkspaceId?: string | null,
 ): boolean {
-  return session.routeContext === "guest" || authenticated;
+  if (session.accessScope.kind === "public") {
+    return !authenticated;
+  }
+
+  return (
+    authenticated &&
+    session.accessScope.clientId === normalizeClientId(activeWorkspaceId)
+  );
 }
 
 export function mergeActiveNavigationLocation(
@@ -251,7 +278,39 @@ function normalizeStoredRoutePlan(value: unknown): SavedSafeRoutePlan | null {
     return null;
   }
 
-  return value as unknown as SavedSafeRoutePlan;
+  const routePlan = value as unknown as SavedSafeRoutePlan;
+  const clientId = normalizeClientId(routePlan.clientId);
+  return {
+    ...routePlan,
+    ...(clientId ? { clientId } : { clientId: undefined }),
+  };
+}
+
+function normalizeActiveNavigationAccessScope(
+  value: unknown,
+  routeContext: "guest" | "saved",
+  routeClientId?: string | null,
+): ActiveNavigationAccessScope | null {
+  if (!isRecord(value)) {
+    return null;
+  }
+
+  const clientId = normalizeClientId(routeClientId);
+  if (value.kind === "public") {
+    return routeContext === "guest" && !clientId ? { kind: "public" } : null;
+  }
+  if (value.kind !== "workspace") {
+    return null;
+  }
+
+  const scopedClientId = normalizeClientId(value.clientId);
+  return scopedClientId && scopedClientId === clientId
+    ? { clientId: scopedClientId, kind: "workspace" }
+    : null;
+}
+
+function normalizeClientId(value: unknown): string {
+  return typeof value === "string" ? value.trim() : "";
 }
 
 function hasRequiredRoutePlanStrings(value: Record<string, unknown>): boolean {

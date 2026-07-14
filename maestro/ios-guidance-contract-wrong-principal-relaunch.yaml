@@ -1,0 +1,11 @@
+appId: host.exp.Exponent
+---
+- runFlow: subflows/ios-open-expo-project.yaml
+- assertNotVisible:
+    id: "safe-route-live-map"
+- assertNotVisible:
+    id: "safe-route-suspended-navigation"
+- assertNotVisible:
+    id: "safe-route-resume-action"
+- assertVisible:
+    id: "guest-map-primary-action"

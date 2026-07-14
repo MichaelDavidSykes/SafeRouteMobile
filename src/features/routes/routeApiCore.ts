@@ -16,6 +16,7 @@ export interface SavedRouteSyncResult {
 export type RouteApiRequester = <T>(path: string, accessToken: string) => Promise<T>;
 
 const MALFORMED_ROUTE_DETAIL_MESSAGE = 'Saved route details were unavailable. Retry.';
+const MALFORMED_WORKSPACE_CATALOG_MESSAGE = 'Workspace access could not be verified. Retry.';
 
 function normalizeRouteId(routeId: unknown): string {
   if (routeId === null || routeId === undefined) {
@@ -73,6 +74,15 @@ function normalizeRouteListPayload(payload: unknown): Partial<MobileRouteListRes
   return isRoutePayloadObject(payload) ? payload as Partial<MobileRouteListResponse> : {};
 }
 
+function hasAuthoritativeWorkspaceCatalog(clients: unknown): boolean {
+  if (!Array.isArray(clients)) {
+    return false;
+  }
+
+  const normalizedClients = normalizeMobileClients(clients);
+  return normalizedClients.length === clients.length;
+}
+
 function normalizeOptionalClientId(clientId: unknown): string | null {
   const normalizedClientId = typeof clientId === 'string' ? clientId.trim() : '';
 
@@ -114,6 +124,11 @@ export async function loadSavedRoutes(
   const payload = normalizeRouteListPayload(
     await request<unknown>(buildSavedRoutesPath(clientId), requireAccessToken(accessToken))
   );
+  const requestedClientId = String(clientId || '').trim();
+
+  if (!requestedClientId && !hasAuthoritativeWorkspaceCatalog(payload.clients)) {
+    throw new Error(MALFORMED_WORKSPACE_CATALOG_MESSAGE);
+  }
 
   return {
     clients: normalizeMobileClients(payload.clients),

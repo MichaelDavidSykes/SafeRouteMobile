@@ -42,6 +42,8 @@ describe("UI test identifiers", () => {
     assert.equal(uiTestIds.suspendedNavigationNotice, "safe-route-suspended-navigation");
     assert.equal(uiTestIds.suspendedNavigationRetry, "safe-route-suspended-navigation-retry");
     assert.equal(uiTestIds.suspendedNavigationEnd, "safe-route-suspended-navigation-end");
+    assert.equal(uiTestIds.navigationCleanupNotice, "safe-route-navigation-cleanup");
+    assert.equal(uiTestIds.navigationCleanupRetry, "safe-route-navigation-cleanup-retry");
     assert.equal(uiTestIds.guestMapRiskLoadingStatus, "guest-map-risk-loading-status");
     assert.equal(uiTestIds.guestMapWorkspaceSelector, "guest-map-workspace-selector");
     assert.equal(

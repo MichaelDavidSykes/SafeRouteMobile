@@ -1,8 +1,14 @@
 import AsyncStorage from "@react-native-async-storage/async-storage";
+import * as SecureStore from "expo-secure-store";
 
 import {
   mergeActiveNavigationLocation,
   normalizeActiveNavigationSession,
+  ensurePersistedNavigationRevocation,
+  hasPersistedNavigationRevocation,
+  persistAuthorizedNavigationSession,
+  REVOKED_ACTIVE_NAVIGATION_SESSION,
+  revokePersistedActiveNavigationSession,
   serializeActiveNavigationSession,
   type ActiveNavigationSession,
 } from "./activeNavigationSessionCore";
@@ -28,6 +34,9 @@ const BACKGROUND_NAVIGATION_LOCATION_KEY =
 const BACKGROUND_NAVIGATION_PERMIT_KEY =
   "@saferoute/background-navigation-permit-v1";
 const BACKGROUND_NAVIGATION_LOCATION_VERSION = 3;
+const ACTIVE_NAVIGATION_REVOCATION_KEY =
+  "saferoute.active-navigation-revocation.v1";
+const ACTIVE_NAVIGATION_REVOKED_VALUE = "revoked";
 const BACKGROUND_LOCATION_MAX_AGE_MS = RELIABLE_LOCATION_MAX_WALL_AGE_MS;
 let navigationStorageMutationQueue: Promise<void> = Promise.resolve();
 const runtimeBackgroundNavigationPermit =
@@ -55,12 +64,10 @@ export async function saveActiveNavigationSession(
   }
 
   return enqueueNavigationStorageMutation(async () => {
-    try {
-      await AsyncStorage.setItem(ACTIVE_NAVIGATION_SESSION_KEY, serialized);
-      return true;
-    } catch {
-      return false;
-    }
+    return persistAuthorizedNavigationSession(
+      () => AsyncStorage.setItem(ACTIVE_NAVIGATION_SESSION_KEY, serialized),
+      () => SecureStore.deleteItemAsync(ACTIVE_NAVIGATION_REVOCATION_KEY),
+    );
   });
 }
 
@@ -69,6 +76,14 @@ export async function loadActiveNavigationSession(
 ): Promise<ActiveNavigationSession | null> {
   try {
     await navigationStorageMutationQueue;
+    const fallbackRevoked = await hasPersistedNavigationRevocation(
+      () => SecureStore.getItemAsync(ACTIVE_NAVIGATION_REVOCATION_KEY),
+      ACTIVE_NAVIGATION_REVOKED_VALUE,
+    );
+    if (fallbackRevoked) {
+      await clearActiveNavigationSession();
+      return null;
+    }
     const serialized = await AsyncStorage.getItem(
       ACTIVE_NAVIGATION_SESSION_KEY,
     );
@@ -92,19 +107,28 @@ export async function loadActiveNavigationSession(
   }
 }
 
-export async function clearActiveNavigationSession(): Promise<void> {
+export async function clearActiveNavigationSession(): Promise<boolean> {
   runtimeBackgroundNavigationPermit.revoke();
-  await enqueueNavigationStorageMutation(async () => {
-    try {
-      await AsyncStorage.multiRemove([
-        ACTIVE_NAVIGATION_SESSION_KEY,
-        BACKGROUND_NAVIGATION_LOCATION_KEY,
-        BACKGROUND_NAVIGATION_PERMIT_KEY,
-      ]);
-    } catch {
-      // Session cleanup is best effort; invalid records fail closed on the next load.
-    }
-  });
+  return ensurePersistedNavigationRevocation(
+    () => enqueueNavigationStorageMutation(() =>
+      revokePersistedActiveNavigationSession(
+        () => AsyncStorage.setItem(
+          ACTIVE_NAVIGATION_SESSION_KEY,
+          REVOKED_ACTIVE_NAVIGATION_SESSION,
+        ),
+        () => AsyncStorage.multiRemove([
+          ACTIVE_NAVIGATION_SESSION_KEY,
+          BACKGROUND_NAVIGATION_LOCATION_KEY,
+          BACKGROUND_NAVIGATION_PERMIT_KEY,
+        ]),
+      ),
+    ),
+    () => SecureStore.setItemAsync(
+      ACTIVE_NAVIGATION_REVOCATION_KEY,
+      ACTIVE_NAVIGATION_REVOKED_VALUE,
+    ),
+    () => SecureStore.deleteItemAsync(ACTIVE_NAVIGATION_REVOCATION_KEY),
+  );
 }
 
 export function hasRuntimeBackgroundNavigationPermit(): boolean {

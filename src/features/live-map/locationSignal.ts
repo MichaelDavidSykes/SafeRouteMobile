@@ -97,6 +97,13 @@ export function normalizeReliableLocationSample(
   };
 }
 
+export function canAcceptLocationSource(
+  mocked: unknown,
+  developmentRuntime: boolean,
+): boolean {
+  return mocked !== true || developmentRuntime;
+}
+
 export function applyReliableLocationSample(
   state: LocationSignalState,
   incomingValue: unknown,

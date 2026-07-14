@@ -60,6 +60,31 @@ export function excludeUnavailableWorkspaces(
   );
 }
 
+export function findAuthoritativelyUnavailableWorkspaceIds({
+  candidateWorkspaceIds,
+  freshWorkspaces,
+  knownWorkspaces,
+}: {
+  candidateWorkspaceIds?: Iterable<string | null | undefined>;
+  freshWorkspaces: SafeRouteWorkspace[];
+  knownWorkspaces: SafeRouteWorkspace[];
+}): string[] {
+  const freshIds = new Set(
+    normalizeWorkspaceCatalog(freshWorkspaces).map((workspace) => workspace.id),
+  );
+  const knownIds = new Set(
+    normalizeWorkspaceCatalog(knownWorkspaces).map((workspace) => workspace.id),
+  );
+  for (const candidate of candidateWorkspaceIds || []) {
+    const workspaceId = normalizeWorkspaceId(candidate);
+    if (workspaceId) {
+      knownIds.add(workspaceId);
+    }
+  }
+
+  return Array.from(knownIds).filter((workspaceId) => !freshIds.has(workspaceId));
+}
+
 export function resolveWorkspaceAccessRecovery(
   workspaces: SafeRouteWorkspace[],
   activeWorkspaceId: string | null | undefined,

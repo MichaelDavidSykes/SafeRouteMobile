@@ -67,6 +67,8 @@ export const uiTestIds = {
   suspendedNavigationNotice: "safe-route-suspended-navigation",
   suspendedNavigationRetry: "safe-route-suspended-navigation-retry",
   suspendedNavigationEnd: "safe-route-suspended-navigation-end",
+  navigationCleanupNotice: "safe-route-navigation-cleanup",
+  navigationCleanupRetry: "safe-route-navigation-cleanup-retry",
   liveMapReturn: "safe-route-return",
   liveMapRouteSummarySheet: "safe-route-summary-sheet",
   liveMapSavedRouteDetails: "safe-route-saved-details",

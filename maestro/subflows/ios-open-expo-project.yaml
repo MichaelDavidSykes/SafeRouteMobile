@@ -1,0 +1,35 @@
+appId: host.exp.Exponent
+---
+- openLink: exp://localhost:8081
+- runFlow:
+    when:
+      visible: "Open"
+    commands:
+      - tapOn: "Open"
+- waitForAnimationToEnd:
+    timeout: 3000
+- openLink: exp://localhost:8081
+- runFlow:
+    when:
+      visible: "Open"
+    commands:
+      - tapOn: "Open"
+- waitForAnimationToEnd:
+    timeout: 8000
+- runFlow:
+    when:
+      visible: "Continue"
+    commands:
+      - tapOn: "Continue"
+- tapOn:
+    text: "Close"
+    optional: true
+- runFlow:
+    when:
+      visible: "Allow While Using App"
+    commands:
+      - tapOn: "Allow While Using App"
+- extendedWaitUntil:
+    visible:
+      id: "saferoute-app-root"
+    timeout: 45000

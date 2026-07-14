@@ -87,12 +87,14 @@ import {
 import { normalizeReliableLocationSample } from "./locationSignal";
 import { useNetworkAvailability } from "../api/useNetworkAvailability";
 import { getRequestSessionExpiry } from "../api/sessionExpiry";
+import { getRequestUnavailableWorkspaceId } from "../workspaces/workspaceAccessRecovery";
 
 interface LiveMapScreenProps {
   accessToken?: string | null;
   initialNavigationSession?: ActiveNavigationSession | null;
   onNavigationSessionChange?: (session: ActiveNavigationSession | null) => void;
   onSessionExpired?: (message?: string) => void;
+  onWorkspaceUnavailable?: (workspaceId: string) => void;
   returnAccessibilityLabel?: string;
   returnLabel?: string;
   routeContext?: "guest" | "saved";
@@ -106,6 +108,7 @@ export function LiveMapScreen({
   onChangeRoute,
   onNavigationSessionChange,
   onSessionExpired,
+  onWorkspaceUnavailable,
   returnAccessibilityLabel = "Return to saved routes",
   returnLabel = "Routes",
   routePlan,
@@ -126,6 +129,7 @@ export function LiveMapScreen({
   const progressRef = useRef<ReturnType<typeof calculateRouteProgress>>(null);
   const activeSessionSnapshotRef = useRef<ActiveNavigationSession | null>(null);
   const onNavigationSessionChangeRef = useRef(onNavigationSessionChange);
+  const onWorkspaceUnavailableRef = useRef(onWorkspaceUnavailable);
   const viewport = useWindowDimensions();
   const [alertsVisible, setAlertsVisible] = useState(
     DEFAULT_ROUTE_INTELLIGENCE_VISIBLE,
@@ -145,6 +149,7 @@ export function LiveMapScreen({
   const [activeRoutePlan, setActiveRoutePlan] = useState(
     resumedNavigationSession?.routePlan || routePlan,
   );
+  const activeRouteWorkspaceIdRef = useRef(activeRoutePlan.clientId || null);
   const [rerouteState, setRerouteState] = useState<LiveRerouteState>(
     rerouteStateRef.current,
   );
@@ -180,6 +185,8 @@ export function LiveMapScreen({
     permissionRequested: locationTrackingRequested,
   });
   onNavigationSessionChangeRef.current = onNavigationSessionChange;
+  onWorkspaceUnavailableRef.current = onWorkspaceUnavailable;
+  activeRouteWorkspaceIdRef.current = activeRoutePlan.clientId || null;
   const layout = useMemo(
     () =>
       resolveLiveMapOverlayLayout({
@@ -215,10 +222,39 @@ export function LiveMapScreen({
   const liveApiAccessToken = accessToken && !isPreviewAccessToken(accessToken)
     ? accessToken
     : null;
+  const closeRouteForWorkspaceLoss = (workspaceId: string) => {
+    const normalizedWorkspaceId = workspaceId.trim();
+    if (
+      !normalizedWorkspaceId ||
+      activeRouteWorkspaceIdRef.current !== normalizedWorkspaceId
+    ) {
+      return;
+    }
+
+    activeRouteWorkspaceIdRef.current = null;
+    activeRerouteRequestRef.current?.abort();
+    activeRerouteRequestRef.current = null;
+    const stoppedRerouteState = stopLiveRerouteMonitoring(
+      rerouteStateRef.current,
+      Date.now(),
+    );
+    rerouteStateRef.current = stoppedRerouteState;
+    setRerouteState(stoppedRerouteState);
+    activeSessionSnapshotRef.current = null;
+    onWorkspaceUnavailableRef.current?.(normalizedWorkspaceId);
+    onNavigationSessionChangeRef.current?.(null);
+    void clearActiveNavigationSession();
+    void stopBackgroundNavigation();
+    setNavigationState("stopped");
+    setPendingNavigationStart(false);
+    setSelectedRiskZoneId(null);
+    setFollowModeEnabled(false);
+  };
   const viewportRisk = useViewportRiskAreas({
     accessToken: liveApiAccessToken,
     clientId: activeRoutePlan.clientId,
     onSessionExpired,
+    onWorkspaceUnavailable: onWorkspaceUnavailable ? closeRouteForWorkspaceLoss : undefined,
     region: liveRiskRegion,
   });
   const liveRoutePlan = useMemo<SavedSafeRoutePlan>(
@@ -444,6 +480,7 @@ export function LiveMapScreen({
       return;
     }
     const routingAccessToken = liveApiAccessToken;
+    const requestWorkspaceId = plan.clientId || null;
     const avoidRectangles = buildLiveRerouteAvoidRectangles(
       plan.riskZones,
       plan.route.coordinates,
@@ -454,7 +491,7 @@ export function LiveMapScreen({
       const preview = await fetchSafeRouteRoadRoutePreview({
         accessToken: routingAccessToken,
         avoidRectangles,
-        clientId: plan.clientId,
+        clientId: requestWorkspaceId,
         signal: controller.signal,
         stops: targets.stops,
         timeoutMs: 15_000,
@@ -467,7 +504,7 @@ export function LiveMapScreen({
         preview.coordinates,
         {
           accessToken: routingAccessToken,
-          clientId: plan.clientId,
+          clientId: requestWorkspaceId || undefined,
           maxChunks: 8,
           signal: controller.signal,
           timeoutMs: 9000,
@@ -487,7 +524,7 @@ export function LiveMapScreen({
         : await fetchSafeRouteRoadRoutePreview({
             accessToken: routingAccessToken,
             avoidRectangles: corridorAvoidRectangles,
-            clientId: plan.clientId,
+            clientId: requestWorkspaceId,
             signal: controller.signal,
             stops: targets.stops,
             timeoutMs: 15_000,
@@ -538,6 +575,21 @@ export function LiveMapScreen({
       if (sessionExpiry) {
         controller.abort();
         onSessionExpired?.(sessionExpiry.message);
+        return;
+      }
+      const unavailableWorkspaceId = getRequestUnavailableWorkspaceId({
+        accessToken: routingAccessToken,
+        error,
+        handled: false,
+        requestActive:
+          requestActive &&
+          activeRouteWorkspaceIdRef.current === requestWorkspaceId &&
+          Boolean(onWorkspaceUnavailableRef.current),
+        workspaceId: requestWorkspaceId,
+      });
+      if (unavailableWorkspaceId) {
+        controller.abort();
+        closeRouteForWorkspaceLoss(unavailableWorkspaceId);
         return;
       }
       if (controller.signal.aborted || !requestActive) {

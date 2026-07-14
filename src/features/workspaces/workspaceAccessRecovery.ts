@@ -22,6 +22,31 @@ export function isWorkspaceForbiddenError(error: unknown): boolean {
   return error instanceof ApiRequestError && error.statusCode === 403;
 }
 
+export function getRequestUnavailableWorkspaceId({
+  accessToken,
+  error,
+  handled,
+  requestActive,
+  workspaceId,
+}: {
+  accessToken?: string | null;
+  error: unknown;
+  handled: boolean;
+  requestActive: boolean;
+  workspaceId?: string | null;
+}): string | null {
+  const normalizedAccessToken = typeof accessToken === "string" ? accessToken.trim() : "";
+  const normalizedWorkspaceId = normalizeWorkspaceId(workspaceId);
+
+  return normalizedAccessToken &&
+    normalizedWorkspaceId &&
+    requestActive &&
+    !handled &&
+    isWorkspaceUnavailableError(error)
+    ? normalizedWorkspaceId
+    : null;
+}
+
 export function excludeUnavailableWorkspaces(
   workspaces: SafeRouteWorkspace[],
   unavailableWorkspaceIds: Iterable<string>,

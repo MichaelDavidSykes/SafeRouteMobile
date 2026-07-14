@@ -610,6 +610,22 @@ export default function App() {
     setWorkspaceDiscoveryRevision((revision) => revision + 1);
   }, [session?.email, session?.user?.email]);
 
+  const handleNavigationSessionChange = useCallback((nextSession: ActiveNavigationSession | null) => {
+    const workspaceId = nextSession?.routePlan.clientId?.trim() || '';
+    if (
+      workspaceId &&
+      (
+        unavailableWorkspaceIdsRef.current.has(workspaceId) ||
+        activeWorkspaceRef.current?.id !== workspaceId
+      )
+    ) {
+      return;
+    }
+
+    activeNavigationSessionRef.current = nextSession;
+    setActiveNavigationSession(nextSession);
+  }, []);
+
   useEffect(() => {
     const navigationWorkspaceId = activeNavigationSession?.routePlan.clientId;
     if (!navigationWorkspaceId) {
@@ -654,14 +670,27 @@ export default function App() {
   };
 
   const openRoutePreview = (routePlan: SavedSafeRoutePlan) => {
+    const routeWorkspaceId = routePlan.clientId?.trim() || '';
+    if (
+      authenticated &&
+      (
+        !routeWorkspaceId ||
+        unavailableWorkspaceIdsRef.current.has(routeWorkspaceId) ||
+        activeWorkspaceRef.current?.id !== routeWorkspaceId
+      )
+    ) {
+      setSessionMessage('The active workspace changed. Plot the route again.');
+      return;
+    }
     if (
       activeNavigationSession &&
       activeNavigationSession.routePlan.route.id !== routePlan.route.id
     ) {
-      setActiveNavigationSession(null);
+      handleNavigationSessionChange(null);
       void stopBackgroundNavigation();
       void clearActiveNavigationSession();
     }
+    selectedRouteRef.current = routePlan;
     setSelectedRoute(routePlan);
     setRoutePreviewSource('guest');
     setScreen('route-preview');
@@ -676,16 +705,18 @@ export default function App() {
       activeNavigationSession &&
       activeNavigationSession.routePlan.route.id !== routePlan.route.id
     ) {
-      setActiveNavigationSession(null);
+      handleNavigationSessionChange(null);
       void stopBackgroundNavigation();
       void clearActiveNavigationSession();
     }
+    selectedRouteRef.current = routePlan;
     setSelectedRoute(routePlan);
     setRoutePreviewSource('saved');
     setScreen('route-preview');
   };
 
   const returnFromRoutePreview = () => {
+    selectedRouteRef.current = null;
     setSelectedRoute(null);
     setScreen(screenAfterRoutePreview(routePreviewSource, authenticated));
   };
@@ -742,8 +773,9 @@ export default function App() {
             routeContext={routePreviewSource}
             routePlan={selectedRoute}
             onChangeRoute={returnFromRoutePreview}
-            onNavigationSessionChange={setActiveNavigationSession}
+            onNavigationSessionChange={handleNavigationSessionChange}
             onSessionExpired={handleSessionExpired}
+            onWorkspaceUnavailable={handleWorkspaceUnavailable}
           />
         ) : screen === 'routes' && session && authenticated ? (
           <RouteListScreen
@@ -758,8 +790,8 @@ export default function App() {
             onBackToMap={returnToMapHome}
             onSelectRoute={handleSelectSavedRoute}
             onSessionExpired={handleSessionExpired}
-            onSignOut={handleSignOut}
             onWorkspaceUnavailable={handleWorkspaceUnavailable}
+            onSignOut={handleSignOut}
             onWorkspaceChange={handleActiveWorkspaceChange}
             workspaceCatalogError={workspaceCatalogError}
             workspaceCatalogLoading={workspaceCatalogLoading}
@@ -794,6 +826,7 @@ export default function App() {
             onOpenFullAccessFeature={openFullAccessFeature}
             onOpenRoutePreview={openRoutePreview}
             onSessionExpired={handleSessionExpired}
+            onWorkspaceUnavailable={handleWorkspaceUnavailable}
             sessionNotice={session && !isPreviewAccessToken(session.accessToken)
               ? sessionMessage
               : ''}

@@ -1,5 +1,5 @@
 import type { RefObject } from "react";
-import { StyleSheet } from "react-native";
+import { Platform, StyleSheet } from "react-native";
 import MapView, { Polyline, type LatLng } from "react-native-maps";
 
 import type { PermissionStatus } from "./liveLocationState";
@@ -85,7 +85,7 @@ export function LiveMapCanvas({
       showsUserLocation={showNativeUserLocation}
       showsMyLocationButton={false}
       showsCompass={false}
-      showsBuildings={false}
+      showsBuildings
       showsIndoors={false}
       showsIndoorLevelPicker={false}
       showsScale={false}
@@ -97,7 +97,7 @@ export function LiveMapCanvas({
       }
       toolbarEnabled={false}
       customMapStyle={SAFE_ROUTE_DARK_MAP_STYLE}
-      mapType={offline ? "none" : "standard"}
+      mapType={offline ? "none" : Platform.OS === "ios" ? "mutedStandard" : "standard"}
       userInterfaceStyle="dark"
       onPanDrag={onPanDrag}
       onMapReady={onMapReady}

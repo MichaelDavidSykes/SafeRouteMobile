@@ -1081,7 +1081,7 @@ export function GuestMapScreen({
         ref={mapRef}
         style={styles.map}
         initialRegion={GUEST_MAP_REGION}
-        showsBuildings={false}
+        showsBuildings
         showsCompass={false}
         showsIndoors={false}
         showsIndoorLevelPicker={false}
@@ -1089,10 +1089,16 @@ export function GuestMapScreen({
         showsUserLocation={permissionStatus === 'granted'}
         showsScale={false}
         showsTraffic={false}
+        pitchEnabled
+        rotateEnabled
         toolbarEnabled={false}
         customMapStyle={SAFE_ROUTE_DARK_MAP_STYLE}
+        mapType={Platform.OS === 'ios' ? 'mutedStandard' : 'standard'}
         userInterfaceStyle="dark"
-        onMapReady={() => setMapReady(true)}
+        onMapReady={() => {
+          setMapReady(true);
+          mapRef.current?.animateCamera({ heading: 0, pitch: 38 }, { duration: 0 });
+        }}
         onLongPress={(event) => handleMapLongPress(event.nativeEvent.coordinate)}
         onPanDrag={() => {
           userMovedMapRef.current = true;

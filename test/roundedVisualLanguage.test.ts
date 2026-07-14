@@ -436,8 +436,8 @@ describe("rounded visual language", () => {
     assert.match(signInButtonTextBlock, /textAlign:\s*'center'/);
     assert.doesNotMatch(signInButtonBlock, /shadow\.panel/);
     assert.doesNotMatch(guestMapStylesSource, /,\s*shadow,/);
-    assert.match(guestMapStylesSource, /signInButtonAuthenticated:[\s\S]*colors\.appleBlueSoft/);
-    assert.match(guestMapStylesSource, /signInButtonTextAuthenticated:[\s\S]*colors\.appleBlue/);
+    assert.match(guestMapStylesSource, /signInButtonAuthenticated:[\s\S]*backgroundColor:\s*colors\.surface/);
+    assert.match(guestMapStylesSource, /signInButtonTextAuthenticated:[\s\S]*color:\s*colors\.ink/);
   });
 
   it("keeps saved-route picker session notices bounded and accessible", () => {

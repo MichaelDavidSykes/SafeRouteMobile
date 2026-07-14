@@ -11,6 +11,7 @@ const ENV_KEYS = [
   'SAFEROUTE_ENABLE_DEMO_DRIVE',
   'SAFEROUTE_ENABLE_PREVIEW_MODE',
   'SAFEROUTE_PREVIEW_INITIAL_SCREEN',
+  'SAFEROUTE_SOURCE_REVISION',
   'SAFEROUTE_IOS_BUILD_NUMBER',
   'SAFEROUTE_DEV_API_URL',
   'SAFEROUTE_STAGING_API_URL',
@@ -40,6 +41,7 @@ type ExpoConfig = {
     safeRouteDemoDriveEnabled: boolean;
     safeRoutePreviewInitialScreen: string;
     safeRoutePreviewModeEnabled: boolean;
+    safeRouteSourceRevision?: string;
   };
   ios: {
     buildNumber: string;
@@ -107,6 +109,7 @@ describe('Expo production configuration', () => {
     assert.equal(expo.extra.safeRouteDemoDriveEnabled, true);
     assert.equal(expo.extra.safeRoutePreviewInitialScreen, 'guest-map');
     assert.equal(expo.extra.safeRoutePreviewModeEnabled, false);
+    assert.equal(expo.extra.safeRouteSourceRevision, undefined);
     assert.equal(expo.name, 'SafeRoute');
     assert.equal(expo.slug, 'saferoute-mobile');
     assert.equal(expo.scheme, 'saferoute');
@@ -122,6 +125,17 @@ describe('Expo production configuration', () => {
       resizeMode: 'contain',
       backgroundColor: '#f2f2f7'
     });
+  });
+
+  it('publishes only a full normalized source revision for deterministic runtime evidence', () => {
+    const revision = 'ABCDEF0123456789ABCDEF0123456789ABCDEF01';
+    const expo = loadExpoConfig({ SAFEROUTE_SOURCE_REVISION: revision });
+
+    assert.equal(expo.extra.safeRouteSourceRevision, revision.toLowerCase());
+    assert.throws(
+      () => loadExpoConfig({ SAFEROUTE_SOURCE_REVISION: 'abcdef0' }),
+      /full 40-character Git commit SHA/
+    );
   });
 
   it('keeps iOS release identity and URL scheme stable in production config', () => {

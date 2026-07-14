@@ -29,3 +29,8 @@ appId: host.exp.Exponent
     visible:
       id: "saferoute-app-root"
     timeout: 45000
+- runFlow:
+    when:
+      visible: "Allow While Using App"
+    commands:
+      - tapOn: "Allow While Using App"

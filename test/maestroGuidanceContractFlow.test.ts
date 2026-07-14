@@ -13,6 +13,10 @@ describe('Maestro cold guidance contract matrix', () => {
     assert.match(subflow, /openLink: exp:\/\/localhost:8081/);
     assert.equal((subflow.match(/openLink: exp:\/\/localhost:8081/g) || []).length, 1);
     assert.match(subflow, /id: "saferoute-app-root"/);
+    assert.match(
+      subflow,
+      /id: "saferoute-app-root"[\s\S]*visible: "Allow While Using App"[\s\S]*tapOn: "Allow While Using App"/,
+    );
   });
 
   it('prepares map-first routes before Start-only guidance flows', () => {

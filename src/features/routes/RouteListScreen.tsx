@@ -504,6 +504,7 @@ export function RouteListScreen({
       {workspaceAccessRefreshAvailable &&
       (availableWorkspaces.length > 0 || !workspaceCatalogError) ? (
         <WorkspaceAccessRefreshControl
+          availableWorkspaceCount={availableWorkspaces.length}
           loading={workspaceCatalogLoading}
           onRefresh={onRetryWorkspaceCatalog}
         />

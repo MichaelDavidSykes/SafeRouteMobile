@@ -512,7 +512,7 @@ export function RouteListScreen({
       {showingOfflineCopy ? (
         <View accessibilityRole="alert" style={styles.offlineNotice}>
           <Text style={styles.offlineNoticeText}>
-            Offline saved copy · route maps and guidance remain available
+            Offline saved copy · reconnect before starting guidance
           </Text>
         </View>
       ) : null}

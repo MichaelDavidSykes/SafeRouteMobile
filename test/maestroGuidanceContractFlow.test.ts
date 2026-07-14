@@ -60,7 +60,7 @@ describe('Maestro cold guidance contract matrix', () => {
     assert.match(runner, /Contract backend port remained bound during the workspace cold relaunch/);
     assert.match(
       runner,
-      /reconnectCatalogCount = requestCount\([\s\S]*'\/api\/v1\/mobile\/safe-route\/routes',[\s\S]*''[\s\S]*Workspace Retry did not issue exactly one fresh unscoped catalog request/,
+      /reconnectUserCount = authorizedRequestCount\('\/api\/v1\/users\/me'\)[\s\S]*reconnectCatalogCount = requestCount\([\s\S]*'\/api\/v1\/mobile\/safe-route\/routes',[\s\S]*''[\s\S]*one fresh principal check and one unscoped catalog request/,
     );
     assert.match(runner, /without resurrecting denied guidance/);
   });

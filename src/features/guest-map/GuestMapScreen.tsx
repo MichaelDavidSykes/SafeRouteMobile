@@ -114,6 +114,7 @@ interface GuestMapScreenProps {
   onWorkspaceChange?: (workspace: SafeRouteWorkspace) => void;
   workspaceCatalogError?: string;
   workspaceCatalogLoading?: boolean;
+  workspaceAuthorizationFresh?: boolean;
   workspaceAccessRefreshAvailable?: boolean;
   workspaceSwitchDisabled?: boolean;
 }
@@ -134,6 +135,7 @@ export function GuestMapScreen({
   onWorkspaceChange,
   workspaceCatalogError = '',
   workspaceCatalogLoading = false,
+  workspaceAuthorizationFresh = false,
   workspaceAccessRefreshAvailable = false,
   workspaceSwitchDisabled = false
 }: GuestMapScreenProps) {
@@ -187,7 +189,13 @@ export function GuestMapScreen({
   const routingClientId = authenticated ? activeWorkspace?.id || null : null;
   const routingClientIdRef = useRef(routingClientId);
   const workspaceSelectionRequired = authenticated && !routingClientId;
-  const routingAccessToken = !workspaceSelectionRequired && accessToken && !isPreviewAccessToken(accessToken)
+  const workspaceAuthorizationRequired =
+    authenticated && Boolean(routingClientId) && !workspaceAuthorizationFresh;
+  const routingAccessToken =
+    !workspaceSelectionRequired &&
+    !workspaceAuthorizationRequired &&
+    accessToken &&
+    !isPreviewAccessToken(accessToken)
     ? accessToken
     : null;
   const origin = routeDraft.origin.label;
@@ -206,7 +214,11 @@ export function GuestMapScreen({
     destination,
     routePlotted
   });
-  const routeActionDisabled = routeAction.disabled || roadPreviewPending || workspaceSelectionRequired;
+  const routeActionDisabled =
+    routeAction.disabled ||
+    roadPreviewPending ||
+    workspaceSelectionRequired ||
+    workspaceAuthorizationRequired;
   const workspaceBlockingActionLabel = workspaceCatalogLoading
     ? 'Loading workspace…'
     : workspaceCatalogError
@@ -218,9 +230,15 @@ export function GuestMapScreen({
     ? 'Finding safest route…'
     : workspaceSelectionRequired
       ? workspaceBlockingActionLabel
+      : workspaceAuthorizationRequired
+        ? workspaceCatalogLoading
+          ? 'Checking workspace…'
+          : 'Reconnect to verify access'
       : routeAction.label;
   const routeActionAccessibilityLabel = workspaceSelectionRequired
     ? workspaceBlockingActionLabel
+    : workspaceAuthorizationRequired
+      ? 'Reconnect to verify workspace access before plotting this route'
     : routeAction.accessibilityLabel;
   const routeActionAccessibilityHint = workspaceSelectionRequired
     ? availableWorkspaces.length
@@ -228,6 +246,8 @@ export function GuestMapScreen({
       : workspaceCatalogError
         ? 'Retry workspace loading before plotting this route.'
         : 'Route planning needs an available SafeRoute workspace.'
+    : workspaceAuthorizationRequired
+      ? 'Retry workspace loading before plotting or starting workspace guidance.'
     : routeAction.accessibilityHint;
   const mapSelectionSetsDestination = shouldUseGuestMapSelectionAsDestination(routeDraft);
   const canAddMapRoutePoint =
@@ -247,7 +267,7 @@ export function GuestMapScreen({
   const viewportRisk = useViewportRiskAreas({
     accessToken: routingAccessToken,
     clientId: routingClientId,
-    enabled: !workspaceSelectionRequired,
+    enabled: !workspaceSelectionRequired && !workspaceAuthorizationRequired,
     onSessionExpired,
     onWorkspaceUnavailable: onWorkspaceUnavailable
       ? (workspaceId) => recoverWorkspaceAccessRef.current(workspaceId)

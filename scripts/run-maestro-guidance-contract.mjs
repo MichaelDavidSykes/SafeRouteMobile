@@ -79,6 +79,7 @@ async function main() {
   );
   runPhase('suspend workspace guidance with backend absent', phases.workspaceOffline);
 
+  const reconnectUserCount = authorizedRequestCount('/api/v1/users/me');
   const reconnectCatalogCount = requestCount(
     '/api/v1/mobile/safe-route/routes',
     ''
@@ -86,8 +87,9 @@ async function main() {
   await startApi(GUIDANCE_CONTRACT_MODES.active);
   runPhase('readmit exact-principal guidance after Retry', phases.workspaceReconnect);
   assertCondition(
-    requestCount('/api/v1/mobile/safe-route/routes', '') === reconnectCatalogCount + 1,
-    'Workspace Retry did not issue exactly one fresh unscoped catalog request.'
+    authorizedRequestCount('/api/v1/users/me') === reconnectUserCount + 1 &&
+      requestCount('/api/v1/mobile/safe-route/routes', '') === reconnectCatalogCount + 1,
+    'Workspace Retry did not issue one fresh principal check and one unscoped catalog request.'
   );
 
   runPhase('persist another principal-A journey', phases.workspaceReseed);

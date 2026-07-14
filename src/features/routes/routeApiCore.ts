@@ -79,6 +79,16 @@ function hasAuthoritativeWorkspaceCatalog(clients: unknown): boolean {
     return false;
   }
 
+  if (!clients.every((client) => {
+    if (!isRoutePayloadObject(client)) {
+      return false;
+    }
+    const id = (client as { id?: unknown }).id;
+    return typeof id === 'string' && Boolean(id.trim());
+  })) {
+    return false;
+  }
+
   const normalizedClients = normalizeMobileClients(clients);
   return normalizedClients.length === clients.length;
 }

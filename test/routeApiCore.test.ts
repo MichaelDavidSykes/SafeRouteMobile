@@ -67,7 +67,10 @@ describe('SafeRoute route API core', () => {
       null,
       'maintenance page',
       { clients: 'malformed', routes: [] },
-      { clients: [{ id: 'client-1' }, null], routes: [] }
+      { clients: [{ id: 'client-1' }, null], routes: [] },
+      { clients: [{ id: 42 }], routes: [] },
+      { clients: [{ id: { value: 'client-1' } }], routes: [] },
+      { clients: [{ id: ['client-1'] }], routes: [] }
     ];
 
     for (const response of responses) {

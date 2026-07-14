@@ -59,7 +59,7 @@ describe("App active workspace integration", () => {
     assert.match(app, /excludeUnavailableWorkspaces\([\s\S]*unavailableWorkspaceIdsRef\.current/);
     assert.match(app, /setAvailableWorkspaces\(recovery\.workspaces\)/);
     assert.match(app, /setActiveWorkspace\(recovery\.activeWorkspace\)/);
-    assert.match(app, /navigationUnavailable[\s\S]*clearActiveNavigationSession/);
+    assert.match(app, /navigationUnavailable[\s\S]*discardPersistedNavigation/);
     assert.match(app, /previewUnavailable[\s\S]*setSelectedRoute\(null\)/);
     assert.match(app, /clearOfflineRouteWorkspace\(principalId, normalizedWorkspaceId\)/);
     assert.match(app, /saveOfflineWorkspaceContext\(principalId, \{[\s\S]*workspaces: recovery\.workspaces/);
@@ -110,10 +110,13 @@ describe("App active workspace integration", () => {
     const routes = routesSource();
 
     assert.match(guest, /workspaceSelectionRequired = authenticated && !routingClientId/);
+    assert.match(guest, /workspaceAuthorizationRequired =[\s\S]*authenticated && Boolean\(routingClientId\) && !workspaceAuthorizationFresh/);
+    assert.match(guest, /routeActionDisabled =[\s\S]*workspaceAuthorizationRequired/);
+    assert.match(guest, /Reconnect to verify workspace access before plotting this route/);
     assert.match(guest, /routeActionAccessibilityLabel = workspaceSelectionRequired/);
     assert.match(guest, /Choose the SafeRoute workspace above before plotting this route/);
     assert.match(guest, /routeMessage \|\| sessionNotice \|\| locationErrorMessage/);
-    assert.match(guest, /enabled: !workspaceSelectionRequired/);
+    assert.match(guest, /enabled: !workspaceSelectionRequired && !workspaceAuthorizationRequired/);
     assert.match(guest, /cancelRoadRouteUpgrade\(\)[\s\S]*activeRiskAreaRequestRef\.current\?\.abort\(\)[\s\S]*setRoutePlan\(null\)/);
     assert.doesNotMatch(guest, /result\.clients\[0\]/);
     assert.match(routes, /selectedClientId = activeWorkspace\?\.id \|\| null/);
@@ -128,6 +131,7 @@ describe("App active workspace integration", () => {
     assert.match(routes, /workspaceCatalogLoading/);
     assert.match(routes, /Workspaces unavailable/);
     assert.match(routes, /Choose workspace/);
+    assert.match(routes, /Offline saved copy · reconnect before starting guidance/);
     assert.match(routes, /No workspace access/);
     assert.doesNotMatch(routes, /setClients\(result\.clients\)/);
     assert.doesNotMatch(operationsSource(), /clients\[0\]|resolveOperationsClientId/);
@@ -141,6 +145,76 @@ describe("App active workspace integration", () => {
     assert.match(app, /workspaceSwitchDisabled=\{navigationWorkspaceLocked\}/);
   });
 
+  it("does not open a replacement route until prior guidance cleanup succeeds", () => {
+    const app = appSource();
+    const guestOpen = app.slice(
+      app.indexOf("const openRoutePreview ="),
+      app.indexOf("const handleSelectSavedRoute ="),
+    );
+    const savedOpen = app.slice(
+      app.indexOf("const handleSelectSavedRoute ="),
+      app.indexOf("const returnFromRoutePreview ="),
+    );
+
+    for (const routeOpen of [guestOpen, savedOpen]) {
+      assert.match(
+        routeOpen,
+        /pendingNavigationRestoreRef\.current\)[\s\S]*discardPersistedNavigation\([\s\S]*return;/,
+      );
+      assert.match(
+        routeOpen,
+        /activeNavigationSession[\s\S]*route\.id !== routePlan\.route\.id[\s\S]*discardPersistedNavigation\([\s\S]*return;/,
+      );
+      const cleanupIndex = routeOpen.indexOf("void discardPersistedNavigation(");
+      const publishIndex = routeOpen.indexOf("setSelectedRoute(routePlan)");
+      assert.ok(cleanupIndex >= 0);
+      assert.ok(publishIndex > cleanupIndex);
+    }
+  });
+
+  it("keeps cached workspaces browse-only until a fresh catalog authorizes guidance", () => {
+    const app = appSource();
+    const guest = guestSource();
+    const cachedCatalogIndex = app.indexOf('if (cachedCatalog.length)');
+    const freshRequestIndex = app.indexOf('const result = await fetchSavedRoutes(accessToken)');
+    const freshAuthorizationIndex = app.indexOf(
+      'freshWorkspaceAuthorizationRef.current = {',
+      freshRequestIndex,
+    );
+
+    assert.ok(cachedCatalogIndex >= 0);
+    assert.ok(freshRequestIndex > cachedCatalogIndex);
+    assert.ok(freshAuthorizationIndex > freshRequestIndex);
+    assert.doesNotMatch(
+      app.slice(cachedCatalogIndex, freshRequestIndex),
+      /freshWorkspaceAuthorizationRef\.current/,
+    );
+    assert.match(
+      app.slice(freshAuthorizationIndex, freshAuthorizationIndex + 220),
+      /principalId[\s\S]*new Set\(catalog\.map\(\(workspace\) => workspace\.id\)\)/,
+    );
+    assert.match(
+      app,
+      /openRoutePreview[\s\S]*!freshWorkspaceAuthorizationRef\.current\.workspaceIds\.has\(routeWorkspaceId\)[\s\S]*Reconnect and refresh workspace access before starting guidance/,
+    );
+    assert.match(
+      app,
+      /handleSelectSavedRoute[\s\S]*!freshWorkspaceAuthorizationRef\.current\.workspaceIds\.has\(routePlan\.clientId\)[\s\S]*Reconnect and refresh workspace access before starting guidance/,
+    );
+    assert.match(
+      app,
+      /<GuestMapScreen[\s\S]*workspaceAuthorizationFresh=\{activeWorkspaceAuthorizationFresh\}/,
+    );
+    assert.match(
+      guest,
+      /workspaceAuthorizationRequired =[\s\S]*!workspaceAuthorizationFresh[\s\S]*routeActionDisabled =[\s\S]*workspaceAuthorizationRequired/,
+    );
+    assert.match(
+      app,
+      /const workspaceContextPersistence = saveOfflineWorkspaceContext\([\s\S]*\)\.catch\(\(\) => undefined\)/,
+    );
+  });
+
   it("defers persisted workspace guidance until the fresh catalog authorizes it", () => {
     const app = appSource();
     const guest = guestSource();
@@ -152,9 +226,22 @@ describe("App active workspace integration", () => {
     assert.match(app, /persistedNavigation\?\.accessScope\.kind === 'workspace'[\s\S]*stagePendingNavigationRestore\(persistedNavigation\)/);
     assert.match(app, /hasMatchingAuthPrincipal\([\s\S]*persistedNavigation\.accessScope\.principalId/);
     assert.match(app, /stagePendingNavigationRestore\(persistedNavigation\);[\s\S]*stopBackgroundNavigation\(\)/);
+    assert.match(
+      app,
+      /getCurrentUser\(accessToken\)[\s\S]*currentPrincipalId !== principalId[\s\S]*Workspace access belongs to another signed-in account[\s\S]*currentPrincipalId !== pendingNavigationForAuthorization\.accessScope\.principalId[\s\S]*Active guidance belongs to another signed-in account/,
+    );
+    const principalRevalidationIndex = app.indexOf(
+      'const currentUser = await getCurrentUser(accessToken)',
+    );
+    const catalogRequestIndex = app.indexOf(
+      'const result = await fetchSavedRoutes(accessToken)',
+      principalRevalidationIndex,
+    );
+    assert.ok(principalRevalidationIndex >= 0);
+    assert.ok(catalogRequestIndex > principalRevalidationIndex);
     assert.match(app, /fetchSavedRoutes\(accessToken\)[\s\S]*pendingNavigationWorkspace = findWorkspace\([\s\S]*openActiveNavigationSession\([\s\S]*pendingNavigation,[\s\S]*true,[\s\S]*resolvedWorkspace\?\.id/);
     assert.match(app, /pendingNavigation && !pendingNavigationWorkspace[\s\S]*discardPersistedNavigation\([\s\S]*Plot the route again/);
-    assert.match(app, /discardPersistedNavigation[\s\S]*stopBackgroundNavigation\(\)[\s\S]*clearActiveNavigationSession\(\)/);
+    assert.match(app, /performPersistedNavigationCleanup[\s\S]*stopBackgroundNavigation\(\)[\s\S]*clearActiveNavigationSession\(\)/);
     assert.match(app, /navigationCleanupRequiredRef = useRef\(false\)/);
     assert.match(app, /performPersistedNavigationCleanup[\s\S]*cleanup\[1\]\.value === true/);
     assert.match(app, /navigationCleanupRequiredRef\.current = !durableClearSucceeded/);

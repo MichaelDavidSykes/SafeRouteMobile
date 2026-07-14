@@ -558,7 +558,10 @@ describe("rounded visual language", () => {
 
     assert.match(guestMapSource, /fetchSafeRouteRoadRoutePreview/);
     assert.match(guestMapSource, /roadRoutePreviewFetcher \|\|/);
-    assert.match(guestMapSource, /routingAccessToken = !workspaceSelectionRequired && accessToken && !isPreviewAccessToken\(accessToken\)/);
+    assert.match(
+      guestMapSource,
+      /routingAccessToken =[\s\S]*!workspaceSelectionRequired &&[\s\S]*!workspaceAuthorizationRequired &&[\s\S]*!isPreviewAccessToken\(accessToken\)/,
+    );
     assert.match(guestMapSource, /accessToken:\s*routingAccessToken/);
     assert.match(guestMapSource, /setRoutePlan\(null\)/);
     assert.match(guestMapSource, /upgradeGuestRouteWithRoadPreview\(localRoutePlan\)/);

@@ -121,6 +121,10 @@ export default function App() {
   const activeWorkspaceRef = useRef<SafeRouteWorkspace | null>(null);
   const availableWorkspacesRef = useRef<SafeRouteWorkspace[]>([]);
   const unavailableWorkspaceIdsRef = useRef(new Set<string>());
+  const freshWorkspaceAuthorizationRef = useRef({
+    principalId: '',
+    workspaceIds: new Set<string>(),
+  });
   const restoreUnavailableWorkspacesFromFreshCatalogRef = useRef(false);
   const pendingNavigationRestoreRef = useRef<ActiveNavigationSession | null>(null);
   const activeNavigationSessionRef = useRef<ActiveNavigationSession | null>(
@@ -132,6 +136,16 @@ export default function App() {
   const navigationCleanupPromiseRef = useRef<Promise<boolean> | null>(null);
   const authenticated = hasAuthenticatedSession(session);
   const sessionPrincipalId = getAuthSessionPrincipalId(session);
+  if (freshWorkspaceAuthorizationRef.current.principalId !== sessionPrincipalId) {
+    freshWorkspaceAuthorizationRef.current = {
+      principalId: sessionPrincipalId,
+      workspaceIds: new Set<string>(),
+    };
+  }
+  const activeWorkspaceAuthorizationFresh = Boolean(
+    activeWorkspace &&
+    freshWorkspaceAuthorizationRef.current.workspaceIds.has(activeWorkspace.id),
+  );
   const workspaceAccessRefreshAvailable =
     unavailableWorkspaceIdsRef.current.size > 0 ||
     (authenticated &&
@@ -599,6 +613,10 @@ export default function App() {
 
     if (!accessToken || !authenticated) {
       restoreUnavailableWorkspacesFromFreshCatalogRef.current = false;
+      freshWorkspaceAuthorizationRef.current = {
+        principalId: '',
+        workspaceIds: new Set<string>(),
+      };
       setAvailableWorkspaces([]);
       activeWorkspaceRef.current = null;
       setActiveWorkspace(null);
@@ -672,6 +690,35 @@ export default function App() {
       }
 
       try {
+        const pendingNavigationForAuthorization = pendingNavigationRestoreRef.current;
+        let currentPrincipalId = principalId;
+        if (!isPreviewAccessToken(accessToken)) {
+          const currentUser = await getCurrentUser(accessToken);
+          if (!requestIsCurrent()) {
+            return;
+          }
+          currentPrincipalId = String(currentUser.id || '').trim();
+          if (currentPrincipalId !== principalId) {
+            await handleSessionExpired(
+              'Workspace access belongs to another signed-in account. Sign in again.',
+              accessToken,
+              sessionEpochRef.current,
+            );
+            return;
+          }
+        }
+        if (
+          pendingNavigationForAuthorization?.accessScope.kind === 'workspace' &&
+          currentPrincipalId !== pendingNavigationForAuthorization.accessScope.principalId
+        ) {
+          await handleSessionExpired(
+            'Active guidance belongs to another signed-in account. Sign in and plot the route again.',
+            accessToken,
+            sessionEpochRef.current,
+          );
+          return;
+        }
+
         const result = await fetchSavedRoutes(accessToken);
         if (!requestIsCurrent()) {
           return;
@@ -712,6 +759,10 @@ export default function App() {
           normalizedCatalog,
           unavailableWorkspaceIds,
         );
+        freshWorkspaceAuthorizationRef.current = {
+          principalId,
+          workspaceIds: new Set(catalog.map((workspace) => workspace.id)),
+        };
         const pendingNavigationWorkspaceId =
           pendingNavigation?.accessScope.kind === 'workspace'
             ? pendingNavigation.accessScope.clientId
@@ -775,7 +826,7 @@ export default function App() {
           activeWorkspaceId: resolvedWorkspace?.id || null,
           unavailableWorkspaceIds: Array.from(unavailableWorkspaceIds),
           workspaces: catalog,
-        });
+        }).catch(() => undefined);
         const routeCacheCleanup = authoritativelyUnavailableWorkspaceIds.length
           ? Promise.allSettled(
             authoritativelyUnavailableWorkspaceIds.map((workspaceId) =>
@@ -916,6 +967,7 @@ export default function App() {
     const unavailableWorkspace = activeWorkspaceRef.current;
     restoreUnavailableWorkspacesFromFreshCatalogRef.current = false;
     unavailableWorkspaceIdsRef.current.add(normalizedWorkspaceId);
+    freshWorkspaceAuthorizationRef.current.workspaceIds.delete(normalizedWorkspaceId);
     workspaceRequestRevisionRef.current += 1;
     availableWorkspacesRef.current = recovery.workspaces;
     setAvailableWorkspaces(recovery.workspaces);
@@ -1055,16 +1107,27 @@ export default function App() {
       setSessionMessage('The active workspace changed. Plot the route again.');
       return;
     }
+    if (
+      authenticated &&
+      !freshWorkspaceAuthorizationRef.current.workspaceIds.has(routeWorkspaceId)
+    ) {
+      setSessionMessage('Reconnect and refresh workspace access before starting guidance.');
+      return;
+    }
     if (pendingNavigationRestoreRef.current) {
-      discardPersistedNavigation();
+      void discardPersistedNavigation(
+        'Saved guidance removed. Select the new route again.',
+      );
+      return;
     }
     if (
       activeNavigationSession &&
       activeNavigationSession.routePlan.route.id !== routePlan.route.id
     ) {
-      handleNavigationSessionChange(null);
-      void stopBackgroundNavigation();
-      void clearActiveNavigationSession();
+      void discardPersistedNavigation(
+        'Current guidance ended. Select the new route again.',
+      );
+      return;
     }
     selectedRouteRef.current = routePlan;
     setSelectedRoute(routePlan);
@@ -1081,16 +1144,24 @@ export default function App() {
       setSessionMessage('The active workspace changed. Choose the saved route again.');
       return;
     }
+    if (!freshWorkspaceAuthorizationRef.current.workspaceIds.has(routePlan.clientId)) {
+      setSessionMessage('Reconnect and refresh workspace access before starting guidance.');
+      return;
+    }
     if (pendingNavigationRestoreRef.current) {
-      discardPersistedNavigation();
+      void discardPersistedNavigation(
+        'Saved guidance removed. Choose the new route again.',
+      );
+      return;
     }
     if (
       activeNavigationSession &&
       activeNavigationSession.routePlan.route.id !== routePlan.route.id
     ) {
-      handleNavigationSessionChange(null);
-      void stopBackgroundNavigation();
-      void clearActiveNavigationSession();
+      void discardPersistedNavigation(
+        'Current guidance ended. Choose the new route again.',
+      );
+      return;
     }
     selectedRouteRef.current = routePlan;
     setSelectedRoute(routePlan);
@@ -1230,6 +1301,7 @@ export default function App() {
             onWorkspaceChange={handleActiveWorkspaceChange}
             workspaceCatalogError={workspaceCatalogError}
             workspaceCatalogLoading={workspaceCatalogLoading}
+            workspaceAuthorizationFresh={activeWorkspaceAuthorizationFresh}
             workspaceAccessRefreshAvailable={workspaceAccessRefreshAvailable}
             workspaceSwitchDisabled={navigationWorkspaceLocked}
           />

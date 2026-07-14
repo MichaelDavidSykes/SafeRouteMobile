@@ -215,6 +215,51 @@ describe("App active workspace integration", () => {
     );
   });
 
+  it("revalidates the current principal and catalog immediately before workspace guidance starts", () => {
+    const app = appSource();
+    const liveMap = readFileSync("src/features/live-map/LiveMapScreen.tsx", "utf8");
+
+    assert.match(
+      app,
+      /handleAuthorizeNavigationStart[\s\S]*authorizeWorkspaceNavigationStart\([\s\S]*getCurrentUser\(accessToken\)[\s\S]*fetchSavedRoutes\(accessToken\)/,
+    );
+    assert.match(
+      app,
+      /routePreviewRevisionRef[\s\S]*lastRenderedSelectedRouteRef[\s\S]*routePreviewRevisionRef\.current \+= 1/,
+    );
+    assert.match(
+      app,
+      /handleAuthorizeNavigationStart[\s\S]*routePlan,[\s\S]*routePreviewRevision: routePreviewRevisionRef\.current[\s\S]*isNavigationStartRequestCurrent\(request/,
+    );
+    assert.match(
+      app,
+      /onAuthorizeNavigationStart=\{handleAuthorizeNavigationStart\}/,
+    );
+    assert.match(
+      app,
+      /handleNavigationSessionChange[\s\S]*freshWorkspaceAuthorizationRef\.current\.workspaceIds\.has\(workspaceId\)/,
+    );
+    const authorizationStart = liveMap.indexOf("const authorizeAndStartNavigation");
+    const authorizationEnd = liveMap.indexOf("const handlePrimaryNavigationAction", authorizationStart);
+    const authorizationFlow = liveMap.slice(authorizationStart, authorizationEnd);
+    assert.match(
+      authorizationFlow,
+      /runNavigationStartAuthorization\([\s\S]*authorize: \(\) => onAuthorizeNavigationStartRef\.current\(routePlan\)[\s\S]*commit: commitNavigationStart[\s\S]*validate: \(\) => navigationStartBlockedReasonRef\.current/,
+    );
+    assert.doesNotMatch(
+      authorizationFlow,
+      /onAuthorizeNavigationStartRef\.current\(liveRoutePlan\)/,
+    );
+    assert.match(
+      liveMap,
+      /activeSessionSnapshotRef\.current =[\s\S]*routePlan: liveRoutePlan/,
+    );
+    assert.match(
+      liveMap,
+      /Checking workspace access before starting guidance/,
+    );
+  });
+
   it("defers persisted workspace guidance until the fresh catalog authorizes it", () => {
     const app = appSource();
     const guest = guestSource();

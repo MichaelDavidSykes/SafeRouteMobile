@@ -60,6 +60,12 @@ interface LocationNoticeOptions extends LocationReadinessOptions {
   errorMessage?: string | null;
 }
 
+interface NavigationStatusNoticeOptions {
+  authorizationNotice?: string | null;
+  authorizationPending: boolean;
+  readinessNotice?: string | null;
+}
+
 interface MapControlAccessibilityOptions {
   active?: boolean;
   disabled?: boolean;
@@ -149,6 +155,21 @@ export function liveLocationNotice({
   return routeStartBlockedReason({ demoDriveActive, hasLiveCoordinate, permissionStatus, routeCoordinateCount });
 }
 
+export function resolveNavigationStatusNotice({
+  authorizationNotice,
+  authorizationPending,
+  readinessNotice
+}: NavigationStatusNoticeOptions): string | null {
+  const normalizedAuthorizationNotice = authorizationNotice?.trim() || null;
+  const normalizedReadinessNotice = readinessNotice?.trim() || null;
+
+  if (authorizationPending) {
+    return normalizedAuthorizationNotice || normalizedReadinessNotice;
+  }
+
+  return normalizedReadinessNotice || normalizedAuthorizationNotice;
+}
+
 export function createLiveLocationNoticePresentation(
   notice: string | null
 ): LiveLocationNoticePresentation | null {
@@ -156,15 +177,26 @@ export function createLiveLocationNoticePresentation(
   if (!trimmedNotice) {
     return null;
   }
+  const workspaceAccessNotice = isWorkspaceAccessNotice(trimmedNotice);
 
   return {
-    accessibilityLabel: `Location status. ${createLiveMapAccessibilitySentence(trimmedNotice)}`,
+    accessibilityLabel: `${workspaceAccessNotice ? 'Access' : 'Location'} status. ${createLiveMapAccessibilitySentence(trimmedNotice)}`,
     displayText: liveLocationNoticeDisplayText(trimmedNotice)
   };
 }
 
 function liveLocationNoticeDisplayText(notice: string): string {
   const normalized = notice.toLowerCase();
+
+  if (isWorkspaceAccessNotice(normalized)) {
+    if (normalized.includes('checking')) {
+      return 'Checking access';
+    }
+    if (normalized.includes('reconnect') || normalized.includes('verified')) {
+      return 'Retry access';
+    }
+    return 'Access unavailable';
+  }
 
   if (normalized.includes('geometry') || normalized.includes('re-sync')) {
     return 'Re-sync route';
@@ -192,6 +224,14 @@ function liveLocationNoticeDisplayText(notice: string): string {
   }
 
   return 'Location unavailable';
+}
+
+function isWorkspaceAccessNotice(notice: string): boolean {
+  const normalized = notice.toLowerCase();
+  return (
+    normalized.includes('workspace access') ||
+    normalized.includes('access could not be verified')
+  );
 }
 
 function routeGeometryBlockedReason(routeCoordinateCount?: number): string | null {
@@ -329,7 +369,8 @@ export function mapControlAccessibility(
 
 export function primaryRouteActionAccessibility(
   state: NavigationLifecycle,
-  disabledReason?: string | null
+  disabledReason?: string | null,
+  actionStatusReason?: string | null
 ): ControlAccessibilityCopy {
   const normalizedDisabledReason = normalizeRouteActionDisabledReason(disabledReason);
   if (normalizedDisabledReason) {
@@ -337,6 +378,20 @@ export function primaryRouteActionAccessibility(
       label: `Start route. ${normalizedDisabledReason}`,
       hint: normalizedDisabledReason,
       state: { disabled: true }
+    };
+  }
+
+  const normalizedActionStatusReason = actionStatusReason?.trim().replace(/\s+/g, ' ');
+  if (
+    normalizedActionStatusReason &&
+    isWorkspaceAccessNotice(normalizedActionStatusReason) &&
+    (normalizedActionStatusReason.toLowerCase().includes('reconnect') ||
+      normalizedActionStatusReason.toLowerCase().includes('verified'))
+  ) {
+    return {
+      label: 'Retry workspace access',
+      hint: 'Checks workspace access again before starting route guidance.',
+      state: { disabled: false }
     };
   }
 

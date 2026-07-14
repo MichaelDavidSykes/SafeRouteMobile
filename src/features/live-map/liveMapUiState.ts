@@ -4,7 +4,7 @@ export type NavigationLifecycle = 'loaded' | 'navigating' | 'paused' | 'off-rout
 
 export type RouteStatusTone = 'demo' | 'live' | 'danger';
 
-export const DEFAULT_ROUTE_INTELLIGENCE_VISIBLE = false;
+export const DEFAULT_ROUTE_INTELLIGENCE_VISIBLE = true;
 
 export interface RouteStatusPillPresentation {
   accessibilityLabel: string;

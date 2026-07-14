@@ -15,7 +15,10 @@ import { join } from 'node:path';
 import {
   GUIDANCE_CONTRACT_API_PORT,
   GUIDANCE_CONTRACT_MODES,
-  assertGuidanceContractRequestJournal
+  GUIDANCE_START_BOUNDARY_PATH,
+  assertGuidanceContractRequestJournal,
+  assertGuidanceStartTrafficBoundary,
+  isGuidanceStartProtectedTraffic
 } from './maestro-guidance-contract-api.mjs';
 import {
   assertGuidanceSourceCheckoutClean,
@@ -31,14 +34,23 @@ const requestLogFile = join(tempDirectory, 'requests.jsonl');
 const serverLogFile = join(tempDirectory, 'server.log');
 const serverLogFd = openSync(serverLogFile, 'a');
 let apiProcess = null;
+const completedStartBoundaries = [];
 
 const phases = {
   reset: 'maestro/ios-guidance-contract-reset.yaml',
-  publicSeed: 'maestro/ios-guidance-contract-public-seed.yaml',
+  publicPrepare: 'maestro/ios-guidance-contract-public-prepare.yaml',
+  publicStart: 'maestro/ios-guidance-contract-public-seed.yaml',
+  publicStartOutcome: 'maestro/ios-guidance-contract-public-start-outcome.yaml',
   publicResume: 'maestro/ios-guidance-contract-public-resume.yaml',
-  workspaceSeed: 'maestro/ios-guidance-contract-workspace-seed.yaml',
+  workspacePrepare: 'maestro/ios-guidance-contract-workspace-prepare.yaml',
+  workspaceStart: 'maestro/ios-guidance-contract-workspace-seed.yaml',
+  workspaceStartOutcome: 'maestro/ios-guidance-contract-workspace-start-outcome.yaml',
   workspaceOffline: 'maestro/ios-guidance-contract-workspace-offline.yaml',
   workspaceReconnect: 'maestro/ios-guidance-contract-workspace-reconnect.yaml',
+  wrongPrincipalStart: 'maestro/ios-guidance-contract-wrong-principal-start.yaml',
+  wrongPrincipalStartOutcome: 'maestro/ios-guidance-contract-wrong-principal-start-outcome.yaml',
+  deniedStart: 'maestro/ios-guidance-contract-denied-start.yaml',
+  deniedStartOutcome: 'maestro/ios-guidance-contract-denied-start-outcome.yaml',
   workspaceReseed: 'maestro/ios-guidance-contract-workspace-reseed.yaml',
   wrongPrincipal: 'maestro/ios-guidance-contract-wrong-principal.yaml',
   wrongPrincipalRelaunch: 'maestro/ios-guidance-contract-wrong-principal-relaunch.yaml',
@@ -49,11 +61,18 @@ const phases = {
 
 const expectedModeByPhase = Object.freeze({
   reset: GUIDANCE_CONTRACT_MODES.active,
-  publicSeed: GUIDANCE_CONTRACT_MODES.active,
+  publicPrepare: GUIDANCE_CONTRACT_MODES.active,
+  publicStart: GUIDANCE_CONTRACT_MODES.active,
   publicResume: GUIDANCE_CONTRACT_MODES.offline,
-  workspaceSeed: GUIDANCE_CONTRACT_MODES.active,
+  workspacePrepare: GUIDANCE_CONTRACT_MODES.active,
+  workspaceStart: GUIDANCE_CONTRACT_MODES.active,
   workspaceOffline: GUIDANCE_CONTRACT_MODES.offline,
   workspaceReconnect: GUIDANCE_CONTRACT_MODES.active,
+  wrongPrincipalPrepare: GUIDANCE_CONTRACT_MODES.active,
+  wrongPrincipalStart: GUIDANCE_CONTRACT_MODES.wrongPrincipal,
+  deniedPrepare: GUIDANCE_CONTRACT_MODES.active,
+  deniedStart: GUIDANCE_CONTRACT_MODES.denied,
+  workspaceReseedPrepare: GUIDANCE_CONTRACT_MODES.active,
   workspaceReseed: GUIDANCE_CONTRACT_MODES.active,
   wrongPrincipal: GUIDANCE_CONTRACT_MODES.wrongPrincipal,
   wrongPrincipalRelaunch: GUIDANCE_CONTRACT_MODES.wrongPrincipal,
@@ -88,7 +107,16 @@ async function main() {
   await startApi('reset');
   runPhase('reset', 'reset to a signed-out map', phases.reset);
   const publicPreviewCount = requestCount('/api/v1/mobile/safe-route/route-preview');
-  runPhase('publicSeed', 'create signed-out public guidance', phases.publicSeed);
+  runPhase('publicPrepare', 'prepare signed-out public guidance', phases.publicPrepare);
+  await runStartBoundary({
+    boundary: 'public-start',
+    expectedPaths: [],
+    file: phases.publicStart,
+    label: 'start signed-out public guidance',
+    openPhase: 'publicPrepare',
+    outcomeFile: phases.publicStartOutcome,
+    phase: 'publicStart'
+  });
   assertCondition(
     requestCount('/api/v1/mobile/safe-route/route-preview') > publicPreviewCount,
     'Public guidance did not exercise the contract route-preview endpoint.'
@@ -105,7 +133,7 @@ async function main() {
     phases.publicResume
   );
 
-  await startApi('workspaceSeed');
+  await startApi('workspacePrepare');
   const protectedTrafficBaseline = {
     user: authorizedRequestCount('/api/v1/users/me'),
     catalog: authorizedRequestCount('/api/v1/mobile/safe-route/routes'),
@@ -113,11 +141,19 @@ async function main() {
       '/api/v1/mobile/safe-route/routes/guidance-contract-route'
     )
   };
-  runPhase(
-    'workspaceSeed',
-    'create principal-A workspace guidance',
-    phases.workspaceSeed
-  );
+  runPhase('workspacePrepare', 'prepare principal-A workspace guidance', phases.workspacePrepare);
+  await runStartBoundary({
+    boundary: 'active-workspace-start',
+    expectedPaths: [
+      '/api/v1/users/me',
+      '/api/v1/mobile/safe-route/routes'
+    ],
+    file: phases.workspaceStart,
+    label: 'start principal-A workspace guidance',
+    openPhase: 'workspacePrepare',
+    outcomeFile: phases.workspaceStartOutcome,
+    phase: 'workspaceStart'
+  });
   assertProtectedContractTraffic(protectedTrafficBaseline);
 
   await stopApi();
@@ -148,6 +184,44 @@ async function main() {
     'Workspace Retry did not issue one fresh principal check and one unscoped catalog request.'
   );
 
+  runPhase(
+    'wrongPrincipalPrepare',
+    'prepare a fresh Start for principal A',
+    phases.workspacePrepare
+  );
+  await runStartBoundary({
+    boundary: 'wrong-principal-start',
+    expectedPaths: ['/api/v1/users/me'],
+    file: phases.wrongPrincipalStart,
+    label: 'reject a fresh Start from a different stable principal',
+    openPhase: 'wrongPrincipalPrepare',
+    outcomeFile: phases.wrongPrincipalStartOutcome,
+    phase: 'wrongPrincipalStart'
+  });
+
+  runPhase(
+    'deniedPrepare',
+    'prepare a fresh Start before workspace denial',
+    phases.workspacePrepare
+  );
+  await runStartBoundary({
+    boundary: 'denied-workspace-start',
+    expectedPaths: [
+      '/api/v1/users/me',
+      '/api/v1/mobile/safe-route/routes'
+    ],
+    file: phases.deniedStart,
+    label: 'reject a fresh Start after workspace membership loss',
+    openPhase: 'deniedPrepare',
+    outcomeFile: phases.deniedStartOutcome,
+    phase: 'deniedStart'
+  });
+
+  runPhase(
+    'workspaceReseedPrepare',
+    'prepare another principal-A journey',
+    phases.workspacePrepare
+  );
   runPhase(
     'workspaceReseed',
     'persist another principal-A journey',
@@ -245,6 +319,37 @@ function setControl(phase) {
 
 function runPhase(phase, label, file) {
   setControl(phase);
+  runMaestroPhase(phase, label, file);
+}
+
+async function runStartBoundary({
+  boundary,
+  expectedPaths,
+  file,
+  label,
+  openPhase,
+  outcomeFile,
+  phase
+}) {
+  await waitForStartAuthorizationTrafficQuiet();
+  await writeStartBoundaryMarker(boundary, 'open');
+  setControl(phase);
+  runMaestroPhase(phase, label, file);
+  await waitForExpectedStartTraffic(boundary, expectedPaths);
+  runMaestroPhase(phase, `${label} outcome`, outcomeFile);
+  await waitForStartAuthorizationTrafficQuiet();
+  await writeStartBoundaryMarker(boundary, 'close');
+  await assertStartAuthorizationTrafficRemainsQuiet();
+  assertGuidanceStartTrafficBoundary(readRequestJournal(), {
+    boundary,
+    expectedPaths,
+    openPhase,
+    phase
+  });
+  completedStartBoundaries.push({ boundary, expectedPaths, openPhase, phase });
+}
+
+function runMaestroPhase(phase, label, file) {
   process.stdout.write(`\n[guidance-contract] ${phase}: ${label}\n`);
   const result = spawnSync(process.execPath, ['scripts/run-maestro.mjs', 'test', file], {
     cwd: process.cwd(),
@@ -254,6 +359,91 @@ function runPhase(phase, label, file) {
   if (result.status !== 0) {
     throw new Error(`Maestro phase failed (${result.status ?? 'signal'}): ${label}`);
   }
+}
+
+async function writeStartBoundaryMarker(boundary, edge) {
+  const search = new URLSearchParams({ boundary, edge });
+  const response = await fetch(
+    `http://127.0.0.1:${GUIDANCE_CONTRACT_API_PORT}${GUIDANCE_START_BOUNDARY_PATH}?${search}`,
+    { method: 'POST' }
+  );
+  if (!response.ok) {
+    throw new Error(
+      `Guidance Start boundary marker ${boundary}/${edge} failed with ${response.status}.`
+    );
+  }
+}
+
+async function waitForStartAuthorizationTrafficQuiet() {
+  const deadline = Date.now() + 5000;
+  let fingerprint = startAuthorizationTrafficFingerprint();
+  let quietSince = Date.now();
+  while (Date.now() < deadline) {
+    await new Promise((resolve) => setTimeout(resolve, 100));
+    const nextFingerprint = startAuthorizationTrafficFingerprint();
+    if (nextFingerprint !== fingerprint) {
+      fingerprint = nextFingerprint;
+      quietSince = Date.now();
+      continue;
+    }
+    if (Date.now() - quietSince >= 500) {
+      return;
+    }
+  }
+  throw new Error('Guidance Start authorization traffic did not become quiet within five seconds.');
+}
+
+async function assertStartAuthorizationTrafficRemainsQuiet() {
+  const fingerprint = startAuthorizationTrafficFingerprint();
+  const deadline = Date.now() + 1000;
+  while (Date.now() < deadline) {
+    await new Promise((resolve) => setTimeout(resolve, 100));
+    if (startAuthorizationTrafficFingerprint() !== fingerprint) {
+      throw new Error('Guidance Start authorization traffic escaped its closed boundary.');
+    }
+  }
+}
+
+async function waitForExpectedStartTraffic(boundary, expectedPaths) {
+  if (expectedPaths.length === 0) {
+    await new Promise((resolve) => setTimeout(resolve, 250));
+    return;
+  }
+  const deadline = Date.now() + 5000;
+  while (Date.now() < deadline) {
+    const entries = readRequestJournal();
+    const open = entries.find((entry) => {
+      if (entry.path !== GUIDANCE_START_BOUNDARY_PATH) {
+        return false;
+      }
+      const parameters = new URLSearchParams(entry.search);
+      return (
+        parameters.get('boundary') === boundary &&
+        parameters.get('edge') === 'open'
+      );
+    });
+    if (open) {
+      const protectedCount = entries.filter(
+        (entry) =>
+          entry.sequence > open.sequence &&
+          isGuidanceStartProtectedTraffic(entry)
+      ).length;
+      if (protectedCount >= expectedPaths.length) {
+        return;
+      }
+    }
+    await new Promise((resolve) => setTimeout(resolve, 10));
+  }
+  throw new Error(
+    `Guidance Start boundary ${boundary} did not record its expected authorization traffic within five seconds.`
+  );
+}
+
+function startAuthorizationTrafficFingerprint() {
+  return readRequestJournal()
+    .filter(isGuidanceStartProtectedTraffic)
+    .map((entry) => entry.sequence)
+    .join(',');
 }
 
 function readRequestJournal() {
@@ -268,10 +458,14 @@ function readRequestJournal() {
 }
 
 function assertRequestJournalIntegrity() {
-  assertGuidanceContractRequestJournal(readRequestJournal(), {
+  const entries = readRequestJournal();
+  assertGuidanceContractRequestJournal(entries, {
     expectedModeByPhase,
     requiredPhases: ['wrongPrincipal', 'denied']
   });
+  for (const boundary of completedStartBoundaries) {
+    assertGuidanceStartTrafficBoundary(entries, boundary);
+  }
 }
 
 function requestCount(path, search) {

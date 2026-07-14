@@ -11,7 +11,11 @@ import {
   findAuthoritativelyUnavailableWorkspaceIds,
   getRequestUnavailableWorkspaceId,
   isWorkspaceForbiddenError,
+  isWorkspaceIdUnavailable,
   isWorkspaceUnavailableError,
+  reconcileFreshWorkspaceCatalog,
+  resolveFreshWorkspaceAccessRecovery,
+  resolveWorkspaceSurfaceClosure,
   resolveWorkspaceAccessRecovery,
 } from "../src/features/workspaces/workspaceAccessRecovery";
 
@@ -149,6 +153,26 @@ describe("workspace access recovery", () => {
     );
   });
 
+  it("matches route-bound surfaces against every normalized unavailable workspace", () => {
+    assert.equal(
+      isWorkspaceIdUnavailable(" workspace-b ", ["workspace-a", " workspace-b "]),
+      true,
+    );
+    assert.equal(
+      isWorkspaceIdUnavailable("workspace-c", ["workspace-a", "workspace-b"]),
+      false,
+    );
+    assert.equal(isWorkspaceIdUnavailable("", ["workspace-a"]), false);
+    assert.deepEqual(
+      resolveWorkspaceSurfaceClosure({
+        navigationWorkspaceId: "route-only",
+        previewWorkspaceId: "workspace-b",
+        unavailableWorkspaceIds: ["workspace-a", "workspace-b", "route-only"],
+      }),
+      { navigationUnavailable: true, previewUnavailable: true },
+    );
+  });
+
   it("detects cached and route-bound workspaces omitted by a fresh authoritative catalog", () => {
     assert.deepEqual(
       findAuthoritativelyUnavailableWorkspaceIds({
@@ -157,6 +181,90 @@ describe("workspace access recovery", () => {
         knownWorkspaces: WORKSPACES.slice(0, 2),
       }),
       ["workspace-b", "workspace-c", "route-only"],
+    );
+  });
+
+  it("keeps prior tombstones out of a fresh denied-Start survivor catalog", () => {
+    assert.deepEqual(
+      resolveFreshWorkspaceAccessRecovery({
+        activeWorkspaceId: "workspace-a",
+        freshWorkspaces: [WORKSPACES[1], WORKSPACES[2]],
+        knownWorkspaces: WORKSPACES,
+        unavailableWorkspaceId: "workspace-a",
+        unavailableWorkspaceIds: ["workspace-b"],
+      }),
+      {
+        activeWorkspace: WORKSPACES[2],
+        newlyUnavailableWorkspaceIds: ["workspace-a"],
+        status: "recovered",
+        unavailableWorkspaceIds: new Set(["workspace-b", "workspace-a"]),
+        workspaces: [WORKSPACES[2]],
+      },
+    );
+  });
+
+  it("keeps an explicit request denial authoritative over a stale fresh catalog", () => {
+    assert.deepEqual(
+      resolveFreshWorkspaceAccessRecovery({
+        activeWorkspaceId: "workspace-a",
+        freshWorkspaces: WORKSPACES,
+        knownWorkspaces: WORKSPACES,
+        unavailableWorkspaceId: "workspace-a",
+        unavailableWorkspaceIds: [],
+      }),
+      {
+        activeWorkspace: null,
+        newlyUnavailableWorkspaceIds: ["workspace-a"],
+        status: "recovered",
+        unavailableWorkspaceIds: new Set(["workspace-a"]),
+        workspaces: [WORKSPACES[1], WORKSPACES[2]],
+      },
+    );
+  });
+
+  it("tombstones every known and route-bound workspace omitted by one fresh catalog", () => {
+    assert.deepEqual(
+      resolveFreshWorkspaceAccessRecovery({
+        activeWorkspaceId: "workspace-a",
+        candidateWorkspaceIds: ["route-only"],
+        freshWorkspaces: [WORKSPACES[2]],
+        knownWorkspaces: WORKSPACES,
+        unavailableWorkspaceId: "workspace-a",
+        unavailableWorkspaceIds: [],
+      }),
+      {
+        activeWorkspace: WORKSPACES[2],
+        newlyUnavailableWorkspaceIds: [
+          "workspace-a",
+          "workspace-b",
+          "route-only",
+        ],
+        status: "recovered",
+        unavailableWorkspaceIds: new Set([
+          "workspace-a",
+          "workspace-b",
+          "route-only",
+        ]),
+        workspaces: [WORKSPACES[2]],
+      },
+    );
+  });
+
+  it("reconciles omissions even when the authorized target workspace remains available", () => {
+    assert.deepEqual(
+      reconcileFreshWorkspaceCatalog({
+        activeWorkspaceId: "workspace-a",
+        candidateWorkspaceIds: ["workspace-a", "workspace-b"],
+        freshWorkspaces: [WORKSPACES[0], WORKSPACES[2]],
+        knownWorkspaces: WORKSPACES,
+        unavailableWorkspaceIds: [],
+      }),
+      {
+        activeWorkspace: WORKSPACES[0],
+        newlyUnavailableWorkspaceIds: ["workspace-b"],
+        unavailableWorkspaceIds: new Set(["workspace-b"]),
+        workspaces: [WORKSPACES[0], WORKSPACES[2]],
+      },
     );
   });
 });

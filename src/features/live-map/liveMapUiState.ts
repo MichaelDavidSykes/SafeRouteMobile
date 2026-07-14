@@ -1,10 +1,14 @@
+import type { LatLng } from 'react-native-maps';
+
 import type { PermissionStatus as LiveLocationPermissionStatus } from './liveLocationState';
+import { haversineDistanceMeters } from './routeGeometry';
 
 export type NavigationLifecycle = 'loaded' | 'navigating' | 'paused' | 'off-route' | 'arrived' | 'stopped';
 
 export type RouteStatusTone = 'demo' | 'live' | 'danger';
 
 export const DEFAULT_ROUTE_INTELLIGENCE_VISIBLE = true;
+export const ROUTE_START_PROXIMITY_THRESHOLD_METERS = 250;
 
 export interface RouteStatusPillPresentation {
   accessibilityLabel: string;
@@ -58,6 +62,11 @@ interface LocationReadinessOptions {
 
 interface LocationNoticeOptions extends LocationReadinessOptions {
   errorMessage?: string | null;
+}
+
+interface RouteStartProximityOptions {
+  currentCoordinate: LatLng | null | undefined;
+  routeStartCoordinate: LatLng | null | undefined;
 }
 
 interface MapControlAccessibilityOptions {
@@ -121,6 +130,25 @@ export function routeStartBlockedReason({
   return null;
 }
 
+export function routeStartProximityBlockedReason({
+  currentCoordinate,
+  routeStartCoordinate
+}: RouteStartProximityOptions): string | null {
+  if (!isValidCoordinate(currentCoordinate) || !isValidCoordinate(routeStartCoordinate)) {
+    return null;
+  }
+
+  const distanceFromStartMeters = haversineDistanceMeters(
+    currentCoordinate,
+    routeStartCoordinate
+  );
+  if (distanceFromStartMeters <= ROUTE_START_PROXIMITY_THRESHOLD_METERS) {
+    return null;
+  }
+
+  return `Move within ${ROUTE_START_PROXIMITY_THRESHOLD_METERS} m of the route start before starting guidance.`;
+}
+
 export function liveLocationNotice({
   demoDriveActive,
   errorMessage,
@@ -178,6 +206,10 @@ function liveLocationNoticeDisplayText(notice: string): string {
     return 'Location needed';
   }
 
+  if (normalized.includes('route start')) {
+    return 'Too far from route start';
+  }
+
   if (
     normalized.includes('access is off') ||
     normalized.includes('permission is off') ||
@@ -202,6 +234,18 @@ function routeGeometryBlockedReason(routeCoordinateCount?: number): string | nul
   return routeCoordinateCount >= 2
     ? null
     : 'Saved route geometry is incomplete. Re-sync the route before live guidance.';
+}
+
+function isValidCoordinate(coordinate: LatLng | null | undefined): coordinate is LatLng {
+  return Boolean(
+    coordinate &&
+      Number.isFinite(coordinate.latitude) &&
+      coordinate.latitude >= -90 &&
+      coordinate.latitude <= 90 &&
+      Number.isFinite(coordinate.longitude) &&
+      coordinate.longitude >= -180 &&
+      coordinate.longitude <= 180
+  );
 }
 
 export function createRouteEndpointLinePresentation({

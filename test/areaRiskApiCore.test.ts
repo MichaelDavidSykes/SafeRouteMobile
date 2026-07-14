@@ -14,14 +14,18 @@ import {
 import type { RiskZone } from '../src/features/live-map/liveMapTypes';
 
 describe('area risk API core', () => {
-  it('gates wide regions and creates a bounded detail request after zooming in', () => {
+  it('keeps regional risk coverage visible and creates a stable padded detail request', () => {
     assert.ok(approximateMapZoom({ longitudeDelta: 2 }) < 8);
-    assert.deepEqual(regionToAreaRiskViewportRequests({
+    const regionalRequests = regionToAreaRiskViewportRequests({
       latitude: 51.5,
       longitude: -0.1,
       latitudeDelta: 1,
       longitudeDelta: 2
-    }), []);
+    });
+    assert.equal(regionalRequests.length, 1);
+    assert.equal(regionalRequests[0].scope, 'regional');
+    assert.equal(regionalRequests[0].maxRecords, 120);
+    assert.equal(regionalRequests[0].bbox, '50.50000,-2.00000,52.50000,2.00000');
 
     const requests = regionToAreaRiskViewportRequests({
       latitude: 51.5,
@@ -32,8 +36,30 @@ describe('area risk API core', () => {
 
     assert.equal(requests.length, 1);
     assert.equal(requests[0].scope, 'detail');
-    assert.equal(requests[0].maxRecords, 60);
-    assert.equal(requests[0].bbox, '51.46000,-0.15000,51.54000,-0.05000');
+    assert.equal(requests[0].maxRecords, 100);
+    assert.equal(requests[0].bbox, '51.40000,-0.20000,51.60000,0.00000');
+
+    const nearbyRequests = regionToAreaRiskViewportRequests({
+      latitude: 51.503,
+      longitude: -0.097,
+      latitudeDelta: 0.08,
+      longitudeDelta: 0.1
+    });
+    assert.deepEqual(nearbyRequests, requests);
+  });
+
+  it('uses one canonical cached partition for global zoom levels', () => {
+    const requests = regionToAreaRiskViewportRequests({
+      latitude: 0,
+      longitude: 90,
+      latitudeDelta: 80,
+      longitudeDelta: 120
+    });
+
+    assert.equal(requests.length, 1);
+    assert.equal(requests[0].scope, 'global');
+    assert.equal(requests[0].maxRecords, 120);
+    assert.equal(requests[0].bbox, '-85.00000,-180.00000,85.00000,180.00000');
   });
 
   it('mirrors bbox, zoom, scope and max_records while protecting tenant-only query data', () => {
@@ -79,8 +105,8 @@ describe('area risk API core', () => {
     assert.deepEqual(
       requests.map((request) => request.bbox),
       [
-        '9.80000,179.65000,10.20000,180.00000',
-        '9.80000,-180.00000,10.20000,-179.85000'
+        '9.60000,179.40000,10.40000,180.00000',
+        '9.60000,-180.00000,10.40000,-179.60000'
       ]
     );
   });

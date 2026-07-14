@@ -10,11 +10,30 @@ import {
   getCachedViewportRiskZones,
   isViewportRiskCacheEntryFresh,
   pruneViewportRiskCache,
+  resolveViewportRiskDisplayZones,
   viewportRiskCacheKey,
   type ViewportRiskCache
 } from '../src/features/live-map/viewportRiskState';
 
 describe('viewport risk state', () => {
+  it('retains rendered zones during replacement downloads and swaps only when ready', () => {
+    const retained = [createZone('retained', 'medium')];
+    const incoming = [createZone('incoming', 'high')];
+
+    assert.deepEqual(
+      resolveViewportRiskDisplayZones(retained, incoming, false).map((zone) => zone.id),
+      ['retained', 'incoming']
+    );
+    assert.deepEqual(
+      resolveViewportRiskDisplayZones(retained, incoming, true).map((zone) => zone.id),
+      ['incoming']
+    );
+    assert.deepEqual(
+      resolveViewportRiskDisplayZones(retained, [], false).map((zone) => zone.id),
+      ['retained']
+    );
+  });
+
   it('quantizes nearby viewport requests to the same partitioned cache key', () => {
     const first = createRequest({
       minLat: 51.501,

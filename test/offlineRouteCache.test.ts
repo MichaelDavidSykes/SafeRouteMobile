@@ -194,6 +194,28 @@ describe("offline saved route cache", () => {
     );
   });
 
+  it("fails closed when a malformed mixed cache survives an acknowledged deletion", async () => {
+    const principalId = "user-a";
+    const listPrefix = "routes.user-a.";
+    const allListKey = `${listPrefix}all`;
+    const storage = createMemoryRouteCacheStorage({
+      [allListKey]: '{"principalId":"another-user"',
+    }, { ignoreRemovals: true });
+
+    await assert.rejects(
+      purgeOfflineRouteWorkspaceStorage({
+        allListKey,
+        detailKeyPrefix: "details.user-a.",
+        listKeyPrefix: listPrefix,
+        principalId,
+        scopedListKey: `${listPrefix}client-a`,
+        storage,
+        workspaceId: "client-a",
+      }),
+      /mixed route cache remained/i,
+    );
+  });
+
   it("prunes denied data from contaminated scoped caches and removes malformed details", async () => {
     const principalId = "user-a";
     const deniedWorkspaceId = "client-a";

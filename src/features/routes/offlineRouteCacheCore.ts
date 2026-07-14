@@ -297,6 +297,9 @@ async function verifyOfflineRouteWorkspaceStorage({
     throw new Error("Denied workspace scoped route cache remained after purge.");
   }
 
+  if (!expectedAllListRecord && allListRaw !== null) {
+    throw new Error("Mixed route cache remained after purge.");
+  }
   const actualAllListRecord = parseStoredOfflineRouteCacheRecord(allListRaw, principalId);
   if (
     !sameOfflineRouteCacheRecord(actualAllListRecord, expectedAllListRecord)

@@ -874,7 +874,8 @@ export function assertGuidanceContractRouteCacheReadbackEvidence(entries, {
     entry.type === 'route.cache.readback' &&
     entry.serverPhase === 'regained' &&
     entry.routeId === GUIDANCE_CONTRACT_ROUTE_VARIANT_IDS.survivor &&
-    entry.workspaceId === GUIDANCE_CONTRACT_WORKSPACES.survivor.id
+    entry.workspaceId === GUIDANCE_CONTRACT_WORKSPACES.survivor.id &&
+    isSuccessfulGuidanceContractEvidence(entry, { serverPhase: entry.serverPhase })
   );
   assertJournalCondition(
     deniedRecoveryIndex >= 0 && survivorReadbackIndex > deniedRecoveryIndex,
@@ -896,8 +897,7 @@ export function assertGuidanceContractRouteCacheReadbackEvidence(entries, {
       entry.serverPhase === expectation.phase &&
       entry.routeId === expectation.routeId &&
       entry.workspaceId === expectation.workspaceId &&
-      entry.outcome === 'readable' &&
-      entry.durability?.routeCache === 'present'
+      isSuccessfulGuidanceContractEvidence(entry, { serverPhase: entry.serverPhase })
     );
     const causes = new Set(matching.map((entry) => entry.cause));
     const launches = new Set(matching.map((entry) => entry.appLaunchId));

@@ -1,5 +1,6 @@
 #!/usr/bin/env node
 import { createServer } from 'node:http';
+import { randomUUID } from 'node:crypto';
 import { appendFileSync, readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 
@@ -26,6 +27,7 @@ const ACCOUNT_B = Object.freeze({
 });
 const WORKSPACE = Object.freeze({ id: 'guidance-workspace', name: 'Guidance Operations' });
 const ROUTE_ID = 'guidance-contract-route';
+const RESPONSE_SEMANTIC_OUTCOME = Symbol('guidanceContractSemanticOutcome');
 const ROUTE_COORDINATES = Object.freeze([
   { latitude: 51.5074, longitude: -0.1278 },
   { latitude: 51.5092, longitude: -0.0812 },
@@ -102,6 +104,8 @@ export function createGuidanceContractRoute() {
 }
 
 export function createGuidanceContractHandler({
+  createRequestId = randomUUID,
+  now = () => Date.now(),
   readControl,
   readMode = () => GUIDANCE_CONTRACT_MODES.offline,
   readPhase = () => 'unassigned',
@@ -112,18 +116,70 @@ export function createGuidanceContractHandler({
       readControl ? readControl() : { mode: readMode(), phase: readPhase() }
     );
     const url = new URL(request.url || '/', 'http://127.0.0.1');
-    requestLog({
+    const requestId = createRequestId();
+    const startedAtMs = now();
+    const requestEntry = requestLog({
       authorizationClass: classifyAuthorization(request.headers.authorization),
       authorized: hasExpectedBearerAuthorization(request.headers.authorization),
+      event: 'request',
       method: request.method || 'GET',
       mode,
       path: url.pathname,
       phase,
+      requestId,
       search: url.search
     });
+    let completionRecorded = false;
+    const recordCompletion = ({
+      completed,
+      semanticOutcome,
+      statusCode
+    }) => {
+      if (completionRecorded) {
+        return;
+      }
+      completionRecorded = true;
+      requestLog({
+        authorizationClass: classifyAuthorization(request.headers.authorization),
+        authorized: hasExpectedBearerAuthorization(request.headers.authorization),
+        completed,
+        durationMs: Math.max(0, now() - startedAtMs),
+        event: 'completion',
+        method: request.method || 'GET',
+        mode,
+        path: url.pathname,
+        phase,
+        requestId,
+        requestSequence: Number.isInteger(requestEntry?.sequence)
+          ? requestEntry.sequence
+          : null,
+        search: url.search,
+        semanticOutcome,
+        statusCode
+      });
+    };
+    response.once('finish', () => recordCompletion({
+      completed: true,
+      semanticOutcome: response[RESPONSE_SEMANTIC_OUTCOME] || 'unclassified',
+      statusCode: response.statusCode
+    }));
+    response.once('close', () => {
+      if (!response.writableFinished) {
+        recordCompletion({
+          completed: false,
+          semanticOutcome: response[RESPONSE_SEMANTIC_OUTCOME] || 'connection-closed',
+          statusCode: null
+        });
+      }
+    });
+    request.once('aborted', () => recordCompletion({
+      completed: false,
+      semanticOutcome: response[RESPONSE_SEMANTIC_OUTCOME] || 'request-aborted',
+      statusCode: null
+    }));
 
     if (url.pathname === '/__guidance_contract__/health') {
-      sendJson(response, 200, { mode, status: 'ready' });
+      sendJson(response, 200, { mode, status: 'ready' }, 'health-ready');
       return;
     }
 
@@ -140,11 +196,12 @@ export function createGuidanceContractHandler({
       sendApiSuccess(response, {
         data: { boundary, edge },
         message: 'Guidance Start boundary recorded.'
-      });
+      }, `boundary-${edge}`);
       return;
     }
 
     if (mode === GUIDANCE_CONTRACT_MODES.offline) {
+      response[RESPONSE_SEMANTIC_OUTCOME] = 'connection-destroyed';
       request.socket.destroy();
       return;
     }
@@ -190,7 +247,8 @@ export function createGuidanceContractHandler({
         {
           data: mode === GUIDANCE_CONTRACT_MODES.wrongPrincipal ? ACCOUNT_B : ACCOUNT_A,
           message: 'Current user loaded.'
-        }
+        },
+        mode === GUIDANCE_CONTRACT_MODES.wrongPrincipal ? 'principal-b' : 'principal-a'
       );
       return;
     }
@@ -214,7 +272,7 @@ export function createGuidanceContractHandler({
           selected_client_id: requestedWorkspaceId && !denied ? WORKSPACE.id : null
         },
         message: 'SafeRoute routes loaded.'
-      });
+      }, denied ? 'catalog-denied' : 'catalog-active');
       return;
     }
 
@@ -308,7 +366,9 @@ export function createGuidanceContractHandler({
 }
 
 export function startGuidanceContractApi({
+  createRequestId,
   host = '127.0.0.1',
+  now,
   port = GUIDANCE_CONTRACT_API_PORT,
   readControl,
   readMode,
@@ -316,6 +376,8 @@ export function startGuidanceContractApi({
   requestLog
 }) {
   const server = createServer(createGuidanceContractHandler({
+    createRequestId,
+    now,
     readControl,
     readMode,
     readPhase,
@@ -395,7 +457,8 @@ function base64Url(value) {
   return Buffer.from(JSON.stringify(value), 'utf8').toString('base64url');
 }
 
-function sendJson(response, statusCode, body) {
+function sendJson(response, statusCode, body, semanticOutcome = `http-${statusCode}`) {
+  response[RESPONSE_SEMANTIC_OUTCOME] = semanticOutcome;
   const serialized = JSON.stringify(body);
   response.writeHead(statusCode, {
     'Cache-Control': 'no-store',
@@ -405,14 +468,21 @@ function sendJson(response, statusCode, body) {
   response.end(serialized);
 }
 
-function sendApiSuccess(response, body) {
+function sendApiSuccess(response, body, semanticOutcome = 'api-success') {
   sendJson(response, 200, {
     status: 'success',
     ...body
-  });
+  }, semanticOutcome);
 }
 
-function sendApiError(response, statusCode, message, headers = {}) {
+function sendApiError(
+  response,
+  statusCode,
+  message,
+  headers = {},
+  semanticOutcome = `api-error-${statusCode}`
+) {
+  response[RESPONSE_SEMANTIC_OUTCOME] = semanticOutcome;
   const serialized = JSON.stringify({
     detail: {
       details: message,
@@ -487,6 +557,7 @@ function interpolateCoordinates(coordinates) {
 }
 
 export function assertGuidanceContractRequestJournal(entries, {
+  allowLegacyEntries = false,
   expectedModeByPhase,
   requiredPhases = []
 }) {
@@ -501,17 +572,23 @@ export function assertGuidanceContractRequestJournal(entries, {
     'unexpected'
   ]);
   let previousPhaseIndex = -1;
+  const requestsById = new Map();
+  const completionsByRequestId = new Map();
 
   entries.forEach((entry, index) => {
+    const event = entry.event || 'request';
     const phaseIndex = phaseOrder.indexOf(entry.phase);
     assertJournalCondition(
       entry.sequence === index + 1,
       `Guidance contract request journal sequence broke at line ${index + 1}.`
     );
-    assertJournalCondition(
-      phaseIndex >= previousPhaseIndex && phaseIndex >= 0,
-      `Guidance contract request journal phase order broke at line ${index + 1}.`
-    );
+    if (event === 'request') {
+      assertJournalCondition(
+        phaseIndex >= previousPhaseIndex && phaseIndex >= 0,
+        `Guidance contract request journal phase order broke at line ${index + 1}.`
+      );
+      previousPhaseIndex = phaseIndex;
+    }
     assertJournalCondition(
       entry.mode === expectedModeByPhase[entry.phase],
       `Guidance contract request journal phase/mode mismatch at line ${index + 1}.`
@@ -523,11 +600,71 @@ export function assertGuidanceContractRequestJournal(entries, {
         typeof entry.method === 'string' && /^[A-Z]+$/.test(entry.method) &&
         typeof entry.path === 'string' && entry.path.startsWith('/') &&
         typeof entry.search === 'string' &&
-        Number.isFinite(entry.timestampMs),
+        Number.isFinite(entry.timestampMs) &&
+        ['request', 'completion'].includes(event),
       `Guidance contract request journal metadata was invalid at line ${index + 1}.`
     );
-    previousPhaseIndex = phaseIndex;
+    assertJournalCondition(
+      allowLegacyEntries ||
+        (['request', 'completion'].includes(entry.event) &&
+          typeof entry.requestId === 'string'),
+      `Guidance contract request journal lifecycle metadata was missing at line ${index + 1}.`
+    );
+    if (entry.event) {
+      assertJournalCondition(
+        typeof entry.requestId === 'string' && entry.requestId.length >= 8,
+        `Guidance contract request journal request identity was invalid at line ${index + 1}.`
+      );
+    }
+    if (event === 'request' && entry.requestId) {
+      assertJournalCondition(
+        !requestsById.has(entry.requestId),
+        `Guidance contract request journal duplicated request ${entry.requestId}.`
+      );
+      requestsById.set(entry.requestId, entry);
+    }
+    if (event === 'completion') {
+      const completionList = completionsByRequestId.get(entry.requestId) || [];
+      completionList.push(entry);
+      completionsByRequestId.set(entry.requestId, completionList);
+      assertJournalCondition(
+        typeof entry.completed === 'boolean' &&
+          Number.isFinite(entry.durationMs) && entry.durationMs >= 0 &&
+          typeof entry.semanticOutcome === 'string' && entry.semanticOutcome.length > 0 &&
+          (entry.completed
+            ? Number.isInteger(entry.statusCode) && entry.statusCode >= 100 && entry.statusCode <= 599
+            : entry.statusCode === null),
+        `Guidance contract response outcome was invalid at line ${index + 1}.`
+      );
+    }
   });
+
+  for (const [requestId, request] of requestsById) {
+    const completions = completionsByRequestId.get(requestId) || [];
+    assertJournalCondition(
+      completions.length === 1,
+      `Guidance contract request ${requestId} expected one response outcome but recorded ${completions.length}.`
+    );
+    const completion = completions[0];
+    assertJournalCondition(
+      completion.sequence > request.sequence &&
+        completion.requestSequence === request.sequence &&
+        completion.phase === request.phase &&
+        completion.mode === request.mode &&
+        completion.method === request.method &&
+        completion.path === request.path &&
+        completion.search === request.search &&
+        completion.authorized === request.authorized &&
+        completion.authorizationClass === request.authorizationClass,
+      `Guidance contract response outcome did not match request ${requestId}.`
+    );
+  }
+  for (const requestId of completionsByRequestId.keys()) {
+    assertJournalCondition(
+      requestsById.has(requestId),
+      `Guidance contract response outcome referenced unknown request ${requestId}.`
+    );
+  }
 
   for (const phase of requiredPhases) {
     assertJournalCondition(
@@ -539,6 +676,7 @@ export function assertGuidanceContractRequestJournal(entries, {
 
 export function assertGuidanceStartTrafficBoundary(entries, {
   boundary,
+  expectedOutcomes,
   expectedPaths,
   openPhase,
   phase
@@ -547,8 +685,9 @@ export function assertGuidanceStartTrafficBoundary(entries, {
   const normalizedOpenPhase = String(openPhase || '').trim();
   const normalizedPhase = String(phase || '').trim();
   const expected = Array.isArray(expectedPaths) ? expectedPaths : [];
+  const outcomes = Array.isArray(expectedOutcomes) ? expectedOutcomes : null;
   const markers = entries.filter((entry) => {
-    if (entry.path !== GUIDANCE_START_BOUNDARY_PATH) {
+    if ((entry.event && entry.event !== 'request') || entry.path !== GUIDANCE_START_BOUNDARY_PATH) {
       return false;
     }
     const parameters = new URLSearchParams(entry.search);
@@ -620,6 +759,26 @@ export function assertGuidanceStartTrafficBoundary(entries, {
       })}`,
     `Guidance Start boundary ${normalizedBoundary} used invalid markers.`
   );
+  for (const [index, marker] of [armed, open, close, settled].entries()) {
+    if (!marker.requestId) {
+      continue;
+    }
+    const markerOutcomes = entries.filter(
+      (entry) => entry.event === 'completion' && entry.requestId === marker.requestId
+    );
+    const nextMarker = [open, close, settled][index];
+    assertJournalCondition(
+      markerOutcomes.length === 1 &&
+        markerOutcomes[0].completed === true &&
+        markerOutcomes[0].statusCode === 200 &&
+        markerOutcomes[0].semanticOutcome === `boundary-${
+          new URLSearchParams(marker.search).get('edge')
+        }` &&
+        markerOutcomes[0].sequence > marker.sequence &&
+        (!nextMarker || markerOutcomes[0].sequence < nextMarker.sequence),
+      `Guidance Start boundary ${normalizedBoundary} marker did not complete successfully.`
+    );
+  }
 
   const delayedPreparationEntries = entries.filter(
     (entry) =>
@@ -653,7 +812,35 @@ export function assertGuidanceStartTrafficBoundary(entries, {
         entry.authorizationClass === 'expected-bearer',
       `Guidance Start boundary ${normalizedBoundary} request ${index + 1} did not match the exact authorization contract.`
     );
+    if (outcomes) {
+      const responseEntries = entries.filter(
+        (candidate) =>
+          candidate.event === 'completion' && candidate.requestId === entry.requestId
+      );
+      const expectedOutcome = outcomes[index];
+      assertJournalCondition(
+        expectedOutcome &&
+          responseEntries.length === 1 &&
+          responseEntries[0].sequence > entry.sequence &&
+          responseEntries[0].sequence < close.sequence &&
+          responseEntries[0].completed === true &&
+          responseEntries[0].statusCode === expectedOutcome.statusCode &&
+          responseEntries[0].semanticOutcome === expectedOutcome.semanticOutcome,
+        `Guidance Start boundary ${normalizedBoundary} request ${index + 1} did not complete with the expected response outcome.`
+      );
+      const nextRequest = protectedEntries[index + 1];
+      assertJournalCondition(
+        !nextRequest || responseEntries[0].sequence < nextRequest.sequence,
+        `Guidance Start boundary ${normalizedBoundary} request ${index + 1} did not complete before the next authorization request.`
+      );
+    }
   });
+  if (outcomes) {
+    assertJournalCondition(
+      outcomes.length === expected.length,
+      `Guidance Start boundary ${normalizedBoundary} response expectations did not match its request contract.`
+    );
+  }
 
   const quarantineEntries = entries.filter(
     (entry) =>
@@ -681,6 +868,7 @@ export function assertGuidanceStartTrafficBoundary(entries, {
 export function isGuidanceStartProtectedTraffic(entry) {
   return Boolean(
     entry &&
+      (!entry.event || entry.event === 'request') &&
       (isProtectedPath(entry.path) || entry.authorizationClass !== 'none')
   );
 }
@@ -768,8 +956,9 @@ async function runCli() {
     requestLog: (entry) => {
       const journalEntry = appendRequest(entry);
       process.stdout.write(
-        `[guidance-contract-api] #${journalEntry.sequence} ${entry.phase} ${entry.mode} ${entry.method} ${entry.path}\n`
+        `[guidance-contract-api] #${journalEntry.sequence} ${entry.event} ${entry.phase} ${entry.mode} ${entry.method} ${entry.path}${entry.event === 'completion' ? ` ${entry.completed ? entry.statusCode : entry.semanticOutcome}` : ''}\n`
       );
+      return journalEntry;
     }
   });
   process.stdout.write(`[guidance-contract-api] listening on 127.0.0.1:${port}\n`);

@@ -35,11 +35,15 @@ describe('Maestro guidance contract API', () => {
     const requests: Array<{
       authorizationClass: string;
       authorized: boolean;
+      completed?: boolean;
+      event?: string;
       method: string;
       mode: string;
       path: string;
       phase: string;
       search: string;
+      semanticOutcome?: string;
+      statusCode?: number | null;
     }> = [];
     const server = await startGuidanceContractApi({
       port: 0,
@@ -135,6 +139,12 @@ describe('Maestro guidance contract API', () => {
       await assert.rejects(fetch(`${base}/users/me`, {
         headers: { Authorization: authorization }
       }));
+      assert.ok(requests.some((entry) =>
+        entry.event === 'completion' &&
+        entry.completed === false &&
+        entry.semanticOutcome === 'connection-destroyed' &&
+        entry.statusCode === null
+      ));
 
       assert.equal(requests[0].authorized, false);
       assert.equal(requests[0].authorizationClass, 'none');
@@ -166,6 +176,66 @@ describe('Maestro guidance contract API', () => {
     } finally {
       await new Promise<void>((resolve) => server.close(() => resolve()));
     }
+  });
+
+  it('journals real HTTP finish events with status and semantic outcomes', async () => {
+    let mode = GUIDANCE_CONTRACT_MODES.active;
+    let phase = 'workspaceStart';
+    let requestNumber = 0;
+    let nowMs = 100;
+    const entries: Array<Record<string, unknown>> = [];
+    const server = await startGuidanceContractApi({
+      createRequestId: () => `request-${++requestNumber}`,
+      now: () => nowMs += 10,
+      port: 0,
+      readControl: () => ({ mode, phase }),
+      requestLog: (entry: Record<string, unknown>) => {
+        const journalEntry = {
+          ...entry,
+          sequence: entries.length + 1,
+          timestampMs: nowMs
+        };
+        entries.push(journalEntry);
+        return journalEntry;
+      }
+    });
+    const address = server.address();
+    assert.ok(address && typeof address === 'object');
+    const base = `http://127.0.0.1:${address.port}/api/v1`;
+    const headers = {
+      Authorization: `Bearer ${createGuidanceContractAccessToken()}`
+    };
+
+    try {
+      assert.equal((await fetch(`${base}/users/me`, { headers })).status, 200);
+      mode = GUIDANCE_CONTRACT_MODES.denied;
+      phase = 'deniedStart';
+      assert.equal((await fetch(`${base}/mobile/safe-route/routes`, { headers })).status, 200);
+      mode = GUIDANCE_CONTRACT_MODES.offline;
+      phase = 'publicResume';
+      await assert.rejects(fetch(`${base}/users/me`, { headers }));
+    } finally {
+      await new Promise<void>((resolve) => server.close(() => resolve()));
+    }
+
+    assert.deepEqual(
+      entries.map((entry) => [entry.event, entry.statusCode, entry.semanticOutcome]),
+      [
+        ['request', undefined, undefined],
+        ['completion', 200, 'principal-a'],
+        ['request', undefined, undefined],
+        ['completion', 200, 'catalog-denied'],
+        ['request', undefined, undefined],
+        ['completion', null, 'connection-destroyed']
+      ]
+    );
+    assert.doesNotThrow(() => assertGuidanceContractRequestJournal(entries, {
+      expectedModeByPhase: {
+        workspaceStart: GUIDANCE_CONTRACT_MODES.active,
+        deniedStart: GUIDANCE_CONTRACT_MODES.denied,
+        publicResume: GUIDANCE_CONTRACT_MODES.offline
+      }
+    }));
   });
 
   it('continues a durable monotonic request sequence across fixture restarts', () => {
@@ -232,6 +302,7 @@ describe('Maestro guidance contract API', () => {
 
     assert.doesNotThrow(() =>
       assertGuidanceContractRequestJournal(validEntries, {
+        allowLegacyEntries: true,
         expectedModeByPhase,
         requiredPhases: ['wrongPrincipal', 'denied']
       })
@@ -239,17 +310,18 @@ describe('Maestro guidance contract API', () => {
     assert.throws(
       () => assertGuidanceContractRequestJournal([
         entry({ mode: GUIDANCE_CONTRACT_MODES.denied })
-      ], { expectedModeByPhase }),
+      ], { allowLegacyEntries: true, expectedModeByPhase }),
       /phase\/mode mismatch/
     );
     assert.throws(
       () => assertGuidanceContractRequestJournal([
         entry({ authorizationClass: 'none', authorized: true })
-      ], { expectedModeByPhase }),
+      ], { allowLegacyEntries: true, expectedModeByPhase }),
       /metadata was invalid/
     );
     assert.throws(
       () => assertGuidanceContractRequestJournal([entry()], {
+        allowLegacyEntries: true,
         expectedModeByPhase,
         requiredPhases: ['wrongPrincipal', 'denied']
       }),
@@ -521,6 +593,258 @@ describe('Maestro guidance contract API', () => {
         })
       ], options),
       /protected traffic outside its markers/
+    );
+  });
+
+  it('requires one correlated response outcome for every instrumented request', () => {
+    const expectedModeByPhase = {
+      workspaceStart: GUIDANCE_CONTRACT_MODES.active
+    };
+    const request = {
+      authorizationClass: 'expected-bearer',
+      authorized: true,
+      event: 'request',
+      method: 'GET',
+      mode: GUIDANCE_CONTRACT_MODES.active,
+      path: '/api/v1/users/me',
+      phase: 'workspaceStart',
+      requestId: 'request-users-me',
+      search: '',
+      sequence: 1,
+      timestampMs: 100
+    };
+    const completion = {
+      ...request,
+      completed: true,
+      durationMs: 20,
+      event: 'completion',
+      requestSequence: 1,
+      semanticOutcome: 'principal-a',
+      sequence: 2,
+      statusCode: 200,
+      timestampMs: 120
+    };
+
+    assert.doesNotThrow(() =>
+      assertGuidanceContractRequestJournal([request, completion], {
+        expectedModeByPhase
+      })
+    );
+    assert.throws(
+      () => assertGuidanceContractRequestJournal([
+        {
+          ...request,
+          event: undefined,
+          requestId: undefined
+        }
+      ], { expectedModeByPhase }),
+      /lifecycle metadata was missing/
+    );
+    assert.throws(
+      () => assertGuidanceContractRequestJournal([request], { expectedModeByPhase }),
+      /expected one response outcome but recorded 0/
+    );
+    assert.throws(
+      () => assertGuidanceContractRequestJournal([
+        request,
+        completion,
+        { ...completion, sequence: 3, timestampMs: 130 }
+      ], { expectedModeByPhase }),
+      /expected one response outcome but recorded 2/
+    );
+    assert.throws(
+      () => assertGuidanceContractRequestJournal([
+        request,
+        { ...completion, requestId: 'request-orphan' }
+      ], { expectedModeByPhase }),
+      /expected one response outcome but recorded 0|unknown request/
+    );
+    assert.throws(
+      () => assertGuidanceContractRequestJournal([
+        request,
+        { ...completion, completed: false, semanticOutcome: 'connection-closed', statusCode: 200 }
+      ], { expectedModeByPhase }),
+      /response outcome was invalid/
+    );
+    assert.throws(
+      () => assertGuidanceContractRequestJournal([
+        request,
+        { ...completion, authorizationClass: 'none', authorized: false }
+      ], { expectedModeByPhase }),
+      /response outcome did not match request/
+    );
+  });
+
+  it('binds fresh Start requests to completed semantic response outcomes before close', () => {
+    const marker = (
+      sequence: number,
+      edge: 'armed' | 'open' | 'close' | 'settled'
+    ) => ({
+      authorizationClass: 'none',
+      authorized: false,
+      method: 'POST',
+      mode: GUIDANCE_CONTRACT_MODES.denied,
+      path: GUIDANCE_START_BOUNDARY_PATH,
+      phase: edge === 'armed' || edge === 'open' ? 'deniedPrepare' : 'deniedStart',
+      search: `?boundary=denied-workspace-start&edge=${edge}`,
+      sequence,
+      timestampMs: sequence * 100
+    });
+    const request = (sequence: number, requestId: string, path: string) => ({
+      authorizationClass: 'expected-bearer',
+      authorized: true,
+      event: 'request',
+      method: 'GET',
+      mode: GUIDANCE_CONTRACT_MODES.denied,
+      path,
+      phase: 'deniedStart',
+      requestId,
+      search: '',
+      sequence,
+      timestampMs: sequence * 100
+    });
+    const completion = (
+      sequence: number,
+      source: ReturnType<typeof request>,
+      semanticOutcome: string,
+      overrides = {}
+    ) => ({
+      ...source,
+      completed: true,
+      durationMs: 10,
+      event: 'completion',
+      requestSequence: source.sequence,
+      semanticOutcome,
+      sequence,
+      statusCode: 200,
+      timestampMs: sequence * 100,
+      ...overrides
+    });
+    const userRequest = request(3, 'request-denied-user', '/api/v1/users/me');
+    const catalogRequest = request(
+      5,
+      'request-denied-catalog',
+      '/api/v1/mobile/safe-route/routes'
+    );
+    const entries = [
+      marker(1, 'armed'),
+      marker(2, 'open'),
+      userRequest,
+      completion(4, userRequest, 'principal-a'),
+      catalogRequest,
+      completion(6, catalogRequest, 'catalog-denied'),
+      marker(7, 'close'),
+      marker(8, 'settled')
+    ];
+    const options = {
+      boundary: 'denied-workspace-start',
+      expectedOutcomes: [
+        { semanticOutcome: 'principal-a', statusCode: 200 },
+        { semanticOutcome: 'catalog-denied', statusCode: 200 }
+      ],
+      expectedPaths: [
+        '/api/v1/users/me',
+        '/api/v1/mobile/safe-route/routes'
+      ],
+      openPhase: 'deniedPrepare',
+      phase: 'deniedStart'
+    };
+
+    assert.doesNotThrow(() => assertGuidanceStartTrafficBoundary(entries, options));
+    assert.throws(
+      () => assertGuidanceStartTrafficBoundary(entries.filter((entry) => entry.sequence !== 6), options),
+      /did not complete with the expected response outcome/
+    );
+    assert.throws(
+      () => assertGuidanceStartTrafficBoundary(
+        entries.map((entry) => entry.sequence === 6 ? { ...entry, statusCode: 403 } : entry),
+        options
+      ),
+      /did not complete with the expected response outcome/
+    );
+    assert.throws(
+      () => assertGuidanceStartTrafficBoundary(
+        entries.map((entry) => entry.sequence === 6 ? { ...entry, semanticOutcome: 'catalog-active' } : entry),
+        options
+      ),
+      /did not complete with the expected response outcome/
+    );
+    assert.throws(
+      () => assertGuidanceStartTrafficBoundary([
+        marker(1, 'armed'),
+        marker(2, 'open'),
+        userRequest,
+        { ...catalogRequest, sequence: 4, timestampMs: 400 },
+        completion(5, userRequest, 'principal-a'),
+        completion(6, catalogRequest, 'catalog-denied'),
+        marker(7, 'close'),
+        marker(8, 'settled')
+      ], options),
+      /did not complete before the next authorization request/
+    );
+    assert.throws(
+      () => assertGuidanceStartTrafficBoundary([
+        ...entries.slice(0, 5),
+        marker(6, 'close'),
+        completion(7, catalogRequest, 'catalog-denied'),
+        marker(8, 'settled')
+      ], options),
+      /did not complete with the expected response outcome/
+    );
+
+    const markerRequest = (
+      sequence: number,
+      edge: 'armed' | 'open' | 'close' | 'settled'
+    ) => ({
+      ...marker(sequence, edge),
+      event: 'request',
+      requestId: `request-marker-${edge}`
+    });
+    const markerCompletion = (
+      sequence: number,
+      source: ReturnType<typeof markerRequest>,
+      edge: 'armed' | 'open' | 'close' | 'settled'
+    ) => ({
+      ...source,
+      completed: true,
+      durationMs: 1,
+      event: 'completion',
+      requestSequence: source.sequence,
+      semanticOutcome: `boundary-${edge}`,
+      sequence,
+      statusCode: 200,
+      timestampMs: sequence * 100
+    });
+    const armedRequest = markerRequest(1, 'armed');
+    const openRequest = markerRequest(3, 'open');
+    const closeRequest = markerRequest(5, 'close');
+    const settledRequest = markerRequest(7, 'settled');
+    const markerLifecycle = [
+      armedRequest,
+      markerCompletion(2, armedRequest, 'armed'),
+      openRequest,
+      markerCompletion(4, openRequest, 'open'),
+      closeRequest,
+      markerCompletion(6, closeRequest, 'close'),
+      settledRequest,
+      markerCompletion(8, settledRequest, 'settled')
+    ];
+    assert.doesNotThrow(() => assertGuidanceStartTrafficBoundary(markerLifecycle, {
+      boundary: 'denied-workspace-start',
+      expectedOutcomes: [],
+      expectedPaths: [],
+      openPhase: 'deniedPrepare',
+      phase: 'deniedStart'
+    }));
+    assert.throws(
+      () => assertGuidanceStartTrafficBoundary(markerLifecycle.slice(0, -1), {
+        boundary: 'denied-workspace-start',
+        expectedOutcomes: [],
+        expectedPaths: [],
+        openPhase: 'deniedPrepare',
+        phase: 'deniedStart'
+      }),
+      /marker did not complete successfully/
     );
   });
 });

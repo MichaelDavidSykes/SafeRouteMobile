@@ -123,6 +123,7 @@ async function main() {
   );
   await runStartBoundary({
     boundary: 'public-start',
+    expectedOutcomes: [],
     expectedPaths: [],
     file: phases.publicStart,
     label: 'start signed-out public guidance',
@@ -153,6 +154,10 @@ async function main() {
   runPhase('workspacePrepare', 'prepare principal-A workspace guidance', phases.workspacePrepare);
   await runStartBoundary({
     boundary: 'active-workspace-start',
+    expectedOutcomes: [
+      { semanticOutcome: 'principal-a', statusCode: 200 },
+      { semanticOutcome: 'catalog-active', statusCode: 200 }
+    ],
     expectedPaths: [
       '/api/v1/users/me',
       '/api/v1/mobile/safe-route/routes'
@@ -200,6 +205,9 @@ async function main() {
   );
   await runStartBoundary({
     boundary: 'wrong-principal-start',
+    expectedOutcomes: [
+      { semanticOutcome: 'principal-b', statusCode: 200 }
+    ],
     expectedPaths: ['/api/v1/users/me'],
     file: phases.wrongPrincipalStart,
     label: 'reject a fresh Start from a different stable principal',
@@ -215,6 +223,10 @@ async function main() {
   );
   await runStartBoundary({
     boundary: 'denied-workspace-start',
+    expectedOutcomes: [
+      { semanticOutcome: 'principal-a', statusCode: 200 },
+      { semanticOutcome: 'catalog-denied', statusCode: 200 }
+    ],
     expectedPaths: [
       '/api/v1/users/me',
       '/api/v1/mobile/safe-route/routes'
@@ -233,6 +245,10 @@ async function main() {
   );
   await runStartBoundary({
     boundary: 'workspace-reseed-start',
+    expectedOutcomes: [
+      { semanticOutcome: 'principal-a', statusCode: 200 },
+      { semanticOutcome: 'catalog-active', statusCode: 200 }
+    ],
     expectedPaths: [
       '/api/v1/users/me',
       '/api/v1/mobile/safe-route/routes'
@@ -261,6 +277,10 @@ async function main() {
   );
   await runStartBoundary({
     boundary: 'denial-seed-start',
+    expectedOutcomes: [
+      { semanticOutcome: 'principal-a', statusCode: 200 },
+      { semanticOutcome: 'catalog-active', statusCode: 200 }
+    ],
     expectedPaths: [
       '/api/v1/users/me',
       '/api/v1/mobile/safe-route/routes'
@@ -298,6 +318,7 @@ async function main() {
     'Regain should cold-check once, explicitly refresh once, and then load one scoped Saved list.'
   );
 
+  await stopApi();
   assertRequestJournalIntegrity();
   process.stdout.write(
     `SafeRoute cold guidance matrix passed. Request journal: ${requestLogFile}\n`
@@ -324,18 +345,44 @@ async function stopApi() {
     return;
   }
   const processToStop = apiProcess;
-  apiProcess = null;
-  if (processToStop.exitCode === null) {
+  if (processToStop.exitCode === null && processToStop.signalCode === null) {
     processToStop.kill('SIGTERM');
-    await Promise.race([
-      new Promise((resolve) => processToStop.once('exit', resolve)),
-      new Promise((_, reject) => setTimeout(
-        () => reject(new Error('Contract backend did not stop within five seconds.')),
-        5000
-      ))
-    ]);
+    if (!(await waitForProcessExit(processToStop, 5000))) {
+      processToStop.kill('SIGKILL');
+      if (!(await waitForProcessExit(processToStop, 2000))) {
+        throw new Error('Contract backend did not stop after SIGTERM and SIGKILL.');
+      }
+    }
+  }
+  if (apiProcess === processToStop) {
+    apiProcess = null;
   }
   await waitForPort(GUIDANCE_CONTRACT_API_PORT, false);
+}
+
+function waitForProcessExit(processToStop, timeoutMs) {
+  if (processToStop.exitCode !== null || processToStop.signalCode !== null) {
+    return Promise.resolve(true);
+  }
+  return new Promise((resolve) => {
+    let settled = false;
+    let timer;
+    const finish = (exited) => {
+      if (settled) {
+        return;
+      }
+      settled = true;
+      clearTimeout(timer);
+      processToStop.removeListener('exit', onExit);
+      resolve(exited);
+    };
+    const onExit = () => finish(true);
+    timer = setTimeout(() => finish(false), timeoutMs);
+    processToStop.once('exit', onExit);
+    if (processToStop.exitCode !== null || processToStop.signalCode !== null) {
+      finish(true);
+    }
+  });
 }
 
 function setControl(phase) {
@@ -352,6 +399,7 @@ function runPhase(phase, label, file) {
 
 async function runStartBoundary({
   boundary,
+  expectedOutcomes,
   expectedPaths,
   file,
   label,
@@ -377,6 +425,7 @@ async function runStartBoundary({
     boundary,
     boundaryPath: GUIDANCE_START_BOUNDARY_PATH,
     expectedCount: expectedPaths.length,
+    expectedOutcomes,
     isProtectedTraffic: isGuidanceStartProtectedTraffic,
     readEntries: readRequestJournal
   });
@@ -395,11 +444,18 @@ async function runStartBoundary({
   await writeStartBoundaryMarker(boundary, 'settled');
   assertGuidanceStartTrafficBoundary(readRequestJournal(), {
     boundary,
+    expectedOutcomes,
     expectedPaths,
     openPhase,
     phase
   });
-  completedStartBoundaries.push({ boundary, expectedPaths, openPhase, phase });
+  completedStartBoundaries.push({
+    boundary,
+    expectedOutcomes,
+    expectedPaths,
+    openPhase,
+    phase
+  });
 }
 
 function runMaestroPhase(phase, label, file) {
@@ -425,6 +481,48 @@ async function writeStartBoundaryMarker(boundary, edge) {
       `Guidance Start boundary marker ${boundary}/${edge} failed with ${response.status}.`
     );
   }
+  await response.json();
+  await waitForStartBoundaryMarkerOutcome(boundary, edge);
+}
+
+async function waitForStartBoundaryMarkerOutcome(boundary, edge) {
+  const deadline = Date.now() + 5000;
+  while (Date.now() < deadline) {
+    const marker = readRequestJournal().findLast((entry) => {
+      if (entry.event !== 'request' || entry.path !== GUIDANCE_START_BOUNDARY_PATH) {
+        return false;
+      }
+      const parameters = new URLSearchParams(entry.search);
+      return parameters.get('boundary') === boundary && parameters.get('edge') === edge;
+    });
+    if (marker) {
+      const outcomes = readRequestJournal().filter(
+        (entry) => entry.event === 'completion' && entry.requestId === marker.requestId
+      );
+      if (outcomes.length > 1) {
+        throw new Error(
+          `Guidance Start boundary marker ${boundary}/${edge} recorded duplicate outcomes.`
+        );
+      }
+      if (outcomes.length === 1) {
+        const outcome = outcomes[0];
+        if (
+          outcome.completed !== true ||
+          outcome.statusCode !== 200 ||
+          outcome.semanticOutcome !== `boundary-${edge}`
+        ) {
+          throw new Error(
+            `Guidance Start boundary marker ${boundary}/${edge} recorded an invalid outcome.`
+          );
+        }
+        return;
+      }
+    }
+    await new Promise((resolve) => setTimeout(resolve, 10));
+  }
+  throw new Error(
+    `Guidance Start boundary marker ${boundary}/${edge} did not complete within five seconds.`
+  );
 }
 
 function readRequestJournal() {
@@ -451,13 +549,16 @@ function assertRequestJournalIntegrity() {
 
 function requestCount(path, search) {
   return readRequestJournal().filter((entry) =>
+    (!entry.event || entry.event === 'request') &&
     entry.path === path && (search === undefined || entry.search === search)
   ).length;
 }
 
 function authorizedRequestCount(path) {
   return readRequestJournal().filter(
-    (entry) => entry.path === path && entry.authorized === true
+    (entry) =>
+      (!entry.event || entry.event === 'request') &&
+      entry.path === path && entry.authorized === true
   ).length;
 }
 

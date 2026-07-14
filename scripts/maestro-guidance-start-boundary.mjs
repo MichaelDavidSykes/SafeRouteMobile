@@ -28,7 +28,10 @@ export async function waitForGuidanceStartTrafficQuiet({
       quietSince = now();
       continue;
     }
-    if (now() - quietSince >= quietMs) {
+    if (
+      now() - quietSince >= quietMs &&
+      countUnfinishedProtectedRequests(readEntries(), isProtectedTraffic) === 0
+    ) {
       return;
     }
   }
@@ -68,6 +71,7 @@ export async function waitForGuidanceStartTraffic({
   boundary,
   boundaryPath,
   expectedCount,
+  expectedOutcomes,
   isProtectedTraffic,
   now = () => Date.now(),
   pollMs = 10,
@@ -94,11 +98,48 @@ export async function waitForGuidanceStartTraffic({
       );
     });
     if (open) {
-      const protectedCount = entries.filter(
+      const protectedEntries = entries.filter(
         (entry) => entry.sequence > open.sequence && isProtectedTraffic(entry)
-      ).length;
-      if (protectedCount >= expectedCount) {
-        return;
+      );
+      if (protectedEntries.length >= expectedCount) {
+        if (!Array.isArray(expectedOutcomes)) {
+          return;
+        }
+        const completed = protectedEntries.slice(0, expectedCount).every((request, index) => {
+          const responseEntries = entries.filter(
+            (entry) => entry.event === 'completion' && entry.requestId === request.requestId
+          );
+          if (responseEntries.length > 1) {
+            throw new Error(
+              `Guidance Start boundary ${boundary} recorded duplicate response outcomes.`
+            );
+          }
+          if (responseEntries.length === 0) {
+            return false;
+          }
+          const response = responseEntries[0];
+          const expected = expectedOutcomes[index];
+          if (
+            !expected ||
+            response.completed !== true ||
+            response.statusCode !== expected.statusCode ||
+            response.semanticOutcome !== expected.semanticOutcome
+          ) {
+            throw new Error(
+              `Guidance Start boundary ${boundary} recorded an unexpected response outcome.`
+            );
+          }
+          const nextRequest = protectedEntries[index + 1];
+          if (nextRequest && response.sequence >= nextRequest.sequence) {
+            throw new Error(
+              `Guidance Start boundary ${boundary} issued authorization requests before the prior response completed.`
+            );
+          }
+          return true;
+        });
+        if (completed) {
+          return;
+        }
       }
     }
     await sleep(pollMs);
@@ -110,8 +151,30 @@ export async function waitForGuidanceStartTraffic({
 }
 
 export function guidanceStartTrafficFingerprint(entries, isProtectedTraffic) {
+  const protectedRequests = entries.filter(isProtectedTraffic);
+  const protectedRequestIds = new Set(
+    protectedRequests.map((entry) => entry.requestId).filter(Boolean)
+  );
   return entries
-    .filter(isProtectedTraffic)
+    .filter(
+      (entry) =>
+        isProtectedTraffic(entry) ||
+        (entry.event === 'completion' && protectedRequestIds.has(entry.requestId))
+    )
     .map((entry) => entry.sequence)
     .join(',');
+}
+
+function countUnfinishedProtectedRequests(entries, isProtectedTraffic) {
+  const completedRequestIds = new Set(
+    entries
+      .filter((entry) => entry.event === 'completion')
+      .map((entry) => entry.requestId)
+  );
+  return entries.filter(
+    (entry) =>
+      isProtectedTraffic(entry) &&
+      entry.requestId &&
+      !completedRequestIds.has(entry.requestId)
+  ).length;
 }

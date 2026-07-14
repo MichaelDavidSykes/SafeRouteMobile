@@ -119,6 +119,12 @@ describe('Maestro cold guidance contract matrix', () => {
     assert.match(fixture, /entry\.mode === expectedModeByPhase\[entry\.phase\]/);
     assert.match(fixture, /sequence: sequence \+ 1/);
     assert.match(fixture, /readExistingJournalLength\(requestLogFile\)/);
+    assert.match(fixture, /response\.once\('finish'/);
+    assert.match(fixture, /event: 'completion'/);
+    assert.match(fixture, /semanticOutcome/);
+    assert.match(runner, /await stopApi\(\);\s*assertRequestJournalIntegrity\(\);/);
+    assert.match(runner, /kill\('SIGTERM'\)[\s\S]*kill\('SIGKILL'\)/);
+    assert.match(runner, /waitForStartBoundaryMarkerOutcome/);
   });
 
   it('brackets fresh Start taps and asserts exact protected traffic', () => {
@@ -163,6 +169,23 @@ describe('Maestro cold guidance contract matrix', () => {
     assert.match(fixture, /GUIDANCE_START_BOUNDARY_PATH/);
     assert.match(fixture, /entry\.search === ''/);
     assert.match(fixture, /entry\.authorizationClass === 'expected-bearer'/);
+    assert.match(runner, /expectedOutcomes/);
+    assert.match(
+      runner,
+      /boundary: 'wrong-principal-start'[\s\S]*semanticOutcome: 'principal-b'[\s\S]*statusCode: 200/
+    );
+    assert.match(
+      runner,
+      /boundary: 'denied-workspace-start'[\s\S]*semanticOutcome: 'catalog-denied'[\s\S]*statusCode: 200/
+    );
+    assert.match(
+      runner,
+      /waitForGuidanceStartTraffic\([\s\S]*expectedOutcomes/
+    );
+    assert.match(
+      runner,
+      /function requestCount[\s\S]*entry\.event === 'request'/
+    );
 
     const quietIndex = runner.indexOf('await waitForGuidanceStartTrafficQuiet({');
     const armedIndex = runner.indexOf("await writeStartBoundaryMarker(boundary, 'armed');");

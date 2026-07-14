@@ -1,6 +1,13 @@
 #!/usr/bin/env node
-import { spawn, spawnSync } from 'node:child_process';
-import { mkdtempSync, openSync, readFileSync, renameSync, writeFileSync } from 'node:fs';
+import { execFileSync, spawn, spawnSync } from 'node:child_process';
+import {
+  mkdtempSync,
+  openSync,
+  readFileSync,
+  realpathSync,
+  renameSync,
+  writeFileSync
+} from 'node:fs';
 import net from 'node:net';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
@@ -10,6 +17,10 @@ import {
   GUIDANCE_CONTRACT_MODES,
   assertGuidanceContractRequestJournal
 } from './maestro-guidance-contract-api.mjs';
+import {
+  assertGuidanceSourceCheckoutClean,
+  verifyGuidanceContractMetroIdentity
+} from './maestro-guidance-metro-identity.mjs';
 
 const METRO_PORT = 8081;
 const EXPO_GO_BUNDLE_ID = 'host.exp.Exponent';
@@ -61,6 +72,18 @@ async function main() {
   if (await isPortListening(GUIDANCE_CONTRACT_API_PORT)) {
     throw new Error(`Port ${GUIDANCE_CONTRACT_API_PORT} is already in use.`);
   }
+
+  assertGuidanceSourceCheckoutClean(readCurrentSourceStatus());
+  const metroIdentity = await verifyGuidanceContractMetroIdentity({
+    expectedApiUrl: `http://127.0.0.1:${GUIDANCE_CONTRACT_API_PORT}`,
+    expectedProjectRoot: realpathSync(process.cwd()),
+    expectedSlug: 'saferoute-mobile',
+    expectedSourceRevision: readCurrentSourceRevision(),
+    manifestUrl: `http://127.0.0.1:${METRO_PORT}`
+  });
+  process.stdout.write(
+    `[guidance-contract] verified Metro ${metroIdentity.slug} at ${metroIdentity.sourceRevision}\n`
+  );
 
   await startApi('reset');
   runPhase('reset', 'reset to a signed-out map', phases.reset);
@@ -280,6 +303,28 @@ function assertCondition(condition, message) {
   if (!condition) {
     throw new Error(message);
   }
+}
+
+function readCurrentSourceRevision() {
+  return execFileSync('git', ['rev-parse', 'HEAD'], {
+    cwd: process.cwd(),
+    encoding: 'utf8',
+    stdio: ['ignore', 'pipe', 'ignore'],
+    timeout: 5000
+  }).trim().toLowerCase();
+}
+
+function readCurrentSourceStatus() {
+  return execFileSync(
+    'git',
+    ['status', '--porcelain=v1', '--untracked-files=all'],
+    {
+      cwd: process.cwd(),
+      encoding: 'utf8',
+      stdio: ['ignore', 'pipe', 'ignore'],
+      timeout: 5000
+    }
+  );
 }
 
 function isPortListening(port) {

@@ -360,6 +360,7 @@ describe("Maestro iOS preview smoke flow", () => {
     assert.match(flow, /visible:\s*"Try again"[\s\S]*tapOn:\s*"Try again"/);
     assert.match(flow, /setLocation:\s*\n\s+latitude:\s*51\.5074\s*\n\s+longitude:\s*-0\.1278/);
     assert.match(flow, /id:\s*"safe-route-empty-state"/);
+    assert.match(flow, /id:\s*"safe-route-empty-state"[\s\S]*timeout:\s*30000/);
     assert.match(
       flow,
       /No saved routes are available for Central Operations\. Switch workspaces or refresh after saving a plan\./,

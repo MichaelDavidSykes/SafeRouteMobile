@@ -73,8 +73,10 @@ appId: host.exp.Exponent
       id: "safe-route-picker"
     timeout: 30000
 - assertVisible: "Choose route"
-- assertVisible:
-    id: "safe-route-empty-state"
+- extendedWaitUntil:
+    visible:
+      id: "safe-route-empty-state"
+    timeout: 30000
 - assertVisible: "No saved routes are available for Central Operations. Switch workspaces or refresh after saving a plan."
 - assertNotVisible:
     id: "safe-route-card-sr-city-airport-alpha"

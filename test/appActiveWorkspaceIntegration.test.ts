@@ -6,6 +6,7 @@ const appSource = () => readFileSync("App.tsx", "utf8");
 const guestSource = () => readFileSync("src/features/guest-map/GuestMapScreen.tsx", "utf8");
 const operationsSource = () => readFileSync("src/features/operations/OperationsScreen.tsx", "utf8");
 const routesSource = () => readFileSync("src/features/routes/RouteListScreen.tsx", "utf8");
+const workspaceRefreshSource = () => readFileSync("src/features/workspaces/WorkspaceAccessRefreshControl.tsx", "utf8");
 
 describe("App active workspace integration", () => {
   it("owns one authoritative catalog and shares the active workspace with Map, Saved, and Operations", () => {
@@ -63,6 +64,33 @@ describe("App active workspace integration", () => {
     assert.match(app, /clearOfflineRouteWorkspace\(userEmail, normalizedWorkspaceId\)/);
     assert.match(app, /saveOfflineWorkspaceContext\(userEmail, \{[\s\S]*workspaces: recovery\.workspaces/);
     assert.match(app, /setWorkspaceDiscoveryRevision\(\(revision\) => revision \+ 1\)/);
+  });
+
+  it("restores a denied membership only after an explicit fresh catalog retry", () => {
+    const app = appSource();
+
+    assert.match(app, /restoreUnavailableWorkspacesFromFreshCatalogRef = useRef\(false\)/);
+    assert.match(app, /allowFreshWorkspaceRestoration[\s\S]*fetchSavedRoutes\(accessToken\)[\s\S]*restoreUnavailableWorkspacesFromFreshCatalogRef\.current = false[\s\S]*normalizedCatalog/);
+    assert.match(app, /normalizedCatalog = normalizeWorkspaceCatalog\(result\.clients\)/);
+    assert.match(app, /fetchSavedRoutes\(accessToken\)[\s\S]*revision !== workspaceRequestRevisionRef\.current[\s\S]*return[\s\S]*reconcileUnavailableWorkspaceIds/);
+    assert.match(app, /reconcileUnavailableWorkspaceIds\(\{[\s\S]*allowFreshRestoration: allowFreshWorkspaceRestoration[\s\S]*freshWorkspaces: normalizedCatalog/);
+    assert.match(app, /workspaceAccessRestored[\s\S]*unavailableWorkspaceIds\.size < unavailableWorkspaceIdsRef\.current\.size/);
+    assert.match(app, /workspaceAccessRestored[\s\S]*Workspace access refreshed\./);
+    assert.match(app, /handleRetryWorkspaceCatalog[\s\S]*restoreUnavailableWorkspacesFromFreshCatalogRef\.current = true[\s\S]*setWorkspaceDiscoveryRevision/);
+    assert.match(app, /handleWorkspaceUnavailable[\s\S]*restoreUnavailableWorkspacesFromFreshCatalogRef\.current = false[\s\S]*unavailableWorkspaceIdsRef\.current\.add/);
+    assert.equal(
+      (app.match(/onRetryWorkspaceCatalog=\{handleRetryWorkspaceCatalog\}/g) || []).length,
+      3,
+    );
+    assert.equal(
+      (app.match(/workspaceAccessRefreshAvailable=\{unavailableWorkspaceIdsRef\.current\.size > 0\}/g) || []).length,
+      3,
+    );
+    assert.match(guestSource(), /workspaceAccessRefreshAvailable[\s\S]*<WorkspaceAccessRefreshControl/);
+    assert.match(routesSource(), /workspaceAccessRefreshAvailable[\s\S]*<WorkspaceAccessRefreshControl/);
+    assert.match(operationsSource(), /workspaceAccessRefreshAvailable[\s\S]*<WorkspaceAccessRefreshControl/);
+    assert.match(workspaceRefreshSource(), /accessibilityLabel=\{loading \? "Refreshing workspace access" : "Refresh workspace access"\}/);
+    assert.match(workspaceRefreshSource(), /testID=\{uiTestIds\.workspaceAccessRefresh\}/);
   });
 
   it("clears workspace context at authentication boundaries", () => {

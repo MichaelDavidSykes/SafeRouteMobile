@@ -41,6 +41,7 @@ import { isPreviewAccessToken } from '../auth/previewSession';
 import { getRequestSessionExpiry } from '../api/sessionExpiry';
 import type { SafeRouteWorkspace } from '../workspaces/activeWorkspace';
 import { getRequestUnavailableWorkspaceId } from '../workspaces/workspaceAccessRecovery';
+import { WorkspaceAccessRefreshControl } from '../workspaces/WorkspaceAccessRefreshControl';
 import {
   GUEST_MAP_REGION,
   GUEST_ROUTE_LABEL_MAX_LENGTH,
@@ -113,6 +114,7 @@ interface GuestMapScreenProps {
   onWorkspaceChange?: (workspace: SafeRouteWorkspace) => void;
   workspaceCatalogError?: string;
   workspaceCatalogLoading?: boolean;
+  workspaceAccessRefreshAvailable?: boolean;
   workspaceSwitchDisabled?: boolean;
 }
 
@@ -132,6 +134,7 @@ export function GuestMapScreen({
   onWorkspaceChange,
   workspaceCatalogError = '',
   workspaceCatalogLoading = false,
+  workspaceAccessRefreshAvailable = false,
   workspaceSwitchDisabled = false
 }: GuestMapScreenProps) {
   const viewport = useWindowDimensions();
@@ -1284,21 +1287,33 @@ export function GuestMapScreen({
               </View>
 
               {authenticated ? (
-                <GuestWorkspaceSelector
-                  activeWorkspace={activeWorkspace}
-                  errorMessage={workspaceCatalogError}
-                  loading={workspaceCatalogLoading}
-                  menuOpen={workspaceMenuOpen}
-                  workspaces={availableWorkspaces}
-                  onRetry={onRetryWorkspaceCatalog}
-                  onSelect={handleWorkspaceChange}
-                  onToggle={() => {
-                    Keyboard.dismiss();
-                    setActiveInput(null);
-                    setWorkspaceMenuOpen((open) => !open);
-                  }}
-                  switchDisabled={workspaceSwitchDisabled}
-                />
+                <>
+                  <GuestWorkspaceSelector
+                    activeWorkspace={activeWorkspace}
+                    errorMessage={workspaceCatalogError}
+                    loading={workspaceCatalogLoading}
+                    menuOpen={workspaceMenuOpen}
+                    workspaces={availableWorkspaces}
+                    onRetry={onRetryWorkspaceCatalog}
+                    onSelect={handleWorkspaceChange}
+                    onToggle={() => {
+                      Keyboard.dismiss();
+                      setActiveInput(null);
+                      setWorkspaceMenuOpen((open) => !open);
+                    }}
+                    switchDisabled={workspaceSwitchDisabled}
+                  />
+                  {workspaceAccessRefreshAvailable &&
+                  (availableWorkspaces.length > 0 || !workspaceCatalogError) ? (
+                    <WorkspaceAccessRefreshControl
+                      loading={workspaceCatalogLoading}
+                      onRefresh={() => {
+                        setWorkspaceMenuOpen(false);
+                        onRetryWorkspaceCatalog?.();
+                      }}
+                    />
+                  ) : null}
+                </>
               ) : null}
 
               <View style={styles.inputStack}>

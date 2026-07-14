@@ -49,6 +49,7 @@ import {
   isWorkspaceForbiddenError,
   isWorkspaceUnavailableError,
 } from "../workspaces/workspaceAccessRecovery";
+import { WorkspaceAccessRefreshControl } from "../workspaces/WorkspaceAccessRefreshControl";
 
 const ROUTE_LIST_ERROR_ACTION_HIT_SLOP = 6;
 
@@ -78,6 +79,7 @@ interface RouteListScreenProps {
   onWorkspaceChange: (workspace: SafeRouteWorkspace) => void;
   workspaceCatalogError: string;
   workspaceCatalogLoading: boolean;
+  workspaceAccessRefreshAvailable: boolean;
   workspaceSwitchDisabled: boolean;
 }
 
@@ -96,6 +98,7 @@ export function RouteListScreen({
   userEmail,
   workspaceCatalogError,
   workspaceCatalogLoading,
+  workspaceAccessRefreshAvailable,
   workspaceSwitchDisabled,
 }: RouteListScreenProps) {
   const { offline } = useNetworkAvailability();
@@ -495,6 +498,14 @@ export function RouteListScreen({
           }
         }}
       />
+
+      {workspaceAccessRefreshAvailable &&
+      (availableWorkspaces.length > 0 || !workspaceCatalogError) ? (
+        <WorkspaceAccessRefreshControl
+          loading={workspaceCatalogLoading}
+          onRefresh={onRetryWorkspaceCatalog}
+        />
+      ) : null}
 
       {showingOfflineCopy ? (
         <View accessibilityRole="alert" style={styles.offlineNotice}>

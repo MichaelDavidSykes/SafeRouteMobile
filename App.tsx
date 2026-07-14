@@ -75,6 +75,7 @@ import {
   excludeUnavailableWorkspaces,
   resolveWorkspaceAccessRecovery
 } from './src/features/workspaces/workspaceAccessRecovery';
+import { reconcileUnavailableWorkspaceIds } from './src/features/workspaces/workspaceMembershipRevalidation';
 
 export default function App() {
   const [session, setSession] = useState<AuthSession | null>(null);
@@ -100,6 +101,7 @@ export default function App() {
   const activeWorkspaceRef = useRef<SafeRouteWorkspace | null>(null);
   const availableWorkspacesRef = useRef<SafeRouteWorkspace[]>([]);
   const unavailableWorkspaceIdsRef = useRef(new Set<string>());
+  const restoreUnavailableWorkspacesFromFreshCatalogRef = useRef(false);
   const activeNavigationSessionRef = useRef<ActiveNavigationSession | null>(
     activeNavigationSession,
   );
@@ -400,10 +402,13 @@ export default function App() {
   useEffect(() => {
     const revision = workspaceRequestRevisionRef.current + 1;
     workspaceRequestRevisionRef.current = revision;
+    const allowFreshWorkspaceRestoration =
+      restoreUnavailableWorkspacesFromFreshCatalogRef.current;
     const accessToken = session?.accessToken?.trim();
     const userEmail = (session?.user?.email || session?.email || '').trim();
 
     if (!accessToken || !authenticated) {
+      restoreUnavailableWorkspacesFromFreshCatalogRef.current = false;
       setAvailableWorkspaces([]);
       activeWorkspaceRef.current = null;
       setActiveWorkspace(null);
@@ -451,8 +456,18 @@ export default function App() {
           return;
         }
 
+        restoreUnavailableWorkspacesFromFreshCatalogRef.current = false;
+        const normalizedCatalog = normalizeWorkspaceCatalog(result.clients);
+        const unavailableWorkspaceIds = reconcileUnavailableWorkspaceIds({
+          allowFreshRestoration: allowFreshWorkspaceRestoration,
+          freshWorkspaces: normalizedCatalog,
+          unavailableWorkspaceIds: unavailableWorkspaceIdsRef.current,
+        });
+        const workspaceAccessRestored =
+          unavailableWorkspaceIds.size < unavailableWorkspaceIdsRef.current.size;
+        unavailableWorkspaceIdsRef.current = unavailableWorkspaceIds;
         const catalog = excludeUnavailableWorkspaces(
-          normalizeWorkspaceCatalog(result.clients),
+          normalizedCatalog,
           unavailableWorkspaceIdsRef.current,
         );
         const currentNavigation = activeNavigationSessionRef.current;
@@ -499,6 +514,9 @@ export default function App() {
         setAvailableWorkspaces(catalog);
         activeWorkspaceRef.current = resolvedWorkspace;
         setActiveWorkspace(resolvedWorkspace);
+        if (workspaceAccessRestored) {
+          setSessionMessage('Workspace access refreshed.');
+        }
         void saveOfflineWorkspaceContext(userEmail, {
           activeWorkspaceId: resolvedWorkspace?.id || null,
           workspaces: catalog,
@@ -507,6 +525,7 @@ export default function App() {
         if (revision !== workspaceRequestRevisionRef.current) {
           return;
         }
+        restoreUnavailableWorkspacesFromFreshCatalogRef.current = false;
         if (error instanceof ApiSessionExpiredError) {
           void handleSessionExpired(error.message);
           return;
@@ -525,6 +544,11 @@ export default function App() {
       workspaceRequestRevisionRef.current += 1;
     };
   }, [authenticated, session?.accessToken, workspaceDiscoveryRevision]);
+
+  const handleRetryWorkspaceCatalog = useCallback(() => {
+    restoreUnavailableWorkspacesFromFreshCatalogRef.current = true;
+    setWorkspaceDiscoveryRevision((revision) => revision + 1);
+  }, []);
 
   const handleActiveWorkspaceChange = useCallback((workspace: SafeRouteWorkspace | null) => {
     if (
@@ -557,6 +581,7 @@ export default function App() {
     }
 
     const unavailableWorkspace = activeWorkspaceRef.current;
+    restoreUnavailableWorkspacesFromFreshCatalogRef.current = false;
     unavailableWorkspaceIdsRef.current.add(normalizedWorkspaceId);
     workspaceRequestRevisionRef.current += 1;
     availableWorkspacesRef.current = recovery.workspaces;
@@ -782,9 +807,7 @@ export default function App() {
             accessToken={session.accessToken}
             activeWorkspace={activeWorkspace}
             availableWorkspaces={availableWorkspaces}
-            onRetryWorkspaceCatalog={() => {
-              setWorkspaceDiscoveryRevision((revision) => revision + 1);
-            }}
+            onRetryWorkspaceCatalog={handleRetryWorkspaceCatalog}
             sessionNotice={routeListSessionNotice}
             userEmail={session.user?.email || session.email}
             onBackToMap={returnToMapHome}
@@ -795,6 +818,7 @@ export default function App() {
             onWorkspaceChange={handleActiveWorkspaceChange}
             workspaceCatalogError={workspaceCatalogError}
             workspaceCatalogLoading={workspaceCatalogLoading}
+            workspaceAccessRefreshAvailable={unavailableWorkspaceIdsRef.current.size > 0}
             workspaceSwitchDisabled={Boolean(activeNavigationSession)}
           />
         ) : screen === 'operations' && session && authenticated ? (
@@ -806,15 +830,14 @@ export default function App() {
             sessionNotice={routeListSessionNotice}
             userEmail={session.user?.email || session.email}
             onBackToMap={returnToMapHome}
-            onRetryWorkspaceCatalog={() => {
-              setWorkspaceDiscoveryRevision((revision) => revision + 1);
-            }}
+            onRetryWorkspaceCatalog={handleRetryWorkspaceCatalog}
             onSessionExpired={handleSessionExpired}
             onSignOut={handleSignOut}
             onWorkspaceUnavailable={handleWorkspaceUnavailable}
             onWorkspaceChange={handleActiveWorkspaceChange}
             workspaceCatalogError={workspaceCatalogError}
             workspaceCatalogLoading={workspaceCatalogLoading}
+            workspaceAccessRefreshAvailable={unavailableWorkspaceIdsRef.current.size > 0}
             workspaceSwitchDisabled={Boolean(activeNavigationSession)}
           />
         ) : (
@@ -830,9 +853,7 @@ export default function App() {
             sessionNotice={session && !isPreviewAccessToken(session.accessToken)
               ? sessionMessage
               : ''}
-            onRetryWorkspaceCatalog={() => {
-              setWorkspaceDiscoveryRevision((revision) => revision + 1);
-            }}
+            onRetryWorkspaceCatalog={handleRetryWorkspaceCatalog}
             onSignIn={() => {
               pendingFullAccessFeatureRef.current = null;
               openSignIn();
@@ -840,6 +861,7 @@ export default function App() {
             onWorkspaceChange={handleActiveWorkspaceChange}
             workspaceCatalogError={workspaceCatalogError}
             workspaceCatalogLoading={workspaceCatalogLoading}
+            workspaceAccessRefreshAvailable={unavailableWorkspaceIdsRef.current.size > 0}
             workspaceSwitchDisabled={Boolean(activeNavigationSession)}
           />
         )}

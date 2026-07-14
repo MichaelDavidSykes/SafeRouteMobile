@@ -106,6 +106,27 @@ describe("route list screen behavior", () => {
       detailSource,
       /recordOfflineRouteCacheReadback\(\s*\[cached\],[\s\S]*?"saved-detail-readback"/,
     );
+    assert.equal(
+      (detailSource.match(/recordOwnedRouteCacheReadback\(/g) || []).length,
+      2,
+    );
+  });
+
+  it("publishes cached lists only while the evidence request still owns the workspace", () => {
+    const loadSource = sourceBetween(
+      screenSource(),
+      "const loadRoutes = useCallback(",
+      "const handleChangeQuery",
+    );
+
+    assert.equal(
+      (loadSource.match(/recordOwnedRouteCacheReadback\(/g) || []).length,
+      2,
+    );
+    assert.match(
+      loadSource,
+      /if \(!\(await recordOwnedRouteCacheReadback\([\s\S]*?requestOwnsWorkspace[\s\S]*?\)\)\) \{[\s\S]*?return;[\s\S]*?setRoutes\(cachedRoutes\)/,
+    );
   });
 
   it("keeps list refresh cleanup scoped to pending list work", () => {

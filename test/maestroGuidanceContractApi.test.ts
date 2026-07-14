@@ -396,6 +396,38 @@ describe('Maestro guidance contract API', () => {
           ...routeReadbacks.slice(1),
         ], readbackOptions),
       /not correlated with an earlier exact denied-workspace purge/);
+      assert.throws(() =>
+        assertGuidanceContractRouteCacheReadbackEvidence(
+          routeReadbacks.map((entry) =>
+            entry.type === 'route.cache.readback' &&
+            entry.workspaceId === GUIDANCE_CONTRACT_WORKSPACES.survivor.id
+              ? {
+                  ...entry,
+                  authorization: {
+                    catalog: 'unavailable',
+                    principal: 'mismatched',
+                  },
+                }
+              : entry),
+          readbackOptions,
+        ),
+      /Survivor readback|one-launch list\/detail durability/);
+      assert.throws(() =>
+        assertGuidanceContractRouteCacheReadbackEvidence(
+          routeReadbacks.map((entry) =>
+            entry.type === 'route.cache.readback' &&
+            entry.workspaceId === GUIDANCE_CONTRACT_WORKSPACES.denied.id
+              ? {
+                  ...entry,
+                  authorization: {
+                    catalog: 'fresh-authorized',
+                    principal: 'matching',
+                  },
+                }
+              : entry),
+          readbackOptions,
+        ),
+      /one-launch list\/detail durability/);
     } finally {
       rmSync(directory, { force: true, recursive: true });
     }

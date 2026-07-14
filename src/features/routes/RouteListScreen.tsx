@@ -43,6 +43,7 @@ import {
   saveOfflineRouteDetail,
   saveOfflineRoutes,
 } from "./offlineRouteCache";
+import { recordOwnedRouteCacheReadback } from "./ownedRouteCacheReadback";
 import { hasUsableRoutePlan } from "./offlineRouteCacheCore";
 import { useNetworkAvailability } from "../api/useNetworkAvailability";
 import type { SafeRouteWorkspace } from "../workspaces/activeWorkspace";
@@ -176,11 +177,16 @@ export function RouteListScreen({
       if (cached) {
         const cachedRoutes = routesForWorkspace(cached.routes, requestWorkspaceId);
         if (offline) {
-          await recordOfflineRouteCacheReadback(
-            cachedRoutes,
-            requestWorkspaceId,
-            "saved-list-readback",
-          );
+          if (!(await recordOwnedRouteCacheReadback(
+            requestOwnsWorkspace,
+            () => recordOfflineRouteCacheReadback(
+              cachedRoutes,
+              requestWorkspaceId,
+              "saved-list-readback",
+            ),
+          ))) {
+            return;
+          }
           setRoutes(cachedRoutes);
           setLoading(false);
           setShowingOfflineCopy(true);
@@ -242,11 +248,16 @@ export function RouteListScreen({
             offlineCopy.routes,
             requestWorkspaceId,
           );
-          await recordOfflineRouteCacheReadback(
-            offlineRoutes,
-            requestWorkspaceId,
-            "saved-list-readback",
-          );
+          if (!(await recordOwnedRouteCacheReadback(
+            requestOwnsWorkspace,
+            () => recordOfflineRouteCacheReadback(
+              offlineRoutes,
+              requestWorkspaceId,
+              "saved-list-readback",
+            ),
+          ))) {
+            return;
+          }
           setRoutes(offlineRoutes);
           setShowingOfflineCopy(true);
         } else {
@@ -409,11 +420,16 @@ export function RouteListScreen({
           return;
         }
         if (cachedDetail) {
-          await recordOfflineRouteCacheReadback(
-            [cachedDetail],
-            selectedClientId,
-            "saved-detail-readback",
-          );
+          if (!(await recordOwnedRouteCacheReadback(
+            requestOwnsWorkspace,
+            () => recordOfflineRouteCacheReadback(
+              [cachedDetail],
+              selectedClientId,
+              "saved-detail-readback",
+            ),
+          ))) {
+            return;
+          }
         }
         setShowingOfflineCopy(true);
         setDetailLoadingId(null);
@@ -469,14 +485,19 @@ export function RouteListScreen({
           });
           return;
         }
-        setShowingOfflineCopy(true);
         if (cachedDetail) {
-          await recordOfflineRouteCacheReadback(
-            [cachedDetail],
-            selectedClientId,
-            "saved-detail-readback",
-          );
+          if (!(await recordOwnedRouteCacheReadback(
+            requestOwnsWorkspace,
+            () => recordOfflineRouteCacheReadback(
+              [cachedDetail],
+              selectedClientId,
+              "saved-detail-readback",
+            ),
+          ))) {
+            return;
+          }
         }
+        setShowingOfflineCopy(true);
         onSelectRoute({ ...cached, clientId: selectedClientId });
       } else {
         setErrorState({

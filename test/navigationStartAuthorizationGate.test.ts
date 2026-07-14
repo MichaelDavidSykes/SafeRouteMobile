@@ -4,6 +4,7 @@ import { describe, it } from "node:test";
 import {
   cancelNavigationStartAuthorization,
   createNavigationStartAuthorizationGate,
+  navigationStartAuthorizationNotice,
   runNavigationStartAuthorization,
 } from "../src/features/live-map/navigationStartAuthorizationGate";
 
@@ -64,6 +65,7 @@ describe("navigation start authorization gate", () => {
 
       assert.equal(result.status, "blocked");
       assert.match(result.status === "blocked" ? result.message : "", /workspace|verified/i);
+      assert.equal(result.status === "blocked" ? result.source : "", "authorization");
       assert.equal(commits, 0);
       assert.equal(gate.pending, false);
     }
@@ -110,8 +112,28 @@ describe("navigation start authorization gate", () => {
     assert.deepEqual(await resultPromise, {
       status: "blocked",
       message: currentBlockedReason,
+      source: "readiness",
     });
     assert.equal(gate.pending, false);
     assert.equal(commits, 0);
+  });
+
+  it("does not retain a recovered readiness blocker as an access notice", () => {
+    assert.equal(
+      navigationStartAuthorizationNotice({
+        status: "blocked",
+        message: "Waiting for a live location fix before guidance can start.",
+        source: "readiness",
+      }),
+      null,
+    );
+    assert.equal(
+      navigationStartAuthorizationNotice({
+        status: "blocked",
+        message: "Workspace access could not be verified. Reconnect and try again.",
+        source: "authorization",
+      }),
+      "Workspace access could not be verified. Reconnect and try again.",
+    );
   });
 });

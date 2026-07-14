@@ -93,6 +93,7 @@ import { getRequestUnavailableWorkspaceId } from "../workspaces/workspaceAccessR
 import {
   cancelNavigationStartAuthorization,
   createNavigationStartAuthorizationGate,
+  navigationStartAuthorizationNotice,
   runNavigationStartAuthorization,
 } from "./navigationStartAuthorizationGate";
 
@@ -1114,7 +1115,7 @@ export function LiveMapScreen({
     if (result.status === "authorized") {
       setNavigationAuthorizationNotice(null);
     } else {
-      setNavigationAuthorizationNotice(result.message);
+      setNavigationAuthorizationNotice(navigationStartAuthorizationNotice(result));
     }
     setNavigationAuthorizationPending(false);
   };

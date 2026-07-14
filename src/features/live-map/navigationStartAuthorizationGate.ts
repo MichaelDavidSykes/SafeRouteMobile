@@ -8,7 +8,7 @@ export interface NavigationStartAuthorizationGate {
 
 export type NavigationStartAuthorizationGateResult =
   | { status: "authorized" }
-  | { status: "blocked"; message: string }
+  | { status: "blocked"; message: string; source: "authorization" | "readiness" }
   | { status: "duplicate" }
   | { status: "stale" };
 
@@ -21,6 +21,14 @@ export function cancelNavigationStartAuthorization(
 ): void {
   gate.attempt += 1;
   gate.pending = false;
+}
+
+export function navigationStartAuthorizationNotice(
+  result: NavigationStartAuthorizationGateResult,
+): string | null {
+  return result.status === "blocked" && result.source === "authorization"
+    ? result.message
+    : null;
 }
 
 export async function runNavigationStartAuthorization({
@@ -48,7 +56,7 @@ export async function runNavigationStartAuthorization({
       return { status: "stale" };
     }
     if (blockedMessage) {
-      return { status: "blocked", message: blockedMessage };
+      return { status: "blocked", message: blockedMessage, source: "authorization" };
     }
 
     const commitBlockedMessage = validate();
@@ -56,7 +64,7 @@ export async function runNavigationStartAuthorization({
       return { status: "stale" };
     }
     if (commitBlockedMessage) {
-      return { status: "blocked", message: commitBlockedMessage };
+      return { status: "blocked", message: commitBlockedMessage, source: "readiness" };
     }
 
     commit();
@@ -65,7 +73,11 @@ export async function runNavigationStartAuthorization({
     if (gate.attempt !== attempt) {
       return { status: "stale" };
     }
-    return { status: "blocked", message: DEFAULT_BLOCKED_MESSAGE };
+    return {
+      status: "blocked",
+      message: DEFAULT_BLOCKED_MESSAGE,
+      source: "authorization",
+    };
   } finally {
     if (gate.attempt === attempt) {
       gate.pending = false;

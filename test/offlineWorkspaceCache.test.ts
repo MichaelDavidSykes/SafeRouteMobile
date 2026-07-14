@@ -6,6 +6,7 @@ import {
   createSerializedWorkspaceRecordWriter,
   createOfflineWorkspaceCacheRecord,
   parseOfflineWorkspaceCacheRecord,
+  persistOrClearWorkspaceRecovery,
 } from "../src/features/workspaces/offlineWorkspaceCacheCore";
 
 const CONTEXT = {
@@ -94,6 +95,33 @@ describe("offline active workspace cache", () => {
         value: { ...record.value, unavailableWorkspaceIds: "workspace-b" },
       }, "user-a", 2_000),
       null,
+    );
+  });
+
+  it("removes the stale catalog when denied-workspace persistence fails", async () => {
+    const calls: string[] = [];
+    const result = await persistOrClearWorkspaceRecovery({
+      persist: async () => {
+        calls.push("persist");
+        throw new Error("storage write failed");
+      },
+      clear: async () => {
+        calls.push("clear");
+      },
+    });
+
+    assert.equal(result, "cleared");
+    assert.deepEqual(calls, ["persist", "clear"]);
+    assert.equal(
+      await persistOrClearWorkspaceRecovery({
+        persist: async () => {
+          throw new Error("storage write failed");
+        },
+        clear: async () => {
+          throw new Error("storage clear failed");
+        },
+      }),
+      "failed",
     );
   });
 });

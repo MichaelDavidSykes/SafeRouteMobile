@@ -285,7 +285,11 @@ describe('Maestro guidance contract API', () => {
       sequence,
       timestampMs: sequence * 100
     });
-    const marker = (sequence: number, edge: 'open' | 'close', phase = 'workspaceStart') =>
+    const marker = (
+      sequence: number,
+      edge: 'open' | 'close',
+      phase = edge === 'open' ? 'workspacePrepare' : 'workspaceStart',
+    ) =>
       entry({
         authorizationClass: 'none',
         authorized: false,
@@ -309,9 +313,40 @@ describe('Maestro guidance contract API', () => {
           '/api/v1/users/me',
           '/api/v1/mobile/safe-route/routes'
         ],
+        openPhase: 'workspacePrepare',
         phase: 'workspaceStart'
       })
     );
+    for (const invalidOpenMarker of [
+      { ...marker(1, 'open'), phase: 'workspaceStart' },
+      {
+        ...marker(1, 'open'),
+        authorizationClass: 'expected-bearer',
+        authorized: true
+      },
+      {
+        ...marker(1, 'open'),
+        search: '?boundary=active-start&edge=open&extra=unexpected'
+      }
+    ]) {
+      assert.throws(
+        () => assertGuidanceStartTrafficBoundary([
+          invalidOpenMarker,
+          entry({ path: '/api/v1/users/me', sequence: 2 }),
+          entry({ path: '/api/v1/mobile/safe-route/routes', sequence: 3 }),
+          marker(4, 'close')
+        ], {
+          boundary: 'active-start',
+          expectedPaths: [
+            '/api/v1/users/me',
+            '/api/v1/mobile/safe-route/routes'
+          ],
+          openPhase: 'workspacePrepare',
+          phase: 'workspaceStart'
+        }),
+        /used invalid markers/
+      );
+    }
     assert.throws(
       () => assertGuidanceStartTrafficBoundary([
         marker(1, 'open'),
@@ -324,6 +359,24 @@ describe('Maestro guidance contract API', () => {
           '/api/v1/users/me',
           '/api/v1/mobile/safe-route/routes'
         ],
+        openPhase: 'workspacePrepare',
+        phase: 'workspaceStart'
+      }),
+      /exact authorization contract/
+    );
+    assert.throws(
+      () => assertGuidanceStartTrafficBoundary([
+        marker(1, 'open'),
+        entry({ method: 'POST', path: '/api/v1/users/me', sequence: 2 }),
+        entry({ path: '/api/v1/mobile/safe-route/routes', sequence: 3 }),
+        marker(4, 'close')
+      ], {
+        boundary: 'active-start',
+        expectedPaths: [
+          '/api/v1/users/me',
+          '/api/v1/mobile/safe-route/routes'
+        ],
+        openPhase: 'workspacePrepare',
         phase: 'workspaceStart'
       }),
       /exact authorization contract/
@@ -345,6 +398,7 @@ describe('Maestro guidance contract API', () => {
           '/api/v1/users/me',
           '/api/v1/mobile/safe-route/routes'
         ],
+        openPhase: 'workspacePrepare',
         phase: 'workspaceStart'
       }),
       /exact authorization contract/
@@ -356,6 +410,7 @@ describe('Maestro guidance contract API', () => {
       ], {
         boundary: 'active-start',
         expectedPaths: [],
+        openPhase: 'workspacePrepare',
         phase: 'workspaceStart'
       })
     );
@@ -365,7 +420,7 @@ describe('Maestro guidance contract API', () => {
         authorized: false,
         method: 'POST',
         path: GUIDANCE_START_BOUNDARY_PATH,
-        phase: 'wrongPrincipalStart',
+        phase: edge === 'open' ? 'wrongPrincipalPrepare' : 'wrongPrincipalStart',
         search: `?boundary=wrong-principal-start&edge=${edge}`,
         sequence
       });
@@ -381,6 +436,7 @@ describe('Maestro guidance contract API', () => {
       ], {
         boundary: 'wrong-principal-start',
         expectedPaths: ['/api/v1/users/me'],
+        openPhase: 'wrongPrincipalPrepare',
         phase: 'wrongPrincipalStart'
       })
     );
@@ -401,6 +457,7 @@ describe('Maestro guidance contract API', () => {
       ], {
         boundary: 'wrong-principal-start',
         expectedPaths: ['/api/v1/users/me'],
+        openPhase: 'wrongPrincipalPrepare',
         phase: 'wrongPrincipalStart'
       }),
       /expected 1 protected requests but recorded 2/
@@ -431,6 +488,7 @@ describe('Maestro guidance contract API', () => {
           '/api/v1/users/me',
           '/api/v1/mobile/safe-route/routes'
         ],
+        openPhase: 'deniedPrepare',
         phase: 'deniedStart'
       })
     );
@@ -450,6 +508,7 @@ describe('Maestro guidance contract API', () => {
           '/api/v1/users/me',
           '/api/v1/mobile/safe-route/routes'
         ],
+        openPhase: 'workspacePrepare',
         phase: 'workspaceStart'
       }),
       /exact authorization contract/
@@ -462,6 +521,7 @@ describe('Maestro guidance contract API', () => {
       ], {
         boundary: 'active-start',
         expectedPaths: [],
+        openPhase: 'workspacePrepare',
         phase: 'workspaceStart'
       }),
       /expected 0 protected requests but recorded 1/

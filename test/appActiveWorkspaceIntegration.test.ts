@@ -51,7 +51,7 @@ describe("App active workspace integration", () => {
   it("owns fail-closed Operations workspace recovery and rejects stale denied-workspace catalogs", () => {
     const app = appSource();
 
-    assert.match(app, /handleWorkspaceUnavailable = useCallback/);
+    assert.match(app, /handleWorkspaceUnavailable = useCallback\(async/);
     assert.match(app, /resolveWorkspaceAccessRecovery\([\s\S]*activeWorkspaceRef\.current\?\.id[\s\S]*normalizedWorkspaceId/);
     assert.match(app, /if \(recovery\.status === 'ignored'\) \{[\s\S]*return/);
     assert.match(app, /normalizedWorkspaceId = workspaceId\.trim\(\)/);
@@ -62,6 +62,14 @@ describe("App active workspace integration", () => {
     assert.match(app, /excludeUnavailableWorkspaces\([\s\S]*unavailableWorkspaceIdsRef\.current/);
     assert.match(app, /setAvailableWorkspaces\(recovery\.workspaces\)/);
     assert.match(app, /setActiveWorkspace\(recovery\.activeWorkspace\)/);
+    assert.match(
+      app,
+      /navigationUnavailable = isWorkspaceIdUnavailable\([\s\S]*currentNavigation\?\.routePlan\.clientId[\s\S]*unavailableWorkspaceIdsRef\.current/,
+    );
+    assert.match(
+      app,
+      /previewUnavailable = isWorkspaceIdUnavailable\([\s\S]*currentPreview\?\.clientId[\s\S]*unavailableWorkspaceIdsRef\.current/,
+    );
     assert.match(app, /navigationUnavailable[\s\S]*discardPersistedNavigation/);
     assert.match(app, /previewUnavailable[\s\S]*setSelectedRoute\(null\)/);
     assert.match(
@@ -69,6 +77,10 @@ describe("App active workspace integration", () => {
       /newlyUnavailableWorkspaceIds\.map\([\s\S]*clearOfflineRouteWorkspace\(principalId, workspaceId\)/,
     );
     assert.match(app, /saveOfflineWorkspaceContext\(principalId, \{[\s\S]*workspaces: recovery\.workspaces/);
+    assert.match(
+      app,
+      /await Promise\.all\(\[[\s\S]*navigationCleanup[\s\S]*clearOfflineRouteWorkspace[\s\S]*saveOfflineWorkspaceContextFailClosed/,
+    );
     assert.match(app, /setWorkspaceDiscoveryRevision\(\(revision\) => revision \+ 1\)/);
   });
 
@@ -234,7 +246,7 @@ describe("App active workspace integration", () => {
     );
     assert.match(
       app,
-      /authorization\.status === 'workspace-unavailable'[\s\S]*handleWorkspaceUnavailable\(workspaceId, authorization\.workspaces\)/,
+      /authorization\.status === 'workspace-unavailable'[\s\S]*await handleWorkspaceUnavailable\(workspaceId, authorization\.workspaces\)/,
     );
     assert.match(
       app,

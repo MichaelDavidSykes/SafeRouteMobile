@@ -537,9 +537,11 @@ export function assertGuidanceContractRequestJournal(entries, {
 export function assertGuidanceStartTrafficBoundary(entries, {
   boundary,
   expectedPaths,
+  openPhase,
   phase
 }) {
   const normalizedBoundary = String(boundary || '').trim();
+  const normalizedOpenPhase = String(openPhase || '').trim();
   const normalizedPhase = String(phase || '').trim();
   const expected = Array.isArray(expectedPaths) ? expectedPaths : [];
   const markers = entries.filter((entry) => {
@@ -567,11 +569,22 @@ export function assertGuidanceStartTrafficBoundary(entries, {
     `Guidance Start boundary ${normalizedBoundary} closed before it opened.`
   );
   assertJournalCondition(
-    close.phase === normalizedPhase &&
+    open.phase === normalizedOpenPhase &&
+      close.phase === normalizedPhase &&
       open.method === 'POST' &&
       close.method === 'POST' &&
       open.authorized === false &&
-      close.authorized === false,
+      close.authorized === false &&
+      open.authorizationClass === 'none' &&
+      close.authorizationClass === 'none' &&
+      open.search === `?${new URLSearchParams({
+        boundary: normalizedBoundary,
+        edge: 'open'
+      })}` &&
+      close.search === `?${new URLSearchParams({
+        boundary: normalizedBoundary,
+        edge: 'close'
+      })}`,
     `Guidance Start boundary ${normalizedBoundary} used invalid markers.`
   );
 

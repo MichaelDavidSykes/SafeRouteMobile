@@ -148,10 +148,15 @@ describe('Maestro cold guidance contract matrix', () => {
     const openIndex = runner.indexOf("await writeStartBoundaryMarker(boundary, 'open');");
     const modeSwitchIndex = runner.indexOf('setControl(phase);', quietIndex);
     const outcomeIndex = runner.indexOf('runMaestroPhase(phase, `${label} outcome`, outcomeFile);');
+    const outcomeQuietIndex = runner.indexOf(
+      'await waitForStartAuthorizationTrafficQuiet();',
+      outcomeIndex,
+    );
     const closeIndex = runner.indexOf("await writeStartBoundaryMarker(boundary, 'close');");
     assert.ok(quietIndex >= 0 && openIndex > quietIndex);
     assert.ok(modeSwitchIndex > openIndex, 'Start mode must switch only after the open marker');
-    assert.ok(outcomeIndex > modeSwitchIndex && closeIndex > outcomeIndex);
+    assert.ok(outcomeIndex > modeSwitchIndex && outcomeQuietIndex > outcomeIndex);
+    assert.ok(closeIndex > outcomeQuietIndex, 'Start boundary must close only after traffic is quiet');
 
     const deniedBoundary = runner.slice(
       runner.indexOf("boundary: 'denied-workspace-start'"),

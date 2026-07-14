@@ -70,6 +70,23 @@ export function excludeUnavailableWorkspaces(
   );
 }
 
+export function isWorkspaceIdUnavailable(
+  workspaceId: string | null | undefined,
+  unavailableWorkspaceIds: Iterable<string>,
+): boolean {
+  const normalizedWorkspaceId = normalizeWorkspaceId(workspaceId);
+  if (!normalizedWorkspaceId) {
+    return false;
+  }
+
+  for (const unavailableWorkspaceId of unavailableWorkspaceIds) {
+    if (normalizeWorkspaceId(unavailableWorkspaceId) === normalizedWorkspaceId) {
+      return true;
+    }
+  }
+  return false;
+}
+
 export function findAuthoritativelyUnavailableWorkspaceIds({
   candidateWorkspaceIds,
   freshWorkspaces,

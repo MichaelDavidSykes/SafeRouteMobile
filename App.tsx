@@ -72,11 +72,13 @@ import {
 } from './src/features/workspaces/activeWorkspace';
 import {
   loadOfflineWorkspaceContext,
-  saveOfflineWorkspaceContext
+  saveOfflineWorkspaceContext,
+  saveOfflineWorkspaceContextFailClosed
 } from './src/features/workspaces/offlineWorkspaceCache';
 import {
   excludeUnavailableWorkspaces,
   findAuthoritativelyUnavailableWorkspaceIds,
+  isWorkspaceIdUnavailable,
   resolveFreshWorkspaceAccessRecovery,
   resolveWorkspaceAccessRecovery
 } from './src/features/workspaces/workspaceAccessRecovery';
@@ -962,7 +964,7 @@ export default function App() {
     }).catch(() => undefined);
   }, [activeNavigationSession, activeWorkspace?.id, availableWorkspaces, session]);
 
-  const handleWorkspaceUnavailable = useCallback((
+  const handleWorkspaceUnavailable = useCallback(async (
     workspaceId: string,
     freshWorkspaces?: SafeRouteWorkspace[],
   ) => {
@@ -979,6 +981,7 @@ export default function App() {
             currentNavigation?.routePlan.clientId,
             currentPreview?.clientId,
             activeWorkspaceRef.current?.id,
+            ...freshWorkspaceAuthorizationRef.current.workspaceIds,
           ],
           freshWorkspaces: freshCatalog,
           knownWorkspaces: availableWorkspacesRef.current,
@@ -1023,13 +1026,19 @@ export default function App() {
     setWorkspaceCatalogError('');
     setWorkspaceCatalogLoading(!freshCatalog);
 
-    const navigationUnavailable = currentNavigation?.routePlan.clientId === normalizedWorkspaceId;
-    const previewUnavailable = currentPreview?.clientId === normalizedWorkspaceId;
-    if (navigationUnavailable) {
-      void discardPersistedNavigation(
-        'Active guidance ended because this workspace is no longer available.',
-      );
-    }
+    const navigationUnavailable = isWorkspaceIdUnavailable(
+      currentNavigation?.routePlan.clientId,
+      unavailableWorkspaceIdsRef.current,
+    );
+    const previewUnavailable = isWorkspaceIdUnavailable(
+      currentPreview?.clientId,
+      unavailableWorkspaceIdsRef.current,
+    );
+    const navigationCleanup = navigationUnavailable
+      ? discardPersistedNavigation(
+          'Active guidance ended because this workspace is no longer available.',
+        )
+      : Promise.resolve(true);
     if (previewUnavailable) {
       selectedRouteRef.current = null;
       setSelectedRoute(null);
@@ -1051,19 +1060,20 @@ export default function App() {
               : `${workspaceName} is no longer available. No workspace access remains for this account.`,
     );
 
-    void Promise.allSettled([
+    if (!freshCatalog) {
+      setWorkspaceDiscoveryRevision((revision) => revision + 1);
+    }
+    await Promise.all([
+      navigationCleanup,
       ...newlyUnavailableWorkspaceIds.map((workspaceId) =>
-        clearOfflineRouteWorkspace(principalId, workspaceId)
+        clearOfflineRouteWorkspace(principalId, workspaceId).catch(() => undefined)
       ),
-      saveOfflineWorkspaceContext(principalId, {
+      saveOfflineWorkspaceContextFailClosed(principalId, {
         activeWorkspaceId: recovery.activeWorkspace?.id || null,
         unavailableWorkspaceIds: Array.from(unavailableWorkspaceIdsRef.current),
         workspaces: recovery.workspaces,
       }),
     ]);
-    if (!freshCatalog) {
-      setWorkspaceDiscoveryRevision((revision) => revision + 1);
-    }
   }, [session]);
 
   const handleNavigationSessionChange = useCallback((nextSession: ActiveNavigationSession | null) => {
@@ -1153,7 +1163,7 @@ export default function App() {
         return 'Sign in again before starting guidance.';
       }
       if (authorization.status === 'workspace-unavailable') {
-        handleWorkspaceUnavailable(workspaceId, authorization.workspaces);
+        await handleWorkspaceUnavailable(workspaceId, authorization.workspaces);
         return 'This route closed because its workspace is no longer available.';
       }
 
@@ -1162,7 +1172,7 @@ export default function App() {
         unavailableWorkspaceIdsRef.current,
       );
       if (!findWorkspace(authorizedWorkspaces, workspaceId)) {
-        handleWorkspaceUnavailable(workspaceId, authorization.workspaces);
+        await handleWorkspaceUnavailable(workspaceId, authorization.workspaces);
         return 'This route closed because its workspace is no longer available.';
       }
 

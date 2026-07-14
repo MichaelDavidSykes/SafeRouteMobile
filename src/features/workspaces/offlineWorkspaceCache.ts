@@ -4,13 +4,18 @@ import {
   createSerializedWorkspaceRecordWriter,
   createOfflineWorkspaceCacheRecord,
   parseOfflineWorkspaceCacheRecord,
+  persistOrClearWorkspaceRecovery,
   type OfflineWorkspaceContext,
   type OfflineWorkspaceSnapshot,
+  type WorkspaceRecoveryPersistenceResult,
 } from "./offlineWorkspaceCacheCore";
 
 const WORKSPACE_CONTEXT_KEY_PREFIX = "saferoute.offline.workspaces.v2";
+const CLEAR_WORKSPACE_CONTEXT_SENTINEL = "";
 const writeWorkspaceRecord = createSerializedWorkspaceRecordWriter(
-  (key, value) => AsyncStorage.setItem(key, value),
+  (key, value) => value === CLEAR_WORKSPACE_CONTEXT_SENTINEL
+    ? AsyncStorage.removeItem(key)
+    : AsyncStorage.setItem(key, value),
 );
 
 function identityKey(principalId: string): string {
@@ -28,6 +33,23 @@ export async function saveOfflineWorkspaceContext(
     `${WORKSPACE_CONTEXT_KEY_PREFIX}.${identityKey(principalId)}`,
     JSON.stringify(createOfflineWorkspaceCacheRecord(context, principalId)),
   );
+}
+
+export async function saveOfflineWorkspaceContextFailClosed(
+  principalId: string,
+  context: OfflineWorkspaceContext,
+): Promise<WorkspaceRecoveryPersistenceResult> {
+  if (!principalId.trim()) {
+    return "failed";
+  }
+  const key = `${WORKSPACE_CONTEXT_KEY_PREFIX}.${identityKey(principalId)}`;
+  const serializedContext = JSON.stringify(
+    createOfflineWorkspaceCacheRecord(context, principalId),
+  );
+  return persistOrClearWorkspaceRecovery({
+    clear: () => writeWorkspaceRecord(key, CLEAR_WORKSPACE_CONTEXT_SENTINEL),
+    persist: () => writeWorkspaceRecord(key, serializedContext),
+  });
 }
 
 export async function loadOfflineWorkspaceContext(

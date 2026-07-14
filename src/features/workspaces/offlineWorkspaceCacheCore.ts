@@ -24,6 +24,8 @@ export type OfflineWorkspaceRecordWriter = (
   value: string,
 ) => Promise<void>;
 
+export type WorkspaceRecoveryPersistenceResult = "cleared" | "failed" | "persisted";
+
 type OfflineWorkspaceCacheRecord = {
   principalId: string;
   schema: number;
@@ -140,4 +142,24 @@ export function createSerializedWorkspaceRecordWriter(
       }
     }
   };
+}
+
+export async function persistOrClearWorkspaceRecovery({
+  clear,
+  persist,
+}: {
+  clear: () => Promise<void>;
+  persist: () => Promise<void>;
+}): Promise<WorkspaceRecoveryPersistenceResult> {
+  try {
+    await persist();
+    return "persisted";
+  } catch {
+    try {
+      await clear();
+      return "cleared";
+    } catch {
+      return "failed";
+    }
+  }
 }

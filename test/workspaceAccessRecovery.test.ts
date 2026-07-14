@@ -11,6 +11,7 @@ import {
   findAuthoritativelyUnavailableWorkspaceIds,
   getRequestUnavailableWorkspaceId,
   isWorkspaceForbiddenError,
+  isWorkspaceIdUnavailable,
   isWorkspaceUnavailableError,
   resolveFreshWorkspaceAccessRecovery,
   resolveWorkspaceAccessRecovery,
@@ -148,6 +149,18 @@ describe("workspace access recovery", () => {
       ),
       [WORKSPACES[0], WORKSPACES[2]],
     );
+  });
+
+  it("matches route-bound surfaces against every normalized unavailable workspace", () => {
+    assert.equal(
+      isWorkspaceIdUnavailable(" workspace-b ", ["workspace-a", " workspace-b "]),
+      true,
+    );
+    assert.equal(
+      isWorkspaceIdUnavailable("workspace-c", ["workspace-a", "workspace-b"]),
+      false,
+    );
+    assert.equal(isWorkspaceIdUnavailable("", ["workspace-a"]), false);
   });
 
   it("detects cached and route-bound workspaces omitted by a fresh authoritative catalog", () => {

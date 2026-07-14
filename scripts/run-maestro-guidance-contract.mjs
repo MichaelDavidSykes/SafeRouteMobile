@@ -111,6 +111,7 @@ async function main() {
     expectedPaths: [],
     file: phases.publicStart,
     label: 'start signed-out public guidance',
+    openPhase: 'publicPrepare',
     outcomeFile: phases.publicStartOutcome,
     phase: 'publicStart'
   });
@@ -147,6 +148,7 @@ async function main() {
     ],
     file: phases.workspaceStart,
     label: 'start principal-A workspace guidance',
+    openPhase: 'workspacePrepare',
     outcomeFile: phases.workspaceStartOutcome,
     phase: 'workspaceStart'
   });
@@ -190,6 +192,7 @@ async function main() {
     expectedPaths: ['/api/v1/users/me'],
     file: phases.wrongPrincipalStart,
     label: 'reject a fresh Start from a different stable principal',
+    openPhase: 'wrongPrincipalPrepare',
     outcomeFile: phases.wrongPrincipalStartOutcome,
     phase: 'wrongPrincipalStart'
   });
@@ -207,6 +210,7 @@ async function main() {
     ],
     file: phases.deniedStart,
     label: 'reject a fresh Start after workspace membership loss',
+    openPhase: 'deniedPrepare',
     outcomeFile: phases.deniedStartOutcome,
     phase: 'deniedStart'
   });
@@ -321,6 +325,7 @@ async function runStartBoundary({
   expectedPaths,
   file,
   label,
+  openPhase,
   outcomeFile,
   phase
 }) {
@@ -330,10 +335,12 @@ async function runStartBoundary({
   runMaestroPhase(phase, label, file);
   await waitForExpectedStartTraffic(boundary, expectedPaths);
   runMaestroPhase(phase, `${label} outcome`, outcomeFile);
+  await waitForStartAuthorizationTrafficQuiet();
   await writeStartBoundaryMarker(boundary, 'close');
   assertGuidanceStartTrafficBoundary(readRequestJournal(), {
     boundary,
     expectedPaths,
+    openPhase,
     phase
   });
 }

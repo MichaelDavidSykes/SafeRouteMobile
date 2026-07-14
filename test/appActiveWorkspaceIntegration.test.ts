@@ -215,6 +215,36 @@ describe("App active workspace integration", () => {
     );
   });
 
+  it("revalidates the current principal and catalog immediately before workspace guidance starts", () => {
+    const app = appSource();
+    const liveMap = readFileSync("src/features/live-map/LiveMapScreen.tsx", "utf8");
+
+    assert.match(
+      app,
+      /handleAuthorizeNavigationStart[\s\S]*authorizeWorkspaceNavigationStart\([\s\S]*getCurrentUser\(accessToken\)[\s\S]*fetchSavedRoutes\(accessToken\)/,
+    );
+    assert.match(
+      app,
+      /requestSessionEpoch[\s\S]*requestIsCurrent[\s\S]*sessionEpochRef\.current === requestSessionEpoch[\s\S]*selectedRouteRef\.current\?\.route\.id === routeId[\s\S]*activeWorkspaceRef\.current\?\.id === workspaceId/,
+    );
+    assert.match(
+      app,
+      /onAuthorizeNavigationStart=\{handleAuthorizeNavigationStart\}/,
+    );
+    assert.match(
+      app,
+      /handleNavigationSessionChange[\s\S]*freshWorkspaceAuthorizationRef\.current\.workspaceIds\.has\(workspaceId\)/,
+    );
+    assert.match(
+      liveMap,
+      /authorizeAndStartNavigation[\s\S]*runNavigationStartAuthorization\([\s\S]*authorize: \(\) => onAuthorizeNavigationStartRef\.current\(liveRoutePlan\)[\s\S]*commit: commitNavigationStart/,
+    );
+    assert.match(
+      liveMap,
+      /Checking workspace access before starting guidance/,
+    );
+  });
+
   it("defers persisted workspace guidance until the fresh catalog authorizes it", () => {
     const app = appSource();
     const guest = guestSource();

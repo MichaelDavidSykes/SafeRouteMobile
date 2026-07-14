@@ -80,6 +80,7 @@ import {
   resolveWorkspaceAccessRecovery
 } from './src/features/workspaces/workspaceAccessRecovery';
 import { reconcileUnavailableWorkspaceIds } from './src/features/workspaces/workspaceMembershipRevalidation';
+import { authorizeWorkspaceNavigationStart } from './src/features/workspaces/workspaceNavigationAuthorization';
 import { SuspendedNavigationNotice } from './src/features/live-map/SuspendedNavigationNotice';
 import { NavigationCleanupNotice } from './src/features/live-map/NavigationCleanupNotice';
 import type { SuspendedNavigationStatus } from './src/features/live-map/suspendedNavigationState';
@@ -1037,6 +1038,7 @@ export default function App() {
         activeWorkspaceRef.current?.id,
         activeSessionPrincipalIdRef.current,
       ) ||
+      (workspaceId && !freshWorkspaceAuthorizationRef.current.workspaceIds.has(workspaceId)) ||
       (workspaceId && unavailableWorkspaceIdsRef.current.has(workspaceId))
     ) {
       return false;
@@ -1046,6 +1048,85 @@ export default function App() {
     setActiveNavigationSession(nextSession);
     return true;
   }, []);
+
+  const handleAuthorizeNavigationStart = async (routePlan: SavedSafeRoutePlan) => {
+    const workspaceId = routePlan.clientId?.trim() || '';
+    if (!workspaceId) {
+      return null;
+    }
+
+    const accessToken = activeSessionTokenRef.current?.trim() || '';
+    const principalId = activeSessionPrincipalIdRef.current.trim();
+    const requestSessionEpoch = sessionEpochRef.current;
+    const routeId = routePlan.route.id;
+    const requestIsCurrent = () =>
+      Boolean(accessToken && principalId) &&
+      activeSessionTokenRef.current?.trim() === accessToken &&
+      activeSessionPrincipalIdRef.current === principalId &&
+      sessionEpochRef.current === requestSessionEpoch &&
+      selectedRouteRef.current?.route.id === routeId &&
+      selectedRouteRef.current?.clientId?.trim() === workspaceId &&
+      activeWorkspaceRef.current?.id === workspaceId &&
+      !navigationCleanupRequiredRef.current &&
+      !pendingNavigationRestoreRef.current;
+
+    if (!requestIsCurrent()) {
+      return 'The active workspace changed. Plot the route again.';
+    }
+
+    try {
+      const authorization = await authorizeWorkspaceNavigationStart({
+        expectedPrincipalId: principalId,
+        loadCurrentPrincipalId: isPreviewAccessToken(accessToken)
+          ? undefined
+          : async () => String((await getCurrentUser(accessToken)).id || ''),
+        loadWorkspaceCatalog: async () =>
+          normalizeWorkspaceCatalog((await fetchSavedRoutes(accessToken)).clients),
+        requestIsCurrent,
+        workspaceId,
+      });
+
+      if (authorization.status === 'stale') {
+        return 'The route or signed-in account changed. Plot the route again.';
+      }
+      if (authorization.status === 'principal-mismatch') {
+        await handleSessionExpired(
+          'Workspace access belongs to another signed-in account. Sign in again.',
+          accessToken,
+          requestSessionEpoch,
+        );
+        return 'Sign in again before starting guidance.';
+      }
+      if (authorization.status === 'workspace-unavailable') {
+        handleWorkspaceUnavailable(workspaceId);
+        return 'This route closed because its workspace is no longer available.';
+      }
+
+      const authorizedWorkspaces = excludeUnavailableWorkspaces(
+        authorization.workspaces,
+        unavailableWorkspaceIdsRef.current,
+      );
+      if (!findWorkspace(authorizedWorkspaces, workspaceId)) {
+        handleWorkspaceUnavailable(workspaceId);
+        return 'This route closed because its workspace is no longer available.';
+      }
+
+      freshWorkspaceAuthorizationRef.current = {
+        principalId,
+        workspaceIds: new Set(authorizedWorkspaces.map((workspace) => workspace.id)),
+      };
+      return null;
+    } catch (error) {
+      if (!requestIsCurrent()) {
+        return 'The route or signed-in account changed. Plot the route again.';
+      }
+      if (error instanceof ApiSessionExpiredError) {
+        await handleSessionExpired(error.message, accessToken, requestSessionEpoch);
+        return 'Sign in again before starting guidance.';
+      }
+      return 'Workspace access could not be verified. Reconnect and try again.';
+    }
+  };
 
   useEffect(() => {
     const navigationWorkspaceId = activeNavigationSession?.routePlan.clientId;
@@ -1236,6 +1317,7 @@ export default function App() {
             routeContext={routePreviewSource}
             routePlan={selectedRoute}
             onChangeRoute={returnFromRoutePreview}
+            onAuthorizeNavigationStart={handleAuthorizeNavigationStart}
             onNavigationSessionChange={handleNavigationSessionChange}
             onSessionExpired={handleSessionExpired}
             onWorkspaceUnavailable={handleWorkspaceUnavailable}

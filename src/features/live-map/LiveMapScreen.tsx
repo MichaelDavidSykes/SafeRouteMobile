@@ -89,10 +89,16 @@ import { normalizeReliableLocationSample } from "./locationSignal";
 import { useNetworkAvailability } from "../api/useNetworkAvailability";
 import { getRequestSessionExpiry } from "../api/sessionExpiry";
 import { getRequestUnavailableWorkspaceId } from "../workspaces/workspaceAccessRecovery";
+import {
+  cancelNavigationStartAuthorization,
+  createNavigationStartAuthorizationGate,
+  runNavigationStartAuthorization,
+} from "./navigationStartAuthorizationGate";
 
 interface LiveMapScreenProps {
   accessToken?: string | null;
   initialNavigationSession?: ActiveNavigationSession | null;
+  onAuthorizeNavigationStart: (routePlan: SavedSafeRoutePlan) => Promise<string | null>;
   onNavigationSessionChange?: (session: ActiveNavigationSession | null) => boolean | void;
   onSessionExpired?: (message?: string) => void;
   onWorkspaceUnavailable?: (workspaceId: string) => void;
@@ -107,6 +113,7 @@ interface LiveMapScreenProps {
 export function LiveMapScreen({
   accessToken,
   initialNavigationSession = null,
+  onAuthorizeNavigationStart,
   onChangeRoute,
   onNavigationSessionChange,
   onSessionExpired,
@@ -131,6 +138,8 @@ export function LiveMapScreen({
   );
   const progressRef = useRef<ReturnType<typeof calculateRouteProgress>>(null);
   const activeSessionSnapshotRef = useRef<ActiveNavigationSession | null>(null);
+  const navigationAuthorizationGateRef = useRef(createNavigationStartAuthorizationGate());
+  const onAuthorizeNavigationStartRef = useRef(onAuthorizeNavigationStart);
   const onNavigationSessionChangeRef = useRef(onNavigationSessionChange);
   const onWorkspaceUnavailableRef = useRef(onWorkspaceUnavailable);
   const viewport = useWindowDimensions();
@@ -158,6 +167,9 @@ export function LiveMapScreen({
     () => resumedNavigationSession?.navigationStartedAtMs || Date.now(),
   );
   const [pendingNavigationStart, setPendingNavigationStart] = useState(false);
+  const [navigationAuthorizationPending, setNavigationAuthorizationPending] = useState(false);
+  const [navigationAuthorizationNotice, setNavigationAuthorizationNotice] =
+    useState<string | null>(null);
   const [routeStep, setRouteStep] = useState(0);
   const [activeRoutePlan, setActiveRoutePlan] = useState(
     resumedNavigationSession?.routePlan || routePlan,
@@ -210,6 +222,7 @@ export function LiveMapScreen({
     navigationActive: navigationLocationTrackingActive,
     permissionRequested: locationTrackingRequested,
   });
+  onAuthorizeNavigationStartRef.current = onAuthorizeNavigationStart;
   onNavigationSessionChangeRef.current = onNavigationSessionChange;
   onWorkspaceUnavailableRef.current = onWorkspaceUnavailable;
   activeRouteWorkspaceIdRef.current = activeRoutePlan.clientId || null;
@@ -378,7 +391,7 @@ export function LiveMapScreen({
     permissionStatus,
     routeCoordinateCount: liveRoutePlan.route.coordinates.length,
   });
-  const locationNotice = (
+  const locationNotice = navigationAuthorizationNotice || (
     navigationState === "loaded" ||
     navigationState === "paused" ||
     navigationState === "stopped"
@@ -802,6 +815,9 @@ export function LiveMapScreen({
     }
     setLiveLocationRequested(Boolean(nextResumeSession));
     setPendingNavigationStart(false);
+    cancelNavigationStartAuthorization(navigationAuthorizationGateRef.current);
+    setNavigationAuthorizationPending(false);
+    setNavigationAuthorizationNotice(null);
     setSelectedRiskZoneId(null);
     const timer = setTimeout(() => {
       if (nextRoutePlan.route.coordinates.length >= 2) {
@@ -811,7 +827,10 @@ export function LiveMapScreen({
         });
       }
     }, 120);
-    return () => clearTimeout(timer);
+    return () => {
+      clearTimeout(timer);
+      cancelNavigationStartAuthorization(navigationAuthorizationGateRef.current);
+    };
   }, [routePlan.id]);
 
   useEffect(() => {
@@ -1051,6 +1070,42 @@ export function LiveMapScreen({
     );
   };
 
+  const commitNavigationStart = () => {
+    if (navigationState === "loaded" || navigationState === "stopped") {
+      const startedAtMs = Date.now();
+      setNavigationInstanceId(createActiveNavigationInstanceId(startedAtMs));
+      setNavigationStartedAtMs(startedAtMs);
+    }
+    lastDriveAlongCameraPoseRef.current = null;
+    setNavigationState("navigating");
+    setFollowModeEnabled(true);
+  };
+
+  const authorizeAndStartNavigation = async () => {
+    const gate = navigationAuthorizationGateRef.current;
+    if (gate.pending) {
+      return;
+    }
+
+    setNavigationAuthorizationPending(true);
+    setNavigationAuthorizationNotice("Checking workspace access before starting guidance…");
+
+    const result = await runNavigationStartAuthorization({
+      authorize: () => onAuthorizeNavigationStartRef.current(liveRoutePlan),
+      commit: commitNavigationStart,
+      gate,
+    });
+    if (result.status === "stale" || result.status === "duplicate") {
+      return;
+    }
+    if (result.status === "authorized") {
+      setNavigationAuthorizationNotice(null);
+    } else {
+      setNavigationAuthorizationNotice(result.message);
+    }
+    setNavigationAuthorizationPending(false);
+  };
+
   const handlePrimaryNavigationAction = () => {
     if (
       activeNavigationState === "navigating" ||
@@ -1060,7 +1115,18 @@ export function LiveMapScreen({
       return;
     }
 
-    if (activeNavigationState === "arrived" || navigationBlockedReason) {
+    if (activeNavigationState === "paused") {
+      lastDriveAlongCameraPoseRef.current = null;
+      setNavigationState("navigating");
+      setFollowModeEnabled(true);
+      return;
+    }
+
+    if (
+      activeNavigationState === "arrived" ||
+      navigationBlockedReason ||
+      navigationAuthorizationPending
+    ) {
       return;
     }
 
@@ -1070,14 +1136,7 @@ export function LiveMapScreen({
       return;
     }
 
-    if (navigationState === "loaded" || navigationState === "stopped") {
-      const startedAtMs = Date.now();
-      setNavigationInstanceId(createActiveNavigationInstanceId(startedAtMs));
-      setNavigationStartedAtMs(startedAtMs);
-    }
-    lastDriveAlongCameraPoseRef.current = null;
-    setNavigationState("navigating");
-    setFollowModeEnabled(true);
+    void authorizeAndStartNavigation();
   };
 
   const liveNavigationBlockedReason =
@@ -1093,14 +1152,8 @@ export function LiveMapScreen({
     }
 
     if (demoDriveActive) {
-      if (navigationState === "loaded" || navigationState === "stopped") {
-        const startedAtMs = Date.now();
-        setNavigationInstanceId(createActiveNavigationInstanceId(startedAtMs));
-        setNavigationStartedAtMs(startedAtMs);
-      }
       setPendingNavigationStart(false);
-      setNavigationState("navigating");
-      setFollowModeEnabled(true);
+      void authorizeAndStartNavigation();
       return;
     }
 
@@ -1114,16 +1167,10 @@ export function LiveMapScreen({
     }
 
     setPendingNavigationStart(false);
-    if (navigationState === "loaded" || navigationState === "stopped") {
-      const startedAtMs = Date.now();
-      setNavigationInstanceId(createActiveNavigationInstanceId(startedAtMs));
-      setNavigationStartedAtMs(startedAtMs);
-    }
-    lastDriveAlongCameraPoseRef.current = null;
-    setNavigationState("navigating");
-    setFollowModeEnabled(true);
+    void authorizeAndStartNavigation();
   }, [
     demoDriveActive,
+    navigationAuthorizationPending,
     navigationBlockedReason,
     navigationState,
     pendingNavigationStart,
@@ -1223,7 +1270,11 @@ export function LiveMapScreen({
         routeContext={routeContext}
         onSetAlertsVisible={setAlertsVisible}
         onStopRoute={handleStopRoute}
-        primaryDisabledReason={liveNavigationBlockedReason}
+        primaryDisabledReason={
+          navigationAuthorizationPending
+            ? "Checking workspace access before starting guidance…"
+            : liveNavigationBlockedReason
+        }
         progress={progress}
         liveRiskAlert={liveRiskAlert}
         riskAdvisory={riskAdvisory}

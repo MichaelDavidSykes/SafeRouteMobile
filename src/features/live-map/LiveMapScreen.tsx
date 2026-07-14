@@ -14,6 +14,7 @@ import type { RiskZone, SavedSafeRoutePlan } from "./liveMapTypes";
 import {
   DEFAULT_ROUTE_INTELLIGENCE_VISIBLE,
   liveLocationNotice,
+  resolveNavigationStatusNotice,
   routeStartBlockedReason,
   type NavigationLifecycle,
 } from "./liveMapUiState";
@@ -397,7 +398,7 @@ export function LiveMapScreen({
     navigationAuthorizationNotice?.toLowerCase().includes("reconnect")
       ? navigationAuthorizationNotice
       : null;
-  const locationNotice = navigationAuthorizationNotice || (
+  const navigationReadinessNotice = (
     navigationState === "loaded" ||
     navigationState === "paused" ||
     navigationState === "stopped"
@@ -409,6 +410,11 @@ export function LiveMapScreen({
     hasLiveCoordinate: Boolean(rawVehicleCoordinate),
     permissionStatus,
     routeCoordinateCount: liveRoutePlan.route.coordinates.length,
+  });
+  const locationNotice = resolveNavigationStatusNotice({
+    authorizationNotice: navigationAuthorizationNotice,
+    authorizationPending: navigationAuthorizationPending,
+    readinessNotice: navigationReadinessNotice,
   });
   const guidance = resolveGuidance(
     liveRoutePlan.route,

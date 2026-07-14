@@ -60,6 +60,12 @@ interface LocationNoticeOptions extends LocationReadinessOptions {
   errorMessage?: string | null;
 }
 
+interface NavigationStatusNoticeOptions {
+  authorizationNotice?: string | null;
+  authorizationPending: boolean;
+  readinessNotice?: string | null;
+}
+
 interface MapControlAccessibilityOptions {
   active?: boolean;
   disabled?: boolean;
@@ -147,6 +153,21 @@ export function liveLocationNotice({
   }
 
   return routeStartBlockedReason({ demoDriveActive, hasLiveCoordinate, permissionStatus, routeCoordinateCount });
+}
+
+export function resolveNavigationStatusNotice({
+  authorizationNotice,
+  authorizationPending,
+  readinessNotice
+}: NavigationStatusNoticeOptions): string | null {
+  const normalizedAuthorizationNotice = authorizationNotice?.trim() || null;
+  const normalizedReadinessNotice = readinessNotice?.trim() || null;
+
+  if (authorizationPending) {
+    return normalizedAuthorizationNotice || normalizedReadinessNotice;
+  }
+
+  return normalizedReadinessNotice || normalizedAuthorizationNotice;
 }
 
 export function createLiveLocationNoticePresentation(

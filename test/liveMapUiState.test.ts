@@ -15,6 +15,7 @@ import {
   mapControlAccessibility,
   mapControlDisplayLabel,
   primaryRouteActionAccessibility,
+  resolveNavigationStatusNotice,
   resolveVisibleMapControls,
   routeStartBlockedReason,
   routeStatusPillPresentation,
@@ -198,6 +199,36 @@ describe('live map UI state helpers', () => {
           'Access status. Workspace access could not be verified. Reconnect and try again.',
         displayText: 'Retry access'
       }
+    );
+  });
+
+  it('keeps access retry status coherent with current route readiness', () => {
+    assert.equal(
+      resolveNavigationStatusNotice({
+        authorizationNotice:
+          'Checking workspace access before starting guidance…',
+        authorizationPending: true,
+        readinessNotice: 'Waiting for a live location fix before guidance can start.'
+      }),
+      'Checking workspace access before starting guidance…'
+    );
+    assert.equal(
+      resolveNavigationStatusNotice({
+        authorizationNotice:
+          'Workspace access could not be verified. Reconnect and try again.',
+        authorizationPending: false,
+        readinessNotice: 'A severe risk now intersects this route.'
+      }),
+      'A severe risk now intersects this route.'
+    );
+    assert.equal(
+      resolveNavigationStatusNotice({
+        authorizationNotice:
+          'Workspace access could not be verified. Reconnect and try again.',
+        authorizationPending: false,
+        readinessNotice: null
+      }),
+      'Workspace access could not be verified. Reconnect and try again.'
     );
   });
 

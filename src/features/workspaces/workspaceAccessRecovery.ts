@@ -14,8 +14,12 @@ export type WorkspaceAccessRecovery =
     };
 
 export function isWorkspaceUnavailableError(error: unknown): boolean {
-  return error instanceof ApiRequestError &&
-    (error.statusCode === 403 || error.statusCode === 404);
+  return isWorkspaceForbiddenError(error) ||
+    (error instanceof ApiRequestError && error.statusCode === 404);
+}
+
+export function isWorkspaceForbiddenError(error: unknown): boolean {
+  return error instanceof ApiRequestError && error.statusCode === 403;
 }
 
 export function excludeUnavailableWorkspaces(

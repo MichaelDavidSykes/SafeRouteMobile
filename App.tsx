@@ -759,6 +759,7 @@ export default function App() {
             onSelectRoute={handleSelectSavedRoute}
             onSessionExpired={handleSessionExpired}
             onSignOut={handleSignOut}
+            onWorkspaceUnavailable={handleWorkspaceUnavailable}
             onWorkspaceChange={handleActiveWorkspaceChange}
             workspaceCatalogError={workspaceCatalogError}
             workspaceCatalogLoading={workspaceCatalogLoading}

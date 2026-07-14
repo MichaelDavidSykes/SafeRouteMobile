@@ -45,6 +45,10 @@ import {
 import { hasUsableRoutePlan } from "./offlineRouteCacheCore";
 import { useNetworkAvailability } from "../api/useNetworkAvailability";
 import type { SafeRouteWorkspace } from "../workspaces/activeWorkspace";
+import {
+  isWorkspaceForbiddenError,
+  isWorkspaceUnavailableError,
+} from "../workspaces/workspaceAccessRecovery";
 
 const ROUTE_LIST_ERROR_ACTION_HIT_SLOP = 6;
 
@@ -70,6 +74,7 @@ interface RouteListScreenProps {
   onSelectRoute: (route: SavedSafeRoutePlan) => void;
   onSessionExpired: (message?: string) => void;
   onSignOut: () => void;
+  onWorkspaceUnavailable: (workspaceId: string) => void;
   onWorkspaceChange: (workspace: SafeRouteWorkspace) => void;
   workspaceCatalogError: string;
   workspaceCatalogLoading: boolean;
@@ -85,6 +90,7 @@ export function RouteListScreen({
   onSelectRoute,
   onSessionExpired,
   onSignOut,
+  onWorkspaceUnavailable,
   onWorkspaceChange,
   sessionNotice,
   userEmail,
@@ -108,6 +114,23 @@ export function RouteListScreen({
   const activeWorkspaceIdRef = useRef<string | null>(selectedClientId);
   activeWorkspaceIdRef.current = selectedClientId;
 
+  const recoverUnavailableWorkspace = useCallback(
+    (workspaceId: string) => {
+      loadRevisionRef.current += 1;
+      detailRevisionRef.current += 1;
+      activeWorkspaceIdRef.current = null;
+      setRoutes([]);
+      setShowingOfflineCopy(false);
+      setDetailLoadingId(null);
+      setErrorState(null);
+      setLoading(false);
+      setRefreshing(false);
+      setQuery("");
+      onWorkspaceUnavailable(workspaceId);
+    },
+    [onWorkspaceUnavailable],
+  );
+
   const loadRoutes = useCallback(
     async ({ refresh = false }: { refresh?: boolean } = {}) => {
       const revision = loadRevisionRef.current + 1;
@@ -127,20 +150,25 @@ export function RouteListScreen({
         return;
       }
 
+      const requestWorkspaceId = selectedClientId;
+      const requestOwnsWorkspace = () =>
+        revision === loadRevisionRef.current &&
+        activeWorkspaceIdRef.current === requestWorkspaceId;
+
       let cached = refresh
         ? null
-        : await loadOfflineRoutes(userEmail, selectedClientId);
-      if (revision !== loadRevisionRef.current) {
+        : await loadOfflineRoutes(userEmail, requestWorkspaceId);
+      if (!requestOwnsWorkspace()) {
         return;
       }
       if (!cached && offline && !refresh) {
         cached = await loadOfflineRoutes(userEmail, null);
-        if (revision !== loadRevisionRef.current) {
+        if (!requestOwnsWorkspace()) {
           return;
         }
       }
       if (cached) {
-        setRoutes(routesForWorkspace(cached.routes, selectedClientId));
+        setRoutes(routesForWorkspace(cached.routes, requestWorkspaceId));
         setLoading(false);
         if (offline) {
           setShowingOfflineCopy(true);
@@ -160,51 +188,62 @@ export function RouteListScreen({
       try {
         const result = await fetchSavedRoutes(
           accessToken,
-          selectedClientId || undefined,
+          requestWorkspaceId,
         );
-        if (revision !== loadRevisionRef.current) {
+        if (!requestOwnsWorkspace()) {
           return;
         }
         const scopedResult = {
           ...result,
-          routes: routesForWorkspace(result.routes, selectedClientId),
+          routes: routesForWorkspace(result.routes, requestWorkspaceId),
         };
         setRoutes(scopedResult.routes);
         setShowingOfflineCopy(false);
-        void saveOfflineRoutes(userEmail, selectedClientId, scopedResult).catch(() => undefined);
+        void saveOfflineRoutes(userEmail, requestWorkspaceId, scopedResult).catch(() => undefined);
       } catch (error) {
-        if (revision !== loadRevisionRef.current) {
+        if (!requestOwnsWorkspace()) {
           return;
         }
         if (error instanceof ApiSessionExpiredError) {
           onSessionExpired(error.message);
           return;
         }
+        if (isWorkspaceUnavailableError(error)) {
+          recoverUnavailableWorkspace(requestWorkspaceId);
+          return;
+        }
         let offlineCopy =
-          cached || (await loadOfflineRoutes(userEmail, selectedClientId));
-        if (revision !== loadRevisionRef.current) {
+          cached || (await loadOfflineRoutes(userEmail, requestWorkspaceId));
+        if (!requestOwnsWorkspace()) {
           return;
         }
         if (!offlineCopy) {
           offlineCopy = await loadOfflineRoutes(userEmail, null);
-          if (revision !== loadRevisionRef.current) {
+          if (!requestOwnsWorkspace()) {
             return;
           }
         }
         if (offlineCopy) {
-          setRoutes(routesForWorkspace(offlineCopy.routes, selectedClientId));
+          setRoutes(routesForWorkspace(offlineCopy.routes, requestWorkspaceId));
           setShowingOfflineCopy(true);
         } else {
           setErrorState(createRouteSyncErrorState(error));
         }
       } finally {
-        if (revision === loadRevisionRef.current) {
+        if (requestOwnsWorkspace()) {
           setLoading(false);
           setRefreshing(false);
         }
       }
     },
-    [accessToken, offline, onSessionExpired, selectedClientId, userEmail],
+    [
+      accessToken,
+      offline,
+      onSessionExpired,
+      recoverUnavailableWorkspace,
+      selectedClientId,
+      userEmail,
+    ],
   );
 
   useEffect(() => {
@@ -377,6 +416,10 @@ export function RouteListScreen({
         onSessionExpired(error.message);
         return;
       }
+      if (isWorkspaceForbiddenError(error)) {
+        recoverUnavailableWorkspace(selectedClientId);
+        return;
+      }
       const cached =
         (await loadOfflineRouteDetail(userEmail, route.id)) ||
         (hasUsableRoutePlan(route) ? route : null);
@@ -439,6 +482,7 @@ export function RouteListScreen({
         onSelectClient={(clientId) => {
           const workspace = availableWorkspaces.find((client) => client.id === clientId);
           if (workspace) {
+            loadRevisionRef.current += 1;
             detailRevisionRef.current += 1;
             activeWorkspaceIdRef.current = workspace.id;
             setDetailLoadingId(null);

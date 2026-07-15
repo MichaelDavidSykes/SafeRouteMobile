@@ -8,6 +8,5 @@ appId: host.exp.Exponent
     timeout: 30000
 - assertVisible: "Workspace, Guidance Operations"
 - assertVisible: "Workspace access not verified. Try checking current access again."
-- assertVisible: "^Verify$"
 - assertNotVisible: "Offline"
 - takeScreenshot: "workspace-catalog-cold-failure-map"

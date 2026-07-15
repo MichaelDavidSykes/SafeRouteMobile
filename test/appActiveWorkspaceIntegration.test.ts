@@ -100,6 +100,10 @@ describe("App active workspace integration", () => {
     assert.match(app, /workspaceAccessRestored[\s\S]*Workspace access refreshed\./);
     assert.match(app, /catalogRetryWasRequested[\s\S]*Workspace access verified\./);
     assert.match(app, /AccessibilityInfo\.announceForAccessibilityWithOptions\(confirmation,[\s\S]*queue: true/);
+    assert.match(
+      app,
+      /Platform\.OS === 'ios' && transition\.announcement[\s\S]*AccessibilityInfo\.announceForAccessibilityWithOptions\([\s\S]*transition\.announcement/,
+    );
     assert.match(app, /handleRetryWorkspaceCatalog[\s\S]*restoreUnavailableWorkspacesFromFreshCatalogRef\.current = true[\s\S]*setWorkspaceDiscoveryRevision/);
     assert.match(
       app,
@@ -189,7 +193,8 @@ describe("App active workspace integration", () => {
     assert.match(guest, /routeActionAccessibilityLabel = workspaceSelectionRequired/);
     assert.match(guest, /retryAvailable =[\s\S]*!loading && Boolean\(onRetry && errorMessage\)/);
     assert.match(guest, /Choose the SafeRoute workspace above before plotting this route/);
-    assert.match(guest, /routeMessage \|\| sessionNotice \|\| locationErrorMessage/);
+    assert.match(guest, /routeMessage \|\| sessionNoticeState\?\.message \|\| locationErrorMessage/);
+    assert.match(guest, /sessionNoticeState\.accessibilityRole/);
     assert.match(guest, /enabled: !workspaceSelectionRequired && !workspaceAuthorizationRequired/);
     assert.match(guest, /cancelRoadRouteUpgrade\(\)[\s\S]*activeRiskAreaRequestRef\.current\?\.abort\(\)[\s\S]*setRoutePlan\(null\)/);
     assert.doesNotMatch(guest, /result\.clients\[0\]/);

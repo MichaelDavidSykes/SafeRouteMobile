@@ -19,6 +19,7 @@ describe("session notice state", () => {
       ),
       {
         accessibilityLabel: null,
+        accessibilityRole: "alert",
         message:
           "Preview routes are local. Sign in on a production build for live sync.",
       },
@@ -32,6 +33,7 @@ describe("session notice state", () => {
     assert.equal(notice.length, SESSION_NOTICE_MESSAGE_MAX_LENGTH);
     assert.deepEqual(createSessionNoticeState(notice), {
       accessibilityLabel: null,
+      accessibilityRole: "alert",
       message: notice,
     });
   });
@@ -45,9 +47,23 @@ describe("session notice state", () => {
 
     assert.deepEqual(createSessionNoticeState(notice), {
       accessibilityLabel: notice,
+      accessibilityRole: "alert",
       message: compactNotice,
     });
     assert.equal(compactNotice.length, SESSION_NOTICE_MESSAGE_MAX_LENGTH);
+  });
+
+  it("does not repeat workspace confirmations already queued by the app", () => {
+    assert.deepEqual(createSessionNoticeState("Workspace access verified."), {
+      accessibilityLabel: null,
+      accessibilityRole: undefined,
+      message: "Workspace access verified.",
+    });
+    assert.deepEqual(createSessionNoticeState("Workspace access refreshed."), {
+      accessibilityLabel: null,
+      accessibilityRole: undefined,
+      message: "Workspace access refreshed.",
+    });
   });
 
   it("uses the shared session notice bound for direct compact helpers", () => {

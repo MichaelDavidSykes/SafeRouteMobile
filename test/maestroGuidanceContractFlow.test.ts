@@ -273,8 +273,10 @@ describe('Maestro cold guidance contract matrix', () => {
     const deniedOutcome = read(
       'maestro/ios-guidance-contract-denied-start-outcome.yaml'
     );
-    assert.match(deniedOutcome, /visible: "Refresh workspace access"/);
+    assert.match(deniedOutcome, /assertVisible: "Workspace access changed"/);
+    assert.match(deniedOutcome, /assertVisible: "Check for restored access"/);
     assert.match(deniedOutcome, /assertNotVisible: "Refreshing workspace access"/);
+    assert.match(deniedOutcome, /assertNotVisible: "Checking workspace access"/);
     assert.match(
       deniedOutcome,
       /This route closed because its workspace is no longer available\./,

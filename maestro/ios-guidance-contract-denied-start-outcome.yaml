@@ -9,10 +9,10 @@ appId: host.exp.Exponent
     visible:
       id: "workspace-access-refresh"
     timeout: 30000
-- extendedWaitUntil:
-    visible: "Refresh workspace access"
-    timeout: 30000
+- assertVisible: "Workspace access changed"
+- assertVisible: "Check for restored access"
 - assertNotVisible: "Refreshing workspace access"
+- assertNotVisible: "Checking workspace access"
 - assertNotVisible:
     id: "safe-route-live-map"
 - assertNotVisible:

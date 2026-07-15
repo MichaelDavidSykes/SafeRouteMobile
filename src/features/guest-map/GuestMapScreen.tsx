@@ -42,6 +42,7 @@ import { getRequestSessionExpiry } from '../api/sessionExpiry';
 import type { SafeRouteWorkspace } from '../workspaces/activeWorkspace';
 import { getRequestUnavailableWorkspaceId } from '../workspaces/workspaceAccessRecovery';
 import { WorkspaceAccessRefreshControl } from '../workspaces/WorkspaceAccessRefreshControl';
+import type { WorkspaceAccessIssue } from '../workspaces/workspaceAccessRefreshState';
 import {
   GUEST_MAP_REGION,
   GUEST_ROUTE_LABEL_MAX_LENGTH,
@@ -117,7 +118,9 @@ interface GuestMapScreenProps {
   workspaceCatalogError?: string;
   workspaceCatalogLoading?: boolean;
   workspaceAuthorizationFresh?: boolean;
+  workspaceAccessRecoveryPending?: boolean;
   workspaceAccessRefreshAvailable?: boolean;
+  workspaceAccessIssue?: WorkspaceAccessIssue;
   workspaceSwitchDisabled?: boolean;
 }
 
@@ -138,7 +141,9 @@ export function GuestMapScreen({
   workspaceCatalogError = '',
   workspaceCatalogLoading = false,
   workspaceAuthorizationFresh = false,
+  workspaceAccessRecoveryPending = false,
   workspaceAccessRefreshAvailable = false,
+  workspaceAccessIssue = 'none',
   workspaceSwitchDisabled = false
 }: GuestMapScreenProps) {
   const viewport = useWindowDimensions();
@@ -1406,6 +1411,9 @@ export function GuestMapScreen({
                   {workspaceAccessRefreshAvailable &&
                   (availableWorkspaces.length > 0 || !workspaceCatalogError) ? (
                     <WorkspaceAccessRefreshControl
+                      accessRecoveryPending={workspaceAccessRecoveryPending}
+                      availableWorkspaceCount={availableWorkspaces.length}
+                      issue={workspaceAccessIssue}
                       loading={workspaceCatalogLoading}
                       onRefresh={() => {
                         setWorkspaceMenuOpen(false);
@@ -1608,7 +1616,8 @@ function GuestWorkspaceSelector({
 }) {
   const waitingForCatalog = loading && !workspaces.length;
   const catalogUnavailable = Boolean(errorMessage) && !workspaces.length;
-  const retryAvailable = Boolean(onRetry && errorMessage) && (catalogUnavailable || switchDisabled);
+  const retryAvailable =
+    !loading && Boolean(onRetry && errorMessage) && (catalogUnavailable || switchDisabled);
   const disabled = retryAvailable
     ? false
     : switchDisabled || waitingForCatalog || (!errorMessage && !workspaces.length);

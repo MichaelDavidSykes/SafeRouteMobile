@@ -1,0 +1,22 @@
+appId: host.exp.Exponent
+---
+- extendedWaitUntil:
+    visible: "This route closed because its workspace is no longer available."
+    timeout: 30000
+- assertVisible:
+    id: "guest-map-primary-action"
+- extendedWaitUntil:
+    visible:
+      id: "workspace-access-refresh"
+    timeout: 30000
+- assertVisible: "Workspace access changed. Check for restored access."
+- assertNotVisible: "Refreshing workspace access"
+- assertNotVisible: "Checking workspace access"
+- assertNotVisible:
+    id: "safe-route-live-map"
+- assertNotVisible:
+    id: "safe-route-stop-action"
+- assertNotVisible:
+    id: "safe-route-resume-action"
+- assertNotVisible:
+    id: "safe-route-remaining-metrics"

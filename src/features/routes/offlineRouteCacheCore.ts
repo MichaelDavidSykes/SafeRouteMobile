@@ -12,6 +12,24 @@ export interface OfflineRouteCacheRecord {
   value: SavedRouteSyncResult;
 }
 
+export interface OfflineRouteCacheStorage {
+  getAllKeys(): Promise<readonly string[]>;
+  getItem(key: string): Promise<string | null>;
+  multiGet(keys: readonly string[]): Promise<readonly (readonly [string, string | null])[]>;
+  multiRemove(keys: readonly string[]): Promise<void>;
+  setItem(key: string, value: string): Promise<void>;
+}
+
+export interface PurgeOfflineRouteWorkspaceStorageOptions {
+  allListKey: string;
+  detailKeyPrefix: string;
+  listKeyPrefix: string;
+  principalId: string;
+  scopedListKey: string;
+  storage: OfflineRouteCacheStorage;
+  workspaceId: string;
+}
+
 export function createOfflineRouteCacheRecord(
   value: SavedRouteSyncResult,
   principalIdValue: string,
@@ -99,6 +117,260 @@ export function removeWorkspaceFromOfflineRouteCacheRecord(
     record.principalId,
     record.storedAtMs,
   );
+}
+
+/**
+ * Removes one workspace and verifies the durable result before resolving.
+ * Recovery callers keep their revocation fallback when any write or readback
+ * fails, so a successful return is evidence that denied data is absent while
+ * unrelated scoped/detail records remain byte-for-byte intact.
+ */
+export async function purgeOfflineRouteWorkspaceStorage({
+  allListKey,
+  detailKeyPrefix,
+  listKeyPrefix,
+  principalId,
+  scopedListKey,
+  storage,
+  workspaceId,
+}: PurgeOfflineRouteWorkspaceStorageOptions): Promise<void> {
+  const normalizedPrincipalId = principalId.trim();
+  const normalizedWorkspaceId = workspaceId.trim();
+  if (!normalizedPrincipalId || !normalizedWorkspaceId) {
+    return;
+  }
+
+  const [allListRaw, allKeys] = await Promise.all([
+    storage.getItem(allListKey),
+    storage.getAllKeys(),
+  ]);
+  const detailKeys = allKeys.filter((key) => key.startsWith(detailKeyPrefix));
+  const otherScopedListKeys = allKeys.filter(
+    (key) =>
+      key.startsWith(listKeyPrefix) &&
+      key !== allListKey &&
+      key !== scopedListKey,
+  );
+  const [detailRecords, otherScopedListRecords] = await Promise.all([
+    detailKeys.length ? storage.multiGet(detailKeys) : Promise.resolve([]),
+    otherScopedListKeys.length
+      ? storage.multiGet(otherScopedListKeys)
+      : Promise.resolve([]),
+  ]);
+  const keysToRemove = new Set([scopedListKey]);
+  const retainedDetailRecords = new Map<string, string | null>();
+  const expectedOtherScopedListRecords = new Map<string, string | null>();
+  const otherScopedListWrites = new Map<string, string>();
+
+  for (const [key, raw] of detailRecords) {
+    const cached = parseStoredOfflineRouteCacheRecord(raw, normalizedPrincipalId);
+    if (
+      !cached ||
+      cached.value.routes.some((route) => route.clientId === normalizedWorkspaceId)
+    ) {
+      keysToRemove.add(key);
+    } else {
+      retainedDetailRecords.set(key, raw);
+    }
+  }
+
+  for (const [key, raw] of otherScopedListRecords) {
+    const cached = parseStoredOfflineRouteCacheRecord(raw, normalizedPrincipalId);
+    if (!cached) {
+      keysToRemove.add(key);
+      continue;
+    }
+    const pruned = removeWorkspaceFromOfflineRouteCacheRecord(
+      cached,
+      normalizedWorkspaceId,
+    );
+    if (!pruned.value.clients.length && !pruned.value.routes.length) {
+      keysToRemove.add(key);
+      continue;
+    }
+    const serialized = sameOfflineRouteCacheRecord(cached, pruned)
+      ? raw
+      : JSON.stringify(pruned);
+    if (serialized === null) {
+      keysToRemove.add(key);
+      continue;
+    }
+    expectedOtherScopedListRecords.set(key, serialized);
+    if (serialized !== raw) {
+      otherScopedListWrites.set(key, serialized);
+    }
+  }
+
+  const allListRecord = parseStoredOfflineRouteCacheRecord(
+    allListRaw,
+    normalizedPrincipalId,
+  );
+  const nextAllListRecord = allListRecord
+    ? removeWorkspaceFromOfflineRouteCacheRecord(allListRecord, normalizedWorkspaceId)
+    : null;
+  const retainAllList = Boolean(
+    nextAllListRecord &&
+      (nextAllListRecord.value.clients.length || nextAllListRecord.value.routes.length),
+  );
+  if (!retainAllList) {
+    keysToRemove.add(allListKey);
+  }
+
+  await Promise.all([
+    retainAllList && nextAllListRecord
+      ? storage.setItem(allListKey, JSON.stringify(nextAllListRecord))
+      : Promise.resolve(),
+    ...Array.from(otherScopedListWrites, ([key, value]) =>
+      storage.setItem(key, value)),
+    storage.multiRemove(Array.from(keysToRemove)),
+  ]);
+
+  await verifyOfflineRouteWorkspaceStorage({
+    allListKey,
+    detailKeyPrefix,
+    expectedAllListRecord: retainAllList ? nextAllListRecord : null,
+    expectedOtherScopedListRecords,
+    expectedRetainedDetailRecords: retainedDetailRecords,
+    listKeyPrefix,
+    principalId: normalizedPrincipalId,
+    scopedListKey,
+    storage,
+    workspaceId: normalizedWorkspaceId,
+  });
+}
+
+function parseStoredOfflineRouteCacheRecord(
+  raw: string | null,
+  principalId: string,
+): OfflineRouteCacheRecord | null {
+  if (!raw) {
+    return null;
+  }
+  try {
+    const record = JSON.parse(raw) as Partial<OfflineRouteCacheRecord>;
+    const storedAtMs = typeof record.storedAtMs === "number" && Number.isFinite(record.storedAtMs)
+      ? record.storedAtMs
+      : Date.now();
+    const value = parseOfflineRouteCacheRecord(record, principalId, storedAtMs);
+    return value
+      ? {
+          schema: Number(record.schema),
+          principalId,
+          storedAtMs,
+          value,
+        }
+      : null;
+  } catch {
+    return null;
+  }
+}
+
+async function verifyOfflineRouteWorkspaceStorage({
+  allListKey,
+  detailKeyPrefix,
+  expectedAllListRecord,
+  expectedOtherScopedListRecords,
+  expectedRetainedDetailRecords,
+  listKeyPrefix,
+  principalId,
+  scopedListKey,
+  storage,
+  workspaceId,
+}: {
+  allListKey: string;
+  detailKeyPrefix: string;
+  expectedAllListRecord: OfflineRouteCacheRecord | null;
+  expectedOtherScopedListRecords: Map<string, string | null>;
+  expectedRetainedDetailRecords: Map<string, string | null>;
+  listKeyPrefix: string;
+  principalId: string;
+  scopedListKey: string;
+  storage: OfflineRouteCacheStorage;
+  workspaceId: string;
+}): Promise<void> {
+  const [scopedListRaw, allListRaw, allKeys] = await Promise.all([
+    storage.getItem(scopedListKey),
+    storage.getItem(allListKey),
+    storage.getAllKeys(),
+  ]);
+  if (scopedListRaw !== null) {
+    throw new Error("Denied workspace scoped route cache remained after purge.");
+  }
+
+  if (!expectedAllListRecord && allListRaw !== null) {
+    throw new Error("Mixed route cache remained after purge.");
+  }
+  const actualAllListRecord = parseStoredOfflineRouteCacheRecord(allListRaw, principalId);
+  if (
+    !sameOfflineRouteCacheRecord(actualAllListRecord, expectedAllListRecord)
+  ) {
+    throw new Error("Mixed route cache readback did not match the verified survivor set.");
+  }
+
+  const detailKeys = allKeys.filter((key) => key.startsWith(detailKeyPrefix));
+  const detailRecords = detailKeys.length ? await storage.multiGet(detailKeys) : [];
+  for (const [key, raw] of detailRecords) {
+    const cached = parseStoredOfflineRouteCacheRecord(raw, principalId);
+    if (cached?.value.routes.some((route) => route.clientId === workspaceId)) {
+      throw new Error("Denied workspace route detail remained after purge.");
+    }
+    if (
+      expectedRetainedDetailRecords.has(key) &&
+      expectedRetainedDetailRecords.get(key) !== raw
+    ) {
+      throw new Error("Survivor route detail changed during workspace purge.");
+    }
+  }
+  if (
+    detailRecords.length !== expectedRetainedDetailRecords.size ||
+    detailRecords.some(([key]) => !expectedRetainedDetailRecords.has(key))
+  ) {
+    throw new Error("Route detail readback did not match the verified survivor set.");
+  }
+
+  const actualOtherScopedListKeys = allKeys.filter(
+    (key) =>
+      key.startsWith(listKeyPrefix) &&
+      key !== allListKey &&
+      key !== scopedListKey,
+  );
+  if (
+    actualOtherScopedListKeys.length !== expectedOtherScopedListRecords.size ||
+    actualOtherScopedListKeys.some((key) => !expectedOtherScopedListRecords.has(key))
+  ) {
+    throw new Error("Scoped route cache readback did not match the verified survivor set.");
+  }
+  const actualOtherScopedListRecords = new Map(
+    actualOtherScopedListKeys.length
+      ? await storage.multiGet(actualOtherScopedListKeys)
+      : [],
+  );
+  for (const [key, raw] of expectedOtherScopedListRecords) {
+    if (actualOtherScopedListRecords.get(key) !== raw) {
+      throw new Error("Survivor scoped route cache changed during workspace purge.");
+    }
+    const cached = parseStoredOfflineRouteCacheRecord(raw, principalId);
+    if (
+      !cached ||
+      cached.value.clients.some((client) => client.id === workspaceId) ||
+      cached.value.routes.some((route) => route.clientId === workspaceId)
+    ) {
+      throw new Error("Denied workspace data remained in another scoped route cache.");
+    }
+  }
+}
+
+function sameOfflineRouteCacheRecord(
+  first: OfflineRouteCacheRecord | null,
+  second: OfflineRouteCacheRecord | null,
+): boolean {
+  if (!first || !second) {
+    return first === second;
+  }
+  return first.schema === second.schema &&
+    first.principalId === second.principalId &&
+    first.storedAtMs === second.storedAtMs &&
+    JSON.stringify(first.value) === JSON.stringify(second.value);
 }
 
 function normalizePrincipalId(value: unknown): string {

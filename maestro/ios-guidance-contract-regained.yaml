@@ -17,9 +17,29 @@ appId: host.exp.Exponent
     id: "safe-route-live-map"
 - assertNotVisible:
     id: "safe-route-resume-action"
+- assertVisible: "Workspace, Support Operations"
 - tapOn:
     id: "guest-map-primary-action"
 - extendedWaitUntil:
     visible:
-      id: "safe-route-card-guidance-contract-route"
+      id: "safe-route-card-66b1b2c3d4e5f60718293b41"
+    timeout: 20000
+- assertVisible: "^Support continuity route.*"
+- assertNotVisible:
+    id: "safe-route-card-66b1b2c3d4e5f60718293b40"
+- tapOn:
+    id: "safe-route-workspace-selector"
+- tapOn:
+    id: "safe-route-workspace-66a1b2c3d4e5f60718293a40"
+- extendedWaitUntil:
+    visible:
+      id: "safe-route-card-66b1b2c3d4e5f60718293b40"
+    timeout: 20000
+- assertVisible: "^Cold restart verification v2.*"
+- assertNotVisible: "^Cold restart verification v1.*"
+- tapOn:
+    id: "safe-route-card-66b1b2c3d4e5f60718293b40"
+- extendedWaitUntil:
+    visible:
+      id: "safe-route-live-map"
     timeout: 20000

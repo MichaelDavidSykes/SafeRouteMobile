@@ -49,6 +49,10 @@ describe("production navigation reliability integration", () => {
     assert.match(backgroundSource, /activateBackgroundNavigationPermit/);
     assert.match(backgroundSource, /backgroundNavigationLifecycle\.requestStart/);
     assert.match(backgroundSource, /backgroundNavigationLifecycle\.requestStop/);
+    assert.match(
+      backgroundSource,
+      /confirmBackgroundNavigationStopped[\s\S]*getRuntimeBackgroundNavigationPermitStatus[\s\S]*hasStartedLocationUpdatesAsync/,
+    );
     const authorizedStart = backgroundSource.slice(
       backgroundSource.indexOf("async function startAuthorizedBackgroundNavigation"),
     );
@@ -85,7 +89,18 @@ describe("production navigation reliability integration", () => {
       liveMapSource,
       /navigationState === "loaded" \|\| navigationState === "stopped"[\s\S]*setNavigationInstanceId\(createActiveNavigationInstanceId\(startedAtMs\)\)/,
     );
-    assert.match(liveMapSource, /setInterval\(persistCurrentSession, 5_000\)/);
+    assert.match(
+      liveMapSource,
+      /saved = await saveActiveNavigationSession\(snapshot\)[\s\S]*recordGuidanceContractEvidence/,
+    );
+    assert.match(
+      liveMapSource,
+      /evidenceRecorded = await recordGuidanceContractEvidence[\s\S]*if \(evidenceRecorded\)[\s\S]*persistedEvidenceNavigationIdRef\.current/,
+    );
+    assert.match(
+      liveMapSource,
+      /setInterval\(\(\) => \{[\s\S]*void persistCurrentSession\(\);[\s\S]*\}, 5_000\)/,
+    );
   });
 
   it("requires a fresh route start to be near the live vehicle location", () => {

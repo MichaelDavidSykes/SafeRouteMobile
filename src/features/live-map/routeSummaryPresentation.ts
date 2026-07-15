@@ -101,6 +101,20 @@ function createBlockedRouteActionLabel(
     return null;
   }
 
+  const workspaceAccessReason =
+    reason.includes("workspace access") ||
+    reason.includes("access could not be verified");
+  if (workspaceAccessReason && reason.includes("checking")) {
+    return "Checking access";
+  }
+
+  if (
+    workspaceAccessReason &&
+    (reason.includes("reconnect") || reason.includes("verified"))
+  ) {
+    return "Retry access";
+  }
+
   if (reason.includes("checking") || reason.includes("finding")) {
     return "Locating…";
   }

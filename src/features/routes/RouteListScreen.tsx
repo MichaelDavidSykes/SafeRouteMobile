@@ -36,12 +36,14 @@ import {
 } from "./routeListUiState";
 import { colors } from "../../theme";
 import { uiTestIds } from "../../testing/uiTestIds";
+import { recordGuidanceContractEvidence } from "../../testing/guidanceContractEvidence";
 import {
   loadOfflineRouteDetail,
   loadOfflineRoutes,
   saveOfflineRouteDetail,
   saveOfflineRoutes,
 } from "./offlineRouteCache";
+import { recordOwnedRouteCacheReadback } from "./ownedRouteCacheReadback";
 import { hasUsableRoutePlan } from "./offlineRouteCacheCore";
 import { useNetworkAvailability } from "../api/useNetworkAvailability";
 import type { SafeRouteWorkspace } from "../workspaces/activeWorkspace";
@@ -50,6 +52,7 @@ import {
   isWorkspaceUnavailableError,
 } from "../workspaces/workspaceAccessRecovery";
 import { WorkspaceAccessRefreshControl } from "../workspaces/WorkspaceAccessRefreshControl";
+import type { WorkspaceAccessIssue } from "../workspaces/workspaceAccessRefreshState";
 
 const ROUTE_LIST_ERROR_ACTION_HIT_SLOP = 6;
 
@@ -80,7 +83,9 @@ interface RouteListScreenProps {
   onWorkspaceChange: (workspace: SafeRouteWorkspace) => void;
   workspaceCatalogError: string;
   workspaceCatalogLoading: boolean;
+  workspaceAccessRecoveryPending: boolean;
   workspaceAccessRefreshAvailable: boolean;
+  workspaceAccessIssue: WorkspaceAccessIssue;
   workspaceSwitchDisabled: boolean;
 }
 
@@ -100,7 +105,9 @@ export function RouteListScreen({
   userEmail,
   workspaceCatalogError,
   workspaceCatalogLoading,
+  workspaceAccessRecoveryPending,
   workspaceAccessRefreshAvailable,
+  workspaceAccessIssue,
   workspaceSwitchDisabled,
 }: RouteListScreenProps) {
   const { offline } = useNetworkAvailability();
@@ -173,13 +180,26 @@ export function RouteListScreen({
         }
       }
       if (cached) {
-        setRoutes(routesForWorkspace(cached.routes, requestWorkspaceId));
-        setLoading(false);
+        const cachedRoutes = routesForWorkspace(cached.routes, requestWorkspaceId);
         if (offline) {
+          if (!(await recordOwnedRouteCacheReadback(
+            requestOwnsWorkspace,
+            () => recordOfflineRouteCacheReadback(
+              cachedRoutes,
+              requestWorkspaceId,
+              "saved-list-readback",
+            ),
+          ))) {
+            return;
+          }
+          setRoutes(cachedRoutes);
+          setLoading(false);
           setShowingOfflineCopy(true);
           setRefreshing(false);
           return;
         }
+        setRoutes(cachedRoutes);
+        setLoading(false);
         setRefreshing(true);
       } else if (offline) {
         setErrorState(
@@ -229,7 +249,21 @@ export function RouteListScreen({
           }
         }
         if (offlineCopy) {
-          setRoutes(routesForWorkspace(offlineCopy.routes, requestWorkspaceId));
+          const offlineRoutes = routesForWorkspace(
+            offlineCopy.routes,
+            requestWorkspaceId,
+          );
+          if (!(await recordOwnedRouteCacheReadback(
+            requestOwnsWorkspace,
+            () => recordOfflineRouteCacheReadback(
+              offlineRoutes,
+              requestWorkspaceId,
+              "saved-list-readback",
+            ),
+          ))) {
+            return;
+          }
+          setRoutes(offlineRoutes);
           setShowingOfflineCopy(true);
         } else {
           setErrorState(createRouteSyncErrorState(error));
@@ -371,8 +405,9 @@ export function RouteListScreen({
     setErrorState(null);
 
     if (offline) {
+      const cachedDetail = await loadOfflineRouteDetail(cacheIdentity, route.id);
       const cached =
-        (await loadOfflineRouteDetail(cacheIdentity, route.id)) ||
+        cachedDetail ||
         (hasUsableRoutePlan(route) ? route : null);
       if (!requestOwnsWorkspace()) {
         return;
@@ -388,6 +423,18 @@ export function RouteListScreen({
           });
           setDetailLoadingId(null);
           return;
+        }
+        if (cachedDetail) {
+          if (!(await recordOwnedRouteCacheReadback(
+            requestOwnsWorkspace,
+            () => recordOfflineRouteCacheReadback(
+              [cachedDetail],
+              selectedClientId,
+              "saved-detail-readback",
+            ),
+          ))) {
+            return;
+          }
         }
         setShowingOfflineCopy(true);
         setDetailLoadingId(null);
@@ -425,8 +472,9 @@ export function RouteListScreen({
         recoverUnavailableWorkspace(selectedClientId);
         return;
       }
+      const cachedDetail = await loadOfflineRouteDetail(cacheIdentity, route.id);
       const cached =
-        (await loadOfflineRouteDetail(cacheIdentity, route.id)) ||
+        cachedDetail ||
         (hasUsableRoutePlan(route) ? route : null);
       if (!requestOwnsWorkspace()) {
         return;
@@ -441,6 +489,18 @@ export function RouteListScreen({
             route,
           });
           return;
+        }
+        if (cachedDetail) {
+          if (!(await recordOwnedRouteCacheReadback(
+            requestOwnsWorkspace,
+            () => recordOfflineRouteCacheReadback(
+              [cachedDetail],
+              selectedClientId,
+              "saved-detail-readback",
+            ),
+          ))) {
+            return;
+          }
         }
         setShowingOfflineCopy(true);
         onSelectRoute({ ...cached, clientId: selectedClientId });
@@ -504,6 +564,9 @@ export function RouteListScreen({
       {workspaceAccessRefreshAvailable &&
       (availableWorkspaces.length > 0 || !workspaceCatalogError) ? (
         <WorkspaceAccessRefreshControl
+          accessRecoveryPending={workspaceAccessRecoveryPending}
+          availableWorkspaceCount={availableWorkspaces.length}
+          issue={workspaceAccessIssue}
           loading={workspaceCatalogLoading}
           onRefresh={onRetryWorkspaceCatalog}
         />
@@ -628,4 +691,29 @@ export function RouteListScreen({
       )}
     </SafeAreaView>
   );
+}
+
+async function recordOfflineRouteCacheReadback(
+  routes: SavedSafeRoutePlan[],
+  workspaceId: string,
+  cause: "saved-detail-readback" | "saved-list-readback",
+): Promise<void> {
+  await Promise.all(routes.map((route) =>
+    recordGuidanceContractEvidence({
+      authorization: {
+        catalog: "unavailable",
+        principal: "matching",
+      },
+      cause,
+      durability: {
+        routeCache: "present",
+      },
+      navigationInstanceId: null,
+      outcome: "readable",
+      routeId: route.route.id,
+      type: "route.cache.readback",
+      unavailableWorkspaceIds: [],
+      workspaceId,
+    }),
+  ));
 }

@@ -25,6 +25,7 @@ import { fetchOperationsState } from "./operationsApi";
 import type { SafeRouteOperationsState } from "./operationsTypes";
 import type { SafeRouteWorkspace } from "../workspaces/activeWorkspace";
 import { WorkspaceAccessRefreshControl } from "../workspaces/WorkspaceAccessRefreshControl";
+import type { WorkspaceAccessIssue } from "../workspaces/workspaceAccessRefreshState";
 import { loadOperationsWorkspaceData } from "./operationsWorkspaceLoadCore";
 import {
   createCalendarRows,
@@ -62,7 +63,9 @@ interface OperationsScreenProps {
   onWorkspaceChange: (workspace: SafeRouteWorkspace) => void;
   workspaceCatalogError: string;
   workspaceCatalogLoading: boolean;
+  workspaceAccessRecoveryPending: boolean;
   workspaceAccessRefreshAvailable: boolean;
+  workspaceAccessIssue: WorkspaceAccessIssue;
   workspaceSwitchDisabled: boolean;
 }
 
@@ -81,7 +84,9 @@ export function OperationsScreen({
   userEmail,
   workspaceCatalogError,
   workspaceCatalogLoading,
+  workspaceAccessRecoveryPending,
   workspaceAccessRefreshAvailable,
+  workspaceAccessIssue,
   workspaceSwitchDisabled
 }: OperationsScreenProps) {
   const [activeTab, setActiveTab] = useState<OperationsTab>(initialTab);
@@ -411,6 +416,9 @@ export function OperationsScreen({
       {workspaceAccessRefreshAvailable &&
       (availableWorkspaces.length > 0 || !workspaceCatalogError) ? (
         <WorkspaceAccessRefreshControl
+          accessRecoveryPending={workspaceAccessRecoveryPending}
+          availableWorkspaceCount={availableWorkspaces.length}
+          issue={workspaceAccessIssue}
           loading={workspaceCatalogLoading}
           onRefresh={() => {
             setClientMenuOpen(false);

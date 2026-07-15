@@ -19,6 +19,7 @@ appId: host.exp.Exponent
     commands:
       - tapOn:
           id: "safe-route-stop-action"
+          waitToSettleTimeoutMs: 1000
 - runFlow:
     when:
       visible:

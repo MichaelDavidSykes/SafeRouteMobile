@@ -13,6 +13,28 @@ export type WorkspaceAccessRecovery =
       workspaces: SafeRouteWorkspace[];
     };
 
+export type FreshWorkspaceAccessRecovery =
+  | { status: "ignored" }
+  | {
+      activeWorkspace: SafeRouteWorkspace | null;
+      newlyUnavailableWorkspaceIds: string[];
+      status: "recovered";
+      unavailableWorkspaceIds: Set<string>;
+      workspaces: SafeRouteWorkspace[];
+    };
+
+export type FreshWorkspaceCatalogReconciliation = {
+  activeWorkspace: SafeRouteWorkspace | null;
+  newlyUnavailableWorkspaceIds: string[];
+  unavailableWorkspaceIds: Set<string>;
+  workspaces: SafeRouteWorkspace[];
+};
+
+export type WorkspaceSurfaceClosure = {
+  navigationUnavailable: boolean;
+  previewUnavailable: boolean;
+};
+
 export function isWorkspaceUnavailableError(error: unknown): boolean {
   return isWorkspaceForbiddenError(error) ||
     (error instanceof ApiRequestError && error.statusCode === 404);
@@ -60,6 +82,45 @@ export function excludeUnavailableWorkspaces(
   );
 }
 
+export function isWorkspaceIdUnavailable(
+  workspaceId: string | null | undefined,
+  unavailableWorkspaceIds: Iterable<string>,
+): boolean {
+  const normalizedWorkspaceId = normalizeWorkspaceId(workspaceId);
+  if (!normalizedWorkspaceId) {
+    return false;
+  }
+
+  for (const unavailableWorkspaceId of unavailableWorkspaceIds) {
+    if (normalizeWorkspaceId(unavailableWorkspaceId) === normalizedWorkspaceId) {
+      return true;
+    }
+  }
+  return false;
+}
+
+export function resolveWorkspaceSurfaceClosure({
+  navigationWorkspaceId,
+  previewWorkspaceId,
+  unavailableWorkspaceIds,
+}: {
+  navigationWorkspaceId?: string | null;
+  previewWorkspaceId?: string | null;
+  unavailableWorkspaceIds: Iterable<string>;
+}): WorkspaceSurfaceClosure {
+  const unavailableIds = Array.from(unavailableWorkspaceIds);
+  return {
+    navigationUnavailable: isWorkspaceIdUnavailable(
+      navigationWorkspaceId,
+      unavailableIds,
+    ),
+    previewUnavailable: isWorkspaceIdUnavailable(
+      previewWorkspaceId,
+      unavailableIds,
+    ),
+  };
+}
+
 export function findAuthoritativelyUnavailableWorkspaceIds({
   candidateWorkspaceIds,
   freshWorkspaces,
@@ -102,6 +163,97 @@ export function resolveWorkspaceAccessRecovery(
     activeWorkspace: resolveActiveWorkspace(remainingWorkspaces, null, null),
     status: "recovered",
     workspaces: remainingWorkspaces,
+  };
+}
+
+export function resolveFreshWorkspaceAccessRecovery({
+  activeWorkspaceId,
+  candidateWorkspaceIds,
+  freshWorkspaces,
+  knownWorkspaces,
+  unavailableWorkspaceId,
+  unavailableWorkspaceIds,
+}: {
+  activeWorkspaceId: string | null | undefined;
+  candidateWorkspaceIds?: Iterable<string | null | undefined>;
+  freshWorkspaces: SafeRouteWorkspace[];
+  knownWorkspaces: SafeRouteWorkspace[];
+  unavailableWorkspaceId: string | null | undefined;
+  unavailableWorkspaceIds: Iterable<string>;
+}): FreshWorkspaceAccessRecovery {
+  const unavailableId = normalizeWorkspaceId(unavailableWorkspaceId);
+  const reconciliation = reconcileFreshWorkspaceCatalog({
+    activeWorkspaceId,
+    additionalUnavailableWorkspaceIds: [unavailableId],
+    candidateWorkspaceIds,
+    freshWorkspaces,
+    knownWorkspaces,
+    unavailableWorkspaceIds,
+  });
+  const recovery = resolveWorkspaceAccessRecovery(
+    reconciliation.workspaces,
+    activeWorkspaceId,
+    unavailableId,
+  );
+  if (recovery.status === "ignored") {
+    return recovery;
+  }
+
+  return {
+    ...recovery,
+    newlyUnavailableWorkspaceIds: reconciliation.newlyUnavailableWorkspaceIds,
+    unavailableWorkspaceIds: reconciliation.unavailableWorkspaceIds,
+  };
+}
+
+export function reconcileFreshWorkspaceCatalog({
+  activeWorkspaceId,
+  additionalUnavailableWorkspaceIds,
+  candidateWorkspaceIds,
+  freshWorkspaces,
+  knownWorkspaces,
+  unavailableWorkspaceIds,
+}: {
+  activeWorkspaceId: string | null | undefined;
+  additionalUnavailableWorkspaceIds?: Iterable<string | null | undefined>;
+  candidateWorkspaceIds?: Iterable<string | null | undefined>;
+  freshWorkspaces: SafeRouteWorkspace[];
+  knownWorkspaces: SafeRouteWorkspace[];
+  unavailableWorkspaceIds: Iterable<string>;
+}): FreshWorkspaceCatalogReconciliation {
+  const existingUnavailableIds = new Set(
+    Array.from(unavailableWorkspaceIds, normalizeWorkspaceId).filter(Boolean),
+  );
+  const nextUnavailableIds = new Set(existingUnavailableIds);
+  for (const workspaceIdValue of additionalUnavailableWorkspaceIds || []) {
+    const workspaceId = normalizeWorkspaceId(workspaceIdValue);
+    if (workspaceId) {
+      nextUnavailableIds.add(workspaceId);
+    }
+  }
+  for (const workspaceId of findAuthoritativelyUnavailableWorkspaceIds({
+    candidateWorkspaceIds,
+    freshWorkspaces,
+    knownWorkspaces,
+  })) {
+    nextUnavailableIds.add(workspaceId);
+  }
+  const workspaces = excludeUnavailableWorkspaces(
+    freshWorkspaces,
+    nextUnavailableIds,
+  );
+
+  return {
+    activeWorkspace: resolveActiveWorkspace(
+      workspaces,
+      activeWorkspaceId,
+      null,
+    ),
+    newlyUnavailableWorkspaceIds: Array.from(nextUnavailableIds).filter(
+      (workspaceId) => !existingUnavailableIds.has(workspaceId),
+    ),
+    unavailableWorkspaceIds: nextUnavailableIds,
+    workspaces,
   };
 }
 

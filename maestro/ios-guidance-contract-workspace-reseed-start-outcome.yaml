@@ -1,16 +1,5 @@
 appId: host.exp.Exponent
 ---
-- setLocation:
-    latitude: 51.5076
-    longitude: -0.1276
-- tapOn:
-    id: "safe-route-card-guidance-contract-route"
-- extendedWaitUntil:
-    visible:
-      id: "safe-route-live-map"
-    timeout: 20000
-- tapOn:
-    id: "safe-route-primary-action"
 - waitForAnimationToEnd:
     timeout: 3000
 - setLocation:
@@ -25,6 +14,8 @@ appId: host.exp.Exponent
     visible:
       id: "safe-route-stop-action"
     timeout: 15000
+- assertVisible:
+    id: "safe-route-remaining-metrics"
 - waitForAnimationToEnd:
     timeout: 3000
 - stopApp

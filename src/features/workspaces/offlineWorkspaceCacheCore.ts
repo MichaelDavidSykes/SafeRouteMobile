@@ -24,6 +24,8 @@ export type OfflineWorkspaceRecordWriter = (
   value: string,
 ) => Promise<void>;
 
+export type WorkspaceRecoveryPersistenceResult = "failed" | "persisted" | "revoked";
+
 type OfflineWorkspaceCacheRecord = {
   principalId: string;
   schema: number;
@@ -140,4 +142,103 @@ export function createSerializedWorkspaceRecordWriter(
       }
     }
   };
+}
+
+export type SerializedWorkspaceRecoveryExecutor = <Result>(
+  key: string,
+  operation: () => Promise<Result>,
+) => Promise<Result>;
+
+export function createSerializedWorkspaceRecoveryExecutor(): SerializedWorkspaceRecoveryExecutor {
+  const pendingRecoveries = new Map<string, Promise<unknown>>();
+
+  return async <Result>(key: string, operation: () => Promise<Result>) => {
+    const previousRecovery = pendingRecoveries.get(key) || Promise.resolve();
+    const currentRecovery = previousRecovery
+      .catch(() => undefined)
+      .then(operation);
+    pendingRecoveries.set(key, currentRecovery);
+
+    try {
+      return await currentRecovery;
+    } finally {
+      if (pendingRecoveries.get(key) === currentRecovery) {
+        pendingRecoveries.delete(key);
+      }
+    }
+  };
+}
+
+export async function persistWorkspaceRecoveryWithFallback({
+  clearFallback,
+  persistFallback,
+  persistPrimary,
+  requireFallback = false,
+}: {
+  clearFallback: () => Promise<void>;
+  persistFallback: () => Promise<void>;
+  persistPrimary: Array<() => Promise<void>>;
+  requireFallback?: boolean;
+}): Promise<WorkspaceRecoveryPersistenceResult> {
+  let fallbackPersisted = false;
+  try {
+    await persistFallback();
+    fallbackPersisted = true;
+  } catch {
+    // Independent primary records can still make the recovery durable.
+  }
+  if (requireFallback && !fallbackPersisted) {
+    return "failed";
+  }
+
+  const primaryResults = await Promise.allSettled(
+    persistPrimary.map((persist) => persist()),
+  );
+  if (primaryResults.some((result) => result.status === "rejected")) {
+    return fallbackPersisted ? "revoked" : "failed";
+  }
+
+  if (!fallbackPersisted) {
+    return "persisted";
+  }
+
+  try {
+    await clearFallback();
+    return "persisted";
+  } catch {
+    // Retaining the independent revocation is safe and suppresses stale caches.
+    return "revoked";
+  }
+}
+
+export function createWorkspaceRecoveryRevocationRecord(
+  principalIdValue: string,
+  unavailableWorkspaceIds: Iterable<string>,
+): string {
+  return JSON.stringify({
+    principalId: normalizePrincipalId(principalIdValue),
+    unavailableWorkspaceIds: normalizeWorkspaceIds(unavailableWorkspaceIds),
+  });
+}
+
+export function parseWorkspaceRecoveryRevocationRecord(
+  raw: string,
+  principalIdValue: string,
+): string[] | null {
+  const principalId = normalizePrincipalId(principalIdValue);
+  try {
+    const record = JSON.parse(raw) as {
+      principalId?: unknown;
+      unavailableWorkspaceIds?: unknown;
+    };
+    if (
+      normalizePrincipalId(record.principalId) !== principalId ||
+      !Array.isArray(record.unavailableWorkspaceIds)
+    ) {
+      return null;
+    }
+    return normalizeWorkspaceIds(record.unavailableWorkspaceIds);
+  } catch {
+    return null;
+  }
 }

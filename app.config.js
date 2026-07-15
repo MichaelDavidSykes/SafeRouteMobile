@@ -23,13 +23,18 @@ function normalizeApiUrl(value) {
 
 function isLocalOrLoopbackHost(hostname) {
   const normalized = hostname.toLowerCase();
-
-  return (
+  if (
     normalized === 'localhost' ||
     normalized === '0.0.0.0' ||
     normalized === '::1' ||
-    normalized.startsWith('127.')
-  );
+    normalized === '[::1]'
+  ) {
+    return true;
+  }
+  const octets = normalized.split('.');
+  return octets.length === 4 &&
+    octets[0] === '127' &&
+    octets.every((octet) => /^\d{1,3}$/.test(octet) && Number(octet) <= 255);
 }
 
 function assertProductionApiUrl(value) {
@@ -93,6 +98,9 @@ if (!supportedEnvironments.includes(appEnvironment)) {
 }
 
 const enableDemoDriveOverride = trimmedEnv('SAFEROUTE_ENABLE_DEMO_DRIVE');
+const enableGuidanceContractEvidenceOverride = trimmedEnv(
+  'SAFEROUTE_ENABLE_GUIDANCE_CONTRACT_EVIDENCE'
+);
 const enablePreviewModeOverride = trimmedEnv('SAFEROUTE_ENABLE_PREVIEW_MODE');
 const previewInitialScreenOverride = trimmedEnv('SAFEROUTE_PREVIEW_INITIAL_SCREEN');
 const sourceRevisionOverride = trimmedEnv('SAFEROUTE_SOURCE_REVISION');
@@ -121,6 +129,11 @@ const iosBuildNumberOverride = trimmedEnv('SAFEROUTE_IOS_BUILD_NUMBER');
 const iosBuildNumber = normalizeIosBuildNumber(iosBuildNumberOverride);
 const googleMapsAndroidApiKey = trimmedEnv('GOOGLE_MAPS_ANDROID_API_KEY');
 const googleMapsIosApiKey = trimmedEnv('GOOGLE_MAPS_IOS_API_KEY');
+const safeRouteGuidanceContractEvidenceEnabled =
+  appEnvironment === 'development' &&
+  enableGuidanceContractEvidenceOverride?.toLowerCase() === 'true' &&
+  Boolean(sourceRevisionOverride) &&
+  isLoopbackUrl(safeRouteApiUrl);
 
 if (appEnvironment === 'production') {
   if (!productionApiUrlOverride) {
@@ -206,6 +219,7 @@ module.exports = {
       safeRouteApiUrl,
       safeRouteApiVersion,
       safeRouteDemoDriveEnabled,
+      safeRouteGuidanceContractEvidenceEnabled,
       safeRoutePreviewInitialScreen,
       safeRoutePreviewModeEnabled,
       ...(sourceRevisionOverride
@@ -214,3 +228,11 @@ module.exports = {
     }
   }
 };
+
+function isLoopbackUrl(value) {
+  try {
+    return isLocalOrLoopbackHost(new URL(value).hostname);
+  } catch {
+    return false;
+  }
+}

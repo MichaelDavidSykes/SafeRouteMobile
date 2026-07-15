@@ -11,6 +11,9 @@ appId: host.exp.Exponent
     id: "safe-route-suspended-navigation"
 - tapOn:
     id: "safe-route-stop-action"
+    waitToSettleTimeoutMs: 1000
+- waitForAnimationToEnd:
+    timeout: 2500
 - runFlow:
     when:
       visible:
@@ -18,6 +21,7 @@ appId: host.exp.Exponent
     commands:
       - tapOn:
           id: "safe-route-return"
+          retryTapIfNoChange: true
 - extendedWaitUntil:
     visible:
       id: "guest-map-primary-action"

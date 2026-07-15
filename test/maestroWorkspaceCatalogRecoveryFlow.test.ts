@@ -66,6 +66,10 @@ describe('Maestro workspace catalog recovery runtime', () => {
     assert.match(runner, /assertSuccessfulProtectedRequests\(entries, operationsRequests, 'operations-active'\)/);
     assert.match(runner, /request\.authorizationClass === 'expected-bearer'/);
     assert.match(seed, /inputText: "guidance-contract-password"\n- hideKeyboard\n- tapOn:\n    id: "safe-route-login-primary-action"/);
+    assert.match(
+      seed,
+      /id: "guest-map-workspace-selector"[\s\S]*id: "guest-map-workspace-66a1b2c3d4e5f60718293a40"[\s\S]*id: "guest-map-primary-action"[\s\S]*id: "safe-route-picker"/,
+    );
   });
 
   it('keeps the same accessible busy and repeated-failure control on every surface', () => {

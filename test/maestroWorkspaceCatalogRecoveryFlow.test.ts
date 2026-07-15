@@ -44,6 +44,7 @@ describe('Maestro workspace catalog recovery runtime', () => {
     const runner = read('scripts/run-maestro-workspace-catalog-recovery.mjs');
     const fixture = read('scripts/maestro-guidance-contract-api.mjs');
     const seed = read(flowPaths[0]);
+    const coldFailure = read(flowPaths[1]);
 
     for (const phase of [
       'catalogSeed',
@@ -75,6 +76,7 @@ describe('Maestro workspace catalog recovery runtime', () => {
       seed,
       /id: "guest-map-workspace-selector"[\s\S]*id: "guest-map-workspace-66a1b2c3d4e5f60718293a40"[\s\S]*id: "guest-map-primary-action"[\s\S]*id: "safe-route-picker"/,
     );
+    assert.match(coldFailure, /assertVisible: "\^Verify\$"/);
   });
 
   it('keeps the same accessible busy and repeated-failure control on every surface', () => {

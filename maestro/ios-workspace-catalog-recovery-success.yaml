@@ -27,7 +27,7 @@ appId: host.exp.Exponent
     timeout: 15000
 - assertVisible: "Workspace, Guidance Operations"
 - assertVisible: "Add destination"
-- assertNotVisible: "Verify workspace access"
+- assertNotVisible: "^Verify$"
 - assertNotVisible:
     id: "workspace-access-refresh"
 - takeScreenshot: "workspace-catalog-recovered-map"

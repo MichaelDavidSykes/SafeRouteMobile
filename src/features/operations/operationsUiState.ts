@@ -159,10 +159,10 @@ export function createOperationsWorkspaceState({
   if (availableWorkspaceCount > 0) {
     return {
       accessibilityLabel: errorMessage
-        ? "Choose a cached workspace to show its offline operations."
+        ? "Choose a cached workspace to review its operations."
         : "Choose a workspace to show its operations.",
       copy: errorMessage
-        ? "Choose a saved workspace. Reconnect to refresh workspace access."
+        ? "Choose a saved workspace. Verify current access before relying on operations."
         : "Choose the workspace whose operations you need.",
       loading: false,
       retry: false,

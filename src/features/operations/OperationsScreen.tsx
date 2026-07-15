@@ -413,8 +413,7 @@ export function OperationsScreen({
         </View>
       ) : null}
 
-      {workspaceAccessRefreshAvailable &&
-      (availableWorkspaces.length > 0 || !workspaceCatalogError) ? (
+      {workspaceAccessRefreshAvailable ? (
         <WorkspaceAccessRefreshControl
           accessRecoveryPending={workspaceAccessRecoveryPending}
           availableWorkspaceCount={availableWorkspaces.length}
@@ -471,7 +470,7 @@ export function OperationsScreen({
             <Text numberOfLines={1} style={styles.emptyTitle}>{workspaceState.title}</Text>
             <Text numberOfLines={2} style={styles.emptyCopy}>{workspaceState.copy}</Text>
           </View>
-          {workspaceState.retry ? (
+          {workspaceState.retry && !workspaceAccessRefreshAvailable ? (
             <Pressable
               accessibilityLabel="Retry loading SafeRoute workspaces"
               accessibilityRole="button"

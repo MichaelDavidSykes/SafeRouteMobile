@@ -1,0 +1,53 @@
+appId: host.exp.Exponent
+---
+- tapOn:
+    id: "route-list-map-return"
+- extendedWaitUntil:
+    visible:
+      id: "guest-map-workspace-selector"
+    timeout: 15000
+- scrollUntilVisible:
+    element:
+      id: "guest-map-gate-planned-trips"
+    direction: DOWN
+    timeout: 20000
+    speed: 40
+- tapOn:
+    id: "guest-map-gate-planned-trips"
+- extendedWaitUntil:
+    visible:
+      id: "safe-route-operations"
+    timeout: 20000
+- assertVisible: "Workspace, Guidance Operations"
+- assertNotVisible:
+    id: "safe-route-operations-error-state"
+- assertNotVisible:
+    id: "safe-route-operations-sync-warning"
+- assertVisible:
+    id: "workspace-access-refresh"
+    enabled: true
+- tapOn:
+    id: "workspace-access-refresh"
+    waitToSettleTimeoutMs: 100
+- extendedWaitUntil:
+    visible:
+      id: "workspace-access-refresh"
+      enabled: false
+    timeout: 3000
+- assertVisible: "Checking current workspace access. Cached workspace remains available for review only."
+- tapOn:
+    id: "workspace-access-refresh"
+    optional: true
+    waitToSettleTimeoutMs: 100
+- takeScreenshot: "workspace-catalog-operations-retry-busy"
+- extendedWaitUntil:
+    visible:
+      id: "workspace-access-refresh"
+      enabled: true
+    timeout: 15000
+- assertVisible: "Workspace access not verified. Try checking current access again."
+- assertNotVisible:
+    id: "safe-route-operations-error-state"
+- assertNotVisible:
+    id: "safe-route-operations-sync-warning"
+- takeScreenshot: "workspace-catalog-operations-retry-failed"

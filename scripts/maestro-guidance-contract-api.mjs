@@ -12,6 +12,17 @@ export const GUIDANCE_CONTRACT_MODES = Object.freeze({
   wrongPrincipal: 'active-b'
 });
 
+export const WORKSPACE_CATALOG_RECOVERY_PHASES = Object.freeze({
+  freshSuccess: 'catalogFreshSuccess',
+  initialFailure: 'catalogInitialFailure',
+  mapRetryFailure: 'catalogMapRetryFailure',
+  operationsRetryFailure: 'catalogOperationsRetryFailure',
+  savedRetryFailure: 'catalogSavedRetryFailure',
+  seed: 'catalogSeed'
+});
+export const WORKSPACE_CATALOG_RETRY_DELAY_MS = 6_000;
+export const WORKSPACE_CATALOG_SUCCESS_DELAY_MS = 3_000;
+
 export const GUIDANCE_START_BOUNDARY_PATH = '/__guidance_contract__/boundary';
 export const GUIDANCE_CONTRACT_EVIDENCE_PATH = '/__guidance_contract__/evidence';
 export const GUIDANCE_CONTRACT_EVIDENCE_TYPES = Object.freeze([
@@ -228,7 +239,8 @@ export function createGuidanceContractHandler({
   readControl,
   readMode = () => GUIDANCE_CONTRACT_MODES.offline,
   readPhase = () => 'unassigned',
-  requestLog = () => undefined
+  requestLog = () => undefined,
+  sleep = (milliseconds) => new Promise((resolve) => setTimeout(resolve, milliseconds))
 }) {
   return async (request, response) => {
     const { mode, phase } = normalizeControlSnapshot(
@@ -418,6 +430,36 @@ export function createGuidanceContractHandler({
       const denied = mode === GUIDANCE_CONTRACT_MODES.denied;
       const regained = isPostRegainPhase(phase);
       const requestedWorkspaceId = String(url.searchParams.get('client_id') || '').trim();
+      const retryFailure = [
+        WORKSPACE_CATALOG_RECOVERY_PHASES.mapRetryFailure,
+        WORKSPACE_CATALOG_RECOVERY_PHASES.operationsRetryFailure,
+        WORKSPACE_CATALOG_RECOVERY_PHASES.savedRetryFailure
+      ].includes(phase);
+      const catalogFailure = !requestedWorkspaceId && (
+        phase === WORKSPACE_CATALOG_RECOVERY_PHASES.initialFailure ||
+        retryFailure
+      );
+      if (catalogFailure) {
+        if (retryFailure) {
+          await sleep(WORKSPACE_CATALOG_RETRY_DELAY_MS);
+        }
+        sendApiError(
+          response,
+          503,
+          'Workspace catalog verification is temporarily unavailable.',
+          {},
+          retryFailure
+            ? 'catalog-retry-unavailable'
+            : 'catalog-initial-unavailable'
+        );
+        return;
+      }
+      if (
+        !requestedWorkspaceId &&
+        phase === WORKSPACE_CATALOG_RECOVERY_PHASES.freshSuccess
+      ) {
+        await sleep(WORKSPACE_CATALOG_SUCCESS_DELAY_MS);
+      }
       const requestedWorkspace = Object.values(GUIDANCE_CONTRACT_WORKSPACES)
         .find((workspace) => workspace.id === requestedWorkspaceId);
       if (requestedWorkspaceId && !requestedWorkspace) {
@@ -452,6 +494,37 @@ export function createGuidanceContractHandler({
         },
         message: 'SafeRoute routes loaded.'
       }, denied ? 'catalog-survivor' : regained ? 'catalog-regained' : 'catalog-active');
+      return;
+    }
+
+    const operationsMatch = url.pathname.match(
+      /^\/api\/v1\/mobile\/safe-route\/operations\/client\/([0-9a-f]{24})$/i
+    );
+    if (request.method === 'GET' && operationsMatch) {
+      const requestedWorkspaceId = operationsMatch[1];
+      const requestedWorkspace = Object.values(GUIDANCE_CONTRACT_WORKSPACES)
+        .find((workspace) => workspace.id === requestedWorkspaceId);
+      if (!requestedWorkspace) {
+        sendApiError(response, 404, 'Workspace was not found.');
+        return;
+      }
+      if (
+        mode === GUIDANCE_CONTRACT_MODES.denied &&
+        requestedWorkspaceId === GUIDANCE_CONTRACT_WORKSPACES.denied.id
+      ) {
+        sendApiError(response, 403, 'Workspace membership is unavailable.');
+        return;
+      }
+      sendApiSuccess(response, {
+        data: {
+          client_id: requestedWorkspaceId,
+          people: [],
+          trips: [],
+          updated_at: '2026-07-15T12:00:00.000Z',
+          vehicles: []
+        },
+        message: 'SafeRoute operations loaded.'
+      }, 'operations-active');
       return;
     }
 
@@ -581,7 +654,8 @@ export function startGuidanceContractApi({
   readControl,
   readMode,
   readPhase,
-  requestLog
+  requestLog,
+  sleep
 }) {
   const server = createServer(createGuidanceContractHandler({
     createRequestId,
@@ -590,7 +664,8 @@ export function startGuidanceContractApi({
     readControl,
     readMode,
     readPhase,
-    requestLog
+    requestLog,
+    sleep
   }));
   return new Promise((resolve, reject) => {
     server.once('error', reject);
@@ -1051,6 +1126,7 @@ function isProtectedPath(pathname) {
     pathname === '/api/v1/users/me' ||
     pathname === '/api/v1/mobile/safe-route/routes' ||
     pathname.startsWith('/api/v1/mobile/safe-route/routes/') ||
+    pathname.startsWith('/api/v1/mobile/safe-route/operations/client/') ||
     pathname === '/api/v1/convoy-routes/route-preview'
   );
 }

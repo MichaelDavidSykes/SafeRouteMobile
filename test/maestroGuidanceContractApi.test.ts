@@ -11,6 +11,9 @@ import {
   GUIDANCE_CONTRACT_ROUTE_VARIANT_IDS,
   GUIDANCE_CONTRACT_WORKSPACES,
   GUIDANCE_START_BOUNDARY_PATH,
+  WORKSPACE_CATALOG_RECOVERY_PHASES,
+  WORKSPACE_CATALOG_RETRY_DELAY_MS,
+  WORKSPACE_CATALOG_SUCCESS_DELAY_MS,
   assertGuidanceContractEvidenceJournal,
   assertGuidanceContractRequestJournal,
   assertGuidanceContractRouteCacheReadbackEvidence,
@@ -35,6 +38,97 @@ describe('Maestro guidance contract API', () => {
     assert.equal(payload.iat, 9_999);
     assert.equal(payload.exp, 96_400);
     assert.equal(signature, 'guidance-contract-signature');
+  });
+
+  it('models transient unscoped catalog failure without blocking cached-workspace surfaces', async () => {
+    let phase = WORKSPACE_CATALOG_RECOVERY_PHASES.initialFailure;
+    const requestedDelays: number[] = [];
+    const requests: Array<{
+      event?: string;
+      path: string;
+      phase: string;
+      search: string;
+      semanticOutcome?: string;
+      statusCode?: number | null;
+    }> = [];
+    const server = await startGuidanceContractApi({
+      port: 0,
+      readControl: () => ({ mode: GUIDANCE_CONTRACT_MODES.active, phase }),
+      requestLog: (entry: (typeof requests)[number]) => requests.push(entry),
+      sleep: async (milliseconds: number) => {
+        requestedDelays.push(milliseconds);
+      },
+    });
+    const address = server.address();
+    assert.ok(address && typeof address === 'object');
+    const base = `http://127.0.0.1:${address.port}/api/v1`;
+    const headers = {
+      Authorization: `Bearer ${createGuidanceContractAccessToken()}`,
+    };
+
+    try {
+      const initialFailure = await fetch(`${base}/mobile/safe-route/routes`, { headers });
+      assert.equal(initialFailure.status, 503);
+
+      const cachedWorkspaceRoutes = await fetch(
+        `${base}/mobile/safe-route/routes?client_id=${GUIDANCE_CONTRACT_WORKSPACES.denied.id}`,
+        { headers },
+      );
+      assert.equal(cachedWorkspaceRoutes.status, 200);
+
+      const operations = await fetch(
+        `${base}/mobile/safe-route/operations/client/${GUIDANCE_CONTRACT_WORKSPACES.denied.id}`,
+        { headers },
+      );
+      assert.equal(operations.status, 200);
+      assert.equal((await operations.json()).data.client_id, GUIDANCE_CONTRACT_WORKSPACES.denied.id);
+      assert.equal((await fetch(
+        `${base}/mobile/safe-route/operations/client/${GUIDANCE_CONTRACT_WORKSPACES.denied.id}`,
+      )).status, 401);
+
+      for (const retryPhase of [
+        WORKSPACE_CATALOG_RECOVERY_PHASES.mapRetryFailure,
+        WORKSPACE_CATALOG_RECOVERY_PHASES.savedRetryFailure,
+        WORKSPACE_CATALOG_RECOVERY_PHASES.operationsRetryFailure,
+      ]) {
+        phase = retryPhase;
+        const retryFailure = await fetch(`${base}/mobile/safe-route/routes`, { headers });
+        assert.equal(retryFailure.status, 503);
+      }
+      assert.deepEqual(requestedDelays, [
+        WORKSPACE_CATALOG_RETRY_DELAY_MS,
+        WORKSPACE_CATALOG_RETRY_DELAY_MS,
+        WORKSPACE_CATALOG_RETRY_DELAY_MS,
+      ]);
+
+      phase = WORKSPACE_CATALOG_RECOVERY_PHASES.freshSuccess;
+      const freshSuccess = await fetch(`${base}/mobile/safe-route/routes`, { headers });
+      assert.equal(freshSuccess.status, 200);
+      assert.equal((await freshSuccess.json()).data.clients.length, 2);
+      assert.deepEqual(requestedDelays, [
+        WORKSPACE_CATALOG_RETRY_DELAY_MS,
+        WORKSPACE_CATALOG_RETRY_DELAY_MS,
+        WORKSPACE_CATALOG_RETRY_DELAY_MS,
+        WORKSPACE_CATALOG_SUCCESS_DELAY_MS,
+      ]);
+
+      const completionOutcomes = requests
+        .filter((entry) =>
+          entry.event === 'completion' &&
+          entry.path === '/api/v1/mobile/safe-route/routes' &&
+          entry.search === ''
+        )
+        .map((entry) => [entry.phase, entry.statusCode, entry.semanticOutcome]);
+      assert.deepEqual(completionOutcomes, [
+        [WORKSPACE_CATALOG_RECOVERY_PHASES.initialFailure, 503, 'catalog-initial-unavailable'],
+        [WORKSPACE_CATALOG_RECOVERY_PHASES.mapRetryFailure, 503, 'catalog-retry-unavailable'],
+        [WORKSPACE_CATALOG_RECOVERY_PHASES.savedRetryFailure, 503, 'catalog-retry-unavailable'],
+        [WORKSPACE_CATALOG_RECOVERY_PHASES.operationsRetryFailure, 503, 'catalog-retry-unavailable'],
+        [WORKSPACE_CATALOG_RECOVERY_PHASES.freshSuccess, 200, 'catalog-active'],
+      ]);
+    } finally {
+      await new Promise<void>((resolve) => server.close(() => resolve()));
+    }
   });
 
   it('acknowledges exact device evidence and rejects missing headers or ID conflicts', async () => {

@@ -366,10 +366,10 @@ export function RouteListScreen({
       : availableWorkspaces.length
         ? {
             accessibilityLabel: workspaceCatalogError
-              ? "Choose a cached workspace to show its offline saved routes."
+              ? "Choose a cached workspace to review its saved routes."
               : "Choose a workspace to show its saved routes.",
             copy: workspaceCatalogError
-              ? "Choose a saved workspace. Reconnect to refresh workspace access."
+              ? "Choose a saved workspace. Verify current access before starting guidance."
               : "Choose the workspace whose routes you need.",
             loading: false,
             retry: false,
@@ -561,8 +561,7 @@ export function RouteListScreen({
         }}
       />
 
-      {workspaceAccessRefreshAvailable &&
-      (availableWorkspaces.length > 0 || !workspaceCatalogError) ? (
+      {workspaceAccessRefreshAvailable ? (
         <WorkspaceAccessRefreshControl
           accessRecoveryPending={workspaceAccessRecoveryPending}
           availableWorkspaceCount={availableWorkspaces.length}
@@ -593,7 +592,7 @@ export function RouteListScreen({
             <Text numberOfLines={1} style={styles.emptyTitle}>{workspaceState.title}</Text>
             <Text numberOfLines={2} style={styles.emptyCopy}>{workspaceState.copy}</Text>
           </View>
-          {workspaceState.retry ? (
+          {workspaceState.retry && !workspaceAccessRefreshAvailable ? (
             <Pressable
               accessibilityLabel="Retry loading SafeRoute workspaces"
               accessibilityRole="button"

@@ -1,0 +1,37 @@
+appId: host.exp.Exponent
+---
+- tapOn:
+    id: "guest-map-primary-action"
+- extendedWaitUntil:
+    visible:
+      id: "safe-route-picker"
+    timeout: 20000
+- assertVisible: "Workspace, Guidance Operations"
+- assertVisible:
+    id: "safe-route-card-66b1b2c3d4e5f60718293b40"
+- assertVisible:
+    id: "workspace-access-refresh"
+    enabled: true
+- tapOn:
+    id: "workspace-access-refresh"
+    waitToSettleTimeoutMs: 100
+- extendedWaitUntil:
+    visible:
+      id: "workspace-access-refresh"
+      enabled: false
+    timeout: 3000
+- assertVisible: "Checking current workspace access. Cached workspace remains available for review only."
+- tapOn:
+    id: "workspace-access-refresh"
+    optional: true
+    waitToSettleTimeoutMs: 100
+- takeScreenshot: "workspace-catalog-saved-retry-busy"
+- extendedWaitUntil:
+    visible:
+      id: "workspace-access-refresh"
+      enabled: true
+    timeout: 15000
+- assertVisible: "Workspace access not verified. Try checking current access again."
+- assertVisible:
+    id: "safe-route-card-66b1b2c3d4e5f60718293b40"
+- takeScreenshot: "workspace-catalog-saved-retry-failed"

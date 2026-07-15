@@ -25,8 +25,9 @@ appId: host.exp.Exponent
 - tapOn:
     id: "safe-route-primary-action"
 - extendedWaitUntil:
-    visible: "Workspace access could not be verified. Reconnect and try again."
+    visible: '^Access status\. Workspace access could not be verified\. Reconnect and try again\..*'
     timeout: 20000
+- assertVisible: "Retry access"
 - assertVisible:
     id: "safe-route-primary-action"
 - assertNotVisible:

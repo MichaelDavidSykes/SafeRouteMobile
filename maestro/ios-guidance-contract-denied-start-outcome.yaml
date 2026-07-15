@@ -9,8 +9,7 @@ appId: host.exp.Exponent
     visible:
       id: "workspace-access-refresh"
     timeout: 30000
-- assertVisible: "Workspace access changed"
-- assertVisible: "Check for restored access"
+- assertVisible: "Workspace access changed. Check for restored access."
 - assertNotVisible: "Refreshing workspace access"
 - assertNotVisible: "Checking workspace access"
 - assertNotVisible:

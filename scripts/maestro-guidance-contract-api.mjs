@@ -21,7 +21,7 @@ export const WORKSPACE_CATALOG_RECOVERY_PHASES = Object.freeze({
   seed: 'catalogSeed'
 });
 export const WORKSPACE_CATALOG_RETRY_DELAY_MS = 6_000;
-export const WORKSPACE_CATALOG_SUCCESS_DELAY_MS = 3_000;
+export const WORKSPACE_CATALOG_SUCCESS_DELAY_MS = 6_000;
 
 export const GUIDANCE_START_BOUNDARY_PATH = '/__guidance_contract__/boundary';
 export const GUIDANCE_CONTRACT_EVIDENCE_PATH = '/__guidance_contract__/evidence';

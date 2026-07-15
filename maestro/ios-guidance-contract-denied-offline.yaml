@@ -22,4 +22,15 @@ appId: host.exp.Exponent
       id: "safe-route-live-map"
     timeout: 20000
 - assertVisible: 'Support continuity route.*'
+- tapOn:
+    id: "safe-route-primary-action"
+- extendedWaitUntil:
+    visible: "Workspace access could not be verified. Reconnect and try again."
+    timeout: 20000
+- assertVisible:
+    id: "safe-route-primary-action"
+- assertNotVisible:
+    id: "safe-route-stop-action"
+- assertNotVisible:
+    id: "safe-route-remaining-metrics"
 - stopApp

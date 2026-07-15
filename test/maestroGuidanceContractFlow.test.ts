@@ -331,6 +331,10 @@ describe('Maestro cold guidance contract matrix', () => {
     assert.match(deniedOffline, /safe-route-card-66b1b2c3d4e5f60718293b41/);
     assert.match(deniedOffline, /assertVisible: 'Support continuity route\.\*'/);
     assert.match(deniedOffline, /assertNotVisible:[\s\S]*safe-route-card-66b1b2c3d4e5f60718293b40/);
+    assert.match(
+      deniedOffline,
+      /safe-route-live-map[\s\S]*safe-route-primary-action[\s\S]*Workspace access could not be verified\. Reconnect and try again\.[\s\S]*safe-route-stop-action[\s\S]*safe-route-remaining-metrics/,
+    );
     assert.match(regained, /Workspace, Support Operations/);
     assert.match(regained, /assertVisible: 'Cold restart verification v2\.\*'/);
     assert.match(regained, /assertNotVisible: 'Cold restart verification v1\.\*'/);

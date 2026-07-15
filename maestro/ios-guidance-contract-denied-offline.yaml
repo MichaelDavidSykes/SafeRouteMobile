@@ -17,9 +17,20 @@ appId: host.exp.Exponent
     id: "safe-route-card-66b1b2c3d4e5f60718293b40"
 - tapOn:
     id: "safe-route-card-66b1b2c3d4e5f60718293b41"
-- assertNotVisible:
-    id: "safe-route-live-map"
-- assertVisible: "Reconnect and refresh workspace access before starting guidance."
+- extendedWaitUntil:
+    visible:
+      id: "safe-route-live-map"
+    timeout: 20000
+- assertVisible: "^Support continuity route.*"
+- tapOn:
+    id: "safe-route-primary-action"
+- extendedWaitUntil:
+    visible: "Workspace access could not be verified. Reconnect and try again."
+    timeout: 20000
 - assertVisible:
-    id: "workspace-access-refresh"
+    id: "safe-route-primary-action"
+- assertNotVisible:
+    id: "safe-route-stop-action"
+- assertNotVisible:
+    id: "safe-route-remaining-metrics"
 - stopApp

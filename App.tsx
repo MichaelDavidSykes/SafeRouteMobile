@@ -1605,13 +1605,6 @@ export default function App() {
       setSessionMessage('The active workspace changed. Plot the route again.');
       return;
     }
-    if (
-      authenticated &&
-      !freshWorkspaceAuthorizationRef.current.workspaceIds.has(routeWorkspaceId)
-    ) {
-      setSessionMessage('Reconnect and refresh workspace access before starting guidance.');
-      return;
-    }
     if (pendingNavigationRestoreRef.current) {
       void discardPersistedNavigation(
         'Saved guidance removed. Select the new route again.',
@@ -1640,10 +1633,6 @@ export default function App() {
     }
     if (!activeWorkspace || routePlan.clientId !== activeWorkspace.id) {
       setSessionMessage('The active workspace changed. Choose the saved route again.');
-      return;
-    }
-    if (!freshWorkspaceAuthorizationRef.current.workspaceIds.has(routePlan.clientId)) {
-      setSessionMessage('Reconnect and refresh workspace access before starting guidance.');
       return;
     }
     if (pendingNavigationRestoreRef.current) {

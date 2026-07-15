@@ -238,6 +238,14 @@ describe("App active workspace integration", () => {
   it("keeps cached workspaces browse-only until a fresh catalog authorizes guidance", () => {
     const app = appSource();
     const guest = guestSource();
+    const openRoutePreview = app.slice(
+      app.indexOf('const openRoutePreview ='),
+      app.indexOf('const handleSelectSavedRoute ='),
+    );
+    const handleSelectSavedRoute = app.slice(
+      app.indexOf('const handleSelectSavedRoute ='),
+      app.indexOf('const returnFromRoutePreview ='),
+    );
     const cachedCatalogIndex = app.indexOf('if (cachedCatalog.length)');
     const freshRequestIndex = app.indexOf('const result = await fetchSavedRoutes(accessToken)');
     const freshAuthorizationIndex = app.indexOf(
@@ -256,13 +264,11 @@ describe("App active workspace integration", () => {
       app.slice(freshAuthorizationIndex, freshAuthorizationIndex + 220),
       /principalId[\s\S]*new Set\(stagedCatalog\.map\(\(workspace\) => workspace\.id\)\)/,
     );
+    assert.doesNotMatch(openRoutePreview, /freshWorkspaceAuthorizationRef/);
+    assert.doesNotMatch(handleSelectSavedRoute, /freshWorkspaceAuthorizationRef/);
     assert.match(
       app,
-      /openRoutePreview[\s\S]*!freshWorkspaceAuthorizationRef\.current\.workspaceIds\.has\(routeWorkspaceId\)[\s\S]*Reconnect and refresh workspace access before starting guidance/,
-    );
-    assert.match(
-      app,
-      /handleSelectSavedRoute[\s\S]*!freshWorkspaceAuthorizationRef\.current\.workspaceIds\.has\(routePlan\.clientId\)[\s\S]*Reconnect and refresh workspace access before starting guidance/,
+      /handleAuthorizeNavigationStart[\s\S]*authorizeWorkspaceNavigationStart\([\s\S]*loadCurrentPrincipalId[\s\S]*loadWorkspaceCatalog/,
     );
     assert.match(
       app,

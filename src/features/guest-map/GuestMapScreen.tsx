@@ -202,6 +202,8 @@ export function GuestMapScreen({
   const workspaceSelectionRequired = authenticated && !routingClientId;
   const workspaceAuthorizationRequired =
     authenticated && Boolean(routingClientId) && !workspaceAuthorizationFresh;
+  const riskAreaAuthorizationRequired =
+    workspaceSelectionRequired || workspaceAuthorizationRequired;
   const routingAccessToken =
     !workspaceSelectionRequired &&
     !workspaceAuthorizationRequired &&
@@ -247,12 +249,12 @@ export function GuestMapScreen({
       : workspaceAuthorizationRequired
         ? workspaceCatalogLoading
           ? 'Checking workspace…'
-          : 'Reconnect to verify access'
+          : 'Verify workspace access'
       : routeAction.label;
   const routeActionAccessibilityLabel = workspaceSelectionRequired
     ? workspaceBlockingActionLabel
     : workspaceAuthorizationRequired
-      ? 'Reconnect to verify workspace access before plotting this route'
+      ? 'Verify workspace access before plotting this route'
     : routeAction.accessibilityLabel;
   const routeActionAccessibilityHint = workspaceSelectionRequired
     ? availableWorkspaces.length
@@ -1030,9 +1032,13 @@ export function GuestMapScreen({
       onSignIn();
       return;
     }
-    if (!action || !routingClientId || !accessToken || isPreviewAccessToken(accessToken)) {
+    if (!action || !routingClientId || !routingAccessToken) {
       setMapAction(null);
-      setRouteMessage('Your workspace is still loading. Try adding the risk area again.');
+      setRouteMessage(
+        workspaceAuthorizationRequired
+          ? 'Verify current workspace access before adding a risk area.'
+          : 'Your workspace is still loading. Try adding the risk area again.'
+      );
       return;
     }
     activeRiskAreaRequestRef.current?.abort();
@@ -1041,7 +1047,7 @@ export function GuestMapScreen({
     const controller = new AbortController();
     activeRiskAreaRequestRef.current = controller;
     setRiskAreaSavePending(true);
-    const requestAccessToken = accessToken;
+    const requestAccessToken = routingAccessToken;
     const requestWorkspaceId = routingClientId;
     try {
       await createGuestRiskArea({
@@ -1313,11 +1319,13 @@ export function GuestMapScreen({
                 accessibilityLabel={authenticated
                   ? workspaceSelectionRequired
                     ? 'Choose a workspace before adding a risk area'
+                    : workspaceAuthorizationRequired
+                      ? 'Verify current workspace access before adding a risk area'
                     : 'Add a risk area here'
                   : 'Sign in to add a risk area'}
                 accessibilityRole="button"
-                accessibilityState={{ disabled: riskAreaSavePending || workspaceSelectionRequired }}
-                disabled={riskAreaSavePending || workspaceSelectionRequired}
+                accessibilityState={{ disabled: riskAreaSavePending || riskAreaAuthorizationRequired }}
+                disabled={riskAreaSavePending || riskAreaAuthorizationRequired}
                 testID={uiTestIds.guestMapLongPressAddRisk}
                 style={({ pressed }) => [
                   styles.mapActionButton,
@@ -1406,10 +1414,10 @@ export function GuestMapScreen({
                       setActiveInput(null);
                       setWorkspaceMenuOpen((open) => !open);
                     }}
+                    sharedRetryAvailable={workspaceAccessRefreshAvailable}
                     switchDisabled={workspaceSwitchDisabled}
                   />
-                  {workspaceAccessRefreshAvailable &&
-                  (availableWorkspaces.length > 0 || !workspaceCatalogError) ? (
+                  {workspaceAccessRefreshAvailable ? (
                     <WorkspaceAccessRefreshControl
                       accessRecoveryPending={workspaceAccessRecoveryPending}
                       availableWorkspaceCount={availableWorkspaces.length}
@@ -1601,6 +1609,7 @@ function GuestWorkspaceSelector({
   onRetry,
   onSelect,
   onToggle,
+  sharedRetryAvailable,
   switchDisabled,
   workspaces
 }: {
@@ -1611,16 +1620,21 @@ function GuestWorkspaceSelector({
   onRetry?: () => void;
   onSelect: (workspace: SafeRouteWorkspace) => void;
   onToggle: () => void;
+  sharedRetryAvailable: boolean;
   switchDisabled: boolean;
   workspaces: SafeRouteWorkspace[];
 }) {
   const waitingForCatalog = loading && !workspaces.length;
   const catalogUnavailable = Boolean(errorMessage) && !workspaces.length;
   const retryAvailable =
+    !sharedRetryAvailable &&
     !loading && Boolean(onRetry && errorMessage) && (catalogUnavailable || switchDisabled);
   const disabled = retryAvailable
     ? false
-    : switchDisabled || waitingForCatalog || (!errorMessage && !workspaces.length);
+    : switchDisabled ||
+      waitingForCatalog ||
+      (sharedRetryAvailable && catalogUnavailable) ||
+      (!errorMessage && !workspaces.length);
   const value = activeWorkspace?.name || (workspaces.length
     ? 'Choose workspace'
     : loading
@@ -1631,14 +1645,16 @@ function GuestWorkspaceSelector({
     : switchDisabled
       ? 'Route active'
       : catalogUnavailable
-        ? 'Retry'
-        : menuOpen ? 'Close' : errorMessage ? 'Offline' : 'Change';
+        ? (sharedRetryAvailable ? 'Check below' : 'Retry')
+        : menuOpen ? 'Close' : errorMessage ? 'Verify' : 'Change';
 
   return (
     <View style={styles.workspacePicker}>
       <Pressable
         accessibilityHint={retryAvailable
           ? 'Retries loading your SafeRoute workspaces.'
+          : sharedRetryAvailable && catalogUnavailable
+            ? 'Use the workspace access control below to check current access.'
           : switchDisabled
             ? 'End active guidance before changing workspace.'
             : 'Opens the active workspace menu.'}

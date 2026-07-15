@@ -15,6 +15,15 @@ describe('Maestro cold guidance contract matrix', () => {
     assert.match(subflow, /id: "saferoute-app-root"/);
     assert.match(
       subflow,
+      /visible: "Experience needs permissions"[\s\S]*start: "50%,34%"[\s\S]*end: "50%,95%"[\s\S]*visible: "Allow"[\s\S]*tapOn: "Allow"/,
+    );
+    assert.equal(
+      (subflow.match(/visible: "Bottom Sheet"/g) || []).length,
+      2,
+      'Expo can reveal its native developer sheet before or after first-launch permission prompts',
+    );
+    assert.match(
+      subflow,
       /id: "saferoute-app-root"[\s\S]*visible: "Allow While Using App"[\s\S]*tapOn: "Allow While Using App"/,
     );
   });

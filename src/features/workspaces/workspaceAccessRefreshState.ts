@@ -47,6 +47,20 @@ export function createWorkspaceAccessRefreshState({
       };
     }
 
+    if (issue === "verification-unavailable" && !accessRecoveryPending) {
+      return {
+        accessibilityHint: "Wait while SafeRoute verifies current workspace membership.",
+        accessibilityLabel: hasAvailableWorkspace
+          ? "Checking current workspace access. Cached workspace remains available for review only."
+          : "Checking current workspace access. No workspace is currently available.",
+        actionLabel: "Checking…",
+        detail: hasAvailableWorkspace
+          ? "Cached workspace remains review only"
+          : "Verifying current membership",
+        title: "Checking current access",
+      };
+    }
+
     return {
       accessibilityHint: "Wait while SafeRoute checks current workspace membership.",
       accessibilityLabel: hasAvailableWorkspace

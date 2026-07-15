@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { StatusBar } from 'expo-status-bar';
-import { StyleSheet, View } from 'react-native';
+import { AccessibilityInfo, StyleSheet, View } from 'react-native';
 import { SafeAreaProvider, initialWindowMetrics } from 'react-native-safe-area-context';
 
 import {
@@ -741,6 +741,7 @@ export default function App() {
   useEffect(() => {
     const revision = workspaceRequestRevisionRef.current + 1;
     workspaceRequestRevisionRef.current = revision;
+    const catalogRetryWasRequested = workspaceCatalogRetryingRef.current;
     const allowFreshWorkspaceRestoration =
       restoreUnavailableWorkspacesFromFreshCatalogRef.current;
     const accessToken = session?.accessToken?.trim();
@@ -1104,8 +1105,18 @@ export default function App() {
             setSessionMessage('');
           }
         }
-        if (workspaceAccessRestored && !navigationRestoreRejected) {
-          setSessionMessage('Workspace access refreshed.');
+        if (
+          catalogRetryWasRequested &&
+          recoveryPersistence === 'persisted' &&
+          !navigationRestoreRejected
+        ) {
+          const confirmation = workspaceAccessRestored
+            ? 'Workspace access refreshed.'
+            : 'Workspace access verified.';
+          setSessionMessage(confirmation);
+          AccessibilityInfo.announceForAccessibilityWithOptions(confirmation, {
+            queue: true,
+          });
         }
       } catch (error) {
         if (!requestIsCurrent()) {

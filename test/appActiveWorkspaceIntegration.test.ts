@@ -98,6 +98,8 @@ describe("App active workspace integration", () => {
     assert.match(app, /reconcileUnavailableWorkspaceIds\(\{[\s\S]*allowFreshRestoration: allowFreshWorkspaceRestoration[\s\S]*freshWorkspaces: normalizedCatalog/);
     assert.match(app, /previousUnavailableWorkspaceIds[\s\S]*workspaceAccessRestored = findRestoredWorkspaceIds\([\s\S]*previousUnavailableWorkspaceIds,[\s\S]*unavailableWorkspaceIds,[\s\S]*\)\.length > 0/);
     assert.match(app, /workspaceAccessRestored[\s\S]*Workspace access refreshed\./);
+    assert.match(app, /catalogRetryWasRequested[\s\S]*Workspace access verified\./);
+    assert.match(app, /AccessibilityInfo\.announceForAccessibilityWithOptions\(confirmation,[\s\S]*queue: true/);
     assert.match(app, /handleRetryWorkspaceCatalog[\s\S]*restoreUnavailableWorkspacesFromFreshCatalogRef\.current = true[\s\S]*setWorkspaceDiscoveryRevision/);
     assert.match(
       app,
@@ -153,6 +155,11 @@ describe("App active workspace integration", () => {
     assert.match(workspaceRefreshSource(), /useNetworkAvailability\(\)/);
     assert.doesNotMatch(workspaceRefreshSource(), /numberOfLines=/);
     assert.match(workspaceRefreshSource(), /testID=\{uiTestIds\.workspaceAccessRefresh\}/);
+    assert.doesNotMatch(guestSource(), /workspaceAccessRefreshAvailable &&\s*\(availableWorkspaces\.length > 0 \|\| !workspaceCatalogError\)/);
+    assert.doesNotMatch(routesSource(), /workspaceAccessRefreshAvailable &&\s*\(availableWorkspaces\.length > 0 \|\| !workspaceCatalogError\)/);
+    assert.doesNotMatch(operationsSource(), /workspaceAccessRefreshAvailable &&\s*\(availableWorkspaces\.length > 0 \|\| !workspaceCatalogError\)/);
+    assert.match(routesSource(), /workspaceState\.retry && !workspaceAccessRefreshAvailable/);
+    assert.match(operationsSource(), /workspaceState\.retry && !workspaceAccessRefreshAvailable/);
   });
 
   it("clears workspace context at authentication boundaries", () => {
@@ -174,7 +181,11 @@ describe("App active workspace integration", () => {
     assert.match(guest, /workspaceSelectionRequired = authenticated && !routingClientId/);
     assert.match(guest, /workspaceAuthorizationRequired =[\s\S]*authenticated && Boolean\(routingClientId\) && !workspaceAuthorizationFresh/);
     assert.match(guest, /routeActionDisabled =[\s\S]*workspaceAuthorizationRequired/);
-    assert.match(guest, /Reconnect to verify workspace access before plotting this route/);
+    assert.match(guest, /Verify workspace access before plotting this route/);
+    assert.match(guest, /riskAreaAuthorizationRequired =[\s\S]*workspaceSelectionRequired \|\| workspaceAuthorizationRequired/);
+    assert.match(guest, /!action \|\| !routingClientId \|\| !routingAccessToken/);
+    assert.match(guest, /disabled=\{riskAreaSavePending \|\| riskAreaAuthorizationRequired\}/);
+    assert.match(guest, /Verify current workspace access before adding a risk area/);
     assert.match(guest, /routeActionAccessibilityLabel = workspaceSelectionRequired/);
     assert.match(guest, /retryAvailable =[\s\S]*!loading && Boolean\(onRetry && errorMessage\)/);
     assert.match(guest, /Choose the SafeRoute workspace above before plotting this route/);
@@ -417,7 +428,7 @@ describe("App active workspace integration", () => {
     assert.match(app, /activeSessionPrincipalIdRef\.current/);
     assert.match(app, /principalId=\{sessionPrincipalId\}/);
     assert.match(app, /handleNavigationSessionChange[\s\S]*pendingNavigationRestoreRef\.current[\s\S]*return false/);
-    assert.match(guest, /retryAvailable =[\s\S]*!loading && Boolean\(onRetry && errorMessage\)[\s\S]*catalogUnavailable \|\| switchDisabled/);
+    assert.match(guest, /retryAvailable =[\s\S]*!sharedRetryAvailable &&[\s\S]*!loading && Boolean\(onRetry && errorMessage\)[\s\S]*catalogUnavailable \|\| switchDisabled/);
     assert.match(guest, /disabled = retryAvailable[\s\S]*\? false[\s\S]*switchDisabled/);
     assert.match(guest, /onPress=\{retryAvailable \? onRetry : onToggle\}/);
     assert.match(liveMap, /accepted === false[\s\S]*clearActiveNavigationSession\(\)[\s\S]*return[\s\S]*saveActiveNavigationSession/);

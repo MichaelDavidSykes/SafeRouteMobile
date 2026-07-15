@@ -24,8 +24,10 @@
     "prestart:maestro:ios:preview:workspace-choice": "node scripts/maestro-ios-preflight.mjs",
     "prestart:maestro:ios:preview:guidance-suspended": "node scripts/maestro-ios-preflight.mjs",
     "prestart:maestro:ios:guidance-contract": "node scripts/maestro-ios-preflight.mjs",
+    "prestart:maestro:ios:workspace-catalog-recovery": "node scripts/maestro-ios-preflight.mjs",
     "start:maestro:ios": "NODE_OPTIONS=--dns-result-order=ipv4first expo start --localhost --port 8081",
     "start:maestro:ios:guidance-contract": "SAFEROUTE_SOURCE_REVISION=$(git rev-parse HEAD) SAFEROUTE_ENABLE_GUIDANCE_CONTRACT_EVIDENCE=true SAFEROUTE_ENABLE_PREVIEW_MODE=false SAFEROUTE_ENABLE_DEMO_DRIVE=false SAFEROUTE_DEV_API_URL=http://127.0.0.1:18080 NODE_OPTIONS=--dns-result-order=ipv4first expo start --localhost --port 8081",
+    "start:maestro:ios:workspace-catalog-recovery": "SAFEROUTE_SOURCE_REVISION=$(git rev-parse HEAD) SAFEROUTE_ENABLE_GUIDANCE_CONTRACT_EVIDENCE=false SAFEROUTE_ENABLE_PREVIEW_MODE=false SAFEROUTE_ENABLE_DEMO_DRIVE=false SAFEROUTE_DEV_API_URL=http://127.0.0.1:18080 NODE_OPTIONS=--dns-result-order=ipv4first expo start --localhost --port 8081",
     "android": "expo start --android",
     "ios": "expo start --ios",
     "typecheck": "tsc --noEmit",
@@ -56,7 +58,8 @@
     "test:maestro:ios:active-workspace": "node scripts/run-maestro.mjs test maestro/ios-preview-active-workspace.yaml",
     "test:maestro:ios:workspace-choice": "node scripts/run-maestro.mjs test maestro/ios-preview-workspace-choice.yaml",
     "test:maestro:ios:guidance-suspended": "node scripts/run-maestro.mjs test maestro/ios-preview-guidance-suspended.yaml",
-    "test:maestro:ios:guidance-contract": "node scripts/run-maestro-guidance-contract.mjs"
+    "test:maestro:ios:guidance-contract": "node scripts/run-maestro-guidance-contract.mjs",
+    "test:maestro:ios:workspace-catalog-recovery": "node scripts/run-maestro-workspace-catalog-recovery.mjs"
   },
   "dependencies": {
     "@react-native-async-storage/async-storage": "2.2.0",

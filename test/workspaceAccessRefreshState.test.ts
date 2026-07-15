@@ -53,11 +53,40 @@ describe("workspace access refresh state", () => {
       offline: false,
       issue: "none",
     });
+    const verificationState = createWorkspaceAccessRefreshState({
+      accessRecoveryPending: false,
+      availableWorkspaceCount: 1,
+      loading: true,
+      offline: false,
+      issue: "verification-unavailable",
+    });
+    const survivorRecoveryState = createWorkspaceAccessRefreshState({
+      accessRecoveryPending: true,
+      availableWorkspaceCount: 1,
+      loading: true,
+      offline: false,
+      issue: "verification-unavailable",
+    });
+    const noAccessRecoveryState = createWorkspaceAccessRefreshState({
+      accessRecoveryPending: true,
+      availableWorkspaceCount: 0,
+      loading: true,
+      offline: false,
+      issue: "verification-unavailable",
+    });
 
     assert.equal(noAccessState.title, "Checking workspace access");
     assert.equal(noAccessState.actionLabel, "Checking…");
     assert.match(noAccessState.accessibilityLabel, /No workspace is currently available/i);
     assert.match(survivorState.accessibilityLabel, /Current workspace remains available/i);
+    assert.equal(verificationState.title, "Checking current access");
+    assert.match(verificationState.detail, /review only/i);
+    assert.match(verificationState.accessibilityLabel, /Cached workspace.*review only/i);
+    assert.doesNotMatch(verificationState.detail, /restored/i);
+    assert.equal(survivorRecoveryState.title, "Checking workspace access");
+    assert.match(survivorRecoveryState.accessibilityLabel, /Current workspace remains available/i);
+    assert.match(survivorRecoveryState.detail, /restored workspaces/i);
+    assert.match(noAccessRecoveryState.accessibilityLabel, /No workspace is currently available/i);
   });
 
   it("offers an honest retry when cached workspace access cannot be verified", () => {

@@ -38,6 +38,7 @@ describe('Maestro workspace catalog recovery runtime', () => {
   it('runs cold failure, three duplicate-suppressed retries, and one fresh success', () => {
     const runner = read('scripts/run-maestro-workspace-catalog-recovery.mjs');
     const fixture = read('scripts/maestro-guidance-contract-api.mjs');
+    const seed = read(flowPaths[0]);
 
     for (const phase of [
       'catalogSeed',
@@ -64,6 +65,7 @@ describe('Maestro workspace catalog recovery runtime', () => {
     assert.match(runner, /assertSuccessfulProtectedRequests\(entries, scopedRouteRequests, 'catalog-active'\)/);
     assert.match(runner, /assertSuccessfulProtectedRequests\(entries, operationsRequests, 'operations-active'\)/);
     assert.match(runner, /request\.authorizationClass === 'expected-bearer'/);
+    assert.match(seed, /inputText: "guidance-contract-password"\n- hideKeyboard\n- tapOn:\n    id: "safe-route-login-primary-action"/);
   });
 
   it('keeps the same accessible busy and repeated-failure control on every surface', () => {

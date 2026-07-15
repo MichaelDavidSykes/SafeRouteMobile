@@ -15,51 +15,100 @@ import { join } from 'node:path';
 import {
   GUIDANCE_CONTRACT_API_PORT,
   GUIDANCE_CONTRACT_MODES,
-  assertGuidanceContractRequestJournal
+  GUIDANCE_CONTRACT_ROUTE_IDS,
+  GUIDANCE_CONTRACT_WORKSPACES,
+  GUIDANCE_START_BOUNDARY_PATH,
+  assertGuidanceContractEvidenceJournal,
+  assertGuidanceContractRequestJournal,
+  assertGuidanceContractRouteCacheReadbackEvidence,
+  assertGuidanceStartTrafficBoundary,
+  isGuidanceStartProtectedTraffic
 } from './maestro-guidance-contract-api.mjs';
 import {
   assertGuidanceSourceCheckoutClean,
   verifyGuidanceContractMetroIdentity
 } from './maestro-guidance-metro-identity.mjs';
+import {
+  assertGuidanceStartTrafficRemainsQuiet,
+  waitForGuidanceStartTraffic,
+  waitForGuidanceStartTrafficQuiet
+} from './maestro-guidance-start-boundary.mjs';
 
 const METRO_PORT = 8081;
 const EXPO_GO_BUNDLE_ID = 'host.exp.Exponent';
 const tempDirectory = mkdtempSync(join(tmpdir(), 'saferoute-guidance-contract-'));
 const controlFile = join(tempDirectory, 'control.json');
+const evidenceLogFile = join(tempDirectory, 'evidence.jsonl');
 const pendingControlFile = join(tempDirectory, 'control.pending.json');
 const requestLogFile = join(tempDirectory, 'requests.jsonl');
 const serverLogFile = join(tempDirectory, 'server.log');
 const serverLogFd = openSync(serverLogFile, 'a');
+const evidenceWindowStartedAtMs = Date.now();
 let apiProcess = null;
+const completedStartBoundaries = [];
+const requiredEvidenceTypes = [
+  'navigation.persisted',
+  'restore.suspended',
+  'restore.ready',
+  'workspace.recovery.settled',
+  'route.cache.readback',
+  'navigation.cleanup.settled',
+  'tracking.stop.settled'
+];
 
 const phases = {
   reset: 'maestro/ios-guidance-contract-reset.yaml',
-  publicSeed: 'maestro/ios-guidance-contract-public-seed.yaml',
+  publicPrepare: 'maestro/ios-guidance-contract-public-prepare.yaml',
+  publicStart: 'maestro/ios-guidance-contract-public-seed.yaml',
+  publicStartOutcome: 'maestro/ios-guidance-contract-public-start-outcome.yaml',
   publicResume: 'maestro/ios-guidance-contract-public-resume.yaml',
-  workspaceSeed: 'maestro/ios-guidance-contract-workspace-seed.yaml',
+  workspacePrepare: 'maestro/ios-guidance-contract-workspace-prepare.yaml',
+  workspaceStart: 'maestro/ios-guidance-contract-workspace-seed.yaml',
+  workspaceStartOutcome: 'maestro/ios-guidance-contract-workspace-start-outcome.yaml',
   workspaceOffline: 'maestro/ios-guidance-contract-workspace-offline.yaml',
   workspaceReconnect: 'maestro/ios-guidance-contract-workspace-reconnect.yaml',
-  workspaceReseed: 'maestro/ios-guidance-contract-workspace-reseed.yaml',
+  wrongPrincipalStart: 'maestro/ios-guidance-contract-wrong-principal-start.yaml',
+  wrongPrincipalStartOutcome: 'maestro/ios-guidance-contract-wrong-principal-start-outcome.yaml',
+  deniedStart: 'maestro/ios-guidance-contract-denied-start.yaml',
+  deniedStartOutcome: 'maestro/ios-guidance-contract-denied-start-outcome.yaml',
+  workspaceReseedStart: 'maestro/ios-guidance-contract-workspace-seed.yaml',
+  workspaceReseedStartOutcome: 'maestro/ios-guidance-contract-workspace-reseed-start-outcome.yaml',
   wrongPrincipal: 'maestro/ios-guidance-contract-wrong-principal.yaml',
   wrongPrincipalRelaunch: 'maestro/ios-guidance-contract-wrong-principal-relaunch.yaml',
-  denialSeed: 'maestro/ios-guidance-contract-denial-seed.yaml',
+  denialSeedPrepare: 'maestro/ios-guidance-contract-denial-seed-prepare.yaml',
+  denialSeedStart: 'maestro/ios-guidance-contract-workspace-seed.yaml',
+  denialSeedStartOutcome: 'maestro/ios-guidance-contract-denial-seed-start-outcome.yaml',
   denied: 'maestro/ios-guidance-contract-denied.yaml',
-  regained: 'maestro/ios-guidance-contract-regained.yaml'
+  deniedOffline: 'maestro/ios-guidance-contract-denied-offline.yaml',
+  regained: 'maestro/ios-guidance-contract-regained.yaml',
+  regainedOffline: 'maestro/ios-guidance-contract-regained-offline.yaml',
+  readbackEvidence: 'maestro/ios-guidance-contract-evidence-flush.yaml'
 };
 
 const expectedModeByPhase = Object.freeze({
   reset: GUIDANCE_CONTRACT_MODES.active,
-  publicSeed: GUIDANCE_CONTRACT_MODES.active,
+  publicPrepare: GUIDANCE_CONTRACT_MODES.active,
+  publicStart: GUIDANCE_CONTRACT_MODES.active,
   publicResume: GUIDANCE_CONTRACT_MODES.offline,
-  workspaceSeed: GUIDANCE_CONTRACT_MODES.active,
+  workspacePrepare: GUIDANCE_CONTRACT_MODES.active,
+  workspaceStart: GUIDANCE_CONTRACT_MODES.active,
   workspaceOffline: GUIDANCE_CONTRACT_MODES.offline,
   workspaceReconnect: GUIDANCE_CONTRACT_MODES.active,
-  workspaceReseed: GUIDANCE_CONTRACT_MODES.active,
+  wrongPrincipalPrepare: GUIDANCE_CONTRACT_MODES.active,
+  wrongPrincipalStart: GUIDANCE_CONTRACT_MODES.wrongPrincipal,
+  deniedPrepare: GUIDANCE_CONTRACT_MODES.active,
+  deniedStart: GUIDANCE_CONTRACT_MODES.denied,
+  workspaceReseedPrepare: GUIDANCE_CONTRACT_MODES.active,
+  workspaceReseedStart: GUIDANCE_CONTRACT_MODES.active,
   wrongPrincipal: GUIDANCE_CONTRACT_MODES.wrongPrincipal,
   wrongPrincipalRelaunch: GUIDANCE_CONTRACT_MODES.wrongPrincipal,
-  denialSeed: GUIDANCE_CONTRACT_MODES.active,
+  denialSeedPrepare: GUIDANCE_CONTRACT_MODES.active,
+  denialSeedStart: GUIDANCE_CONTRACT_MODES.active,
   denied: GUIDANCE_CONTRACT_MODES.denied,
-  regained: GUIDANCE_CONTRACT_MODES.active
+  deniedOffline: GUIDANCE_CONTRACT_MODES.offline,
+  regained: GUIDANCE_CONTRACT_MODES.active,
+  regainedOffline: GUIDANCE_CONTRACT_MODES.offline,
+  readbackEvidence: GUIDANCE_CONTRACT_MODES.active
 });
 
 async function main() {
@@ -88,11 +137,21 @@ async function main() {
   await startApi('reset');
   runPhase('reset', 'reset to a signed-out map', phases.reset);
   const publicPreviewCount = requestCount('/api/v1/mobile/safe-route/route-preview');
-  runPhase('publicSeed', 'create signed-out public guidance', phases.publicSeed);
+  runPhase('publicPrepare', 'prepare signed-out public guidance', phases.publicPrepare);
   assertCondition(
     requestCount('/api/v1/mobile/safe-route/route-preview') > publicPreviewCount,
-    'Public guidance did not exercise the contract route-preview endpoint.'
+    'Public preparation did not exercise the contract route-preview endpoint.'
   );
+  await runStartBoundary({
+    boundary: 'public-start',
+    expectedOutcomes: [],
+    expectedPaths: [],
+    file: phases.publicStart,
+    label: 'start signed-out public guidance',
+    openPhase: 'publicPrepare',
+    outcomeFile: phases.publicStartOutcome,
+    phase: 'publicStart'
+  });
 
   await stopApi();
   assertCondition(
@@ -105,19 +164,31 @@ async function main() {
     phases.publicResume
   );
 
-  await startApi('workspaceSeed');
+  await startApi('workspacePrepare');
   const protectedTrafficBaseline = {
     user: authorizedRequestCount('/api/v1/users/me'),
     catalog: authorizedRequestCount('/api/v1/mobile/safe-route/routes'),
     detail: authorizedRequestCount(
-      '/api/v1/mobile/safe-route/routes/guidance-contract-route'
+      `/api/v1/mobile/safe-route/routes/${GUIDANCE_CONTRACT_ROUTE_IDS.denied}`
     )
   };
-  runPhase(
-    'workspaceSeed',
-    'create principal-A workspace guidance',
-    phases.workspaceSeed
-  );
+  runPhase('workspacePrepare', 'prepare principal-A workspace guidance', phases.workspacePrepare);
+  await runStartBoundary({
+    boundary: 'active-workspace-start',
+    expectedOutcomes: [
+      { semanticOutcome: 'principal-a', statusCode: 200 },
+      { semanticOutcome: 'catalog-active', statusCode: 200 }
+    ],
+    expectedPaths: [
+      '/api/v1/users/me',
+      '/api/v1/mobile/safe-route/routes'
+    ],
+    file: phases.workspaceStart,
+    label: 'start principal-A workspace guidance',
+    openPhase: 'workspacePrepare',
+    outcomeFile: phases.workspaceStartOutcome,
+    phase: 'workspaceStart'
+  });
   assertProtectedContractTraffic(protectedTrafficBaseline);
 
   await stopApi();
@@ -149,10 +220,72 @@ async function main() {
   );
 
   runPhase(
-    'workspaceReseed',
-    'persist another principal-A journey',
-    phases.workspaceReseed
+    'wrongPrincipalPrepare',
+    'prepare a fresh Start for principal A',
+    phases.workspacePrepare
   );
+  await runStartBoundary({
+    boundary: 'wrong-principal-start',
+    expectedOutcomes: [
+      { semanticOutcome: 'principal-b', statusCode: 200 }
+    ],
+    expectedPaths: ['/api/v1/users/me'],
+    file: phases.wrongPrincipalStart,
+    label: 'reject a fresh Start from a different stable principal',
+    openPhase: 'wrongPrincipalPrepare',
+    outcomeFile: phases.wrongPrincipalStartOutcome,
+    phase: 'wrongPrincipalStart'
+  });
+
+  runPhase(
+    'deniedPrepare',
+    'prepare a fresh Start before workspace denial',
+    phases.workspacePrepare
+  );
+  await runStartBoundary({
+    boundary: 'denied-workspace-start',
+    expectedPostAuthorizationRequests: [{
+      clientId: GUIDANCE_CONTRACT_WORKSPACES.survivor.id,
+      path: '/api/v1/intel/map/area-risk',
+      semanticOutcome: 'api-success',
+      statusCode: 200
+    }],
+    expectedOutcomes: [
+      { semanticOutcome: 'principal-a', statusCode: 200 },
+      { semanticOutcome: 'catalog-survivor', statusCode: 200 }
+    ],
+    expectedPaths: [
+      '/api/v1/users/me',
+      '/api/v1/mobile/safe-route/routes'
+    ],
+    file: phases.deniedStart,
+    label: 'reject a fresh Start after workspace membership loss',
+    openPhase: 'deniedPrepare',
+    outcomeFile: phases.deniedStartOutcome,
+    phase: 'deniedStart'
+  });
+
+  runPhase(
+    'workspaceReseedPrepare',
+    'prepare another principal-A journey',
+    phases.workspacePrepare
+  );
+  await runStartBoundary({
+    boundary: 'workspace-reseed-start',
+    expectedOutcomes: [
+      { semanticOutcome: 'principal-a', statusCode: 200 },
+      { semanticOutcome: 'catalog-active', statusCode: 200 }
+    ],
+    expectedPaths: [
+      '/api/v1/users/me',
+      '/api/v1/mobile/safe-route/routes'
+    ],
+    file: phases.workspaceReseedStart,
+    label: 'persist another principal-A journey',
+    openPhase: 'workspaceReseedPrepare',
+    outcomeFile: phases.workspaceReseedStartOutcome,
+    phase: 'workspaceReseedStart'
+  });
   runPhase(
     'wrongPrincipal',
     'reject the same email with a different stable principal',
@@ -165,21 +298,56 @@ async function main() {
   );
 
   runPhase(
-    'denialSeed',
-    'sign out principal B and create a fresh principal-A journey',
-    phases.denialSeed
+    'denialSeedPrepare',
+    'sign out principal B and prepare a fresh principal-A journey',
+    phases.denialSeedPrepare
   );
+  await runStartBoundary({
+    boundary: 'denial-seed-start',
+    expectedOutcomes: [
+      { semanticOutcome: 'principal-a', statusCode: 200 },
+      { semanticOutcome: 'catalog-active', statusCode: 200 }
+    ],
+    expectedPaths: [
+      '/api/v1/users/me',
+      '/api/v1/mobile/safe-route/routes'
+    ],
+    file: phases.denialSeedStart,
+    label: 'create a fresh principal-A journey for denial restore',
+    openPhase: 'denialSeedPrepare',
+    outcomeFile: phases.denialSeedStartOutcome,
+    phase: 'denialSeedStart'
+  });
   runPhase(
     'denied',
     'discard guidance after authoritative catalog denial',
     phases.denied
   );
 
+  await stopApi();
+  assertCondition(
+    !(await isPortListening(GUIDANCE_CONTRACT_API_PORT)),
+    'Contract backend port remained bound during denied survivor cache readback.'
+  );
+  runPhase(
+    'deniedOffline',
+    'cold-read the retained survivor after denied cache purge',
+    phases.deniedOffline
+  );
+  await startApi('regained');
+
   const regainCatalogCount = requestCount('/api/v1/mobile/safe-route/routes');
   const regainUnscopedCount = requestCount('/api/v1/mobile/safe-route/routes', '');
   const regainScopedCount = requestCount(
     '/api/v1/mobile/safe-route/routes',
-    '?client_id=guidance-workspace'
+    `?client_id=${GUIDANCE_CONTRACT_WORKSPACES.denied.id}`
+  );
+  const regainSurvivorScopedCount = requestCount(
+    '/api/v1/mobile/safe-route/routes',
+    `?client_id=${GUIDANCE_CONTRACT_WORKSPACES.survivor.id}`
+  );
+  const regainDetailCount = requestCount(
+    `/api/v1/mobile/safe-route/routes/${GUIDANCE_CONTRACT_ROUTE_IDS.denied}`
   );
   runPhase(
     'regained',
@@ -187,18 +355,46 @@ async function main() {
     phases.regained
   );
   assertCondition(
-    requestCount('/api/v1/mobile/safe-route/routes') === regainCatalogCount + 3 &&
+    requestCount('/api/v1/mobile/safe-route/routes') === regainCatalogCount + 4 &&
       requestCount('/api/v1/mobile/safe-route/routes', '') === regainUnscopedCount + 2 &&
       requestCount(
         '/api/v1/mobile/safe-route/routes',
-        '?client_id=guidance-workspace'
-      ) === regainScopedCount + 1,
-    'Regain should cold-check once, explicitly refresh once, and then load one scoped Saved list.'
+        `?client_id=${GUIDANCE_CONTRACT_WORKSPACES.denied.id}`
+      ) === regainScopedCount + 1 &&
+      requestCount(
+        '/api/v1/mobile/safe-route/routes',
+        `?client_id=${GUIDANCE_CONTRACT_WORKSPACES.survivor.id}`
+      ) === regainSurvivorScopedCount + 1 &&
+      requestCount(
+        `/api/v1/mobile/safe-route/routes/${GUIDANCE_CONTRACT_ROUTE_IDS.denied}`
+      ) === regainDetailCount + 1,
+    'Regain should cold-check once, explicitly refresh once, then load survivor and restored scoped Saved lists.'
   );
 
+  await stopApi();
+  assertCondition(
+    !(await isPortListening(GUIDANCE_CONTRACT_API_PORT)),
+    'Contract backend port remained bound during regained route cache readback.'
+  );
+  runPhase(
+    'regainedOffline',
+    'read back only the regained route version with the backend absent',
+    phases.regainedOffline
+  );
+
+  await startApi('readbackEvidence');
+  runPhase(
+    'readbackEvidence',
+    'flush durable survivor and regained cache readback evidence',
+    phases.readbackEvidence
+  );
+
+  await stopApi();
   assertRequestJournalIntegrity();
+  assertEvidenceJournalIntegrity();
   process.stdout.write(
-    `SafeRoute cold guidance matrix passed. Request journal: ${requestLogFile}\n`
+    `SafeRoute cold guidance matrix passed. Request journal: ${requestLogFile}. ` +
+    `Device evidence: ${evidenceLogFile}\n`
   );
 }
 
@@ -208,7 +404,8 @@ async function startApi(phase) {
     'scripts/maestro-guidance-contract-api.mjs',
     '--port', String(GUIDANCE_CONTRACT_API_PORT),
     '--control-file', controlFile,
-    '--request-log', requestLogFile
+    '--request-log', requestLogFile,
+    '--evidence-log', evidenceLogFile
   ], {
     cwd: process.cwd(),
     env: process.env,
@@ -222,18 +419,44 @@ async function stopApi() {
     return;
   }
   const processToStop = apiProcess;
-  apiProcess = null;
-  if (processToStop.exitCode === null) {
+  if (processToStop.exitCode === null && processToStop.signalCode === null) {
     processToStop.kill('SIGTERM');
-    await Promise.race([
-      new Promise((resolve) => processToStop.once('exit', resolve)),
-      new Promise((_, reject) => setTimeout(
-        () => reject(new Error('Contract backend did not stop within five seconds.')),
-        5000
-      ))
-    ]);
+    if (!(await waitForProcessExit(processToStop, 5000))) {
+      processToStop.kill('SIGKILL');
+      if (!(await waitForProcessExit(processToStop, 2000))) {
+        throw new Error('Contract backend did not stop after SIGTERM and SIGKILL.');
+      }
+    }
+  }
+  if (apiProcess === processToStop) {
+    apiProcess = null;
   }
   await waitForPort(GUIDANCE_CONTRACT_API_PORT, false);
+}
+
+function waitForProcessExit(processToStop, timeoutMs) {
+  if (processToStop.exitCode !== null || processToStop.signalCode !== null) {
+    return Promise.resolve(true);
+  }
+  return new Promise((resolve) => {
+    let settled = false;
+    let timer;
+    const finish = (exited) => {
+      if (settled) {
+        return;
+      }
+      settled = true;
+      clearTimeout(timer);
+      processToStop.removeListener('exit', onExit);
+      resolve(exited);
+    };
+    const onExit = () => finish(true);
+    timer = setTimeout(() => finish(false), timeoutMs);
+    processToStop.once('exit', onExit);
+    if (processToStop.exitCode !== null || processToStop.signalCode !== null) {
+      finish(true);
+    }
+  });
 }
 
 function setControl(phase) {
@@ -245,6 +468,74 @@ function setControl(phase) {
 
 function runPhase(phase, label, file) {
   setControl(phase);
+  runMaestroPhase(phase, label, file);
+}
+
+async function runStartBoundary({
+  boundary,
+  expectedOutcomes,
+  expectedPaths,
+  expectedPostAuthorizationRequests = [],
+  file,
+  label,
+  openPhase,
+  outcomeFile,
+  phase
+}) {
+  await waitForGuidanceStartTrafficQuiet({
+    isProtectedTraffic: isGuidanceStartProtectedTraffic,
+    readEntries: readRequestJournal
+  });
+  await writeStartBoundaryMarker(boundary, 'armed');
+  await assertGuidanceStartTrafficRemainsQuiet({
+    errorMessage: `Guidance Start boundary ${boundary} received delayed preparation traffic while arming.`,
+    isProtectedTraffic: isGuidanceStartProtectedTraffic,
+    observationMs: 750,
+    readEntries: readRequestJournal
+  });
+  await writeStartBoundaryMarker(boundary, 'open');
+  setControl(phase);
+  runMaestroPhase(phase, label, file);
+  await waitForGuidanceStartTraffic({
+    boundary,
+    boundaryPath: GUIDANCE_START_BOUNDARY_PATH,
+    expectedCount: expectedPaths.length,
+    expectedOutcomes,
+    isProtectedTraffic: isGuidanceStartProtectedTraffic,
+    readEntries: readRequestJournal
+  });
+  runMaestroPhase(phase, `${label} outcome`, outcomeFile);
+  await waitForGuidanceStartTrafficQuiet({
+    isProtectedTraffic: isGuidanceStartProtectedTraffic,
+    readEntries: readRequestJournal
+  });
+  await writeStartBoundaryMarker(boundary, 'close');
+  await assertGuidanceStartTrafficRemainsQuiet({
+    errorMessage: `Guidance Start boundary ${boundary} received protected traffic during its post-close quarantine.`,
+    isProtectedTraffic: isGuidanceStartProtectedTraffic,
+    observationMs: 2000,
+    readEntries: readRequestJournal
+  });
+  await writeStartBoundaryMarker(boundary, 'settled');
+  assertGuidanceStartTrafficBoundary(readRequestJournal(), {
+    boundary,
+    expectedOutcomes,
+    expectedPaths,
+    expectedPostAuthorizationRequests,
+    openPhase,
+    phase
+  });
+  completedStartBoundaries.push({
+    boundary,
+    expectedOutcomes,
+    expectedPaths,
+    expectedPostAuthorizationRequests,
+    openPhase,
+    phase
+  });
+}
+
+function runMaestroPhase(phase, label, file) {
   process.stdout.write(`\n[guidance-contract] ${phase}: ${label}\n`);
   const result = spawnSync(process.execPath, ['scripts/run-maestro.mjs', 'test', file], {
     cwd: process.cwd(),
@@ -254,6 +545,61 @@ function runPhase(phase, label, file) {
   if (result.status !== 0) {
     throw new Error(`Maestro phase failed (${result.status ?? 'signal'}): ${label}`);
   }
+}
+
+async function writeStartBoundaryMarker(boundary, edge) {
+  const search = new URLSearchParams({ boundary, edge });
+  const response = await fetch(
+    `http://127.0.0.1:${GUIDANCE_CONTRACT_API_PORT}${GUIDANCE_START_BOUNDARY_PATH}?${search}`,
+    { method: 'POST' }
+  );
+  if (!response.ok) {
+    throw new Error(
+      `Guidance Start boundary marker ${boundary}/${edge} failed with ${response.status}.`
+    );
+  }
+  await response.json();
+  await waitForStartBoundaryMarkerOutcome(boundary, edge);
+}
+
+async function waitForStartBoundaryMarkerOutcome(boundary, edge) {
+  const deadline = Date.now() + 5000;
+  while (Date.now() < deadline) {
+    const marker = readRequestJournal().findLast((entry) => {
+      if (entry.event !== 'request' || entry.path !== GUIDANCE_START_BOUNDARY_PATH) {
+        return false;
+      }
+      const parameters = new URLSearchParams(entry.search);
+      return parameters.get('boundary') === boundary && parameters.get('edge') === edge;
+    });
+    if (marker) {
+      const outcomes = readRequestJournal().filter(
+        (entry) => entry.event === 'completion' && entry.requestId === marker.requestId
+      );
+      if (outcomes.length > 1) {
+        throw new Error(
+          `Guidance Start boundary marker ${boundary}/${edge} recorded duplicate outcomes.`
+        );
+      }
+      if (outcomes.length === 1) {
+        const outcome = outcomes[0];
+        if (
+          outcome.completed !== true ||
+          outcome.statusCode !== 200 ||
+          outcome.semanticOutcome !== `boundary-${edge}`
+        ) {
+          throw new Error(
+            `Guidance Start boundary marker ${boundary}/${edge} recorded an invalid outcome.`
+          );
+        }
+        return;
+      }
+    }
+    await new Promise((resolve) => setTimeout(resolve, 10));
+  }
+  throw new Error(
+    `Guidance Start boundary marker ${boundary}/${edge} did not complete within five seconds.`
+  );
 }
 
 function readRequestJournal() {
@@ -267,22 +613,53 @@ function readRequestJournal() {
   }
 }
 
+function readEvidenceJournal() {
+  try {
+    return readFileSync(evidenceLogFile, 'utf8')
+      .split('\n')
+      .filter(Boolean)
+      .map((line) => JSON.parse(line));
+  } catch {
+    return [];
+  }
+}
+
 function assertRequestJournalIntegrity() {
-  assertGuidanceContractRequestJournal(readRequestJournal(), {
+  const entries = readRequestJournal();
+  assertGuidanceContractRequestJournal(entries, {
     expectedModeByPhase,
     requiredPhases: ['wrongPrincipal', 'denied']
+  });
+  for (const boundary of completedStartBoundaries) {
+    assertGuidanceStartTrafficBoundary(entries, boundary);
+  }
+}
+
+function assertEvidenceJournalIntegrity() {
+  const entries = readEvidenceJournal();
+  assertGuidanceContractEvidenceJournal(entries, {
+    expectedSourceRevision: readCurrentSourceRevision(),
+    minimumOccurredAtMs: evidenceWindowStartedAtMs,
+    requiredTypes: requiredEvidenceTypes
+  });
+  assertGuidanceContractRouteCacheReadbackEvidence(entries, {
+    expectedSourceRevision: readCurrentSourceRevision(),
+    minimumOccurredAtMs: evidenceWindowStartedAtMs
   });
 }
 
 function requestCount(path, search) {
   return readRequestJournal().filter((entry) =>
+    (!entry.event || entry.event === 'request') &&
     entry.path === path && (search === undefined || entry.search === search)
   ).length;
 }
 
 function authorizedRequestCount(path) {
   return readRequestJournal().filter(
-    (entry) => entry.path === path && entry.authorized === true
+    (entry) =>
+      (!entry.event || entry.event === 'request') &&
+      entry.path === path && entry.authorized === true
   ).length;
 }
 
@@ -290,7 +667,7 @@ function assertProtectedContractTraffic(baseline) {
   for (const [label, path] of Object.entries({
     user: '/api/v1/users/me',
     catalog: '/api/v1/mobile/safe-route/routes',
-    detail: '/api/v1/mobile/safe-route/routes/guidance-contract-route'
+    detail: `/api/v1/mobile/safe-route/routes/${GUIDANCE_CONTRACT_ROUTE_IDS.denied}`
   })) {
     assertCondition(
       authorizedRequestCount(path) > baseline[label],
@@ -370,5 +747,7 @@ try {
   await stopApi().catch(() => undefined);
   if (process.exitCode) {
     process.stderr.write(`Guidance contract server log: ${serverLogFile}\n`);
+    process.stderr.write(`Guidance contract request journal: ${requestLogFile}\n`);
+    process.stderr.write(`Guidance contract device evidence: ${evidenceLogFile}\n`);
   }
 }

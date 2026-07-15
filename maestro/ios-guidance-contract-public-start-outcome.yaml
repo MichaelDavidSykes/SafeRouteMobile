@@ -1,0 +1,11 @@
+appId: host.exp.Exponent
+---
+- extendedWaitUntil:
+    visible:
+      id: "safe-route-stop-action"
+    timeout: 15000
+- assertVisible:
+    id: "safe-route-remaining-metrics"
+- waitForAnimationToEnd:
+    timeout: 3000
+- stopApp

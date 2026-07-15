@@ -6,8 +6,7 @@ import {
   createOfflineRouteCacheRecord,
   hasUsableRoutePlan,
   parseOfflineRouteCacheRecord,
-  removeWorkspaceFromOfflineRouteCacheRecord,
-  type OfflineRouteCacheRecord,
+  purgeOfflineRouteWorkspaceStorage,
 } from "./offlineRouteCacheCore";
 
 const ROUTE_LIST_KEY_PREFIX = "saferoute.offline.routes.v2";
@@ -42,9 +41,11 @@ export async function loadOfflineRoutes(
   clientId?: string | null,
 ): Promise<SavedRouteSyncResult | null> {
   if (!principalId.trim()) return null;
+  const identity = identityKey(principalId);
+  await waitForPendingRouteCacheMutation(identity);
   try {
     const raw = await AsyncStorage.getItem(
-      `${ROUTE_LIST_KEY_PREFIX}.${identityKey(principalId)}.${clientKey(clientId)}`,
+      `${ROUTE_LIST_KEY_PREFIX}.${identity}.${clientKey(clientId)}`,
     );
     return raw
       ? parseOfflineRouteCacheRecord(JSON.parse(raw), principalId)
@@ -77,9 +78,11 @@ export async function loadOfflineRouteDetail(
   routeId: string,
 ): Promise<SavedSafeRoutePlan | null> {
   if (!principalId.trim() || !routeId.trim()) return null;
+  const identity = identityKey(principalId);
+  await waitForPendingRouteCacheMutation(identity);
   try {
     const raw = await AsyncStorage.getItem(
-      `${ROUTE_DETAIL_KEY_PREFIX}.${identityKey(principalId)}.${encodeURIComponent(routeId)}`,
+      `${ROUTE_DETAIL_KEY_PREFIX}.${identity}.${encodeURIComponent(routeId)}`,
     );
     const cached = raw
       ? parseOfflineRouteCacheRecord(JSON.parse(raw), principalId)
@@ -99,74 +102,20 @@ export async function clearOfflineRouteWorkspace(
   if (!normalizedPrincipalId || !normalizedWorkspaceId) return;
 
   const identity = identityKey(normalizedPrincipalId);
-  await enqueueRouteCacheMutation(identity, async () => {
+  await enqueueRouteCacheMutation(identity, () => {
     const scopedListKey = `${ROUTE_LIST_KEY_PREFIX}.${identity}.${clientKey(normalizedWorkspaceId)}`;
     const allListKey = `${ROUTE_LIST_KEY_PREFIX}.${identity}.${clientKey(null)}`;
     const detailKeyPrefix = `${ROUTE_DETAIL_KEY_PREFIX}.${identity}.`;
-    await AsyncStorage.removeItem(scopedListKey);
-    const [allListRaw, allKeys] = await Promise.all([
-      AsyncStorage.getItem(allListKey),
-      AsyncStorage.getAllKeys(),
-    ]);
-    const detailKeys = allKeys.filter((key) => key.startsWith(detailKeyPrefix));
-    const detailRecords = detailKeys.length
-      ? await AsyncStorage.multiGet(detailKeys)
-      : [];
-    const keysToRemove = new Set([scopedListKey]);
-
-    for (const [key, raw] of detailRecords) {
-      const cached = parseStoredRouteRecord(raw, normalizedPrincipalId);
-      if (cached?.value.routes.some((route) => route.clientId === normalizedWorkspaceId)) {
-        keysToRemove.add(key);
-      }
-    }
-
-    const allListRecord = parseStoredRouteRecord(allListRaw, normalizedPrincipalId);
-    const nextAllListRecord = allListRecord
-      ? removeWorkspaceFromOfflineRouteCacheRecord(allListRecord, normalizedWorkspaceId)
-      : null;
-    if (
-      !nextAllListRecord ||
-      (!nextAllListRecord.value.clients.length && !nextAllListRecord.value.routes.length)
-    ) {
-      keysToRemove.add(allListKey);
-    }
-
-    await Promise.all([
-      nextAllListRecord &&
-      (nextAllListRecord.value.clients.length || nextAllListRecord.value.routes.length)
-        ? AsyncStorage.setItem(
-            allListKey,
-            JSON.stringify(nextAllListRecord),
-          )
-        : Promise.resolve(),
-      AsyncStorage.multiRemove(Array.from(keysToRemove)),
-    ]);
+    return purgeOfflineRouteWorkspaceStorage({
+      allListKey,
+      detailKeyPrefix,
+      listKeyPrefix: `${ROUTE_LIST_KEY_PREFIX}.${identity}.`,
+      principalId: normalizedPrincipalId,
+      scopedListKey,
+      storage: AsyncStorage,
+      workspaceId: normalizedWorkspaceId,
+    });
   });
-}
-
-function parseStoredRouteRecord(
-  raw: string | null,
-  principalId: string,
-): OfflineRouteCacheRecord | null {
-  if (!raw) return null;
-  try {
-    const record = JSON.parse(raw) as Partial<OfflineRouteCacheRecord>;
-    const storedAtMs = typeof record?.storedAtMs === "number" && Number.isFinite(record.storedAtMs)
-      ? record.storedAtMs
-      : Date.now();
-    const value = parseOfflineRouteCacheRecord(record, principalId, storedAtMs);
-    return value
-      ? {
-          schema: Number(record.schema),
-          principalId,
-          storedAtMs,
-          value,
-        }
-      : null;
-  } catch {
-    return null;
-  }
 }
 
 async function enqueueRouteCacheMutation(
@@ -185,5 +134,12 @@ async function enqueueRouteCacheMutation(
     if (pendingRouteCacheMutations.get(identity) === currentMutation) {
       pendingRouteCacheMutations.delete(identity);
     }
+  }
+}
+
+async function waitForPendingRouteCacheMutation(identity: string): Promise<void> {
+  const pendingMutation = pendingRouteCacheMutations.get(identity);
+  if (pendingMutation) {
+    await pendingMutation.catch(() => undefined);
   }
 }

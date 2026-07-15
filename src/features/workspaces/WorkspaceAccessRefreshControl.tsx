@@ -1,38 +1,70 @@
-import { ActivityIndicator, Pressable, StyleSheet, Text, View } from "react-native";
+import {
+  ActivityIndicator,
+  Pressable,
+  StyleSheet,
+  Text,
+  useWindowDimensions,
+  View,
+} from "react-native";
 
 import { uiTestIds } from "../../testing/uiTestIds";
 import { colors, controlSizes, radius, spacing, typeScale } from "../../theme";
+import { useNetworkAvailability } from "../api/useNetworkAvailability";
+import {
+  createWorkspaceAccessRefreshState,
+  shouldStackWorkspaceAccessControl,
+  type WorkspaceAccessIssue,
+} from "./workspaceAccessRefreshState";
 
 export function WorkspaceAccessRefreshControl({
+  accessRecoveryPending,
+  availableWorkspaceCount,
+  issue,
   loading,
   onRefresh,
 }: {
+  accessRecoveryPending: boolean;
+  availableWorkspaceCount: number;
+  issue: WorkspaceAccessIssue;
   loading: boolean;
   onRefresh: () => void;
 }) {
+  const { fontScale, width } = useWindowDimensions();
+  const { offline } = useNetworkAvailability();
+  const state = createWorkspaceAccessRefreshState({
+    accessRecoveryPending,
+    availableWorkspaceCount,
+    issue,
+    loading,
+    offline,
+  });
+  const stacked = shouldStackWorkspaceAccessControl({ fontScale, width });
+
   return (
     <Pressable
-      accessibilityHint="Checks whether an administrator restored workspace membership."
-      accessibilityLabel={loading ? "Refreshing workspace access" : "Refresh workspace access"}
+      accessible
+      accessibilityHint={state.accessibilityHint}
+      accessibilityLabel={state.accessibilityLabel}
+      accessibilityLiveRegion="polite"
       accessibilityRole="button"
       accessibilityState={{ disabled: loading, busy: loading }}
       disabled={loading}
       testID={uiTestIds.workspaceAccessRefresh}
       style={({ pressed }) => [
         styles.control,
+        stacked ? styles.controlStacked : null,
         pressed && !loading ? styles.controlPressed : null,
       ]}
       onPress={onRefresh}
     >
-      <View style={styles.copy}>
-        <Text numberOfLines={1} style={styles.title}>Workspace access changed</Text>
-        <Text numberOfLines={1} style={styles.detail}>Check for restored access</Text>
+      <View style={[styles.copy, stacked ? styles.copyStacked : null]}>
+        <Text style={styles.title}>{state.title}</Text>
+        <Text style={styles.detail}>{state.detail}</Text>
       </View>
-      {loading ? (
-        <ActivityIndicator color={colors.appleBlue} size="small" />
-      ) : (
-        <Text numberOfLines={1} style={styles.action}>Refresh</Text>
-      )}
+      <View style={[styles.status, stacked ? styles.statusStacked : null]}>
+        {loading ? <ActivityIndicator color={colors.appleBlue} size="small" /> : null}
+        <Text style={styles.action}>{state.actionLabel}</Text>
+      </View>
     </Pressable>
   );
 }
@@ -52,12 +84,20 @@ const styles = StyleSheet.create({
     borderRadius: radius.lg,
     backgroundColor: colors.appleBlueSoft,
   },
+  controlStacked: {
+    alignItems: "stretch",
+    gap: spacing.xs,
+    paddingVertical: spacing.sm,
+  },
   controlPressed: {
     transform: [{ scale: 0.985 }],
   },
   copy: {
     minWidth: 0,
     flex: 1,
+  },
+  copyStacked: {
+    width: "100%",
   },
   title: {
     color: colors.ink,
@@ -70,6 +110,16 @@ const styles = StyleSheet.create({
     fontSize: typeScale.xs,
     fontWeight: "600",
     lineHeight: 15,
+  },
+  status: {
+    flexShrink: 0,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "flex-end",
+    gap: spacing.xs,
+  },
+  statusStacked: {
+    alignSelf: "flex-end",
   },
   action: {
     color: colors.appleBlue,

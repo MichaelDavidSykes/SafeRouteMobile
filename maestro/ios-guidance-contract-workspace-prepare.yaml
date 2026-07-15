@@ -1,0 +1,101 @@
+appId: host.exp.Exponent
+---
+- runFlow:
+    when:
+      visible:
+        id: "safe-route-login"
+    commands:
+      - tapOn:
+          id: "safe-route-login-email"
+      - eraseText
+      - inputText: "driver@example.com"
+      - tapOn:
+          id: "safe-route-login-password"
+      - eraseText
+      - inputText: "guidance-contract-password"
+      - tapOn:
+          id: "safe-route-login-primary-action"
+- runFlow:
+    when:
+      visible: "Not Now"
+    commands:
+      - tapOn: "Not Now"
+- waitForAnimationToEnd:
+    timeout: 3000
+- runFlow:
+    when:
+      visible:
+        id: "workspace-access-refresh"
+    commands:
+      - tapOn:
+          id: "workspace-access-refresh"
+- runFlow:
+    when:
+      visible:
+        id: "guest-map-primary-action"
+    commands:
+      - tapOn:
+          id: "guest-map-primary-action"
+- runFlow:
+    when:
+      visible:
+        id: "safe-route-login"
+    commands:
+      - tapOn:
+          id: "safe-route-login-email"
+      - eraseText
+      - inputText: "driver@example.com"
+      - tapOn:
+          id: "safe-route-login-password"
+      - eraseText
+      - inputText: "guidance-contract-password"
+      - tapOn:
+          id: "safe-route-login-primary-action"
+- runFlow:
+    when:
+      visible: "Not Now"
+    commands:
+      - tapOn: "Not Now"
+- waitForAnimationToEnd:
+    timeout: 3000
+- runFlow:
+    when:
+      visible:
+        id: "workspace-access-refresh"
+    commands:
+      - tapOn:
+          id: "workspace-access-refresh"
+- runFlow:
+    when:
+      visible:
+        id: "guest-map-primary-action"
+    commands:
+      - tapOn:
+          id: "guest-map-primary-action"
+- extendedWaitUntil:
+    visible:
+      id: "safe-route-workspace-selector"
+    timeout: 20000
+- tapOn:
+    id: "safe-route-workspace-selector"
+- tapOn:
+    id: "safe-route-workspace-66a1b2c3d4e5f60718293a40"
+- extendedWaitUntil:
+    visible:
+      id: "safe-route-card-66b1b2c3d4e5f60718293b40"
+    timeout: 30000
+- setLocation:
+    latitude: 51.5075
+    longitude: -0.1277
+- tapOn:
+    id: "safe-route-card-66b1b2c3d4e5f60718293b40"
+- extendedWaitUntil:
+    visible:
+      id: "safe-route-live-map"
+    timeout: 20000
+- assertVisible:
+    id: "safe-route-primary-action"
+- assertNotVisible:
+    id: "safe-route-stop-action"
+- assertNotVisible:
+    id: "safe-route-remaining-metrics"

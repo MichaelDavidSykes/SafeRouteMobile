@@ -6,8 +6,10 @@ import {
   OFFLINE_ROUTE_CACHE_MAX_AGE_MS,
   createOfflineRouteCacheRecord,
   parseOfflineRouteCacheRecord,
+  purgeOfflineRouteWorkspaceStorage,
   removeWorkspaceFromOfflineRouteCache,
   removeWorkspaceFromOfflineRouteCacheRecord,
+  type OfflineRouteCacheStorage,
 } from "../src/features/routes/offlineRouteCacheCore";
 import { SAVED_ROUTE_PLANS } from "../src/features/live-map/demoRoute";
 
@@ -94,14 +96,201 @@ describe("offline saved route cache", () => {
     assert.deepEqual(pruned.value.clients, [{ id: "client-a", name: "Client A" }]);
   });
 
-  it("serializes cache writes and removes scoped, mixed-list, and detail keys", () => {
+  it("durably removes denied route data while preserving survivor list and detail records", async () => {
+    const principalId = "user-a";
+    const deniedWorkspaceId = "client-a";
+    const survivorWorkspaceId = "client-b";
+    const deniedRoute = { ...SAVED_ROUTE_PLANS[0], clientId: deniedWorkspaceId };
+    const survivorRoute = { ...SAVED_ROUTE_PLANS[1], clientId: survivorWorkspaceId };
+    const listPrefix = "routes.user-a.";
+    const detailPrefix = "details.user-a.";
+    const allListKey = `${listPrefix}all`;
+    const deniedListKey = `${listPrefix}${deniedWorkspaceId}`;
+    const survivorListKey = `${listPrefix}${survivorWorkspaceId}`;
+    const deniedDetailKey = `${detailPrefix}${deniedRoute.id}`;
+    const survivorDetailKey = `${detailPrefix}${survivorRoute.id}`;
+    const survivorListRaw = JSON.stringify(createOfflineRouteCacheRecord({
+      clients: [{ id: survivorWorkspaceId, name: "Client B" }],
+      routes: [survivorRoute],
+      selectedClientId: survivorWorkspaceId,
+    }, principalId, 1_000));
+    const survivorDetailRaw = JSON.stringify(createOfflineRouteCacheRecord({
+      clients: [],
+      routes: [survivorRoute],
+      selectedClientId: survivorWorkspaceId,
+    }, principalId, 1_000));
+    const storage = createMemoryRouteCacheStorage({
+      [allListKey]: JSON.stringify(createOfflineRouteCacheRecord({
+        clients: [
+          { id: deniedWorkspaceId, name: "Client A" },
+          { id: survivorWorkspaceId, name: "Client B" },
+        ],
+        routes: [deniedRoute, survivorRoute],
+        selectedClientId: deniedWorkspaceId,
+      }, principalId, 1_000)),
+      [deniedListKey]: JSON.stringify(createOfflineRouteCacheRecord({
+        clients: [{ id: deniedWorkspaceId, name: "Client A" }],
+        routes: [deniedRoute],
+        selectedClientId: deniedWorkspaceId,
+      }, principalId, 1_000)),
+      [survivorListKey]: survivorListRaw,
+      [deniedDetailKey]: JSON.stringify(createOfflineRouteCacheRecord({
+        clients: [],
+        routes: [deniedRoute],
+        selectedClientId: deniedWorkspaceId,
+      }, principalId, 1_000)),
+      [survivorDetailKey]: survivorDetailRaw,
+    });
+
+    await purgeOfflineRouteWorkspaceStorage({
+      allListKey,
+      detailKeyPrefix: detailPrefix,
+      listKeyPrefix: listPrefix,
+      principalId,
+      scopedListKey: deniedListKey,
+      storage,
+      workspaceId: deniedWorkspaceId,
+    });
+
+    assert.equal(await storage.getItem(deniedListKey), null);
+    assert.equal(await storage.getItem(deniedDetailKey), null);
+    assert.equal(await storage.getItem(survivorListKey), survivorListRaw);
+    assert.equal(await storage.getItem(survivorDetailKey), survivorDetailRaw);
+    const mixedRaw = await storage.getItem(allListKey);
+    const mixed = mixedRaw
+      ? parseOfflineRouteCacheRecord(JSON.parse(mixedRaw), principalId, 1_000)
+      : null;
+    assert.deepEqual(mixed?.clients, [{ id: survivorWorkspaceId, name: "Client B" }]);
+    assert.deepEqual(mixed?.routes.map((route) => route.id), [survivorRoute.id]);
+    assert.equal(mixed?.selectedClientId, null);
+  });
+
+  it("fails closed when storage acknowledges deletion without removing denied data", async () => {
+    const principalId = "user-a";
+    const deniedWorkspaceId = "client-a";
+    const deniedRoute = { ...SAVED_ROUTE_PLANS[0], clientId: deniedWorkspaceId };
+    const listPrefix = "routes.user-a.";
+    const detailPrefix = "details.user-a.";
+    const deniedListKey = `${listPrefix}${deniedWorkspaceId}`;
+    const storage = createMemoryRouteCacheStorage({
+      [deniedListKey]: JSON.stringify(createOfflineRouteCacheRecord({
+        clients: [{ id: deniedWorkspaceId, name: "Client A" }],
+        routes: [deniedRoute],
+        selectedClientId: deniedWorkspaceId,
+      }, principalId, 1_000)),
+    }, { ignoreRemovals: true });
+
+    await assert.rejects(
+      purgeOfflineRouteWorkspaceStorage({
+        allListKey: `${listPrefix}all`,
+        detailKeyPrefix: detailPrefix,
+        listKeyPrefix: listPrefix,
+        principalId,
+        scopedListKey: deniedListKey,
+        storage,
+        workspaceId: deniedWorkspaceId,
+      }),
+      /scoped route cache remained/,
+    );
+  });
+
+  it("fails closed when a malformed mixed cache survives an acknowledged deletion", async () => {
+    const principalId = "user-a";
+    const listPrefix = "routes.user-a.";
+    const allListKey = `${listPrefix}all`;
+    const storage = createMemoryRouteCacheStorage({
+      [allListKey]: '{"principalId":"another-user"',
+    }, { ignoreRemovals: true });
+
+    await assert.rejects(
+      purgeOfflineRouteWorkspaceStorage({
+        allListKey,
+        detailKeyPrefix: "details.user-a.",
+        listKeyPrefix: listPrefix,
+        principalId,
+        scopedListKey: `${listPrefix}client-a`,
+        storage,
+        workspaceId: "client-a",
+      }),
+      /mixed route cache remained/i,
+    );
+  });
+
+  it("prunes denied data from contaminated scoped caches and removes malformed details", async () => {
+    const principalId = "user-a";
+    const deniedWorkspaceId = "client-a";
+    const survivorWorkspaceId = "client-b";
+    const deniedRoute = { ...SAVED_ROUTE_PLANS[0], clientId: deniedWorkspaceId };
+    const survivorRoute = { ...SAVED_ROUTE_PLANS[1], clientId: survivorWorkspaceId };
+    const listPrefix = "routes.user-a.";
+    const detailPrefix = "details.user-a.";
+    const survivorListKey = `${listPrefix}${survivorWorkspaceId}`;
+    const malformedDetailKey = `${detailPrefix}malformed`;
+    const storage = createMemoryRouteCacheStorage({
+      [survivorListKey]: JSON.stringify(createOfflineRouteCacheRecord({
+        clients: [
+          { id: deniedWorkspaceId, name: "Client A" },
+          { id: survivorWorkspaceId, name: "Client B" },
+        ],
+        routes: [deniedRoute, survivorRoute],
+        selectedClientId: deniedWorkspaceId,
+      }, principalId, 1_000)),
+      [malformedDetailKey]: '{"client_id":"client-a"',
+    });
+
+    await purgeOfflineRouteWorkspaceStorage({
+      allListKey: `${listPrefix}all`,
+      detailKeyPrefix: detailPrefix,
+      listKeyPrefix: listPrefix,
+      principalId,
+      scopedListKey: `${listPrefix}${deniedWorkspaceId}`,
+      storage,
+      workspaceId: deniedWorkspaceId,
+    });
+
+    assert.equal(await storage.getItem(malformedDetailKey), null);
+    const survivorRaw = await storage.getItem(survivorListKey);
+    const survivor = survivorRaw
+      ? parseOfflineRouteCacheRecord(JSON.parse(survivorRaw), principalId, 1_000)
+      : null;
+    assert.deepEqual(survivor?.clients, [
+      { id: survivorWorkspaceId, name: "Client B" },
+    ]);
+    assert.deepEqual(survivor?.routes.map((route) => route.id), [survivorRoute.id]);
+    assert.equal(survivor?.selectedClientId, null);
+  });
+
+  it("serializes cache writes and waits for read-after-write visibility", () => {
     const source = readFileSync("src/features/routes/offlineRouteCache.ts", "utf8");
 
     assert.match(source, /enqueueRouteCacheMutation\(identity/);
-    assert.match(source, /removeItem\(scopedListKey\)/);
-    assert.match(source, /getAllKeys\(\)/);
-    assert.match(source, /multiGet\(detailKeys\)/);
-    assert.match(source, /multiRemove\(Array\.from\(keysToRemove\)\)/);
-    assert.match(source, /removeWorkspaceFromOfflineRouteCacheRecord\(allListRecord/);
+    assert.match(source, /purgeOfflineRouteWorkspaceStorage\(\{/);
+    assert.match(source, /await waitForPendingRouteCacheMutation\(identity\)/);
   });
 });
+
+function createMemoryRouteCacheStorage(
+  initial: Record<string, string>,
+  { ignoreRemovals = false }: { ignoreRemovals?: boolean } = {},
+): OfflineRouteCacheStorage {
+  const values = new Map(Object.entries(initial));
+  return {
+    async getAllKeys() {
+      return Array.from(values.keys());
+    },
+    async getItem(key) {
+      return values.get(key) ?? null;
+    },
+    async multiGet(keys) {
+      return keys.map((key) => [key, values.get(key) ?? null] as const);
+    },
+    async multiRemove(keys) {
+      if (!ignoreRemovals) {
+        keys.forEach((key) => values.delete(key));
+      }
+    },
+    async setItem(key, value) {
+      values.set(key, value);
+    },
+  };
+}

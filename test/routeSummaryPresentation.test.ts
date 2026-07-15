@@ -79,6 +79,24 @@ describe("live route summary presentation", () => {
     assert.deepEqual(
       createRouteSummaryPrimaryAction(
         "loaded",
+        "Checking workspace access before starting guidance…",
+      ),
+      {
+        label: "Checking access",
+      },
+    );
+    assert.deepEqual(
+      createRouteSummaryPrimaryAction(
+        "loaded",
+        "Workspace access could not be verified. Reconnect and try again.",
+      ),
+      {
+        label: "Retry access",
+      },
+    );
+    assert.deepEqual(
+      createRouteSummaryPrimaryAction(
+        "loaded",
         "Saved route geometry is incomplete. Re-sync the route before live guidance.",
       ),
       {

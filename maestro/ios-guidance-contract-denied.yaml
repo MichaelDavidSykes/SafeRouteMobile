@@ -14,4 +14,3 @@ appId: host.exp.Exponent
     id: "workspace-access-refresh"
 - waitForAnimationToEnd:
     timeout: 2000
-- stopApp

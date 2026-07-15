@@ -1,6 +1,6 @@
 #!/usr/bin/env node
-import { execFileSync, openSync, readFileSync, realpathSync, renameSync, writeFileSync, mkdtempSync, mkdirSync } from 'node:fs';
-import { spawn, spawnSync } from 'node:child_process';
+import { openSync, readFileSync, realpathSync, renameSync, writeFileSync, mkdtempSync, mkdirSync } from 'node:fs';
+import { execFileSync, spawn, spawnSync } from 'node:child_process';
 import net from 'node:net';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';

@@ -82,6 +82,7 @@ interface RouteListScreenProps {
   onWorkspaceChange: (workspace: SafeRouteWorkspace) => void;
   workspaceCatalogError: string;
   workspaceCatalogLoading: boolean;
+  workspaceAccessRecoveryPending: boolean;
   workspaceAccessRefreshAvailable: boolean;
   workspaceSwitchDisabled: boolean;
 }
@@ -102,6 +103,7 @@ export function RouteListScreen({
   userEmail,
   workspaceCatalogError,
   workspaceCatalogLoading,
+  workspaceAccessRecoveryPending,
   workspaceAccessRefreshAvailable,
   workspaceSwitchDisabled,
 }: RouteListScreenProps) {
@@ -559,8 +561,11 @@ export function RouteListScreen({
       {workspaceAccessRefreshAvailable &&
       (availableWorkspaces.length > 0 || !workspaceCatalogError) ? (
         <WorkspaceAccessRefreshControl
+          accessRecoveryPending={workspaceAccessRecoveryPending}
+          availableWorkspaceCount={availableWorkspaces.length}
           loading={workspaceCatalogLoading}
           onRefresh={onRetryWorkspaceCatalog}
+          verificationUnavailable={Boolean(workspaceCatalogError)}
         />
       ) : null}
 

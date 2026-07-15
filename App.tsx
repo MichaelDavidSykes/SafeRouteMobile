@@ -92,6 +92,7 @@ import {
   reconcileUnavailableWorkspaceIds
 } from './src/features/workspaces/workspaceMembershipRevalidation';
 import { authorizeWorkspaceNavigationStart } from './src/features/workspaces/workspaceNavigationAuthorization';
+import { shouldOfferWorkspaceAccessRefresh } from './src/features/workspaces/workspaceAccessRefreshState';
 import { SuspendedNavigationNotice } from './src/features/live-map/SuspendedNavigationNotice';
 import { NavigationCleanupNotice } from './src/features/live-map/NavigationCleanupNotice';
 import { isNavigationStartRequestCurrent } from './src/features/live-map/navigationStartRequestIdentity';
@@ -126,6 +127,7 @@ export default function App() {
   const [activeWorkspace, setActiveWorkspace] = useState<SafeRouteWorkspace | null>(null);
   const [workspaceCatalogLoading, setWorkspaceCatalogLoading] = useState(false);
   const [workspaceCatalogError, setWorkspaceCatalogError] = useState('');
+  const [workspaceCatalogRetrying, setWorkspaceCatalogRetrying] = useState(false);
   const [workspaceDiscoveryRevision, setWorkspaceDiscoveryRevision] = useState(0);
   const [pendingNavigationRestore, setPendingNavigationRestore] =
     useState<PendingNavigationRestore | null>(null);
@@ -137,6 +139,7 @@ export default function App() {
   const sessionCleanupRef = useRef<Promise<unknown> | null>(null);
   const sessionEpochRef = useRef(0);
   const sessionExpiryHandledRef = useRef(false);
+  const workspaceCatalogRetryingRef = useRef(false);
   const workspaceRequestRevisionRef = useRef(0);
   const activeWorkspaceRef = useRef<SafeRouteWorkspace | null>(null);
   const availableWorkspacesRef = useRef<SafeRouteWorkspace[]>([]);
@@ -168,12 +171,16 @@ export default function App() {
     activeWorkspace &&
     freshWorkspaceAuthorizationRef.current.workspaceIds.has(activeWorkspace.id),
   );
-  const workspaceAccessRefreshAvailable =
-    unavailableWorkspaceIdsRef.current.size > 0 ||
-    (authenticated &&
-      !workspaceCatalogLoading &&
-      !workspaceCatalogError &&
-      availableWorkspaces.length === 0);
+  const workspaceAccessRecoveryPending = unavailableWorkspaceIdsRef.current.size > 0;
+  const workspaceAccessRefreshAvailable = shouldOfferWorkspaceAccessRefresh({
+    accessRecoveryPending: workspaceAccessRecoveryPending,
+    authenticated,
+    availableWorkspaceCount: availableWorkspaces.length,
+    catalogError: Boolean(workspaceCatalogError),
+    catalogLoading: workspaceCatalogLoading,
+    catalogRetrying: workspaceCatalogRetrying,
+  });
+  const workspaceCatalogBusy = workspaceCatalogLoading || workspaceCatalogRetrying;
   const navigationWorkspaceLocked = Boolean(
     activeNavigationSession || pendingNavigationRestore,
   );
@@ -425,6 +432,8 @@ export default function App() {
       setAuthPrompt('');
       unavailableWorkspaceIdsRef.current.clear();
       setWorkspaceCatalogLoading(true);
+      workspaceCatalogRetryingRef.current = false;
+      setWorkspaceCatalogRetrying(false);
       if (previewInitialScreen === 'guidance-suspended') {
         stagePendingNavigationRestore(createPreviewSuspendedNavigationSession());
         setSessionMessage('Checking workspace access before restoring guidance…');
@@ -450,6 +459,8 @@ export default function App() {
       setActiveWorkspace(null);
       setWorkspaceCatalogLoading(true);
       setWorkspaceCatalogError('');
+      workspaceCatalogRetryingRef.current = false;
+      setWorkspaceCatalogRetrying(false);
       setScreen('guest-map');
       let persistedNavigation: ActiveNavigationSession | null = null;
 
@@ -569,6 +580,8 @@ export default function App() {
     setActiveWorkspace(null);
     setWorkspaceCatalogLoading(true);
     setWorkspaceCatalogError('');
+    workspaceCatalogRetryingRef.current = false;
+    setWorkspaceCatalogRetrying(false);
     await waitForSessionCleanup(sessionCleanupRef.current);
     const persistedSession = await prepareAuthenticatedSession(nextSession, saveAuthSession, getCurrentUser);
     if (!hasAuthenticatedSession(persistedSession)) {
@@ -644,6 +657,8 @@ export default function App() {
     setActiveWorkspace(null);
     setWorkspaceCatalogLoading(false);
     setWorkspaceCatalogError('');
+    workspaceCatalogRetryingRef.current = false;
+    setWorkspaceCatalogRetrying(false);
     setOperationsTab('planned-routes');
     pendingFullAccessFeatureRef.current = null;
     setSession(null);
@@ -701,6 +716,8 @@ export default function App() {
     setActiveWorkspace(null);
     setWorkspaceCatalogLoading(false);
     setWorkspaceCatalogError('');
+    workspaceCatalogRetryingRef.current = false;
+    setWorkspaceCatalogRetrying(false);
     setOperationsTab('planned-routes');
     setSession(null);
     setScreen('login');
@@ -729,6 +746,8 @@ export default function App() {
       setActiveWorkspace(null);
       setWorkspaceCatalogLoading(false);
       setWorkspaceCatalogError('');
+      workspaceCatalogRetryingRef.current = false;
+      setWorkspaceCatalogRetrying(false);
       return;
     }
 
@@ -1087,6 +1106,8 @@ export default function App() {
       } finally {
         if (revision === workspaceRequestRevisionRef.current) {
           setWorkspaceCatalogLoading(false);
+          workspaceCatalogRetryingRef.current = false;
+          setWorkspaceCatalogRetrying(false);
         }
       }
     };
@@ -1099,11 +1120,16 @@ export default function App() {
   }, [authenticated, session?.accessToken, workspaceDiscoveryRevision]);
 
   const handleRetryWorkspaceCatalog = useCallback(() => {
+    if (workspaceCatalogRetryingRef.current) {
+      return;
+    }
+    workspaceCatalogRetryingRef.current = true;
     if (pendingNavigationRestoreRef.current) {
       setPendingNavigationRestoreStatus('checking');
       setSessionMessage('Checking workspace access before restoring guidance…');
     }
     restoreUnavailableWorkspacesFromFreshCatalogRef.current = true;
+    setWorkspaceCatalogRetrying(true);
     setWorkspaceDiscoveryRevision((revision) => revision + 1);
   }, []);
 
@@ -1695,7 +1721,8 @@ export default function App() {
             onSignOut={handleSignOut}
             onWorkspaceChange={handleActiveWorkspaceChange}
             workspaceCatalogError={workspaceCatalogError}
-            workspaceCatalogLoading={workspaceCatalogLoading}
+            workspaceCatalogLoading={workspaceCatalogBusy}
+            workspaceAccessRecoveryPending={workspaceAccessRecoveryPending}
             workspaceAccessRefreshAvailable={workspaceAccessRefreshAvailable}
             workspaceSwitchDisabled={navigationWorkspaceLocked}
           />
@@ -1714,7 +1741,8 @@ export default function App() {
             onWorkspaceUnavailable={handleWorkspaceUnavailable}
             onWorkspaceChange={handleActiveWorkspaceChange}
             workspaceCatalogError={workspaceCatalogError}
-            workspaceCatalogLoading={workspaceCatalogLoading}
+            workspaceCatalogLoading={workspaceCatalogBusy}
+            workspaceAccessRecoveryPending={workspaceAccessRecoveryPending}
             workspaceAccessRefreshAvailable={workspaceAccessRefreshAvailable}
             workspaceSwitchDisabled={navigationWorkspaceLocked}
           />
@@ -1738,8 +1766,9 @@ export default function App() {
             }}
             onWorkspaceChange={handleActiveWorkspaceChange}
             workspaceCatalogError={workspaceCatalogError}
-            workspaceCatalogLoading={workspaceCatalogLoading}
+            workspaceCatalogLoading={workspaceCatalogBusy}
             workspaceAuthorizationFresh={activeWorkspaceAuthorizationFresh}
+            workspaceAccessRecoveryPending={workspaceAccessRecoveryPending}
             workspaceAccessRefreshAvailable={workspaceAccessRefreshAvailable}
             workspaceSwitchDisabled={navigationWorkspaceLocked}
           />

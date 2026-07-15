@@ -115,6 +115,7 @@ interface GuestMapScreenProps {
   workspaceCatalogError?: string;
   workspaceCatalogLoading?: boolean;
   workspaceAuthorizationFresh?: boolean;
+  workspaceAccessRecoveryPending?: boolean;
   workspaceAccessRefreshAvailable?: boolean;
   workspaceSwitchDisabled?: boolean;
 }
@@ -136,6 +137,7 @@ export function GuestMapScreen({
   workspaceCatalogError = '',
   workspaceCatalogLoading = false,
   workspaceAuthorizationFresh = false,
+  workspaceAccessRecoveryPending = false,
   workspaceAccessRefreshAvailable = false,
   workspaceSwitchDisabled = false
 }: GuestMapScreenProps) {
@@ -1326,7 +1328,10 @@ export function GuestMapScreen({
                   {workspaceAccessRefreshAvailable &&
                   (availableWorkspaces.length > 0 || !workspaceCatalogError) ? (
                     <WorkspaceAccessRefreshControl
+                      accessRecoveryPending={workspaceAccessRecoveryPending}
+                      availableWorkspaceCount={availableWorkspaces.length}
                       loading={workspaceCatalogLoading}
+                      verificationUnavailable={Boolean(workspaceCatalogError)}
                       onRefresh={() => {
                         setWorkspaceMenuOpen(false);
                         onRetryWorkspaceCatalog?.();
@@ -1512,7 +1517,8 @@ function GuestWorkspaceSelector({
 }) {
   const waitingForCatalog = loading && !workspaces.length;
   const catalogUnavailable = Boolean(errorMessage) && !workspaces.length;
-  const retryAvailable = Boolean(onRetry && errorMessage) && (catalogUnavailable || switchDisabled);
+  const retryAvailable =
+    !loading && Boolean(onRetry && errorMessage) && (catalogUnavailable || switchDisabled);
   const disabled = retryAvailable
     ? false
     : switchDisabled || waitingForCatalog || (!errorMessage && !workspaces.length);

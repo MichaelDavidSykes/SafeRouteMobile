@@ -69,6 +69,7 @@ async function main() {
     `source ${metroIdentity.sourceRevision}\n`
   );
 
+  grantRuntimeLocationPermission(deviceId);
   mkdirSync(screenshotDirectory, { recursive: true });
   await startApi(WORKSPACE_CATALOG_RECOVERY_PHASES.seed);
   runPhase(WORKSPACE_CATALOG_RECOVERY_PHASES.seed, 'reset to the signed-out Map', flows.reset);
@@ -129,6 +130,17 @@ function assertCompactSimulator(udid) {
     `Workspace recovery requires ${REQUIRED_CONTENT_SIZE}; received ${contentSize}.`
   );
   return simulator;
+}
+
+function grantRuntimeLocationPermission(udid) {
+  execFileSync(
+    'xcrun',
+    ['simctl', 'privacy', udid, 'grant', 'location', EXPO_GO_BUNDLE_ID],
+    {
+      stdio: ['ignore', 'ignore', 'pipe'],
+      timeout: 5000
+    }
+  );
 }
 
 async function startApi(phase) {

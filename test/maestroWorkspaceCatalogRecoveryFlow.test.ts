@@ -22,6 +22,7 @@ describe('Maestro workspace catalog recovery runtime', () => {
     assert.match(runner, /verifyGuidanceContractMetroIdentity\(/);
     assert.match(runner, /iPhone-SE-3rd-generation/);
     assert.match(runner, /REQUIRED_CONTENT_SIZE = 'accessibility-large'/);
+    assert.match(runner, /simctl', 'privacy', udid, 'grant', 'location', EXPO_GO_BUNDLE_ID/);
     assert.match(runner, /--udid=\$\{deviceId\}/);
     assert.match(runner, /MAESTRO_RETRIES: '0'/);
     assert.match(

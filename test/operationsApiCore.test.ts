@@ -82,6 +82,20 @@ describe("SafeRoute operations API core", () => {
     assert.equal(requested, false);
   });
 
+  it("preserves long bearer tokens instead of applying display-text bounds", async () => {
+    const longToken = `header.${"payload".repeat(40)}.signature`;
+    let receivedToken = "";
+    const request: OperationsApiRequester = async (_path, accessToken) => {
+      receivedToken = accessToken;
+      return {} as never;
+    };
+
+    await loadOperationsState(request, ` ${longToken} `, "client-1");
+
+    assert.equal(receivedToken, longToken);
+    assert.equal(receivedToken.includes("…"), false);
+  });
+
   it("treats malformed operations payloads as an empty read-only state", () => {
     assert.deepEqual(normalizeOperationsState("maintenance", "client-1"), createEmptyOperationsState("client-1"));
   });

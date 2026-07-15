@@ -159,7 +159,7 @@ function normalizeRouteAssignment(
 }
 
 function requireAccessToken(accessToken: string): string {
-  const normalizedAccessToken = cleanText(accessToken, "");
+  const normalizedAccessToken = String(accessToken ?? "").trim();
 
   if (!normalizedAccessToken) {
     throw new ApiSessionExpiredError("Sign in again before loading SafeRoute operations.");

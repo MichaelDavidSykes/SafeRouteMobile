@@ -329,12 +329,14 @@ describe('Maestro cold guidance contract matrix', () => {
     );
     assert.match(deniedOffline, /runFlow: subflows\/ios-open-expo-project\.yaml/);
     assert.match(deniedOffline, /safe-route-card-66b1b2c3d4e5f60718293b41/);
+    assert.match(deniedOffline, /assertVisible: 'Support continuity route\.\*'/);
     assert.match(deniedOffline, /assertNotVisible:[\s\S]*safe-route-card-66b1b2c3d4e5f60718293b40/);
     assert.match(regained, /Workspace, Support Operations/);
-    assert.match(regained, /Cold restart verification v2/);
-    assert.match(regained, /assertNotVisible: "Cold restart verification v1"/);
-    assert.match(regainedOffline, /Cold restart verification v2/);
-    assert.match(regainedOffline, /assertNotVisible: "Cold restart verification v1"/);
+    assert.match(regained, /assertVisible: 'Cold restart verification v2\.\*'/);
+    assert.match(regained, /assertNotVisible: 'Cold restart verification v1\.\*'/);
+    assert.match(regainedOffline, /assertVisible: 'Cold restart verification v2\.\*'/);
+    assert.match(regainedOffline, /assertNotVisible: 'Cold restart verification v1\.\*'/);
+    assert.match(regainedOffline, /assertVisible: 'Support continuity route\.\*'/);
     assert.match(regainedOffline, /safe-route-card-66b1b2c3d4e5f60718293b40/);
     assert.match(regainedOffline, /safe-route-card-66b1b2c3d4e5f60718293b41/);
     assert.match(

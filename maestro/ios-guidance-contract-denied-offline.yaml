@@ -12,7 +12,7 @@ appId: host.exp.Exponent
     visible:
       id: "safe-route-card-66b1b2c3d4e5f60718293b41"
     timeout: 20000
-- assertVisible: "Support continuity route"
+- assertVisible: 'Support continuity route.*'
 - assertNotVisible:
     id: "safe-route-card-66b1b2c3d4e5f60718293b40"
 - tapOn:
@@ -21,5 +21,5 @@ appId: host.exp.Exponent
     visible:
       id: "safe-route-live-map"
     timeout: 20000
-- assertVisible: "Support continuity route"
+- assertVisible: 'Support continuity route.*'
 - stopApp

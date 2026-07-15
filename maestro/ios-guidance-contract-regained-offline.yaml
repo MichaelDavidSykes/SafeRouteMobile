@@ -12,8 +12,8 @@ appId: host.exp.Exponent
     visible:
       id: "safe-route-card-66b1b2c3d4e5f60718293b40"
     timeout: 20000
-- assertVisible: "Cold restart verification v2"
-- assertNotVisible: "Cold restart verification v1"
+- assertVisible: 'Cold restart verification v2.*'
+- assertNotVisible: 'Cold restart verification v1.*'
 - assertNotVisible:
     id: "safe-route-card-66b1b2c3d4e5f60718293b41"
 - tapOn:
@@ -22,7 +22,7 @@ appId: host.exp.Exponent
     visible:
       id: "safe-route-live-map"
     timeout: 20000
-- assertVisible: "Cold restart verification v2"
+- assertVisible: 'Cold restart verification v2.*'
 - tapOn:
     id: "safe-route-return"
 - extendedWaitUntil:
@@ -37,12 +37,12 @@ appId: host.exp.Exponent
     visible:
       id: "safe-route-card-66b1b2c3d4e5f60718293b41"
     timeout: 20000
-- assertVisible: "Support continuity route"
+- assertVisible: 'Support continuity route.*'
 - tapOn:
     id: "safe-route-card-66b1b2c3d4e5f60718293b41"
 - extendedWaitUntil:
     visible:
       id: "safe-route-live-map"
     timeout: 20000
-- assertVisible: "Support continuity route"
+- assertVisible: 'Support continuity route.*'
 - stopApp

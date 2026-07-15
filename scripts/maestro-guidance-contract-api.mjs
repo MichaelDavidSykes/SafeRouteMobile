@@ -1301,6 +1301,7 @@ export function assertGuidanceStartTrafficBoundary(entries, {
   boundary,
   expectedOutcomes,
   expectedPaths,
+  expectedPostAuthorizationRequests,
   openPhase,
   phase
 }) {
@@ -1309,6 +1310,9 @@ export function assertGuidanceStartTrafficBoundary(entries, {
   const normalizedPhase = String(phase || '').trim();
   const expected = Array.isArray(expectedPaths) ? expectedPaths : [];
   const outcomes = Array.isArray(expectedOutcomes) ? expectedOutcomes : null;
+  const expectedPostAuthorization = Array.isArray(expectedPostAuthorizationRequests)
+    ? expectedPostAuthorizationRequests
+    : [];
   const markers = entries.filter((entry) => {
     if ((entry.event && entry.event !== 'request') || entry.path !== GUIDANCE_START_BOUNDARY_PATH) {
       return false;
@@ -1422,10 +1426,14 @@ export function assertGuidanceStartTrafficBoundary(entries, {
   );
 
   assertJournalCondition(
-    protectedEntries.length === expected.length,
-    `Guidance Start boundary ${normalizedBoundary} expected ${expected.length} protected requests but recorded ${protectedEntries.length}.`
+    protectedEntries.length === expected.length + expectedPostAuthorization.length,
+    `Guidance Start boundary ${normalizedBoundary} expected ${
+      expected.length + expectedPostAuthorization.length
+    } protected requests but recorded ${protectedEntries.length}.`
   );
-  protectedEntries.forEach((entry, index) => {
+  const authorizationEntries = protectedEntries.slice(0, expected.length);
+  const authorizationCompletions = [];
+  authorizationEntries.forEach((entry, index) => {
     assertJournalCondition(
       entry.phase === normalizedPhase &&
         entry.method === 'GET' &&
@@ -1451,6 +1459,7 @@ export function assertGuidanceStartTrafficBoundary(entries, {
           responseEntries[0].semanticOutcome === expectedOutcome.semanticOutcome,
         `Guidance Start boundary ${normalizedBoundary} request ${index + 1} did not complete with the expected response outcome.`
       );
+      authorizationCompletions.push(responseEntries[0]);
       const nextRequest = protectedEntries[index + 1];
       assertJournalCondition(
         !nextRequest || responseEntries[0].sequence < nextRequest.sequence,
@@ -1464,6 +1473,43 @@ export function assertGuidanceStartTrafficBoundary(entries, {
       `Guidance Start boundary ${normalizedBoundary} response expectations did not match its request contract.`
     );
   }
+
+  const postAuthorizationEntries = protectedEntries.slice(expected.length);
+  postAuthorizationEntries.forEach((entry, index) => {
+    const expectedRequest = expectedPostAuthorization[index];
+    const clientIds = new URLSearchParams(entry.search).getAll('client_id');
+    const finalAuthorizationCompletion = authorizationCompletions.at(-1);
+    assertJournalCondition(
+      expectedRequest &&
+        finalAuthorizationCompletion &&
+        entry.sequence > finalAuthorizationCompletion.sequence &&
+        entry.phase === normalizedPhase &&
+        entry.method === 'GET' &&
+        entry.path === expectedRequest.path &&
+        clientIds.length === 1 &&
+        clientIds[0] === expectedRequest.clientId &&
+        entry.authorized === true &&
+        entry.authorizationClass === 'expected-bearer',
+      `Guidance Start boundary ${normalizedBoundary} post-authorization request ${
+        index + 1
+      } did not match the exact survivor contract.`
+    );
+    const responseEntries = entries.filter(
+      (candidate) =>
+        candidate.event === 'completion' && candidate.requestId === entry.requestId
+    );
+    assertJournalCondition(
+      responseEntries.length === 1 &&
+        responseEntries[0].sequence > entry.sequence &&
+        responseEntries[0].sequence < close.sequence &&
+        responseEntries[0].completed === true &&
+        responseEntries[0].statusCode === expectedRequest.statusCode &&
+        responseEntries[0].semanticOutcome === expectedRequest.semanticOutcome,
+      `Guidance Start boundary ${normalizedBoundary} post-authorization request ${
+        index + 1
+      } did not complete with the expected response outcome.`
+    );
+  });
 
   const quarantineEntries = entries.filter(
     (entry) =>
@@ -1489,10 +1535,15 @@ export function assertGuidanceStartTrafficBoundary(entries, {
 }
 
 export function isGuidanceStartProtectedTraffic(entry) {
+  const clientScopedAreaRisk =
+    entry?.path === '/api/v1/intel/map/area-risk' &&
+    new URLSearchParams(entry.search || '').has('client_id');
   return Boolean(
     entry &&
       (!entry.event || entry.event === 'request') &&
-      (isProtectedPath(entry.path) || entry.authorizationClass !== 'none')
+      (isProtectedPath(entry.path) ||
+        clientScopedAreaRisk ||
+        entry.authorizationClass !== 'none')
   );
 }
 

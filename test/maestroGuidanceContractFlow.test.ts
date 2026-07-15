@@ -202,6 +202,14 @@ describe('Maestro cold guidance contract matrix', () => {
     );
     assert.match(
       runner,
+      /boundary: 'denied-workspace-start'[\s\S]*expectedPostAuthorizationRequests:[\s\S]*GUIDANCE_CONTRACT_WORKSPACES\.survivor\.id[\s\S]*'\/api\/v1\/intel\/map\/area-risk'/,
+    );
+    assert.match(
+      runner,
+      /completedStartBoundaries\.push\(\{[\s\S]*expectedPostAuthorizationRequests/,
+    );
+    assert.match(
+      runner,
       /boundary: 'workspace-reseed-start'[\s\S]*'\/api\/v1\/users\/me'[\s\S]*'\/api\/v1\/mobile\/safe-route\/routes'/
     );
     assert.match(

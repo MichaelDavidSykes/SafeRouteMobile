@@ -244,6 +244,12 @@ async function main() {
   );
   await runStartBoundary({
     boundary: 'denied-workspace-start',
+    expectedPostAuthorizationRequests: [{
+      clientId: GUIDANCE_CONTRACT_WORKSPACES.survivor.id,
+      path: '/api/v1/intel/map/area-risk',
+      semanticOutcome: 'api-success',
+      statusCode: 200
+    }],
     expectedOutcomes: [
       { semanticOutcome: 'principal-a', statusCode: 200 },
       { semanticOutcome: 'catalog-survivor', statusCode: 200 }
@@ -469,6 +475,7 @@ async function runStartBoundary({
   boundary,
   expectedOutcomes,
   expectedPaths,
+  expectedPostAuthorizationRequests = [],
   file,
   label,
   openPhase,
@@ -514,6 +521,7 @@ async function runStartBoundary({
     boundary,
     expectedOutcomes,
     expectedPaths,
+    expectedPostAuthorizationRequests,
     openPhase,
     phase
   });
@@ -521,6 +529,7 @@ async function runStartBoundary({
     boundary,
     expectedOutcomes,
     expectedPaths,
+    expectedPostAuthorizationRequests,
     openPhase,
     phase
   });

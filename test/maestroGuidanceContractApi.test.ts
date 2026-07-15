@@ -18,6 +18,7 @@ import {
   createGuidanceContractAccessToken,
   createGuidanceContractEvidenceJournal,
   createGuidanceContractRequestJournal,
+  isGuidanceStartProtectedTraffic,
   startGuidanceContractApi
 } from '../scripts/maestro-guidance-contract-api.mjs';
 
@@ -1246,6 +1247,127 @@ describe('Maestro guidance contract API', () => {
     };
 
     assert.doesNotThrow(() => assertGuidanceStartTrafficBoundary(entries, options));
+
+    const survivorRiskRequest = {
+      ...request(7, 'request-survivor-risk', '/api/v1/intel/map/area-risk'),
+      search: `?refresh=false&client_id=${GUIDANCE_CONTRACT_WORKSPACES.survivor.id}`
+    };
+    const survivorRiskCompletion = completion(
+      8,
+      survivorRiskRequest,
+      'api-success'
+    );
+    const entriesWithSurvivorRisk = [
+      ...entries.slice(0, -2),
+      survivorRiskRequest,
+      survivorRiskCompletion,
+      marker(9, 'close'),
+      marker(10, 'settled')
+    ];
+    const optionsWithSurvivorRisk = {
+      ...options,
+      expectedPostAuthorizationRequests: [{
+        clientId: GUIDANCE_CONTRACT_WORKSPACES.survivor.id,
+        path: '/api/v1/intel/map/area-risk',
+        semanticOutcome: 'api-success',
+        statusCode: 200
+      }]
+    };
+
+    assert.doesNotThrow(() =>
+      assertGuidanceStartTrafficBoundary(
+        entriesWithSurvivorRisk,
+        optionsWithSurvivorRisk
+      )
+    );
+    assert.equal(
+      isGuidanceStartProtectedTraffic({
+        ...survivorRiskRequest,
+        authorizationClass: 'none',
+        authorized: false
+      }),
+      true
+    );
+    for (const invalidRiskRequest of [
+      { ...survivorRiskRequest, search: '' },
+      {
+        ...survivorRiskRequest,
+        search: `?client_id=${GUIDANCE_CONTRACT_WORKSPACES.denied.id}`
+      },
+      {
+        ...survivorRiskRequest,
+        search:
+          `?client_id=${GUIDANCE_CONTRACT_WORKSPACES.survivor.id}` +
+          `&client_id=${GUIDANCE_CONTRACT_WORKSPACES.denied.id}`
+      },
+      {
+        ...survivorRiskRequest,
+        authorizationClass: 'none',
+        authorized: false
+      }
+    ]) {
+      assert.throws(
+        () => assertGuidanceStartTrafficBoundary([
+          ...entriesWithSurvivorRisk.slice(0, 6),
+          invalidRiskRequest,
+          { ...survivorRiskCompletion, requestId: invalidRiskRequest.requestId },
+          ...entriesWithSurvivorRisk.slice(8)
+        ], optionsWithSurvivorRisk),
+        /did not match the exact survivor contract/
+      );
+    }
+    assert.throws(
+      () => assertGuidanceStartTrafficBoundary(
+        entriesWithSurvivorRisk.map((entry) =>
+          entry.sequence === 8 ? { ...entry, statusCode: 500 } : entry
+        ),
+        optionsWithSurvivorRisk
+      ),
+      /post-authorization request 1 did not complete/
+    );
+    assert.throws(
+      () => assertGuidanceStartTrafficBoundary(
+        entriesWithSurvivorRisk.map((entry) =>
+          entry.sequence === 8
+            ? { ...entry, semanticOutcome: 'catalog-survivor' }
+            : entry
+        ),
+        optionsWithSurvivorRisk
+      ),
+      /post-authorization request 1 did not complete/
+    );
+    assert.throws(
+      () => assertGuidanceStartTrafficBoundary([
+        ...entriesWithSurvivorRisk.slice(0, 8),
+        { ...survivorRiskCompletion, sequence: 8.5, timestampMs: 850 },
+        ...entriesWithSurvivorRisk.slice(8)
+      ], optionsWithSurvivorRisk),
+      /post-authorization request 1 did not complete/
+    );
+    assert.throws(
+      () => assertGuidanceStartTrafficBoundary([
+        ...entriesWithSurvivorRisk.slice(0, 5),
+        { ...survivorRiskRequest, sequence: 6, timestampMs: 600 },
+        { ...entriesWithSurvivorRisk[5], sequence: 7, timestampMs: 700 },
+        { ...survivorRiskCompletion, sequence: 8, timestampMs: 800 },
+        marker(9, 'close'),
+        marker(10, 'settled')
+      ], optionsWithSurvivorRisk),
+      /did not complete before the next authorization request/
+    );
+    assert.throws(
+      () => assertGuidanceStartTrafficBoundary([
+        ...entriesWithSurvivorRisk.slice(0, -1),
+        {
+          ...survivorRiskRequest,
+          requestId: 'request-survivor-risk-quarantine',
+          sequence: 10,
+          timestampMs: 1_000
+        },
+        marker(11, 'settled')
+      ], optionsWithSurvivorRisk),
+      /protected traffic during post-close quarantine/
+    );
     assert.throws(
       () => assertGuidanceStartTrafficBoundary(entries.filter((entry) => entry.sequence !== 6), options),
       /did not complete with the expected response outcome/

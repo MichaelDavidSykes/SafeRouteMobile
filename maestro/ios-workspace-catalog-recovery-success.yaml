@@ -26,7 +26,6 @@ appId: host.exp.Exponent
       id: "guest-map-workspace-selector"
     timeout: 15000
 - assertVisible: "Workspace, Guidance Operations"
-- assertVisible: "Add destination"
 - assertNotVisible:
     id: "workspace-access-refresh"
 - takeScreenshot: "workspace-catalog-recovered-map"

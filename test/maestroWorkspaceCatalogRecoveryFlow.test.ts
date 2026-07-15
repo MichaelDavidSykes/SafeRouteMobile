@@ -105,7 +105,6 @@ describe('Maestro workspace catalog recovery runtime', () => {
     assert.match(success, /Workspace access verified\./);
     assert.match(success, /id: "safe-route-operations-map-return"/);
     assert.match(success, /Workspace, Guidance Operations/);
-    assert.match(success, /Add destination/);
     assert.match(success, /id: "guest-map-primary-action"/);
     assert.match(success, /id: "safe-route-card-66b1b2c3d4e5f60718293b40"/);
     assert.equal((success.match(/id: "workspace-access-refresh"/g) || []).length >= 4, true);

@@ -38,6 +38,7 @@ import {
 } from '../maps/safeRouteMapTheme';
 import { shouldRenderRouteCheckpointMarker } from '../maps/mapMarkerPresentation';
 import { isPreviewAccessToken } from '../auth/previewSession';
+import { createSessionNoticeState } from '../auth/sessionNoticeState';
 import { getRequestSessionExpiry } from '../api/sessionExpiry';
 import type { SafeRouteWorkspace } from '../workspaces/activeWorkspace';
 import { getRequestUnavailableWorkspaceId } from '../workspaces/workspaceAccessRecovery';
@@ -188,6 +189,7 @@ export function GuestMapScreen({
   const [routeResolutionPending, setRouteResolutionPending] = useState(false);
   const [roadPreviewPending, setRoadPreviewPending] = useState(false);
   const [riskAreaSavePending, setRiskAreaSavePending] = useState(false);
+  const sessionNoticeState = createSessionNoticeState(sessionNotice);
   const {
     coordinate: liveLocation,
     errorMessage: locationErrorMessage,
@@ -1515,9 +1517,21 @@ export function GuestMapScreen({
                 <Text style={styles.addStopButtonText}>Add stop</Text>
               </Pressable>
 
-              {routeMessage || sessionNotice || (locationErrorMessage && isCurrentLocationLabel(origin)) ? (
-                <Text accessibilityRole="alert" style={styles.routeMessage}>
-                  {routeMessage || sessionNotice || locationErrorMessage}
+              {routeMessage || sessionNoticeState || (locationErrorMessage && isCurrentLocationLabel(origin)) ? (
+                <Text
+                  accessibilityLabel={
+                    !routeMessage && sessionNoticeState?.accessibilityLabel
+                      ? sessionNoticeState.accessibilityLabel
+                      : undefined
+                  }
+                  accessibilityRole={
+                    routeMessage || !sessionNoticeState
+                      ? 'alert'
+                      : sessionNoticeState.accessibilityRole
+                  }
+                  style={styles.routeMessage}
+                >
+                  {routeMessage || sessionNoticeState?.message || locationErrorMessage}
                 </Text>
               ) : null}
 

@@ -1,5 +1,6 @@
 export interface SessionNoticeState {
   accessibilityLabel: string | null;
+  accessibilityRole: "alert" | undefined;
   message: string;
 }
 
@@ -19,6 +20,9 @@ export function createSessionNoticeState(
   return {
     accessibilityLabel:
       compactMessage === normalizedMessage ? null : normalizedMessage,
+    accessibilityRole: isSeparatelyAnnouncedWorkspaceConfirmation(normalizedMessage)
+      ? undefined
+      : "alert",
     message: compactMessage,
   };
 }
@@ -39,4 +43,11 @@ function normalizeSessionNoticeMessage(message?: string | null): string {
   return String(message || "")
     .trim()
     .replace(/\s+/g, " ");
+}
+
+function isSeparatelyAnnouncedWorkspaceConfirmation(message: string): boolean {
+  return (
+    message === "Workspace access refreshed." ||
+    message === "Workspace access verified."
+  );
 }

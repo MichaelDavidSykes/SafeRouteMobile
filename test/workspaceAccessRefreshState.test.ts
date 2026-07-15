@@ -4,6 +4,7 @@ import { describe, it } from "node:test";
 import {
   completeWorkspaceCatalogRetry,
   createWorkspaceAccessRefreshState,
+  resolveWorkspaceAccessAnnouncement,
   shouldStackWorkspaceAccessControl,
   shouldOfferWorkspaceAccessRefresh,
 } from "../src/features/workspaces/workspaceAccessRefreshState";
@@ -190,6 +191,155 @@ describe("workspace access refresh state", () => {
       catalogRetrying: false,
       issue: "none",
     }), false);
+  });
+
+  it("announces one iOS checking and failure transition per explicit retry", () => {
+    const checking = resolveWorkspaceAccessAnnouncement({
+      accessRecoveryPending: false,
+      availableWorkspaceCount: 1,
+      issue: "verification-unavailable",
+      loading: true,
+      offline: false,
+      previousPhase: "verification-unavailable",
+      retrying: true,
+    });
+    const duplicateChecking = resolveWorkspaceAccessAnnouncement({
+      accessRecoveryPending: false,
+      availableWorkspaceCount: 1,
+      issue: "verification-unavailable",
+      loading: true,
+      offline: false,
+      previousPhase: checking.phase,
+      retrying: true,
+    });
+    const failed = resolveWorkspaceAccessAnnouncement({
+      accessRecoveryPending: false,
+      availableWorkspaceCount: 1,
+      issue: "verification-unavailable",
+      loading: false,
+      offline: false,
+      previousPhase: duplicateChecking.phase,
+      retrying: false,
+    });
+    const duplicateFailure = resolveWorkspaceAccessAnnouncement({
+      accessRecoveryPending: false,
+      availableWorkspaceCount: 1,
+      issue: "verification-unavailable",
+      loading: false,
+      offline: false,
+      previousPhase: failed.phase,
+      retrying: false,
+    });
+
+    assert.match(checking.announcement || "", /Checking current workspace access.*review only/i);
+    assert.equal(duplicateChecking.announcement, null);
+    assert.match(failed.announcement || "", /Workspace access not verified.*Try checking/i);
+    assert.equal(duplicateFailure.announcement, null);
+  });
+
+  it("announces a cold catalog failure once without requiring a retry", () => {
+    const pendingFailure = resolveWorkspaceAccessAnnouncement({
+      accessRecoveryPending: false,
+      availableWorkspaceCount: 1,
+      issue: "verification-unavailable",
+      loading: true,
+      offline: false,
+      previousPhase: "idle",
+      retrying: false,
+    });
+    const coldFailure = resolveWorkspaceAccessAnnouncement({
+      accessRecoveryPending: false,
+      availableWorkspaceCount: 1,
+      issue: "verification-unavailable",
+      loading: false,
+      offline: false,
+      previousPhase: pendingFailure.phase,
+      retrying: false,
+    });
+    const repeatedFailure = resolveWorkspaceAccessAnnouncement({
+      accessRecoveryPending: false,
+      availableWorkspaceCount: 1,
+      issue: "verification-unavailable",
+      loading: false,
+      offline: false,
+      previousPhase: coldFailure.phase,
+      retrying: false,
+    });
+
+    assert.deepEqual(pendingFailure, {
+      announcement: null,
+      phase: "checking",
+    });
+    assert.match(coldFailure.announcement || "", /not verified.*again/i);
+    assert.equal(coldFailure.phase, "verification-unavailable");
+    assert.equal(repeatedFailure.announcement, null);
+  });
+
+  it("keeps the announcement pending when retry and loading settle separately", () => {
+    const stillLoading = resolveWorkspaceAccessAnnouncement({
+      accessRecoveryPending: false,
+      availableWorkspaceCount: 1,
+      issue: "verification-unavailable",
+      loading: true,
+      offline: false,
+      previousPhase: "checking",
+      retrying: false,
+    });
+    const failed = resolveWorkspaceAccessAnnouncement({
+      accessRecoveryPending: false,
+      availableWorkspaceCount: 1,
+      issue: "verification-unavailable",
+      loading: false,
+      offline: false,
+      previousPhase: stillLoading.phase,
+      retrying: false,
+    });
+
+    assert.deepEqual(stillLoading, {
+      announcement: null,
+      phase: "checking",
+    });
+    assert.match(failed.announcement || "", /Workspace access not verified/i);
+  });
+
+  it("announces offline recovery outcomes without presenting cached access as fresh", () => {
+    const failed = resolveWorkspaceAccessAnnouncement({
+      accessRecoveryPending: false,
+      availableWorkspaceCount: 1,
+      issue: "verification-unavailable",
+      loading: false,
+      offline: true,
+      previousPhase: "checking",
+      retrying: false,
+    });
+    const offlineSafety = resolveWorkspaceAccessAnnouncement({
+      accessRecoveryPending: false,
+      availableWorkspaceCount: 1,
+      issue: "offline-safety",
+      loading: false,
+      offline: true,
+      previousPhase: "checking",
+      retrying: false,
+    });
+
+    assert.match(failed.announcement || "", /not verified.*Reconnect/i);
+    assert.doesNotMatch(failed.announcement || "", /verified\.$/i);
+    assert.match(offlineSafety.announcement || "", /Offline safety needs retry.*Reconnect/i);
+  });
+
+  it("leaves successful retries to the single explicit confirmation announcement", () => {
+    assert.deepEqual(resolveWorkspaceAccessAnnouncement({
+      accessRecoveryPending: false,
+      availableWorkspaceCount: 1,
+      issue: "none",
+      loading: false,
+      offline: false,
+      previousPhase: "checking",
+      retrying: false,
+    }), {
+      announcement: null,
+      phase: "idle",
+    });
   });
 
   it("does not offer workspace recovery to signed-out or initial-loading users", () => {

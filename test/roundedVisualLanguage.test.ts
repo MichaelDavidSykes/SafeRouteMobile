@@ -1240,7 +1240,10 @@ describe("rounded visual language", () => {
       2,
     );
     assert.match(routeListHeaderSource, /styles\.signOutButtonPressed/);
-    assert.match(routeListHeaderSource, /accessibilityRole="alert" style=\{styles\.noticeBox\}/);
+    assert.match(
+      routeListHeaderSource,
+      /accessibilityRole=\{sessionNoticeState\.accessibilityRole\} style=\{styles\.noticeBox\}/,
+    );
     assert.doesNotMatch(routeListHeaderSource, /SafeRouteLogo|Ionicons/);
     assert.match(signOutButtonBlock, /minHeight:\s*controlSizes\.compact/);
     assert.match(signOutButtonBlock, /backgroundColor:\s*"transparent"/);

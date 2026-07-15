@@ -284,7 +284,7 @@ export function OperationsScreen({
       </View>
 
       {sessionNoticeState ? (
-        <View accessibilityRole="alert" style={styles.noticeBox}>
+        <View accessibilityRole={sessionNoticeState.accessibilityRole} style={styles.noticeBox}>
           <Text
             accessibilityLabel={sessionNoticeState.accessibilityLabel || undefined}
             numberOfLines={1}

@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { StatusBar } from 'expo-status-bar';
-import { AccessibilityInfo, StyleSheet, View } from 'react-native';
+import { AccessibilityInfo, Platform, StyleSheet, View } from 'react-native';
 import { SafeAreaProvider, initialWindowMetrics } from 'react-native-safe-area-context';
 
 import {
@@ -94,7 +94,9 @@ import {
 import { authorizeWorkspaceNavigationStart } from './src/features/workspaces/workspaceNavigationAuthorization';
 import {
   completeWorkspaceCatalogRetry,
+  resolveWorkspaceAccessAnnouncement,
   shouldOfferWorkspaceAccessRefresh,
+  type WorkspaceAccessAnnouncementPhase,
   type WorkspaceAccessIssue,
 } from './src/features/workspaces/workspaceAccessRefreshState';
 import { SuspendedNavigationNotice } from './src/features/live-map/SuspendedNavigationNotice';
@@ -146,6 +148,8 @@ export default function App() {
   const sessionEpochRef = useRef(0);
   const sessionExpiryHandledRef = useRef(false);
   const workspaceCatalogRetryingRef = useRef(false);
+  const workspaceAccessAnnouncementPhaseRef =
+    useRef<WorkspaceAccessAnnouncementPhase>('idle');
   const workspaceRequestRevisionRef = useRef(0);
   const activeWorkspaceRef = useRef<SafeRouteWorkspace | null>(null);
   const availableWorkspacesRef = useRef<SafeRouteWorkspace[]>([]);
@@ -202,6 +206,32 @@ export default function App() {
   }
   selectedRouteRef.current = selectedRoute;
   routePreviewSourceRef.current = routePreviewSource;
+
+  useEffect(() => {
+    const transition = resolveWorkspaceAccessAnnouncement({
+      accessRecoveryPending: workspaceAccessRecoveryPending,
+      availableWorkspaceCount: availableWorkspaces.length,
+      issue: workspaceAccessIssue,
+      loading: workspaceCatalogLoading,
+      offline,
+      previousPhase: workspaceAccessAnnouncementPhaseRef.current,
+      retrying: workspaceCatalogRetrying,
+    });
+    workspaceAccessAnnouncementPhaseRef.current = transition.phase;
+    if (Platform.OS === 'ios' && transition.announcement) {
+      AccessibilityInfo.announceForAccessibilityWithOptions(
+        transition.announcement,
+        { queue: true },
+      );
+    }
+  }, [
+    availableWorkspaces.length,
+    offline,
+    workspaceAccessIssue,
+    workspaceAccessRecoveryPending,
+    workspaceCatalogLoading,
+    workspaceCatalogRetrying,
+  ]);
 
   const takePendingFullAccessFeature = () => {
     const pendingFeature = pendingFullAccessFeatureRef.current;

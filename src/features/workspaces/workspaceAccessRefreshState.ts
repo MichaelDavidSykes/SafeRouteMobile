@@ -11,6 +11,17 @@ export type WorkspaceAccessIssue =
   | "offline-safety"
   | "verification-unavailable";
 
+export type WorkspaceAccessAnnouncementPhase =
+  | "idle"
+  | "checking"
+  | "offline-safety"
+  | "verification-unavailable";
+
+export interface WorkspaceAccessAnnouncementTransition {
+  announcement: string | null;
+  phase: WorkspaceAccessAnnouncementPhase;
+}
+
 export function completeWorkspaceCatalogRetry(
   retryingRef: { current: boolean },
   setRetrying: (retrying: boolean) => void,
@@ -19,6 +30,78 @@ export function completeWorkspaceCatalogRetry(
   retryingRef.current = false;
   setRetrying(false);
   return wasRetrying;
+}
+
+export function resolveWorkspaceAccessAnnouncement({
+  accessRecoveryPending,
+  availableWorkspaceCount,
+  issue,
+  loading,
+  offline,
+  previousPhase,
+  retrying,
+}: {
+  accessRecoveryPending: boolean;
+  availableWorkspaceCount: number;
+  issue: WorkspaceAccessIssue;
+  loading: boolean;
+  offline: boolean;
+  previousPhase: WorkspaceAccessAnnouncementPhase;
+  retrying: boolean;
+}): WorkspaceAccessAnnouncementTransition {
+  if (retrying) {
+    return {
+      announcement:
+        previousPhase === "checking"
+          ? null
+          : createWorkspaceAccessRefreshState({
+              accessRecoveryPending,
+              availableWorkspaceCount,
+              issue,
+              loading: true,
+              offline,
+            }).accessibilityLabel,
+      phase: "checking",
+    };
+  }
+
+  if (loading) {
+    return {
+      announcement: null,
+      phase: "checking",
+    };
+  }
+
+  if (previousPhase === "checking" && !loading && issue !== "none") {
+    return {
+      announcement: createWorkspaceAccessRefreshState({
+        accessRecoveryPending,
+        availableWorkspaceCount,
+        issue,
+        loading: false,
+        offline,
+      }).accessibilityLabel,
+      phase: issue,
+    };
+  }
+
+  if (!loading && issue !== "none" && previousPhase !== issue) {
+    return {
+      announcement: createWorkspaceAccessRefreshState({
+        accessRecoveryPending,
+        availableWorkspaceCount,
+        issue,
+        loading: false,
+        offline,
+      }).accessibilityLabel,
+      phase: issue,
+    };
+  }
+
+  return {
+    announcement: null,
+    phase: issue === "none" ? "idle" : issue,
+  };
 }
 
 export function createWorkspaceAccessRefreshState({

@@ -52,6 +52,7 @@ import {
   isWorkspaceUnavailableError,
 } from "../workspaces/workspaceAccessRecovery";
 import { WorkspaceAccessRefreshControl } from "../workspaces/WorkspaceAccessRefreshControl";
+import type { WorkspaceAccessIssue } from "../workspaces/workspaceAccessRefreshState";
 
 const ROUTE_LIST_ERROR_ACTION_HIT_SLOP = 6;
 
@@ -84,6 +85,7 @@ interface RouteListScreenProps {
   workspaceCatalogLoading: boolean;
   workspaceAccessRecoveryPending: boolean;
   workspaceAccessRefreshAvailable: boolean;
+  workspaceAccessIssue: WorkspaceAccessIssue;
   workspaceSwitchDisabled: boolean;
 }
 
@@ -105,6 +107,7 @@ export function RouteListScreen({
   workspaceCatalogLoading,
   workspaceAccessRecoveryPending,
   workspaceAccessRefreshAvailable,
+  workspaceAccessIssue,
   workspaceSwitchDisabled,
 }: RouteListScreenProps) {
   const { offline } = useNetworkAvailability();
@@ -563,9 +566,9 @@ export function RouteListScreen({
         <WorkspaceAccessRefreshControl
           accessRecoveryPending={workspaceAccessRecoveryPending}
           availableWorkspaceCount={availableWorkspaces.length}
+          issue={workspaceAccessIssue}
           loading={workspaceCatalogLoading}
           onRefresh={onRetryWorkspaceCatalog}
-          verificationUnavailable={Boolean(workspaceCatalogError)}
         />
       ) : null}
 

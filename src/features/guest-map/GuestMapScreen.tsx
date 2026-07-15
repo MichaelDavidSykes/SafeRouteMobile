@@ -42,6 +42,7 @@ import { getRequestSessionExpiry } from '../api/sessionExpiry';
 import type { SafeRouteWorkspace } from '../workspaces/activeWorkspace';
 import { getRequestUnavailableWorkspaceId } from '../workspaces/workspaceAccessRecovery';
 import { WorkspaceAccessRefreshControl } from '../workspaces/WorkspaceAccessRefreshControl';
+import type { WorkspaceAccessIssue } from '../workspaces/workspaceAccessRefreshState';
 import {
   GUEST_MAP_REGION,
   GUEST_ROUTE_LABEL_MAX_LENGTH,
@@ -117,6 +118,7 @@ interface GuestMapScreenProps {
   workspaceAuthorizationFresh?: boolean;
   workspaceAccessRecoveryPending?: boolean;
   workspaceAccessRefreshAvailable?: boolean;
+  workspaceAccessIssue?: WorkspaceAccessIssue;
   workspaceSwitchDisabled?: boolean;
 }
 
@@ -139,6 +141,7 @@ export function GuestMapScreen({
   workspaceAuthorizationFresh = false,
   workspaceAccessRecoveryPending = false,
   workspaceAccessRefreshAvailable = false,
+  workspaceAccessIssue = 'none',
   workspaceSwitchDisabled = false
 }: GuestMapScreenProps) {
   const viewport = useWindowDimensions();
@@ -1330,8 +1333,8 @@ export function GuestMapScreen({
                     <WorkspaceAccessRefreshControl
                       accessRecoveryPending={workspaceAccessRecoveryPending}
                       availableWorkspaceCount={availableWorkspaces.length}
+                      issue={workspaceAccessIssue}
                       loading={workspaceCatalogLoading}
-                      verificationUnavailable={Boolean(workspaceCatalogError)}
                       onRefresh={() => {
                         setWorkspaceMenuOpen(false);
                         onRetryWorkspaceCatalog?.();

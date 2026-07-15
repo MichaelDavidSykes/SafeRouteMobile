@@ -6,22 +6,47 @@ export interface WorkspaceAccessRefreshState {
   title: string;
 }
 
+export type WorkspaceAccessIssue =
+  | "none"
+  | "offline-safety"
+  | "verification-unavailable";
+
+export function completeWorkspaceCatalogRetry(
+  retryingRef: { current: boolean },
+  setRetrying: (retrying: boolean) => void,
+): boolean {
+  const wasRetrying = retryingRef.current;
+  retryingRef.current = false;
+  setRetrying(false);
+  return wasRetrying;
+}
+
 export function createWorkspaceAccessRefreshState({
   accessRecoveryPending,
   availableWorkspaceCount,
+  issue,
   loading,
   offline,
-  verificationUnavailable,
 }: {
   accessRecoveryPending: boolean;
   availableWorkspaceCount: number;
+  issue: WorkspaceAccessIssue;
   loading: boolean;
   offline: boolean;
-  verificationUnavailable: boolean;
 }): WorkspaceAccessRefreshState {
   const hasAvailableWorkspace = availableWorkspaceCount > 0;
 
   if (loading) {
+    if (issue === "offline-safety") {
+      return {
+        accessibilityHint: "Wait while SafeRoute secures offline workspace data.",
+        accessibilityLabel: "Securing offline workspace data.",
+        actionLabel: "Securing…",
+        detail: "Finishing protected offline cleanup",
+        title: "Securing offline access",
+      };
+    }
+
     return {
       accessibilityHint: "Wait while SafeRoute checks current workspace membership.",
       accessibilityLabel: hasAvailableWorkspace
@@ -45,7 +70,7 @@ export function createWorkspaceAccessRefreshState({
     };
   }
 
-  if (accessRecoveryPending || (!hasAvailableWorkspace && !verificationUnavailable)) {
+  if (accessRecoveryPending) {
     return {
       accessibilityHint: "Checks whether an administrator restored workspace membership.",
       accessibilityLabel:
@@ -56,7 +81,23 @@ export function createWorkspaceAccessRefreshState({
     };
   }
 
-  if (verificationUnavailable) {
+  if (issue === "offline-safety") {
+    return {
+      accessibilityHint: offline
+        ? "Reconnect, then activate this control to finish securing offline workspace data."
+        : "Retries protected offline workspace cleanup.",
+      accessibilityLabel: offline
+        ? "Offline safety needs retry. Reconnect, then finish offline cleanup."
+        : "Offline safety needs retry. Finish offline cleanup.",
+      actionLabel: "Retry",
+      detail: offline
+        ? "Reconnect, then finish offline cleanup"
+        : "Finish protected offline cleanup",
+      title: "Offline safety needs retry",
+    };
+  }
+
+  if (issue === "verification-unavailable") {
     return {
       accessibilityHint: offline
         ? "Reconnect, then activate this control to check current workspace membership."
@@ -69,6 +110,17 @@ export function createWorkspaceAccessRefreshState({
         ? "Reconnect, then check current access"
         : "Try again to check current access",
       title: "Workspace access not verified",
+    };
+  }
+
+  if (!hasAvailableWorkspace) {
+    return {
+      accessibilityHint: "Checks whether an administrator restored workspace membership.",
+      accessibilityLabel:
+        "No workspace access. Ask an administrator to restore access, then check again.",
+      actionLabel: "Check again",
+      detail: "Ask an admin to restore access, then check again",
+      title: "No workspace access",
     };
   }
 
@@ -85,14 +137,14 @@ export function shouldOfferWorkspaceAccessRefresh({
   accessRecoveryPending,
   authenticated,
   availableWorkspaceCount,
-  catalogError,
+  issue,
   catalogLoading,
   catalogRetrying,
 }: {
   accessRecoveryPending: boolean;
   authenticated: boolean;
   availableWorkspaceCount: number;
-  catalogError: boolean;
+  issue: WorkspaceAccessIssue;
   catalogLoading: boolean;
   catalogRetrying: boolean;
 }): boolean {
@@ -108,7 +160,7 @@ export function shouldOfferWorkspaceAccessRefresh({
     return true;
   }
 
-  return !catalogLoading && (catalogError || availableWorkspaceCount === 0);
+  return !catalogLoading && (issue !== "none" || availableWorkspaceCount === 0);
 }
 
 export function shouldStackWorkspaceAccessControl({

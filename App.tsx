@@ -92,7 +92,11 @@ import {
   reconcileUnavailableWorkspaceIds
 } from './src/features/workspaces/workspaceMembershipRevalidation';
 import { authorizeWorkspaceNavigationStart } from './src/features/workspaces/workspaceNavigationAuthorization';
-import { shouldOfferWorkspaceAccessRefresh } from './src/features/workspaces/workspaceAccessRefreshState';
+import {
+  completeWorkspaceCatalogRetry,
+  shouldOfferWorkspaceAccessRefresh,
+  type WorkspaceAccessIssue,
+} from './src/features/workspaces/workspaceAccessRefreshState';
 import { SuspendedNavigationNotice } from './src/features/live-map/SuspendedNavigationNotice';
 import { NavigationCleanupNotice } from './src/features/live-map/NavigationCleanupNotice';
 import { isNavigationStartRequestCurrent } from './src/features/live-map/navigationStartRequestIdentity';
@@ -127,6 +131,8 @@ export default function App() {
   const [activeWorkspace, setActiveWorkspace] = useState<SafeRouteWorkspace | null>(null);
   const [workspaceCatalogLoading, setWorkspaceCatalogLoading] = useState(false);
   const [workspaceCatalogError, setWorkspaceCatalogError] = useState('');
+  const [workspaceAccessIssue, setWorkspaceAccessIssue] =
+    useState<WorkspaceAccessIssue>('none');
   const [workspaceCatalogRetrying, setWorkspaceCatalogRetrying] = useState(false);
   const [workspaceDiscoveryRevision, setWorkspaceDiscoveryRevision] = useState(0);
   const [pendingNavigationRestore, setPendingNavigationRestore] =
@@ -176,9 +182,9 @@ export default function App() {
     accessRecoveryPending: workspaceAccessRecoveryPending,
     authenticated,
     availableWorkspaceCount: availableWorkspaces.length,
-    catalogError: Boolean(workspaceCatalogError),
     catalogLoading: workspaceCatalogLoading,
     catalogRetrying: workspaceCatalogRetrying,
+    issue: workspaceAccessIssue,
   });
   const workspaceCatalogBusy = workspaceCatalogLoading || workspaceCatalogRetrying;
   const navigationWorkspaceLocked = Boolean(
@@ -459,6 +465,7 @@ export default function App() {
       setActiveWorkspace(null);
       setWorkspaceCatalogLoading(true);
       setWorkspaceCatalogError('');
+      setWorkspaceAccessIssue('none');
       workspaceCatalogRetryingRef.current = false;
       setWorkspaceCatalogRetrying(false);
       setScreen('guest-map');
@@ -580,6 +587,7 @@ export default function App() {
     setActiveWorkspace(null);
     setWorkspaceCatalogLoading(true);
     setWorkspaceCatalogError('');
+    setWorkspaceAccessIssue('none');
     workspaceCatalogRetryingRef.current = false;
     setWorkspaceCatalogRetrying(false);
     await waitForSessionCleanup(sessionCleanupRef.current);
@@ -599,6 +607,7 @@ export default function App() {
     activeWorkspaceRef.current = null;
     setActiveWorkspace(null);
     setWorkspaceCatalogError('');
+    setWorkspaceAccessIssue('none');
     sessionEpochRef.current += 1;
     activeSessionTokenRef.current = persistedSession.accessToken;
     activeSessionPrincipalIdRef.current = getAuthSessionPrincipalId(persistedSession);
@@ -657,6 +666,7 @@ export default function App() {
     setActiveWorkspace(null);
     setWorkspaceCatalogLoading(false);
     setWorkspaceCatalogError('');
+    setWorkspaceAccessIssue('none');
     workspaceCatalogRetryingRef.current = false;
     setWorkspaceCatalogRetrying(false);
     setOperationsTab('planned-routes');
@@ -716,6 +726,7 @@ export default function App() {
     setActiveWorkspace(null);
     setWorkspaceCatalogLoading(false);
     setWorkspaceCatalogError('');
+    setWorkspaceAccessIssue('none');
     workspaceCatalogRetryingRef.current = false;
     setWorkspaceCatalogRetrying(false);
     setOperationsTab('planned-routes');
@@ -746,6 +757,7 @@ export default function App() {
       setActiveWorkspace(null);
       setWorkspaceCatalogLoading(false);
       setWorkspaceCatalogError('');
+      setWorkspaceAccessIssue('none');
       workspaceCatalogRetryingRef.current = false;
       setWorkspaceCatalogRetrying(false);
       return;
@@ -753,6 +765,9 @@ export default function App() {
 
     setWorkspaceCatalogLoading(true);
     setWorkspaceCatalogError('');
+    if (!workspaceCatalogRetryingRef.current) {
+      setWorkspaceAccessIssue('none');
+    }
 
     const discoverWorkspaces = async () => {
       const requestIsCurrent = () =>
@@ -1032,6 +1047,7 @@ export default function App() {
             setPendingNavigationRestoreStatus('paused');
           }
           setWorkspaceCatalogError('Offline workspace cleanup needs retry.');
+          setWorkspaceAccessIssue('offline-safety');
           setSessionMessage(
             'Workspace access could not be restored safely. Retry access.',
           );
@@ -1054,6 +1070,7 @@ export default function App() {
             workspaceIds: new Set<string>(),
           };
           setWorkspaceCatalogError('Offline workspace cleanup needs retry.');
+          setWorkspaceAccessIssue('offline-safety');
           setSessionMessage(
             'Workspace access refreshed, but offline safety needs retry before another route.',
           );
@@ -1061,6 +1078,9 @@ export default function App() {
         }
         if (recoveryPersistence === 'revoked') {
           setWorkspaceCatalogError('Offline workspace access stays locked until retry.');
+          setWorkspaceAccessIssue('offline-safety');
+        } else {
+          setWorkspaceAccessIssue('none');
         }
         let navigationRestoreRejected = pendingNavigationRejected;
         if (previewWorkspaceRevoked && !navigationWorkspaceRevoked) {
@@ -1103,6 +1123,7 @@ export default function App() {
           );
         }
         setWorkspaceCatalogError('Workspaces could not be loaded. Retry.');
+        setWorkspaceAccessIssue('verification-unavailable');
       } finally {
         if (revision === workspaceRequestRevisionRef.current) {
           setWorkspaceCatalogLoading(false);
@@ -1237,12 +1258,17 @@ export default function App() {
     } else {
       freshWorkspaceAuthorizationRef.current.workspaceIds.delete(normalizedWorkspaceId);
     }
+    completeWorkspaceCatalogRetry(
+      workspaceCatalogRetryingRef,
+      setWorkspaceCatalogRetrying,
+    );
     workspaceRequestRevisionRef.current += 1;
     availableWorkspacesRef.current = recovery.workspaces;
     setAvailableWorkspaces(recovery.workspaces);
     activeWorkspaceRef.current = recovery.activeWorkspace;
     setActiveWorkspace(recovery.activeWorkspace);
     setWorkspaceCatalogError('');
+    setWorkspaceAccessIssue('none');
     setWorkspaceCatalogLoading(!freshCatalog);
 
     const { navigationUnavailable, previewUnavailable } =
@@ -1305,6 +1331,7 @@ export default function App() {
         workspaceIds: new Set<string>(),
       };
       setWorkspaceCatalogError('Offline workspace cleanup needs retry.');
+      setWorkspaceAccessIssue('offline-safety');
       setSessionMessage(
         'Workspace access closed. Retry access before starting another route.',
       );
@@ -1459,12 +1486,17 @@ export default function App() {
           workspaceIds: new Set<string>(),
         };
         setWorkspaceCatalogError('Offline workspace cleanup needs retry.');
+        setWorkspaceAccessIssue('offline-safety');
         setSessionMessage(
           'Workspace access refreshed, but offline safety needs retry before another route.',
         );
         return 'Workspace access could not be secured offline. Retry access and try again.';
       }
 
+      completeWorkspaceCatalogRetry(
+        workspaceCatalogRetryingRef,
+        setWorkspaceCatalogRetrying,
+      );
       workspaceRequestRevisionRef.current += 1;
       unavailableWorkspaceIdsRef.current = reconciliation.unavailableWorkspaceIds;
       availableWorkspacesRef.current = reconciliation.workspaces;
@@ -1476,6 +1508,9 @@ export default function App() {
         persistenceResult === 'revoked'
           ? 'Offline workspace access stays locked until retry.'
           : '',
+      );
+      setWorkspaceAccessIssue(
+        persistenceResult === 'revoked' ? 'offline-safety' : 'none',
       );
       if (previewUnavailable) {
         selectedRouteRef.current = null;
@@ -1724,6 +1759,7 @@ export default function App() {
             workspaceCatalogLoading={workspaceCatalogBusy}
             workspaceAccessRecoveryPending={workspaceAccessRecoveryPending}
             workspaceAccessRefreshAvailable={workspaceAccessRefreshAvailable}
+            workspaceAccessIssue={workspaceAccessIssue}
             workspaceSwitchDisabled={navigationWorkspaceLocked}
           />
         ) : screen === 'operations' && session && authenticated ? (
@@ -1744,6 +1780,7 @@ export default function App() {
             workspaceCatalogLoading={workspaceCatalogBusy}
             workspaceAccessRecoveryPending={workspaceAccessRecoveryPending}
             workspaceAccessRefreshAvailable={workspaceAccessRefreshAvailable}
+            workspaceAccessIssue={workspaceAccessIssue}
             workspaceSwitchDisabled={navigationWorkspaceLocked}
           />
         ) : (
@@ -1770,6 +1807,7 @@ export default function App() {
             workspaceAuthorizationFresh={activeWorkspaceAuthorizationFresh}
             workspaceAccessRecoveryPending={workspaceAccessRecoveryPending}
             workspaceAccessRefreshAvailable={workspaceAccessRefreshAvailable}
+            workspaceAccessIssue={workspaceAccessIssue}
             workspaceSwitchDisabled={navigationWorkspaceLocked}
           />
         )}

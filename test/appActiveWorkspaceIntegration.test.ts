@@ -105,7 +105,13 @@ describe("App active workspace integration", () => {
     );
     assert.match(app, /handleRetryWorkspaceCatalog[\s\S]*setWorkspaceCatalogRetrying\(true\)[\s\S]*setWorkspaceDiscoveryRevision/);
     assert.match(app, /handleRetryWorkspaceCatalog[\s\S]*workspaceCatalogRetryingRef\.current[\s\S]*return;[\s\S]*workspaceCatalogRetryingRef\.current = true/);
-    assert.match(app, /shouldOfferWorkspaceAccessRefresh\(\{[\s\S]*catalogError: Boolean\(workspaceCatalogError\)[\s\S]*catalogRetrying: workspaceCatalogRetrying/);
+    assert.match(app, /shouldOfferWorkspaceAccessRefresh\(\{[\s\S]*catalogRetrying: workspaceCatalogRetrying[\s\S]*issue: workspaceAccessIssue/);
+    assert.equal(
+      (app.match(/completeWorkspaceCatalogRetry\([\s\S]{0,160}workspaceRequestRevisionRef\.current \+= 1/g) || []).length,
+      2,
+    );
+    assert.match(app, /setWorkspaceCatalogError\('Workspaces could not be loaded\. Retry\.'\);[\s\S]*setWorkspaceAccessIssue\('verification-unavailable'\)/);
+    assert.match(app, /setWorkspaceCatalogError\('Offline workspace cleanup needs retry\.'\);[\s\S]*setWorkspaceAccessIssue\('offline-safety'\)/);
     assert.equal(
       (app.match(/workspaceCatalogLoading=\{workspaceCatalogBusy\}/g) || []).length,
       3,
@@ -123,6 +129,10 @@ describe("App active workspace integration", () => {
       (app.match(/workspaceAccessRecoveryPending=\{workspaceAccessRecoveryPending\}/g) || []).length,
       3,
     );
+    assert.equal(
+      (app.match(/workspaceAccessIssue=\{workspaceAccessIssue\}/g) || []).length,
+      3,
+    );
     assert.match(guestSource(), /workspaceAccessRefreshAvailable[\s\S]*<WorkspaceAccessRefreshControl/);
     assert.match(routesSource(), /workspaceAccessRefreshAvailable[\s\S]*<WorkspaceAccessRefreshControl/);
     assert.match(operationsSource(), /workspaceAccessRefreshAvailable[\s\S]*<WorkspaceAccessRefreshControl/);
@@ -133,7 +143,7 @@ describe("App active workspace integration", () => {
       );
       assert.match(
         source,
-        /<WorkspaceAccessRefreshControl[\s\S]*accessRecoveryPending=\{workspaceAccessRecoveryPending\}[\s\S]*verificationUnavailable=\{Boolean\(workspaceCatalogError\)\}/,
+        /<WorkspaceAccessRefreshControl[\s\S]*accessRecoveryPending=\{workspaceAccessRecoveryPending\}[\s\S]*issue=\{workspaceAccessIssue\}/,
       );
     }
     assert.match(workspaceRefreshSource(), /accessibilityLabel=\{state\.accessibilityLabel\}/);

@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 
 import {
+  completeWorkspaceCatalogRetry,
   createWorkspaceAccessRefreshState,
   shouldStackWorkspaceAccessControl,
   shouldOfferWorkspaceAccessRefresh,
@@ -14,7 +15,7 @@ describe("workspace access refresh state", () => {
       availableWorkspaceCount: 0,
       loading: false,
       offline: false,
-      verificationUnavailable: false,
+      issue: "none",
     });
 
     assert.equal(state.title, "No workspace access");
@@ -29,7 +30,7 @@ describe("workspace access refresh state", () => {
       availableWorkspaceCount: 2,
       loading: false,
       offline: false,
-      verificationUnavailable: false,
+      issue: "none",
     });
 
     assert.equal(state.title, "Workspace access changed");
@@ -43,14 +44,14 @@ describe("workspace access refresh state", () => {
       availableWorkspaceCount: 0,
       loading: true,
       offline: false,
-      verificationUnavailable: false,
+      issue: "none",
     });
     const survivorState = createWorkspaceAccessRefreshState({
       accessRecoveryPending: true,
       availableWorkspaceCount: 1,
       loading: true,
       offline: false,
-      verificationUnavailable: false,
+      issue: "none",
     });
 
     assert.equal(noAccessState.title, "Checking workspace access");
@@ -65,14 +66,14 @@ describe("workspace access refresh state", () => {
       availableWorkspaceCount: 2,
       loading: false,
       offline: false,
-      verificationUnavailable: true,
+      issue: "verification-unavailable",
     });
     const offlineState = createWorkspaceAccessRefreshState({
       accessRecoveryPending: false,
       availableWorkspaceCount: 1,
       loading: false,
       offline: true,
-      verificationUnavailable: true,
+      issue: "verification-unavailable",
     });
 
     assert.equal(onlineState.title, "Workspace access not verified");
@@ -90,11 +91,49 @@ describe("workspace access refresh state", () => {
       availableWorkspaceCount: 1,
       loading: false,
       offline: true,
-      verificationUnavailable: true,
+      issue: "verification-unavailable",
     });
 
     assert.equal(state.title, "Workspace access changed");
     assert.equal(state.actionLabel, "Refresh");
+  });
+
+  it("keeps verified membership distinct from offline safety cleanup", () => {
+    const onlineState = createWorkspaceAccessRefreshState({
+      accessRecoveryPending: false,
+      availableWorkspaceCount: 1,
+      issue: "offline-safety",
+      loading: false,
+      offline: false,
+    });
+    const busyState = createWorkspaceAccessRefreshState({
+      accessRecoveryPending: false,
+      availableWorkspaceCount: 1,
+      issue: "offline-safety",
+      loading: true,
+      offline: false,
+    });
+
+    assert.equal(onlineState.title, "Offline safety needs retry");
+    assert.equal(onlineState.actionLabel, "Retry");
+    assert.match(onlineState.detail, /protected offline cleanup/i);
+    assert.doesNotMatch(onlineState.accessibilityLabel, /not verified/i);
+    assert.equal(busyState.title, "Securing offline access");
+    assert.equal(busyState.actionLabel, "Securing…");
+  });
+
+  it("clears a superseded retry ref and rendered busy state together", () => {
+    const retryingRef = { current: true };
+    const renderedStates: boolean[] = [];
+
+    assert.equal(
+      completeWorkspaceCatalogRetry(retryingRef, (retrying) => {
+        renderedStates.push(retrying);
+      }),
+      true,
+    );
+    assert.equal(retryingRef.current, false);
+    assert.deepEqual(renderedStates, [false]);
   });
 
   it("keeps retry visible while verification is checking and hides it after success", () => {
@@ -102,25 +141,25 @@ describe("workspace access refresh state", () => {
       accessRecoveryPending: false,
       authenticated: true,
       availableWorkspaceCount: 1,
-      catalogError: true,
       catalogLoading: false,
       catalogRetrying: false,
+      issue: "verification-unavailable",
     }), true);
     assert.equal(shouldOfferWorkspaceAccessRefresh({
       accessRecoveryPending: false,
       authenticated: true,
       availableWorkspaceCount: 1,
-      catalogError: false,
       catalogLoading: true,
       catalogRetrying: true,
+      issue: "verification-unavailable",
     }), true);
     assert.equal(shouldOfferWorkspaceAccessRefresh({
       accessRecoveryPending: false,
       authenticated: true,
       availableWorkspaceCount: 1,
-      catalogError: false,
       catalogLoading: false,
       catalogRetrying: false,
+      issue: "none",
     }), false);
   });
 
@@ -129,17 +168,17 @@ describe("workspace access refresh state", () => {
       accessRecoveryPending: true,
       authenticated: false,
       availableWorkspaceCount: 0,
-      catalogError: true,
       catalogLoading: false,
       catalogRetrying: false,
+      issue: "verification-unavailable",
     }), false);
     assert.equal(shouldOfferWorkspaceAccessRefresh({
       accessRecoveryPending: false,
       authenticated: true,
       availableWorkspaceCount: 0,
-      catalogError: false,
       catalogLoading: true,
       catalogRetrying: false,
+      issue: "none",
     }), false);
   });
 

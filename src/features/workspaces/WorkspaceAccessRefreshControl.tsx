@@ -13,29 +13,30 @@ import { useNetworkAvailability } from "../api/useNetworkAvailability";
 import {
   createWorkspaceAccessRefreshState,
   shouldStackWorkspaceAccessControl,
+  type WorkspaceAccessIssue,
 } from "./workspaceAccessRefreshState";
 
 export function WorkspaceAccessRefreshControl({
   accessRecoveryPending,
   availableWorkspaceCount,
+  issue,
   loading,
   onRefresh,
-  verificationUnavailable,
 }: {
   accessRecoveryPending: boolean;
   availableWorkspaceCount: number;
+  issue: WorkspaceAccessIssue;
   loading: boolean;
   onRefresh: () => void;
-  verificationUnavailable: boolean;
 }) {
   const { fontScale, width } = useWindowDimensions();
   const { offline } = useNetworkAvailability();
   const state = createWorkspaceAccessRefreshState({
     accessRecoveryPending,
     availableWorkspaceCount,
+    issue,
     loading,
     offline,
-    verificationUnavailable,
   });
   const stacked = shouldStackWorkspaceAccessControl({ fontScale, width });
 

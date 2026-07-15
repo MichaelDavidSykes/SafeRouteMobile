@@ -13,6 +13,11 @@ describe('Maestro cold guidance contract matrix', () => {
     assert.match(subflow, /openLink: exp:\/\/localhost:8081/);
     assert.equal((subflow.match(/openLink: exp:\/\/localhost:8081/g) || []).length, 1);
     assert.match(subflow, /id: "saferoute-app-root"/);
+    assert.equal(
+      (subflow.match(/text: "Close"/g) || []).length,
+      2,
+      'Expo first-launch permission can reveal its developer menu after the initial close attempt',
+    );
     assert.match(
       subflow,
       /id: "saferoute-app-root"[\s\S]*visible: "Allow While Using App"[\s\S]*tapOn: "Allow While Using App"/,

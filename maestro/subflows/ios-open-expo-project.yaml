@@ -25,6 +25,9 @@ appId: host.exp.Exponent
       visible: "Allow While Using App"
     commands:
       - tapOn: "Allow While Using App"
+- tapOn:
+    text: "Close"
+    optional: true
 - extendedWaitUntil:
     visible:
       id: "saferoute-app-root"

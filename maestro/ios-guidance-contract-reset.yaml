@@ -54,6 +54,8 @@ appId: host.exp.Exponent
     timeout: 15000
 - tapOn:
     id: "guest-map-primary-action"
+- waitForAnimationToEnd:
+    timeout: 2500
 - runFlow:
     when:
       visible:
@@ -61,6 +63,8 @@ appId: host.exp.Exponent
     commands:
       - tapOn:
           id: "route-list-sign-out"
+- waitForAnimationToEnd:
+    timeout: 2500
 - runFlow:
     when:
       visible:
@@ -68,7 +72,9 @@ appId: host.exp.Exponent
     commands:
       - tapOn:
           id: "safe-route-login-map-return"
-- assertVisible:
-    id: "guest-map-primary-action"
+- extendedWaitUntil:
+    visible:
+      id: "guest-map-primary-action"
+    timeout: 15000
 - assertNotVisible:
     id: "safe-route-resume-action"

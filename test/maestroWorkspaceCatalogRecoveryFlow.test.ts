@@ -17,6 +17,7 @@ describe('Maestro workspace catalog recovery runtime', () => {
   it('binds a clean exact source to a compact large-text simulator', () => {
     const runner = read('scripts/run-maestro-workspace-catalog-recovery.mjs');
     const packageJson = read('package.json');
+    const reset = read('maestro/ios-guidance-contract-reset.yaml');
 
     assert.match(runner, /assertGuidanceSourceCheckoutClean\(readCurrentSourceStatus\(\)\)/);
     assert.match(runner, /verifyGuidanceContractMetroIdentity\(/);
@@ -32,6 +33,10 @@ describe('Maestro workspace catalog recovery runtime', () => {
     assert.doesNotMatch(
       packageJson,
       /workspace-catalog-recovery[^\n]*(?:npm run build|expo export|eas build|xcodebuild)/i,
+    );
+    assert.match(
+      reset,
+      /id: "guest-map-primary-action"\n- waitForAnimationToEnd:[\s\S]*id: "route-list-sign-out"\n- waitForAnimationToEnd:[\s\S]*visible:\n      id: "guest-map-primary-action"/,
     );
   });
 

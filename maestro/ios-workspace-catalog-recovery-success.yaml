@@ -40,4 +40,3 @@ appId: host.exp.Exponent
 - assertNotVisible:
     id: "workspace-access-refresh"
 - takeScreenshot: "workspace-catalog-recovered-saved"
-- stopApp

@@ -166,6 +166,45 @@ describe("App active workspace integration", () => {
     assert.match(operationsSource(), /workspaceState\.retry && !workspaceAccessRefreshAvailable/);
   });
 
+  it("revalidates workspace authorization once after a real background epoch", () => {
+    const app = appSource();
+
+    assert.match(app, /AppState\.addEventListener\('change'/);
+    assert.match(app, /resolveWorkspaceForegroundRevalidation\(\{[\s\S]*backgrounded: workspaceWasBackgroundedRef\.current[\s\S]*catalogBusy: workspaceCatalogBusyRef\.current/);
+    assert.match(app, /workspaceWasBackgroundedRef\.current = decision\.backgrounded/);
+    assert.match(
+      app,
+      /nextAppState === 'background'[\s\S]*setWorkspaceForegroundAuthorizationPaused\(true\)/,
+    );
+    assert.match(app, /if \(!decision\.revalidate\) \{[\s\S]*return;/);
+    assert.match(
+      app,
+      /if \(!workspaceCatalogBusy\) \{[\s\S]*requestWorkspaceForegroundRevalidation\(AppState\.currentState\)/,
+    );
+    assert.match(
+      app,
+      /workspaceForegroundRefreshPendingRef\.current = true[\s\S]*restoreUnavailableWorkspacesFromFreshCatalogRef\.current = false[\s\S]*setWorkspaceDiscoveryRevision/,
+    );
+    assert.match(app, /activeWorkspaceAuthorizationFresh[\s\S]*!workspaceForegroundRefreshPendingRef\.current[\s\S]*!workspaceForegroundAuthorizationPaused/);
+    assert.match(
+      app,
+      /recoveryPersistence === 'revoked'[\s\S]*setWorkspaceAccessIssue\('offline-safety'\)[\s\S]*!workspaceWasBackgroundedRef\.current[\s\S]*setWorkspaceForegroundAuthorizationPaused\(false\)/,
+    );
+    assert.match(app, /workspaceForegroundRefreshPendingRef\.current\) \{[\s\S]*workspaceIds: new Set<string>\(\)/);
+    assert.match(
+      app,
+      /continuesCurrentWorkspaceNavigation[\s\S]*!freshWorkspaceAuthorizationRef\.current\.workspaceIds\.has\(workspaceId\)[\s\S]*!continuesCurrentWorkspaceNavigation/,
+    );
+    assert.match(
+      app,
+      /authoritativelyUnavailableWorkspaceIds\.length > 0[\s\S]*Workspace access changed\. Unavailable workspace data was removed\./,
+    );
+    assert.match(
+      app,
+      /finally \{[\s\S]*workspaceCatalogBusyRef\.current = false[\s\S]*workspaceForegroundRefreshPendingRef\.current = false/,
+    );
+  });
+
   it("clears workspace context at authentication boundaries", () => {
     const app = appSource();
     const clearCount = (app.match(/setActiveWorkspace\(null\)/g) || []).length;
@@ -186,6 +225,8 @@ describe("App active workspace integration", () => {
     assert.match(guest, /workspaceAuthorizationRequired =[\s\S]*authenticated && Boolean\(routingClientId\) && !workspaceAuthorizationFresh/);
     assert.match(guest, /routeActionDisabled =[\s\S]*workspaceAuthorizationRequired/);
     assert.match(guest, /Verify workspace access before plotting this route/);
+    assert.match(guest, /Checking workspace access before plotting this route/);
+    assert.match(guest, /busy: workspaceAuthorizationRequired && workspaceCatalogLoading/);
     assert.match(guest, /riskAreaAuthorizationRequired =[\s\S]*workspaceSelectionRequired \|\| workspaceAuthorizationRequired/);
     assert.match(guest, /!action \|\| !routingClientId \|\| !routingAccessToken/);
     assert.match(guest, /disabled=\{riskAreaSavePending \|\| riskAreaAuthorizationRequired\}/);
@@ -196,6 +237,10 @@ describe("App active workspace integration", () => {
     assert.match(guest, /routeMessage \|\| sessionNoticeState\?\.message \|\| locationErrorMessage/);
     assert.match(guest, /sessionNoticeState\.accessibilityRole/);
     assert.match(guest, /enabled: !workspaceSelectionRequired && !workspaceAuthorizationRequired/);
+    assert.match(
+      guest,
+      /if \(!workspaceAuthorizationRequired\) \{[\s\S]*cancelRoadRouteUpgrade\(\)[\s\S]*activeRiskAreaRequestRef\.current\?\.abort\(\)/,
+    );
     assert.match(guest, /cancelRoadRouteUpgrade\(\)[\s\S]*activeRiskAreaRequestRef\.current\?\.abort\(\)[\s\S]*setRoutePlan\(null\)/);
     assert.doesNotMatch(guest, /result\.clients\[0\]/);
     assert.match(routes, /selectedClientId = activeWorkspace\?\.id \|\| null/);
@@ -350,6 +395,10 @@ describe("App active workspace integration", () => {
     );
     assert.match(
       app,
+      /handleAuthorizeNavigationStart[\s\S]*workspaceForegroundAuthorizationPausedRef\.current[\s\S]*workspaceAuthorizationEpoch: workspaceForegroundAuthorizationEpochRef\.current[\s\S]*request\.workspaceAuthorizationEpoch ===[\s\S]*workspaceForegroundAuthorizationEpochRef\.current/,
+    );
+    assert.match(
+      app,
       /onAuthorizeNavigationStart=\{handleAuthorizeNavigationStart\}/,
     );
     assert.match(
@@ -374,6 +423,14 @@ describe("App active workspace integration", () => {
     assert.match(
       liveMap,
       /Checking workspace access before starting guidance/,
+    );
+    assert.match(
+      liveMap,
+      /workspaceStartBlockedReason[\s\S]*Workspace access is being checked\. Wait before starting guidance\.[\s\S]*navigationBlockedReason/,
+    );
+    assert.match(
+      liveMap,
+      /if \(routePlan\.clientId && !workspaceAuthorizationFreshRef\.current\)[\s\S]*return;[\s\S]*runNavigationStartAuthorization/,
     );
   });
 

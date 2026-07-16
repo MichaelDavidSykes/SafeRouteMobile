@@ -62,4 +62,39 @@ describe("authenticated Map workspace recovery integration", () => {
     assert.match(live, /getRequestSessionExpiry\([\s\S]*getRequestUnavailableWorkspaceId\([\s\S]*activeRouteWorkspaceIdRef\.current === requestWorkspaceId/);
     assert.match(live, /if \(unavailableWorkspaceId\) \{[\s\S]*closeRouteForWorkspaceLoss\(unavailableWorkspaceId\);[\s\S]*return;[\s\S]*failRerouteRequest\(request\)/);
   });
+
+  it("invalidates Map requests while foreground workspace authorization is paused", () => {
+    const app = source("App.tsx");
+    const guest = source("src/features/guest-map/GuestMapScreen.tsx");
+    const live = source("src/features/live-map/LiveMapScreen.tsx");
+
+    assert.match(
+      app.match(/<LiveMapScreen[\s\S]*?\/>/)?.[0] || "",
+      /workspaceAuthorizationFresh=\{activeWorkspaceAuthorizationFresh\}/,
+    );
+    assert.match(
+      guest,
+      /workspaceAuthorizationEpochRef[\s\S]*isCurrentWorkspaceAuthorizationEpoch\([\s\S]*requestAuthorizationIsCurrent\(\)/,
+    );
+    assert.match(
+      guest,
+      /workspaceAuthorizationRequired[\s\S]*cancelRoadRouteUpgrade\(\)[\s\S]*riskAreaRequestIdRef\.current \+= 1[\s\S]*activeRiskAreaRequestRef\.current\?\.abort\(\)/,
+    );
+    assert.match(
+      live,
+      /useViewportRiskAreas\(\{[\s\S]*enabled: !activeRoutePlan\.clientId \|\| workspaceAuthorizationFresh/,
+    );
+    assert.match(
+      live,
+      /requestAuthorizationIsCurrent[\s\S]*Verify current workspace access before rerouting[\s\S]*requestAuthorizationIsCurrent\(\)[\s\S]*fetchAreaRiskAlongRoute[\s\S]*requestAuthorizationIsCurrent\(\)/,
+    );
+    assert.match(
+      live,
+      /rerouteMonitoringActive = Boolean\([\s\S]*!activeRoutePlan\.clientId \|\| workspaceAuthorizationFresh/,
+    );
+    assert.match(
+      live,
+      /startWasPending[\s\S]*cancelNavigationStartAuthorization\(navigationAuthorizationGateRef\.current\)[\s\S]*setPendingNavigationStart\(false\)/,
+    );
+  });
 });

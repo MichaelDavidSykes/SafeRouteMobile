@@ -1,0 +1,12 @@
+appId: host.exp.Exponent
+---
+- tapOn:
+    id: "route-list-map-return"
+- extendedWaitUntil:
+    visible:
+      id: "guest-map-workspace-selector"
+    timeout: 15000
+- assertVisible: "Workspace, Guidance Operations"
+- pressKey: HOME
+- waitForAnimationToEnd:
+    timeout: 2000

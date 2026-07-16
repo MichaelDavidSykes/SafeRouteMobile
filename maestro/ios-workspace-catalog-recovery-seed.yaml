@@ -10,22 +10,41 @@ appId: host.exp.Exponent
     id: "safe-route-login-email"
 - eraseText
 - inputText: "driver@example.com"
+- scrollUntilVisible:
+    element:
+      id: "safe-route-login-password"
+    direction: DOWN
+    timeout: 10000
+    speed: 40
 - tapOn:
     id: "safe-route-login-password"
 - eraseText
 - inputText: "guidance-contract-password"
-- hideKeyboard
-- tapOn:
-    id: "safe-route-login-primary-action"
+- pressKey: ENTER
 - runFlow:
     when:
       visible: "Not Now"
     commands:
-      - tapOn: "Not Now"
+      - tapOn:
+          text: "Not Now"
+          retryTapIfNoChange: true
+          waitToSettleTimeoutMs: 1000
 - extendedWaitUntil:
     visible:
       id: "guest-map-workspace-selector"
     timeout: 30000
+- runFlow:
+    when:
+      visible:
+        id: "workspace-access-refresh"
+    commands:
+      - tapOn:
+          id: "workspace-access-refresh"
+          waitToSettleTimeoutMs: 100
+      - extendedWaitUntil:
+          notVisible:
+            id: "workspace-access-refresh"
+          timeout: 15000
 - tapOn:
     id: "guest-map-workspace-selector"
 - tapOn:

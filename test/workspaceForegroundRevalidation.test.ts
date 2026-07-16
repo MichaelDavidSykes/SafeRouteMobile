@@ -1,0 +1,169 @@
+import assert from "node:assert/strict";
+import { describe, it } from "node:test";
+
+import {
+  isCurrentWorkspaceAuthorizationEpoch,
+  isCurrentWorkspaceNavigationContinuation,
+  resolveWorkspaceForegroundRevalidation,
+} from "../src/features/workspaces/workspaceForegroundRevalidation";
+
+const readyState = {
+  authenticated: true,
+  backgrounded: true,
+  catalogBusy: false,
+  nextAppState: "active" as const,
+  previewSession: false,
+  refreshPending: false,
+  sessionCleanupPending: false,
+  stablePrincipal: true,
+};
+
+describe("workspace foreground revalidation", () => {
+  it("accepts public work but rejects stale workspace authorization epochs", () => {
+    assert.equal(
+      isCurrentWorkspaceAuthorizationEpoch({
+        currentEpoch: 2,
+        currentFresh: false,
+        currentWorkspaceId: null,
+        requestEpoch: 1,
+        requestWorkspaceId: null,
+      }),
+      true,
+    );
+
+    const currentWorkspaceRequest = {
+      currentEpoch: 4,
+      currentFresh: true,
+      currentWorkspaceId: "workspace-a",
+      requestEpoch: 4,
+      requestWorkspaceId: "workspace-a",
+    };
+    assert.equal(isCurrentWorkspaceAuthorizationEpoch(currentWorkspaceRequest), true);
+    for (const staleRequest of [
+      { ...currentWorkspaceRequest, currentFresh: false },
+      { ...currentWorkspaceRequest, currentEpoch: 5 },
+      { ...currentWorkspaceRequest, currentWorkspaceId: "workspace-b" },
+    ]) {
+      assert.equal(isCurrentWorkspaceAuthorizationEpoch(staleRequest), false);
+    }
+  });
+
+  it("arms only after the app reaches background", () => {
+    assert.deepEqual(
+      resolveWorkspaceForegroundRevalidation({
+        ...readyState,
+        backgrounded: false,
+        nextAppState: "background",
+      }),
+      { backgrounded: true, revalidate: false },
+    );
+    assert.deepEqual(
+      resolveWorkspaceForegroundRevalidation({
+        ...readyState,
+        backgrounded: false,
+        nextAppState: "inactive",
+      }),
+      { backgrounded: false, revalidate: false },
+    );
+  });
+
+  it("requests one fresh check when an authenticated stable principal returns", () => {
+    assert.deepEqual(resolveWorkspaceForegroundRevalidation(readyState), {
+      backgrounded: false,
+      revalidate: true,
+    });
+  });
+
+  it("does not treat repeated active events as new foreground epochs", () => {
+    assert.deepEqual(
+      resolveWorkspaceForegroundRevalidation({
+        ...readyState,
+        backgrounded: false,
+      }),
+      { backgrounded: false, revalidate: false },
+    );
+  });
+
+  it("queues the foreground epoch behind catalog, retry, and session-cleanup work", () => {
+    for (const blocked of [
+      { catalogBusy: true },
+      { refreshPending: true },
+      { sessionCleanupPending: true },
+    ]) {
+      assert.deepEqual(
+        resolveWorkspaceForegroundRevalidation({ ...readyState, ...blocked }),
+        { backgrounded: true, revalidate: false },
+      );
+    }
+  });
+
+  it("replays a queued foreground epoch once catalog work settles", () => {
+    const deferred = resolveWorkspaceForegroundRevalidation({
+      ...readyState,
+      catalogBusy: true,
+    });
+
+    assert.deepEqual(
+      resolveWorkspaceForegroundRevalidation({
+        ...readyState,
+        backgrounded: deferred.backgrounded,
+        catalogBusy: false,
+      }),
+      { backgrounded: false, revalidate: true },
+    );
+  });
+
+  it("ignores signed-out, unstable-principal, and preview sessions", () => {
+    for (const blocked of [
+      { authenticated: false },
+      { stablePrincipal: false },
+      { previewSession: true },
+    ]) {
+      assert.deepEqual(
+        resolveWorkspaceForegroundRevalidation({ ...readyState, ...blocked }),
+        { backgrounded: false, revalidate: false },
+      );
+    }
+  });
+
+  it("preserves only the exact active workspace journey while authorization is checking", () => {
+    const currentSession = {
+      accessScope: {
+        clientId: "workspace-a",
+        kind: "workspace" as const,
+        principalId: "principal-a",
+      },
+      navigationInstanceId: "journey-a",
+      routePlan: { id: "plan-a", route: { id: "route-a" } },
+    };
+
+    assert.equal(
+      isCurrentWorkspaceNavigationContinuation(currentSession, currentSession),
+      true,
+    );
+    assert.equal(
+      isCurrentWorkspaceNavigationContinuation(currentSession, {
+        ...currentSession,
+        routePlan: { ...currentSession.routePlan, route: { id: "route-a-reroute-2" } },
+      }),
+      true,
+    );
+    for (const nextSession of [
+      { ...currentSession, navigationInstanceId: "journey-b" },
+      { ...currentSession, routePlan: { id: "plan-b" } },
+      {
+        ...currentSession,
+        accessScope: { ...currentSession.accessScope, clientId: "workspace-b" },
+      },
+      {
+        ...currentSession,
+        accessScope: { ...currentSession.accessScope, principalId: "principal-b" },
+      },
+    ]) {
+      assert.equal(
+        isCurrentWorkspaceNavigationContinuation(currentSession, nextSession),
+        false,
+      );
+    }
+  });
+});

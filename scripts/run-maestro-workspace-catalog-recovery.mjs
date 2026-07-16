@@ -8,8 +8,11 @@ import { join } from 'node:path';
 import {
   GUIDANCE_CONTRACT_API_PORT,
   GUIDANCE_CONTRACT_MODES,
+  GUIDANCE_CONTRACT_ROUTE_IDS,
+  GUIDANCE_CONTRACT_ROUTE_VARIANT_IDS,
   GUIDANCE_CONTRACT_WORKSPACES,
   WORKSPACE_CATALOG_RECOVERY_PHASES,
+  WORKSPACE_CATALOG_FOREGROUND_DELAY_MS,
   WORKSPACE_CATALOG_RETRY_DELAY_MS,
   WORKSPACE_CATALOG_SUCCESS_DELAY_MS
 } from './maestro-guidance-contract-api.mjs';
@@ -34,7 +37,9 @@ const serverLogFd = openSync(serverLogFile, 'a');
 let apiProcess = null;
 
 const flows = Object.freeze({
+  foregroundBackground: 'maestro/ios-workspace-catalog-recovery-background.yaml',
   coldFailure: 'maestro/ios-workspace-catalog-recovery-cold-failure.yaml',
+  foregroundLoss: 'maestro/ios-workspace-catalog-recovery-foreground-loss.yaml',
   mapRetry: 'maestro/ios-workspace-catalog-recovery-map-retry.yaml',
   operationsRetry: 'maestro/ios-workspace-catalog-recovery-operations-retry.yaml',
   reset: 'maestro/ios-guidance-contract-reset.yaml',
@@ -98,6 +103,19 @@ async function main() {
     WORKSPACE_CATALOG_RECOVERY_PHASES.freshSuccess,
     'restore fresh access from Operations and retain all surfaces',
     flows.success
+  );
+  runPhase(
+    WORKSPACE_CATALOG_RECOVERY_PHASES.foregroundLoss,
+    'send the freshly authorized Map to the background before access changes',
+    flows.foregroundBackground,
+    GUIDANCE_CONTRACT_MODES.active
+  );
+  await new Promise((resolve) => setTimeout(resolve, 500));
+  runPhase(
+    WORKSPACE_CATALOG_RECOVERY_PHASES.foregroundLoss,
+    'revalidate and close a lost workspace after returning from background',
+    flows.foregroundLoss,
+    GUIDANCE_CONTRACT_MODES.denied
   );
 
   assertRecoveryJournal(readRequestJournal());
@@ -177,17 +195,17 @@ async function stopApi() {
   await waitForPort(GUIDANCE_CONTRACT_API_PORT, false);
 }
 
-function setControl(phase) {
+function setControl(phase, mode = GUIDANCE_CONTRACT_MODES.active) {
   writeFileSync(
     pendingControlFile,
-    JSON.stringify({ mode: GUIDANCE_CONTRACT_MODES.active, phase }),
+    JSON.stringify({ mode, phase }),
     'utf8'
   );
   renameSync(pendingControlFile, controlFile);
 }
 
-function runPhase(phase, label, file) {
-  setControl(phase);
+function runPhase(phase, label, file, mode = GUIDANCE_CONTRACT_MODES.active) {
+  setControl(phase, mode);
   process.stdout.write(`\n[workspace-catalog-recovery] ${phase}: ${label}\n`);
   const result = spawnSync(process.execPath, [
     'scripts/run-maestro.mjs',
@@ -247,6 +265,14 @@ function assertRecoveryJournal(entries) {
     phase: WORKSPACE_CATALOG_RECOVERY_PHASES.freshSuccess,
     statusCode: 200
   });
+  assertAuthorizationAttempts(entries, {
+    catalogOutcome: 'catalog-survivor',
+    expectedAttemptCount: 1,
+    expectedUserCountBeforeCatalog: 1,
+    minimumCatalogDurationMs: WORKSPACE_CATALOG_FOREGROUND_DELAY_MS - 250,
+    phase: WORKSPACE_CATALOG_RECOVERY_PHASES.foregroundLoss,
+    statusCode: 200
+  });
 
   const scopedRouteRequests = requests.filter((entry) =>
     [
@@ -264,6 +290,64 @@ function assertRecoveryJournal(entries) {
   assertCondition(operationsRequests.length >= 1, 'Operations did not load its active cached workspace during retry.');
   assertSuccessfulProtectedRequests(entries, scopedRouteRequests, 'catalog-active');
   assertSuccessfulProtectedRequests(entries, operationsRequests, 'operations-active');
+  const foregroundSurvivorRequests = requests.filter((entry) =>
+    entry.phase === WORKSPACE_CATALOG_RECOVERY_PHASES.foregroundLoss &&
+    entry.path === '/api/v1/mobile/safe-route/routes' &&
+    new URLSearchParams(entry.search).get('client_id') === GUIDANCE_CONTRACT_WORKSPACES.survivor.id
+  );
+  assertCondition(
+    foregroundSurvivorRequests.length >= 1,
+    'Foreground membership loss did not reload Saved for the surviving workspace.'
+  );
+  assertSuccessfulProtectedRequests(entries, foregroundSurvivorRequests, 'catalog-survivor');
+  assertNoUnsafeForegroundCatalogTraffic(entries);
+}
+
+function assertNoUnsafeForegroundCatalogTraffic(entries) {
+  const foregroundRequests = entries.filter((entry) =>
+    entry.event === 'request' &&
+    entry.phase === WORKSPACE_CATALOG_RECOVERY_PHASES.foregroundLoss
+  );
+  const catalogRequest = foregroundRequests.find((entry) =>
+    entry.path === '/api/v1/mobile/safe-route/routes' && entry.search === ''
+  );
+  const catalogCompletion = completionFor(entries, catalogRequest);
+  const unsafeIdentifiers = [
+    GUIDANCE_CONTRACT_WORKSPACES.denied.id,
+    GUIDANCE_CONTRACT_ROUTE_IDS.denied,
+    GUIDANCE_CONTRACT_ROUTE_VARIANT_IDS.deniedV1
+  ];
+  const protectedRequests = foregroundRequests.filter((entry) =>
+    entry.sequence > catalogCompletion.sequence &&
+    entry.path.startsWith('/api/v1/') &&
+    entry.path !== '/api/v1/users/me'
+  );
+  const protectedRequestsDuringCatalog = foregroundRequests.filter((entry) =>
+    entry.sequence > catalogRequest.sequence &&
+    entry.sequence < catalogCompletion.sequence &&
+    entry.path.startsWith('/api/v1/') &&
+    entry.path !== '/api/v1/users/me'
+  );
+
+  assertCondition(
+    protectedRequestsDuringCatalog.length === 0,
+    `Protected workspace traffic ran before foreground authorization completed: ${protectedRequestsDuringCatalog
+      .map((entry) => `${entry.method} ${entry.path}?${entry.search}`)
+      .join(', ')}.`
+  );
+
+  for (const request of protectedRequests) {
+    const completion = completionFor(entries, request);
+    const requestTarget = `${request.path}?${request.search}`;
+    assertCondition(
+      request.authorized === true &&
+      request.authorizationClass === 'expected-bearer' &&
+      completion.statusCode >= 200 &&
+      completion.statusCode < 300 &&
+      unsafeIdentifiers.every((identifier) => !requestTarget.includes(identifier)),
+      `Unsafe protected traffic followed the foreground survivor catalog: ${requestTarget}.`
+    );
+  }
 }
 
 function assertSuccessfulProtectedRequests(entries, requests, expectedOutcome) {

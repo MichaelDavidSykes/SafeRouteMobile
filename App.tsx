@@ -107,6 +107,10 @@ import { SuspendedNavigationNotice } from './src/features/live-map/SuspendedNavi
 import { NavigationCleanupNotice } from './src/features/live-map/NavigationCleanupNotice';
 import { isNavigationStartRequestCurrent } from './src/features/live-map/navigationStartRequestIdentity';
 import {
+  isCurrentPendingNavigationRestore,
+  resolvePendingNavigationRestore,
+} from './src/features/live-map/pendingNavigationRestore';
+import {
   flushGuidanceContractEvidence,
   recordGuidanceContractEvidence,
 } from './src/testing/guidanceContractEvidence';
@@ -956,6 +960,10 @@ export default function App() {
         }
         if (
           pendingNavigationForAuthorization?.accessScope.kind === 'workspace' &&
+          isCurrentPendingNavigationRestore(
+            pendingNavigationRestoreRef.current,
+            pendingNavigationForAuthorization,
+          ) &&
           currentPrincipalId !== pendingNavigationForAuthorization.accessScope.principalId
         ) {
           await handleSessionExpired(
@@ -1192,7 +1200,15 @@ export default function App() {
           }
           setWorkspaceAccessIssue('none');
         }
-        let navigationRestoreRejected = pendingNavigationRejected;
+        // End clears the pending ref before native and durable cleanup settle.
+        // Re-resolve after catalog persistence so a late response cannot reopen
+        // that explicitly ended journey or replace its completion message.
+        const pendingNavigationResolution = resolvePendingNavigationRestore({
+          candidate: pendingNavigation,
+          current: pendingNavigationRestoreRef.current,
+        });
+        let navigationRestoreRejected =
+          pendingNavigationRejected || pendingNavigationResolution === 'stale';
         if (previewWorkspaceRevoked && !navigationWorkspaceRevoked) {
           setSessionMessage(
             'This route closed because its workspace is no longer available.',
@@ -1206,7 +1222,11 @@ export default function App() {
           );
         }
         restoreUnavailableWorkspacesFromFreshCatalogRef.current = false;
-        if (pendingNavigation && pendingNavigationWorkspace) {
+        if (
+          pendingNavigation &&
+          pendingNavigationWorkspace &&
+          pendingNavigationResolution === 'resume'
+        ) {
           if (!openActiveNavigationSession(
             pendingNavigation,
             true,

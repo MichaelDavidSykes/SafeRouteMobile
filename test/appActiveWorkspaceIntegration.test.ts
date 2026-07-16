@@ -506,6 +506,18 @@ describe("App active workspace integration", () => {
     assert.match(app, /pendingNavigationRestoreRef\.current[\s\S]*setPendingNavigationRestoreStatus\('paused'\)/);
     assert.match(app, /SuspendedNavigationNotice[\s\S]*onRetry=\{handleRetryWorkspaceCatalog\}/);
     assert.match(app, /discardPersistedNavigation\('Suspended route ended\.'\)/);
+    assert.match(
+      app,
+      /resolvePendingNavigationRestore\(\{[\s\S]*candidate: pendingNavigation,[\s\S]*current: pendingNavigationRestoreRef\.current,[\s\S]*pendingNavigationWorkspace &&[\s\S]*pendingNavigationResolution === 'resume'/,
+    );
+    assert.match(
+      app,
+      /pendingNavigationForAuthorization\?\.accessScope\.kind === 'workspace'[\s\S]*isCurrentPendingNavigationRestore\([\s\S]*pendingNavigationRestoreRef\.current,[\s\S]*pendingNavigationForAuthorization,[\s\S]*currentPrincipalId !== pendingNavigationForAuthorization\.accessScope\.principalId/,
+    );
+    assert.match(
+      app,
+      /navigationRestoreRejected =[\s\S]*pendingNavigationResolution === 'stale'[\s\S]*!navigationRestoreRejected[\s\S]*Workspace access verified/,
+    );
     assert.match(app, /wasOffline[\s\S]*reconnectRetryPendingRef\.current = true[\s\S]*pendingNavigationRestore\?\.status === 'paused'[\s\S]*!workspaceCatalogLoading[\s\S]*handleRetryWorkspaceCatalog\(\)/);
   });
 });

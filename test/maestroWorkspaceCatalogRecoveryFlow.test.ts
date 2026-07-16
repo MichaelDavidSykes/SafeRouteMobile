@@ -161,8 +161,18 @@ describe('Maestro workspace catalog recovery runtime', () => {
     for (const id of ['safe-route-live-map', 'safe-route-resume-action', 'safe-route-suspended-navigation', 'safe-route-stop-action', 'safe-route-remaining-metrics']) {
       assert.match(foregroundLoss, new RegExp(`assertNotVisible:[\\s\\S]{0,60}${id}`));
     }
+    assert.match(runner, /protectedRequestsDuringCatalog[\s\S]*entry\.sequence > catalogRequest\.sequence[\s\S]*entry\.sequence < catalogCompletion\.sequence[\s\S]*length === 0/);
+    assert.doesNotMatch(
+      runner.match(/const protectedRequestsDuringCatalog[\s\S]*?\n  \);/)?.[0] || '',
+      /mobile\/safe-route\/routes/,
+    );
+    assert.doesNotMatch(background, /GUIDANCE_CONTRACT_MODES|openLink:/);
     assert.match(foregroundLoss, /Workspace, Support Operations/);
     assert.match(foregroundLoss, /guest-map-primary-action"[\s\S]*retryTapIfNoChange: true/);
+    assert.match(
+      foregroundLoss,
+      /when:\n      visible:\n        id: "guest-map-primary-action"[\s\S]*commands:\n      - tapOn:\n          id: "guest-map-primary-action"/,
+    );
     assert.match(foregroundLoss, /safe-route-card-66b1b2c3d4e5f60718293b41/);
     assert.match(foregroundLoss, /assertNotVisible:[\s\S]*safe-route-card-66b1b2c3d4e5f60718293b40/);
   });

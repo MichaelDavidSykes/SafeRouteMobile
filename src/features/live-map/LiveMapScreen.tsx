@@ -19,6 +19,7 @@ import {
   routeStartBlockedReason,
   routeStartProximityBlockedReason,
   type NavigationLifecycle,
+  workspaceGuidanceStartBlockedReason,
 } from "./liveMapUiState";
 import { resolveLiveMapOverlayLayout } from "./liveMapLayout";
 import { LiveMapCanvas } from "./LiveMapCanvas";
@@ -422,12 +423,13 @@ export function LiveMapScreen({
     permissionStatus,
     routeCoordinateCount: liveRoutePlan.route.coordinates.length,
   });
-  const workspaceStartBlockedReason =
-    liveRoutePlan.clientId &&
-    !workspaceAuthorizationFresh &&
-    (navigationState === "loaded" || navigationState === "stopped")
-      ? "Workspace access is being checked. Wait before starting guidance."
-      : null;
+  const workspaceStartBlockedReason = workspaceGuidanceStartBlockedReason({
+    checking: workspaceAuthorizationChecking,
+    fresh: workspaceAuthorizationFresh,
+    navigationState,
+    unavailable: workspaceAuthorizationUnavailable,
+    workspaceScoped: Boolean(liveRoutePlan.clientId),
+  });
   const navigationBlockedReason =
     workspaceStartBlockedReason ||
     riskStartBlockedReason ||

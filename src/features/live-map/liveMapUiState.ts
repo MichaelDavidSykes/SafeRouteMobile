@@ -224,6 +224,38 @@ export function activeGuidanceAuthorizationNotice({
     : 'Workspace access could not be verified. Guidance remains available, but workspace risk and rerouting updates are paused.';
 }
 
+export function workspaceGuidanceStartBlockedReason({
+  checking,
+  fresh,
+  navigationState,
+  unavailable,
+  workspaceScoped
+}: {
+  checking: boolean;
+  fresh: boolean;
+  navigationState: NavigationLifecycle;
+  unavailable: boolean;
+  workspaceScoped: boolean;
+}): string | null {
+  if (
+    !workspaceScoped ||
+    fresh ||
+    !['loaded', 'stopped'].includes(navigationState)
+  ) {
+    return null;
+  }
+
+  if (checking) {
+    return 'Checking workspace access before starting guidance…';
+  }
+
+  if (unavailable) {
+    return 'Workspace access is unavailable. Return to the map to retry before starting guidance.';
+  }
+
+  return 'Workspace access must be verified before starting guidance.';
+}
+
 export function createLiveLocationNoticePresentation(
   notice: string | null
 ): LiveLocationNoticePresentation | null {

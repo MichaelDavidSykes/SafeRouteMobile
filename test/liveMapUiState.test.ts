@@ -27,10 +27,41 @@ import {
   shouldShowGuidanceCard,
   shouldShowRouteIntelligenceControl,
   shouldUseCompactRouteHeader,
-  shouldUseMinimalActiveRouteHeader
+  shouldUseMinimalActiveRouteHeader,
+  workspaceGuidanceStartBlockedReason
 } from '../src/features/live-map/liveMapUiState';
 
 describe('live map UI state helpers', () => {
+  it('labels fresh workspace guidance gates without implying a completed check', () => {
+    assert.equal(
+      workspaceGuidanceStartBlockedReason({
+        checking: true,
+        fresh: false,
+        navigationState: 'loaded',
+        unavailable: false,
+        workspaceScoped: true
+      }),
+      'Checking workspace access before starting guidance…'
+    );
+    assert.equal(
+      workspaceGuidanceStartBlockedReason({
+        checking: false,
+        fresh: false,
+        navigationState: 'stopped',
+        unavailable: true,
+        workspaceScoped: true
+      }),
+      'Workspace access is unavailable. Return to the map to retry before starting guidance.'
+    );
+    for (const options of [
+      { checking: false, fresh: true, navigationState: 'loaded' as const, unavailable: false, workspaceScoped: true },
+      { checking: true, fresh: false, navigationState: 'navigating' as const, unavailable: false, workspaceScoped: true },
+      { checking: true, fresh: false, navigationState: 'loaded' as const, unavailable: false, workspaceScoped: false }
+    ]) {
+      assert.equal(workspaceGuidanceStartBlockedReason(options), null);
+    }
+  });
+
   it('shows non-blocking foreground authorization status only for current workspace guidance', () => {
     assert.equal(
       activeGuidanceAuthorizationNotice({

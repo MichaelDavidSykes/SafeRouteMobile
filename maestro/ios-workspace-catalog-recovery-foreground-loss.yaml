@@ -1,0 +1,19 @@
+appId: host.exp.Exponent
+---
+- pressKey: HOME
+- openLink: exp://localhost:8081
+- waitForAnimationToEnd:
+    timeout: 2000
+- extendedWaitUntil:
+    visible: "Workspace access changed. Unavailable workspace data was removed."
+    timeout: 20000
+- assertVisible: "Workspace, Support Operations"
+- assertVisible:
+    id: "safe-route-card-66b1b2c3d4e5f60718293b41"
+- assertNotVisible:
+    id: "safe-route-card-66b1b2c3d4e5f60718293b40"
+- assertVisible:
+    id: "workspace-access-refresh"
+    enabled: true
+- takeScreenshot: "workspace-catalog-foreground-loss-saved"
+- stopApp

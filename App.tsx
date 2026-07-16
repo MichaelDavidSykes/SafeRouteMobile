@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { StatusBar } from 'expo-status-bar';
-import { AccessibilityInfo, Platform, StyleSheet, View } from 'react-native';
+import { AccessibilityInfo, AppState, Platform, StyleSheet, View } from 'react-native';
 import { SafeAreaProvider, initialWindowMetrics } from 'react-native-safe-area-context';
 
 import {
@@ -91,6 +91,10 @@ import {
   findRestoredWorkspaceIds,
   reconcileUnavailableWorkspaceIds
 } from './src/features/workspaces/workspaceMembershipRevalidation';
+import {
+  isCurrentWorkspaceNavigationContinuation,
+  resolveWorkspaceForegroundRevalidation,
+} from './src/features/workspaces/workspaceForegroundRevalidation';
 import { authorizeWorkspaceNavigationStart } from './src/features/workspaces/workspaceNavigationAuthorization';
 import {
   completeWorkspaceCatalogRetry,
@@ -148,6 +152,9 @@ export default function App() {
   const sessionEpochRef = useRef(0);
   const sessionExpiryHandledRef = useRef(false);
   const workspaceCatalogRetryingRef = useRef(false);
+  const workspaceCatalogBusyRef = useRef(false);
+  const workspaceForegroundRefreshPendingRef = useRef(false);
+  const workspaceWasBackgroundedRef = useRef(AppState.currentState === 'background');
   const workspaceAccessAnnouncementPhaseRef =
     useRef<WorkspaceAccessAnnouncementPhase>('idle');
   const workspaceRequestRevisionRef = useRef(0);
@@ -179,7 +186,8 @@ export default function App() {
   }
   const activeWorkspaceAuthorizationFresh = Boolean(
     activeWorkspace &&
-    freshWorkspaceAuthorizationRef.current.workspaceIds.has(activeWorkspace.id),
+    freshWorkspaceAuthorizationRef.current.workspaceIds.has(activeWorkspace.id) &&
+    !workspaceForegroundRefreshPendingRef.current,
   );
   const workspaceAccessRecoveryPending = unavailableWorkspaceIdsRef.current.size > 0;
   const workspaceAccessRefreshAvailable = shouldOfferWorkspaceAccessRefresh({
@@ -191,6 +199,7 @@ export default function App() {
     issue: workspaceAccessIssue,
   });
   const workspaceCatalogBusy = workspaceCatalogLoading || workspaceCatalogRetrying;
+  workspaceCatalogBusyRef.current = workspaceCatalogBusy;
   const navigationWorkspaceLocked = Boolean(
     activeNavigationSession || pendingNavigationRestore,
   );
@@ -232,6 +241,37 @@ export default function App() {
     workspaceCatalogLoading,
     workspaceCatalogRetrying,
   ]);
+
+  useEffect(() => {
+    const subscription = AppState.addEventListener('change', (nextAppState) => {
+      const accessToken = activeSessionTokenRef.current?.trim() || '';
+      const principalId = activeSessionPrincipalIdRef.current;
+      const decision = resolveWorkspaceForegroundRevalidation({
+        authenticated: Boolean(accessToken),
+        backgrounded: workspaceWasBackgroundedRef.current,
+        catalogBusy: workspaceCatalogBusyRef.current,
+        nextAppState,
+        previewSession: isPreviewAccessToken(accessToken),
+        refreshPending: workspaceForegroundRefreshPendingRef.current,
+        sessionCleanupPending: Boolean(sessionCleanupRef.current),
+        stablePrincipal: Boolean(principalId),
+      });
+      workspaceWasBackgroundedRef.current = decision.backgrounded;
+      if (!decision.revalidate) {
+        return;
+      }
+
+      workspaceForegroundRefreshPendingRef.current = true;
+      workspaceCatalogBusyRef.current = true;
+      restoreUnavailableWorkspacesFromFreshCatalogRef.current = false;
+      setWorkspaceCatalogLoading(true);
+      setWorkspaceCatalogError('');
+      setWorkspaceAccessIssue('none');
+      setWorkspaceDiscoveryRevision((revision) => revision + 1);
+    });
+
+    return () => subscription.remove();
+  }, []);
 
   const takePendingFullAccessFeature = () => {
     const pendingFeature = pendingFullAccessFeatureRef.current;
@@ -787,6 +827,8 @@ export default function App() {
       activeWorkspaceRef.current = null;
       setActiveWorkspace(null);
       setWorkspaceCatalogLoading(false);
+      workspaceCatalogBusyRef.current = false;
+      workspaceForegroundRefreshPendingRef.current = false;
       setWorkspaceCatalogError('');
       setWorkspaceAccessIssue('none');
       workspaceCatalogRetryingRef.current = false;
@@ -795,6 +837,7 @@ export default function App() {
     }
 
     setWorkspaceCatalogLoading(true);
+    workspaceCatalogBusyRef.current = true;
     setWorkspaceCatalogError('');
     if (!workspaceCatalogRetryingRef.current) {
       setWorkspaceAccessIssue('none');
@@ -1118,6 +1161,13 @@ export default function App() {
           setSessionMessage(
             'This route closed because its workspace is no longer available.',
           );
+        } else if (
+          authoritativelyUnavailableWorkspaceIds.length > 0 &&
+          !navigationWorkspaceRevoked
+        ) {
+          setSessionMessage(
+            'Workspace access changed. Unavailable workspace data was removed.',
+          );
         }
         restoreUnavailableWorkspacesFromFreshCatalogRef.current = false;
         if (pendingNavigation && pendingNavigationWorkspace) {
@@ -1152,6 +1202,12 @@ export default function App() {
         if (!requestIsCurrent()) {
           return;
         }
+        if (workspaceForegroundRefreshPendingRef.current) {
+          freshWorkspaceAuthorizationRef.current = {
+            principalId,
+            workspaceIds: new Set<string>(),
+          };
+        }
         restoreUnavailableWorkspacesFromFreshCatalogRef.current = false;
         if (error instanceof ApiSessionExpiredError) {
           void handleSessionExpired(error.message);
@@ -1168,6 +1224,8 @@ export default function App() {
       } finally {
         if (revision === workspaceRequestRevisionRef.current) {
           setWorkspaceCatalogLoading(false);
+          workspaceCatalogBusyRef.current = false;
+          workspaceForegroundRefreshPendingRef.current = false;
           workspaceCatalogRetryingRef.current = false;
           setWorkspaceCatalogRetrying(false);
         }
@@ -1389,6 +1447,11 @@ export default function App() {
       ? nextSession.accessScope.clientId
       : '';
     const sessionAuthenticated = Boolean(activeSessionTokenRef.current?.trim());
+    const continuesCurrentWorkspaceNavigation =
+      isCurrentWorkspaceNavigationContinuation(
+        activeNavigationSessionRef.current,
+        nextSession,
+      );
     if (
       navigationCleanupRequiredRef.current ||
       Boolean(pendingNavigationRestoreRef.current) ||
@@ -1398,7 +1461,9 @@ export default function App() {
         activeWorkspaceRef.current?.id,
         activeSessionPrincipalIdRef.current,
       ) ||
-      (workspaceId && !freshWorkspaceAuthorizationRef.current.workspaceIds.has(workspaceId)) ||
+      (workspaceId &&
+        !freshWorkspaceAuthorizationRef.current.workspaceIds.has(workspaceId) &&
+        !continuesCurrentWorkspaceNavigation) ||
       (workspaceId && unavailableWorkspaceIdsRef.current.has(workspaceId))
     ) {
       return false;

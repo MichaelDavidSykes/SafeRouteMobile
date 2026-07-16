@@ -166,6 +166,33 @@ describe("App active workspace integration", () => {
     assert.match(operationsSource(), /workspaceState\.retry && !workspaceAccessRefreshAvailable/);
   });
 
+  it("revalidates workspace authorization once after a real background epoch", () => {
+    const app = appSource();
+
+    assert.match(app, /AppState\.addEventListener\('change'/);
+    assert.match(app, /resolveWorkspaceForegroundRevalidation\(\{[\s\S]*backgrounded: workspaceWasBackgroundedRef\.current[\s\S]*catalogBusy: workspaceCatalogBusyRef\.current/);
+    assert.match(app, /workspaceWasBackgroundedRef\.current = decision\.backgrounded/);
+    assert.match(app, /if \(!decision\.revalidate\) \{[\s\S]*return;/);
+    assert.match(
+      app,
+      /workspaceForegroundRefreshPendingRef\.current = true[\s\S]*restoreUnavailableWorkspacesFromFreshCatalogRef\.current = false[\s\S]*setWorkspaceDiscoveryRevision/,
+    );
+    assert.match(app, /activeWorkspaceAuthorizationFresh[\s\S]*!workspaceForegroundRefreshPendingRef\.current/);
+    assert.match(app, /workspaceForegroundRefreshPendingRef\.current\) \{[\s\S]*workspaceIds: new Set<string>\(\)/);
+    assert.match(
+      app,
+      /continuesCurrentWorkspaceNavigation[\s\S]*!freshWorkspaceAuthorizationRef\.current\.workspaceIds\.has\(workspaceId\)[\s\S]*!continuesCurrentWorkspaceNavigation/,
+    );
+    assert.match(
+      app,
+      /authoritativelyUnavailableWorkspaceIds\.length > 0[\s\S]*Workspace access changed\. Unavailable workspace data was removed\./,
+    );
+    assert.match(
+      app,
+      /finally \{[\s\S]*workspaceCatalogBusyRef\.current = false[\s\S]*workspaceForegroundRefreshPendingRef\.current = false/,
+    );
+  });
+
   it("clears workspace context at authentication boundaries", () => {
     const app = appSource();
     const clearCount = (app.match(/setActiveWorkspace\(null\)/g) || []).length;

@@ -35,6 +35,7 @@ let apiProcess = null;
 
 const flows = Object.freeze({
   coldFailure: 'maestro/ios-workspace-catalog-recovery-cold-failure.yaml',
+  foregroundLoss: 'maestro/ios-workspace-catalog-recovery-foreground-loss.yaml',
   mapRetry: 'maestro/ios-workspace-catalog-recovery-map-retry.yaml',
   operationsRetry: 'maestro/ios-workspace-catalog-recovery-operations-retry.yaml',
   reset: 'maestro/ios-guidance-contract-reset.yaml',
@@ -98,6 +99,12 @@ async function main() {
     WORKSPACE_CATALOG_RECOVERY_PHASES.freshSuccess,
     'restore fresh access from Operations and retain all surfaces',
     flows.success
+  );
+  runPhase(
+    WORKSPACE_CATALOG_RECOVERY_PHASES.foregroundLoss,
+    'revalidate and close a lost workspace after returning from background',
+    flows.foregroundLoss,
+    GUIDANCE_CONTRACT_MODES.denied
   );
 
   assertRecoveryJournal(readRequestJournal());
@@ -177,17 +184,17 @@ async function stopApi() {
   await waitForPort(GUIDANCE_CONTRACT_API_PORT, false);
 }
 
-function setControl(phase) {
+function setControl(phase, mode = GUIDANCE_CONTRACT_MODES.active) {
   writeFileSync(
     pendingControlFile,
-    JSON.stringify({ mode: GUIDANCE_CONTRACT_MODES.active, phase }),
+    JSON.stringify({ mode, phase }),
     'utf8'
   );
   renameSync(pendingControlFile, controlFile);
 }
 
-function runPhase(phase, label, file) {
-  setControl(phase);
+function runPhase(phase, label, file, mode = GUIDANCE_CONTRACT_MODES.active) {
+  setControl(phase, mode);
   process.stdout.write(`\n[workspace-catalog-recovery] ${phase}: ${label}\n`);
   const result = spawnSync(process.execPath, [
     'scripts/run-maestro.mjs',
@@ -247,6 +254,14 @@ function assertRecoveryJournal(entries) {
     phase: WORKSPACE_CATALOG_RECOVERY_PHASES.freshSuccess,
     statusCode: 200
   });
+  assertAuthorizationAttempts(entries, {
+    catalogOutcome: 'catalog-survivor',
+    expectedAttemptCount: 1,
+    expectedUserCountBeforeCatalog: 1,
+    minimumCatalogDurationMs: 0,
+    phase: WORKSPACE_CATALOG_RECOVERY_PHASES.foregroundLoss,
+    statusCode: 200
+  });
 
   const scopedRouteRequests = requests.filter((entry) =>
     [
@@ -264,6 +279,16 @@ function assertRecoveryJournal(entries) {
   assertCondition(operationsRequests.length >= 1, 'Operations did not load its active cached workspace during retry.');
   assertSuccessfulProtectedRequests(entries, scopedRouteRequests, 'catalog-active');
   assertSuccessfulProtectedRequests(entries, operationsRequests, 'operations-active');
+  const foregroundSurvivorRequests = requests.filter((entry) =>
+    entry.phase === WORKSPACE_CATALOG_RECOVERY_PHASES.foregroundLoss &&
+    entry.path === '/api/v1/mobile/safe-route/routes' &&
+    new URLSearchParams(entry.search).get('client_id') === GUIDANCE_CONTRACT_WORKSPACES.survivor.id
+  );
+  assertCondition(
+    foregroundSurvivorRequests.length >= 1,
+    'Foreground membership loss did not reload Saved for the surviving workspace.'
+  );
+  assertSuccessfulProtectedRequests(entries, foregroundSurvivorRequests, 'catalog-survivor');
 }
 
 function assertSuccessfulProtectedRequests(entries, requests, expectedOutcome) {

@@ -11,6 +11,7 @@ const flowPaths = [
   'maestro/ios-workspace-catalog-recovery-saved-retry.yaml',
   'maestro/ios-workspace-catalog-recovery-operations-retry.yaml',
   'maestro/ios-workspace-catalog-recovery-success.yaml',
+  'maestro/ios-workspace-catalog-recovery-foreground-loss.yaml',
 ];
 
 describe('Maestro workspace catalog recovery runtime', () => {
@@ -52,6 +53,7 @@ describe('Maestro workspace catalog recovery runtime', () => {
       'catalogSavedRetryFailure',
       'catalogOperationsRetryFailure',
       'catalogFreshSuccess',
+      'catalogForegroundLoss',
     ]) {
       assert.match(fixture, new RegExp(phase));
     }
@@ -108,6 +110,21 @@ describe('Maestro workspace catalog recovery runtime', () => {
     assert.match(success, /id: "guest-map-primary-action"/);
     assert.match(success, /id: "safe-route-card-66b1b2c3d4e5f60718293b40"/);
     assert.equal((success.match(/id: "workspace-access-refresh"/g) || []).length >= 4, true);
+  });
+
+  it('revalidates and closes lost workspace data after a real background epoch', () => {
+    const runner = read('scripts/run-maestro-workspace-catalog-recovery.mjs');
+    const foregroundLoss = read(flowPaths[6]);
+
+    assert.match(runner, /foregroundLoss,[\s\S]*GUIDANCE_CONTRACT_MODES\.denied/);
+    assert.match(runner, /phase: WORKSPACE_CATALOG_RECOVERY_PHASES\.foregroundLoss[\s\S]*statusCode: 200/);
+    assert.match(runner, /Foreground membership loss did not reload Saved for the surviving workspace/);
+    assert.match(foregroundLoss, /pressKey: HOME[\s\S]*openLink: exp:\/\/localhost:8081/);
+    assert.match(foregroundLoss, /Workspace access changed\. Unavailable workspace data was removed\./);
+    assert.match(foregroundLoss, /Workspace, Support Operations/);
+    assert.match(foregroundLoss, /safe-route-card-66b1b2c3d4e5f60718293b41/);
+    assert.match(foregroundLoss, /assertNotVisible:[\s\S]*safe-route-card-66b1b2c3d4e5f60718293b40/);
+    assert.match(foregroundLoss, /workspace-access-refresh[\s\S]*enabled: true/);
   });
 
   it('keeps every focused flow as a valid Expo Go Maestro document', () => {

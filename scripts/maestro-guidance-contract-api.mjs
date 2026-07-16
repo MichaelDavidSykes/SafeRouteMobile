@@ -13,6 +13,7 @@ export const GUIDANCE_CONTRACT_MODES = Object.freeze({
 });
 
 export const WORKSPACE_CATALOG_RECOVERY_PHASES = Object.freeze({
+  foregroundLoss: 'catalogForegroundLoss',
   freshSuccess: 'catalogFreshSuccess',
   initialFailure: 'catalogInitialFailure',
   mapRetryFailure: 'catalogMapRetryFailure',

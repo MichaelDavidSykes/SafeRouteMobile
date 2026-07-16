@@ -101,6 +101,15 @@ describe('Maestro guidance contract API', () => {
         WORKSPACE_CATALOG_RETRY_DELAY_MS,
       ]);
 
+      phase = WORKSPACE_CATALOG_RECOVERY_PHASES.journeyRestoreFailure;
+      const restoreFailure = await fetch(`${base}/mobile/safe-route/routes`, { headers });
+      assert.equal(restoreFailure.status, 503);
+      assert.deepEqual(requestedDelays, [
+        WORKSPACE_CATALOG_RETRY_DELAY_MS,
+        WORKSPACE_CATALOG_RETRY_DELAY_MS,
+        WORKSPACE_CATALOG_RETRY_DELAY_MS,
+      ]);
+
       phase = WORKSPACE_CATALOG_RECOVERY_PHASES.freshSuccess;
       const freshSuccess = await fetch(`${base}/mobile/safe-route/routes`, { headers });
       assert.equal(freshSuccess.status, 200);
@@ -124,6 +133,7 @@ describe('Maestro guidance contract API', () => {
         [WORKSPACE_CATALOG_RECOVERY_PHASES.mapRetryFailure, 503, 'catalog-retry-unavailable'],
         [WORKSPACE_CATALOG_RECOVERY_PHASES.savedRetryFailure, 503, 'catalog-retry-unavailable'],
         [WORKSPACE_CATALOG_RECOVERY_PHASES.operationsRetryFailure, 503, 'catalog-retry-unavailable'],
+        [WORKSPACE_CATALOG_RECOVERY_PHASES.journeyRestoreFailure, 503, 'catalog-restore-unavailable'],
         [WORKSPACE_CATALOG_RECOVERY_PHASES.freshSuccess, 200, 'catalog-active'],
       ]);
     } finally {
@@ -158,6 +168,21 @@ describe('Maestro guidance contract API', () => {
       assert.equal(completed, false);
       control = { ...control, catalogReleased: true };
       assert.equal((await pendingCatalog).status, 200);
+
+      control = {
+        catalogReleased: false,
+        mode: GUIDANCE_CONTRACT_MODES.active,
+        phase: WORKSPACE_CATALOG_RECOVERY_PHASES.journeyRestoreEnd,
+      };
+      completed = false;
+      const pendingRestoreEnd = fetch(endpoint, { headers }).then((response) => {
+        completed = true;
+        return response;
+      });
+      await new Promise((resolve) => setTimeout(resolve, 120));
+      assert.equal(completed, false);
+      control = { ...control, catalogReleased: true };
+      assert.equal((await pendingRestoreEnd).status, 200);
 
       control = {
         catalogReleased: false,

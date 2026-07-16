@@ -1,0 +1,16 @@
+appId: host.exp.Exponent
+---
+- tapOn:
+    id: "safe-route-suspended-navigation-retry"
+    waitToSettleTimeoutMs: 100
+- extendedWaitUntil:
+    visible: "Restoring route"
+    timeout: 15000
+- assertVisible: "Restoring route. Cold restart verification v1. Confirming this saved route is ready to resume."
+- assertVisible:
+    id: "safe-route-suspended-navigation-retry"
+    enabled: false
+- assertVisible:
+    id: "safe-route-suspended-navigation-end"
+    enabled: true
+- takeScreenshot: "workspace-catalog-journey-restore-checking"

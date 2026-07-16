@@ -42,6 +42,11 @@ const flows = Object.freeze({
   foregroundLoss: 'maestro/ios-workspace-catalog-recovery-foreground-loss.yaml',
   foregroundStartGateChecking: 'maestro/ios-workspace-catalog-recovery-start-gate-checking.yaml',
   foregroundStartGateReady: 'maestro/ios-workspace-catalog-recovery-start-gate-ready.yaml',
+  journeyRestoreEndChecking: 'maestro/ios-workspace-catalog-recovery-journey-restore-end-checking.yaml',
+  journeyRestoreEndHeld: 'maestro/ios-workspace-catalog-recovery-journey-restore-end-held.yaml',
+  journeyRestoreEndOutcome: 'maestro/ios-workspace-catalog-recovery-journey-restore-end-outcome.yaml',
+  journeyRestoreFailure: 'maestro/ios-workspace-catalog-recovery-journey-restore-failure.yaml',
+  journeyRestoreReload: 'maestro/ios-workspace-catalog-recovery-journey-restore-reload.yaml',
   journeyOffRoute: 'maestro/ios-workspace-catalog-recovery-journey-off-route.yaml',
   journeyPrepare: 'maestro/ios-workspace-catalog-recovery-journey-prepare.yaml',
   journeyStart: 'maestro/ios-workspace-catalog-recovery-journey-start.yaml',
@@ -133,6 +138,34 @@ async function main() {
   runPhase(
     WORKSPACE_CATALOG_RECOVERY_PHASES.journeyStart,
     'start and pause the exact current workspace journey',
+    flows.journeyStart,
+    GUIDANCE_CONTRACT_MODES.active
+  );
+  runPhase(
+    WORKSPACE_CATALOG_RECOVERY_PHASES.journeyRestoreFailure,
+    'cold-restore the paused journey into an actionable verification failure',
+    flows.journeyRestoreFailure,
+    GUIDANCE_CONTRACT_MODES.active
+  );
+  await runHeldCatalogPhase({
+    checkingFlow: flows.journeyRestoreEndChecking,
+    checkingLabel: 'end suspended guidance while its explicit retry catalog is held',
+    mode: GUIDANCE_CONTRACT_MODES.active,
+    outcomeFlow: flows.journeyRestoreEndOutcome,
+    outcomeLabel: 'keep the ended journey closed after the retry catalog settles',
+    phase: WORKSPACE_CATALOG_RECOVERY_PHASES.journeyRestoreEnd,
+    whileHeldFlow: flows.journeyRestoreEndHeld,
+    whileHeldLabel: 'end the exact suspended journey inside the proven held window'
+  });
+  runPhase(
+    WORKSPACE_CATALOG_RECOVERY_PHASES.journeyRestoreReload,
+    'reload the exact route only after the End outcome has settled',
+    flows.journeyRestoreReload,
+    GUIDANCE_CONTRACT_MODES.active
+  );
+  runPhase(
+    WORKSPACE_CATALOG_RECOVERY_PHASES.journeyRestart,
+    'restart and pause the exact route after explicit suspended guidance cleanup',
     flows.journeyStart,
     GUIDANCE_CONTRACT_MODES.active
   );
@@ -431,6 +464,30 @@ function assertRecoveryJournal(entries) {
     statusCode: 200
   });
   assertAuthorizationAttempts(entries, {
+    catalogOutcome: 'catalog-restore-unavailable',
+    expectedAttemptCount: 1,
+    expectedUserCountBeforeCatalog: 2,
+    minimumCatalogDurationMs: 0,
+    phase: WORKSPACE_CATALOG_RECOVERY_PHASES.journeyRestoreFailure,
+    statusCode: 503
+  });
+  assertAuthorizationAttempts(entries, {
+    catalogOutcome: 'catalog-active',
+    expectedAttemptCount: 1,
+    expectedUserCountBeforeCatalog: 1,
+    minimumCatalogDurationMs: 0,
+    phase: WORKSPACE_CATALOG_RECOVERY_PHASES.journeyRestoreEnd,
+    statusCode: 200
+  });
+  assertAuthorizationAttempts(entries, {
+    catalogOutcome: 'catalog-active',
+    expectedAttemptCount: 1,
+    expectedUserCountBeforeCatalog: 1,
+    minimumCatalogDurationMs: 0,
+    phase: WORKSPACE_CATALOG_RECOVERY_PHASES.journeyRestart,
+    statusCode: 200
+  });
+  assertAuthorizationAttempts(entries, {
     catalogOutcome: 'catalog-survivor',
     expectedAttemptCount: 1,
     expectedUserCountBeforeCatalog: 1,
@@ -468,7 +525,10 @@ function assertRecoveryJournal(entries) {
   assertNoProtectedBackgroundTraffic(entries, WORKSPACE_CATALOG_RECOVERY_PHASES.journeyRouteBackground);
   assertNoProtectedBackgroundTraffic(entries, WORKSPACE_CATALOG_RECOVERY_PHASES.journeyBackground);
   assertHeldAuthorizationWindow(entries, WORKSPACE_CATALOG_RECOVERY_PHASES.journeyStartGate);
+  assertHeldAuthorizationWindow(entries, WORKSPACE_CATALOG_RECOVERY_PHASES.journeyRestoreEnd);
   assertHeldAuthorizationWindow(entries, WORKSPACE_CATALOG_RECOVERY_PHASES.foregroundLoss);
+  assertRestoreEndSettledWithoutTraffic(entries);
+  assertEndedJourneyReloadTraffic(entries);
   assertNoUnsafeForegroundCatalogTraffic(entries);
 }
 
@@ -504,6 +564,81 @@ function assertHeldAuthorizationWindow(entries, phase) {
       windowRequests[0].path === '/api/v1/users/me' &&
       windowRequests[1].requestId === catalog.requestId,
     `${phase} recorded extra Start, viewport, reroute, or workspace traffic before authorization completed: ${windowRequests
+      .map((entry) => `${entry.method} ${entry.path}?${entry.search}`)
+      .join(', ')}.`
+  );
+}
+
+function assertEndedJourneyReloadTraffic(entries) {
+  const requests = phaseApiRequests(
+    entries,
+    WORKSPACE_CATALOG_RECOVERY_PHASES.journeyRestoreReload
+  );
+  const reloadRequests = requests.filter((entry) =>
+    (
+      (
+        entry.path === '/api/v1/mobile/safe-route/routes' &&
+        new URLSearchParams(entry.search).get('client_id') ===
+          GUIDANCE_CONTRACT_WORKSPACES.denied.id
+      ) ||
+      entry.path ===
+        `/api/v1/mobile/safe-route/routes/${GUIDANCE_CONTRACT_ROUTE_IDS.denied}`
+    )
+  );
+  const viewportRiskRequests = requests.filter((entry) =>
+    entry.path === '/api/v1/intel/map/area-risk' &&
+    new URLSearchParams(entry.search).get('client_id') ===
+      GUIDANCE_CONTRACT_WORKSPACES.denied.id
+  );
+  assertCondition(
+    reloadRequests.length === 2 &&
+      requests.length === reloadRequests.length + viewportRiskRequests.length &&
+      reloadRequests.some((entry) => entry.path === '/api/v1/mobile/safe-route/routes') &&
+      reloadRequests.some((entry) => entry.path.endsWith(GUIDANCE_CONTRACT_ROUTE_IDS.denied)),
+    'Ended suspended guidance did not unlock an authorized reload of the exact route.'
+  );
+  for (const request of reloadRequests) {
+    const completion = completionFor(entries, request);
+    const expectedOutcome = request.path === '/api/v1/mobile/safe-route/routes'
+      ? 'catalog-active'
+      : 'route-detail-active';
+    assertCondition(
+      request.authorized === true &&
+        request.authorizationClass === 'expected-bearer' &&
+        completion.completed === true &&
+        completion.statusCode === 200 &&
+        completion.semanticOutcome === expectedOutcome,
+      `Ended journey reload was not authorized: ${request.path}?${request.search}.`
+    );
+  }
+  for (const request of viewportRiskRequests) {
+    const completion = completionFor(entries, request);
+    assertCondition(
+      request.authorized === true &&
+        request.authorizationClass === 'expected-bearer' &&
+        completion.completed === true &&
+        completion.statusCode === 200 &&
+        completion.semanticOutcome === 'api-success',
+      `Ended journey reload emitted unsafe viewport risk traffic: ${request.path}?${request.search}.`
+    );
+  }
+}
+
+function assertRestoreEndSettledWithoutTraffic(entries) {
+  const requests = phaseApiRequests(
+    entries,
+    WORKSPACE_CATALOG_RECOVERY_PHASES.journeyRestoreEnd
+  );
+  const catalog = requests.find((entry) =>
+    entry.path === '/api/v1/mobile/safe-route/routes' && entry.search === ''
+  );
+  const catalogCompletion = completionFor(entries, catalog);
+  const postCatalogRequests = requests.filter(
+    (entry) => entry.sequence > catalogCompletion.sequence
+  );
+  assertCondition(
+    requests.length === 2 && postCatalogRequests.length === 0,
+    `Ended suspended guidance emitted API traffic before manual route reload: ${postCatalogRequests
       .map((entry) => `${entry.method} ${entry.path}?${entry.search}`)
       .join(', ')}.`
   );

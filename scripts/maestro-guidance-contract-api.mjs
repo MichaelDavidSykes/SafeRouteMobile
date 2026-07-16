@@ -17,8 +17,12 @@ export const WORKSPACE_CATALOG_RECOVERY_PHASES = Object.freeze({
   freshSuccess: 'catalogFreshSuccess',
   initialFailure: 'catalogInitialFailure',
   journeyBackground: 'catalogJourneyBackground',
+  journeyRestart: 'catalogJourneyRestart',
   journeyRouteBackground: 'catalogJourneyRouteBackground',
   journeyRoutePrepare: 'catalogJourneyRoutePrepare',
+  journeyRestoreEnd: 'catalogJourneyRestoreEnd',
+  journeyRestoreFailure: 'catalogJourneyRestoreFailure',
+  journeyRestoreReload: 'catalogJourneyRestoreReload',
   journeyStart: 'catalogJourneyStart',
   journeyStartGate: 'catalogJourneyStartGate',
   mapRetryFailure: 'catalogMapRetryFailure',
@@ -443,9 +447,12 @@ export function createGuidanceContractHandler({
         WORKSPACE_CATALOG_RECOVERY_PHASES.operationsRetryFailure,
         WORKSPACE_CATALOG_RECOVERY_PHASES.savedRetryFailure
       ].includes(phase);
+      const restoreFailure =
+        phase === WORKSPACE_CATALOG_RECOVERY_PHASES.journeyRestoreFailure;
       const catalogFailure = !requestedWorkspaceId && (
         phase === WORKSPACE_CATALOG_RECOVERY_PHASES.initialFailure ||
-        retryFailure
+        retryFailure ||
+        restoreFailure
       );
       if (catalogFailure) {
         if (retryFailure) {
@@ -458,7 +465,9 @@ export function createGuidanceContractHandler({
           {},
           retryFailure
             ? 'catalog-retry-unavailable'
-            : 'catalog-initial-unavailable'
+            : restoreFailure
+              ? 'catalog-restore-unavailable'
+              : 'catalog-initial-unavailable'
         );
         return;
       }
@@ -472,6 +481,7 @@ export function createGuidanceContractHandler({
         !requestedWorkspaceId &&
         [
           WORKSPACE_CATALOG_RECOVERY_PHASES.foregroundLoss,
+          WORKSPACE_CATALOG_RECOVERY_PHASES.journeyRestoreEnd,
           WORKSPACE_CATALOG_RECOVERY_PHASES.journeyStartGate
         ].includes(phase)
       ) {

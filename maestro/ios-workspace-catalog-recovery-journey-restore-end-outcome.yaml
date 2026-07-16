@@ -1,0 +1,23 @@
+appId: host.exp.Exponent
+---
+- extendedWaitUntil:
+    notVisible:
+      id: "workspace-access-refresh"
+    timeout: 15000
+- extendedWaitUntil:
+    visible:
+      id: "guest-map-workspace-selector"
+      enabled: true
+    timeout: 15000
+- assertVisible: "Suspended route ended."
+- assertNotVisible:
+    id: "safe-route-suspended-navigation"
+- assertNotVisible:
+    id: "safe-route-live-map"
+- assertNotVisible:
+    id: "safe-route-resume-action"
+- assertNotVisible:
+    id: "safe-route-stop-action"
+- assertNotVisible:
+    id: "safe-route-remaining-metrics"
+- takeScreenshot: "workspace-catalog-journey-ended-after-catalog"

@@ -127,7 +127,10 @@ describe('Maestro workspace catalog recovery runtime', () => {
     assert.match(runner, /minimumCatalogDurationMs: WORKSPACE_CATALOG_FOREGROUND_DELAY_MS - 250/);
     assert.match(runner, /Foreground membership loss did not reload Saved for the surviving workspace/);
     assert.match(runner, /assertNoUnsafePostForegroundCatalogTraffic\(entries\)/);
-    assert.match(background, /route-list-map-return[\s\S]*pressKey: HOME/);
+    assert.match(
+      background,
+      /route-list-map-return"\n    retryTapIfNoChange: true\n    waitToSettleTimeoutMs: 1000[\s\S]*pressKey: HOME/,
+    );
     assert.doesNotMatch(background, /GUIDANCE_CONTRACT_MODES|openLink:/);
     assert.match(foregroundLoss, /openLink: exp:\/\/localhost:8081[\s\S]*Verify workspace access before plotting this route/);
     assert.match(foregroundLoss, /guest-map-plot-action[\s\S]*enabled: false/);

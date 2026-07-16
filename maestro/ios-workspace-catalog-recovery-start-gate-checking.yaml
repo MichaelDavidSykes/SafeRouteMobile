@@ -6,7 +6,7 @@ appId: host.exp.Exponent
       id: "safe-route-live-map"
     timeout: 15000
 - extendedWaitUntil:
-    visible: "Checking access"
+    visible: "Start route. Checking workspace access before starting guidance…"
     timeout: 5000
 - assertVisible:
     id: "safe-route-primary-action"

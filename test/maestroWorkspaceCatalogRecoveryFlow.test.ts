@@ -150,7 +150,7 @@ describe('Maestro workspace catalog recovery runtime', () => {
     assert.match(runner, /assertNoUnsafeForegroundCatalogTraffic\(entries\)/);
     assert.match(journeyPrepare, /safe-route-card-66b1b2c3d4e5f60718293b40[\s\S]*safe-route-live-map[\s\S]*safe-route-primary-action[\s\S]*enabled: true/);
     assert.match(background, /safe-route-live-map[\s\S]*pressKey: HOME/);
-    assert.match(startGateChecking, /openLink: exp:\/\/localhost:8081[\s\S]*Checking access[\s\S]*safe-route-primary-action[\s\S]*enabled: false/);
+    assert.match(startGateChecking, /openLink: exp:\/\/localhost:8081[\s\S]*Start route\. Checking workspace access before starting guidance…[\s\S]*safe-route-primary-action[\s\S]*enabled: false/);
     assert.match(startGateReady, /notVisible: "Checking access"[\s\S]*safe-route-primary-action[\s\S]*enabled: true/);
     assert.match(journeyStart, /safe-route-primary-action[\s\S]*safe-route-stop-action[\s\S]*Resume route guidance[\s\S]*safe-route-remaining-metrics/);
     assert.match(journeyChecking, /Checking current workspace access\. Guidance remains available while workspace risk and rerouting updates wait\./);

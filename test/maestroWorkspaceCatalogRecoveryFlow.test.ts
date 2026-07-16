@@ -88,11 +88,14 @@ describe('Maestro workspace catalog recovery runtime', () => {
       seed,
       /safe-route-login-password"[\s\S]*inputText: "guidance-contract-password"\n- pressKey: ENTER/,
     );
-    assert.match(seed, /visible: "Not Now"[\s\S]*text: "Not Now"[\s\S]*retryTapIfNoChange: true/);
+    assert.match(
+      seed,
+      /visible: "Not Now"[\s\S]*text: "Not Now"[\s\S]*retryTapIfNoChange: true[\s\S]*waitForAnimationToEnd:[\s\S]*timeout: 3000/,
+    );
     assert.match(seed, /visible:\n        id: "workspace-access-refresh"[\s\S]*notVisible:\n            id: "workspace-access-refresh"/);
     assert.match(
       seed,
-      /id: "guest-map-workspace-selector"[\s\S]*id: "guest-map-workspace-66a1b2c3d4e5f60718293a40"[\s\S]*id: "guest-map-primary-action"[\s\S]*id: "safe-route-picker"/,
+      /id: "guest-map-workspace-selector"[\s\S]*extendedWaitUntil:[\s\S]*id: "guest-map-workspace-66a1b2c3d4e5f60718293a40"[\s\S]*timeout: 10000[\s\S]*id: "guest-map-workspace-66a1b2c3d4e5f60718293a40"[\s\S]*id: "guest-map-primary-action"[\s\S]*id: "safe-route-picker"/,
     );
   });
 

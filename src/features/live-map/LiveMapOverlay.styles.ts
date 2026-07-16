@@ -3,10 +3,6 @@ import { StyleSheet } from "react-native";
 import { colors, radius, spacing, typeScale } from "../../theme";
 
 export const styles = StyleSheet.create({
-  screen: {
-    flex: 1,
-    backgroundColor: colors.mapFallback,
-  },
   overlay: {
     flex: 1,
     pointerEvents: "box-none",

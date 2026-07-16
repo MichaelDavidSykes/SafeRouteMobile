@@ -90,7 +90,7 @@ describe('Maestro workspace catalog recovery runtime', () => {
     );
     assert.match(
       seed,
-      /visible: "Not Now"[\s\S]*text: "Not Now"[\s\S]*retryTapIfNoChange: true[\s\S]*waitForAnimationToEnd:[\s\S]*timeout: 3000/,
+      /visible: "Not Now"[\s\S]*text: "Not Now"[\s\S]*retryTapIfNoChange: true[\s\S]*waitForAnimationToEnd:[\s\S]*timeout: 3000[\s\S]*visible: "Not Now"[\s\S]*text: "Not Now"/,
     );
     assert.match(seed, /visible:\n        id: "workspace-access-refresh"[\s\S]*notVisible:\n            id: "workspace-access-refresh"/);
     assert.match(

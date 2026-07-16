@@ -31,6 +31,14 @@ appId: host.exp.Exponent
           waitToSettleTimeoutMs: 1000
 - waitForAnimationToEnd:
     timeout: 3000
+- runFlow:
+    when:
+      visible: "Not Now"
+    commands:
+      - tapOn:
+          text: "Not Now"
+          retryTapIfNoChange: true
+          waitToSettleTimeoutMs: 1000
 - extendedWaitUntil:
     visible:
       id: "guest-map-workspace-selector"

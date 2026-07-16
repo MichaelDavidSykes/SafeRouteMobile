@@ -16,6 +16,11 @@ export const WORKSPACE_CATALOG_RECOVERY_PHASES = Object.freeze({
   foregroundLoss: 'catalogForegroundLoss',
   freshSuccess: 'catalogFreshSuccess',
   initialFailure: 'catalogInitialFailure',
+  journeyBackground: 'catalogJourneyBackground',
+  journeyRouteBackground: 'catalogJourneyRouteBackground',
+  journeyRoutePrepare: 'catalogJourneyRoutePrepare',
+  journeyStart: 'catalogJourneyStart',
+  journeyStartGate: 'catalogJourneyStartGate',
   mapRetryFailure: 'catalogMapRetryFailure',
   operationsRetryFailure: 'catalogOperationsRetryFailure',
   savedRetryFailure: 'catalogSavedRetryFailure',
@@ -23,7 +28,8 @@ export const WORKSPACE_CATALOG_RECOVERY_PHASES = Object.freeze({
 });
 export const WORKSPACE_CATALOG_RETRY_DELAY_MS = 6_000;
 export const WORKSPACE_CATALOG_SUCCESS_DELAY_MS = 6_000;
-export const WORKSPACE_CATALOG_FOREGROUND_DELAY_MS = 6_000;
+export const WORKSPACE_CATALOG_HOLD_POLL_MS = 50;
+export const WORKSPACE_CATALOG_HOLD_TIMEOUT_MS = 60_000;
 
 export const GUIDANCE_START_BOUNDARY_PATH = '/__guidance_contract__/boundary';
 export const GUIDANCE_CONTRACT_EVIDENCE_PATH = '/__guidance_contract__/evidence';
@@ -464,9 +470,26 @@ export function createGuidanceContractHandler({
       }
       if (
         !requestedWorkspaceId &&
-        phase === WORKSPACE_CATALOG_RECOVERY_PHASES.foregroundLoss
+        [
+          WORKSPACE_CATALOG_RECOVERY_PHASES.foregroundLoss,
+          WORKSPACE_CATALOG_RECOVERY_PHASES.journeyStartGate
+        ].includes(phase)
       ) {
-        await sleep(WORKSPACE_CATALOG_FOREGROUND_DELAY_MS);
+        const released = await waitForWorkspaceCatalogRelease({
+          phase,
+          readControl,
+          sleep
+        });
+        if (!released) {
+          sendApiError(
+            response,
+            504,
+            'Workspace catalog hold timed out.',
+            {},
+            'catalog-hold-timeout'
+          );
+          return;
+        }
       }
       const requestedWorkspace = Object.values(GUIDANCE_CONTRACT_WORKSPACES)
         .find((workspace) => workspace.id === requestedWorkspaceId);
@@ -1079,6 +1102,26 @@ function normalizeControlSnapshot(value) {
     mode: normalizeMode(value?.mode),
     phase: normalizePhase(value?.phase)
   };
+}
+
+async function waitForWorkspaceCatalogRelease({ phase, readControl, sleep }) {
+  if (typeof readControl !== 'function') {
+    return false;
+  }
+  const maximumPolls = Math.ceil(
+    WORKSPACE_CATALOG_HOLD_TIMEOUT_MS / WORKSPACE_CATALOG_HOLD_POLL_MS
+  );
+  for (let poll = 0; poll < maximumPolls; poll += 1) {
+    const control = readControl();
+    if (
+      normalizePhase(control?.phase) === phase &&
+      control?.catalogReleased === true
+    ) {
+      return true;
+    }
+    await sleep(WORKSPACE_CATALOG_HOLD_POLL_MS);
+  }
+  return false;
 }
 
 function normalizeEvidenceString(value, maxLength) {

@@ -1881,7 +1881,13 @@ export default function App() {
             onSessionExpired={handleSessionExpired}
             onWorkspaceUnavailable={handleWorkspaceUnavailable}
             principalId={sessionPrincipalId}
+            workspaceAuthorizationChecking={
+              workspaceCatalogBusy && !activeWorkspaceAuthorizationFresh
+            }
             workspaceAuthorizationFresh={activeWorkspaceAuthorizationFresh}
+            workspaceAuthorizationUnavailable={
+              workspaceForegroundAuthorizationPaused && !workspaceCatalogBusy
+            }
           />
         ) : screen === 'routes' && session && authenticated ? (
           <RouteListScreen

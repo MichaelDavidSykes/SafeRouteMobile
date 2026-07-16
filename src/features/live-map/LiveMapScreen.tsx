@@ -12,6 +12,7 @@ import { isPreviewAccessToken } from "../auth/previewSession";
 import { mergeRiskZonesById } from "./areaRiskApiCore";
 import type { RiskZone, SavedSafeRoutePlan } from "./liveMapTypes";
 import {
+  activeGuidanceAuthorizationNotice,
   DEFAULT_ROUTE_INTELLIGENCE_VISIBLE,
   liveLocationNotice,
   resolveNavigationStatusNotice,
@@ -113,6 +114,8 @@ interface LiveMapScreenProps {
   routeContext?: "guest" | "saved";
   routePlan: SavedSafeRoutePlan;
   workspaceAuthorizationFresh?: boolean;
+  workspaceAuthorizationChecking?: boolean;
+  workspaceAuthorizationUnavailable?: boolean;
   onChangeRoute: () => void;
 }
 
@@ -130,6 +133,8 @@ export function LiveMapScreen({
   routePlan,
   routeContext = "saved",
   workspaceAuthorizationFresh = false,
+  workspaceAuthorizationChecking = false,
+  workspaceAuthorizationUnavailable = false,
 }: LiveMapScreenProps) {
   const { offline } = useNetworkAvailability();
   const resumedNavigationSession =
@@ -446,8 +451,16 @@ export function LiveMapScreen({
     permissionStatus,
     routeCoordinateCount: liveRoutePlan.route.coordinates.length,
   });
+  const currentGuidanceAuthorizationNotice =
+    activeGuidanceAuthorizationNotice({
+      checking: workspaceAuthorizationChecking,
+      navigationState,
+      unavailable: workspaceAuthorizationUnavailable,
+      workspaceScoped: Boolean(activeRoutePlan.clientId),
+    });
   const locationNotice = resolveNavigationStatusNotice({
-    authorizationNotice: navigationAuthorizationNotice,
+    authorizationNotice:
+      currentGuidanceAuthorizationNotice || navigationAuthorizationNotice,
     authorizationPending: navigationAuthorizationPending,
     readinessNotice: navigationReadinessNotice,
   });

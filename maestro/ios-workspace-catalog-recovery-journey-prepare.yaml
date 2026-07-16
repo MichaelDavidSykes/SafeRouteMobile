@@ -1,0 +1,21 @@
+appId: host.exp.Exponent
+---
+- assertVisible:
+    id: "safe-route-card-66b1b2c3d4e5f60718293b40"
+- setLocation:
+    latitude: 51.5075
+    longitude: -0.1277
+- tapOn:
+    id: "safe-route-card-66b1b2c3d4e5f60718293b40"
+- extendedWaitUntil:
+    visible:
+      id: "safe-route-live-map"
+    timeout: 20000
+- assertVisible:
+    id: "safe-route-primary-action"
+    enabled: true
+- assertNotVisible:
+    id: "safe-route-stop-action"
+- assertNotVisible:
+    id: "safe-route-remaining-metrics"
+- takeScreenshot: "workspace-catalog-journey-loaded"

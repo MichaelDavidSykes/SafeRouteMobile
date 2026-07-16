@@ -75,6 +75,13 @@ interface NavigationStatusNoticeOptions {
   readinessNotice?: string | null;
 }
 
+interface ActiveGuidanceAuthorizationNoticeOptions {
+  checking: boolean;
+  navigationState: NavigationLifecycle;
+  unavailable: boolean;
+  workspaceScoped: boolean;
+}
+
 interface MapControlAccessibilityOptions {
   active?: boolean;
   disabled?: boolean;
@@ -198,6 +205,25 @@ export function resolveNavigationStatusNotice({
   return normalizedReadinessNotice || normalizedAuthorizationNotice;
 }
 
+export function activeGuidanceAuthorizationNotice({
+  checking,
+  navigationState,
+  unavailable,
+  workspaceScoped
+}: ActiveGuidanceAuthorizationNoticeOptions): string | null {
+  if (
+    (!checking && !unavailable) ||
+    !workspaceScoped ||
+    !['navigating', 'off-route', 'paused'].includes(navigationState)
+  ) {
+    return null;
+  }
+
+  return checking
+    ? 'Checking current workspace access. Guidance remains available while workspace risk and rerouting updates wait.'
+    : 'Workspace access could not be verified. Guidance remains available, but workspace risk and rerouting updates are paused.';
+}
+
 export function createLiveLocationNoticePresentation(
   notice: string | null
 ): LiveLocationNoticePresentation | null {
@@ -219,6 +245,9 @@ function liveLocationNoticeDisplayText(notice: string): string {
   if (isWorkspaceAccessNotice(normalized)) {
     if (normalized.includes('checking')) {
       return 'Checking access';
+    }
+    if (normalized.includes('workspace risk') && normalized.includes('updates are paused')) {
+      return 'Updates paused';
     }
     if (normalized.includes('reconnect') || normalized.includes('verified')) {
       return 'Retry access';

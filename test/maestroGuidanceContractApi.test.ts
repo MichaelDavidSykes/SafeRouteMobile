@@ -131,6 +131,57 @@ describe('Maestro guidance contract API', () => {
     }
   });
 
+  it('holds foreground authorization catalogs until the runner releases the exact phase', async () => {
+    let control = {
+      catalogReleased: false,
+      mode: GUIDANCE_CONTRACT_MODES.active,
+      phase: WORKSPACE_CATALOG_RECOVERY_PHASES.journeyStartGate,
+    };
+    const server = await startGuidanceContractApi({
+      port: 0,
+      readControl: () => control,
+    });
+    const address = server.address();
+    assert.ok(address && typeof address === 'object');
+    const endpoint = `http://127.0.0.1:${address.port}/api/v1/mobile/safe-route/routes`;
+    const headers = {
+      Authorization: `Bearer ${createGuidanceContractAccessToken()}`,
+    };
+
+    try {
+      let completed = false;
+      const pendingCatalog = fetch(endpoint, { headers }).then((response) => {
+        completed = true;
+        return response;
+      });
+      await new Promise((resolve) => setTimeout(resolve, 120));
+      assert.equal(completed, false);
+      control = { ...control, catalogReleased: true };
+      assert.equal((await pendingCatalog).status, 200);
+
+      control = {
+        catalogReleased: false,
+        mode: GUIDANCE_CONTRACT_MODES.denied,
+        phase: WORKSPACE_CATALOG_RECOVERY_PHASES.foregroundLoss,
+      };
+      completed = false;
+      const pendingDenial = fetch(endpoint, { headers }).then((response) => {
+        completed = true;
+        return response;
+      });
+      await new Promise((resolve) => setTimeout(resolve, 120));
+      assert.equal(completed, false);
+      control = { ...control, catalogReleased: true };
+      const deniedCatalog = await pendingDenial;
+      assert.equal(deniedCatalog.status, 200);
+      assert.deepEqual((await deniedCatalog.json()).data.clients, [
+        GUIDANCE_CONTRACT_WORKSPACES.survivor,
+      ]);
+    } finally {
+      await new Promise<void>((resolve) => server.close(() => resolve()));
+    }
+  });
+
   it('acknowledges exact device evidence and rejects missing headers or ID conflicts', async () => {
     const recorded = new Map<string, string>();
     const server = await startGuidanceContractApi({

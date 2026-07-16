@@ -11,7 +11,13 @@ const flowPaths = [
   'maestro/ios-workspace-catalog-recovery-saved-retry.yaml',
   'maestro/ios-workspace-catalog-recovery-operations-retry.yaml',
   'maestro/ios-workspace-catalog-recovery-success.yaml',
+  'maestro/ios-workspace-catalog-recovery-journey-prepare.yaml',
   'maestro/ios-workspace-catalog-recovery-background.yaml',
+  'maestro/ios-workspace-catalog-recovery-start-gate-checking.yaml',
+  'maestro/ios-workspace-catalog-recovery-start-gate-ready.yaml',
+  'maestro/ios-workspace-catalog-recovery-journey-start.yaml',
+  'maestro/ios-workspace-catalog-recovery-journey-foreground-checking.yaml',
+  'maestro/ios-workspace-catalog-recovery-journey-off-route.yaml',
   'maestro/ios-workspace-catalog-recovery-foreground-loss.yaml',
 ];
 
@@ -54,6 +60,11 @@ describe('Maestro workspace catalog recovery runtime', () => {
       'catalogSavedRetryFailure',
       'catalogOperationsRetryFailure',
       'catalogFreshSuccess',
+      'catalogJourneyRoutePrepare',
+      'catalogJourneyRouteBackground',
+      'catalogJourneyStartGate',
+      'catalogJourneyStart',
+      'catalogJourneyBackground',
       'catalogForegroundLoss',
     ]) {
       assert.match(fixture, new RegExp(phase));
@@ -118,31 +129,42 @@ describe('Maestro workspace catalog recovery runtime', () => {
     assert.equal((success.match(/id: "workspace-access-refresh"/g) || []).length >= 4, true);
   });
 
-  it('revalidates and closes lost workspace data after a real background epoch', () => {
+  it('gates new Start and preserves the exact journey across held foreground authorization', () => {
     const runner = read('scripts/run-maestro-workspace-catalog-recovery.mjs');
-    const background = read(flowPaths[6]);
-    const foregroundLoss = read(flowPaths[7]);
+    const journeyPrepare = read('maestro/ios-workspace-catalog-recovery-journey-prepare.yaml');
+    const background = read('maestro/ios-workspace-catalog-recovery-background.yaml');
+    const startGateChecking = read('maestro/ios-workspace-catalog-recovery-start-gate-checking.yaml');
+    const startGateReady = read('maestro/ios-workspace-catalog-recovery-start-gate-ready.yaml');
+    const journeyStart = read('maestro/ios-workspace-catalog-recovery-journey-start.yaml');
+    const journeyChecking = read('maestro/ios-workspace-catalog-recovery-journey-foreground-checking.yaml');
+    const journeyOffRoute = read('maestro/ios-workspace-catalog-recovery-journey-off-route.yaml');
+    const foregroundLoss = read('maestro/ios-workspace-catalog-recovery-foreground-loss.yaml');
 
-    assert.match(runner, /foregroundBackground,[\s\S]*GUIDANCE_CONTRACT_MODES\.active[\s\S]*foregroundLoss,[\s\S]*GUIDANCE_CONTRACT_MODES\.denied/);
+    assert.match(runner, /journeyRoutePrepare[\s\S]*journeyRouteBackground[\s\S]*journeyStartGate[\s\S]*journeyStart[\s\S]*journeyBackground[\s\S]*foregroundLoss/);
+    assert.match(runner, /catalogReleased: false[\s\S]*waitForHeldCatalogPending[\s\S]*assertHeldCatalogPending[\s\S]*catalogReleased: true[\s\S]*waitForCatalogCompletion/);
+    assert.match(runner, /windowRequests\.length === 2[\s\S]*\/api\/v1\/users\/me[\s\S]*catalog\.requestId/);
+    assert.match(runner, /assertNoProtectedBackgroundTraffic\(entries, WORKSPACE_CATALOG_RECOVERY_PHASES\.journeyRouteBackground\)/);
+    assert.match(runner, /assertNoProtectedBackgroundTraffic\(entries, WORKSPACE_CATALOG_RECOVERY_PHASES\.journeyBackground\)/);
     assert.match(runner, /phase: WORKSPACE_CATALOG_RECOVERY_PHASES\.foregroundLoss[\s\S]*statusCode: 200/);
-    assert.match(runner, /minimumCatalogDurationMs: WORKSPACE_CATALOG_FOREGROUND_DELAY_MS - 250/);
     assert.match(runner, /Foreground membership loss did not reload Saved for the surviving workspace/);
     assert.match(runner, /assertNoUnsafeForegroundCatalogTraffic\(entries\)/);
-    assert.match(runner, /protectedRequestsDuringCatalog[\s\S]*entry\.sequence > catalogRequest\.sequence[\s\S]*entry\.sequence < catalogCompletion\.sequence[\s\S]*length === 0/);
-    assert.doesNotMatch(
-      runner.match(/const protectedRequestsDuringCatalog[\s\S]*?\n  \);/)?.[0] || '',
-      /mobile\/safe-route\/routes/,
-    );
-    assert.match(background, /route-list-map-return[\s\S]*pressKey: HOME/);
-    assert.doesNotMatch(background, /GUIDANCE_CONTRACT_MODES|openLink:/);
-    assert.match(foregroundLoss, /openLink: exp:\/\/localhost:8081[\s\S]*Checking workspace access before plotting this route/);
-    assert.match(foregroundLoss, /guest-map-plot-action[\s\S]*enabled: false/);
-    assert.match(foregroundLoss, /workspace-access-refresh[\s\S]*enabled: true[\s\S]*Workspace access changed\. Check for restored access\./);
+    assert.match(journeyPrepare, /safe-route-card-66b1b2c3d4e5f60718293b40[\s\S]*safe-route-live-map[\s\S]*safe-route-primary-action[\s\S]*enabled: true/);
+    assert.match(background, /safe-route-live-map[\s\S]*pressKey: HOME/);
+    assert.match(startGateChecking, /openLink: exp:\/\/localhost:8081[\s\S]*Checking access[\s\S]*safe-route-primary-action[\s\S]*enabled: false/);
+    assert.match(startGateReady, /notVisible: "Checking access"[\s\S]*safe-route-primary-action[\s\S]*enabled: true/);
+    assert.match(journeyStart, /safe-route-primary-action[\s\S]*safe-route-stop-action[\s\S]*Resume route guidance[\s\S]*safe-route-remaining-metrics/);
+    assert.match(journeyChecking, /Checking current workspace access\. Guidance remains available while workspace risk and rerouting updates wait\./);
+    assert.match(journeyChecking, /Resume route guidance[\s\S]*safe-route-stop-action[\s\S]*Pause route guidance/);
+    assert.match(runner, /injectOffRouteEvidence[\s\S]*51\.5300,-0\.0900[\s\S]*51\.5303,-0\.0903[\s\S]*setTimeout\(resolve, 2100\)/);
+    assert.match(journeyOffRoute, /safe-route-live-map[\s\S]*Pause route guidance[\s\S]*safe-route-stop-action/);
+    assert.match(foregroundLoss, /Active guidance ended because this workspace is no longer available\./);
+    for (const id of ['safe-route-live-map', 'safe-route-resume-action', 'safe-route-suspended-navigation', 'safe-route-stop-action', 'safe-route-remaining-metrics']) {
+      assert.match(foregroundLoss, new RegExp(`assertNotVisible:[\\s\\S]{0,60}${id}`));
+    }
     assert.match(foregroundLoss, /Workspace, Support Operations/);
     assert.match(foregroundLoss, /guest-map-primary-action"[\s\S]*retryTapIfNoChange: true/);
     assert.match(foregroundLoss, /safe-route-card-66b1b2c3d4e5f60718293b41/);
     assert.match(foregroundLoss, /assertNotVisible:[\s\S]*safe-route-card-66b1b2c3d4e5f60718293b40/);
-    assert.match(foregroundLoss, /workspace-access-refresh[\s\S]*enabled: true/);
   });
 
   it('keeps every focused flow as a valid Expo Go Maestro document', () => {

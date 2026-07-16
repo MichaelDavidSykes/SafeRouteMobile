@@ -1,0 +1,10 @@
+appId: host.exp.Exponent
+---
+- assertVisible:
+    id: "safe-route-live-map"
+- assertVisible: "Pause route guidance"
+- assertVisible:
+    id: "safe-route-stop-action"
+- assertNotVisible:
+    id: "safe-route-suspended-navigation"
+- takeScreenshot: "workspace-catalog-journey-foreground-off-route"

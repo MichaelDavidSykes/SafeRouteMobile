@@ -188,6 +188,14 @@ describe("App active workspace integration", () => {
     assert.match(app, /activeWorkspaceAuthorizationFresh[\s\S]*!workspaceForegroundRefreshPendingRef\.current[\s\S]*!workspaceForegroundAuthorizationPaused/);
     assert.match(
       app,
+      /workspaceAuthorizationChecking=\{[\s\S]*workspaceCatalogBusy && !activeWorkspaceAuthorizationFresh/,
+    );
+    assert.match(
+      app,
+      /workspaceAuthorizationUnavailable=\{[\s\S]*workspaceForegroundAuthorizationPaused && !workspaceCatalogBusy/,
+    );
+    assert.match(
+      app,
       /recoveryPersistence === 'revoked'[\s\S]*setWorkspaceAccessIssue\('offline-safety'\)[\s\S]*!workspaceWasBackgroundedRef\.current[\s\S]*setWorkspaceForegroundAuthorizationPaused\(false\)/,
     );
     assert.match(app, /workspaceForegroundRefreshPendingRef\.current\) \{[\s\S]*workspaceIds: new Set<string>\(\)/);

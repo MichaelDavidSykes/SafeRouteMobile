@@ -7,6 +7,7 @@ import {
   LIVE_ROUTE_STATUS_LABEL_MAX_LENGTH,
   LIVE_ROUTE_TITLE_MAX_LENGTH,
   ROUTE_START_PROXIMITY_THRESHOLD_METERS,
+  activeGuidanceAuthorizationNotice,
   createLiveLocationNoticePresentation,
   createRouteEndpointLinePresentation,
   createRouteHeaderPresentation,
@@ -30,6 +31,55 @@ import {
 } from '../src/features/live-map/liveMapUiState';
 
 describe('live map UI state helpers', () => {
+  it('shows non-blocking foreground authorization status only for current workspace guidance', () => {
+    assert.equal(
+      activeGuidanceAuthorizationNotice({
+        checking: true,
+        navigationState: 'paused',
+        unavailable: false,
+        workspaceScoped: true
+      }),
+      'Checking current workspace access. Guidance remains available while workspace risk and rerouting updates wait.'
+    );
+    assert.equal(
+      activeGuidanceAuthorizationNotice({
+        checking: true,
+        navigationState: 'navigating',
+        unavailable: false,
+        workspaceScoped: true
+      }),
+      'Checking current workspace access. Guidance remains available while workspace risk and rerouting updates wait.'
+    );
+    assert.equal(
+      activeGuidanceAuthorizationNotice({
+        checking: false,
+        navigationState: 'paused',
+        unavailable: true,
+        workspaceScoped: true
+      }),
+      'Workspace access could not be verified. Guidance remains available, but workspace risk and rerouting updates are paused.'
+    );
+    for (const options of [
+      { checking: false, navigationState: 'paused' as const, unavailable: false, workspaceScoped: true },
+      { checking: true, navigationState: 'loaded' as const, unavailable: false, workspaceScoped: true },
+      { checking: true, navigationState: 'paused' as const, unavailable: false, workspaceScoped: false }
+    ]) {
+      assert.equal(activeGuidanceAuthorizationNotice(options), null);
+    }
+  });
+
+  it('keeps current route safety status ahead of background authorization status', () => {
+    assert.equal(
+      resolveNavigationStatusNotice({
+        authorizationNotice:
+          'Checking current workspace access. Guidance remains available while workspace risk and rerouting updates wait.',
+        authorizationPending: false,
+        readinessNotice: 'A severe risk now intersects this route.'
+      }),
+      'A severe risk now intersects this route.'
+    );
+  });
+
   it('blocks starting live guidance until foreground location is ready', () => {
     const incompleteGeometryMessage = 'Saved route geometry is incomplete. Re-sync the route before live guidance.';
 
@@ -247,6 +297,16 @@ describe('live map UI state helpers', () => {
         accessibilityLabel:
           'Access status. Workspace access could not be verified. Reconnect and try again.',
         displayText: 'Retry access'
+      }
+    );
+    assert.deepEqual(
+      createLiveLocationNoticePresentation(
+        'Workspace access could not be verified. Guidance remains available, but workspace risk and rerouting updates are paused.'
+      ),
+      {
+        accessibilityLabel:
+          'Access status. Workspace access could not be verified. Guidance remains available, but workspace risk and rerouting updates are paused.',
+        displayText: 'Updates paused'
       }
     );
   });

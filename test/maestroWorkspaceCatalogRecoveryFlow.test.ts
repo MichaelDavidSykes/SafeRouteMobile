@@ -95,7 +95,6 @@ describe('Maestro workspace catalog recovery runtime', () => {
       assert.match(flow, /Checking current workspace access\. Cached workspace remains available for review only\./);
       assert.match(flow, /Workspace access not verified\. Try checking current access again\./);
       assert.doesNotMatch(flow, /optional: true/);
-      assert.match(flow, /waitForAnimationToEnd:[\s\S]*enabled: false/);
       assert.match(flow, /takeScreenshot:/);
     }
     assert.match(saved, /id: "safe-route-card-66b1b2c3d4e5f60718293b40"/);

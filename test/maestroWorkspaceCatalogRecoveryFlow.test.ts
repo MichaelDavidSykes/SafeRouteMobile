@@ -77,6 +77,7 @@ describe('Maestro workspace catalog recovery runtime', () => {
       seed,
       /safe-route-login-password"[\s\S]*inputText: "guidance-contract-password"\n- pressKey: ENTER/,
     );
+    assert.match(seed, /visible: "Not Now"[\s\S]*text: "Not Now"[\s\S]*retryTapIfNoChange: true/);
     assert.match(seed, /visible:\n        id: "workspace-access-refresh"[\s\S]*notVisible:\n            id: "workspace-access-refresh"/);
     assert.match(
       seed,
@@ -126,13 +127,18 @@ describe('Maestro workspace catalog recovery runtime', () => {
     assert.match(runner, /phase: WORKSPACE_CATALOG_RECOVERY_PHASES\.foregroundLoss[\s\S]*statusCode: 200/);
     assert.match(runner, /minimumCatalogDurationMs: WORKSPACE_CATALOG_FOREGROUND_DELAY_MS - 250/);
     assert.match(runner, /Foreground membership loss did not reload Saved for the surviving workspace/);
-    assert.match(runner, /assertNoUnsafePostForegroundCatalogTraffic\(entries\)/);
+    assert.match(runner, /assertNoUnsafeForegroundCatalogTraffic\(entries\)/);
+    assert.match(runner, /protectedRequestsDuringCatalog[\s\S]*entry\.sequence > catalogRequest\.sequence[\s\S]*entry\.sequence < catalogCompletion\.sequence[\s\S]*length === 0/);
+    assert.doesNotMatch(
+      runner.match(/const protectedRequestsDuringCatalog[\s\S]*?\n  \);/)?.[0] || '',
+      /mobile\/safe-route\/routes/,
+    );
     assert.match(
       background,
       /route-list-map-return"\n    retryTapIfNoChange: true\n    waitToSettleTimeoutMs: 1000[\s\S]*pressKey: HOME/,
     );
     assert.doesNotMatch(background, /GUIDANCE_CONTRACT_MODES|openLink:/);
-    assert.match(foregroundLoss, /openLink: exp:\/\/localhost:8081[\s\S]*Verify workspace access before plotting this route/);
+    assert.match(foregroundLoss, /openLink: exp:\/\/localhost:8081[\s\S]*Checking workspace access before plotting this route/);
     assert.match(foregroundLoss, /guest-map-plot-action[\s\S]*enabled: false/);
     assert.match(foregroundLoss, /workspace-access-refresh[\s\S]*enabled: true[\s\S]*Workspace access changed\. Check for restored access\./);
     assert.match(foregroundLoss, /Workspace, Support Operations/);

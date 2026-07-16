@@ -42,6 +42,7 @@ import { createSessionNoticeState } from '../auth/sessionNoticeState';
 import { getRequestSessionExpiry } from '../api/sessionExpiry';
 import type { SafeRouteWorkspace } from '../workspaces/activeWorkspace';
 import { getRequestUnavailableWorkspaceId } from '../workspaces/workspaceAccessRecovery';
+import { isCurrentWorkspaceAuthorizationEpoch } from '../workspaces/workspaceForegroundRevalidation';
 import { WorkspaceAccessRefreshControl } from '../workspaces/WorkspaceAccessRefreshControl';
 import type { WorkspaceAccessIssue } from '../workspaces/workspaceAccessRefreshState';
 import {
@@ -161,6 +162,12 @@ export function GuestMapScreen({
   const pendingOpenPreviewRef = useRef(false);
   const roadRouteRequestIdRef = useRef(0);
   const riskAreaRequestIdRef = useRef(0);
+  const workspaceAuthorizationEpochRef = useRef(0);
+  const workspaceAuthorizationFreshRef = useRef(workspaceAuthorizationFresh);
+  if (workspaceAuthorizationFreshRef.current !== workspaceAuthorizationFresh) {
+    workspaceAuthorizationFreshRef.current = workspaceAuthorizationFresh;
+    workspaceAuthorizationEpochRef.current += 1;
+  }
   const sheetProgress = useRef(new Animated.Value(0)).current;
   const sheetGestureActionRef = useRef<(collapsed: boolean) => void>(() => undefined);
   const routeInputRefs = useRef(new Map<string, TextInput>());
@@ -256,7 +263,9 @@ export function GuestMapScreen({
   const routeActionAccessibilityLabel = workspaceSelectionRequired
     ? workspaceBlockingActionLabel
     : workspaceAuthorizationRequired
-      ? 'Verify workspace access before plotting this route'
+      ? workspaceCatalogLoading
+        ? 'Checking workspace access before plotting this route'
+        : 'Verify workspace access before plotting this route'
     : routeAction.accessibilityLabel;
   const routeActionAccessibilityHint = workspaceSelectionRequired
     ? availableWorkspaces.length
@@ -499,6 +508,18 @@ export function GuestMapScreen({
     setRoadPreviewPending(false);
   };
 
+  useEffect(() => {
+    if (!workspaceAuthorizationRequired) {
+      return;
+    }
+
+    cancelRoadRouteUpgrade();
+    riskAreaRequestIdRef.current += 1;
+    activeRiskAreaRequestRef.current?.abort();
+    activeRiskAreaRequestRef.current = null;
+    setRiskAreaSavePending(false);
+  }, [workspaceAuthorizationRequired]);
+
   const clearWorkspaceScopedMapState = () => {
     cancelRoadRouteUpgrade();
     riskAreaRequestIdRef.current += 1;
@@ -538,6 +559,15 @@ export function GuestMapScreen({
     if (routeActionDisabled) {
       return;
     }
+    const plotWorkspaceId = routingClientId;
+    const plotAuthorizationEpoch = workspaceAuthorizationEpochRef.current;
+    const plotAuthorizationIsCurrent = () => isCurrentWorkspaceAuthorizationEpoch({
+      currentEpoch: workspaceAuthorizationEpochRef.current,
+      currentFresh: workspaceAuthorizationFreshRef.current,
+      currentWorkspaceId: routingClientIdRef.current,
+      requestEpoch: plotAuthorizationEpoch,
+      requestWorkspaceId: plotWorkspaceId,
+    });
 
     Keyboard.dismiss();
     cancelRoadRouteUpgrade();
@@ -570,7 +600,7 @@ export function GuestMapScreen({
           }),
           signal: controller.signal
         });
-        if (controller.signal.aborted) {
+        if (controller.signal.aborted || !plotAuthorizationIsCurrent()) {
           return;
         }
         for (const stopId of typedStopIds) {
@@ -594,6 +624,9 @@ export function GuestMapScreen({
       }
     }
     const unresolvedStopIds = getGuestRouteDraftUnresolvedStopIds(plottingDraft);
+    if (!plotAuthorizationIsCurrent()) {
+      return;
+    }
     if (unresolvedStopIds.length) {
       const firstStopId = unresolvedStopIds[0];
       const firstStop = findGuestRouteDraftStop(plottingDraft, firstStopId);
@@ -658,6 +691,14 @@ export function GuestMapScreen({
     const authenticatedSnapshot = authenticated;
     const requestAccessToken = routingAccessToken;
     const requestWorkspaceId = routingClientId;
+    const requestAuthorizationEpoch = workspaceAuthorizationEpochRef.current;
+    const requestAuthorizationIsCurrent = () => isCurrentWorkspaceAuthorizationEpoch({
+      currentEpoch: workspaceAuthorizationEpochRef.current,
+      currentFresh: workspaceAuthorizationFreshRef.current,
+      currentWorkspaceId: routingClientIdRef.current,
+      requestEpoch: requestAuthorizationEpoch,
+      requestWorkspaceId,
+    });
     let acceptedRoadPreview = false;
     let sessionExpiryHandled = false;
     let workspaceUnavailableHandled = false;
@@ -670,7 +711,8 @@ export function GuestMapScreen({
         requestActive:
           !controller.signal.aborted &&
           roadRouteRequestIdRef.current === requestId &&
-          routingClientIdRef.current === requestWorkspaceId
+          routingClientIdRef.current === requestWorkspaceId &&
+          requestAuthorizationIsCurrent()
       });
       if (!sessionExpiry) {
         return false;
@@ -690,6 +732,7 @@ export function GuestMapScreen({
           !controller.signal.aborted &&
           roadRouteRequestIdRef.current === requestId &&
           routingClientIdRef.current === requestWorkspaceId &&
+          requestAuthorizationIsCurrent() &&
           Boolean(onWorkspaceUnavailableRef.current),
         workspaceId: requestWorkspaceId
       });
@@ -735,7 +778,8 @@ export function GuestMapScreen({
           !roadPreview ||
           controller.signal.aborted ||
           roadRouteRequestIdRef.current !== requestId ||
-          routingClientIdRef.current !== requestWorkspaceId
+          routingClientIdRef.current !== requestWorkspaceId ||
+          !requestAuthorizationIsCurrent()
         ) {
           return;
         }
@@ -756,7 +800,8 @@ export function GuestMapScreen({
           if (
             controller.signal.aborted ||
             roadRouteRequestIdRef.current !== requestId ||
-            routingClientIdRef.current !== requestWorkspaceId
+            routingClientIdRef.current !== requestWorkspaceId ||
+            !requestAuthorizationIsCurrent()
           ) {
             return;
           }
@@ -795,7 +840,8 @@ export function GuestMapScreen({
         if (
           controller.signal.aborted ||
           roadRouteRequestIdRef.current !== requestId ||
-          routingClientIdRef.current !== requestWorkspaceId
+          routingClientIdRef.current !== requestWorkspaceId ||
+          !requestAuthorizationIsCurrent()
         ) {
           return;
         }
@@ -836,7 +882,8 @@ export function GuestMapScreen({
       .finally(() => {
         if (
           roadRouteRequestIdRef.current === requestId &&
-          routingClientIdRef.current === requestWorkspaceId
+          routingClientIdRef.current === requestWorkspaceId &&
+          requestAuthorizationIsCurrent()
         ) {
           activeRoadRouteRequestRef.current = null;
           setRoadPreviewPending(false);
@@ -1051,6 +1098,14 @@ export function GuestMapScreen({
     setRiskAreaSavePending(true);
     const requestAccessToken = routingAccessToken;
     const requestWorkspaceId = routingClientId;
+    const requestAuthorizationEpoch = workspaceAuthorizationEpochRef.current;
+    const requestAuthorizationIsCurrent = () => isCurrentWorkspaceAuthorizationEpoch({
+      currentEpoch: workspaceAuthorizationEpochRef.current,
+      currentFresh: workspaceAuthorizationFreshRef.current,
+      currentWorkspaceId: routingClientIdRef.current,
+      requestEpoch: requestAuthorizationEpoch,
+      requestWorkspaceId,
+    });
     try {
       await createGuestRiskArea({
         accessToken: requestAccessToken,
@@ -1062,7 +1117,8 @@ export function GuestMapScreen({
       if (
         controller.signal.aborted ||
         riskAreaRequestIdRef.current !== requestId ||
-        routingClientIdRef.current !== requestWorkspaceId
+        routingClientIdRef.current !== requestWorkspaceId ||
+        !requestAuthorizationIsCurrent()
       ) {
         return;
       }
@@ -1073,7 +1129,8 @@ export function GuestMapScreen({
       if (
         controller.signal.aborted ||
         riskAreaRequestIdRef.current !== requestId ||
-        routingClientIdRef.current !== requestWorkspaceId
+        routingClientIdRef.current !== requestWorkspaceId ||
+        !requestAuthorizationIsCurrent()
       ) {
         return;
       }
@@ -1105,7 +1162,8 @@ export function GuestMapScreen({
     } finally {
       if (
         riskAreaRequestIdRef.current === requestId &&
-        routingClientIdRef.current === requestWorkspaceId
+        routingClientIdRef.current === requestWorkspaceId &&
+        requestAuthorizationIsCurrent()
       ) {
         activeRiskAreaRequestRef.current = null;
         setRiskAreaSavePending(false);
@@ -1539,7 +1597,10 @@ export function GuestMapScreen({
                 accessibilityHint={routeActionAccessibilityHint}
                 accessibilityLabel={routeActionAccessibilityLabel}
                 accessibilityRole="button"
-                accessibilityState={{ disabled: routeActionDisabled }}
+                accessibilityState={{
+                  busy: workspaceAuthorizationRequired && workspaceCatalogLoading,
+                  disabled: routeActionDisabled,
+                }}
                 disabled={routeActionDisabled}
                 testID={uiTestIds.guestMapPlotAction}
                 style={({ pressed }) => [

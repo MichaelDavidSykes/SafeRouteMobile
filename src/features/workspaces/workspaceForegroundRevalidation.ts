@@ -20,6 +20,29 @@ interface WorkspaceNavigationIdentity {
   };
 }
 
+export function isCurrentWorkspaceAuthorizationEpoch({
+  currentEpoch,
+  currentFresh,
+  currentWorkspaceId,
+  requestEpoch,
+  requestWorkspaceId,
+}: {
+  currentEpoch: number;
+  currentFresh: boolean;
+  currentWorkspaceId: string | null;
+  requestEpoch: number;
+  requestWorkspaceId: string | null;
+}): boolean {
+  return Boolean(
+    !requestWorkspaceId ||
+      (
+        currentFresh &&
+        currentEpoch === requestEpoch &&
+        currentWorkspaceId === requestWorkspaceId
+      ),
+  );
+}
+
 export function isCurrentWorkspaceNavigationContinuation(
   currentSession: WorkspaceNavigationIdentity | null,
   nextSession: WorkspaceNavigationIdentity,

@@ -92,6 +92,7 @@ import { normalizeReliableLocationSample } from "./locationSignal";
 import { useNetworkAvailability } from "../api/useNetworkAvailability";
 import { getRequestSessionExpiry } from "../api/sessionExpiry";
 import { getRequestUnavailableWorkspaceId } from "../workspaces/workspaceAccessRecovery";
+import { isCurrentWorkspaceAuthorizationEpoch } from "../workspaces/workspaceForegroundRevalidation";
 import {
   cancelNavigationStartAuthorization,
   createNavigationStartAuthorizationGate,
@@ -111,6 +112,7 @@ interface LiveMapScreenProps {
   returnLabel?: string;
   routeContext?: "guest" | "saved";
   routePlan: SavedSafeRoutePlan;
+  workspaceAuthorizationFresh?: boolean;
   onChangeRoute: () => void;
 }
 
@@ -127,6 +129,7 @@ export function LiveMapScreen({
   returnLabel = "Routes",
   routePlan,
   routeContext = "saved",
+  workspaceAuthorizationFresh = false,
 }: LiveMapScreenProps) {
   const { offline } = useNetworkAvailability();
   const resumedNavigationSession =
@@ -149,6 +152,12 @@ export function LiveMapScreen({
   const onAuthorizeNavigationStartRef = useRef(onAuthorizeNavigationStart);
   const onNavigationSessionChangeRef = useRef(onNavigationSessionChange);
   const onWorkspaceUnavailableRef = useRef(onWorkspaceUnavailable);
+  const workspaceAuthorizationEpochRef = useRef(0);
+  const workspaceAuthorizationFreshRef = useRef(workspaceAuthorizationFresh);
+  if (workspaceAuthorizationFreshRef.current !== workspaceAuthorizationFresh) {
+    workspaceAuthorizationFreshRef.current = workspaceAuthorizationFresh;
+    workspaceAuthorizationEpochRef.current += 1;
+  }
   const viewport = useWindowDimensions();
   const [alertsVisible, setAlertsVisible] = useState(
     DEFAULT_ROUTE_INTELLIGENCE_VISIBLE,
@@ -301,6 +310,7 @@ export function LiveMapScreen({
   const viewportRisk = useViewportRiskAreas({
     accessToken: liveApiAccessToken,
     clientId: activeRoutePlan.clientId,
+    enabled: !activeRoutePlan.clientId || workspaceAuthorizationFresh,
     onSessionExpired,
     onWorkspaceUnavailable: onWorkspaceUnavailable ? closeRouteForWorkspaceLoss : undefined,
     region: liveRiskRegion,
@@ -407,7 +417,14 @@ export function LiveMapScreen({
     permissionStatus,
     routeCoordinateCount: liveRoutePlan.route.coordinates.length,
   });
+  const workspaceStartBlockedReason =
+    liveRoutePlan.clientId &&
+    !workspaceAuthorizationFresh &&
+    (navigationState === "loaded" || navigationState === "stopped")
+      ? "Workspace access is being checked. Wait before starting guidance."
+      : null;
   const navigationBlockedReason =
+    workspaceStartBlockedReason ||
     riskStartBlockedReason ||
     locationStartBlockedReason ||
     startProximityBlockedReason;
@@ -538,10 +555,26 @@ export function LiveMapScreen({
   };
 
   const executeLiveReroute = async (request: LiveRerouteRequest) => {
+    const plan = liveRoutePlanRef.current;
+    const requestWorkspaceId = plan.clientId || null;
+    const requestAuthorizationEpoch = workspaceAuthorizationEpochRef.current;
+    const requestAuthorizationIsCurrent = () => isCurrentWorkspaceAuthorizationEpoch({
+      currentEpoch: workspaceAuthorizationEpochRef.current,
+      currentFresh: workspaceAuthorizationFreshRef.current,
+      currentWorkspaceId: activeRouteWorkspaceIdRef.current,
+      requestEpoch: requestAuthorizationEpoch,
+      requestWorkspaceId,
+    });
+    if (!requestAuthorizationIsCurrent()) {
+      failRerouteRequest(
+        request,
+        "Verify current workspace access before rerouting.",
+      );
+      return;
+    }
     activeRerouteRequestRef.current?.abort();
     const controller = new AbortController();
     activeRerouteRequestRef.current = controller;
-    const plan = liveRoutePlanRef.current;
     const currentCoordinate = request.sample.coordinate;
     const targets = buildLiveRerouteTargets(
       plan,
@@ -553,7 +586,6 @@ export function LiveMapScreen({
       return;
     }
     const routingAccessToken = liveApiAccessToken;
-    const requestWorkspaceId = plan.clientId || null;
     const avoidRectangles = buildLiveRerouteAvoidRectangles(
       plan.riskZones,
       plan.route.coordinates,
@@ -569,7 +601,15 @@ export function LiveMapScreen({
         stops: targets.stops,
         timeoutMs: 15_000,
       });
-      if (!preview?.snapped || preview.coordinates.length < 2) {
+      if (
+        !requestAuthorizationIsCurrent() ||
+        !preview?.snapped ||
+        preview.coordinates.length < 2
+      ) {
+        if (!requestAuthorizationIsCurrent()) {
+          controller.abort();
+          return;
+        }
         failRerouteRequest(request);
         return;
       }
@@ -583,6 +623,10 @@ export function LiveMapScreen({
           timeoutMs: 9000,
         },
       );
+      if (!requestAuthorizationIsCurrent()) {
+        controller.abort();
+        return;
+      }
       const finalRiskZones = mergeRiskZonesById(
         plan.riskZones,
         corridorRiskZones,
@@ -602,7 +646,15 @@ export function LiveMapScreen({
             stops: targets.stops,
             timeoutMs: 15_000,
           });
-      if (!finalPreview?.snapped || finalPreview.coordinates.length < 2) {
+      if (
+        !requestAuthorizationIsCurrent() ||
+        !finalPreview?.snapped ||
+        finalPreview.coordinates.length < 2
+      ) {
+        if (!requestAuthorizationIsCurrent()) {
+          controller.abort();
+          return;
+        }
         failRerouteRequest(request);
         return;
       }
@@ -635,6 +687,7 @@ export function LiveMapScreen({
       const currentRerouteState = rerouteStateRef.current;
       const requestActive =
         !controller.signal.aborted &&
+        requestAuthorizationIsCurrent() &&
         currentRerouteState.status === "pending" &&
         currentRerouteState.request.requestRevision === request.requestRevision &&
         currentRerouteState.request.routeId === request.routeId &&
@@ -678,6 +731,7 @@ export function LiveMapScreen({
 
   const rerouteMonitoringActive = Boolean(
     !demoDriveActive &&
+      (!activeRoutePlan.clientId || workspaceAuthorizationFresh) &&
       (navigationState === "navigating" || navigationState === "off-route"),
   );
 
@@ -1155,6 +1209,12 @@ export function LiveMapScreen({
     if (gate.pending) {
       return;
     }
+    if (routePlan.clientId && !workspaceAuthorizationFreshRef.current) {
+      setNavigationAuthorizationNotice(
+        "Workspace access is being checked. Wait before starting guidance.",
+      );
+      return;
+    }
 
     setNavigationAuthorizationPending(true);
     setNavigationAuthorizationNotice("Checking workspace access before starting guidance…");
@@ -1175,6 +1235,23 @@ export function LiveMapScreen({
     }
     setNavigationAuthorizationPending(false);
   };
+
+  useEffect(() => {
+    if (!activeRoutePlan.clientId || workspaceAuthorizationFresh) {
+      return;
+    }
+
+    const startWasPending =
+      navigationAuthorizationGateRef.current.pending || pendingNavigationStart;
+    cancelNavigationStartAuthorization(navigationAuthorizationGateRef.current);
+    setNavigationAuthorizationPending(false);
+    setPendingNavigationStart(false);
+    if (startWasPending) {
+      setNavigationAuthorizationNotice(
+        "Workspace access is being checked. Wait before starting guidance.",
+      );
+    }
+  }, [activeRoutePlan.clientId, workspaceAuthorizationFresh]);
 
   const handlePrimaryNavigationAction = () => {
     if (

@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 
 import {
+  isCurrentWorkspaceAuthorizationEpoch,
   isCurrentWorkspaceNavigationContinuation,
   resolveWorkspaceForegroundRevalidation,
 } from "../src/features/workspaces/workspaceForegroundRevalidation";
@@ -18,6 +19,35 @@ const readyState = {
 };
 
 describe("workspace foreground revalidation", () => {
+  it("accepts public work but rejects stale workspace authorization epochs", () => {
+    assert.equal(
+      isCurrentWorkspaceAuthorizationEpoch({
+        currentEpoch: 2,
+        currentFresh: false,
+        currentWorkspaceId: null,
+        requestEpoch: 1,
+        requestWorkspaceId: null,
+      }),
+      true,
+    );
+
+    const currentWorkspaceRequest = {
+      currentEpoch: 4,
+      currentFresh: true,
+      currentWorkspaceId: "workspace-a",
+      requestEpoch: 4,
+      requestWorkspaceId: "workspace-a",
+    };
+    assert.equal(isCurrentWorkspaceAuthorizationEpoch(currentWorkspaceRequest), true);
+    for (const staleRequest of [
+      { ...currentWorkspaceRequest, currentFresh: false },
+      { ...currentWorkspaceRequest, currentEpoch: 5 },
+      { ...currentWorkspaceRequest, currentWorkspaceId: "workspace-b" },
+    ]) {
+      assert.equal(isCurrentWorkspaceAuthorizationEpoch(staleRequest), false);
+    }
+  });
+
   it("arms only after the app reaches background", () => {
     assert.deepEqual(
       resolveWorkspaceForegroundRevalidation({

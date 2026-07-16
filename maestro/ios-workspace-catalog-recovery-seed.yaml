@@ -25,7 +25,10 @@ appId: host.exp.Exponent
     when:
       visible: "Not Now"
     commands:
-      - tapOn: "Not Now"
+      - tapOn:
+          text: "Not Now"
+          retryTapIfNoChange: true
+          waitToSettleTimeoutMs: 1000
 - extendedWaitUntil:
     visible:
       id: "guest-map-workspace-selector"

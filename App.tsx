@@ -140,6 +140,8 @@ export default function App() {
   const [workspaceAccessIssue, setWorkspaceAccessIssue] =
     useState<WorkspaceAccessIssue>('none');
   const [workspaceCatalogRetrying, setWorkspaceCatalogRetrying] = useState(false);
+  const [workspaceForegroundAuthorizationPaused, setWorkspaceForegroundAuthorizationPaused] =
+    useState(false);
   const [workspaceDiscoveryRevision, setWorkspaceDiscoveryRevision] = useState(0);
   const [pendingNavigationRestore, setPendingNavigationRestore] =
     useState<PendingNavigationRestore | null>(null);
@@ -153,6 +155,8 @@ export default function App() {
   const sessionExpiryHandledRef = useRef(false);
   const workspaceCatalogRetryingRef = useRef(false);
   const workspaceCatalogBusyRef = useRef(false);
+  const workspaceForegroundAuthorizationEpochRef = useRef(0);
+  const workspaceForegroundAuthorizationPausedRef = useRef(false);
   const workspaceForegroundRefreshPendingRef = useRef(false);
   const workspaceWasBackgroundedRef = useRef(AppState.currentState === 'background');
   const workspaceAccessAnnouncementPhaseRef =
@@ -187,7 +191,8 @@ export default function App() {
   const activeWorkspaceAuthorizationFresh = Boolean(
     activeWorkspace &&
     freshWorkspaceAuthorizationRef.current.workspaceIds.has(activeWorkspace.id) &&
-    !workspaceForegroundRefreshPendingRef.current,
+    !workspaceForegroundRefreshPendingRef.current &&
+    !workspaceForegroundAuthorizationPaused,
   );
   const workspaceAccessRecoveryPending = unavailableWorkspaceIdsRef.current.size > 0;
   const workspaceAccessRefreshAvailable = shouldOfferWorkspaceAccessRefresh({
@@ -257,11 +262,23 @@ export default function App() {
         stablePrincipal: Boolean(principalId),
       });
       workspaceWasBackgroundedRef.current = decision.backgrounded;
+      if (
+        nextAppState === 'background' &&
+        accessToken &&
+        principalId &&
+        !isPreviewAccessToken(accessToken)
+      ) {
+        workspaceForegroundAuthorizationEpochRef.current += 1;
+        workspaceForegroundAuthorizationPausedRef.current = true;
+        setWorkspaceForegroundAuthorizationPaused(true);
+      }
       if (!decision.revalidate) {
         return;
       }
 
       workspaceForegroundRefreshPendingRef.current = true;
+      workspaceForegroundAuthorizationPausedRef.current = true;
+      setWorkspaceForegroundAuthorizationPaused(true);
       workspaceCatalogBusyRef.current = true;
       restoreUnavailableWorkspacesFromFreshCatalogRef.current = false;
       setWorkspaceCatalogLoading(true);
@@ -746,6 +763,8 @@ export default function App() {
     activeWorkspaceRef.current = null;
     setActiveWorkspace(null);
     setWorkspaceCatalogLoading(false);
+    workspaceForegroundAuthorizationPausedRef.current = false;
+    setWorkspaceForegroundAuthorizationPaused(false);
     setWorkspaceCatalogError('');
     setWorkspaceAccessIssue('none');
     workspaceCatalogRetryingRef.current = false;
@@ -840,6 +859,8 @@ export default function App() {
       setWorkspaceCatalogLoading(false);
       workspaceCatalogBusyRef.current = false;
       workspaceForegroundRefreshPendingRef.current = false;
+      workspaceForegroundAuthorizationPausedRef.current = false;
+      setWorkspaceForegroundAuthorizationPaused(false);
       setWorkspaceCatalogError('');
       setWorkspaceAccessIssue('none');
       workspaceCatalogRetryingRef.current = false;
@@ -1165,6 +1186,10 @@ export default function App() {
           setWorkspaceCatalogError('Offline workspace access stays locked until retry.');
           setWorkspaceAccessIssue('offline-safety');
         } else {
+          if (!workspaceWasBackgroundedRef.current) {
+            workspaceForegroundAuthorizationPausedRef.current = false;
+            setWorkspaceForegroundAuthorizationPaused(false);
+          }
           setWorkspaceAccessIssue('none');
         }
         let navigationRestoreRejected = pendingNavigationRejected;
@@ -1490,6 +1515,12 @@ export default function App() {
     if (!workspaceId) {
       return null;
     }
+    if (
+      workspaceForegroundAuthorizationPausedRef.current ||
+      workspaceForegroundRefreshPendingRef.current
+    ) {
+      return 'Workspace access is being checked. Wait before starting guidance.';
+    }
 
     const accessToken = activeSessionTokenRef.current?.trim() || '';
     const principalId = activeSessionPrincipalIdRef.current.trim();
@@ -1499,9 +1530,14 @@ export default function App() {
       routePlan,
       routePreviewRevision: routePreviewRevisionRef.current,
       sessionEpoch: sessionEpochRef.current,
+      workspaceAuthorizationEpoch: workspaceForegroundAuthorizationEpochRef.current,
       workspaceId,
     };
     const requestIsCurrent = () =>
+      !workspaceForegroundAuthorizationPausedRef.current &&
+      !workspaceForegroundRefreshPendingRef.current &&
+      request.workspaceAuthorizationEpoch ===
+        workspaceForegroundAuthorizationEpochRef.current &&
       isNavigationStartRequestCurrent(request, {
         accessToken: activeSessionTokenRef.current?.trim() || '',
         activeWorkspaceId: activeWorkspaceRef.current?.id || '',
@@ -1845,6 +1881,7 @@ export default function App() {
             onSessionExpired={handleSessionExpired}
             onWorkspaceUnavailable={handleWorkspaceUnavailable}
             principalId={sessionPrincipalId}
+            workspaceAuthorizationFresh={activeWorkspaceAuthorizationFresh}
           />
         ) : screen === 'routes' && session && authenticated ? (
           <RouteListScreen

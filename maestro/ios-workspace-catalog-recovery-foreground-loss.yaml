@@ -17,6 +17,8 @@ appId: host.exp.Exponent
 - assertVisible: "Workspace, Support Operations"
 - tapOn:
     id: "guest-map-primary-action"
+    retryTapIfNoChange: true
+    waitToSettleTimeoutMs: 1000
 - extendedWaitUntil:
     visible:
       id: "safe-route-picker"

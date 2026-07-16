@@ -2,7 +2,7 @@ appId: host.exp.Exponent
 ---
 - openLink: exp://localhost:8081
 - extendedWaitUntil:
-    visible: "Checking workspace…"
+    visible: "Verify workspace access before plotting this route"
     timeout: 3000
 - assertVisible:
     id: "guest-map-plot-action"

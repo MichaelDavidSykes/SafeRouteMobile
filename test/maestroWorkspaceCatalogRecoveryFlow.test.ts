@@ -126,7 +126,7 @@ describe('Maestro workspace catalog recovery runtime', () => {
     assert.match(runner, /assertNoUnsafePostForegroundCatalogTraffic\(entries\)/);
     assert.match(background, /route-list-map-return[\s\S]*pressKey: HOME/);
     assert.doesNotMatch(background, /GUIDANCE_CONTRACT_MODES|openLink:/);
-    assert.match(foregroundLoss, /openLink: exp:\/\/localhost:8081[\s\S]*Checking workspace…/);
+    assert.match(foregroundLoss, /openLink: exp:\/\/localhost:8081[\s\S]*Verify workspace access before plotting this route/);
     assert.match(foregroundLoss, /guest-map-plot-action[\s\S]*enabled: false/);
     assert.match(foregroundLoss, /Workspace access changed\. Unavailable workspace data was removed\./);
     assert.match(foregroundLoss, /Workspace, Support Operations/);

@@ -160,7 +160,7 @@ describe('Maestro workspace catalog recovery runtime', () => {
     assert.match(journeyStart, /safe-route-primary-action[\s\S]*safe-route-stop-action[\s\S]*Resume route guidance[\s\S]*safe-route-remaining-metrics[\s\S]*safe-route-journey-66b1b2c3d4e5f60718293b40/);
     assert.match(journeyChecking, /Checking current workspace access\. Guidance remains available while workspace risk and rerouting updates wait\./);
     assert.match(journeyChecking, /Resume route guidance[\s\S]*safe-route-stop-action[\s\S]*safe-route-journey-66b1b2c3d4e5f60718293b40[\s\S]*Pause route guidance/);
-    assert.match(runner, /injectOffRouteEvidence[\s\S]*51\.5300,-0\.0900[\s\S]*51\.5303,-0\.0903[\s\S]*setTimeout\(resolve, 2100\)/);
+    assert.match(journeyOffRoute, /setLocation:[\s\S]*latitude: 51\.5300[\s\S]*longitude: -0\.0900[\s\S]*latitude: 51\.5303[\s\S]*longitude: -0\.0903[\s\S]*extendedWaitUntil:[\s\S]*safe-route-guidance-off-route/);
     assert.match(journeyOffRoute, /safe-route-live-map[\s\S]*Pause route guidance[\s\S]*safe-route-guidance-off-route[\s\S]*Off route\. Current instruction\.\*[\s\S]*safe-route-stop-action[\s\S]*safe-route-journey-66b1b2c3d4e5f60718293b40/);
     assert.match(foregroundLoss, /Active guidance ended because this workspace is no longer available\./);
     for (const id of ['safe-route-live-map', 'safe-route-resume-action', 'safe-route-suspended-navigation', 'safe-route-stop-action', 'safe-route-remaining-metrics']) {

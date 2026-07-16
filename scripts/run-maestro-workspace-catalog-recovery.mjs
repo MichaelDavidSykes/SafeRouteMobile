@@ -150,7 +150,6 @@ async function main() {
     outcomeFlow: flows.foregroundLoss,
     outcomeLabel: 'close the omitted journey and retain only the survivor',
     phase: WORKSPACE_CATALOG_RECOVERY_PHASES.foregroundLoss,
-    whileHeld: injectOffRouteEvidence,
     whileHeldFlow: flows.journeyOffRoute,
     whileHeldLabel: 'confirm active guidance after deterministic off-route evidence'
   });
@@ -274,25 +273,6 @@ async function runHeldCatalogPhase({
   setControl(phase, mode, { catalogReleased: true });
   await waitForCatalogCompletion(phase);
   runMaestroFlow(phase, outcomeLabel, outcomeFlow);
-}
-
-async function injectOffRouteEvidence() {
-  const coordinates = [
-    '51.5300,-0.0900',
-    '51.5301,-0.0901',
-    '51.5302,-0.0902',
-    '51.5303,-0.0903'
-  ];
-  for (let index = 0; index < coordinates.length; index += 1) {
-    execFileSync('xcrun', ['simctl', 'location', deviceId, 'set', coordinates[index]], {
-      stdio: ['ignore', 'ignore', 'pipe'],
-      timeout: 5000
-    });
-    if (index < coordinates.length - 1) {
-      await new Promise((resolve) => setTimeout(resolve, 2100));
-    }
-  }
-  await new Promise((resolve) => setTimeout(resolve, 500));
 }
 
 async function waitForHeldCatalogPending(phase) {

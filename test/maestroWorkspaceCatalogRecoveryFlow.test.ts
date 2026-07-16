@@ -154,11 +154,11 @@ describe('Maestro workspace catalog recovery runtime', () => {
     assert.match(background, /safe-route-live-map[\s\S]*pressKey: HOME/);
     assert.match(startGateChecking, /openLink: exp:\/\/localhost:8081[\s\S]*Start route\. Checking workspace access before starting guidance…[\s\S]*safe-route-primary-action[\s\S]*enabled: false/);
     assert.match(startGateReady, /notVisible: "Checking access"[\s\S]*safe-route-primary-action[\s\S]*enabled: true/);
-    assert.match(journeyStart, /safe-route-primary-action[\s\S]*safe-route-stop-action[\s\S]*Resume route guidance[\s\S]*safe-route-remaining-metrics/);
+    assert.match(journeyStart, /safe-route-primary-action[\s\S]*safe-route-stop-action[\s\S]*Resume route guidance[\s\S]*safe-route-remaining-metrics[\s\S]*safe-route-journey-66b1b2c3d4e5f60718293b40/);
     assert.match(journeyChecking, /Checking current workspace access\. Guidance remains available while workspace risk and rerouting updates wait\./);
-    assert.match(journeyChecking, /Resume route guidance[\s\S]*safe-route-stop-action[\s\S]*Pause route guidance/);
+    assert.match(journeyChecking, /Resume route guidance[\s\S]*safe-route-stop-action[\s\S]*safe-route-journey-66b1b2c3d4e5f60718293b40[\s\S]*Pause route guidance/);
     assert.match(runner, /injectOffRouteEvidence[\s\S]*51\.5300,-0\.0900[\s\S]*51\.5303,-0\.0903[\s\S]*setTimeout\(resolve, 2100\)/);
-    assert.match(journeyOffRoute, /safe-route-live-map[\s\S]*Pause route guidance[\s\S]*safe-route-stop-action/);
+    assert.match(journeyOffRoute, /safe-route-live-map[\s\S]*Pause route guidance[\s\S]*safe-route-guidance-off-route[\s\S]*Off route\. Current instruction\.\*[\s\S]*safe-route-stop-action[\s\S]*safe-route-journey-66b1b2c3d4e5f60718293b40/);
     assert.match(foregroundLoss, /Active guidance ended because this workspace is no longer available\./);
     for (const id of ['safe-route-live-map', 'safe-route-resume-action', 'safe-route-suspended-navigation', 'safe-route-stop-action', 'safe-route-remaining-metrics']) {
       assert.match(foregroundLoss, new RegExp(`assertNotVisible:[\\s\\S]{0,60}${id}`));

@@ -71,8 +71,12 @@ export const uiTestIds = {
   navigationCleanupRetry: "safe-route-navigation-cleanup-retry",
   liveMapReturn: "safe-route-return",
   liveMapRouteSummarySheet: "safe-route-summary-sheet",
+  liveMapJourney: (routeId: string) =>
+    `safe-route-journey-${normalizeTestIdSegment(routeId)}`,
   liveMapSavedRouteDetails: "safe-route-saved-details",
   liveMapRemainingMetrics: "safe-route-remaining-metrics",
+  liveMapGuidanceState: (state: string) =>
+    `safe-route-guidance-${normalizeTestIdSegment(state)}`,
   liveMapControl: (control: string) =>
     `safe-route-control-${normalizeTestIdSegment(control)}`,
   liveMapPrimaryAction: "safe-route-primary-action",

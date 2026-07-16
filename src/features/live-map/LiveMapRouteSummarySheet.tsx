@@ -127,6 +127,7 @@ export function LiveMapRouteSummarySheet({
       ]}
     >
       <View
+        testID={uiTestIds.liveMapJourney(routePlan.id)}
         style={[
           styles.summaryRow,
           compactRouteSummary ? styles.summaryRowCompactNavigation : null,

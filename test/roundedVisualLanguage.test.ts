@@ -1056,7 +1056,11 @@ describe("rounded visual language", () => {
         guidanceStylesSource,
       )?.[1] || "";
 
-    assert.match(guidanceSource, /accessibilityLabel=\{accessibilityLabel\}/);
+    assert.match(guidanceSource, /accessibilityLabel=\{stateAwareAccessibilityLabel\}/);
+    assert.match(
+      guidanceSource,
+      /state === "off-route"[\s\S]*`Off route\. \$\{accessibilityLabel\}`/,
+    );
     assert.match(guidanceSource, /:\s*presentation\.accessibilityLabel/);
     assert.match(guidanceSource, /presentation\.instructionLabel/);
     assert.match(guidanceSource, /presentation\.distanceLabel/);

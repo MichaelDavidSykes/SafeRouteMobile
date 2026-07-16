@@ -9,6 +9,8 @@ appId: host.exp.Exponent
     timeout: 15000
 - assertVisible:
     id: "safe-route-remaining-metrics"
+- assertVisible:
+    id: "safe-route-journey-66b1b2c3d4e5f60718293b40"
 - assertVisible: "Pause route guidance"
 - tapOn:
     id: "safe-route-primary-action"
@@ -17,6 +19,8 @@ appId: host.exp.Exponent
     id: "safe-route-stop-action"
 - assertVisible:
     id: "safe-route-remaining-metrics"
+- assertVisible:
+    id: "safe-route-journey-66b1b2c3d4e5f60718293b40"
 - waitForAnimationToEnd:
     timeout: 3000
 - takeScreenshot: "workspace-catalog-journey-paused"

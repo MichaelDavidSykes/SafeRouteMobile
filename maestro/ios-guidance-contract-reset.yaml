@@ -54,6 +54,8 @@ appId: host.exp.Exponent
     timeout: 15000
 - tapOn:
     id: "guest-map-primary-action"
+    retryTapIfNoChange: true
+    waitToSettleTimeoutMs: 1000
 - waitForAnimationToEnd:
     timeout: 2500
 - runFlow:

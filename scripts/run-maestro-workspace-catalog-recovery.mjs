@@ -300,10 +300,10 @@ function assertRecoveryJournal(entries) {
     'Foreground membership loss did not reload Saved for the surviving workspace.'
   );
   assertSuccessfulProtectedRequests(entries, foregroundSurvivorRequests, 'catalog-survivor');
-  assertNoUnsafePostForegroundCatalogTraffic(entries);
+  assertNoUnsafeForegroundCatalogTraffic(entries);
 }
 
-function assertNoUnsafePostForegroundCatalogTraffic(entries) {
+function assertNoUnsafeForegroundCatalogTraffic(entries) {
   const foregroundRequests = entries.filter((entry) =>
     entry.event === 'request' &&
     entry.phase === WORKSPACE_CATALOG_RECOVERY_PHASES.foregroundLoss
@@ -321,6 +321,19 @@ function assertNoUnsafePostForegroundCatalogTraffic(entries) {
     entry.sequence > catalogCompletion.sequence &&
     entry.path.startsWith('/api/v1/') &&
     entry.path !== '/api/v1/users/me'
+  );
+  const protectedRequestsDuringCatalog = foregroundRequests.filter((entry) =>
+    entry.sequence > catalogRequest.sequence &&
+    entry.sequence < catalogCompletion.sequence &&
+    entry.path.startsWith('/api/v1/') &&
+    entry.path !== '/api/v1/users/me'
+  );
+
+  assertCondition(
+    protectedRequestsDuringCatalog.length === 0,
+    `Protected workspace traffic ran before foreground authorization completed: ${protectedRequestsDuringCatalog
+      .map((entry) => `${entry.method} ${entry.path}?${entry.search}`)
+      .join(', ')}.`
   );
 
   for (const request of protectedRequests) {

@@ -21,10 +21,6 @@ appId: host.exp.Exponent
       enabled: false
     timeout: 3000
 - assertVisible: "Checking current workspace access. Cached workspace remains available for review only."
-- tapOn:
-    id: "workspace-access-refresh"
-    optional: true
-    waitToSettleTimeoutMs: 100
 - takeScreenshot: "workspace-catalog-saved-retry-busy"
 - extendedWaitUntil:
     visible:

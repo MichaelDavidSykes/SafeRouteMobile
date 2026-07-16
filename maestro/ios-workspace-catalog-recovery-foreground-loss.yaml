@@ -2,18 +2,23 @@ appId: host.exp.Exponent
 ---
 - openLink: exp://localhost:8081
 - extendedWaitUntil:
-    visible: "Verify workspace access before plotting this route"
+    visible: "Checking workspace access before plotting this route"
     timeout: 3000
 - assertVisible:
     id: "guest-map-plot-action"
     enabled: false
 - takeScreenshot: "workspace-catalog-foreground-checking-map"
 - extendedWaitUntil:
-    visible: "Workspace access changed. Unavailable workspace data was removed."
+    visible:
+      id: "workspace-access-refresh"
+      enabled: true
     timeout: 20000
+- assertVisible: "Workspace access changed. Check for restored access."
 - assertVisible: "Workspace, Support Operations"
 - tapOn:
     id: "guest-map-primary-action"
+    retryTapIfNoChange: true
+    waitToSettleTimeoutMs: 1000
 - extendedWaitUntil:
     visible:
       id: "safe-route-picker"
@@ -22,8 +27,5 @@ appId: host.exp.Exponent
     id: "safe-route-card-66b1b2c3d4e5f60718293b41"
 - assertNotVisible:
     id: "safe-route-card-66b1b2c3d4e5f60718293b40"
-- assertVisible:
-    id: "workspace-access-refresh"
-    enabled: true
 - takeScreenshot: "workspace-catalog-foreground-loss-saved"
 - stopApp

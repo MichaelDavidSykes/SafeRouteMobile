@@ -120,6 +120,7 @@ describe('Maestro workspace catalog recovery runtime', () => {
     const success = read(flowPaths[5]);
 
     assert.match(success, /Checking current workspace access\. Cached workspace remains available for review only\./);
+    assert.match(success, /id: "workspace-access-refresh"[\s\S]*retryTapIfNoChange: true/);
     assert.match(success, /notVisible:[\s\S]*id: "workspace-access-refresh"/);
     assert.match(success, /Workspace access verified\./);
     assert.match(success, /id: "safe-route-operations-map-return"/);

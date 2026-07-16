@@ -73,7 +73,10 @@ describe('Maestro workspace catalog recovery runtime', () => {
     assert.match(runner, /assertSuccessfulProtectedRequests\(entries, scopedRouteRequests, 'catalog-active'\)/);
     assert.match(runner, /assertSuccessfulProtectedRequests\(entries, operationsRequests, 'operations-active'\)/);
     assert.match(runner, /request\.authorizationClass === 'expected-bearer'/);
-    assert.match(seed, /inputText: "guidance-contract-password"\n- hideKeyboard\n- tapOn:\n    id: "safe-route-login-primary-action"/);
+    assert.match(
+      seed,
+      /safe-route-login-password"[\s\S]*inputText: "guidance-contract-password"\n- pressKey: ENTER/,
+    );
     assert.match(seed, /visible:\n        id: "workspace-access-refresh"[\s\S]*notVisible:\n            id: "workspace-access-refresh"/);
     assert.match(
       seed,

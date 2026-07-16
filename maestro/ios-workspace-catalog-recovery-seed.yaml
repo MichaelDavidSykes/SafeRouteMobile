@@ -10,13 +10,17 @@ appId: host.exp.Exponent
     id: "safe-route-login-email"
 - eraseText
 - inputText: "driver@example.com"
+- scrollUntilVisible:
+    element:
+      id: "safe-route-login-password"
+    direction: DOWN
+    timeout: 10000
+    speed: 40
 - tapOn:
     id: "safe-route-login-password"
 - eraseText
 - inputText: "guidance-contract-password"
-- hideKeyboard
-- tapOn:
-    id: "safe-route-login-primary-action"
+- pressKey: ENTER
 - runFlow:
     when:
       visible: "Not Now"

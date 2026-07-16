@@ -38,7 +38,7 @@ describe('Maestro workspace catalog recovery runtime', () => {
     );
     assert.match(
       reset,
-      /id: "guest-map-primary-action"\n- waitForAnimationToEnd:[\s\S]*id: "route-list-sign-out"\n- waitForAnimationToEnd:[\s\S]*visible:\n      id: "guest-map-primary-action"/,
+      /id: "guest-map-primary-action"\n    retryTapIfNoChange: true\n    waitToSettleTimeoutMs: 1000\n- waitForAnimationToEnd:[\s\S]*id: "route-list-sign-out"\n- waitForAnimationToEnd:[\s\S]*visible:\n      id: "guest-map-primary-action"/,
     );
   });
 

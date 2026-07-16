@@ -54,7 +54,7 @@ describe("workspace foreground revalidation", () => {
     );
   });
 
-  it("defers to catalog, retry, and session-cleanup work already in flight", () => {
+  it("queues the foreground epoch behind catalog, retry, and session-cleanup work", () => {
     for (const blocked of [
       { catalogBusy: true },
       { refreshPending: true },
@@ -62,9 +62,25 @@ describe("workspace foreground revalidation", () => {
     ]) {
       assert.deepEqual(
         resolveWorkspaceForegroundRevalidation({ ...readyState, ...blocked }),
-        { backgrounded: false, revalidate: false },
+        { backgrounded: true, revalidate: false },
       );
     }
+  });
+
+  it("replays a queued foreground epoch once catalog work settles", () => {
+    const deferred = resolveWorkspaceForegroundRevalidation({
+      ...readyState,
+      catalogBusy: true,
+    });
+
+    assert.deepEqual(
+      resolveWorkspaceForegroundRevalidation({
+        ...readyState,
+        backgrounded: deferred.backgrounded,
+        catalogBusy: false,
+      }),
+      { backgrounded: false, revalidate: true },
+    );
   });
 
   it("ignores signed-out, unstable-principal, and preview sessions", () => {

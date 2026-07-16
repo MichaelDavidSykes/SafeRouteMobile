@@ -242,8 +242,8 @@ export default function App() {
     workspaceCatalogRetrying,
   ]);
 
-  useEffect(() => {
-    const subscription = AppState.addEventListener('change', (nextAppState) => {
+  const requestWorkspaceForegroundRevalidation = useCallback(
+    (nextAppState: Parameters<typeof resolveWorkspaceForegroundRevalidation>[0]['nextAppState']) => {
       const accessToken = activeSessionTokenRef.current?.trim() || '';
       const principalId = activeSessionPrincipalIdRef.current;
       const decision = resolveWorkspaceForegroundRevalidation({
@@ -268,10 +268,21 @@ export default function App() {
       setWorkspaceCatalogError('');
       setWorkspaceAccessIssue('none');
       setWorkspaceDiscoveryRevision((revision) => revision + 1);
-    });
+    },
+    [],
+  );
+
+  useEffect(() => {
+    const subscription = AppState.addEventListener('change', requestWorkspaceForegroundRevalidation);
 
     return () => subscription.remove();
-  }, []);
+  }, [requestWorkspaceForegroundRevalidation]);
+
+  useEffect(() => {
+    if (!workspaceCatalogBusy) {
+      requestWorkspaceForegroundRevalidation(AppState.currentState);
+    }
+  }, [requestWorkspaceForegroundRevalidation, workspaceCatalogBusy]);
 
   const takePendingFullAccessFeature = () => {
     const pendingFeature = pendingFullAccessFeatureRef.current;

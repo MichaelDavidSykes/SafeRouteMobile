@@ -23,6 +23,7 @@ export const WORKSPACE_CATALOG_RECOVERY_PHASES = Object.freeze({
 });
 export const WORKSPACE_CATALOG_RETRY_DELAY_MS = 6_000;
 export const WORKSPACE_CATALOG_SUCCESS_DELAY_MS = 6_000;
+export const WORKSPACE_CATALOG_FOREGROUND_DELAY_MS = 6_000;
 
 export const GUIDANCE_START_BOUNDARY_PATH = '/__guidance_contract__/boundary';
 export const GUIDANCE_CONTRACT_EVIDENCE_PATH = '/__guidance_contract__/evidence';
@@ -460,6 +461,12 @@ export function createGuidanceContractHandler({
         phase === WORKSPACE_CATALOG_RECOVERY_PHASES.freshSuccess
       ) {
         await sleep(WORKSPACE_CATALOG_SUCCESS_DELAY_MS);
+      }
+      if (
+        !requestedWorkspaceId &&
+        phase === WORKSPACE_CATALOG_RECOVERY_PHASES.foregroundLoss
+      ) {
+        await sleep(WORKSPACE_CATALOG_FOREGROUND_DELAY_MS);
       }
       const requestedWorkspace = Object.values(GUIDANCE_CONTRACT_WORKSPACES)
         .find((workspace) => workspace.id === requestedWorkspaceId);

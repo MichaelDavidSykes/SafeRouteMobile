@@ -62,15 +62,18 @@ export function resolveWorkspaceForegroundRevalidation({
     return { backgrounded, revalidate: false };
   }
 
+  const eligibleForRevalidation =
+    authenticated && stablePrincipal && !previewSession;
+  if (!backgrounded || !eligibleForRevalidation) {
+    return { backgrounded: false, revalidate: false };
+  }
+
+  if (catalogBusy || refreshPending || sessionCleanupPending) {
+    return { backgrounded: true, revalidate: false };
+  }
+
   return {
     backgrounded: false,
-    revalidate:
-      backgrounded &&
-      authenticated &&
-      stablePrincipal &&
-      !previewSession &&
-      !catalogBusy &&
-      !refreshPending &&
-      !sessionCleanupPending,
+    revalidate: true,
   };
 }

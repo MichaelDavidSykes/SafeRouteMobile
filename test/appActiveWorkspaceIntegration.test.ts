@@ -175,6 +175,10 @@ describe("App active workspace integration", () => {
     assert.match(app, /if \(!decision\.revalidate\) \{[\s\S]*return;/);
     assert.match(
       app,
+      /if \(!workspaceCatalogBusy\) \{[\s\S]*requestWorkspaceForegroundRevalidation\(AppState\.currentState\)/,
+    );
+    assert.match(
+      app,
       /workspaceForegroundRefreshPendingRef\.current = true[\s\S]*restoreUnavailableWorkspacesFromFreshCatalogRef\.current = false[\s\S]*setWorkspaceDiscoveryRevision/,
     );
     assert.match(app, /activeWorkspaceAuthorizationFresh[\s\S]*!workspaceForegroundRefreshPendingRef\.current/);

@@ -26,6 +26,18 @@ appId: host.exp.Exponent
     visible:
       id: "guest-map-workspace-selector"
     timeout: 30000
+- runFlow:
+    when:
+      visible:
+        id: "workspace-access-refresh"
+    commands:
+      - tapOn:
+          id: "workspace-access-refresh"
+          waitToSettleTimeoutMs: 100
+      - extendedWaitUntil:
+          notVisible:
+            id: "workspace-access-refresh"
+          timeout: 15000
 - tapOn:
     id: "guest-map-workspace-selector"
 - tapOn:

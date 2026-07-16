@@ -11,6 +11,7 @@ const flowPaths = [
   'maestro/ios-workspace-catalog-recovery-saved-retry.yaml',
   'maestro/ios-workspace-catalog-recovery-operations-retry.yaml',
   'maestro/ios-workspace-catalog-recovery-success.yaml',
+  'maestro/ios-workspace-catalog-recovery-background.yaml',
   'maestro/ios-workspace-catalog-recovery-foreground-loss.yaml',
 ];
 
@@ -73,6 +74,7 @@ describe('Maestro workspace catalog recovery runtime', () => {
     assert.match(runner, /assertSuccessfulProtectedRequests\(entries, operationsRequests, 'operations-active'\)/);
     assert.match(runner, /request\.authorizationClass === 'expected-bearer'/);
     assert.match(seed, /inputText: "guidance-contract-password"\n- hideKeyboard\n- tapOn:\n    id: "safe-route-login-primary-action"/);
+    assert.match(seed, /visible:\n        id: "workspace-access-refresh"[\s\S]*notVisible:\n            id: "workspace-access-refresh"/);
     assert.match(
       seed,
       /id: "guest-map-workspace-selector"[\s\S]*id: "guest-map-workspace-66a1b2c3d4e5f60718293a40"[\s\S]*id: "guest-map-primary-action"[\s\S]*id: "safe-route-picker"/,
@@ -114,12 +116,18 @@ describe('Maestro workspace catalog recovery runtime', () => {
 
   it('revalidates and closes lost workspace data after a real background epoch', () => {
     const runner = read('scripts/run-maestro-workspace-catalog-recovery.mjs');
-    const foregroundLoss = read(flowPaths[6]);
+    const background = read(flowPaths[6]);
+    const foregroundLoss = read(flowPaths[7]);
 
-    assert.match(runner, /foregroundLoss,[\s\S]*GUIDANCE_CONTRACT_MODES\.denied/);
+    assert.match(runner, /foregroundBackground,[\s\S]*GUIDANCE_CONTRACT_MODES\.active[\s\S]*foregroundLoss,[\s\S]*GUIDANCE_CONTRACT_MODES\.denied/);
     assert.match(runner, /phase: WORKSPACE_CATALOG_RECOVERY_PHASES\.foregroundLoss[\s\S]*statusCode: 200/);
+    assert.match(runner, /minimumCatalogDurationMs: WORKSPACE_CATALOG_FOREGROUND_DELAY_MS - 250/);
     assert.match(runner, /Foreground membership loss did not reload Saved for the surviving workspace/);
-    assert.match(foregroundLoss, /pressKey: HOME[\s\S]*openLink: exp:\/\/localhost:8081/);
+    assert.match(runner, /assertNoUnsafePostForegroundCatalogTraffic\(entries\)/);
+    assert.match(background, /route-list-map-return[\s\S]*pressKey: HOME/);
+    assert.doesNotMatch(background, /GUIDANCE_CONTRACT_MODES|openLink:/);
+    assert.match(foregroundLoss, /openLink: exp:\/\/localhost:8081[\s\S]*Checking workspace…/);
+    assert.match(foregroundLoss, /guest-map-plot-action[\s\S]*enabled: false/);
     assert.match(foregroundLoss, /Workspace access changed\. Unavailable workspace data was removed\./);
     assert.match(foregroundLoss, /Workspace, Support Operations/);
     assert.match(foregroundLoss, /safe-route-card-66b1b2c3d4e5f60718293b41/);

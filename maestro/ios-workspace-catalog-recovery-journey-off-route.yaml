@@ -6,18 +6,15 @@ appId: host.exp.Exponent
 - setLocation:
     latitude: 51.5300
     longitude: -0.0900
-- waitForAnimationToEnd:
-    timeout: 1000
+- runScript: scripts/wait-for-live-location-evidence.js
 - setLocation:
     latitude: 51.5301
     longitude: -0.0901
-- waitForAnimationToEnd:
-    timeout: 1000
+- runScript: scripts/wait-for-live-location-evidence.js
 - setLocation:
     latitude: 51.5302
     longitude: -0.0902
-- waitForAnimationToEnd:
-    timeout: 1000
+- runScript: scripts/wait-for-live-location-evidence.js
 - setLocation:
     latitude: 51.5303
     longitude: -0.0903

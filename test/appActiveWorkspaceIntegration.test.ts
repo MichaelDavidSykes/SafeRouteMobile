@@ -508,7 +508,7 @@ describe("App active workspace integration", () => {
     assert.match(app, /discardPersistedNavigation\('Suspended route ended\.'\)/);
     assert.match(
       app,
-      /resolvePendingNavigationRestore\(\{[\s\S]*candidate: pendingNavigation,[\s\S]*current: pendingNavigationRestoreRef\.current,[\s\S]*pendingNavigationWorkspace &&[\s\S]*pendingNavigationResolution === 'resume'/,
+      /const pendingNavigationForAuthorization = pendingNavigationRestoreRef\.current[\s\S]*resolvePendingNavigationRestore\(\{[\s\S]*candidate: pendingNavigationForAuthorization,[\s\S]*current: pendingNavigationRestoreRef\.current,[\s\S]*pendingNavigationWorkspace &&[\s\S]*pendingNavigationResolution === 'resume'/,
     );
     assert.match(
       app,

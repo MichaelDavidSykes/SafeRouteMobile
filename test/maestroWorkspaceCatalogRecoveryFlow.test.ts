@@ -110,6 +110,7 @@ describe('Maestro workspace catalog recovery runtime', () => {
       assert.match(flow, /takeScreenshot:/);
     }
     assert.match(saved, /id: "safe-route-card-66b1b2c3d4e5f60718293b40"/);
+    assert.match(saved, /id: "guest-map-primary-action"[\s\S]*retryTapIfNoChange: true/);
     assert.match(operations, /id: "safe-route-operations"/);
     assert.match(operations, /id: "guest-map-gate-planned-trips"/);
     assert.match(operations, /id: "safe-route-operations-error-state"/);

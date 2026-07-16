@@ -2,6 +2,8 @@ appId: host.exp.Exponent
 ---
 - tapOn:
     id: "guest-map-primary-action"
+    retryTapIfNoChange: true
+    waitToSettleTimeoutMs: 1000
 - extendedWaitUntil:
     visible:
       id: "safe-route-picker"

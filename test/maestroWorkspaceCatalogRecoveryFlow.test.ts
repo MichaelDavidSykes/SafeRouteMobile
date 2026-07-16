@@ -133,13 +133,20 @@ describe('Maestro workspace catalog recovery runtime', () => {
       runner.match(/const protectedRequestsDuringCatalog[\s\S]*?\n  \);/)?.[0] || '',
       /mobile\/safe-route\/routes/,
     );
-    assert.match(background, /route-list-map-return[\s\S]*pressKey: HOME/);
+    assert.match(
+      background,
+      /route-list-map-return"\n    retryTapIfNoChange: true\n    waitToSettleTimeoutMs: 1000[\s\S]*pressKey: HOME/,
+    );
     assert.doesNotMatch(background, /GUIDANCE_CONTRACT_MODES|openLink:/);
     assert.match(foregroundLoss, /openLink: exp:\/\/localhost:8081[\s\S]*Checking workspace access before plotting this route/);
     assert.match(foregroundLoss, /guest-map-plot-action[\s\S]*enabled: false/);
     assert.match(foregroundLoss, /workspace-access-refresh[\s\S]*enabled: true[\s\S]*Workspace access changed\. Check for restored access\./);
     assert.match(foregroundLoss, /Workspace, Support Operations/);
     assert.match(foregroundLoss, /guest-map-primary-action"[\s\S]*retryTapIfNoChange: true/);
+    assert.match(
+      foregroundLoss,
+      /when:\n      visible:\n        id: "guest-map-primary-action"[\s\S]*commands:\n      - tapOn:\n          id: "guest-map-primary-action"/,
+    );
     assert.match(foregroundLoss, /safe-route-card-66b1b2c3d4e5f60718293b41/);
     assert.match(foregroundLoss, /assertNotVisible:[\s\S]*safe-route-card-66b1b2c3d4e5f60718293b40/);
     assert.match(foregroundLoss, /workspace-access-refresh[\s\S]*enabled: true/);

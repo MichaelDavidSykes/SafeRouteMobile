@@ -2,6 +2,8 @@ appId: host.exp.Exponent
 ---
 - tapOn:
     id: "route-list-map-return"
+    retryTapIfNoChange: true
+    waitToSettleTimeoutMs: 1000
 - extendedWaitUntil:
     visible:
       id: "guest-map-workspace-selector"

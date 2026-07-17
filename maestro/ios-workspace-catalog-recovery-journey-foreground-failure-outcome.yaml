@@ -1,0 +1,45 @@
+appId: host.exp.Exponent
+---
+- extendedWaitUntil:
+    visible: "Updates paused"
+    timeout: 15000
+- assertVisible: "Access status. Workspace access could not be verified. Guidance remains available, but workspace risk and rerouting updates are paused."
+- assertVisible: "Resume route guidance"
+- assertVisible:
+    id: "safe-route-primary-action"
+    enabled: true
+- assertVisible:
+    id: "safe-route-stop-action"
+    enabled: true
+- assertVisible:
+    id: "safe-route-remaining-metrics"
+- assertVisible:
+    id: "safe-route-journey-66b1b2c3d4e5f60718293b40"
+- assertNotVisible:
+    id: "safe-route-suspended-navigation"
+- tapOn:
+    id: "safe-route-primary-action"
+    waitToSettleTimeoutMs: 1000
+- assertVisible: "Pause route guidance"
+- assertVisible:
+    id: "safe-route-stop-action"
+    enabled: true
+- assertVisible:
+    id: "safe-route-remaining-metrics"
+- tapOn:
+    id: "safe-route-primary-action"
+    waitToSettleTimeoutMs: 1000
+- assertVisible: "Resume route guidance"
+- assertVisible:
+    id: "safe-route-stop-action"
+    enabled: true
+- assertVisible:
+    id: "safe-route-remaining-metrics"
+- assertVisible:
+    id: "safe-route-journey-66b1b2c3d4e5f60718293b40"
+- assertVisible: "Updates paused"
+- assertVisible: "Access status. Workspace access could not be verified. Guidance remains available, but workspace risk and rerouting updates are paused."
+- takeScreenshot: "workspace-catalog-journey-updates-paused"
+- pressKey: HOME
+- waitForAnimationToEnd:
+    timeout: 2000

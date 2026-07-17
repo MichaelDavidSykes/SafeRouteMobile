@@ -17,6 +17,7 @@ export const WORKSPACE_CATALOG_RECOVERY_PHASES = Object.freeze({
   freshSuccess: 'catalogFreshSuccess',
   initialFailure: 'catalogInitialFailure',
   journeyBackground: 'catalogJourneyBackground',
+  journeyForegroundFailure: 'catalogJourneyForegroundFailure',
   journeyRestart: 'catalogJourneyRestart',
   journeyRouteBackground: 'catalogJourneyRouteBackground',
   journeyRoutePrepare: 'catalogJourneyRoutePrepare',
@@ -460,6 +461,34 @@ export function createGuidanceContractHandler({
       ].includes(phase);
       const restoreFailure =
         phase === WORKSPACE_CATALOG_RECOVERY_PHASES.journeyRestoreFailure;
+      const foregroundFailure =
+        !requestedWorkspaceId &&
+        phase === WORKSPACE_CATALOG_RECOVERY_PHASES.journeyForegroundFailure;
+      if (foregroundFailure) {
+        const released = await waitForWorkspaceCatalogRelease({
+          phase,
+          readControl,
+          sleep
+        });
+        if (!released) {
+          sendApiError(
+            response,
+            504,
+            'Workspace catalog hold timed out.',
+            {},
+            'catalog-hold-timeout'
+          );
+          return;
+        }
+        sendApiError(
+          response,
+          503,
+          'Workspace catalog verification is temporarily unavailable.',
+          {},
+          'catalog-foreground-unavailable'
+        );
+        return;
+      }
       const catalogFailure = !requestedWorkspaceId && (
         phase === WORKSPACE_CATALOG_RECOVERY_PHASES.initialFailure ||
         retryFailure ||

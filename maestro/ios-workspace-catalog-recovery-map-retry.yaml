@@ -5,6 +5,7 @@ appId: host.exp.Exponent
     enabled: true
 - tapOn:
     id: "workspace-access-refresh"
+    retryTapIfNoChange: true
     waitToSettleTimeoutMs: 100
 - extendedWaitUntil:
     visible:

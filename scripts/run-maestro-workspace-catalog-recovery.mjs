@@ -46,6 +46,8 @@ const flows = Object.freeze({
   foregroundLoss: 'maestro/ios-workspace-catalog-recovery-foreground-loss.yaml',
   foregroundStartGateChecking: 'maestro/ios-workspace-catalog-recovery-start-gate-checking.yaml',
   foregroundStartGateReady: 'maestro/ios-workspace-catalog-recovery-start-gate-ready.yaml',
+  journeyForegroundFailureChecking: 'maestro/ios-workspace-catalog-recovery-journey-foreground-failure-checking.yaml',
+  journeyForegroundFailureOutcome: 'maestro/ios-workspace-catalog-recovery-journey-foreground-failure-outcome.yaml',
   journeyRestoreEndChecking: 'maestro/ios-workspace-catalog-recovery-journey-restore-end-checking.yaml',
   journeyRestoreEndOutcome: 'maestro/ios-workspace-catalog-recovery-journey-restore-end-outcome.yaml',
   journeyRestoreFailure: 'maestro/ios-workspace-catalog-recovery-journey-restore-failure.yaml',
@@ -76,6 +78,7 @@ const FULL_EXPECTED_MODE_BY_PHASE = Object.freeze({
   [WORKSPACE_CATALOG_RECOVERY_PHASES.journeyRestoreReload]: GUIDANCE_CONTRACT_MODES.active,
   [WORKSPACE_CATALOG_RECOVERY_PHASES.journeyRestart]: GUIDANCE_CONTRACT_MODES.active,
   [WORKSPACE_CATALOG_RECOVERY_PHASES.journeyBackground]: GUIDANCE_CONTRACT_MODES.active,
+  [WORKSPACE_CATALOG_RECOVERY_PHASES.journeyForegroundFailure]: GUIDANCE_CONTRACT_MODES.active,
   [WORKSPACE_CATALOG_RECOVERY_PHASES.foregroundLoss]: GUIDANCE_CONTRACT_MODES.denied
 });
 
@@ -93,6 +96,7 @@ const FULL_REQUIRED_REQUEST_PHASES = Object.freeze([
   WORKSPACE_CATALOG_RECOVERY_PHASES.journeyRestoreEnd,
   WORKSPACE_CATALOG_RECOVERY_PHASES.journeyRestoreReload,
   WORKSPACE_CATALOG_RECOVERY_PHASES.journeyRestart,
+  WORKSPACE_CATALOG_RECOVERY_PHASES.journeyForegroundFailure,
   WORKSPACE_CATALOG_RECOVERY_PHASES.foregroundLoss
 ]);
 
@@ -239,6 +243,17 @@ async function main() {
   );
   await new Promise((resolve) => setTimeout(resolve, 500));
   await runHeldCatalogPhase({
+    checkingFlow: flows.journeyForegroundFailureChecking,
+    checkingLabel: 'keep the exact journey locally available while authorization is held',
+    checkingScreenshot: 'workspace-catalog-journey-foreground-failure-checking',
+    expectedCatalogOutcome: 'catalog-foreground-unavailable',
+    expectedCatalogStatusCode: 503,
+    mode: GUIDANCE_CONTRACT_MODES.active,
+    outcomeFlow: flows.journeyForegroundFailureOutcome,
+    outcomeLabel: 'pause workspace updates after transient authorization failure',
+    phase: WORKSPACE_CATALOG_RECOVERY_PHASES.journeyForegroundFailure
+  });
+  await runHeldCatalogPhase({
     checkingFlow: flows.foregroundJourneyChecking,
     checkingLabel: 'resume the exact journey while denied authorization is held',
     checkingScreenshot: 'workspace-catalog-journey-foreground-off-route',
@@ -348,6 +363,8 @@ async function runHeldCatalogPhase({
   checkingFlow,
   checkingLabel,
   checkingScreenshot,
+  expectedCatalogOutcome = null,
+  expectedCatalogStatusCode = 200,
   mode,
   outcomeFlow,
   outcomeLabel,
@@ -365,7 +382,10 @@ async function runHeldCatalogPhase({
     assertHeldCatalogPending(readRequestJournal(), phase);
     setControl(phase, mode, { catalogReleased: true });
     await Promise.all([
-      waitForCatalogCompletion(phase),
+      waitForCatalogCompletion(phase, {
+        semanticOutcome: expectedCatalogOutcome,
+        statusCode: expectedCatalogStatusCode
+      }),
       finishMaestroFlow(checkingRun)
     ]);
   } catch (error) {
@@ -644,7 +664,10 @@ function assertHeldCatalogPending(entries, phase) {
   );
 }
 
-async function waitForCatalogCompletion(phase) {
+async function waitForCatalogCompletion(
+  phase,
+  { semanticOutcome = null, statusCode = 200 } = {}
+) {
   const deadline = Date.now() + 15_000;
   while (Date.now() < deadline) {
     const entries = readRequestJournal();
@@ -655,7 +678,24 @@ async function waitForCatalogCompletion(phase) {
       const completion = entries.find(
         (entry) => entry.event === 'completion' && entry.requestId === catalog.requestId
       );
-      if (completion?.completed === true && completion.statusCode === 200) {
+      if (
+        completion &&
+        (
+          completion.completed !== true ||
+          completion.statusCode !== statusCode ||
+          (semanticOutcome && completion.semanticOutcome !== semanticOutcome)
+        )
+      ) {
+        throw new Error(
+          `${phase} catalog completed unexpectedly: completed=${completion.completed}, ` +
+          `status=${completion.statusCode}, outcome=${completion.semanticOutcome}.`
+        );
+      }
+      if (
+        completion?.completed === true &&
+        completion.statusCode === statusCode &&
+        (!semanticOutcome || completion.semanticOutcome === semanticOutcome)
+      ) {
         return;
       }
     }
@@ -680,7 +720,44 @@ function assertFullRecoveryEvidence(entries, evidenceEntries) {
       'tracking.stop.settled'
     ]
   });
+  assertActiveGuidanceFailureEvidence(evidenceEntries);
   assertForegroundLossLifecycleEvidence(entries, evidenceEntries);
+}
+
+function assertActiveGuidanceFailureEvidence(evidenceEntries) {
+  const currentEvidence = evidenceEntries.filter(
+    (entry) =>
+      entry.sourceRevision === readCurrentSourceRevision()
+  );
+  const phaseEvidence = currentEvidence.filter(
+    (entry) =>
+      entry.serverPhase === WORKSPACE_CATALOG_RECOVERY_PHASES.journeyForegroundFailure
+  );
+  const restarted = currentEvidence.filter(
+    (entry) =>
+      entry.serverPhase === WORKSPACE_CATALOG_RECOVERY_PHASES.journeyRestart &&
+      entry.type === 'navigation.persisted' &&
+      entry.workspaceId === GUIDANCE_CONTRACT_WORKSPACES.denied.id &&
+      entry.routeId === GUIDANCE_CONTRACT_ROUTE_VARIANT_IDS.deniedV1 &&
+      entry.authorization?.catalog === 'fresh-authorized' &&
+      entry.authorization?.principal === 'matching' &&
+      entry.outcome === 'persisted'
+  );
+  const destructiveTypes = new Set([
+    'navigation.cleanup.settled',
+    'restore.suspended',
+    'tracking.stop.settled',
+    'workspace.recovery.settled'
+  ]);
+  assertCondition(
+    restarted.length === 1 &&
+      !phaseEvidence.some(
+        (entry) =>
+          destructiveTypes.has(entry.type) ||
+          entry.authorization?.catalog === 'fresh-authorized'
+      ),
+    'Transient active-guidance catalog failure emitted destructive or falsely fresh evidence.'
+  );
 }
 
 function assertForegroundLossLifecycleEvidence(entries, evidenceEntries) {
@@ -802,6 +879,14 @@ function assertRecoveryJournal(entries) {
     statusCode: 200
   });
   assertAuthorizationAttempts(entries, {
+    catalogOutcome: 'catalog-foreground-unavailable',
+    expectedAttemptCount: 1,
+    expectedUserCountBeforeCatalog: 1,
+    minimumCatalogDurationMs: 0,
+    phase: WORKSPACE_CATALOG_RECOVERY_PHASES.journeyForegroundFailure,
+    statusCode: 503
+  });
+  assertAuthorizationAttempts(entries, {
     catalogOutcome: 'catalog-active',
     expectedAttemptCount: 1,
     expectedUserCountBeforeCatalog: 1,
@@ -880,10 +965,30 @@ function assertRecoveryJournal(entries) {
   assertNoProtectedBackgroundTraffic(entries, WORKSPACE_CATALOG_RECOVERY_PHASES.journeyBackground);
   assertHeldAuthorizationWindow(entries, WORKSPACE_CATALOG_RECOVERY_PHASES.journeyStartGate);
   assertHeldAuthorizationWindow(entries, WORKSPACE_CATALOG_RECOVERY_PHASES.journeyRestoreEnd);
+  assertHeldAuthorizationWindow(entries, WORKSPACE_CATALOG_RECOVERY_PHASES.journeyForegroundFailure);
   assertHeldAuthorizationWindow(entries, WORKSPACE_CATALOG_RECOVERY_PHASES.foregroundLoss);
+  assertActiveGuidanceFailureTraffic(entries);
   assertRestoreEndSettledWithoutTraffic(entries);
   assertEndedJourneyReloadTraffic(entries);
   assertNoUnsafeForegroundCatalogTraffic(entries);
+}
+
+function assertActiveGuidanceFailureTraffic(entries) {
+  const phase = WORKSPACE_CATALOG_RECOVERY_PHASES.journeyForegroundFailure;
+  const requests = phaseApiRequests(entries, phase);
+  const catalog = requests.find((entry) =>
+    entry.path === '/api/v1/mobile/safe-route/routes' && entry.search === ''
+  );
+  const catalogCompletion = completionFor(entries, catalog);
+  assertCondition(
+    requests.length === 2 &&
+      requests[0].path === '/api/v1/users/me' &&
+      requests[1].requestId === catalog.requestId &&
+      catalogCompletion.completed === true &&
+      catalogCompletion.statusCode === 503 &&
+      catalogCompletion.semanticOutcome === 'catalog-foreground-unavailable',
+    `${phase} emitted protected workspace traffic or did not settle with the exact transient 503.`
+  );
 }
 
 function assertRestoreEndSliceJournal(entries, evidenceEntries) {

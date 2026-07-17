@@ -125,6 +125,7 @@ describe('Maestro workspace catalog recovery runtime', () => {
 
     for (const flow of [map, saved, operations]) {
       assert.match(flow, /id: "workspace-access-refresh"[\s\S]*enabled: true/);
+      assert.match(flow, /id: "workspace-access-refresh"[\s\S]*retryTapIfNoChange: true/);
       assert.match(flow, /id: "workspace-access-refresh"[\s\S]*enabled: false/);
       assert.match(flow, /Checking current workspace access\. Cached workspace remains available for review only\./);
       assert.match(flow, /Workspace access not verified\. Try checking current access again\./);

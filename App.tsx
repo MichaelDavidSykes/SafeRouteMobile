@@ -33,7 +33,8 @@ import {
 } from './src/features/live-map/activeNavigationSessionCore';
 import {
   clearActiveNavigationSession,
-  loadActiveNavigationSession
+  loadActiveNavigationSession,
+  readActiveNavigationSession,
 } from './src/features/live-map/activeNavigationSession';
 import {
   confirmBackgroundNavigationStopped,
@@ -430,47 +431,45 @@ export default function App() {
       const workspaceId = evidenceSession?.accessScope.kind === 'workspace'
         ? evidenceSession.accessScope.clientId
         : null;
-      await Promise.all([
-        recordGuidanceContractEvidence({
-          authorization: {
-            catalog: 'not-checked',
-            principal: evidenceSession?.accessScope.kind === 'workspace'
-              ? 'matching'
-              : 'none',
-          },
-          cause: 'navigation-discard',
-          durability: {
-            activeNavigation: durableClearSucceeded ? 'revoked' : 'unknown',
-            persistedPermit: durableClearSucceeded ? 'revoked' : 'unknown',
-          },
-          navigationInstanceId: evidenceSession?.navigationInstanceId || null,
-          outcome: durableClearSucceeded ? 'cleared' : 'failed',
-          routeId: evidenceSession?.routePlan.route.id || null,
-          type: 'navigation.cleanup.settled',
-          unavailableWorkspaceIds: workspaceId ? [workspaceId] : [],
-          workspaceId,
-        }),
-        recordGuidanceContractEvidence({
-          authorization: {
-            catalog: 'not-checked',
-            principal: evidenceSession?.accessScope.kind === 'workspace'
-              ? 'matching'
-              : 'none',
-          },
-          cause: 'navigation-discard',
-          durability: {
-            nativeTracking: trackingVerification.nativeTracking,
-            persistedPermit: durableClearSucceeded ? 'revoked' : 'unknown',
-            runtimePermit: trackingVerification.runtimePermit,
-          },
-          navigationInstanceId: evidenceSession?.navigationInstanceId || null,
-          outcome: trackingVerification.stopped ? 'off' : 'unknown',
-          routeId: evidenceSession?.routePlan.route.id || null,
-          type: 'tracking.stop.settled',
-          unavailableWorkspaceIds: workspaceId ? [workspaceId] : [],
-          workspaceId,
-        }),
-      ]);
+      await recordGuidanceContractEvidence({
+        authorization: {
+          catalog: 'not-checked',
+          principal: evidenceSession?.accessScope.kind === 'workspace'
+            ? 'matching'
+            : 'none',
+        },
+        cause: 'navigation-discard',
+        durability: {
+          activeNavigation: durableClearSucceeded ? 'revoked' : 'unknown',
+          persistedPermit: durableClearSucceeded ? 'revoked' : 'unknown',
+        },
+        navigationInstanceId: evidenceSession?.navigationInstanceId || null,
+        outcome: durableClearSucceeded ? 'cleared' : 'failed',
+        routeId: evidenceSession?.routePlan.route.id || null,
+        type: 'navigation.cleanup.settled',
+        unavailableWorkspaceIds: workspaceId ? [workspaceId] : [],
+        workspaceId,
+      });
+      await recordGuidanceContractEvidence({
+        authorization: {
+          catalog: 'not-checked',
+          principal: evidenceSession?.accessScope.kind === 'workspace'
+            ? 'matching'
+            : 'none',
+        },
+        cause: 'navigation-discard',
+        durability: {
+          nativeTracking: trackingVerification.nativeTracking,
+          persistedPermit: durableClearSucceeded ? 'revoked' : 'unknown',
+          runtimePermit: trackingVerification.runtimePermit,
+        },
+        navigationInstanceId: evidenceSession?.navigationInstanceId || null,
+        outcome: trackingVerification.stopped ? 'off' : 'unknown',
+        routeId: evidenceSession?.routePlan.route.id || null,
+        type: 'tracking.stop.settled',
+        unavailableWorkspaceIds: workspaceId ? [workspaceId] : [],
+        workspaceId,
+      });
       navigationCleanupRequiredRef.current = !cleanupSucceeded;
       setNavigationCleanupStatus(cleanupSucceeded ? 'idle' : 'failed');
       return cleanupSucceeded;
@@ -574,10 +573,21 @@ export default function App() {
       let persistedNavigation: ActiveNavigationSession | null = null;
 
       try {
+        const entryTrackingVerification =
+          SAFEROUTE_GUIDANCE_CONTRACT_EVIDENCE_ENABLED
+            ? await confirmBackgroundNavigationStopped()
+            : null;
         await stopBackgroundNavigation();
-        persistedNavigation = SAFEROUTE_PREVIEW_MODE_ENABLED
-          ? null
-          : await loadActiveNavigationSession();
+        const navigationReadback = SAFEROUTE_PREVIEW_MODE_ENABLED
+          ? { session: null, status: 'absent' as const }
+          : await readActiveNavigationSession();
+        persistedNavigation = navigationReadback.session;
+        if (
+          !SAFEROUTE_PREVIEW_MODE_ENABLED &&
+          navigationReadback.status === 'absent'
+        ) {
+          await recordNavigationAbsenceReadback(entryTrackingVerification);
+        }
         const storedSession = await loadAuthSession();
         if (!mounted) {
           return;
@@ -2039,6 +2049,37 @@ async function recordNavigationRestoreSuspended(
     type: 'restore.suspended',
     unavailableWorkspaceIds: [],
     workspaceId,
+  });
+}
+
+async function recordNavigationAbsenceReadback(
+  entryTrackingVerification: Awaited<
+    ReturnType<typeof confirmBackgroundNavigationStopped>
+  > | null,
+): Promise<void> {
+  if (
+    !SAFEROUTE_GUIDANCE_CONTRACT_EVIDENCE_ENABLED ||
+    !entryTrackingVerification
+  ) {
+    return;
+  }
+  await recordGuidanceContractEvidence({
+    authorization: {
+      catalog: 'not-checked',
+      principal: 'unknown',
+    },
+    cause: 'cold-start-readback',
+    durability: {
+      activeNavigation: 'absent',
+      nativeTracking: entryTrackingVerification.nativeTracking,
+      runtimePermit: entryTrackingVerification.runtimePermit,
+    },
+    navigationInstanceId: null,
+    outcome: entryTrackingVerification.stopped ? 'absent' : 'tracking-active',
+    routeId: null,
+    type: 'navigation.absence.readback',
+    unavailableWorkspaceIds: [],
+    workspaceId: null,
   });
 }
 

@@ -448,7 +448,7 @@ describe("App active workspace integration", () => {
     const liveMap = readFileSync("src/features/live-map/LiveMapScreen.tsx", "utf8");
 
     assert.match(app, /pendingNavigationRestoreRef = useRef<ActiveNavigationSession \| null>\(null\)/);
-    assert.match(app, /await stopBackgroundNavigation\(\);[\s\S]*loadActiveNavigationSession\(\);[\s\S]*const storedSession = await loadAuthSession\(\)/);
+    assert.match(app, /entryTrackingVerification[\s\S]*confirmBackgroundNavigationStopped\(\)[\s\S]*await stopBackgroundNavigation\(\);[\s\S]*readActiveNavigationSession\(\);[\s\S]*recordNavigationAbsenceReadback\(entryTrackingVerification\);[\s\S]*const storedSession = await loadAuthSession\(\)/);
     assert.match(app, /catch \{[\s\S]*clearAuthSession\(\)\.catch\(\(\) => undefined\)[\s\S]*openActiveNavigationSession\(persistedNavigation, false/);
     assert.match(app, /persistedNavigation\?\.accessScope\.kind === 'workspace'[\s\S]*stagePendingNavigationRestore\(persistedNavigation\)/);
     assert.match(app, /hasMatchingAuthPrincipal\([\s\S]*persistedNavigation\.accessScope\.principalId/);
@@ -472,6 +472,10 @@ describe("App active workspace integration", () => {
     assert.match(app, /navigationCleanupRequiredRef = useRef\(false\)/);
     assert.match(app, /performPersistedNavigationCleanup[\s\S]*cleanup\[1\]\.value === true/);
     assert.match(app, /confirmBackgroundNavigationStopped/);
+    assert.match(
+      app,
+      /recordNavigationAbsenceReadback[\s\S]*cold-start-readback[\s\S]*activeNavigation: 'absent'[\s\S]*runtimePermit: entryTrackingVerification\.runtimePermit[\s\S]*navigation\.absence\.readback/,
+    );
     assert.match(app, /navigationCleanupRequiredRef\.current = !cleanupSucceeded/);
     assert.match(app, /!durableClearSucceeded[\s\S]*Saved guidance could not be removed/);
     assert.match(app, /handleRetryNavigationCleanup[\s\S]*Saved guidance removed/);

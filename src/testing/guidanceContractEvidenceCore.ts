@@ -9,6 +9,7 @@ export const GUIDANCE_CONTRACT_EVIDENCE_TYPES = [
   "route.cache.readback",
   "navigation.cleanup.settled",
   "tracking.stop.settled",
+  "navigation.absence.readback",
 ] as const;
 
 export type GuidanceContractEvidenceType =

@@ -18,6 +18,8 @@ export const WORKSPACE_CATALOG_RECOVERY_PHASES = Object.freeze({
   initialFailure: 'catalogInitialFailure',
   journeyBackground: 'catalogJourneyBackground',
   journeyForegroundFailure: 'catalogJourneyForegroundFailure',
+  journeyForegroundFailureEnd: 'catalogJourneyForegroundFailureEnd',
+  journeyEndedRelaunch: 'catalogJourneyEndedRelaunch',
   journeyRestart: 'catalogJourneyRestart',
   journeyRouteBackground: 'catalogJourneyRouteBackground',
   journeyRoutePrepare: 'catalogJourneyRoutePrepare',
@@ -45,7 +47,8 @@ export const GUIDANCE_CONTRACT_EVIDENCE_TYPES = Object.freeze([
   'workspace.recovery.settled',
   'route.cache.readback',
   'navigation.cleanup.settled',
-  'tracking.stop.settled'
+  'tracking.stop.settled',
+  'navigation.absence.readback'
 ]);
 const GUIDANCE_CONTRACT_EVIDENCE_PHASES = Object.freeze({
   'navigation.persisted': new Set([
@@ -74,6 +77,7 @@ const GUIDANCE_CONTRACT_EVIDENCE_PHASES = Object.freeze({
   'route.cache.readback': new Set(['regained', 'readbackEvidence']),
   'navigation.cleanup.settled': new Set([
     'catalogForegroundLoss',
+    'catalogJourneyForegroundFailureEnd',
     'catalogJourneyRestoreEnd',
     'wrongPrincipalStart',
     'deniedStart',
@@ -82,12 +86,14 @@ const GUIDANCE_CONTRACT_EVIDENCE_PHASES = Object.freeze({
   ]),
   'tracking.stop.settled': new Set([
     'catalogForegroundLoss',
+    'catalogJourneyForegroundFailureEnd',
     'catalogJourneyRestoreEnd',
     'wrongPrincipalStart',
     'deniedStart',
     'wrongPrincipal',
     'denied'
-  ])
+  ]),
+  'navigation.absence.readback': new Set(['catalogJourneyEndedRelaunch'])
 });
 
 const ACCOUNT_EMAIL = 'driver@example.com';
@@ -464,6 +470,9 @@ export function createGuidanceContractHandler({
       const foregroundFailure =
         !requestedWorkspaceId &&
         phase === WORKSPACE_CATALOG_RECOVERY_PHASES.journeyForegroundFailure;
+      const endedJourneyRelaunchFailure =
+        !requestedWorkspaceId &&
+        phase === WORKSPACE_CATALOG_RECOVERY_PHASES.journeyEndedRelaunch;
       if (foregroundFailure) {
         const released = await waitForWorkspaceCatalogRelease({
           phase,
@@ -491,6 +500,7 @@ export function createGuidanceContractHandler({
       }
       const catalogFailure = !requestedWorkspaceId && (
         phase === WORKSPACE_CATALOG_RECOVERY_PHASES.initialFailure ||
+        endedJourneyRelaunchFailure ||
         retryFailure ||
         restoreFailure
       );
@@ -505,6 +515,8 @@ export function createGuidanceContractHandler({
           {},
           retryFailure
             ? 'catalog-retry-unavailable'
+            : endedJourneyRelaunchFailure
+              ? 'catalog-ended-relaunch-unavailable'
             : restoreFailure
               ? 'catalog-restore-unavailable'
               : 'catalog-initial-unavailable'
@@ -1136,6 +1148,15 @@ function isSuccessfulGuidanceContractEvidence(event, journal) {
       event.outcome === 'cleared' &&
       event.durability.activeNavigation === 'revoked' &&
       event.durability.persistedPermit === 'revoked';
+  }
+  if (event.type === 'navigation.absence.readback') {
+    return !workspaceLifecycle &&
+      event.authorization.catalog === 'not-checked' &&
+      event.authorization.principal === 'unknown' &&
+      event.outcome === 'absent' &&
+      event.durability.activeNavigation === 'absent' &&
+      ['not-started', 'stopped', 'unsupported'].includes(event.durability.nativeTracking) &&
+      event.durability.runtimePermit === 'none';
   }
   return event.type === 'tracking.stop.settled' &&
     workspaceLifecycle &&

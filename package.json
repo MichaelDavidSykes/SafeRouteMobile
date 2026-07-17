@@ -59,7 +59,8 @@
     "test:maestro:ios:workspace-choice": "node scripts/run-maestro.mjs test maestro/ios-preview-workspace-choice.yaml",
     "test:maestro:ios:guidance-suspended": "node scripts/run-maestro.mjs test maestro/ios-preview-guidance-suspended.yaml",
     "test:maestro:ios:guidance-contract": "node scripts/run-maestro-guidance-contract.mjs",
-    "test:maestro:ios:workspace-catalog-recovery": "node scripts/run-maestro-workspace-catalog-recovery.mjs"
+    "test:maestro:ios:workspace-catalog-recovery": "node scripts/run-maestro-workspace-catalog-recovery.mjs",
+    "test:maestro:ios:workspace-catalog-recovery:restore-end": "SAFEROUTE_WORKSPACE_RECOVERY_SLICE=restore-end node scripts/run-maestro-workspace-catalog-recovery.mjs"
   },
   "dependencies": {
     "@react-native-async-storage/async-storage": "2.2.0",

@@ -48,13 +48,18 @@ export const GUIDANCE_CONTRACT_EVIDENCE_TYPES = Object.freeze([
 ]);
 const GUIDANCE_CONTRACT_EVIDENCE_PHASES = Object.freeze({
   'navigation.persisted': new Set([
+    'catalogJourneyStart',
     'publicStart',
     'workspaceStart',
     'workspaceReconnect',
     'workspaceReseedStart',
     'denialSeedStart'
   ]),
-  'restore.suspended': new Set(['workspaceOffline', 'workspaceReconnect']),
+  'restore.suspended': new Set([
+    'catalogJourneyRestoreFailure',
+    'workspaceOffline',
+    'workspaceReconnect'
+  ]),
   'restore.ready': new Set(['workspacePrepare', 'workspaceReconnect']),
   'workspace.recovery.settled': new Set([
     'deniedStart',

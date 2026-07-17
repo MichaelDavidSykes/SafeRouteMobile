@@ -44,6 +44,10 @@ describe('Maestro workspace catalog recovery runtime', () => {
     );
     assert.match(
       packageJson,
+      /"test:maestro:ios:workspace-catalog-recovery:restore-end": "SAFEROUTE_WORKSPACE_RECOVERY_SLICE=restore-end node scripts\/run-maestro-workspace-catalog-recovery\.mjs"/,
+    );
+    assert.match(
+      packageJson,
       /"start:maestro:ios:workspace-catalog-recovery": "[^"]*SAFEROUTE_ENABLE_GUIDANCE_CONTRACT_EVIDENCE=true/,
     );
     assert.doesNotMatch(
@@ -231,11 +235,35 @@ describe('Maestro workspace catalog recovery runtime', () => {
     );
     assert.match(
       runner,
+      /restoreEndSliceOnly = requestedSlice === 'restore-end'[\s\S]*if \(!restoreEndSliceOnly\) \{[\s\S]*journeyRouteBackground[\s\S]*journeyStartGate[\s\S]*runRestoreEndHeldCatalogPhase\(\)[\s\S]*if \(restoreEndSliceOnly\) \{[\s\S]*assertRestoreEndSliceJournal/,
+    );
+    assert.match(
+      runner,
+      /assertRestoreEndSliceJournal[\s\S]*journeyStart[\s\S]*catalog-restore-unavailable[\s\S]*journeyRestoreFailure[\s\S]*journeyRestoreEnd[\s\S]*assertHeldAuthorizationWindow[\s\S]*assertRestoreEndSettledWithoutTraffic/,
+    );
+    assert.match(
+      runner,
       /cleanupEntries\.length === 1[\s\S]*receivedAtMs >= catalog\.timestampMs[\s\S]*receivedAtMs <= catalogCompletion\.timestampMs/,
     );
     assert.match(
       fixture,
       /'navigation\.cleanup\.settled': new Set\(\[[\s\S]*'catalogJourneyRestoreEnd'/,
+    );
+    assert.match(
+      fixture,
+      /'navigation\.persisted': new Set\(\[[\s\S]*'catalogJourneyStart'/,
+    );
+    assert.match(
+      fixture,
+      /'restore\.suspended': new Set\(\[[\s\S]*'catalogJourneyRestoreFailure'/,
+    );
+    assert.match(
+      runner,
+      /waitForRestoreEndCleanupEvidence[\s\S]*navigation\.cleanup\.settled[\s\S]*tracking\.stop\.settled[\s\S]*cleanup\?\.navigationInstanceId[\s\S]*cleanup\?\.appLaunchId/,
+    );
+    assert.match(
+      runner,
+      /persisted\.receivedAtMs < suspended\.receivedAtMs[\s\S]*suspended\.receivedAtMs < cleanup\.receivedAtMs[\s\S]*cleanup\.receivedAtMs <= tracking\.receivedAtMs/,
     );
     assert.match(runner, /assertRestoreEndSettledWithoutTraffic\(entries\)/);
     assert.match(runner, /assertEndedJourneyReloadTraffic\(entries\)/);

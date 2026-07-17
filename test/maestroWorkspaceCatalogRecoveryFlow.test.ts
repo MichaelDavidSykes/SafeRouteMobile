@@ -17,6 +17,8 @@ const flowPaths = [
   'maestro/ios-workspace-catalog-recovery-start-gate-ready.yaml',
   'maestro/ios-workspace-catalog-recovery-journey-start.yaml',
   'maestro/ios-workspace-catalog-recovery-journey-foreground-checking.yaml',
+  'maestro/ios-workspace-catalog-recovery-journey-foreground-failure-checking.yaml',
+  'maestro/ios-workspace-catalog-recovery-journey-foreground-failure-outcome.yaml',
   'maestro/ios-workspace-catalog-recovery-journey-off-route.yaml',
   'maestro/ios-workspace-catalog-recovery-foreground-loss.yaml',
   'maestro/ios-workspace-catalog-recovery-journey-restore-failure.yaml',
@@ -81,6 +83,7 @@ describe('Maestro workspace catalog recovery runtime', () => {
       'catalogJourneyRestoreReload',
       'catalogJourneyRestart',
       'catalogJourneyBackground',
+      'catalogJourneyForegroundFailure',
       'catalogForegroundLoss',
     ]) {
       assert.match(fixture, new RegExp(phase));
@@ -363,6 +366,63 @@ describe('Maestro workspace catalog recovery runtime', () => {
     assert.match(
       restoreReload,
       /Workspace, Guidance Operations[\s\S]*safe-route-card-66b1b2c3d4e5f60718293b40[\s\S]*setLocation:[\s\S]*latitude: 51\.5075[\s\S]*longitude: -0\.1277[\s\S]*safe-route-live-map[\s\S]*safe-route-primary-action[\s\S]*enabled: true[\s\S]*timeout: 15000/,
+    );
+  });
+
+  it('keeps exact active guidance local when foreground authorization returns 503', () => {
+    const runner = read('scripts/run-maestro-workspace-catalog-recovery.mjs');
+    const fixture = read('scripts/maestro-guidance-contract-api.mjs');
+    const checking = read(
+      'maestro/ios-workspace-catalog-recovery-journey-foreground-failure-checking.yaml',
+    );
+    const outcome = read(
+      'maestro/ios-workspace-catalog-recovery-journey-foreground-failure-outcome.yaml',
+    );
+
+    assert.match(
+      runner,
+      /journeyRestart[\s\S]*journeyBackground[\s\S]*journeyForegroundFailure[\s\S]*foregroundLoss/,
+    );
+    assert.match(
+      runner,
+      /expectedCatalogOutcome: 'catalog-foreground-unavailable'[\s\S]*expectedCatalogStatusCode: 503[\s\S]*phase: WORKSPACE_CATALOG_RECOVERY_PHASES\.journeyForegroundFailure/,
+    );
+    assert.match(
+      runner,
+      /waitForCatalogCompletion\(phase, \{[\s\S]*semanticOutcome: expectedCatalogOutcome[\s\S]*statusCode: expectedCatalogStatusCode/,
+    );
+    assert.match(
+      runner,
+      /catalogOutcome: 'catalog-foreground-unavailable'[\s\S]*phase: WORKSPACE_CATALOG_RECOVERY_PHASES\.journeyForegroundFailure[\s\S]*statusCode: 503/,
+    );
+    assert.match(
+      runner,
+      /assertActiveGuidanceFailureTraffic[\s\S]*requests\.length === 2[\s\S]*catalogCompletion\.statusCode === 503[\s\S]*catalog-foreground-unavailable/,
+    );
+    assert.match(
+      runner,
+      /assertActiveGuidanceFailureEvidence[\s\S]*journeyRestart[\s\S]*navigation\.persisted[\s\S]*fresh-authorized[\s\S]*navigation\.cleanup\.settled[\s\S]*restore\.suspended[\s\S]*tracking\.stop\.settled[\s\S]*workspace\.recovery\.settled[\s\S]*entry\.authorization\?\.catalog === 'fresh-authorized'[\s\S]*Transient active-guidance catalog failure emitted destructive or falsely fresh evidence/,
+    );
+    assert.match(
+      fixture,
+      /journeyForegroundFailure: 'catalogJourneyForegroundFailure'[\s\S]*foregroundFailure[\s\S]*waitForWorkspaceCatalogRelease[\s\S]*catalog-foreground-unavailable/,
+    );
+    assert.match(
+      checking,
+      /Checking access[\s\S]*Guidance remains available while workspace risk and rerouting updates wait\.[\s\S]*Resume route guidance[\s\S]*safe-route-stop-action[\s\S]*enabled: true[\s\S]*safe-route-remaining-metrics[\s\S]*safe-route-journey-66b1b2c3d4e5f60718293b40/,
+    );
+    assert.match(
+      outcome,
+      /Updates paused[\s\S]*Workspace access could not be verified\. Guidance remains available, but workspace risk and rerouting updates are paused\.[\s\S]*Resume route guidance[\s\S]*safe-route-stop-action[\s\S]*enabled: true[\s\S]*safe-route-remaining-metrics[\s\S]*Pause route guidance[\s\S]*Resume route guidance[\s\S]*pressKey: HOME/,
+    );
+    assert.equal((outcome.match(/Updates paused/g) || []).length, 2);
+    assert.equal(
+      (
+        outcome.match(
+          /Access status\. Workspace access could not be verified\. Guidance remains available, but workspace risk and rerouting updates are paused\./g,
+        ) || []
+      ).length,
+      2,
     );
   });
 

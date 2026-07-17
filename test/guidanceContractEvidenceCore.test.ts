@@ -53,6 +53,30 @@ describe("guidance contract device evidence", () => {
       appLaunchId: "bad launch id",
       sourceRevision: revision,
     }), null);
+    const absence = createGuidanceContractEvidenceEvent({
+      appLaunchId: "launch-evidence-2",
+      authorization: { catalog: "not-checked", principal: "unknown" },
+      cause: "cold-start-readback",
+      durability: {
+        activeNavigation: "absent",
+        nativeTracking: "unsupported",
+        runtimePermit: "none",
+      },
+      eventId: "evidence-absence-1",
+      navigationInstanceId: null,
+      outcome: "absent",
+      routeId: null,
+      sourceRevision: revision,
+      type: "navigation.absence.readback",
+      unavailableWorkspaceIds: [],
+      workspaceId: null,
+    });
+    assert.ok(absence);
+    assert.deepEqual(absence.durability, {
+      activeNavigation: "absent",
+      nativeTracking: "unsupported",
+      runtimePermit: "none",
+    });
     assert.deepEqual(parseGuidanceContractEvidenceSpool("not-json"), []);
   });
 

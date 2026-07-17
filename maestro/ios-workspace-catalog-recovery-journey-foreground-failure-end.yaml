@@ -1,0 +1,36 @@
+appId: host.exp.Exponent
+---
+- assertVisible: "Updates paused"
+- assertVisible:
+    id: "safe-route-stop-action"
+    enabled: true
+- assertVisible:
+    id: "safe-route-remaining-metrics"
+- assertVisible:
+    id: "safe-route-journey-66b1b2c3d4e5f60718293b40"
+- tapOn:
+    id: "safe-route-stop-action"
+    waitToSettleTimeoutMs: 100
+- extendedWaitUntil:
+    visible:
+      id: "workspace-access-refresh"
+      enabled: true
+    timeout: 15000
+- extendedWaitUntil:
+    notVisible:
+      id: "safe-route-navigation-cleanup"
+    timeout: 15000
+- assertVisible: "Workspace access not verified. Try checking current access again."
+- assertNotVisible:
+    id: "safe-route-live-map"
+- assertNotVisible:
+    id: "safe-route-resume-action"
+- assertNotVisible:
+    id: "safe-route-suspended-navigation"
+- assertNotVisible:
+    id: "safe-route-stop-action"
+- assertNotVisible:
+    id: "safe-route-remaining-metrics"
+- assertNotVisible:
+    id: "safe-route-journey-66b1b2c3d4e5f60718293b40"
+- takeScreenshot: "workspace-catalog-journey-ended-after-503"

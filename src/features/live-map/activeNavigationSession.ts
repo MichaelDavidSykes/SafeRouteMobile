@@ -55,6 +55,10 @@ export type BackgroundNavigationWriteResult =
   | "saved"
   | "unauthorized";
 
+export type ActiveNavigationSessionReadback =
+  | { session: ActiveNavigationSession; status: "present" }
+  | { session: null; status: "absent" | "unknown" };
+
 export async function saveActiveNavigationSession(
   session: ActiveNavigationSession,
 ): Promise<boolean> {
@@ -74,6 +78,12 @@ export async function saveActiveNavigationSession(
 export async function loadActiveNavigationSession(
   nowMs = Date.now(),
 ): Promise<ActiveNavigationSession | null> {
+  return (await readActiveNavigationSession(nowMs)).session;
+}
+
+export async function readActiveNavigationSession(
+  nowMs = Date.now(),
+): Promise<ActiveNavigationSessionReadback> {
   try {
     await navigationStorageMutationQueue;
     const fallbackRevoked = await hasPersistedNavigationRevocation(
@@ -82,7 +92,7 @@ export async function loadActiveNavigationSession(
     );
     if (fallbackRevoked) {
       await clearActiveNavigationSession();
-      return null;
+      return { session: null, status: "absent" };
     }
     const serialized = await AsyncStorage.getItem(
       ACTIVE_NAVIGATION_SESSION_KEY,
@@ -92,7 +102,7 @@ export async function loadActiveNavigationSession(
       if (serialized) {
         await clearActiveNavigationSession();
       }
-      return null;
+      return { session: null, status: "absent" };
     }
 
     const backgroundLocation = await loadBackgroundNavigationLocation(
@@ -101,9 +111,12 @@ export async function loadActiveNavigationSession(
       session.navigationInstanceId,
       nowMs,
     );
-    return mergeActiveNavigationLocation(session, backgroundLocation);
+    return {
+      session: mergeActiveNavigationLocation(session, backgroundLocation),
+      status: "present",
+    };
   } catch {
-    return null;
+    return { session: null, status: "unknown" };
   }
 }
 

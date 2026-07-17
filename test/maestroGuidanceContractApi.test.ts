@@ -110,6 +110,13 @@ describe('Maestro guidance contract API', () => {
         WORKSPACE_CATALOG_RETRY_DELAY_MS,
       ]);
 
+      phase = WORKSPACE_CATALOG_RECOVERY_PHASES.journeyEndedRelaunch;
+      const endedRelaunchFailure = await fetch(
+        `${base}/mobile/safe-route/routes`,
+        { headers },
+      );
+      assert.equal(endedRelaunchFailure.status, 503);
+
       phase = WORKSPACE_CATALOG_RECOVERY_PHASES.freshSuccess;
       const freshSuccess = await fetch(`${base}/mobile/safe-route/routes`, { headers });
       assert.equal(freshSuccess.status, 200);
@@ -134,6 +141,11 @@ describe('Maestro guidance contract API', () => {
         [WORKSPACE_CATALOG_RECOVERY_PHASES.savedRetryFailure, 503, 'catalog-retry-unavailable'],
         [WORKSPACE_CATALOG_RECOVERY_PHASES.operationsRetryFailure, 503, 'catalog-retry-unavailable'],
         [WORKSPACE_CATALOG_RECOVERY_PHASES.journeyRestoreFailure, 503, 'catalog-restore-unavailable'],
+        [
+          WORKSPACE_CATALOG_RECOVERY_PHASES.journeyEndedRelaunch,
+          503,
+          'catalog-ended-relaunch-unavailable',
+        ],
         [WORKSPACE_CATALOG_RECOVERY_PHASES.freshSuccess, 200, 'catalog-active'],
       ]);
     } finally {
@@ -410,6 +422,25 @@ describe('Maestro guidance contract API', () => {
       type: 'route.cache.readback',
       workspaceId: GUIDANCE_CONTRACT_WORKSPACES.survivor.id
     };
+    const absenceReadback = {
+      ...persisted,
+      appLaunchId: 'launch-evidence-2',
+      authorization: { catalog: 'not-checked', principal: 'unknown' },
+      cause: 'cold-start-readback',
+      durability: {
+        activeNavigation: 'absent',
+        nativeTracking: 'unsupported',
+        runtimePermit: 'none'
+      },
+      eventId: 'evidence-event-8',
+      navigationInstanceId: null,
+      occurredAtMs: 430,
+      outcome: 'absent',
+      routeId: null,
+      type: 'navigation.absence.readback',
+      unavailableWorkspaceIds: [],
+      workspaceId: null
+    };
     try {
       assert.equal(append(persisted, {
         mode: GUIDANCE_CONTRACT_MODES.active,
@@ -447,6 +478,10 @@ describe('Maestro guidance contract API', () => {
         mode: GUIDANCE_CONTRACT_MODES.active,
         phase: 'regained'
       }), 'recorded');
+      assert.equal(append(absenceReadback, {
+        mode: GUIDANCE_CONTRACT_MODES.active,
+        phase: WORKSPACE_CATALOG_RECOVERY_PHASES.journeyEndedRelaunch
+      }), 'recorded');
       const entries = readFileSync(evidenceLogFile, 'utf8')
         .trim()
         .split('\n')
@@ -464,7 +499,8 @@ describe('Maestro guidance contract API', () => {
           'workspace.recovery.settled',
           'route.cache.readback',
           'navigation.cleanup.settled',
-          'tracking.stop.settled'
+          'tracking.stop.settled',
+          'navigation.absence.readback'
         ]
       }));
       const lifecycleEntry = (

@@ -68,9 +68,20 @@ describe("production navigation reliability integration", () => {
 
   it("persists, restores, resumes, and clears active navigation sessions", () => {
     const appSource = source("App.tsx");
+    const activeSessionSource = source(
+      "src/features/live-map/activeNavigationSession.ts",
+    );
     const liveMapSource = source("src/features/live-map/LiveMapScreen.tsx");
 
     assert.match(appSource, /loadActiveNavigationSession/);
+    assert.match(
+      activeSessionSource,
+      /readActiveNavigationSession[\s\S]*status: "absent"[\s\S]*status: "present"[\s\S]*status: "unknown"/,
+    );
+    assert.match(
+      appSource,
+      /entryTrackingVerification[\s\S]*confirmBackgroundNavigationStopped\(\)[\s\S]*stopBackgroundNavigation\(\)[\s\S]*readActiveNavigationSession\(\)[\s\S]*navigationReadback\.status === 'absent'[\s\S]*recordNavigationAbsenceReadback\(entryTrackingVerification\)/,
+    );
     assert.match(appSource, /openActiveNavigationSession/);
     assert.match(appSource, /ResumeNavigationButton/);
     assert.match(appSource, /clearActiveNavigationSession/);

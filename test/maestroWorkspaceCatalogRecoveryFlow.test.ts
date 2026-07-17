@@ -19,6 +19,9 @@ const flowPaths = [
   'maestro/ios-workspace-catalog-recovery-journey-foreground-checking.yaml',
   'maestro/ios-workspace-catalog-recovery-journey-foreground-failure-checking.yaml',
   'maestro/ios-workspace-catalog-recovery-journey-foreground-failure-outcome.yaml',
+  'maestro/ios-workspace-catalog-recovery-journey-foreground-failure-end-ready.yaml',
+  'maestro/ios-workspace-catalog-recovery-journey-foreground-failure-end.yaml',
+  'maestro/ios-workspace-catalog-recovery-journey-ended-relaunch.yaml',
   'maestro/ios-workspace-catalog-recovery-journey-off-route.yaml',
   'maestro/ios-workspace-catalog-recovery-foreground-loss.yaml',
   'maestro/ios-workspace-catalog-recovery-journey-restore-failure.yaml',
@@ -47,6 +50,10 @@ describe('Maestro workspace catalog recovery runtime', () => {
     assert.match(
       packageJson,
       /"test:maestro:ios:workspace-catalog-recovery:restore-end": "SAFEROUTE_WORKSPACE_RECOVERY_SLICE=restore-end node scripts\/run-maestro-workspace-catalog-recovery\.mjs"/,
+    );
+    assert.match(
+      packageJson,
+      /"test:maestro:ios:workspace-catalog-recovery:active-503-end": "SAFEROUTE_WORKSPACE_RECOVERY_SLICE=active-503-end node scripts\/run-maestro-workspace-catalog-recovery\.mjs"/,
     );
     assert.match(
       packageJson,
@@ -84,6 +91,8 @@ describe('Maestro workspace catalog recovery runtime', () => {
       'catalogJourneyRestart',
       'catalogJourneyBackground',
       'catalogJourneyForegroundFailure',
+      'catalogJourneyForegroundFailureEnd',
+      'catalogJourneyEndedRelaunch',
       'catalogForegroundLoss',
     ]) {
       assert.match(fixture, new RegExp(phase));
@@ -278,7 +287,7 @@ describe('Maestro workspace catalog recovery runtime', () => {
     );
     assert.match(
       runner,
-      /runRestoreEndHeldCatalogPhase\(\)[\s\S]*catalogReleased: false[\s\S]*startMaestroFlow[\s\S]*journeyRestoreEndChecking[\s\S]*waitForHeldCatalogPending\(phase, checkingRun\)[\s\S]*Promise\.all\(\[[\s\S]*waitForMaestroScreenshot[\s\S]*waitForRestoreEndCleanupEvidence\(phase\)[\s\S]*assertHeldCatalogPending[\s\S]*catalogReleased: true[\s\S]*Promise\.all\(\[[\s\S]*waitForCatalogCompletion\(phase\)[\s\S]*finishMaestroFlow[\s\S]*assertRestoreEndEvidenceWindow/,
+      /runRestoreEndHeldCatalogPhase\(\)[\s\S]*catalogReleased: false[\s\S]*startMaestroFlow[\s\S]*journeyRestoreEndChecking[\s\S]*waitForHeldCatalogPending\(phase, checkingRun\)[\s\S]*Promise\.all\(\[[\s\S]*waitForMaestroScreenshot[\s\S]*waitForNavigationCleanupEvidence\(phase\)[\s\S]*assertHeldCatalogPending[\s\S]*catalogReleased: true[\s\S]*Promise\.all\(\[[\s\S]*waitForCatalogCompletion\(phase\)[\s\S]*finishMaestroFlow[\s\S]*assertRestoreEndEvidenceWindow/,
     );
     assert.match(
       runner,
@@ -317,7 +326,7 @@ describe('Maestro workspace catalog recovery runtime', () => {
     }
     assert.match(
       runner,
-      /waitForRestoreEndCleanupEvidence[\s\S]*navigation\.cleanup\.settled[\s\S]*tracking\.stop\.settled[\s\S]*cleanup\?\.navigationInstanceId[\s\S]*cleanup\?\.appLaunchId/,
+      /waitForNavigationCleanupEvidence[\s\S]*navigation\.cleanup\.settled[\s\S]*tracking\.stop\.settled[\s\S]*cleanup\?\.navigationInstanceId[\s\S]*cleanup\?\.appLaunchId/,
     );
     assert.match(
       runner,
@@ -424,6 +433,73 @@ describe('Maestro workspace catalog recovery runtime', () => {
         ) || []
       ).length,
       2,
+    );
+  });
+
+  it('ends post-503 active guidance durably and cold-reads it as absent', () => {
+    const runner = read('scripts/run-maestro-workspace-catalog-recovery.mjs');
+    const fixture = read('scripts/maestro-guidance-contract-api.mjs');
+    const ready = read(
+      'maestro/ios-workspace-catalog-recovery-journey-foreground-failure-end-ready.yaml',
+    );
+    const end = read(
+      'maestro/ios-workspace-catalog-recovery-journey-foreground-failure-end.yaml',
+    );
+    const relaunch = read(
+      'maestro/ios-workspace-catalog-recovery-journey-ended-relaunch.yaml',
+    );
+
+    assert.match(
+      runner,
+      /active503EndSliceOnly = requestedSlice === 'active-503-end'[\s\S]*journeyForegroundFailureEndReady[\s\S]*journeyForegroundFailureEnd[\s\S]*waitForNavigationCleanupEvidence[\s\S]*journeyEndedRelaunch[\s\S]*waitForNavigationAbsenceEvidence[\s\S]*assertActive503EndSliceJournal/,
+    );
+    assert.match(
+      runner,
+      /assertNoProtectedBackgroundTraffic\([\s\S]*journeyForegroundFailureEnd[\s\S]*catalog-ended-relaunch-unavailable[\s\S]*expectedUserCountBeforeCatalog: 2[\s\S]*journeyEndedRelaunch[\s\S]*statusCode: 503/,
+    );
+    assert.match(
+      runner,
+      /persisted\.length === 1[\s\S]*cleanup\.length === 1[\s\S]*tracking\.length === 1[\s\S]*absence\.length === 1[\s\S]*absence\[0\]\.appLaunchId !== cleanup\[0\]\.appLaunchId/,
+    );
+    assert.match(
+      runner,
+      /forbiddenTypes[\s\S]*navigation\.persisted[\s\S]*restore\.ready[\s\S]*restore\.suspended[\s\S]*workspace\.recovery\.settled[\s\S]*activeNavigation === 'present'[\s\S]*nativeTracking === 'active'/,
+    );
+    assert.match(
+      fixture,
+      /journeyForegroundFailureEnd: 'catalogJourneyForegroundFailureEnd'[\s\S]*journeyEndedRelaunch: 'catalogJourneyEndedRelaunch'/,
+    );
+    assert.match(
+      fixture,
+      /endedJourneyRelaunchFailure[\s\S]*catalog-ended-relaunch-unavailable/,
+    );
+    assert.match(
+      fixture,
+      /'navigation\.absence\.readback'[\s\S]*catalogJourneyEndedRelaunch[\s\S]*activeNavigation === 'absent'[\s\S]*runtimePermit === 'none'/,
+    );
+    assert.match(
+      ready,
+      /Updates paused[\s\S]*Resume route guidance[\s\S]*safe-route-stop-action[\s\S]*enabled: true[\s\S]*safe-route-remaining-metrics[\s\S]*safe-route-journey-66b1b2c3d4e5f60718293b40[\s\S]*Pause route guidance[\s\S]*Resume route guidance/,
+    );
+    assert.doesNotMatch(ready, /pressKey: HOME|safe-route-stop-action"\n    waitToSettle/);
+    assert.match(
+      end,
+      /safe-route-stop-action[\s\S]*waitToSettleTimeoutMs: 100[\s\S]*workspace-access-refresh[\s\S]*safe-route-navigation-cleanup[\s\S]*Workspace access not verified\. Try checking current access again\./,
+    );
+    for (const id of [
+      'safe-route-live-map',
+      'safe-route-resume-action',
+      'safe-route-suspended-navigation',
+      'safe-route-stop-action',
+      'safe-route-remaining-metrics',
+      'safe-route-journey-66b1b2c3d4e5f60718293b40',
+    ]) {
+      assert.match(end, new RegExp(`assertNotVisible:[\\s\\S]{0,60}${id}`));
+      assert.match(relaunch, new RegExp(`assertNotVisible:[\\s\\S]{0,60}${id}`));
+    }
+    assert.match(
+      relaunch,
+      /stopApp[\s\S]*subflows\/ios-open-expo-project\.yaml[\s\S]*workspace-access-refresh[\s\S]*Workspace, Guidance Operations[\s\S]*Workspace access not verified\. Try checking current access again\./,
     );
   });
 

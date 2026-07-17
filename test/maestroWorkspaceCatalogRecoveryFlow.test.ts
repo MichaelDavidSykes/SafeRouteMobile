@@ -216,7 +216,7 @@ describe('Maestro workspace catalog recovery runtime', () => {
     assert.doesNotMatch(journeyOffRoute, /setLocation:|runScript:/);
     assert.match(journeyOffRoute, /extendedWaitUntil:[\s\S]*safe-route-guidance-off-route/);
     assert.match(journeyOffRoute, /safe-route-live-map[\s\S]*Pause route guidance[\s\S]*safe-route-guidance-off-route[\s\S]*Off route\. Current instruction\.\*[\s\S]*safe-route-stop-action[\s\S]*safe-route-journey-66b1b2c3d4e5f60718293b40/);
-    assert.match(foregroundLoss, /Active guidance ended because this workspace is no longer available\./);
+    assert.match(foregroundLoss, /Workspace access changed\. Check for restored access\./);
     for (const id of ['safe-route-live-map', 'safe-route-resume-action', 'safe-route-suspended-navigation', 'safe-route-stop-action', 'safe-route-remaining-metrics']) {
       assert.match(foregroundLoss, new RegExp(`assertNotVisible:[\\s\\S]{0,60}${id}`));
     }

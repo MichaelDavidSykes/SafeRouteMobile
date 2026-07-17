@@ -1,7 +1,7 @@
 appId: host.exp.Exponent
 ---
 - extendedWaitUntil:
-    visible: "Active guidance ended because this workspace is no longer available."
+    visible: "Workspace access changed. Check for restored access."
     timeout: 20000
 - assertNotVisible:
     id: "safe-route-live-map"

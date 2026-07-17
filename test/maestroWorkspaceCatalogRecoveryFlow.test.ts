@@ -231,7 +231,7 @@ describe('Maestro workspace catalog recovery runtime', () => {
     assert.doesNotMatch(background, /GUIDANCE_CONTRACT_MODES|openLink:/);
     assert.match(foregroundLoss, /Workspace, Support Operations/);
     assert.match(foregroundLoss, /guest-map-primary-action"[\s\S]*retryTapIfNoChange: true/);
-    assert.match(
+    assert.doesNotMatch(
       foregroundLoss,
       /when:\n      visible:\n        id: "guest-map-primary-action"[\s\S]*commands:\n      - tapOn:\n          id: "guest-map-primary-action"/,
     );

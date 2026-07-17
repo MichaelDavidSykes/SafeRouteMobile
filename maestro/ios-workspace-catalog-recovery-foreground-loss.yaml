@@ -18,14 +18,6 @@ appId: host.exp.Exponent
     id: "guest-map-primary-action"
     retryTapIfNoChange: true
     waitToSettleTimeoutMs: 1000
-- runFlow:
-    when:
-      visible:
-        id: "guest-map-primary-action"
-    commands:
-      - tapOn:
-          id: "guest-map-primary-action"
-          waitToSettleTimeoutMs: 1000
 - extendedWaitUntil:
     visible:
       id: "safe-route-picker"

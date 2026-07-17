@@ -1204,7 +1204,7 @@ export default function App() {
         // Re-resolve after catalog persistence so a late response cannot reopen
         // that explicitly ended journey or replace its completion message.
         const pendingNavigationResolution = resolvePendingNavigationRestore({
-          candidate: pendingNavigation,
+          candidate: pendingNavigationForAuthorization,
           current: pendingNavigationRestoreRef.current,
         });
         let navigationRestoreRejected =
@@ -1901,7 +1901,13 @@ export default function App() {
             onSessionExpired={handleSessionExpired}
             onWorkspaceUnavailable={handleWorkspaceUnavailable}
             principalId={sessionPrincipalId}
+            workspaceAuthorizationChecking={
+              workspaceCatalogBusy && !activeWorkspaceAuthorizationFresh
+            }
             workspaceAuthorizationFresh={activeWorkspaceAuthorizationFresh}
+            workspaceAuthorizationUnavailable={
+              workspaceForegroundAuthorizationPaused && !workspaceCatalogBusy
+            }
           />
         ) : screen === 'routes' && session && authenticated ? (
           <RouteListScreen

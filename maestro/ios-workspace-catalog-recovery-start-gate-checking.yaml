@@ -1,0 +1,16 @@
+appId: host.exp.Exponent
+---
+- openLink: exp://localhost:8081
+- extendedWaitUntil:
+    visible:
+      id: "safe-route-live-map"
+    timeout: 15000
+- extendedWaitUntil:
+    visible: "Start route. Checking workspace access before starting guidance…"
+    timeout: 5000
+- assertVisible:
+    id: "safe-route-primary-action"
+    enabled: false
+- assertNotVisible:
+    id: "safe-route-stop-action"
+- takeScreenshot: "workspace-catalog-foreground-start-gated"

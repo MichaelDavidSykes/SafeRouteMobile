@@ -1,0 +1,32 @@
+appId: host.exp.Exponent
+---
+- openLink: exp://localhost:8081
+- extendedWaitUntil:
+    visible:
+      id: "safe-route-live-map"
+    timeout: 15000
+- extendedWaitUntil:
+    visible: "Checking access"
+    timeout: 5000
+- assertVisible: "Access status. Checking current workspace access. Guidance remains available while workspace risk and rerouting updates wait."
+- assertVisible: "Resume route guidance"
+- assertVisible:
+    id: "safe-route-primary-action"
+    enabled: true
+- assertVisible:
+    id: "safe-route-stop-action"
+- assertVisible:
+    id: "safe-route-remaining-metrics"
+- assertVisible:
+    id: "safe-route-journey-66b1b2c3d4e5f60718293b40"
+- assertNotVisible:
+    id: "safe-route-suspended-navigation"
+- tapOn:
+    id: "safe-route-primary-action"
+- assertVisible: "Pause route guidance"
+- assertVisible: "Pause route guidance"
+- assertVisible:
+    id: "safe-route-stop-action"
+- assertVisible:
+    id: "safe-route-journey-66b1b2c3d4e5f60718293b40"
+- takeScreenshot: "workspace-catalog-journey-foreground-checking"

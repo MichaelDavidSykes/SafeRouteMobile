@@ -50,11 +50,15 @@ export function LiveMapGuidanceCard({
     ? `${rerouteTitle}. ${reroutePresentation.message}`
     : presentation.accessibilityLabel;
   const warningActive = state === "off-route";
+  const stateAwareAccessibilityLabel = warningActive
+    ? `Off route. ${accessibilityLabel}`
+    : accessibilityLabel;
 
   return (
     <View
       accessible={!reroutePresentation?.retryAvailable}
-      accessibilityLabel={accessibilityLabel}
+      accessibilityLabel={stateAwareAccessibilityLabel}
+      testID={uiTestIds.liveMapGuidanceState(state)}
       style={[
         styles.guidanceCard,
         { top: layout.guidanceTop },

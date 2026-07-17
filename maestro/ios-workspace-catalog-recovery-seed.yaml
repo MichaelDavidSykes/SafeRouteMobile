@@ -29,6 +29,16 @@ appId: host.exp.Exponent
           text: "Not Now"
           retryTapIfNoChange: true
           waitToSettleTimeoutMs: 1000
+- waitForAnimationToEnd:
+    timeout: 3000
+- runFlow:
+    when:
+      visible: "Not Now"
+    commands:
+      - tapOn:
+          text: "Not Now"
+          retryTapIfNoChange: true
+          waitToSettleTimeoutMs: 1000
 - extendedWaitUntil:
     visible:
       id: "guest-map-workspace-selector"
@@ -47,6 +57,10 @@ appId: host.exp.Exponent
           timeout: 15000
 - tapOn:
     id: "guest-map-workspace-selector"
+- extendedWaitUntil:
+    visible:
+      id: "guest-map-workspace-66a1b2c3d4e5f60718293a40"
+    timeout: 10000
 - tapOn:
     id: "guest-map-workspace-66a1b2c3d4e5f60718293a40"
 - tapOn:

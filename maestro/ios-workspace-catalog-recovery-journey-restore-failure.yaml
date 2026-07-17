@@ -1,0 +1,23 @@
+appId: host.exp.Exponent
+---
+- stopApp
+- runFlow: subflows/ios-open-expo-project.yaml
+- extendedWaitUntil:
+    visible:
+      id: "safe-route-suspended-navigation"
+    timeout: 45000
+- extendedWaitUntil:
+    visible: "Guidance paused"
+    timeout: 15000
+- assertVisible: "Guidance paused. Cold restart verification v1. Workspace access could not be verified. Retry when ready."
+- assertVisible:
+    id: "safe-route-suspended-navigation-retry"
+    enabled: true
+- assertVisible:
+    id: "safe-route-suspended-navigation-end"
+    enabled: true
+- assertNotVisible:
+    id: "safe-route-live-map"
+- assertNotVisible:
+    id: "safe-route-stop-action"
+- takeScreenshot: "workspace-catalog-journey-restore-failure"

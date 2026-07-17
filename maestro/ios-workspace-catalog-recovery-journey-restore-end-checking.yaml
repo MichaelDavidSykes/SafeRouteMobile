@@ -1,0 +1,12 @@
+appId: host.exp.Exponent
+---
+- tapOn:
+    id: "safe-route-suspended-navigation-retry"
+    waitToSettleTimeoutMs: 100
+- extendedWaitUntil:
+    visible: "Restoring route"
+    timeout: 15000
+- tapOn:
+    id: "safe-route-suspended-navigation-end"
+    waitToSettleTimeoutMs: 100
+- takeScreenshot: "workspace-catalog-journey-end-requested-during-held-retry"

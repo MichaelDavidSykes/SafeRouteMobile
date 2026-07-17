@@ -4,6 +4,7 @@ import { pathToFileURL } from 'node:url';
 import { describe, it } from 'node:test';
 
 type MaestroRunnerModule = {
+  DEFAULT_MAESTRO_DRIVER_STARTUP_TIMEOUT_MS: number;
   createMaestroCandidates: (options?: {
     env?: Record<string, string | undefined>;
     homeDir?: string;
@@ -88,6 +89,7 @@ describe('SafeRoute Maestro npm runner', () => {
 
   it('retries Maestro test flows once by default for transient local XCUITest drops', async () => {
     const {
+      DEFAULT_MAESTRO_DRIVER_STARTUP_TIMEOUT_MS,
       createMaestroProcessEnv,
       parseMaestroRetryCount,
       runMaestroCli,
@@ -113,7 +115,11 @@ describe('SafeRoute Maestro npm runner', () => {
       }
     });
 
-    assert.equal(createMaestroProcessEnv({}).MAESTRO_DRIVER_STARTUP_TIMEOUT, '180000');
+    assert.equal(DEFAULT_MAESTRO_DRIVER_STARTUP_TIMEOUT_MS, 180_000);
+    assert.equal(
+      createMaestroProcessEnv({}).MAESTRO_DRIVER_STARTUP_TIMEOUT,
+      String(DEFAULT_MAESTRO_DRIVER_STARTUP_TIMEOUT_MS),
+    );
     assert.equal(
       createMaestroProcessEnv({ MAESTRO_DRIVER_STARTUP_TIMEOUT: '240000' }).MAESTRO_DRIVER_STARTUP_TIMEOUT,
       '240000'

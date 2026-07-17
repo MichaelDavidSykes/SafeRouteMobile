@@ -26,11 +26,25 @@ import {
   assertGuidanceStartTrafficRemainsQuiet,
   waitForGuidanceStartTrafficQuiet
 } from './maestro-guidance-start-boundary.mjs';
+import { DEFAULT_MAESTRO_DRIVER_STARTUP_TIMEOUT_MS } from './run-maestro.mjs';
 
 const METRO_PORT = 8081;
 const EXPO_GO_BUNDLE_ID = 'host.exp.Exponent';
 const COMPACT_DEVICE_TYPE = 'com.apple.CoreSimulator.SimDeviceType.iPhone-SE-3rd-generation';
 const REQUIRED_CONTENT_SIZE = 'accessibility-large';
+const configuredMaestroDriverStartupTimeoutMs = Number.parseInt(
+  process.env.MAESTRO_DRIVER_STARTUP_TIMEOUT ||
+    String(DEFAULT_MAESTRO_DRIVER_STARTUP_TIMEOUT_MS),
+  10
+);
+const HELD_CATALOG_PENDING_TIMEOUT_MS = Number.isFinite(
+  configuredMaestroDriverStartupTimeoutMs
+)
+  ? Math.max(
+      120_000,
+      Math.min(configuredMaestroDriverStartupTimeoutMs + 30_000, 360_000)
+    )
+  : DEFAULT_MAESTRO_DRIVER_STARTUP_TIMEOUT_MS + 30_000;
 const requestedSlice = String(process.env.SAFEROUTE_WORKSPACE_RECOVERY_SLICE || '').trim();
 const restoreEndSliceOnly = requestedSlice === 'restore-end';
 const active503EndSliceOnly = requestedSlice === 'active-503-end';
@@ -579,7 +593,7 @@ async function runRestoreEndHeldCatalogPhase() {
 }
 
 async function waitForHeldCatalogPending(phase, run) {
-  const deadline = Date.now() + 120_000;
+  const deadline = Date.now() + HELD_CATALOG_PENDING_TIMEOUT_MS;
   while (Date.now() < deadline) {
     const entries = readRequestJournal();
     const requests = phaseApiRequests(entries, phase);

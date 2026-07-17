@@ -5,7 +5,7 @@ import { homedir } from 'node:os';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
-const DEFAULT_DRIVER_STARTUP_TIMEOUT_MS = '180000';
+export const DEFAULT_MAESTRO_DRIVER_STARTUP_TIMEOUT_MS = 180_000;
 
 function isPathLike(value) {
   return String(value || '').includes('/');
@@ -73,7 +73,8 @@ export function createMaestroProcessEnv(env = process.env) {
   return {
     ...env,
     MAESTRO_DRIVER_STARTUP_TIMEOUT:
-      env.MAESTRO_DRIVER_STARTUP_TIMEOUT || DEFAULT_DRIVER_STARTUP_TIMEOUT_MS
+      env.MAESTRO_DRIVER_STARTUP_TIMEOUT ||
+      String(DEFAULT_MAESTRO_DRIVER_STARTUP_TIMEOUT_MS)
   };
 }
 

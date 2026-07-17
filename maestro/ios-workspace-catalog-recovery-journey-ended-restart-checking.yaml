@@ -1,0 +1,25 @@
+appId: host.exp.Exponent
+---
+- assertVisible:
+    id: "safe-route-live-map"
+- assertVisible:
+    id: "safe-route-primary-action"
+    enabled: true
+- tapOn:
+    id: "safe-route-primary-action"
+    waitToSettleTimeoutMs: 100
+- extendedWaitUntil:
+    visible: "Start route. Checking workspace access before starting guidance…"
+    timeout: 5000
+- assertVisible:
+    id: "safe-route-primary-action"
+    enabled: false
+- assertNotVisible:
+    id: "safe-route-resume-action"
+- assertNotVisible:
+    id: "safe-route-suspended-navigation"
+- assertNotVisible:
+    id: "safe-route-stop-action"
+- assertNotVisible:
+    id: "safe-route-remaining-metrics"
+- takeScreenshot: "workspace-catalog-ended-journey-restart-gated"

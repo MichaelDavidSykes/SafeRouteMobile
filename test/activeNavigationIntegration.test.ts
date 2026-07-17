@@ -110,6 +110,19 @@ describe("production navigation reliability integration", () => {
     );
     assert.match(
       liveMapSource,
+      /SAFEROUTE_GUIDANCE_CONTRACT_EVIDENCE_ENABLED[\s\S]*navigationState !== "loaded"[\s\S]*readActiveNavigationSession\(\)[\s\S]*confirmBackgroundNavigationStopped\(\)[\s\S]*type: "navigation\.prestart\.readback"/,
+    );
+    const prestartReadback = liveMapSource.slice(
+      liveMapSource.indexOf("const recordPrestartReadback"),
+      liveMapSource.indexOf("void recordPrestartReadback"),
+    );
+    assert.ok(
+      prestartReadback.indexOf("readActiveNavigationSession()") <
+        prestartReadback.indexOf("confirmBackgroundNavigationStopped()"),
+    );
+    assert.doesNotMatch(prestartReadback, /stopBackgroundNavigation\(/);
+    assert.match(
+      liveMapSource,
       /setInterval\(\(\) => \{[\s\S]*void persistCurrentSession\(\);[\s\S]*\}, 5_000\)/,
     );
   });

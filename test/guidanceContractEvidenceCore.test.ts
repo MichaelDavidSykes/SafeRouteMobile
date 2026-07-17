@@ -77,6 +77,27 @@ describe("guidance contract device evidence", () => {
       nativeTracking: "unsupported",
       runtimePermit: "none",
     });
+    const prestart = createGuidanceContractEvidenceEvent({
+      appLaunchId: "launch-evidence-2",
+      authorization: { catalog: "fresh-authorized", principal: "matching" },
+      cause: "loaded-route-prestart-readback",
+      durability: {
+        activeNavigation: "absent",
+        nativeTracking: "stopped",
+        runtimePermit: "none",
+      },
+      eventId: "evidence-prestart-1",
+      navigationInstanceId: null,
+      outcome: "ready",
+      routeId: "route-1",
+      sourceRevision: revision,
+      type: "navigation.prestart.readback",
+      unavailableWorkspaceIds: [],
+      workspaceId: "workspace-1",
+    });
+    assert.ok(prestart);
+    assert.equal(prestart.navigationInstanceId, null);
+    assert.equal(prestart.type, "navigation.prestart.readback");
     assert.deepEqual(parseGuidanceContractEvidenceSpool("not-json"), []);
   });
 

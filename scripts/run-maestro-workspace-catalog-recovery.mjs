@@ -15,12 +15,17 @@ import {
   WORKSPACE_CATALOG_RETRY_DELAY_MS,
   WORKSPACE_CATALOG_SUCCESS_DELAY_MS,
   assertGuidanceContractEvidenceJournal,
-  assertGuidanceContractRequestJournal
+  assertGuidanceContractRequestJournal,
+  isGuidanceStartProtectedTraffic
 } from './maestro-guidance-contract-api.mjs';
 import {
   assertGuidanceSourceCheckoutClean,
   verifyGuidanceContractMetroIdentity
 } from './maestro-guidance-metro-identity.mjs';
+import {
+  assertGuidanceStartTrafficRemainsQuiet,
+  waitForGuidanceStartTrafficQuiet
+} from './maestro-guidance-start-boundary.mjs';
 
 const METRO_PORT = 8081;
 const EXPO_GO_BUNDLE_ID = 'host.exp.Exponent';
@@ -29,6 +34,8 @@ const REQUIRED_CONTENT_SIZE = 'accessibility-large';
 const requestedSlice = String(process.env.SAFEROUTE_WORKSPACE_RECOVERY_SLICE || '').trim();
 const restoreEndSliceOnly = requestedSlice === 'restore-end';
 const active503EndSliceOnly = requestedSlice === 'active-503-end';
+const active503RestartSliceOnly = requestedSlice === 'active-503-restart';
+const active503TerminalSliceOnly = active503EndSliceOnly || active503RestartSliceOnly;
 const deviceId = String(process.env.SAFEROUTE_IOS_DEVICE_ID || '').trim();
 const tempDirectory = mkdtempSync(join(tmpdir(), 'saferoute-workspace-catalog-recovery-'));
 const controlFile = join(tempDirectory, 'control.json');
@@ -52,6 +59,10 @@ const flows = Object.freeze({
   journeyForegroundFailureEndReady: 'maestro/ios-workspace-catalog-recovery-journey-foreground-failure-end-ready.yaml',
   journeyForegroundFailureOutcome: 'maestro/ios-workspace-catalog-recovery-journey-foreground-failure-outcome.yaml',
   journeyEndedRelaunch: 'maestro/ios-workspace-catalog-recovery-journey-ended-relaunch.yaml',
+  journeyEndedRetrySuccess: 'maestro/ios-workspace-catalog-recovery-journey-ended-retry-success.yaml',
+  journeyEndedRouteReload: 'maestro/ios-workspace-catalog-recovery-journey-ended-route-reload.yaml',
+  journeyEndedRestartChecking: 'maestro/ios-workspace-catalog-recovery-journey-ended-restart-checking.yaml',
+  journeyEndedRestartOutcome: 'maestro/ios-workspace-catalog-recovery-journey-ended-restart-outcome.yaml',
   journeyRestoreEndChecking: 'maestro/ios-workspace-catalog-recovery-journey-restore-end-checking.yaml',
   journeyRestoreEndOutcome: 'maestro/ios-workspace-catalog-recovery-journey-restore-end-outcome.yaml',
   journeyRestoreFailure: 'maestro/ios-workspace-catalog-recovery-journey-restore-failure.yaml',
@@ -85,6 +96,9 @@ const FULL_EXPECTED_MODE_BY_PHASE = Object.freeze({
   [WORKSPACE_CATALOG_RECOVERY_PHASES.journeyForegroundFailure]: GUIDANCE_CONTRACT_MODES.active,
   [WORKSPACE_CATALOG_RECOVERY_PHASES.journeyForegroundFailureEnd]: GUIDANCE_CONTRACT_MODES.active,
   [WORKSPACE_CATALOG_RECOVERY_PHASES.journeyEndedRelaunch]: GUIDANCE_CONTRACT_MODES.active,
+  [WORKSPACE_CATALOG_RECOVERY_PHASES.journeyEndedRetrySuccess]: GUIDANCE_CONTRACT_MODES.active,
+  [WORKSPACE_CATALOG_RECOVERY_PHASES.journeyEndedRouteReload]: GUIDANCE_CONTRACT_MODES.active,
+  [WORKSPACE_CATALOG_RECOVERY_PHASES.journeyEndedRestart]: GUIDANCE_CONTRACT_MODES.active,
   [WORKSPACE_CATALOG_RECOVERY_PHASES.foregroundLoss]: GUIDANCE_CONTRACT_MODES.denied
 });
 
@@ -138,10 +152,20 @@ const ACTIVE_503_END_REQUIRED_REQUEST_PHASES = Object.freeze([
   WORKSPACE_CATALOG_RECOVERY_PHASES.journeyEndedRelaunch
 ]);
 
+const ACTIVE_503_RESTART_REQUIRED_REQUEST_PHASES = Object.freeze([
+  ...ACTIVE_503_END_REQUIRED_REQUEST_PHASES,
+  WORKSPACE_CATALOG_RECOVERY_PHASES.journeyEndedRetrySuccess,
+  WORKSPACE_CATALOG_RECOVERY_PHASES.journeyEndedRouteReload,
+  WORKSPACE_CATALOG_RECOVERY_PHASES.journeyEndedRestart
+]);
+
 async function main() {
   assertCondition(deviceId, 'Set SAFEROUTE_IOS_DEVICE_ID to the booted compact simulator UDID.');
   assertCondition(
-    !requestedSlice || restoreEndSliceOnly || active503EndSliceOnly,
+    !requestedSlice ||
+      restoreEndSliceOnly ||
+      active503EndSliceOnly ||
+      active503RestartSliceOnly,
     `Unsupported workspace recovery slice: ${requestedSlice}.`
   );
   const simulator = assertCompactSimulator(deviceId);
@@ -270,13 +294,13 @@ async function main() {
     expectedCatalogOutcome: 'catalog-foreground-unavailable',
     expectedCatalogStatusCode: 503,
     mode: GUIDANCE_CONTRACT_MODES.active,
-    outcomeFlow: active503EndSliceOnly
+    outcomeFlow: active503TerminalSliceOnly
       ? flows.journeyForegroundFailureEndReady
       : flows.journeyForegroundFailureOutcome,
     outcomeLabel: 'pause workspace updates after transient authorization failure',
     phase: WORKSPACE_CATALOG_RECOVERY_PHASES.journeyForegroundFailure
   });
-  if (active503EndSliceOnly) {
+  if (active503TerminalSliceOnly) {
     runPhase(
       WORKSPACE_CATALOG_RECOVERY_PHASES.journeyForegroundFailureEnd,
       'end the exact paused journey after transient authorization failure',
@@ -296,6 +320,57 @@ async function main() {
       WORKSPACE_CATALOG_RECOVERY_PHASES.journeyEndedRelaunch
     );
     await new Promise((resolve) => setTimeout(resolve, 1000));
+    if (active503RestartSliceOnly) {
+      runPhase(
+        WORKSPACE_CATALOG_RECOVERY_PHASES.journeyEndedRetrySuccess,
+        'recover fresh workspace access only after an explicit ended-state retry',
+        flows.journeyEndedRetrySuccess,
+        GUIDANCE_CONTRACT_MODES.active
+      );
+      runPhase(
+        WORKSPACE_CATALOG_RECOVERY_PHASES.journeyEndedRouteReload,
+        'reload the same saved route without reviving the ended journey',
+        flows.journeyEndedRouteReload,
+        GUIDANCE_CONTRACT_MODES.active
+      );
+      await waitForNavigationPrestartEvidence(
+        WORKSPACE_CATALOG_RECOVERY_PHASES.journeyEndedRouteReload
+      );
+      await waitForGuidanceStartTrafficQuiet({
+        isProtectedTraffic: isGuidanceStartProtectedTraffic,
+        quietMs: 750,
+        readEntries: readRequestJournal,
+        timeoutMs: 10_000
+      });
+      await runHeldCatalogPhase({
+        checkingFlow: flows.journeyEndedRestartChecking,
+        checkingLabel: 'hold fresh Start authorization before creating a replacement journey',
+        checkingScreenshot: 'workspace-catalog-ended-journey-restart-gated',
+        mode: GUIDANCE_CONTRACT_MODES.active,
+        outcomeFlow: flows.journeyEndedRestartOutcome,
+        outcomeLabel: 'start and pause a replacement journey after fresh authorization',
+        phase: WORKSPACE_CATALOG_RECOVERY_PHASES.journeyEndedRestart
+      });
+      await waitForNavigationPersistedEvidence(
+        WORKSPACE_CATALOG_RECOVERY_PHASES.journeyEndedRestart
+      );
+      await assertGuidanceStartTrafficRemainsQuiet({
+        errorMessage: 'Protected traffic escaped after the replacement journey settled.',
+        isProtectedTraffic: isGuidanceStartProtectedTraffic,
+        observationMs: 2000,
+        readEntries: readRequestJournal
+      });
+      assertActive503RestartSliceJournal(
+        readRequestJournal(),
+        readEvidenceJournal()
+      );
+      process.stdout.write(
+        `Workspace catalog active-503 post-End restart slice passed. ` +
+        `Request journal: ${requestLogFile}. Evidence journal: ${evidenceLogFile}. ` +
+        `Screenshots: ${screenshotDirectory}\n`
+      );
+      return;
+    }
     assertActive503EndSliceJournal(readRequestJournal(), readEvidenceJournal());
     process.stdout.write(
       `Workspace catalog active-503 End/cold-relaunch slice passed. ` +
@@ -604,6 +679,56 @@ async function waitForNavigationAbsenceEvidence(phase) {
     await new Promise((resolve) => setTimeout(resolve, 100));
   }
   throw new Error(`${phase} did not record an acknowledged absent-navigation readback.`);
+}
+
+async function waitForNavigationPersistedEvidence(phase) {
+  const deadline = Date.now() + 15_000;
+  while (Date.now() < deadline) {
+    const persisted = readEvidenceJournal().find((entry) =>
+      entry.serverPhase === phase &&
+      entry.type === 'navigation.persisted' &&
+      entry.sourceRevision === readCurrentSourceRevision() &&
+      entry.navigationInstanceId &&
+      entry.workspaceId === GUIDANCE_CONTRACT_WORKSPACES.denied.id &&
+      entry.routeId === GUIDANCE_CONTRACT_ROUTE_VARIANT_IDS.deniedV1 &&
+      entry.authorization?.catalog === 'fresh-authorized' &&
+      entry.authorization?.principal === 'matching' &&
+      entry.outcome === 'persisted' &&
+      entry.durability?.activeNavigation === 'present'
+    );
+    if (persisted) {
+      return persisted;
+    }
+    await new Promise((resolve) => setTimeout(resolve, 100));
+  }
+  throw new Error(`${phase} did not record an acknowledged replacement journey.`);
+}
+
+async function waitForNavigationPrestartEvidence(phase) {
+  const deadline = Date.now() + 15_000;
+  while (Date.now() < deadline) {
+    const prestart = readEvidenceJournal().find((entry) =>
+      entry.serverPhase === phase &&
+      entry.type === 'navigation.prestart.readback' &&
+      entry.sourceRevision === readCurrentSourceRevision() &&
+      entry.navigationInstanceId === null &&
+      entry.workspaceId === GUIDANCE_CONTRACT_WORKSPACES.denied.id &&
+      entry.routeId === GUIDANCE_CONTRACT_ROUTE_VARIANT_IDS.deniedV1 &&
+      entry.authorization?.catalog === 'fresh-authorized' &&
+      entry.authorization?.principal === 'matching' &&
+      entry.outcome === 'ready' &&
+      entry.durability?.activeNavigation === 'absent' &&
+      ['not-started', 'stopped', 'unsupported'].includes(
+        entry.durability?.nativeTracking
+      ) &&
+      entry.durability?.runtimePermit === 'none'
+    );
+    if (prestart) {
+      return prestart;
+    }
+    await new Promise((resolve) => setTimeout(resolve, 100));
+  }
+  throw new Error(`${phase} did not record an acknowledged pre-Start safety readback.`);
 }
 
 function runMaestroFlow(phase, label, file) {
@@ -1307,6 +1432,222 @@ function assertActive503EndSliceJournal(entries, evidenceEntries) {
   );
 }
 
+function assertActive503RestartSliceJournal(entries, evidenceEntries) {
+  assertActive503EndSliceJournal(entries, evidenceEntries);
+  assertGuidanceContractEvidenceJournal(evidenceEntries, {
+    expectedSourceRevision: readCurrentSourceRevision(),
+    requiredTypes: [
+      'navigation.persisted',
+      'navigation.cleanup.settled',
+      'tracking.stop.settled',
+      'navigation.absence.readback',
+      'navigation.prestart.readback'
+    ]
+  });
+  assertGuidanceContractRequestJournal(entries, {
+    expectedModeByPhase: ACTIVE_503_END_EXPECTED_MODE_BY_PHASE,
+    requiredPhases: ACTIVE_503_RESTART_REQUIRED_REQUEST_PHASES
+  });
+  assertAuthorizationAttempts(entries, {
+    catalogOutcome: 'catalog-active',
+    expectedAttemptCount: 1,
+    expectedUserCountBeforeCatalog: 1,
+    minimumCatalogDurationMs: WORKSPACE_CATALOG_SUCCESS_DELAY_MS - 250,
+    phase: WORKSPACE_CATALOG_RECOVERY_PHASES.journeyEndedRetrySuccess,
+    statusCode: 200
+  });
+  assertHeldAuthorizationWindow(
+    entries,
+    WORKSPACE_CATALOG_RECOVERY_PHASES.journeyEndedRetrySuccess
+  );
+  assertPostEndRetryTraffic(entries);
+  assertEndedJourneyReloadTraffic(
+    entries,
+    WORKSPACE_CATALOG_RECOVERY_PHASES.journeyEndedRouteReload
+  );
+  assertAuthorizationAttempts(entries, {
+    catalogOutcome: 'catalog-active',
+    expectedAttemptCount: 1,
+    expectedUserCountBeforeCatalog: 1,
+    minimumCatalogDurationMs: 0,
+    phase: WORKSPACE_CATALOG_RECOVERY_PHASES.journeyEndedRestart,
+    statusCode: 200
+  });
+  assertHeldAuthorizationWindow(
+    entries,
+    WORKSPACE_CATALOG_RECOVERY_PHASES.journeyEndedRestart
+  );
+  const restartRequests = phaseApiRequests(
+    entries,
+    WORKSPACE_CATALOG_RECOVERY_PHASES.journeyEndedRestart
+  );
+  assertCondition(
+    restartRequests.length === 2,
+    'Replacement Start emitted scoped, risk, reroute, detail, or operations traffic.'
+  );
+
+  const currentEvidence = evidenceEntries.filter(
+    (entry) => entry.sourceRevision === readCurrentSourceRevision()
+  );
+  const oldPersisted = currentEvidence.filter((entry) =>
+    entry.serverPhase === WORKSPACE_CATALOG_RECOVERY_PHASES.journeyRestart &&
+    entry.type === 'navigation.persisted' &&
+    entry.workspaceId === GUIDANCE_CONTRACT_WORKSPACES.denied.id &&
+    entry.routeId === GUIDANCE_CONTRACT_ROUTE_VARIANT_IDS.deniedV1 &&
+    entry.outcome === 'persisted'
+  );
+  const oldTracking = currentEvidence.filter((entry) =>
+    entry.serverPhase === WORKSPACE_CATALOG_RECOVERY_PHASES.journeyForegroundFailureEnd &&
+    entry.type === 'tracking.stop.settled' &&
+    entry.navigationInstanceId === oldPersisted[0]?.navigationInstanceId &&
+    entry.outcome === 'off'
+  );
+  const absence = currentEvidence.filter((entry) =>
+    entry.serverPhase === WORKSPACE_CATALOG_RECOVERY_PHASES.journeyEndedRelaunch &&
+    entry.type === 'navigation.absence.readback' &&
+    entry.outcome === 'absent'
+  );
+  const replacement = currentEvidence.filter((entry) =>
+    entry.serverPhase === WORKSPACE_CATALOG_RECOVERY_PHASES.journeyEndedRestart &&
+    entry.type === 'navigation.persisted' &&
+    entry.workspaceId === GUIDANCE_CONTRACT_WORKSPACES.denied.id &&
+    entry.routeId === GUIDANCE_CONTRACT_ROUTE_VARIANT_IDS.deniedV1 &&
+    entry.authorization?.catalog === 'fresh-authorized' &&
+    entry.authorization?.principal === 'matching' &&
+    entry.durability?.activeNavigation === 'present' &&
+    entry.outcome === 'persisted'
+  );
+  const retryCatalog = phaseApiRequests(
+    entries,
+    WORKSPACE_CATALOG_RECOVERY_PHASES.journeyEndedRetrySuccess
+  ).find((entry) =>
+    entry.path === '/api/v1/mobile/safe-route/routes' && entry.search === ''
+  );
+  const retryCompletion = completionFor(entries, retryCatalog);
+  const restartCatalog = restartRequests.find((entry) =>
+    entry.path === '/api/v1/mobile/safe-route/routes' && entry.search === ''
+  );
+  const restartCompletion = completionFor(entries, restartCatalog);
+  const routeReloadRequests = phaseApiRequests(
+    entries,
+    WORKSPACE_CATALOG_RECOVERY_PHASES.journeyEndedRouteReload
+  );
+  const routeReloadDetail = routeReloadRequests.find(
+    (entry) =>
+      entry.path ===
+      `/api/v1/mobile/safe-route/routes/${GUIDANCE_CONTRACT_ROUTE_IDS.denied}`
+  );
+  const routeReloadDetailCompletion = completionFor(entries, routeReloadDetail);
+  const preStartReadback = currentEvidence.filter(
+    (entry) =>
+      entry.serverPhase ===
+        WORKSPACE_CATALOG_RECOVERY_PHASES.journeyEndedRouteReload &&
+      entry.type === 'navigation.prestart.readback' &&
+      entry.navigationInstanceId === null &&
+      entry.workspaceId === GUIDANCE_CONTRACT_WORKSPACES.denied.id &&
+      entry.routeId === GUIDANCE_CONTRACT_ROUTE_VARIANT_IDS.deniedV1 &&
+      entry.authorization?.catalog === 'fresh-authorized' &&
+      entry.authorization?.principal === 'matching' &&
+      entry.durability?.activeNavigation === 'absent' &&
+      ['not-started', 'stopped', 'unsupported'].includes(
+        entry.durability?.nativeTracking
+      ) &&
+      entry.durability?.runtimePermit === 'none' &&
+      entry.outcome === 'ready'
+  );
+  const preStartPhases = new Set([
+    WORKSPACE_CATALOG_RECOVERY_PHASES.journeyEndedRetrySuccess,
+    WORKSPACE_CATALOG_RECOVERY_PHASES.journeyEndedRouteReload
+  ]);
+  const successorPhases = new Set([
+    ...preStartPhases,
+    WORKSPACE_CATALOG_RECOVERY_PHASES.journeyEndedRestart
+  ]);
+  const forbiddenPreStartTypes = new Set([
+    'navigation.persisted',
+    'restore.ready',
+    'restore.suspended',
+    'navigation.cleanup.settled',
+    'tracking.stop.settled'
+  ]);
+
+  assertCondition(
+    oldPersisted.length === 1 &&
+      oldTracking.length === 1 &&
+      absence.length === 1 &&
+      preStartReadback.length === 1 &&
+      replacement.length === 1 &&
+      replacement[0].navigationInstanceId !== oldPersisted[0].navigationInstanceId &&
+      preStartReadback[0].appLaunchId === absence[0].appLaunchId &&
+      replacement[0].appLaunchId === absence[0].appLaunchId &&
+      absence[0].receivedAtMs < retryCatalog.timestampMs &&
+      retryCompletion.sequence <
+        Math.min(...routeReloadRequests.map((entry) => entry.sequence)) &&
+      routeReloadDetailCompletion.timestampMs <= preStartReadback[0].receivedAtMs &&
+      preStartReadback[0].receivedAtMs < restartCatalog.timestampMs &&
+      restartCompletion.timestampMs <= replacement[0].receivedAtMs &&
+      oldTracking[0].receivedAtMs < absence[0].receivedAtMs &&
+      absence[0].receivedAtMs < replacement[0].receivedAtMs,
+    'Post-End Retry did not preserve the ended identity and create one fresh authorized journey.'
+  );
+  assertCondition(
+    !currentEvidence.some(
+      (entry) =>
+        preStartPhases.has(entry.serverPhase) &&
+        (
+          forbiddenPreStartTypes.has(entry.type) ||
+          entry.navigationInstanceId ||
+          entry.durability?.activeNavigation === 'present' ||
+          entry.durability?.nativeTracking === 'active' ||
+          ['active', 'pending'].includes(entry.durability?.runtimePermit)
+        )
+    ),
+    'Post-End Retry or route reload emitted navigation, restore, or active tracking evidence before Start.'
+  );
+  assertCondition(
+    !currentEvidence.some(
+      (entry) =>
+        successorPhases.has(entry.serverPhase) &&
+        ['restore.ready', 'restore.suspended'].includes(entry.type)
+    ),
+    'Post-End recovery restored the ended journey during Retry, route reload, or replacement Start.'
+  );
+  assertCondition(
+    !currentEvidence.some(
+      (entry) =>
+        entry.receivedAtMs > oldTracking[0].receivedAtMs &&
+        entry.navigationInstanceId === oldPersisted[0].navigationInstanceId
+    ),
+    'The ended navigation identity reappeared after tracking cleanup settled.'
+  );
+}
+
+function assertPostEndRetryTraffic(entries) {
+  const phase = WORKSPACE_CATALOG_RECOVERY_PHASES.journeyEndedRetrySuccess;
+  const requests = phaseApiRequests(entries, phase);
+  const catalog = requests.find((entry) =>
+    entry.path === '/api/v1/mobile/safe-route/routes' && entry.search === ''
+  );
+  const catalogCompletion = completionFor(entries, catalog);
+  const postCatalog = requests.filter(
+    (entry) => entry.sequence > catalogCompletion.sequence
+  );
+  for (const request of postCatalog) {
+    const clientId = new URLSearchParams(request.search).get('client_id');
+    const completion = completionFor(entries, request);
+    assertCondition(
+      request.path === '/api/v1/intel/map/area-risk' &&
+        clientId === GUIDANCE_CONTRACT_WORKSPACES.denied.id &&
+        request.authorized === true &&
+        request.authorizationClass === 'expected-bearer' &&
+        completion.completed === true &&
+        completion.statusCode === 200 &&
+        completion.semanticOutcome === 'api-success',
+      `Post-End Retry emitted unsafe post-authorization traffic: ${request.path}?${request.search}.`
+    );
+  }
+}
+
 function assertRestoreEndEvidenceWindow(entries, evidenceEntries) {
   const phase = WORKSPACE_CATALOG_RECOVERY_PHASES.journeyRestoreEnd;
   const requests = phaseApiRequests(entries, phase);
@@ -1379,10 +1720,13 @@ function assertHeldAuthorizationWindow(entries, phase) {
   );
 }
 
-function assertEndedJourneyReloadTraffic(entries) {
+function assertEndedJourneyReloadTraffic(
+  entries,
+  phase = WORKSPACE_CATALOG_RECOVERY_PHASES.journeyRestoreReload
+) {
   const requests = phaseApiRequests(
     entries,
-    WORKSPACE_CATALOG_RECOVERY_PHASES.journeyRestoreReload
+    phase
   );
   const reloadRequests = requests.filter((entry) =>
     (

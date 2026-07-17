@@ -382,7 +382,7 @@ async function waitForRestoreEndCleanupEvidence(phase) {
       entry.type === 'navigation.cleanup.settled' &&
       entry.sourceRevision === readCurrentSourceRevision() &&
       entry.workspaceId === GUIDANCE_CONTRACT_WORKSPACES.denied.id &&
-      entry.routeId === GUIDANCE_CONTRACT_ROUTE_IDS.denied &&
+      entry.routeId === GUIDANCE_CONTRACT_ROUTE_VARIANT_IDS.deniedV1 &&
       entry.outcome === 'cleared'
     );
     const tracking = evidenceEntries.find((entry) =>
@@ -390,7 +390,7 @@ async function waitForRestoreEndCleanupEvidence(phase) {
       entry.type === 'tracking.stop.settled' &&
       entry.sourceRevision === readCurrentSourceRevision() &&
       entry.workspaceId === GUIDANCE_CONTRACT_WORKSPACES.denied.id &&
-      entry.routeId === GUIDANCE_CONTRACT_ROUTE_IDS.denied &&
+      entry.routeId === GUIDANCE_CONTRACT_ROUTE_VARIANT_IDS.deniedV1 &&
       entry.outcome === 'off' &&
       entry.navigationInstanceId === cleanup?.navigationInstanceId &&
       entry.appLaunchId === cleanup?.appLaunchId
@@ -643,7 +643,7 @@ function assertRestoreEndSliceJournal(entries, evidenceEntries) {
   const lifecycleEvidence = evidenceEntries.filter((entry) =>
     entry.sourceRevision === readCurrentSourceRevision() &&
     entry.workspaceId === GUIDANCE_CONTRACT_WORKSPACES.denied.id &&
-    entry.routeId === GUIDANCE_CONTRACT_ROUTE_IDS.denied
+    entry.routeId === GUIDANCE_CONTRACT_ROUTE_VARIANT_IDS.deniedV1
   );
   const persisted = lifecycleEvidence.find((entry) =>
     entry.serverPhase === WORKSPACE_CATALOG_RECOVERY_PHASES.journeyStart &&
@@ -693,7 +693,7 @@ function assertRestoreEndEvidenceWindow(entries, evidenceEntries) {
     entry.type === 'navigation.cleanup.settled' &&
     entry.sourceRevision === readCurrentSourceRevision() &&
     entry.workspaceId === GUIDANCE_CONTRACT_WORKSPACES.denied.id &&
-    entry.routeId === GUIDANCE_CONTRACT_ROUTE_IDS.denied &&
+    entry.routeId === GUIDANCE_CONTRACT_ROUTE_VARIANT_IDS.deniedV1 &&
     entry.outcome === 'cleared'
   );
   const trackingEntries = evidenceEntries.filter((entry) =>
@@ -701,7 +701,7 @@ function assertRestoreEndEvidenceWindow(entries, evidenceEntries) {
     entry.type === 'tracking.stop.settled' &&
     entry.sourceRevision === readCurrentSourceRevision() &&
     entry.workspaceId === GUIDANCE_CONTRACT_WORKSPACES.denied.id &&
-    entry.routeId === GUIDANCE_CONTRACT_ROUTE_IDS.denied &&
+    entry.routeId === GUIDANCE_CONTRACT_ROUTE_VARIANT_IDS.deniedV1 &&
     entry.outcome === 'off' &&
     entry.navigationInstanceId === cleanupEntries[0]?.navigationInstanceId &&
     entry.appLaunchId === cleanupEntries[0]?.appLaunchId

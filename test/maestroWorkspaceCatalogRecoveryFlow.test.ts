@@ -263,6 +263,10 @@ describe('Maestro workspace catalog recovery runtime', () => {
     );
     assert.match(
       runner,
+      /entry\.routeId === GUIDANCE_CONTRACT_ROUTE_VARIANT_IDS\.deniedV1/,
+    );
+    assert.match(
+      runner,
       /persisted\.receivedAtMs < suspended\.receivedAtMs[\s\S]*suspended\.receivedAtMs < cleanup\.receivedAtMs[\s\S]*cleanup\.receivedAtMs <= tracking\.receivedAtMs/,
     );
     assert.match(runner, /assertRestoreEndSettledWithoutTraffic\(entries\)/);

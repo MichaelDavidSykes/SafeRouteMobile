@@ -16,6 +16,15 @@ export const WORKSPACE_CATALOG_RECOVERY_PHASES = Object.freeze({
   foregroundLoss: 'catalogForegroundLoss',
   freshSuccess: 'catalogFreshSuccess',
   initialFailure: 'catalogInitialFailure',
+  journeyBackground: 'catalogJourneyBackground',
+  journeyRestart: 'catalogJourneyRestart',
+  journeyRouteBackground: 'catalogJourneyRouteBackground',
+  journeyRoutePrepare: 'catalogJourneyRoutePrepare',
+  journeyRestoreEnd: 'catalogJourneyRestoreEnd',
+  journeyRestoreFailure: 'catalogJourneyRestoreFailure',
+  journeyRestoreReload: 'catalogJourneyRestoreReload',
+  journeyStart: 'catalogJourneyStart',
+  journeyStartGate: 'catalogJourneyStartGate',
   mapRetryFailure: 'catalogMapRetryFailure',
   operationsRetryFailure: 'catalogOperationsRetryFailure',
   savedRetryFailure: 'catalogSavedRetryFailure',
@@ -23,7 +32,8 @@ export const WORKSPACE_CATALOG_RECOVERY_PHASES = Object.freeze({
 });
 export const WORKSPACE_CATALOG_RETRY_DELAY_MS = 6_000;
 export const WORKSPACE_CATALOG_SUCCESS_DELAY_MS = 6_000;
-export const WORKSPACE_CATALOG_FOREGROUND_DELAY_MS = 6_000;
+export const WORKSPACE_CATALOG_HOLD_POLL_MS = 50;
+export const WORKSPACE_CATALOG_HOLD_TIMEOUT_MS = 60_000;
 
 export const GUIDANCE_START_BOUNDARY_PATH = '/__guidance_contract__/boundary';
 export const GUIDANCE_CONTRACT_EVIDENCE_PATH = '/__guidance_contract__/evidence';
@@ -38,15 +48,22 @@ export const GUIDANCE_CONTRACT_EVIDENCE_TYPES = Object.freeze([
 ]);
 const GUIDANCE_CONTRACT_EVIDENCE_PHASES = Object.freeze({
   'navigation.persisted': new Set([
+    'catalogJourneyStart',
+    'catalogJourneyRestart',
     'publicStart',
     'workspaceStart',
     'workspaceReconnect',
     'workspaceReseedStart',
     'denialSeedStart'
   ]),
-  'restore.suspended': new Set(['workspaceOffline', 'workspaceReconnect']),
+  'restore.suspended': new Set([
+    'catalogJourneyRestoreFailure',
+    'workspaceOffline',
+    'workspaceReconnect'
+  ]),
   'restore.ready': new Set(['workspacePrepare', 'workspaceReconnect']),
   'workspace.recovery.settled': new Set([
+    'catalogForegroundLoss',
     'deniedStart',
     'workspaceReconnect',
     'wrongPrincipal',
@@ -55,12 +72,16 @@ const GUIDANCE_CONTRACT_EVIDENCE_PHASES = Object.freeze({
   ]),
   'route.cache.readback': new Set(['regained', 'readbackEvidence']),
   'navigation.cleanup.settled': new Set([
+    'catalogForegroundLoss',
+    'catalogJourneyRestoreEnd',
     'wrongPrincipalStart',
     'deniedStart',
     'wrongPrincipal',
     'denied'
   ]),
   'tracking.stop.settled': new Set([
+    'catalogForegroundLoss',
+    'catalogJourneyRestoreEnd',
     'wrongPrincipalStart',
     'deniedStart',
     'wrongPrincipal',
@@ -437,9 +458,12 @@ export function createGuidanceContractHandler({
         WORKSPACE_CATALOG_RECOVERY_PHASES.operationsRetryFailure,
         WORKSPACE_CATALOG_RECOVERY_PHASES.savedRetryFailure
       ].includes(phase);
+      const restoreFailure =
+        phase === WORKSPACE_CATALOG_RECOVERY_PHASES.journeyRestoreFailure;
       const catalogFailure = !requestedWorkspaceId && (
         phase === WORKSPACE_CATALOG_RECOVERY_PHASES.initialFailure ||
-        retryFailure
+        retryFailure ||
+        restoreFailure
       );
       if (catalogFailure) {
         if (retryFailure) {
@@ -452,7 +476,9 @@ export function createGuidanceContractHandler({
           {},
           retryFailure
             ? 'catalog-retry-unavailable'
-            : 'catalog-initial-unavailable'
+            : restoreFailure
+              ? 'catalog-restore-unavailable'
+              : 'catalog-initial-unavailable'
         );
         return;
       }
@@ -464,9 +490,27 @@ export function createGuidanceContractHandler({
       }
       if (
         !requestedWorkspaceId &&
-        phase === WORKSPACE_CATALOG_RECOVERY_PHASES.foregroundLoss
+        [
+          WORKSPACE_CATALOG_RECOVERY_PHASES.foregroundLoss,
+          WORKSPACE_CATALOG_RECOVERY_PHASES.journeyRestoreEnd,
+          WORKSPACE_CATALOG_RECOVERY_PHASES.journeyStartGate
+        ].includes(phase)
       ) {
-        await sleep(WORKSPACE_CATALOG_FOREGROUND_DELAY_MS);
+        const released = await waitForWorkspaceCatalogRelease({
+          phase,
+          readControl,
+          sleep
+        });
+        if (!released) {
+          sendApiError(
+            response,
+            504,
+            'Workspace catalog hold timed out.',
+            {},
+            'catalog-hold-timeout'
+          );
+          return;
+        }
       }
       const requestedWorkspace = Object.values(GUIDANCE_CONTRACT_WORKSPACES)
         .find((workspace) => workspace.id === requestedWorkspaceId);
@@ -1079,6 +1123,26 @@ function normalizeControlSnapshot(value) {
     mode: normalizeMode(value?.mode),
     phase: normalizePhase(value?.phase)
   };
+}
+
+async function waitForWorkspaceCatalogRelease({ phase, readControl, sleep }) {
+  if (typeof readControl !== 'function') {
+    return false;
+  }
+  const maximumPolls = Math.ceil(
+    WORKSPACE_CATALOG_HOLD_TIMEOUT_MS / WORKSPACE_CATALOG_HOLD_POLL_MS
+  );
+  for (let poll = 0; poll < maximumPolls; poll += 1) {
+    const control = readControl();
+    if (
+      normalizePhase(control?.phase) === phase &&
+      control?.catalogReleased === true
+    ) {
+      return true;
+    }
+    await sleep(WORKSPACE_CATALOG_HOLD_POLL_MS);
+  }
+  return false;
 }
 
 function normalizeEvidenceString(value, maxLength) {

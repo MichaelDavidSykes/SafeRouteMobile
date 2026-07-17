@@ -38,6 +38,14 @@ describe("UI test identifiers", () => {
       "safe-route-summary-sheet",
     );
     assert.equal(uiTestIds.liveMapRemainingMetrics, "safe-route-remaining-metrics");
+    assert.equal(
+      uiTestIds.liveMapJourney(" Route/66B "),
+      "safe-route-journey-route-66b",
+    );
+    assert.equal(
+      uiTestIds.liveMapGuidanceState(" Off Route "),
+      "safe-route-guidance-off-route",
+    );
     assert.equal(uiTestIds.liveMapPrimaryAction, "safe-route-primary-action");
     assert.equal(uiTestIds.suspendedNavigationNotice, "safe-route-suspended-navigation");
     assert.equal(uiTestIds.suspendedNavigationRetry, "safe-route-suspended-navigation-retry");

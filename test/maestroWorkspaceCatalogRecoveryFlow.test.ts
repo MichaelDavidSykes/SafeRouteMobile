@@ -544,7 +544,7 @@ describe('Maestro workspace catalog recovery runtime', () => {
     );
     assert.match(
       runner,
-      /DEFAULT_MAESTRO_DRIVER_STARTUP_TIMEOUT_MS[\s\S]*configuredMaestroDriverStartupTimeoutMs[\s\S]*String\(DEFAULT_MAESTRO_DRIVER_STARTUP_TIMEOUT_MS\)[\s\S]*HELD_CATALOG_PENDING_TIMEOUT_MS[\s\S]*configuredMaestroDriverStartupTimeoutMs \+ 30_000[\s\S]*DEFAULT_MAESTRO_DRIVER_STARTUP_TIMEOUT_MS \+ 30_000[\s\S]*waitForHeldCatalogPending[\s\S]*Date\.now\(\) \+ HELD_CATALOG_PENDING_TIMEOUT_MS/,
+      /resolveHeldMaestroPhaseTimeoutMs[\s\S]*HELD_CATALOG_PENDING_TIMEOUT_MS = resolveHeldMaestroPhaseTimeoutMs\([\s\S]*process\.env\.MAESTRO_DRIVER_STARTUP_TIMEOUT[\s\S]*waitForHeldCatalogPending[\s\S]*Date\.now\(\) \+ HELD_CATALOG_PENDING_TIMEOUT_MS/,
     );
     assert.match(
       runner,

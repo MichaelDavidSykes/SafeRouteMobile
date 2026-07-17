@@ -12,11 +12,16 @@ type MaestroRunnerModule = {
   createMaestroProcessEnv: (env?: Record<string, string | undefined>) => Record<string, string | undefined>;
   formatMissingMaestroMessage: () => string;
   parseMaestroRetryCount: (value: string | undefined, fallback?: number) => number;
+  resolveHeldMaestroPhaseTimeoutMs: (
+    driverStartupTimeout: string | number | undefined,
+    options?: { graceMs?: number; minimumMs?: number }
+  ) => number;
   resolveMaestroBinary: (options?: {
     candidates?: string[];
     existsSyncImpl?: (path: string) => boolean;
     spawnSyncImpl?: (command: string, args: string[], options: unknown) => { status: number | null };
   }) => string | null;
+  resolveMaestroDriverStartupTimeoutMs: (value: string | number | undefined) => number;
   runMaestroCli: (args: string[], options?: {
     env?: Record<string, string | undefined>;
     existsSyncImpl?: (path: string) => boolean;
@@ -136,5 +141,20 @@ describe('SafeRoute Maestro npm runner', () => {
     ]);
     assert.deepEqual(spawnedTimeouts, ['180000', '180000']);
     assert.match(stderr.join('\n'), /retrying \(1\/1\)/);
+  });
+
+  it('keeps held-phase waiting longer than every configured driver startup allowance', async () => {
+    const {
+      resolveHeldMaestroPhaseTimeoutMs,
+      resolveMaestroDriverStartupTimeoutMs
+    } = await loadMaestroRunner();
+
+    assert.equal(resolveMaestroDriverStartupTimeoutMs(undefined), 180_000);
+    assert.equal(resolveMaestroDriverStartupTimeoutMs('invalid'), 180_000);
+    assert.equal(resolveMaestroDriverStartupTimeoutMs('0'), 180_000);
+    assert.equal(resolveMaestroDriverStartupTimeoutMs('300000'), 300_000);
+    assert.equal(resolveHeldMaestroPhaseTimeoutMs(undefined), 210_000);
+    assert.equal(resolveHeldMaestroPhaseTimeoutMs('300000'), 330_000);
+    assert.equal(resolveHeldMaestroPhaseTimeoutMs('600000'), 630_000);
   });
 });

@@ -7,6 +7,29 @@ import { fileURLToPath } from 'node:url';
 
 export const DEFAULT_MAESTRO_DRIVER_STARTUP_TIMEOUT_MS = 180_000;
 
+export function resolveMaestroDriverStartupTimeoutMs(value) {
+  const parsed = Number.parseInt(String(value ?? '').trim(), 10);
+
+  if (!Number.isFinite(parsed) || parsed <= 0) {
+    return DEFAULT_MAESTRO_DRIVER_STARTUP_TIMEOUT_MS;
+  }
+
+  return parsed;
+}
+
+export function resolveHeldMaestroPhaseTimeoutMs(
+  driverStartupTimeout,
+  {
+    graceMs = 30_000,
+    minimumMs = 120_000
+  } = {}
+) {
+  return Math.max(
+    minimumMs,
+    resolveMaestroDriverStartupTimeoutMs(driverStartupTimeout) + graceMs
+  );
+}
+
 function isPathLike(value) {
   return String(value || '').includes('/');
 }

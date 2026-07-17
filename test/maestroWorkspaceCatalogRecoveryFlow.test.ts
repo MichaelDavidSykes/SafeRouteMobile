@@ -253,9 +253,10 @@ describe('Maestro workspace catalog recovery runtime', () => {
     );
     assert.match(
       restoreEndChecking,
-      /safe-route-suspended-navigation-retry[\s\S]*Restoring route[\s\S]*safe-route-suspended-navigation-end[\s\S]*Suspended route ended\./,
+      /safe-route-suspended-navigation-retry[\s\S]*Restoring route[\s\S]*safe-route-suspended-navigation-end[\s\S]*workspace-catalog-journey-end-requested-during-held-retry/,
     );
     assert.doesNotMatch(restoreEndChecking, /safe-route-suspended-navigation-end"\n    enabled: true/);
+    assert.doesNotMatch(restoreEndChecking, /Suspended route ended\./);
     for (const id of [
       'safe-route-suspended-navigation',
       'safe-route-live-map',

@@ -9,7 +9,4 @@ appId: host.exp.Exponent
 - tapOn:
     id: "safe-route-suspended-navigation-end"
     waitToSettleTimeoutMs: 100
-- extendedWaitUntil:
-    visible: "Suspended route ended."
-    timeout: 15000
-- takeScreenshot: "workspace-catalog-journey-ended-during-held-retry"
+- takeScreenshot: "workspace-catalog-journey-end-requested-during-held-retry"

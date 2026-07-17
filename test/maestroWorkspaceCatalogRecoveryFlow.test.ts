@@ -362,7 +362,7 @@ describe('Maestro workspace catalog recovery runtime', () => {
     assert.doesNotMatch(restoreEndOutcome, /safe-route-card-66b1b2c3d4e5f60718293b40/);
     assert.match(
       restoreReload,
-      /Workspace, Guidance Operations[\s\S]*safe-route-card-66b1b2c3d4e5f60718293b40[\s\S]*safe-route-live-map[\s\S]*safe-route-primary-action[\s\S]*enabled: true/,
+      /Workspace, Guidance Operations[\s\S]*safe-route-card-66b1b2c3d4e5f60718293b40[\s\S]*setLocation:[\s\S]*latitude: 51\.5075[\s\S]*longitude: -0\.1277[\s\S]*safe-route-live-map[\s\S]*safe-route-primary-action[\s\S]*enabled: true[\s\S]*timeout: 15000/,
     );
   });
 

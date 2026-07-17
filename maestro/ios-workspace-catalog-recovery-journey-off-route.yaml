@@ -3,21 +3,6 @@ appId: host.exp.Exponent
 - assertVisible:
     id: "safe-route-live-map"
 - assertVisible: "Pause route guidance"
-- setLocation:
-    latitude: 51.5300
-    longitude: -0.0900
-- runScript: scripts/wait-for-live-location-evidence.js
-- setLocation:
-    latitude: 51.5301
-    longitude: -0.0901
-- runScript: scripts/wait-for-live-location-evidence.js
-- setLocation:
-    latitude: 51.5302
-    longitude: -0.0902
-- runScript: scripts/wait-for-live-location-evidence.js
-- setLocation:
-    latitude: 51.5303
-    longitude: -0.0903
 - extendedWaitUntil:
     visible:
       id: "safe-route-guidance-off-route"

@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-import { openSync, readFileSync, realpathSync, renameSync, writeFileSync, mkdtempSync, mkdirSync } from 'node:fs';
+import { existsSync, openSync, readFileSync, realpathSync, renameSync, writeFileSync, mkdtempSync, mkdirSync } from 'node:fs';
 import { execFileSync, spawn, spawnSync } from 'node:child_process';
 import net from 'node:net';
 import { tmpdir } from 'node:os';
@@ -13,7 +13,9 @@ import {
   GUIDANCE_CONTRACT_WORKSPACES,
   WORKSPACE_CATALOG_RECOVERY_PHASES,
   WORKSPACE_CATALOG_RETRY_DELAY_MS,
-  WORKSPACE_CATALOG_SUCCESS_DELAY_MS
+  WORKSPACE_CATALOG_SUCCESS_DELAY_MS,
+  assertGuidanceContractEvidenceJournal,
+  assertGuidanceContractRequestJournal
 } from './maestro-guidance-contract-api.mjs';
 import {
   assertGuidanceSourceCheckoutClean,
@@ -48,7 +50,6 @@ const flows = Object.freeze({
   journeyRestoreEndOutcome: 'maestro/ios-workspace-catalog-recovery-journey-restore-end-outcome.yaml',
   journeyRestoreFailure: 'maestro/ios-workspace-catalog-recovery-journey-restore-failure.yaml',
   journeyRestoreReload: 'maestro/ios-workspace-catalog-recovery-journey-restore-reload.yaml',
-  journeyOffRoute: 'maestro/ios-workspace-catalog-recovery-journey-off-route.yaml',
   journeyPrepare: 'maestro/ios-workspace-catalog-recovery-journey-prepare.yaml',
   journeyStart: 'maestro/ios-workspace-catalog-recovery-journey-start.yaml',
   mapRetry: 'maestro/ios-workspace-catalog-recovery-map-retry.yaml',
@@ -58,6 +59,59 @@ const flows = Object.freeze({
   seed: 'maestro/ios-workspace-catalog-recovery-seed.yaml',
   success: 'maestro/ios-workspace-catalog-recovery-success.yaml'
 });
+
+const FULL_EXPECTED_MODE_BY_PHASE = Object.freeze({
+  [WORKSPACE_CATALOG_RECOVERY_PHASES.seed]: GUIDANCE_CONTRACT_MODES.active,
+  [WORKSPACE_CATALOG_RECOVERY_PHASES.initialFailure]: GUIDANCE_CONTRACT_MODES.active,
+  [WORKSPACE_CATALOG_RECOVERY_PHASES.mapRetryFailure]: GUIDANCE_CONTRACT_MODES.active,
+  [WORKSPACE_CATALOG_RECOVERY_PHASES.savedRetryFailure]: GUIDANCE_CONTRACT_MODES.active,
+  [WORKSPACE_CATALOG_RECOVERY_PHASES.operationsRetryFailure]: GUIDANCE_CONTRACT_MODES.active,
+  [WORKSPACE_CATALOG_RECOVERY_PHASES.freshSuccess]: GUIDANCE_CONTRACT_MODES.active,
+  [WORKSPACE_CATALOG_RECOVERY_PHASES.journeyRoutePrepare]: GUIDANCE_CONTRACT_MODES.active,
+  [WORKSPACE_CATALOG_RECOVERY_PHASES.journeyRouteBackground]: GUIDANCE_CONTRACT_MODES.active,
+  [WORKSPACE_CATALOG_RECOVERY_PHASES.journeyStartGate]: GUIDANCE_CONTRACT_MODES.active,
+  [WORKSPACE_CATALOG_RECOVERY_PHASES.journeyStart]: GUIDANCE_CONTRACT_MODES.active,
+  [WORKSPACE_CATALOG_RECOVERY_PHASES.journeyRestoreFailure]: GUIDANCE_CONTRACT_MODES.active,
+  [WORKSPACE_CATALOG_RECOVERY_PHASES.journeyRestoreEnd]: GUIDANCE_CONTRACT_MODES.active,
+  [WORKSPACE_CATALOG_RECOVERY_PHASES.journeyRestoreReload]: GUIDANCE_CONTRACT_MODES.active,
+  [WORKSPACE_CATALOG_RECOVERY_PHASES.journeyRestart]: GUIDANCE_CONTRACT_MODES.active,
+  [WORKSPACE_CATALOG_RECOVERY_PHASES.journeyBackground]: GUIDANCE_CONTRACT_MODES.active,
+  [WORKSPACE_CATALOG_RECOVERY_PHASES.foregroundLoss]: GUIDANCE_CONTRACT_MODES.denied
+});
+
+const FULL_REQUIRED_REQUEST_PHASES = Object.freeze([
+  WORKSPACE_CATALOG_RECOVERY_PHASES.seed,
+  WORKSPACE_CATALOG_RECOVERY_PHASES.initialFailure,
+  WORKSPACE_CATALOG_RECOVERY_PHASES.mapRetryFailure,
+  WORKSPACE_CATALOG_RECOVERY_PHASES.savedRetryFailure,
+  WORKSPACE_CATALOG_RECOVERY_PHASES.operationsRetryFailure,
+  WORKSPACE_CATALOG_RECOVERY_PHASES.freshSuccess,
+  WORKSPACE_CATALOG_RECOVERY_PHASES.journeyRoutePrepare,
+  WORKSPACE_CATALOG_RECOVERY_PHASES.journeyStartGate,
+  WORKSPACE_CATALOG_RECOVERY_PHASES.journeyStart,
+  WORKSPACE_CATALOG_RECOVERY_PHASES.journeyRestoreFailure,
+  WORKSPACE_CATALOG_RECOVERY_PHASES.journeyRestoreEnd,
+  WORKSPACE_CATALOG_RECOVERY_PHASES.journeyRestoreReload,
+  WORKSPACE_CATALOG_RECOVERY_PHASES.journeyRestart,
+  WORKSPACE_CATALOG_RECOVERY_PHASES.foregroundLoss
+]);
+
+const RESTORE_END_EXPECTED_MODE_BY_PHASE = Object.freeze(
+  Object.fromEntries(
+    FULL_REQUIRED_REQUEST_PHASES
+      .filter((phase) => ![
+        WORKSPACE_CATALOG_RECOVERY_PHASES.journeyStartGate,
+        WORKSPACE_CATALOG_RECOVERY_PHASES.journeyRestoreReload,
+        WORKSPACE_CATALOG_RECOVERY_PHASES.journeyRestart,
+        WORKSPACE_CATALOG_RECOVERY_PHASES.foregroundLoss
+      ].includes(phase))
+      .map((phase) => [phase, GUIDANCE_CONTRACT_MODES.active])
+  )
+);
+
+const RESTORE_END_REQUIRED_REQUEST_PHASES = Object.freeze(
+  Object.keys(RESTORE_END_EXPECTED_MODE_BY_PHASE)
+);
 
 async function main() {
   assertCondition(deviceId, 'Set SAFEROUTE_IOS_DEVICE_ID to the booted compact simulator UDID.');
@@ -136,6 +190,7 @@ async function main() {
     await runHeldCatalogPhase({
       checkingFlow: flows.foregroundStartGateChecking,
       checkingLabel: 'hold a fresh foreground catalog while new Start stays disabled',
+      checkingScreenshot: 'workspace-catalog-foreground-start-gated',
       mode: GUIDANCE_CONTRACT_MODES.active,
       outcomeFlow: flows.foregroundStartGateReady,
       outcomeLabel: 'restore new Start only after the held catalog completes',
@@ -186,15 +241,15 @@ async function main() {
   await runHeldCatalogPhase({
     checkingFlow: flows.foregroundJourneyChecking,
     checkingLabel: 'resume the exact journey while denied authorization is held',
+    checkingScreenshot: 'workspace-catalog-journey-foreground-off-route',
     mode: GUIDANCE_CONTRACT_MODES.denied,
     outcomeFlow: flows.foregroundLoss,
     outcomeLabel: 'close the omitted journey and retain only the survivor',
     phase: WORKSPACE_CATALOG_RECOVERY_PHASES.foregroundLoss,
-    whileHeldFlow: flows.journeyOffRoute,
-    whileHeldLabel: 'confirm active guidance after deterministic off-route evidence'
+    whileHeld: injectOffRouteLocationEvidence
   });
 
-  assertRecoveryJournal(readRequestJournal());
+  assertFullRecoveryEvidence(readRequestJournal(), readEvidenceJournal());
   process.stdout.write(
     `Workspace catalog recovery runtime passed. Request journal: ${requestLogFile}. ` +
     `Screenshots: ${screenshotDirectory}\n`
@@ -292,42 +347,83 @@ function runPhase(phase, label, file, mode = GUIDANCE_CONTRACT_MODES.active) {
 async function runHeldCatalogPhase({
   checkingFlow,
   checkingLabel,
+  checkingScreenshot,
   mode,
   outcomeFlow,
   outcomeLabel,
   phase,
-  whileHeld,
-  whileHeldFlow,
-  whileHeldLabel
+  whileHeld
 }) {
   setControl(phase, mode, { catalogReleased: false });
-  runMaestroFlow(phase, checkingLabel, checkingFlow);
-  await waitForHeldCatalogPending(phase);
-  if (whileHeld) {
-    await whileHeld();
+  const checkingRun = startMaestroFlow(phase, checkingLabel, checkingFlow);
+  try {
+    await waitForHeldCatalogPending(phase, checkingRun);
+    await Promise.all([
+      waitForMaestroScreenshot(checkingRun, checkingScreenshot),
+      whileHeld ? whileHeld() : Promise.resolve()
+    ]);
+    assertHeldCatalogPending(readRequestJournal(), phase);
+    setControl(phase, mode, { catalogReleased: true });
+    await Promise.all([
+      waitForCatalogCompletion(phase),
+      finishMaestroFlow(checkingRun)
+    ]);
+  } catch (error) {
+    setControl(phase, mode, { catalogReleased: true });
+    await stopMaestroFlow(checkingRun);
+    throw error;
   }
-  if (whileHeldFlow) {
-    runMaestroFlow(phase, whileHeldLabel, whileHeldFlow);
-  }
-  assertHeldCatalogPending(readRequestJournal(), phase);
-  setControl(phase, mode, { catalogReleased: true });
-  await waitForCatalogCompletion(phase);
   runMaestroFlow(phase, outcomeLabel, outcomeFlow);
+}
+
+async function injectOffRouteLocationEvidence() {
+  const fixes = [
+    [51.5300, -0.0900],
+    [51.5301, -0.0901],
+    [51.5302, -0.0902],
+    [51.5303, -0.0903]
+  ];
+  for (let index = 0; index < fixes.length; index += 1) {
+    const [latitude, longitude] = fixes[index];
+    execFileSync(
+      'xcrun',
+      ['simctl', 'location', deviceId, 'set', `${latitude},${longitude}`],
+      { stdio: ['ignore', 'ignore', 'pipe'], timeout: 5000 }
+    );
+    if (index < fixes.length - 1) {
+      await new Promise((resolve) => setTimeout(resolve, 2100));
+    }
+  }
 }
 
 async function runRestoreEndHeldCatalogPhase() {
   const phase = WORKSPACE_CATALOG_RECOVERY_PHASES.journeyRestoreEnd;
   setControl(phase, GUIDANCE_CONTRACT_MODES.active, { catalogReleased: false });
-  runMaestroFlow(
+  const checkingRun = startMaestroFlow(
     phase,
     'retry and end suspended guidance inside one held authorization window',
     flows.journeyRestoreEndChecking
   );
-  await waitForHeldCatalogPending(phase);
-  await waitForRestoreEndCleanupEvidence(phase);
-  assertHeldCatalogPending(readRequestJournal(), phase);
-  setControl(phase, GUIDANCE_CONTRACT_MODES.active, { catalogReleased: true });
-  await waitForCatalogCompletion(phase);
+  try {
+    await waitForHeldCatalogPending(phase, checkingRun);
+    await Promise.all([
+      waitForMaestroScreenshot(
+        checkingRun,
+        'workspace-catalog-journey-end-requested-during-held-retry'
+      ),
+      waitForRestoreEndCleanupEvidence(phase)
+    ]);
+    assertHeldCatalogPending(readRequestJournal(), phase);
+    setControl(phase, GUIDANCE_CONTRACT_MODES.active, { catalogReleased: true });
+    await Promise.all([
+      waitForCatalogCompletion(phase),
+      finishMaestroFlow(checkingRun)
+    ]);
+  } catch (error) {
+    setControl(phase, GUIDANCE_CONTRACT_MODES.active, { catalogReleased: true });
+    await stopMaestroFlow(checkingRun);
+    throw error;
+  }
   assertRestoreEndEvidenceWindow(readRequestJournal(), readEvidenceJournal());
   runMaestroFlow(
     phase,
@@ -336,8 +432,8 @@ async function runRestoreEndHeldCatalogPhase() {
   );
 }
 
-async function waitForHeldCatalogPending(phase) {
-  const deadline = Date.now() + 15_000;
+async function waitForHeldCatalogPending(phase, run) {
+  const deadline = Date.now() + 120_000;
   while (Date.now() < deadline) {
     const entries = readRequestJournal();
     const requests = phaseApiRequests(entries, phase);
@@ -355,6 +451,13 @@ async function waitForHeldCatalogPending(phase) {
       const catalogCompletions = entries.filter(
         (entry) => entry.event === 'completion' && entry.requestId === requests[1].requestId
       );
+      if (catalogCompletions.length > 0) {
+        const completion = catalogCompletions[0];
+        throw new Error(
+          `${phase} catalog settled before release: completed=${completion.completed}, ` +
+          `status=${completion.statusCode}, outcome=${completion.semanticOutcome}.`
+        );
+      }
       if (
         requests[0].path === '/api/v1/users/me' &&
         requests[1].path === '/api/v1/mobile/safe-route/routes' &&
@@ -367,6 +470,10 @@ async function waitForHeldCatalogPending(phase) {
       ) {
         return;
       }
+    }
+    if (run?.settled) {
+      await finishMaestroFlow(run);
+      throw new Error(`${phase} Maestro flow completed before its held catalog began.`);
     }
     await new Promise((resolve) => setTimeout(resolve, 100));
   }
@@ -421,6 +528,100 @@ function runMaestroFlow(phase, label, file) {
   }
 }
 
+function startMaestroFlow(phase, label, file) {
+  process.stdout.write(`\n[workspace-catalog-recovery] ${phase}: ${label}\n`);
+  const child = spawn(process.execPath, [
+    'scripts/run-maestro.mjs',
+    'test',
+    `--udid=${deviceId}`,
+    `--test-output-dir=${screenshotDirectory}`,
+    file
+  ], {
+    cwd: process.cwd(),
+    detached: true,
+    env: { ...process.env, MAESTRO_RETRIES: '0' },
+    stdio: 'inherit'
+  });
+  const run = {
+    child,
+    error: null,
+    exitCode: null,
+    label,
+    settled: false,
+    signal: null
+  };
+  run.completion = new Promise((resolve) => {
+    const settle = ({ error = null, exitCode = null, signal = null }) => {
+      if (run.settled) {
+        return;
+      }
+      run.error = error;
+      run.exitCode = exitCode;
+      run.signal = signal;
+      run.settled = true;
+      resolve(run);
+    };
+    child.once('error', (error) => settle({ error }));
+    child.once('exit', (exitCode, signal) => settle({ exitCode, signal }));
+  });
+  return run;
+}
+
+async function finishMaestroFlow(run) {
+  await run.completion;
+  if (run.error) {
+    throw run.error;
+  }
+  if (run.exitCode !== 0) {
+    throw new Error(
+      `Maestro phase failed (${run.exitCode ?? run.signal ?? 'signal'}): ${run.label}`
+    );
+  }
+}
+
+async function stopMaestroFlow(run) {
+  if (!run.settled && run.child.exitCode === null && run.child.signalCode === null) {
+    signalMaestroFlow(run, 'SIGTERM');
+    if (!(await waitForProcessExit(run.child, 3000))) {
+      signalMaestroFlow(run, 'SIGKILL');
+      if (!(await waitForProcessExit(run.child, 2000))) {
+        throw new Error(`Maestro process group did not exit after SIGKILL: ${run.label}`);
+      }
+    }
+  }
+  await run.completion;
+}
+
+function signalMaestroFlow(run, signal) {
+  try {
+    process.kill(-run.child.pid, signal);
+  } catch {
+    run.child.kill(signal);
+  }
+}
+
+async function waitForMaestroScreenshot(run, screenshotName) {
+  const screenshotPath = join(
+    screenshotDirectory,
+    'screenshots',
+    `${screenshotName}.png`
+  );
+  const deadline = Date.now() + 14_000;
+  while (Date.now() < deadline) {
+    if (existsSync(screenshotPath)) {
+      return screenshotPath;
+    }
+    if (run.settled) {
+      await finishMaestroFlow(run);
+      throw new Error(
+        `Maestro phase completed without checkpoint ${screenshotName}: ${run.label}`
+      );
+    }
+    await new Promise((resolve) => setTimeout(resolve, 50));
+  }
+  throw new Error(`Maestro checkpoint did not appear before release: ${screenshotName}.`);
+}
+
 function assertHeldCatalogPending(entries, phase) {
   const requests = phaseApiRequests(entries, phase);
   assertCondition(
@@ -461,6 +662,101 @@ async function waitForCatalogCompletion(phase) {
     await new Promise((resolve) => setTimeout(resolve, 100));
   }
   throw new Error(`${phase} catalog did not complete after release.`);
+}
+
+function assertFullRecoveryEvidence(entries, evidenceEntries) {
+  assertGuidanceContractRequestJournal(entries, {
+    expectedModeByPhase: FULL_EXPECTED_MODE_BY_PHASE,
+    requiredPhases: FULL_REQUIRED_REQUEST_PHASES
+  });
+  assertRecoveryJournal(entries);
+  assertGuidanceContractEvidenceJournal(evidenceEntries, {
+    expectedSourceRevision: readCurrentSourceRevision(),
+    requiredTypes: [
+      'navigation.persisted',
+      'restore.suspended',
+      'workspace.recovery.settled',
+      'navigation.cleanup.settled',
+      'tracking.stop.settled'
+    ]
+  });
+  assertForegroundLossLifecycleEvidence(entries, evidenceEntries);
+}
+
+function assertForegroundLossLifecycleEvidence(entries, evidenceEntries) {
+  const currentRevision = readCurrentSourceRevision();
+  const currentEvidence = evidenceEntries.filter(
+    (entry) => entry.sourceRevision === currentRevision
+  );
+  const restarted = currentEvidence.filter((entry) =>
+    entry.serverPhase === WORKSPACE_CATALOG_RECOVERY_PHASES.journeyRestart &&
+    entry.type === 'navigation.persisted' &&
+    entry.workspaceId === GUIDANCE_CONTRACT_WORKSPACES.denied.id &&
+    entry.routeId === GUIDANCE_CONTRACT_ROUTE_VARIANT_IDS.deniedV1 &&
+    entry.authorization?.catalog === 'fresh-authorized' &&
+    entry.authorization?.principal === 'matching' &&
+    entry.durability?.activeNavigation === 'present' &&
+    entry.outcome === 'persisted'
+  );
+  const cleanup = currentEvidence.filter((entry) =>
+    entry.serverPhase === WORKSPACE_CATALOG_RECOVERY_PHASES.foregroundLoss &&
+    entry.type === 'navigation.cleanup.settled' &&
+    entry.workspaceId === GUIDANCE_CONTRACT_WORKSPACES.denied.id &&
+    entry.routeId === GUIDANCE_CONTRACT_ROUTE_VARIANT_IDS.deniedV1 &&
+    entry.navigationInstanceId === restarted[0]?.navigationInstanceId &&
+    entry.authorization?.catalog === 'not-checked' &&
+    entry.authorization?.principal === 'matching' &&
+    entry.durability?.activeNavigation === 'revoked' &&
+    entry.durability?.persistedPermit === 'revoked' &&
+    entry.unavailableWorkspaceIds?.includes(GUIDANCE_CONTRACT_WORKSPACES.denied.id) &&
+    entry.outcome === 'cleared'
+  );
+  const tracking = currentEvidence.filter((entry) =>
+    entry.serverPhase === WORKSPACE_CATALOG_RECOVERY_PHASES.foregroundLoss &&
+    entry.type === 'tracking.stop.settled' &&
+    entry.workspaceId === GUIDANCE_CONTRACT_WORKSPACES.denied.id &&
+    entry.routeId === GUIDANCE_CONTRACT_ROUTE_VARIANT_IDS.deniedV1 &&
+    entry.navigationInstanceId === restarted[0]?.navigationInstanceId &&
+    entry.appLaunchId === cleanup[0]?.appLaunchId &&
+    entry.authorization?.catalog === 'not-checked' &&
+    entry.authorization?.principal === 'matching' &&
+    ['not-started', 'stopped', 'unsupported'].includes(entry.durability?.nativeTracking) &&
+    entry.durability?.runtimePermit === 'none' &&
+    entry.durability?.persistedPermit === 'revoked' &&
+    entry.unavailableWorkspaceIds?.includes(GUIDANCE_CONTRACT_WORKSPACES.denied.id) &&
+    entry.outcome === 'off'
+  );
+  const recovery = currentEvidence.filter((entry) =>
+    entry.serverPhase === WORKSPACE_CATALOG_RECOVERY_PHASES.foregroundLoss &&
+    entry.type === 'workspace.recovery.settled' &&
+    entry.workspaceId === GUIDANCE_CONTRACT_WORKSPACES.denied.id &&
+    entry.unavailableWorkspaceIds?.includes(GUIDANCE_CONTRACT_WORKSPACES.denied.id) &&
+    !entry.unavailableWorkspaceIds?.includes(GUIDANCE_CONTRACT_WORKSPACES.survivor.id) &&
+    entry.authorization?.catalog === 'fresh-denied' &&
+    entry.authorization?.principal === 'matching' &&
+    entry.outcome === 'persisted' &&
+    entry.durability?.routeCache === 'purged' &&
+    entry.durability?.workspaceContext === 'persisted'
+  );
+  const catalog = phaseApiRequests(
+    entries,
+    WORKSPACE_CATALOG_RECOVERY_PHASES.foregroundLoss
+  ).find((entry) =>
+    entry.path === '/api/v1/mobile/safe-route/routes' && entry.search === ''
+  );
+  const catalogCompletion = completionFor(entries, catalog);
+  assertCondition(
+    restarted.length === 1 &&
+      cleanup.length === 1 &&
+      tracking.length === 1 &&
+      recovery.length === 1 &&
+      restarted[0].appLaunchId === cleanup[0].appLaunchId &&
+      restarted[0].receivedAtMs < catalog.timestampMs &&
+      cleanup[0].receivedAtMs >= catalogCompletion.timestampMs &&
+      recovery[0].receivedAtMs >= catalogCompletion.timestampMs &&
+      cleanup[0].receivedAtMs <= tracking[0].receivedAtMs,
+    'Foreground omission did not durably correlate the restarted journey, denied purge, cleanup, and tracking stop.'
+  );
 }
 
 function assertRecoveryJournal(entries) {
@@ -591,6 +887,10 @@ function assertRecoveryJournal(entries) {
 }
 
 function assertRestoreEndSliceJournal(entries, evidenceEntries) {
+  assertGuidanceContractRequestJournal(entries, {
+    expectedModeByPhase: RESTORE_END_EXPECTED_MODE_BY_PHASE,
+    requiredPhases: RESTORE_END_REQUIRED_REQUEST_PHASES
+  });
   const requests = entries.filter((entry) => entry.event === 'request');
   for (const request of requests) {
     const completions = entries.filter(

@@ -162,7 +162,31 @@ describe('Maestro workspace catalog recovery runtime', () => {
     const foregroundLoss = read('maestro/ios-workspace-catalog-recovery-foreground-loss.yaml');
 
     assert.match(runner, /journeyRoutePrepare[\s\S]*journeyRouteBackground[\s\S]*journeyStartGate[\s\S]*journeyStart[\s\S]*journeyBackground[\s\S]*foregroundLoss/);
-    assert.match(runner, /catalogReleased: false[\s\S]*waitForHeldCatalogPending[\s\S]*assertHeldCatalogPending[\s\S]*catalogReleased: true[\s\S]*waitForCatalogCompletion/);
+    assert.match(
+      runner,
+      /catalogReleased: false[\s\S]*startMaestroFlow[\s\S]*waitForHeldCatalogPending[\s\S]*waitForMaestroScreenshot[\s\S]*assertHeldCatalogPending[\s\S]*catalogReleased: true[\s\S]*Promise\.all\(\[[\s\S]*waitForCatalogCompletion[\s\S]*finishMaestroFlow/,
+    );
+    assert.match(
+      runner,
+      /checkingScreenshot: 'workspace-catalog-foreground-start-gated'[\s\S]*checkingScreenshot: 'workspace-catalog-journey-foreground-off-route'/,
+    );
+    const asyncMaestroRunner = runner.match(
+      /function startMaestroFlow[\s\S]*?\n}\n\nasync function finishMaestroFlow/,
+    )?.[0] || '';
+    assert.match(asyncMaestroRunner, /const child = spawn\([\s\S]*detached: true/);
+    assert.match(runner, /stopMaestroFlow[\s\S]*process\.kill\(-run\.child\.pid, signal\)/);
+    assert.match(
+      runner,
+      /waitForHeldCatalogPending\(phase, run\)[\s\S]*if \(run\?\.settled\)[\s\S]*finishMaestroFlow\(run\)/,
+    );
+    assert.match(
+      runner,
+      /catalogCompletions\.length > 0[\s\S]*catalog settled before release:[\s\S]*semanticOutcome/,
+    );
+    assert.match(
+      runner,
+      /signalMaestroFlow\(run, 'SIGTERM'\)[\s\S]*waitForProcessExit\(run\.child, 3000\)[\s\S]*signalMaestroFlow\(run, 'SIGKILL'\)[\s\S]*waitForProcessExit\(run\.child, 2000\)[\s\S]*did not exit after SIGKILL/,
+    );
     assert.match(runner, /windowRequests\.length === 2[\s\S]*\/api\/v1\/users\/me[\s\S]*catalog\.requestId/);
     assert.match(runner, /assertNoProtectedBackgroundTraffic\(entries, WORKSPACE_CATALOG_RECOVERY_PHASES\.journeyRouteBackground\)/);
     assert.match(runner, /assertNoProtectedBackgroundTraffic\(entries, WORKSPACE_CATALOG_RECOVERY_PHASES\.journeyBackground\)/);
@@ -176,14 +200,21 @@ describe('Maestro workspace catalog recovery runtime', () => {
     assert.match(journeyStart, /safe-route-primary-action[\s\S]*safe-route-stop-action[\s\S]*Resume route guidance[\s\S]*safe-route-remaining-metrics[\s\S]*safe-route-journey-66b1b2c3d4e5f60718293b40/);
     assert.match(journeyChecking, /Checking current workspace access\. Guidance remains available while workspace risk and rerouting updates wait\./);
     assert.match(journeyChecking, /Resume route guidance[\s\S]*safe-route-stop-action[\s\S]*safe-route-journey-66b1b2c3d4e5f60718293b40[\s\S]*Pause route guidance/);
-    assert.match(journeyOffRoute, /setLocation:[\s\S]*latitude: 51\.5300[\s\S]*longitude: -0\.0900[\s\S]*latitude: 51\.5303[\s\S]*longitude: -0\.0903[\s\S]*extendedWaitUntil:[\s\S]*safe-route-guidance-off-route/);
-    assert.equal(
-      (journeyOffRoute.match(/runScript: scripts\/wait-for-live-location-evidence\.js/g) || []).length,
-      3,
+    assert.match(
+      journeyChecking,
+      /takeScreenshot: "workspace-catalog-journey-foreground-checking"\n- runFlow: ios-workspace-catalog-recovery-journey-off-route\.yaml/,
     );
-    const locationEvidenceWait = read('maestro/scripts/wait-for-live-location-evidence.js');
-    assert.match(locationEvidenceWait, /requiredWaitMs = 2100/);
-    assert.match(locationEvidenceWait, /Date\.now\(\) - waitStartedAtMs < requiredWaitMs/);
+    assert.doesNotMatch(runner, /whileHeldFlow|flows\.journeyOffRoute/);
+    assert.match(
+      runner,
+      /injectOffRouteLocationEvidence[\s\S]*51\.5300, -0\.0900[\s\S]*51\.5303, -0\.0903[\s\S]*'simctl', 'location', deviceId, 'set'[\s\S]*setTimeout\(resolve, 2100\)/,
+    );
+    assert.match(
+      runner,
+      /waitForHeldCatalogPending\(phase, checkingRun\)[\s\S]*Promise\.all\(\[[\s\S]*waitForMaestroScreenshot[\s\S]*whileHeld \? whileHeld\(\)[\s\S]*assertHeldCatalogPending[\s\S]*catalogReleased: true/,
+    );
+    assert.doesNotMatch(journeyOffRoute, /setLocation:|runScript:/);
+    assert.match(journeyOffRoute, /extendedWaitUntil:[\s\S]*safe-route-guidance-off-route/);
     assert.match(journeyOffRoute, /safe-route-live-map[\s\S]*Pause route guidance[\s\S]*safe-route-guidance-off-route[\s\S]*Off route\. Current instruction\.\*[\s\S]*safe-route-stop-action[\s\S]*safe-route-journey-66b1b2c3d4e5f60718293b40/);
     assert.match(foregroundLoss, /Active guidance ended because this workspace is no longer available\./);
     for (const id of ['safe-route-live-map', 'safe-route-resume-action', 'safe-route-suspended-navigation', 'safe-route-stop-action', 'safe-route-remaining-metrics']) {
@@ -203,6 +234,18 @@ describe('Maestro workspace catalog recovery runtime', () => {
     );
     assert.match(foregroundLoss, /safe-route-card-66b1b2c3d4e5f60718293b41/);
     assert.match(foregroundLoss, /assertNotVisible:[\s\S]*safe-route-card-66b1b2c3d4e5f60718293b40/);
+    assert.match(
+      runner,
+      /assertFullRecoveryEvidence[\s\S]*assertGuidanceContractRequestJournal[\s\S]*assertRecoveryJournal[\s\S]*assertGuidanceContractEvidenceJournal[\s\S]*assertForegroundLossLifecycleEvidence/,
+    );
+    assert.match(
+      runner,
+      /journeyRestart[\s\S]*navigation\.persisted[\s\S]*foregroundLoss[\s\S]*navigation\.cleanup\.settled[\s\S]*tracking\.stop\.settled[\s\S]*workspace\.recovery\.settled/,
+    );
+    assert.match(
+      runner,
+      /fresh-authorized[\s\S]*activeNavigation === 'present'[\s\S]*not-checked[\s\S]*activeNavigation === 'revoked'[\s\S]*persistedPermit === 'revoked'[\s\S]*nativeTracking[\s\S]*runtimePermit === 'none'[\s\S]*fresh-denied[\s\S]*routeCache === 'purged'[\s\S]*workspaceContext === 'persisted'[\s\S]*Foreground omission did not durably correlate/,
+    );
   });
 
   it('keeps an explicitly ended suspended journey closed after held retry authorization', () => {
@@ -231,7 +274,7 @@ describe('Maestro workspace catalog recovery runtime', () => {
     );
     assert.match(
       runner,
-      /runRestoreEndHeldCatalogPhase\(\)[\s\S]*catalogReleased: false[\s\S]*journeyRestoreEndChecking[\s\S]*waitForHeldCatalogPending\(phase\)[\s\S]*waitForRestoreEndCleanupEvidence\(phase\)[\s\S]*assertHeldCatalogPending[\s\S]*catalogReleased: true[\s\S]*waitForCatalogCompletion\(phase\)[\s\S]*assertRestoreEndEvidenceWindow/,
+      /runRestoreEndHeldCatalogPhase\(\)[\s\S]*catalogReleased: false[\s\S]*startMaestroFlow[\s\S]*journeyRestoreEndChecking[\s\S]*waitForHeldCatalogPending\(phase, checkingRun\)[\s\S]*Promise\.all\(\[[\s\S]*waitForMaestroScreenshot[\s\S]*waitForRestoreEndCleanupEvidence\(phase\)[\s\S]*assertHeldCatalogPending[\s\S]*catalogReleased: true[\s\S]*Promise\.all\(\[[\s\S]*waitForCatalogCompletion\(phase\)[\s\S]*finishMaestroFlow[\s\S]*assertRestoreEndEvidenceWindow/,
     );
     assert.match(
       runner,
@@ -257,6 +300,17 @@ describe('Maestro workspace catalog recovery runtime', () => {
       fixture,
       /'restore\.suspended': new Set\(\[[\s\S]*'catalogJourneyRestoreFailure'/,
     );
+    assert.match(
+      fixture,
+      /'navigation\.persisted': new Set\(\[[\s\S]*'catalogJourneyRestart'/,
+    );
+    for (const type of [
+      'workspace\\.recovery\\.settled',
+      'navigation\\.cleanup\\.settled',
+      'tracking\\.stop\\.settled',
+    ]) {
+      assert.match(fixture, new RegExp(`'${type}': new Set\\(\\[[\\s\\S]*'catalogForegroundLoss'`));
+    }
     assert.match(
       runner,
       /waitForRestoreEndCleanupEvidence[\s\S]*navigation\.cleanup\.settled[\s\S]*tracking\.stop\.settled[\s\S]*cleanup\?\.navigationInstanceId[\s\S]*cleanup\?\.appLaunchId/,

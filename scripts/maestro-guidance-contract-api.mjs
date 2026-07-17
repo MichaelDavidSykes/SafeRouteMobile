@@ -49,6 +49,7 @@ export const GUIDANCE_CONTRACT_EVIDENCE_TYPES = Object.freeze([
 const GUIDANCE_CONTRACT_EVIDENCE_PHASES = Object.freeze({
   'navigation.persisted': new Set([
     'catalogJourneyStart',
+    'catalogJourneyRestart',
     'publicStart',
     'workspaceStart',
     'workspaceReconnect',
@@ -62,6 +63,7 @@ const GUIDANCE_CONTRACT_EVIDENCE_PHASES = Object.freeze({
   ]),
   'restore.ready': new Set(['workspacePrepare', 'workspaceReconnect']),
   'workspace.recovery.settled': new Set([
+    'catalogForegroundLoss',
     'deniedStart',
     'workspaceReconnect',
     'wrongPrincipal',
@@ -70,6 +72,7 @@ const GUIDANCE_CONTRACT_EVIDENCE_PHASES = Object.freeze({
   ]),
   'route.cache.readback': new Set(['regained', 'readbackEvidence']),
   'navigation.cleanup.settled': new Set([
+    'catalogForegroundLoss',
     'catalogJourneyRestoreEnd',
     'wrongPrincipalStart',
     'deniedStart',
@@ -77,6 +80,7 @@ const GUIDANCE_CONTRACT_EVIDENCE_PHASES = Object.freeze({
     'denied'
   ]),
   'tracking.stop.settled': new Set([
+    'catalogForegroundLoss',
     'catalogJourneyRestoreEnd',
     'wrongPrincipalStart',
     'deniedStart',

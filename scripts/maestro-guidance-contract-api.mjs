@@ -65,12 +65,14 @@ const GUIDANCE_CONTRACT_EVIDENCE_PHASES = Object.freeze({
   ]),
   'route.cache.readback': new Set(['regained', 'readbackEvidence']),
   'navigation.cleanup.settled': new Set([
+    'catalogJourneyRestoreEnd',
     'wrongPrincipalStart',
     'deniedStart',
     'wrongPrincipal',
     'denied'
   ]),
   'tracking.stop.settled': new Set([
+    'catalogJourneyRestoreEnd',
     'wrongPrincipalStart',
     'deniedStart',
     'wrongPrincipal',

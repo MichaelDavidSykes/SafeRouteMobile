@@ -21,7 +21,6 @@ const flowPaths = [
   'maestro/ios-workspace-catalog-recovery-foreground-loss.yaml',
   'maestro/ios-workspace-catalog-recovery-journey-restore-failure.yaml',
   'maestro/ios-workspace-catalog-recovery-journey-restore-end-checking.yaml',
-  'maestro/ios-workspace-catalog-recovery-journey-restore-end-held.yaml',
   'maestro/ios-workspace-catalog-recovery-journey-restore-end-outcome.yaml',
   'maestro/ios-workspace-catalog-recovery-journey-restore-reload.yaml',
 ];
@@ -42,6 +41,10 @@ describe('Maestro workspace catalog recovery runtime', () => {
     assert.match(
       packageJson,
       /"test:maestro:ios:workspace-catalog-recovery": "node scripts\/run-maestro-workspace-catalog-recovery\.mjs"/,
+    );
+    assert.match(
+      packageJson,
+      /"start:maestro:ios:workspace-catalog-recovery": "[^"]*SAFEROUTE_ENABLE_GUIDANCE_CONTRACT_EVIDENCE=true/,
     );
     assert.doesNotMatch(
       packageJson,
@@ -200,15 +203,15 @@ describe('Maestro workspace catalog recovery runtime', () => {
 
   it('keeps an explicitly ended suspended journey closed after held retry authorization', () => {
     const runner = read('scripts/run-maestro-workspace-catalog-recovery.mjs');
+    const fixture = read('scripts/maestro-guidance-contract-api.mjs');
     const restoreFailure = read('maestro/ios-workspace-catalog-recovery-journey-restore-failure.yaml');
     const restoreEndChecking = read('maestro/ios-workspace-catalog-recovery-journey-restore-end-checking.yaml');
-    const restoreEndHeld = read('maestro/ios-workspace-catalog-recovery-journey-restore-end-held.yaml');
     const restoreEndOutcome = read('maestro/ios-workspace-catalog-recovery-journey-restore-end-outcome.yaml');
     const restoreReload = read('maestro/ios-workspace-catalog-recovery-journey-restore-reload.yaml');
 
     assert.match(
       runner,
-      /journeyStart,[\s\S]*journeyRestoreFailure,[\s\S]*journeyRestoreEnd,[\s\S]*journeyRestoreReload,[\s\S]*journeyRestart,[\s\S]*journeyBackground/,
+      /journeyStart,[\s\S]*journeyRestoreFailure,[\s\S]*runRestoreEndHeldCatalogPhase[\s\S]*journeyRestoreReload,[\s\S]*journeyRestart,[\s\S]*journeyBackground/,
     );
     assert.match(
       runner,
@@ -224,7 +227,15 @@ describe('Maestro workspace catalog recovery runtime', () => {
     );
     assert.match(
       runner,
-      /phase: WORKSPACE_CATALOG_RECOVERY_PHASES\.journeyRestoreEnd,[\s\S]*whileHeldFlow: flows\.journeyRestoreEndHeld/,
+      /runRestoreEndHeldCatalogPhase\(\)[\s\S]*catalogReleased: false[\s\S]*journeyRestoreEndChecking[\s\S]*waitForHeldCatalogPending\(phase\)[\s\S]*waitForRestoreEndCleanupEvidence\(phase\)[\s\S]*assertHeldCatalogPending[\s\S]*catalogReleased: true[\s\S]*waitForCatalogCompletion\(phase\)[\s\S]*assertRestoreEndEvidenceWindow/,
+    );
+    assert.match(
+      runner,
+      /cleanupEntries\.length === 1[\s\S]*receivedAtMs >= catalog\.timestampMs[\s\S]*receivedAtMs <= catalogCompletion\.timestampMs/,
+    );
+    assert.match(
+      fixture,
+      /'navigation\.cleanup\.settled': new Set\(\[[\s\S]*'catalogJourneyRestoreEnd'/,
     );
     assert.match(runner, /assertRestoreEndSettledWithoutTraffic\(entries\)/);
     assert.match(runner, /assertEndedJourneyReloadTraffic\(entries\)/);
@@ -242,13 +253,9 @@ describe('Maestro workspace catalog recovery runtime', () => {
     );
     assert.match(
       restoreEndChecking,
-      /safe-route-suspended-navigation-retry[\s\S]*Restoring route\. Cold restart verification v1\.[\s\S]*enabled: false[\s\S]*safe-route-suspended-navigation-end/,
+      /safe-route-suspended-navigation-retry[\s\S]*Restoring route[\s\S]*safe-route-suspended-navigation-end[\s\S]*Suspended route ended\./,
     );
-    assert.doesNotMatch(restoreEndChecking, /tapOn:[\s\S]{0,80}safe-route-suspended-navigation-end/);
-    assert.match(
-      restoreEndHeld,
-      /Restoring route\. Cold restart verification v1\.[\s\S]*safe-route-suspended-navigation-end[\s\S]*tapOn:[\s\S]*Suspended route ended\./,
-    );
+    assert.doesNotMatch(restoreEndChecking, /safe-route-suspended-navigation-end"\n    enabled: true/);
     for (const id of [
       'safe-route-suspended-navigation',
       'safe-route-live-map',

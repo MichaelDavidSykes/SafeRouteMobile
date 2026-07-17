@@ -43,7 +43,6 @@ const flows = Object.freeze({
   foregroundStartGateChecking: 'maestro/ios-workspace-catalog-recovery-start-gate-checking.yaml',
   foregroundStartGateReady: 'maestro/ios-workspace-catalog-recovery-start-gate-ready.yaml',
   journeyRestoreEndChecking: 'maestro/ios-workspace-catalog-recovery-journey-restore-end-checking.yaml',
-  journeyRestoreEndHeld: 'maestro/ios-workspace-catalog-recovery-journey-restore-end-held.yaml',
   journeyRestoreEndOutcome: 'maestro/ios-workspace-catalog-recovery-journey-restore-end-outcome.yaml',
   journeyRestoreFailure: 'maestro/ios-workspace-catalog-recovery-journey-restore-failure.yaml',
   journeyRestoreReload: 'maestro/ios-workspace-catalog-recovery-journey-restore-reload.yaml',
@@ -147,16 +146,7 @@ async function main() {
     flows.journeyRestoreFailure,
     GUIDANCE_CONTRACT_MODES.active
   );
-  await runHeldCatalogPhase({
-    checkingFlow: flows.journeyRestoreEndChecking,
-    checkingLabel: 'end suspended guidance while its explicit retry catalog is held',
-    mode: GUIDANCE_CONTRACT_MODES.active,
-    outcomeFlow: flows.journeyRestoreEndOutcome,
-    outcomeLabel: 'keep the ended journey closed after the retry catalog settles',
-    phase: WORKSPACE_CATALOG_RECOVERY_PHASES.journeyRestoreEnd,
-    whileHeldFlow: flows.journeyRestoreEndHeld,
-    whileHeldLabel: 'end the exact suspended journey inside the proven held window'
-  });
+  await runRestoreEndHeldCatalogPhase();
   runPhase(
     WORKSPACE_CATALOG_RECOVERY_PHASES.journeyRestoreReload,
     'reload the exact route only after the End outcome has settled',
@@ -308,6 +298,27 @@ async function runHeldCatalogPhase({
   runMaestroFlow(phase, outcomeLabel, outcomeFlow);
 }
 
+async function runRestoreEndHeldCatalogPhase() {
+  const phase = WORKSPACE_CATALOG_RECOVERY_PHASES.journeyRestoreEnd;
+  setControl(phase, GUIDANCE_CONTRACT_MODES.active, { catalogReleased: false });
+  runMaestroFlow(
+    phase,
+    'retry and end suspended guidance inside one held authorization window',
+    flows.journeyRestoreEndChecking
+  );
+  await waitForHeldCatalogPending(phase);
+  await waitForRestoreEndCleanupEvidence(phase);
+  assertHeldCatalogPending(readRequestJournal(), phase);
+  setControl(phase, GUIDANCE_CONTRACT_MODES.active, { catalogReleased: true });
+  await waitForCatalogCompletion(phase);
+  assertRestoreEndEvidenceWindow(readRequestJournal(), readEvidenceJournal());
+  runMaestroFlow(
+    phase,
+    'keep the ended journey closed after the retry catalog settles',
+    flows.journeyRestoreEndOutcome
+  );
+}
+
 async function waitForHeldCatalogPending(phase) {
   const deadline = Date.now() + 15_000;
   while (Date.now() < deadline) {
@@ -343,6 +354,25 @@ async function waitForHeldCatalogPending(phase) {
     await new Promise((resolve) => setTimeout(resolve, 100));
   }
   throw new Error(`${phase} did not reach a held principal/catalog authorization window.`);
+}
+
+async function waitForRestoreEndCleanupEvidence(phase) {
+  const deadline = Date.now() + 15_000;
+  while (Date.now() < deadline) {
+    const cleanup = readEvidenceJournal().find((entry) =>
+      entry.serverPhase === phase &&
+      entry.type === 'navigation.cleanup.settled' &&
+      entry.sourceRevision === readCurrentSourceRevision() &&
+      entry.workspaceId === GUIDANCE_CONTRACT_WORKSPACES.denied.id &&
+      entry.routeId === GUIDANCE_CONTRACT_ROUTE_IDS.denied &&
+      entry.outcome === 'cleared'
+    );
+    if (cleanup) {
+      return cleanup;
+    }
+    await new Promise((resolve) => setTimeout(resolve, 100));
+  }
+  throw new Error(`${phase} did not record acknowledged suspended-journey cleanup evidence.`);
 }
 
 function runMaestroFlow(phase, label, file) {
@@ -530,6 +560,29 @@ function assertRecoveryJournal(entries) {
   assertRestoreEndSettledWithoutTraffic(entries);
   assertEndedJourneyReloadTraffic(entries);
   assertNoUnsafeForegroundCatalogTraffic(entries);
+}
+
+function assertRestoreEndEvidenceWindow(entries, evidenceEntries) {
+  const phase = WORKSPACE_CATALOG_RECOVERY_PHASES.journeyRestoreEnd;
+  const requests = phaseApiRequests(entries, phase);
+  const catalog = requests.find((entry) =>
+    entry.path === '/api/v1/mobile/safe-route/routes' && entry.search === ''
+  );
+  const catalogCompletion = completionFor(entries, catalog);
+  const cleanupEntries = evidenceEntries.filter((entry) =>
+    entry.serverPhase === phase &&
+    entry.type === 'navigation.cleanup.settled' &&
+    entry.sourceRevision === readCurrentSourceRevision() &&
+    entry.workspaceId === GUIDANCE_CONTRACT_WORKSPACES.denied.id &&
+    entry.routeId === GUIDANCE_CONTRACT_ROUTE_IDS.denied &&
+    entry.outcome === 'cleared'
+  );
+  assertCondition(
+    cleanupEntries.length === 1 &&
+      cleanupEntries[0].receivedAtMs >= catalog.timestampMs &&
+      cleanupEntries[0].receivedAtMs <= catalogCompletion.timestampMs,
+    'Suspended journey cleanup was not acknowledged inside the held catalog window.'
+  );
 }
 
 function phaseApiRequests(entries, phase) {
@@ -769,6 +822,17 @@ function completionFor(entries, request) {
 function readRequestJournal() {
   try {
     return readFileSync(requestLogFile, 'utf8')
+      .split('\n')
+      .filter(Boolean)
+      .map((line) => JSON.parse(line));
+  } catch {
+    return [];
+  }
+}
+
+function readEvidenceJournal() {
+  try {
+    return readFileSync(evidenceLogFile, 'utf8')
       .split('\n')
       .filter(Boolean)
       .map((line) => JSON.parse(line));

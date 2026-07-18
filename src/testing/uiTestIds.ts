@@ -84,6 +84,8 @@ export const uiTestIds = {
   suspendedNavigationEnd: "safe-route-suspended-navigation-end",
   navigationCleanupNotice: "safe-route-navigation-cleanup",
   navigationCleanupRetry: "safe-route-navigation-cleanup-retry",
+  offlineCalendarCleanupNotice: "safe-route-calendar-cleanup",
+  offlineCalendarCleanupRetry: "safe-route-calendar-cleanup-retry",
   liveMapReturn: "safe-route-return",
   liveMapRouteSummarySheet: "safe-route-summary-sheet",
   liveMapJourney: (routeId: string) =>

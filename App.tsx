@@ -59,10 +59,14 @@ import {
 } from './src/features/navigation/appRouting';
 import { OperationsScreen } from './src/features/operations/OperationsScreen';
 import {
-  clearOfflineOperationsPrincipal,
   clearOfflineOperationsWorkspace,
+  ensureSignedOutOfflineOperationsCalendarRemoved,
+  prepareOfflineOperationsPrincipalForFreshAuthentication,
+  purgeOfflineOperationsPrincipalAtTerminalBoundary,
+  recoverOfflineOperationsPrincipalCleanup,
   tryActivateOfflineOperationsPrincipal
 } from './src/features/operations/offlineOperationsCache';
+import { OfflineCalendarCleanupNotice } from './src/features/operations/OfflineCalendarCleanupNotice';
 import type { OperationsTab } from './src/features/operations/operationsUiState';
 import { RouteListScreen } from './src/features/routes/RouteListScreen';
 import { uiTestIds } from './src/testing/uiTestIds';
@@ -146,6 +150,7 @@ type PendingNavigationRestore = {
 };
 
 type NavigationCleanupStatus = 'idle' | 'checking' | 'failed';
+type OfflineCalendarCleanupStatus = 'idle' | 'checking' | 'failed';
 
 export default function App() {
   return (
@@ -203,6 +208,8 @@ function SafeRouteApp() {
     useState<PendingNavigationRestore | null>(null);
   const [navigationCleanupStatus, setNavigationCleanupStatus] =
     useState<NavigationCleanupStatus>('idle');
+  const [offlineCalendarCleanupStatus, setOfflineCalendarCleanupStatus] =
+    useState<OfflineCalendarCleanupStatus>('idle');
   const pendingFullAccessFeatureRef = useRef<GuestFullAccessFeature | null>(null);
   const activeSessionTokenRef = useRef(session?.accessToken || null);
   const activeSessionPrincipalIdRef = useRef(getAuthSessionPrincipalId(session));
@@ -738,6 +745,43 @@ function SafeRouteApp() {
     );
   };
 
+  const handleRetryOfflineCalendarCleanup = async () => {
+    if (offlineCalendarCleanupStatus === 'checking') {
+      return;
+    }
+    const retrySession = session;
+    const retryPrincipalId = getAuthSessionPrincipalId(retrySession);
+    const retrySessionEpoch = sessionEpochRef.current;
+    setOfflineCalendarCleanupStatus('checking');
+    const cleanup = await recoverOfflineOperationsPrincipalCleanup(
+      retryPrincipalId || null,
+      clearAuthSession,
+    );
+    const signedOutCalendarRemoved =
+      cleanup.status === 'clean' && !retrySession
+        ? await ensureSignedOutOfflineOperationsCalendarRemoved()
+        : true;
+    if (
+      cleanup.status !== 'clean' ||
+      !signedOutCalendarRemoved ||
+      retrySessionEpoch !== sessionEpochRef.current
+    ) {
+      if (retrySessionEpoch === sessionEpochRef.current) {
+        setOfflineCalendarCleanupStatus('failed');
+      }
+      return;
+    }
+    if (retrySessionEpoch !== sessionEpochRef.current) {
+      return;
+    }
+    setOfflineCalendarCleanupStatus('idle');
+    setSessionMessage(
+      retrySession
+        ? 'Offline Calendar storage restored for this session. Fresh sync can resume.'
+        : 'Offline Calendar storage restored. Sign in again to resume offline review.',
+    );
+  };
+
   const handleEndSuspendedNavigation = async () => {
     const endedNavigation = pendingNavigationRestoreRef.current;
     const endedWorkspaceId =
@@ -903,12 +947,42 @@ function SafeRouteApp() {
         ) {
           await recordNavigationAbsenceReadback(entryTrackingVerification);
         }
+        const operationsCleanup =
+          await recoverOfflineOperationsPrincipalCleanup(
+            null,
+            clearAuthSession,
+          );
+        if (mounted) {
+          setOfflineCalendarCleanupStatus(
+            operationsCleanup.status === 'clean' ? 'idle' : 'failed',
+          );
+        }
+        if (operationsCleanup.status !== 'clean') {
+          if (mounted) {
+            setSession(null);
+            setSessionMessage(
+              'Secure offline Calendar storage needs retry before account access can be restored.',
+            );
+            setAuthPrompt(
+              'Retry offline Calendar storage before signing in.',
+            );
+            setScreen('guest-map');
+          }
+          return;
+        }
         const storedSession = await loadAuthSession();
         if (!mounted) {
           return;
         }
 
         if (!storedSession) {
+          const signedOutCalendarRemoved =
+            await ensureSignedOutOfflineOperationsCalendarRemoved();
+          if (mounted) {
+            setOfflineCalendarCleanupStatus(
+              signedOutCalendarRemoved ? 'idle' : 'failed',
+            );
+          }
           if (
             !persistedNavigation ||
             !openActiveNavigationSession(persistedNavigation, false, null, null)
@@ -935,14 +1009,16 @@ function SafeRouteApp() {
         );
 
         if (restoreResult.status === 'expired') {
-          const [, operationsCleanup] = await Promise.allSettled([
-            clearAuthSession(),
-            clearOfflineOperationsPrincipal(
+          const operationsCleanup = await
+            purgeOfflineOperationsPrincipalAtTerminalBoundary(
               getAuthSessionPrincipalId(storedSession),
-            ),
-          ]);
+              clearAuthSession,
+            ).catch(() => null);
           const operationsCleanupNeedsRetry =
-            operationsCleanup.status === 'rejected';
+            operationsCleanup?.status !== 'clean';
+          setOfflineCalendarCleanupStatus(
+            operationsCleanupNeedsRetry ? 'failed' : 'idle',
+          );
           if (
             restoreResult.reason === 'inactive-account' &&
             !enablePreviewSession() &&
@@ -957,16 +1033,8 @@ function SafeRouteApp() {
               return;
             }
             const inactiveMessage = guidanceCleared
-              ? `${restoreResult.message}${
-                  operationsCleanupNeedsRetry
-                    ? ' Saved calendar cleanup needs retry before signing in again.'
-                    : ''
-                }`
-              : `${restoreResult.message} Saved guidance cleanup needs retry before signing in again.${
-                  operationsCleanupNeedsRetry
-                    ? ' Saved calendar cleanup also needs retry.'
-                    : ''
-                }`;
+              ? restoreResult.message
+              : `${restoreResult.message} Saved guidance cleanup needs retry before signing in again.`;
             setSession(null);
             setSelectedRoute(null);
             setAvailableWorkspaces([]);
@@ -1000,6 +1068,9 @@ function SafeRouteApp() {
           const restoredPrincipalId = getAuthSessionPrincipalId(restoreResult.session);
           const operationsCacheActivated =
             await tryActivateOfflineOperationsPrincipal(restoredPrincipalId);
+          setOfflineCalendarCleanupStatus(
+            operationsCacheActivated ? 'idle' : 'failed',
+          );
           if (restoreResult.validatedOnline) {
             await saveAuthSession(restoreResult.session);
           }
@@ -1076,7 +1147,30 @@ function SafeRouteApp() {
     workspaceCatalogRetryingRef.current = false;
     setWorkspaceCatalogRetrying(false);
     await waitForSessionCleanup(sessionCleanupRef.current);
-    const persistedSession = await prepareAuthenticatedSession(nextSession, saveAuthSession, getCurrentUser);
+    let operationsPreparation: Awaited<
+      ReturnType<
+        typeof prepareOfflineOperationsPrincipalForFreshAuthentication
+      >
+    > = {
+      persistenceSafe: false,
+      principalId: null,
+      status: 'retry',
+    };
+    let authSessionPersisted = false;
+    const persistedSession = await prepareAuthenticatedSession(
+      nextSession,
+      async (acceptedSession) => {
+        operationsPreparation =
+          await prepareOfflineOperationsPrincipalForFreshAuthentication(
+            getAuthSessionPrincipalId(acceptedSession),
+          );
+        if (operationsPreparation.persistenceSafe) {
+          await saveAuthSession(acceptedSession);
+          authSessionPersisted = true;
+        }
+      },
+      getCurrentUser,
+    );
     if (!hasAuthenticatedSession(persistedSession)) {
       await clearAuthSession();
       setSession(null);
@@ -1086,14 +1180,17 @@ function SafeRouteApp() {
       return;
     }
     const operationsCacheActivated =
-      await tryActivateOfflineOperationsPrincipal(
-        getAuthSessionPrincipalId(persistedSession),
-      );
+      operationsPreparation.status === 'clean';
+    setOfflineCalendarCleanupStatus(
+      operationsCacheActivated ? 'idle' : 'failed',
+    );
 
     setSessionMessage(
       operationsCacheActivated
         ? ''
-        : 'Secure offline Calendar is unavailable until device storage can be accessed.',
+        : authSessionPersisted
+          ? 'Secure offline Calendar cleanup needs retry before offline review.'
+          : 'Signed in for this session only. Retry saved Calendar cleanup before offline review; sign in again after reopening.',
     );
     setAuthPrompt('');
     setAvailableWorkspaces([]);
@@ -1153,6 +1250,7 @@ function SafeRouteApp() {
     activeSessionTokenRef.current = null;
     activeSessionPrincipalIdRef.current = '';
     sessionExpiryHandledRef.current = true;
+    setOfflineCalendarCleanupStatus('checking');
     setAvailableWorkspaces([]);
     activeWorkspaceRef.current = null;
     setActiveWorkspace(null);
@@ -1160,14 +1258,23 @@ function SafeRouteApp() {
     setScreen('guest-map');
     const cleanup = Promise.allSettled([
       discardPersistedNavigation(),
-      clearAuthSession(),
-      clearOfflineOperationsPrincipal(signingOutPrincipalId),
+      purgeOfflineOperationsPrincipalAtTerminalBoundary(
+        signingOutPrincipalId,
+        clearAuthSession,
+      ),
     ]);
     sessionCleanupRef.current = cleanup;
-    await cleanup;
+    const cleanupResults = await cleanup;
     if (sessionCleanupRef.current === cleanup) {
       sessionCleanupRef.current = null;
     }
+    const operationsCleanup = cleanupResults[1];
+    setOfflineCalendarCleanupStatus(
+      operationsCleanup.status === 'fulfilled' &&
+        operationsCleanup.value.status === 'clean'
+        ? 'idle'
+        : 'failed',
+    );
     setSessionMessage('');
     setAuthPrompt('');
     setWorkspaceCatalogLoading(false);
@@ -1212,6 +1319,7 @@ function SafeRouteApp() {
     const expiredPrincipalId = activeSessionPrincipalIdRef.current;
     activeSessionTokenRef.current = null;
     activeSessionPrincipalIdRef.current = '';
+    setOfflineCalendarCleanupStatus('checking');
     pendingNavigationRestoreRef.current = null;
     setPendingNavigationRestore(null);
     pendingFullAccessFeatureRef.current = screen === 'operations'
@@ -1223,8 +1331,10 @@ function SafeRouteApp() {
           : null;
     const cleanup = Promise.allSettled([
       discardPersistedNavigation(),
-      clearAuthSession(),
-      clearOfflineOperationsPrincipal(expiredPrincipalId)
+      purgeOfflineOperationsPrincipalAtTerminalBoundary(
+        expiredPrincipalId,
+        clearAuthSession,
+      )
     ]);
     sessionCleanupRef.current = cleanup;
     setActiveNavigationSession(null);
@@ -1244,10 +1354,17 @@ function SafeRouteApp() {
     setOperationsTab('planned-routes');
     setSession(null);
     setScreen('login');
-    await cleanup;
+    const cleanupResults = await cleanup;
     if (sessionCleanupRef.current === cleanup) {
       sessionCleanupRef.current = null;
     }
+    const operationsCleanup = cleanupResults[1];
+    setOfflineCalendarCleanupStatus(
+      operationsCleanup.status === 'fulfilled' &&
+        operationsCleanup.value.status === 'clean'
+        ? 'idle'
+        : 'failed',
+    );
   };
 
   activeSessionExpiryHandlerRef.current = ({
@@ -2652,6 +2769,15 @@ function SafeRouteApp() {
             checking={navigationCleanupStatus === 'checking'}
             onRetry={() => {
               void handleRetryNavigationCleanup();
+            }}
+          />
+        ) : null}
+        {offlineCalendarCleanupStatus !== 'idle' &&
+        navigationCleanupStatus === 'idle' ? (
+          <OfflineCalendarCleanupNotice
+            checking={offlineCalendarCleanupStatus === 'checking'}
+            onRetry={() => {
+              void handleRetryOfflineCalendarCleanup();
             }}
           />
         ) : null}

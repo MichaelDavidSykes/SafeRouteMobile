@@ -8,7 +8,6 @@ appId: host.exp.Exponent
     visible:
       id: "guest-map-network-status"
     timeout: 15000
-- assertVisible: "Checking connection…"
 - assertVisible: "Checking connection. Map downloads are paused."
 - assertVisible:
     id: "guest-map-canvas"

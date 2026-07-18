@@ -12,7 +12,7 @@ appId: host.exp.Exponent
 - assertVisible:
     id: "safe-route-suspended-navigation-end"
     enabled: true
-- assertVisible: "Offline map"
+- assertVisible: "Offline map. Saved route information remains available."
 - takeScreenshot: "connectivity-contract-offline-guidance"
 - tapOn:
     id: "safe-route-suspended-navigation-end"

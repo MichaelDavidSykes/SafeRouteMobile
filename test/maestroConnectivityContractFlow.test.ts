@@ -157,6 +157,10 @@ describe("Maestro connectivity contract runtime", () => {
         seed.indexOf('inputText: "guidance-contract-password"'),
       'the iOS Autofill sheet must be dismissed before entering the fixture password',
     );
+    assert.match(
+      seed,
+      /id: "safe-route-login-password"\n- waitForAnimationToEnd:[\s\S]*visible: "Autofill Password"[\s\S]*tapOn: "Continue"\n- eraseText\n- inputText: "guidance-contract-password"/,
+    );
     assert.match(checking, /Checking connection\. Map downloads are paused\./);
     assert.match(checking, /id: "guest-map-canvas"/);
     assert.match(

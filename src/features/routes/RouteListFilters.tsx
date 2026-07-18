@@ -20,6 +20,7 @@ interface RouteListFiltersProps {
   showClientFilters: boolean;
   showSearch: boolean;
   workspaceSwitchDisabled: boolean;
+  workspaceAccessFocusTargetRef?: (target: View | null) => void;
   onChangeQuery: (query: string) => void;
   onSelectClient: (clientId: string | null) => void;
 }
@@ -34,6 +35,7 @@ export function RouteListFilters({
   routeSummary,
   showSummary,
   workspaceSwitchDisabled,
+  workspaceAccessFocusTargetRef,
 }: RouteListFiltersProps) {
   const [searchFocused, setSearchFocused] = useState(false);
   const [clientMenuOpen, setClientMenuOpen] = useState(false);
@@ -46,6 +48,7 @@ export function RouteListFilters({
       {showClientFilters ? (
         <View style={styles.clientFilter}>
           <Pressable
+            ref={workspaceAccessFocusTargetRef}
             accessibilityHint={workspaceSwitchDisabled
               ? "End active guidance before changing workspace."
               : "Opens the active workspace menu."}

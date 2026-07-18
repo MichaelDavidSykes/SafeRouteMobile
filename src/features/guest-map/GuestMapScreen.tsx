@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useReducer, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useReducer, useRef, useState } from 'react';
 import {
   ActivityIndicator,
   Animated,
@@ -122,6 +122,7 @@ interface GuestMapScreenProps {
   workspaceAuthorizationFresh?: boolean;
   workspaceAccessRecoveryPending?: boolean;
   workspaceAccessRefreshAvailable?: boolean;
+  workspaceAccessFocusTargetRef?: (target: View | null) => void;
   workspaceAccessIssue?: WorkspaceAccessIssue;
   workspaceSwitchDisabled?: boolean;
 }
@@ -145,6 +146,7 @@ export function GuestMapScreen({
   workspaceAuthorizationFresh = false,
   workspaceAccessRecoveryPending = false,
   workspaceAccessRefreshAvailable = false,
+  workspaceAccessFocusTargetRef,
   workspaceAccessIssue = 'none',
   workspaceSwitchDisabled = false
 }: GuestMapScreenProps) {
@@ -182,6 +184,12 @@ export function GuestMapScreen({
   const [locationSearchPending, setLocationSearchPending] = useState(false);
   const [locationSearchMessage, setLocationSearchMessage] = useState('');
   const [sheetCollapsed, setSheetCollapsed] = useState(false);
+  const handleWorkspaceAccessFocusTarget = useCallback(
+    (target: View | null) => {
+      workspaceAccessFocusTargetRef?.(sheetCollapsed ? null : target);
+    },
+    [sheetCollapsed, workspaceAccessFocusTargetRef],
+  );
   const [mapAction, setMapAction] = useState<{
     coordinate: LatLng;
     label: string;
@@ -1414,6 +1422,8 @@ export function GuestMapScreen({
 
         <View pointerEvents="box-none" style={styles.sheetDock}>
           <Animated.View
+            accessibilityElementsHidden={sheetCollapsed}
+            importantForAccessibility={sheetCollapsed ? 'no-hide-descendants' : 'auto'}
             pointerEvents={sheetCollapsed ? 'none' : 'auto'}
             style={[
               styles.sheet,
@@ -1476,6 +1486,7 @@ export function GuestMapScreen({
                     }}
                     sharedRetryAvailable={workspaceAccessRefreshAvailable}
                     switchDisabled={workspaceSwitchDisabled}
+                    focusTargetRef={handleWorkspaceAccessFocusTarget}
                   />
                   {workspaceAccessRefreshAvailable ? (
                     <WorkspaceAccessRefreshControl
@@ -1629,6 +1640,8 @@ export function GuestMapScreen({
           </Animated.View>
 
           <Animated.View
+            accessibilityElementsHidden={!sheetCollapsed}
+            importantForAccessibility={sheetCollapsed ? 'auto' : 'no-hide-descendants'}
             pointerEvents={sheetCollapsed ? 'auto' : 'none'}
             style={[
               styles.collapsedSheet,
@@ -1679,6 +1692,7 @@ export function GuestMapScreen({
 function GuestWorkspaceSelector({
   activeWorkspace,
   errorMessage,
+  focusTargetRef,
   loading,
   menuOpen,
   onRetry,
@@ -1690,6 +1704,7 @@ function GuestWorkspaceSelector({
 }: {
   activeWorkspace: SafeRouteWorkspace | null;
   errorMessage: string;
+  focusTargetRef?: (target: View | null) => void;
   loading: boolean;
   menuOpen: boolean;
   onRetry?: () => void;
@@ -1726,6 +1741,7 @@ function GuestWorkspaceSelector({
   return (
     <View style={styles.workspacePicker}>
       <Pressable
+        ref={focusTargetRef}
         accessibilityHint={retryAvailable
           ? 'Retries loading your SafeRoute workspaces.'
           : sharedRetryAvailable && catalogUnavailable

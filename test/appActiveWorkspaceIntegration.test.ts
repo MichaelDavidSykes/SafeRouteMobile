@@ -6,6 +6,7 @@ const appSource = () => readFileSync("App.tsx", "utf8");
 const guestSource = () => readFileSync("src/features/guest-map/GuestMapScreen.tsx", "utf8");
 const operationsSource = () => readFileSync("src/features/operations/OperationsScreen.tsx", "utf8");
 const routesSource = () => readFileSync("src/features/routes/RouteListScreen.tsx", "utf8");
+const routeFiltersSource = () => readFileSync("src/features/routes/RouteListFilters.tsx", "utf8");
 const workspaceRefreshSource = () => readFileSync("src/features/workspaces/WorkspaceAccessRefreshControl.tsx", "utf8");
 
 describe("App active workspace integration", () => {
@@ -99,7 +100,15 @@ describe("App active workspace integration", () => {
     assert.match(app, /previousUnavailableWorkspaceIds[\s\S]*workspaceAccessRestored = findRestoredWorkspaceIds\([\s\S]*previousUnavailableWorkspaceIds,[\s\S]*unavailableWorkspaceIds,[\s\S]*\)\.length > 0/);
     assert.match(app, /workspaceAccessRestored[\s\S]*Workspace access refreshed\./);
     assert.match(app, /catalogRetryWasRequested[\s\S]*Workspace access verified\./);
-    assert.match(app, /AccessibilityInfo\.announceForAccessibilityWithOptions\(confirmation,[\s\S]*queue: true/);
+    assert.match(app, /workspaceAccessRefreshWillRemain = shouldOfferWorkspaceAccessRefresh\(\{[\s\S]*accessRecoveryPending: unavailableWorkspaceIds\.size > 0[\s\S]*availableWorkspaceCount: catalog\.length[\s\S]*issue: 'none'/);
+    assert.match(app, /Platform\.OS === 'ios' && !workspaceAccessRefreshWillRemain[\s\S]*workspaceAccessFocusHandoffRef\.current\?\.request\([\s\S]*confirmation[\s\S]*workspaceAccessFocusTargetRef\.current/);
+    assert.match(app, /AccessibilityInfo\.sendAccessibilityEvent\(target, 'focus'\)/);
+    assert.equal(
+      (app.match(/workspaceAccessFocusTargetRef=\{updateWorkspaceAccessFocusTarget\}/g) || []).length,
+      3,
+    );
+    assert.match(app, /transition\.announcement[\s\S]*workspaceAccessFocusHandoffRef\.current\?\.cancel\(\)[\s\S]*announceForAccessibilityWithOptions/);
+    assert.match(app, /handleRetryWorkspaceCatalog = useCallback\(\(\) => \{[\s\S]*workspaceCatalogRetryingRef\.current[\s\S]*return;[\s\S]*workspaceAccessFocusHandoffRef\.current\?\.cancel\(\)[\s\S]*workspaceCatalogRetryingRef\.current = true/);
     assert.match(
       app,
       /Platform\.OS === 'ios' && transition\.announcement[\s\S]*AccessibilityInfo\.announceForAccessibilityWithOptions\([\s\S]*transition\.announcement/,
@@ -142,6 +151,11 @@ describe("App active workspace integration", () => {
     assert.match(guestSource(), /workspaceAccessRefreshAvailable[\s\S]*<WorkspaceAccessRefreshControl/);
     assert.match(routesSource(), /workspaceAccessRefreshAvailable[\s\S]*<WorkspaceAccessRefreshControl/);
     assert.match(operationsSource(), /workspaceAccessRefreshAvailable[\s\S]*<WorkspaceAccessRefreshControl/);
+    assert.match(guestSource(), /workspaceAccessFocusTargetRef\?\.\(sheetCollapsed \? null : target\)/);
+    assert.match(guestSource(), /accessibilityElementsHidden=\{sheetCollapsed\}[\s\S]*importantForAccessibility=\{sheetCollapsed \? 'no-hide-descendants' : 'auto'\}/);
+    assert.match(guestSource(), /ref=\{focusTargetRef\}[\s\S]*testID=\{uiTestIds\.guestMapWorkspaceSelector\}/);
+    assert.match(routeFiltersSource(), /ref=\{workspaceAccessFocusTargetRef\}[\s\S]*testID=\{uiTestIds\.routeListWorkspaceSelector\}/);
+    assert.match(operationsSource(), /ref=\{workspaceAccessFocusTargetRef\}[\s\S]*testID=\{uiTestIds\.operationsWorkspaceSelector\}/);
     for (const source of [guestSource(), routesSource(), operationsSource()]) {
       assert.match(
         source,

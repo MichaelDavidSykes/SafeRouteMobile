@@ -236,7 +236,10 @@ describe("App active workspace integration", () => {
     assert.match(app, /handleSessionExpired[\s\S]*setAvailableWorkspaces\(\[\]\)[\s\S]*setActiveWorkspace\(null\)/);
     assert.match(app, /handleSignOut[\s\S]*workspaceRequestRevisionRef\.current \+= 1/);
     assert.match(app, /handleSessionExpired[\s\S]*workspaceRequestRevisionRef\.current \+= 1/);
-    assert.match(app, /if \(!accessToken \|\| !authenticated\) \{[\s\S]*setAvailableWorkspaces\(\[\]\)[\s\S]*setActiveWorkspace\(null\)/);
+    assert.match(
+      app,
+      /if \([\s\S]*!accessToken \|\|[\s\S]*!authenticated \|\|[\s\S]*sessionExpiryHandledRef\.current \|\|[\s\S]*activeSessionTokenRef\.current !== accessToken[\s\S]*\) \{[\s\S]*setAvailableWorkspaces\(\[\]\)[\s\S]*setActiveWorkspace\(null\)/,
+    );
   });
 
   it("fails closed on Map and scopes Saved loads to the controlled workspace", () => {

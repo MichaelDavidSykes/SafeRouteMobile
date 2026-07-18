@@ -136,4 +136,41 @@ describe('auth completion', () => {
 
     assert.equal(saved, false);
   });
+
+  it('does not persist a trusted access token already inside its local expiry boundary', async () => {
+    const nowSeconds = Math.floor(Date.now() / 1000);
+    const encode = (value: object) =>
+      Buffer.from(JSON.stringify(value)).toString('base64url');
+    const expiringAccessToken = `${encode({
+      alg: 'HS256',
+      typ: 'JWT',
+    })}.${encode({
+      exp: nowSeconds + 20,
+      iat: nowSeconds - 60,
+      sub: 'driver@example.com',
+      typ: 'access',
+    })}.signature`;
+    let saved = false;
+
+    await assert.rejects(
+      () =>
+        prepareAuthenticatedSession(
+          {
+            accessToken: expiringAccessToken,
+            email: 'driver@example.com',
+          },
+          async () => {
+            saved = true;
+          },
+          async () => ({
+            email: 'driver@example.com',
+            id: 'driver-123',
+          }),
+        ),
+      (error) =>
+        error instanceof ApiSessionExpiredError &&
+        error.message === 'Your LunarChain session expired. Sign in again.',
+    );
+    assert.equal(saved, false);
+  });
 });

@@ -23,6 +23,11 @@ import {
 } from './src/features/auth/previewSession';
 import { restoreSavedSession } from './src/features/auth/sessionRestore';
 import type { AuthSession } from './src/features/auth/authTypes';
+import {
+  createActiveSessionExpiryMonitor,
+  type ActiveSessionExpiryIdentity,
+  type ActiveSessionExpiryMonitor,
+} from './src/features/auth/activeSessionExpiry';
 import { GuestMapScreen } from './src/features/guest-map/GuestMapScreen';
 import type { GuestFullAccessFeature } from './src/features/guest-map/guestRoutePlanner';
 import { LiveMapScreen } from './src/features/live-map/LiveMapScreen';
@@ -162,6 +167,21 @@ export default function App() {
   const sessionCleanupRef = useRef<Promise<unknown> | null>(null);
   const sessionEpochRef = useRef(0);
   const sessionExpiryHandledRef = useRef(false);
+  const activeSessionExpiryHandlerRef =
+    useRef<((identity: ActiveSessionExpiryIdentity) => void) | null>(null);
+  const activeSessionExpiryMonitorRef =
+    useRef<ActiveSessionExpiryMonitor | null>(null);
+  if (!activeSessionExpiryMonitorRef.current) {
+    activeSessionExpiryMonitorRef.current = createActiveSessionExpiryMonitor({
+      onExpire: (identity) => {
+        activeSessionExpiryHandlerRef.current?.(identity);
+      },
+      schedule: (callback, delayMs) => {
+        const timeout = setTimeout(callback, delayMs);
+        return () => clearTimeout(timeout);
+      },
+    });
+  }
   const workspaceCatalogRetryingRef = useRef(false);
   const workspaceCatalogBusyRef = useRef(false);
   const workspaceForegroundAuthorizationEpochRef = useRef(0);
@@ -293,6 +313,13 @@ export default function App() {
 
   const requestWorkspaceForegroundRevalidation = useCallback(
     (nextAppState: Parameters<typeof resolveWorkspaceForegroundRevalidation>[0]['nextAppState']) => {
+      if (
+        nextAppState === 'active' &&
+        activeSessionExpiryMonitorRef.current?.checkNow()
+      ) {
+        workspaceWasBackgroundedRef.current = false;
+        return;
+      }
       const accessToken = activeSessionTokenRef.current?.trim() || '';
       const principalId = activeSessionPrincipalIdRef.current;
       const decision = resolveWorkspaceForegroundRevalidation({
@@ -891,6 +918,31 @@ export default function App() {
     }
   };
 
+  activeSessionExpiryHandlerRef.current = ({
+    accessToken,
+    sessionEpoch: expiredSessionEpoch,
+  }) => {
+    void handleSessionExpired(
+      'Your LunarChain session expired. Sign in again.',
+      accessToken,
+      expiredSessionEpoch,
+    );
+  };
+
+  useEffect(() => {
+    const accessToken = session?.accessToken?.trim() || '';
+    activeSessionExpiryMonitorRef.current?.arm(
+      accessToken
+        ? {
+            accessToken,
+            sessionEpoch,
+          }
+        : null,
+    );
+
+    return () => activeSessionExpiryMonitorRef.current?.cancel();
+  }, [session?.accessToken, sessionEpoch]);
+
   useEffect(() => {
     const revision = workspaceRequestRevisionRef.current + 1;
     workspaceRequestRevisionRef.current = revision;
@@ -900,7 +952,12 @@ export default function App() {
     const accessToken = session?.accessToken?.trim();
     const principalId = getAuthSessionPrincipalId(session);
 
-    if (!accessToken || !authenticated) {
+    if (
+      !accessToken ||
+      !authenticated ||
+      sessionExpiryHandledRef.current ||
+      activeSessionTokenRef.current !== accessToken
+    ) {
       restoreUnavailableWorkspacesFromFreshCatalogRef.current = false;
       freshWorkspaceAuthorizationRef.current = {
         principalId: '',

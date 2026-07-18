@@ -52,6 +52,7 @@ export function createOfflineOperationsStorage(
   const revoke = async (
     principalId: string,
     workspaceId: string | null,
+    expectedRaw?: string,
   ): Promise<void> => {
     const record = createOfflineOperationsRevocationRecord(
       principalId,
@@ -64,6 +65,9 @@ export function createOfflineOperationsStorage(
     await enqueue(async () => {
       if (workspaceId !== null) {
         const current = await adapter.get();
+        if (expectedRaw !== undefined && current !== expectedRaw) {
+          return;
+        }
         if (!storedRecordMatchesScope(current, principalId, workspaceId)) {
           return;
         }
@@ -212,6 +216,14 @@ export function createOfflineOperationsStorage(
       }
       try {
         const raw = await adapter.get();
+        if (
+          revokedPrincipals.has(principalId.trim()) ||
+          revokedWorkspaces.has(
+            workspaceRevocationKey(principalId, workspaceId),
+          )
+        ) {
+          return null;
+        }
         const snapshot =
           raw &&
           utf8ByteLength(raw) <= OFFLINE_OPERATIONS_CACHE_MAX_BYTES
@@ -227,7 +239,7 @@ export function createOfflineOperationsStorage(
           snapshot === null &&
           storedRecordMatchesScope(raw, principalId, workspaceId)
         ) {
-          await revoke(principalId, workspaceId);
+          await revoke(principalId, workspaceId, raw);
         }
         return snapshot;
       } catch {

@@ -217,6 +217,76 @@ describe("offline Operations secure storage", () => {
     assert.ok(await storage.load("principal", "workspace-b", nowMs + 1));
   });
 
+  it("makes revocation dominate an in-flight storage read", async () => {
+    const memory = memoryStore();
+    const storage = createOfflineOperationsStorage(memory.adapter);
+    const nowMs = Date.now();
+    assert.ok(await storage.save("principal", "workspace-a", cacheValue("workspace-a"), nowMs));
+    const getStarted = deferred();
+    const releaseGet = deferred();
+    const originalGet = memory.adapter.get;
+    let holdNextGet = true;
+    memory.adapter.get = async () => {
+      const captured = await originalGet();
+      if (holdNextGet) {
+        holdNextGet = false;
+        getStarted.resolve();
+        await releaseGet.promise;
+      }
+      return captured;
+    };
+
+    const loading = storage.load("principal", "workspace-a", nowMs);
+    await getStarted.promise;
+    await storage.clearWorkspace("principal", "workspace-a");
+    releaseGet.resolve();
+
+    assert.equal(await loading, null);
+  });
+
+  it("does not let an expired in-flight read revoke a newer saved calendar", async () => {
+    const memory = memoryStore();
+    const storage = createOfflineOperationsStorage(memory.adapter);
+    const nowMs = Date.now();
+    assert.ok(await storage.save("principal", "workspace-a", cacheValue("workspace-a"), nowMs));
+    const getStarted = deferred();
+    const releaseGet = deferred();
+    const originalGet = memory.adapter.get;
+    let holdNextGet = true;
+    memory.adapter.get = async () => {
+      const captured = await originalGet();
+      if (holdNextGet) {
+        holdNextGet = false;
+        getStarted.resolve();
+        await releaseGet.promise;
+      }
+      return captured;
+    };
+
+    const expiredLoad = storage.load(
+      "principal",
+      "workspace-a",
+      nowMs + OFFLINE_OPERATIONS_CACHE_MAX_AGE_MS,
+    );
+    await getStarted.promise;
+    const freshNowMs =
+      nowMs + OFFLINE_OPERATIONS_CACHE_MAX_AGE_MS + 1;
+    assert.ok(
+      await storage.save(
+        "principal",
+        "workspace-a",
+        cacheValue("workspace-a"),
+        freshNowMs,
+      ),
+    );
+    releaseGet.resolve();
+
+    assert.equal(await expiredLoad, null);
+    assert.ok(
+      await storage.load("principal", "workspace-a", freshNowMs),
+    );
+  });
+
   it("attempts a durable principal tombstone even when secure-storage reads fail", async () => {
     const memory = memoryStore();
     const storage = createOfflineOperationsStorage(memory.adapter);

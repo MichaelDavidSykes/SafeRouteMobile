@@ -26,6 +26,8 @@ const operationsStorage = createOfflineOperationsStorage({
 export const saveOfflineOperationsSnapshot = operationsStorage.save;
 export const loadOfflineOperationsSnapshot = operationsStorage.load;
 export const clearOfflineOperationsWorkspace = operationsStorage.clearWorkspace;
+export const removeOfflineOperationsWorkspaceCalendar =
+  operationsStorage.clearWorkspace;
 export const clearOfflineOperationsPrincipal = operationsStorage.clearPrincipal;
 export const activateOfflineOperationsPrincipal =
   operationsStorage.activatePrincipal;

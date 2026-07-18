@@ -89,6 +89,10 @@ describe("offline Operations secure storage", () => {
       text,
       /SecureStore\.setItemAsync\([\s\S]*DEVICE_ONLY_SECURE_STORE_OPTIONS/,
     );
+    assert.match(
+      text,
+      /removeOfflineOperationsWorkspaceCalendar\s*=\s*operationsStorage\.clearWorkspace/,
+    );
   });
 
   it("preserves a survivor cache when another workspace is purged", async () => {
@@ -371,6 +375,27 @@ describe("offline Operations secure storage", () => {
     assert.equal(
       await storage.load("principal", "workspace-a", nowMs),
       null,
+    );
+
+    memory.setFailSet(false);
+    memory.setFailRemove(false);
+    await storage.clearWorkspace("principal", "workspace-a");
+    assert.match(memory.value || "", /"revoked":true/);
+    assert.match(memory.value || "", /"workspaceId":"workspace-a"/);
+
+    const relaunchedStorage = createOfflineOperationsStorage(memory.adapter);
+    assert.equal(
+      await relaunchedStorage.load("principal", "workspace-a", nowMs + 1),
+      null,
+    );
+    await storage.activateWorkspace("principal", "workspace-a");
+    assert.ok(
+      await storage.save(
+        "principal",
+        "workspace-a",
+        cacheValue("workspace-a"),
+        nowMs + 2,
+      ),
     );
   });
 });

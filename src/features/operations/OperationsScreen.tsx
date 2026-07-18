@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   ActivityIndicator,
+  Alert,
   Pressable,
   RefreshControl,
   ScrollView,
@@ -27,6 +28,7 @@ import type { SafeRouteOperationsState } from "./operationsTypes";
 import {
   clearOfflineOperationsWorkspace,
   loadOfflineOperationsSnapshot,
+  removeOfflineOperationsWorkspaceCalendar,
   saveOfflineOperationsSnapshot,
   tryActivateOfflineOperationsWorkspace,
 } from "./offlineOperationsCache";
@@ -55,14 +57,17 @@ import {
   createOperationsWorkspaceState,
   getOperationsOfflineReviewRefreshDelayMs,
   createOfflineCalendarRows,
+  createOperationsOfflineCalendarRemovalPresentation,
   createPlannedRouteRows,
   shouldShowOperationsWorkspaceSelector,
   type OperationsConvoyRow,
+  type OperationsOfflineCalendarRemovalState,
   type OperationsRouteRow,
   type OperationsTab
 } from "./operationsUiState";
 
 const OPERATIONS_ERROR_ACTION_HIT_SLOP = 6;
+const OFFLINE_CALENDAR_REMOVAL_RETRY_SCOPES = new Set<string>();
 
 interface OperationsScreenProps {
   accessToken: string;
@@ -119,6 +124,11 @@ export function OperationsScreen({
     status: networkStatus,
   } = useNetworkAvailability();
   const protectedRequestsAvailable = online && workspaceAuthorizationFresh;
+  const selectedWorkspaceId = activeWorkspace?.id || null;
+  const offlineCalendarRemovalScopeKey = JSON.stringify([
+    cacheIdentity,
+    selectedWorkspaceId,
+  ]);
   const [activeTab, setActiveTab] = useState<OperationsTab>(initialTab);
   const [routes, setRoutes] = useState<SavedSafeRoutePlan[]>([]);
   const [operationsState, setOperationsState] = useState<SafeRouteOperationsState | null>(null);
@@ -130,17 +140,42 @@ export function OperationsScreen({
   const [offlineCopyStoredAtMs, setOfflineCopyStoredAtMs] =
     useState<number | null>(null);
   const [offlineCopyNowMs, setOfflineCopyNowMs] = useState(() => Date.now());
+  const [storedOfflineCalendarRemovalState, setStoredOfflineCalendarRemovalState] =
+    useState<OperationsOfflineCalendarRemovalState>("idle");
   const [clientMenuOpen, setClientMenuOpen] = useState(false);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [errorState, setErrorState] = useState<RouteListErrorState | null>(null);
   const loadRevisionRef = useRef(0);
+  const offlineCalendarRemovalRevisionRef = useRef(0);
+  const offlineCalendarRemovalPendingRef = useRef<{
+    revision: number;
+    scopeKey: string;
+  } | null>(null);
+  const offlineCalendarRemovalReloadPendingRef = useRef(false);
+  const offlineCalendarRemovalRetryScopesRef = useRef(
+    OFFLINE_CALENDAR_REMOVAL_RETRY_SCOPES,
+  );
+  const offlineCalendarRemovalStateScopeRef = useRef(
+    offlineCalendarRemovalScopeKey,
+  );
+  const offlineCalendarRemovalState =
+    offlineCalendarRemovalStateScopeRef.current ===
+    offlineCalendarRemovalScopeKey
+      ? storedOfflineCalendarRemovalState
+      : "idle";
+  const setOfflineCalendarRemovalState = (
+    state: OperationsOfflineCalendarRemovalState,
+  ) => {
+    offlineCalendarRemovalStateScopeRef.current =
+      offlineCalendarRemovalScopeKey;
+    setStoredOfflineCalendarRemovalState(state);
+  };
   const protectedRequestsAvailableRef = useRef(protectedRequestsAvailable);
   if (protectedRequestsAvailableRef.current !== protectedRequestsAvailable) {
     protectedRequestsAvailableRef.current = protectedRequestsAvailable;
     loadRevisionRef.current += 1;
   }
-  const selectedWorkspaceId = activeWorkspace?.id || null;
   const activeWorkspaceIdRef = useRef<string | null>(selectedWorkspaceId);
   activeWorkspaceIdRef.current = selectedWorkspaceId;
   const loadedWorkspaceIdRef = useRef<string | null>(loadedWorkspaceId);
@@ -154,9 +189,22 @@ export function OperationsScreen({
     async ({
       refresh = false
     }: { refresh?: boolean } = {}) => {
+      const requestWorkspaceId = selectedWorkspaceId;
+      const requestRemovalScopeKey = JSON.stringify([
+        cacheIdentity,
+        requestWorkspaceId,
+      ]);
+      if (
+        offlineCalendarRemovalPendingRef.current?.scopeKey ===
+        requestRemovalScopeKey
+      ) {
+        if (protectedRequestsAvailable) {
+          offlineCalendarRemovalReloadPendingRef.current = true;
+        }
+        return;
+      }
       const revision = loadRevisionRef.current + 1;
       loadRevisionRef.current = revision;
-      const requestWorkspaceId = selectedWorkspaceId;
       const protectedOperationsRequest = protectedRequestsAvailable;
       const requestOwnsWorkspace = () =>
         revision === loadRevisionRef.current &&
@@ -181,6 +229,7 @@ export function OperationsScreen({
         setOperationsWarning(null);
         setShowingOfflineCopy(false);
         setOfflineCopyStoredAtMs(null);
+        setOfflineCalendarRemovalState("idle");
         setLoading(false);
         setRefreshing(false);
         return;
@@ -204,6 +253,7 @@ export function OperationsScreen({
         setShowingOfflineCopy(true);
         setOfflineCopyStoredAtMs(snapshot.storedAtMs);
         setOfflineCopyNowMs(Date.now());
+        setOfflineCalendarRemovalState("idle");
         setLoading(false);
         setRefreshing(false);
       };
@@ -269,6 +319,7 @@ export function OperationsScreen({
           setOperationsWarning(null);
           setShowingOfflineCopy(false);
           setOfflineCopyStoredAtMs(null);
+          setOfflineCalendarRemovalState("idle");
           setErrorState(null);
           setClientMenuOpen(false);
           onWorkspaceUnavailable(requestWorkspaceId);
@@ -303,6 +354,12 @@ export function OperationsScreen({
           setOfflineCalendarEntries([]);
           setShowingOfflineCopy(false);
           setOfflineCopyStoredAtMs(cachedSnapshot?.storedAtMs || null);
+          if (cacheWorkspaceActivated) {
+            offlineCalendarRemovalRetryScopesRef.current.delete(
+              requestRemovalScopeKey,
+            );
+            setOfflineCalendarRemovalState("idle");
+          }
           return;
         }
 
@@ -327,6 +384,7 @@ export function OperationsScreen({
           setShowingOfflineCopy(true);
           setOfflineCopyStoredAtMs(cachedSnapshot.storedAtMs);
           setOfflineCopyNowMs(Date.now());
+          setOfflineCalendarRemovalState("idle");
           return;
         }
         setRoutes(result.routes);
@@ -383,6 +441,8 @@ export function OperationsScreen({
       workspaceAuthorizationFresh,
     ]
   );
+  const loadOperationsRef = useRef(loadOperations);
+  loadOperationsRef.current = loadOperations;
 
   useEffect(() => {
     void loadOperations();
@@ -390,6 +450,30 @@ export function OperationsScreen({
       loadRevisionRef.current += 1;
     };
   }, [loadOperations]);
+
+  useEffect(() => {
+    offlineCalendarRemovalRevisionRef.current += 1;
+    offlineCalendarRemovalPendingRef.current = null;
+    offlineCalendarRemovalReloadPendingRef.current = false;
+    offlineCalendarRemovalStateScopeRef.current =
+      offlineCalendarRemovalScopeKey;
+    setStoredOfflineCalendarRemovalState(
+      offlineCalendarRemovalRetryScopesRef.current.has(
+        offlineCalendarRemovalScopeKey,
+      )
+        ? "retry"
+        : "idle",
+    );
+  }, [offlineCalendarRemovalScopeKey]);
+
+  useEffect(
+    () => () => {
+      offlineCalendarRemovalRevisionRef.current += 1;
+      offlineCalendarRemovalPendingRef.current = null;
+      offlineCalendarRemovalReloadPendingRef.current = false;
+    },
+    [],
+  );
 
   const tabOptions = useMemo(() => createOperationsTabOptions(activeTab), [activeTab]);
   const workspaceOptions = useMemo(
@@ -474,6 +558,13 @@ export function OperationsScreen({
           }),
     [offlineCopyNowMs, offlineCopyStoredAtMs, offlineReviewStatus],
   );
+  const offlineCalendarRemovalPresentation = useMemo(
+    () =>
+      createOperationsOfflineCalendarRemovalPresentation(
+        offlineCalendarRemovalState,
+      ),
+    [offlineCalendarRemovalState],
+  );
 
   useEffect(() => {
     if (!showingOfflineCopy || offlineCopyStoredAtMs === null) {
@@ -542,6 +633,115 @@ export function OperationsScreen({
 
   const handleRetry = () => {
     void loadOperations();
+  };
+
+  const removeSavedCalendar = async () => {
+    const removalWorkspaceId = selectedWorkspaceId;
+    const removalCacheIdentity = cacheIdentity;
+    if (
+      !removalWorkspaceId ||
+      offlineCalendarRemovalState === "removing" ||
+      offlineCalendarRemovalPendingRef.current?.scopeKey ===
+        offlineCalendarRemovalScopeKey ||
+      activeWorkspaceIdRef.current !== removalWorkspaceId
+    ) {
+      return;
+    }
+
+    const removalRevision =
+      offlineCalendarRemovalRevisionRef.current + 1;
+    offlineCalendarRemovalRevisionRef.current = removalRevision;
+    offlineCalendarRemovalPendingRef.current = {
+      revision: removalRevision,
+      scopeKey: offlineCalendarRemovalScopeKey,
+    };
+    offlineCalendarRemovalReloadPendingRef.current =
+      protectedRequestsAvailableRef.current;
+    const loadRevision = loadRevisionRef.current + 1;
+    loadRevisionRef.current = loadRevision;
+
+    loadedWorkspaceIdRef.current = removalWorkspaceId;
+    setLoadedWorkspaceId(removalWorkspaceId);
+    setRoutes([]);
+    setOperationsState(null);
+    setOfflineCalendarEntries([]);
+    setOperationsWarning(null);
+    setShowingOfflineCopy(false);
+    setOfflineCopyStoredAtMs(null);
+    setErrorState(null);
+    setLoading(false);
+    setRefreshing(false);
+    setOfflineCalendarRemovalState("removing");
+
+    let removalFailed = false;
+    try {
+      await removeOfflineOperationsWorkspaceCalendar(
+        removalCacheIdentity,
+        removalWorkspaceId,
+      );
+    } catch {
+      removalFailed = true;
+    }
+
+    if (removalFailed) {
+      offlineCalendarRemovalRetryScopesRef.current.add(
+        offlineCalendarRemovalScopeKey,
+      );
+    } else {
+      offlineCalendarRemovalRetryScopesRef.current.delete(
+        offlineCalendarRemovalScopeKey,
+      );
+    }
+
+    const pendingRemoval = offlineCalendarRemovalPendingRef.current;
+    if (
+      pendingRemoval?.revision !== removalRevision ||
+      pendingRemoval.scopeKey !== offlineCalendarRemovalScopeKey
+    ) {
+      return;
+    }
+    offlineCalendarRemovalPendingRef.current = null;
+    if (
+      offlineCalendarRemovalRevisionRef.current !== removalRevision ||
+      activeWorkspaceIdRef.current !== removalWorkspaceId
+    ) {
+      return;
+    }
+    setOfflineCalendarRemovalState(removalFailed ? "retry" : "removed");
+    const reloadAfterRemoval =
+      offlineCalendarRemovalReloadPendingRef.current &&
+      protectedRequestsAvailableRef.current;
+    offlineCalendarRemovalReloadPendingRef.current = false;
+    if (reloadAfterRemoval) {
+      void loadOperationsRef.current();
+    }
+  };
+
+  const confirmRemoveSavedCalendar = () => {
+    if (
+      !showingOfflineCopy ||
+      !selectedWorkspaceId ||
+      offlineCalendarRemovalState === "removing"
+    ) {
+      return;
+    }
+    const confirmation = offlineCalendarRemovalPresentation.confirmation;
+    if (!confirmation) {
+      return;
+    }
+    Alert.alert(confirmation.title, confirmation.copy, [
+      {
+        style: "cancel",
+        text: "Cancel",
+      },
+      {
+        onPress: () => {
+          void removeSavedCalendar();
+        },
+        style: "destructive",
+        text: "Remove",
+      },
+    ]);
   };
 
   return (
@@ -696,6 +896,10 @@ export function OperationsScreen({
                       setOperationsWarning(null);
                       setShowingOfflineCopy(false);
                       setOfflineCopyStoredAtMs(null);
+                      offlineCalendarRemovalRevisionRef.current += 1;
+                      offlineCalendarRemovalPendingRef.current = null;
+                      offlineCalendarRemovalReloadPendingRef.current = false;
+                      setOfflineCalendarRemovalState("idle");
                       setErrorState(null);
                       setLoading(true);
                       setRefreshing(false);
@@ -736,23 +940,117 @@ export function OperationsScreen({
       ) : null}
 
       {showingOfflineCopy && offlineReviewPresentation ? (
+        <View style={styles.offlineReviewControls}>
+          <View
+            accessible
+            accessibilityLabel={offlineReviewPresentation.accessibilityLabel}
+            accessibilityRole="alert"
+            style={styles.offlineNotice}
+            testID={uiTestIds.operationsOfflineNotice}
+          >
+            <Text style={styles.offlineNoticeText}>
+              {offlineReviewPresentation.visibleLabel}
+            </Text>
+          </View>
+          <Pressable
+            accessibilityHint={
+              offlineCalendarRemovalPresentation.actionAccessibilityHint ||
+              undefined
+            }
+            accessibilityLabel={
+              offlineCalendarRemovalPresentation.actionAccessibilityLabel ||
+              undefined
+            }
+            accessibilityRole="button"
+            accessibilityState={{
+              busy: offlineCalendarRemovalPresentation.busy,
+              disabled: offlineCalendarRemovalPresentation.busy,
+            }}
+            disabled={offlineCalendarRemovalPresentation.busy}
+            testID={uiTestIds.operationsRemoveSavedCalendar}
+            style={({ pressed }) => [
+              styles.offlineRemoveButton,
+              pressed ? styles.offlineRemoveButtonPressed : null,
+            ]}
+            onPress={confirmRemoveSavedCalendar}
+          >
+            <Text style={styles.offlineRemoveButtonText}>
+              {offlineCalendarRemovalPresentation.actionLabel}
+            </Text>
+          </Pressable>
+        </View>
+      ) : null}
+
+      {offlineCalendarRemovalPresentation.status ? (
         <View
           accessible
-          accessibilityLabel={offlineReviewPresentation.accessibilityLabel}
-          accessibilityRole="alert"
-          style={styles.offlineNotice}
-          testID={uiTestIds.operationsOfflineNotice}
+          accessibilityLabel={
+            offlineCalendarRemovalPresentation.status.accessibilityLabel
+          }
+          accessibilityRole={
+            offlineCalendarRemovalState === "removing"
+              ? "progressbar"
+              : "alert"
+          }
+          accessibilityState={{
+            busy: offlineCalendarRemovalPresentation.busy,
+          }}
+          testID={uiTestIds.operationsCalendarRemovalStatus}
+          style={[
+            styles.offlineRemovalStatus,
+            offlineCalendarRemovalPresentation.status.tone === "failure"
+              ? styles.offlineRemovalStatusFailure
+              : offlineCalendarRemovalPresentation.status.tone === "success"
+                ? styles.offlineRemovalStatusSuccess
+                : null,
+          ]}
         >
-          <Text style={styles.offlineNoticeText}>
-            {offlineReviewPresentation.visibleLabel}
-          </Text>
+          {offlineCalendarRemovalPresentation.busy ? (
+            <ActivityIndicator color={colors.appleBlue} />
+          ) : null}
+          <View style={styles.offlineRemovalStatusCopy}>
+            <Text style={styles.offlineRemovalStatusTitle}>
+              {offlineCalendarRemovalPresentation.status.title}
+            </Text>
+            <Text style={styles.offlineRemovalStatusText}>
+              {offlineCalendarRemovalPresentation.status.message}
+            </Text>
+          </View>
         </View>
+      ) : null}
+
+      {offlineCalendarRemovalState === "retry" ? (
+        <Pressable
+          accessibilityHint={
+            offlineCalendarRemovalPresentation.actionAccessibilityHint ||
+            undefined
+          }
+          accessibilityLabel={
+            offlineCalendarRemovalPresentation.actionAccessibilityLabel ||
+            undefined
+          }
+          accessibilityRole="button"
+          testID={uiTestIds.operationsCalendarRemovalRetry}
+          style={({ pressed }) => [
+            styles.offlineRemovalRetry,
+            pressed ? styles.offlineRemoveButtonPressed : null,
+          ]}
+          onPress={() => {
+            void removeSavedCalendar();
+          }}
+        >
+          <Text style={styles.offlineRemovalRetryText}>
+            {offlineCalendarRemovalPresentation.actionLabel}
+          </Text>
+        </Pressable>
       ) : null}
 
       {!workspaceState &&
       !loading &&
       !errorState &&
+      protectedRequestsAvailable &&
       workspaceOwnsResults &&
+      (visibleOperationsState !== null || visibleRoutes.length > 0) &&
       !showingOfflineCopy ? (
         <View
           accessible

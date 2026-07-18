@@ -53,6 +53,11 @@ export const uiTestIds = {
   operationsRetry: "safe-route-operations-retry",
   operationsSyncWarning: "safe-route-operations-sync-warning",
   operationsOfflineNotice: "safe-route-operations-offline-notice",
+  operationsRemoveSavedCalendar: "safe-route-operations-remove-calendar",
+  operationsCalendarRemovalStatus:
+    "safe-route-operations-calendar-removal-status",
+  operationsCalendarRemovalRetry:
+    "safe-route-operations-calendar-removal-retry",
   operationsEmptyState: "safe-route-operations-empty-state",
   operationsTab: (tabId: string) =>
     `safe-route-operations-tab-${normalizeTestIdSegment(tabId)}`,

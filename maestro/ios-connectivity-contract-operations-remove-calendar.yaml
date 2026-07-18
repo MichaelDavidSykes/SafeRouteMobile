@@ -1,0 +1,39 @@
+appId: host.exp.Exponent
+---
+- assertVisible:
+    id: "safe-route-operations-remove-calendar"
+- tapOn:
+    id: "safe-route-operations-remove-calendar"
+- extendedWaitUntil:
+    visible: '^Remove saved calendar\?$'
+    timeout: 10000
+- assertVisible: "This deletes this workspace's saved calendar from this device. Online Operations data is unchanged. A future successful sync may save a new calendar."
+- tapOn: "Cancel"
+- assertNotVisible: '^Remove saved calendar\?$'
+- assertVisible:
+    id: "safe-route-operations-offline-notice"
+- assertVisible:
+    id: "safe-route-operations-route-movement-1-1"
+- assertVisible:
+    id: "safe-route-operations-remove-calendar"
+- tapOn:
+    id: "safe-route-operations-remove-calendar"
+- extendedWaitUntil:
+    visible: '^Remove saved calendar\?$'
+    timeout: 10000
+- tapOn: "^Remove$"
+- extendedWaitUntil:
+    visible:
+      id: "safe-route-operations-calendar-removal-status"
+    timeout: 15000
+- assertVisible: "Saved calendar removed. This workspace's saved calendar was removed from this device. Online Operations data is unchanged. A future successful sync may save a new calendar."
+- assertNotVisible:
+    id: "safe-route-operations-offline-notice"
+- assertNotVisible:
+    id: "safe-route-operations-route-movement-1-1"
+- assertNotVisible:
+    id: "safe-route-operations-remove-calendar"
+- assertVisible:
+    id: "safe-route-operations-empty-state"
+- assertVisible: "Calendar unavailable offline"
+- takeScreenshot: "connectivity-contract-offline-operations-calendar-removed"

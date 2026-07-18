@@ -95,6 +95,12 @@ describe("Maestro connectivity contract runtime", () => {
     const offlineRelaunch = read(
       "maestro/ios-connectivity-contract-offline-relaunch.yaml",
     );
+    const operationsRemoveCalendar = read(
+      "maestro/ios-connectivity-contract-operations-remove-calendar.yaml",
+    );
+    const operationsRemovalRelaunch = read(
+      "maestro/ios-connectivity-contract-operations-removal-relaunch.yaml",
+    );
     const reconnect = read(
       "maestro/ios-connectivity-contract-reconnect-checking.yaml",
     );
@@ -171,11 +177,19 @@ describe("Maestro connectivity contract runtime", () => {
     );
     assert.match(
       runner,
-      /captureAccessibilityHierarchy\('offline-operations-calendar'[\s\S]*safe-route-operations-offline-notice[\s\S]*safe-route-operations-route-movement-1-1/,
+      /captureAccessibilityHierarchy\('offline-operations-calendar'[\s\S]*safe-route-operations-offline-notice[\s\S]*safe-route-operations-route-movement-1-1[\s\S]*safe-route-operations-remove-calendar[\s\S]*Remove saved calendar from this device/,
     );
     assert.match(
       runner,
-      /captureAccessibilityHierarchy\('offline-operations-calendar'[\s\S]*flows\.operationsReturnMap[\s\S]*CONNECTIVITY_CONTRACT_PHASES\.reconnectChecking/,
+      /captureAccessibilityHierarchy\('offline-operations-calendar'[\s\S]*flows\.operationsRemoveCalendar[\s\S]*offline-operations-calendar-removed[\s\S]*terminateExpoGo\(deviceId\)[\s\S]*flows\.operationsRemovalRelaunch[\s\S]*offline-operations-calendar-removal-relaunch[\s\S]*flows\.operationsReturnMap[\s\S]*CONNECTIVITY_CONTRACT_PHASES\.reconnectChecking/,
+    );
+    assert.match(
+      operationsRemoveCalendar,
+      /safe-route-operations-remove-calendar[\s\S]*Cancel[\s\S]*safe-route-operations-route-movement-1-1[\s\S]*\^Remove\$[\s\S]*safe-route-operations-calendar-removal-status[\s\S]*Calendar unavailable offline/,
+    );
+    assert.match(
+      operationsRemovalRelaunch,
+      /safe-route-card-66b1b2c3d4e5f60718293b40[\s\S]*guest-map-gate-calendar[\s\S]*Calendar unavailable offline[\s\S]*assertNotVisible:[\s\S]*safe-route-operations-route-movement-1-1/,
     );
     assert.match(
       runner,

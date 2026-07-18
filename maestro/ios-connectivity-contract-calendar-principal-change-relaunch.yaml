@@ -5,6 +5,13 @@ appId: host.exp.Exponent
     visible:
       id: "guest-map-primary-action"
     timeout: 30000
+- assertVisible: "Sign in"
+- assertNotVisible:
+    id: "safe-route-login"
+- assertNotVisible:
+    id: "guest-map-workspace-selector"
+- assertNotVisible:
+    id: "safe-route-picker"
 - assertNotVisible:
     id: "safe-route-live-map"
 - assertNotVisible:
@@ -12,6 +19,5 @@ appId: host.exp.Exponent
 - assertNotVisible:
     id: "safe-route-resume-action"
 - assertNotVisible:
-    id: "guest-map-workspace-selector"
-- assertNotVisible:
-    id: "safe-route-login"
+    id: "safe-route-calendar-cleanup-alert"
+- takeScreenshot: "connectivity-contract-calendar-principal-change-relaunch"

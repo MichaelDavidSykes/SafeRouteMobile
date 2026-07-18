@@ -35,6 +35,7 @@ export const uiTestIds = {
   loginPrimaryAction: "safe-route-login-primary-action",
   loginSecondaryAction: "safe-route-login-secondary-action",
   loginMapReturn: "safe-route-login-map-return",
+  loginNotice: "safe-route-login-notice",
   routeListScreen: "safe-route-picker",
   routeListMapReturn: "route-list-map-return",
   routeListSignOut: "route-list-sign-out",

@@ -43,6 +43,10 @@ export const OFFLINE_CALENDAR_AUTH_CONTRACT_PHASES = Object.freeze({
   inactiveFailure: 'calendarAuthInactiveFailure',
   relaunchFailure: 'calendarAuthRelaunchFailure'
 });
+export const OFFLINE_CALENDAR_PRINCIPAL_CONTRACT_PHASES = Object.freeze({
+  change: 'calendarPrincipalChange',
+  relaunch: 'calendarPrincipalChangeRelaunch'
+});
 export const OFFLINE_CALENDAR_WORKSPACE_CONTRACT_PHASES = Object.freeze({
   denial: 'calendarWorkspaceDenial',
   relaunch: 'calendarWorkspaceDenialRelaunch'
@@ -92,6 +96,7 @@ export const GUIDANCE_CONTRACT_EVIDENCE_TYPES = Object.freeze([
   'navigation.absence.readback',
   'navigation.prestart.readback',
   'offline.calendar.cleanup',
+  'offline.calendar.principal-lifecycle',
   'offline.calendar.workspace-lifecycle'
 ]);
 const GUIDANCE_CONTRACT_EVIDENCE_PHASES = Object.freeze({
@@ -169,6 +174,11 @@ const GUIDANCE_CONTRACT_EVIDENCE_PHASES = Object.freeze({
     OFFLINE_CALENDAR_AUTH_CONTRACT_PHASES.finalRelaunch,
     OFFLINE_CALENDAR_AUTH_CONTRACT_PHASES.inactiveFailure,
     OFFLINE_CALENDAR_AUTH_CONTRACT_PHASES.relaunchFailure
+  ]),
+  'offline.calendar.principal-lifecycle': new Set([
+    CONNECTIVITY_CONTRACT_PHASES.seed,
+    OFFLINE_CALENDAR_PRINCIPAL_CONTRACT_PHASES.change,
+    OFFLINE_CALENDAR_PRINCIPAL_CONTRACT_PHASES.relaunch
   ]),
   'offline.calendar.workspace-lifecycle': new Set([
     CONNECTIVITY_CONTRACT_PHASES.seed,
@@ -1476,6 +1486,96 @@ export function assertOfflineCalendarWorkspaceRevocationEvidence(entries, {
   );
 }
 
+export function assertOfflineCalendarPrincipalChangeEvidence(entries, {
+  expectedSourceRevision,
+  minimumOccurredAtMs = 0
+}) {
+  const relevant = Array.isArray(entries) ? entries.filter((entry) =>
+    entry.type === 'offline.calendar.principal-lifecycle' &&
+    entry.sourceRevision === expectedSourceRevision &&
+    entry.occurredAtMs >= minimumOccurredAtMs
+  ) : [];
+  const one = (phase, cause) => relevant.filter((entry) =>
+    entry.serverPhase === phase &&
+    entry.cause === cause &&
+    isSuccessfulGuidanceContractEvidence(entry, entry)
+  );
+  const seed = one(
+    CONNECTIVITY_CONTRACT_PHASES.seed,
+    'principal-change-seed'
+  );
+  const changed = one(
+    OFFLINE_CALENDAR_PRINCIPAL_CONTRACT_PHASES.change,
+    'principal-change'
+  );
+  const revoked = one(
+    OFFLINE_CALENDAR_PRINCIPAL_CONTRACT_PHASES.relaunch,
+    'principal-change-relaunch-revoked'
+  );
+  const removed = one(
+    OFFLINE_CALENDAR_PRINCIPAL_CONTRACT_PHASES.relaunch,
+    'principal-change-relaunch'
+  );
+  assertJournalCondition(
+    relevant.length === 4 &&
+      seed.length === 1 &&
+      changed.length === 1 &&
+      revoked.length === 1 &&
+      removed.length === 1 &&
+      seed[0].appLaunchId !== changed[0].appLaunchId &&
+      changed[0].appLaunchId !== revoked[0].appLaunchId &&
+      revoked[0].appLaunchId === removed[0].appLaunchId &&
+      seed[0].receivedAtMs < changed[0].receivedAtMs &&
+      changed[0].receivedAtMs < revoked[0].receivedAtMs &&
+      revoked[0].receivedAtMs < removed[0].receivedAtMs,
+    'Offline Calendar principal-change evidence did not prove seed, terminal revocation, and distinct-process revoked-to-empty readback.'
+  );
+}
+
+export function assertOfflineCalendarPrincipalChangeTraffic(
+  entries,
+  evidenceEntries = []
+) {
+  const changePhase = OFFLINE_CALENDAR_PRINCIPAL_CONTRACT_PHASES.change;
+  const relaunchPhase = OFFLINE_CALENDAR_PRINCIPAL_CONTRACT_PHASES.relaunch;
+  const productRequests = entries.filter((entry) =>
+    entry.event === 'request' &&
+    entry.phase === changePhase &&
+    entry.path.startsWith('/api/')
+  );
+  const principalRequest = productRequests[0];
+  const principalCompletions = entries.filter((entry) =>
+    entry.event === 'completion' &&
+    entry.requestId === principalRequest?.requestId
+  );
+  const terminalEvidence = evidenceEntries.filter((entry) =>
+    entry.type === 'offline.calendar.principal-lifecycle' &&
+    entry.serverPhase === changePhase &&
+    entry.cause === 'principal-change'
+  );
+  const relaunchProductTraffic = entries.filter((entry) =>
+    entry.event === 'request' &&
+    entry.phase === relaunchPhase &&
+    entry.path.startsWith('/api/')
+  );
+  assertJournalCondition(
+    productRequests.length === 1 &&
+      principalRequest?.method === 'GET' &&
+      principalRequest.path === '/api/v1/users/me' &&
+      principalRequest.authorized === true &&
+      principalRequest.authorizationClass === 'expected-bearer' &&
+      principalCompletions.length === 1 &&
+      principalCompletions[0].completed === true &&
+      principalCompletions[0].statusCode === 200 &&
+      principalCompletions[0].semanticOutcome === 'principal-b' &&
+      terminalEvidence.length === 1 &&
+      principalRequest.sequence < principalCompletions[0].sequence &&
+      principalCompletions[0].timestampMs <= terminalEvidence[0].receivedAtMs &&
+      relaunchProductTraffic.length === 0,
+    'Offline Calendar principal change did not complete exactly one principal-B validation before terminal evidence with a quiet offline relaunch.'
+  );
+}
+
 export function assertOfflineCalendarWorkspaceDenialTraffic(entries) {
   const denialPhase = OFFLINE_CALENDAR_WORKSPACE_CONTRACT_PHASES.denial;
   const relaunchPhase = OFFLINE_CALENDAR_WORKSPACE_CONTRACT_PHASES.relaunch;
@@ -1924,6 +2024,44 @@ export function isSuccessfulGuidanceContractEvidence(event, journal) {
       event.durability.offlineCalendarPayload === 'absent' &&
       event.durability.offlineCalendarSlot === 'empty' &&
       preferencePreserved
+    );
+  }
+  if (event.type === 'offline.calendar.principal-lifecycle') {
+    const common =
+      !workspaceLifecycle &&
+      event.navigationInstanceId === null &&
+      event.routeId === null &&
+      event.workspaceId === GUIDANCE_CONTRACT_WORKSPACES.denied.id &&
+      event.unavailableWorkspaceIds.length === 0 &&
+      event.durability.offlineCalendarCleanup === 'absent' &&
+      event.durability.offlineCalendarPreference === 'disabled';
+    if (event.cause === 'principal-change-seed') {
+      return Boolean(
+        common &&
+        event.authorization.catalog === 'fresh-authorized' &&
+        event.authorization.principal === 'matching' &&
+        event.outcome === 'seeded' &&
+        event.durability.authSession === 'present' &&
+        event.durability.offlineCalendarPayload === 'present' &&
+        event.durability.offlineCalendarSlot === 'payload'
+      );
+    }
+    const relaunch =
+      event.cause === 'principal-change-relaunch' ||
+      event.cause === 'principal-change-relaunch-revoked';
+    return Boolean(
+      common &&
+      event.authorization.catalog === 'not-checked' &&
+      event.authorization.principal ===
+        (event.cause === 'principal-change' ? 'mismatched' : 'none') &&
+      event.outcome === 'clean' &&
+      event.durability.authSession === 'signed-out' &&
+      event.durability.offlineCalendarPayload === 'absent' &&
+      event.durability.offlineCalendarSlot ===
+        (event.cause === 'principal-change-relaunch'
+          ? 'empty'
+          : 'principal-revoked') &&
+      (event.cause === 'principal-change' || relaunch)
     );
   }
   if (event.type === 'offline.calendar.workspace-lifecycle') {

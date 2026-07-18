@@ -4,14 +4,6 @@ appId: host.exp.Exponent
     id: "guest-map-primary-action"
 - extendedWaitUntil:
     visible:
-      id: "safe-route-picker"
-    timeout: 15000
-- tapOn:
-    id: "route-list-sign-out"
-- tapOn:
-    id: "guest-map-primary-action"
-- extendedWaitUntil:
-    visible:
       id: "safe-route-login"
     timeout: 10000
 - tapOn:

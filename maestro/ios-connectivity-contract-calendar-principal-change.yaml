@@ -6,12 +6,17 @@ appId: host.exp.Exponent
       id: "safe-route-login"
     timeout: 30000
 - assertVisible: "This saved session belongs to another account. Sign in again."
+- assertVisible:
+    id: "safe-route-login-email"
+    enabled: true
+- assertNotVisible:
+    id: "guest-map-workspace-selector"
+- assertNotVisible:
+    id: "safe-route-picker"
 - assertNotVisible:
     id: "safe-route-live-map"
 - assertNotVisible:
     id: "safe-route-suspended-navigation"
 - assertNotVisible:
     id: "safe-route-resume-action"
-- assertNotVisible:
-    id: "guest-map-workspace-selector"
-- stopApp
+- takeScreenshot: "connectivity-contract-calendar-principal-change"

@@ -101,7 +101,7 @@ describe("cold-start connectivity integration", () => {
     );
     assert.match(
       app,
-      /restoreResult\.reason === 'inactive-account'[\s\S]*discardPersistedNavigation\(undefined, \{[\s\S]*evidenceSession: persistedNavigation[\s\S]*setSession\(null\)[\s\S]*setAvailableWorkspaces\(\[\]\)[\s\S]*setAuthPrompt\(inactiveMessage\)[\s\S]*setScreen\('login'\)/,
+      /restoreResult\.reason === 'inactive-account'[\s\S]*terminalAccountBoundary[\s\S]*discardPersistedNavigation\(undefined, \{[\s\S]*evidenceSession: persistedNavigation[\s\S]*setSession\(null\)[\s\S]*setAvailableWorkspaces\(\[\]\)[\s\S]*setAuthPrompt\(terminalMessage\)[\s\S]*setScreen\('login'\)/,
     );
   });
 

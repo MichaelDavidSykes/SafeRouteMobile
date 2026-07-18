@@ -480,4 +480,62 @@ describe("Maestro connectivity contract runtime", () => {
       /calendar-workspace-denial-relaunch[\s\S]*Support Operations\. Offline Calendar saving is off\.[\s\S]*No offline Calendar is saved/,
     );
   });
+
+  it("wires saved-principal change to a signed-out Calendar revocation boundary", () => {
+    const packageJson = JSON.parse(read("package.json")) as {
+      scripts: Record<string, string>;
+    };
+    const start =
+      packageJson.scripts["start:maestro:ios:connectivity-contract"];
+    const run =
+      packageJson.scripts[
+        "test:maestro:ios:connectivity-contract:calendar-principal-change"
+      ];
+    const runner = read("scripts/run-maestro-connectivity-contract.mjs");
+    const fixture = read("scripts/maestro-guidance-contract-api.mjs");
+    const change = read(
+      "maestro/ios-connectivity-contract-calendar-principal-change.yaml",
+    );
+    const relaunch = read(
+      "maestro/ios-connectivity-contract-calendar-principal-change-relaunch.yaml",
+    );
+
+    assert.match(start, /SAFEROUTE_ENABLE_CONNECTIVITY_CONTRACT=true/);
+    assert.match(start, /SAFEROUTE_ENABLE_GUIDANCE_CONTRACT_EVIDENCE=true/);
+    assert.doesNotMatch(start, /SAFEROUTE_ENABLE_STORAGE_FAULT_CONTRACT=true/);
+    assert.match(
+      run,
+      /SAFEROUTE_CONNECTIVITY_CONTRACT_SLICE=calendar-principal-change/,
+    );
+    assert.doesNotMatch(
+      `${start}\n${run}`,
+      /npm run build|expo export|eas build|xcodebuild/i,
+    );
+    assert.match(
+      runner,
+      /flows\.calendarAuthPreferenceSeed[\s\S]*offline\.calendar\.principal-lifecycle[\s\S]*runCalendarPrincipalChangeSlice/,
+    );
+    assert.match(
+      runner,
+      /calendarPrincipalChange[\s\S]*GUIDANCE_CONTRACT_MODES\.wrongPrincipal[\s\S]*This saved session belongs to another account\. Sign in again\.[\s\S]*calendarPrincipalChangeRelaunch/,
+    );
+    assert.match(
+      runner,
+      /assertOfflineCalendarPrincipalChangeTraffic\(requests, evidence\)[\s\S]*assertOfflineCalendarPrincipalChangeEvidence/,
+    );
+    assert.match(
+      fixture,
+      /calendarPrincipalChange[\s\S]*calendarPrincipalChangeRelaunch[\s\S]*offline\.calendar\.principal-lifecycle/,
+    );
+    assert.match(
+      change,
+      /safe-route-login[\s\S]*This saved session belongs to another account\. Sign in again\.[\s\S]*safe-route-login-email[\s\S]*safe-route-live-map/,
+    );
+    assert.doesNotMatch(change, /stopApp/);
+    assert.match(
+      relaunch,
+      /guest-map-primary-action[\s\S]*Sign in[\s\S]*safe-route-login[\s\S]*guest-map-workspace-selector[\s\S]*safe-route-suspended-navigation/,
+    );
+    assert.doesNotMatch(relaunch, /stopApp/);
+  });
 });

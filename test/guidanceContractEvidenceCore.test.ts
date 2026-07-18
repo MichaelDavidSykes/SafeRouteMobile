@@ -159,6 +159,35 @@ describe("guidance contract device evidence", () => {
       workspaceRevocation.durability.offlineCalendarPreference,
       "disabled",
     );
+    const principalChange = createGuidanceContractEvidenceEvent({
+      appLaunchId: "launch-evidence-5",
+      authorization: { catalog: "not-checked", principal: "mismatched" },
+      cause: "principal-change",
+      durability: {
+        authSession: "signed-out",
+        offlineCalendarCleanup: "absent",
+        offlineCalendarPayload: "absent",
+        offlineCalendarPreference: "disabled",
+        offlineCalendarSlot: "principal-revoked",
+      },
+      eventId: "evidence-calendar-principal-1",
+      navigationInstanceId: null,
+      outcome: "clean",
+      routeId: null,
+      sourceRevision: revision,
+      type: "offline.calendar.principal-lifecycle",
+      unavailableWorkspaceIds: [],
+      workspaceId: "workspace-1",
+    });
+    assert.ok(principalChange);
+    assert.equal(
+      principalChange.type,
+      "offline.calendar.principal-lifecycle",
+    );
+    assert.equal(
+      principalChange.authorization.principal,
+      "mismatched",
+    );
     assert.deepEqual(parseGuidanceContractEvidenceSpool("not-json"), []);
   });
 

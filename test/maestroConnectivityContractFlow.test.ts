@@ -161,6 +161,10 @@ describe("Maestro connectivity contract runtime", () => {
       seed,
       /id: "safe-route-login-password"\n- waitForAnimationToEnd:[\s\S]*visible: "Autofill Password"[\s\S]*tapOn: "Continue"\n- eraseText\n- inputText: "guidance-contract-password"/,
     );
+    assert.match(
+      seed,
+      /inputText: "guidance-contract-password"\n- pressKey: ENTER\n- waitForAnimationToEnd:[\s\S]*visible: "Autofill Password"[\s\S]*tapOn: "Cancel"[\s\S]*visible: "Continue"[\s\S]*tapOn: "Continue"\n- pressKey: ENTER\n- runFlow:\n    when:\n      visible: "Not Now"/,
+    );
     assert.match(checking, /Checking connection\. Map downloads are paused\./);
     assert.match(checking, /id: "guest-map-canvas"/);
     assert.match(

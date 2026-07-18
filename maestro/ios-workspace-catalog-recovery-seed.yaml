@@ -33,6 +33,19 @@ appId: host.exp.Exponent
 - eraseText
 - inputText: "guidance-contract-password"
 - pressKey: ENTER
+- waitForAnimationToEnd:
+    timeout: 1500
+- runFlow:
+    when:
+      visible: "Autofill Password"
+    commands:
+      - tapOn: "Cancel"
+- runFlow:
+    when:
+      visible: "Continue"
+    commands:
+      - tapOn: "Continue"
+- pressKey: ENTER
 - runFlow:
     when:
       visible: "Not Now"

@@ -25,7 +25,7 @@ appId: host.exp.Exponent
 - assertNotVisible: "Workspace, Choose workspace"
 - assertVisible:
     id: "safe-route-offline-notice"
-- assertVisible: "Offline · <1h old · reconnect to start"
+- assertVisible: "Offline saved routes. This copy was cached less than one hour ago and is review only. Reconnect and verify workspace access before starting guidance."
 - assertVisible:
     id: "safe-route-card-66b1b2c3d4e5f60718293b40"
 - takeScreenshot: "connectivity-contract-offline-process-relaunch"

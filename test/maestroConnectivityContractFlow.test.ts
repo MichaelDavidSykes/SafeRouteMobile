@@ -197,7 +197,7 @@ describe("Maestro connectivity contract runtime", () => {
     );
     assert.match(
       offline,
-      /Offline · <1h old · reconnect to start/,
+      /Offline saved routes\. This copy was cached less than one hour ago and is review only\. Reconnect and verify workspace access before starting guidance\./,
     );
     assert.match(
       offline,

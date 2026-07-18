@@ -6,6 +6,7 @@ import { describe, it } from 'node:test';
 
 type MetroIdentity = {
   apiUrl: string;
+  connectivityContractEnabled: boolean;
   demoDriveEnabled: boolean;
   previewModeEnabled: boolean;
   projectRoot: string;
@@ -16,7 +17,7 @@ type MetroIdentity = {
 type MetroIdentityModule = {
   assertGuidanceMetroIdentity: (
     identity: MetroIdentity,
-    expected: Record<string, string>,
+    expected: Record<string, string | boolean>,
   ) => MetroIdentity;
   assertGuidanceSourceCheckoutClean: (statusOutput: string) => void;
   readGuidanceMetroIdentity: (manifest: unknown) => MetroIdentity;
@@ -36,6 +37,7 @@ const manifest = () => ({
     expoClient: {
       extra: {
         safeRouteApiUrl: EXPECTED.expectedApiUrl,
+        safeRouteConnectivityContractEnabled: false,
         safeRouteDemoDriveEnabled: false,
         safeRoutePreviewModeEnabled: false,
         safeRouteSourceRevision: REVISION.toUpperCase(),
@@ -61,6 +63,7 @@ describe('guidance-contract Metro identity', () => {
 
     assert.deepEqual(assertGuidanceMetroIdentity(identity, EXPECTED), {
       apiUrl: EXPECTED.expectedApiUrl,
+      connectivityContractEnabled: false,
       demoDriveEnabled: false,
       previewModeEnabled: false,
       projectRoot: EXPECTED.expectedProjectRoot,
@@ -84,6 +87,14 @@ describe('guidance-contract Metro identity', () => {
     for (const [identity, pattern] of mismatches) {
       assert.throws(() => assertGuidanceMetroIdentity(identity, EXPECTED), pattern);
     }
+    assert.throws(
+      () =>
+        assertGuidanceMetroIdentity(valid, {
+          ...EXPECTED,
+          expectedConnectivityContractEnabled: true,
+        }),
+      /connectivity-contract flag mismatch/,
+    );
   });
 
   it('refuses to advertise a Git revision for a dirty source checkout', async () => {
@@ -122,6 +133,22 @@ describe('guidance-contract Metro identity', () => {
       },
       url: 'http://127.0.0.1:8081',
     }]);
+
+    await assert.rejects(
+      () =>
+        verifyGuidanceContractMetroIdentity({
+          ...EXPECTED,
+          expectedConnectivityContractEnabled: true,
+          fetchImpl: async () => ({
+            json: async () => manifest(),
+            ok: true,
+            status: 200,
+          }),
+          manifestUrl: 'http://127.0.0.1:8081',
+          timeoutMs: 100,
+        }),
+      /connectivity-contract flag mismatch/,
+    );
   });
 
   it('wires the current full Git revision into Metro and checks identity before the API starts', () => {

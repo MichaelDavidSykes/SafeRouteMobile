@@ -11,6 +11,22 @@ export const GUIDANCE_CONTRACT_MODES = Object.freeze({
   offline: 'offline',
   wrongPrincipal: 'active-b'
 });
+export const CONNECTIVITY_CONTRACT_REACHABILITY_PATH =
+  '/__connectivity_contract__/reachability';
+export const CONNECTIVITY_CONTRACT_STATUSES = Object.freeze({
+  checking: 'checking',
+  offline: 'offline',
+  online: 'online'
+});
+export const CONNECTIVITY_CONTRACT_PHASES = Object.freeze({
+  coldChecking: 'connectivityColdChecking',
+  offline: 'connectivityOffline',
+  online: 'connectivityOnline',
+  reconnectChecking: 'connectivityReconnectChecking',
+  seed: 'connectivitySeed'
+});
+export const CONNECTIVITY_CONTRACT_HOLD_POLL_MS = 50;
+export const CONNECTIVITY_CONTRACT_HOLD_TIMEOUT_MS = 60_000;
 
 export const WORKSPACE_CATALOG_RECOVERY_PHASES = Object.freeze({
   foregroundLoss: 'catalogForegroundLoss',
@@ -56,6 +72,7 @@ export const GUIDANCE_CONTRACT_EVIDENCE_TYPES = Object.freeze([
 ]);
 const GUIDANCE_CONTRACT_EVIDENCE_PHASES = Object.freeze({
   'navigation.persisted': new Set([
+    'connectivitySeed',
     'catalogJourneyStart',
     'catalogJourneyRestart',
     'catalogJourneyEndedRestart',
@@ -66,6 +83,7 @@ const GUIDANCE_CONTRACT_EVIDENCE_PHASES = Object.freeze({
     'denialSeedStart'
   ]),
   'restore.suspended': new Set([
+    'connectivityOffline',
     'catalogJourneyRestoreFailure',
     'workspaceOffline',
     'workspaceReconnect'
@@ -81,6 +99,7 @@ const GUIDANCE_CONTRACT_EVIDENCE_PHASES = Object.freeze({
   ]),
   'route.cache.readback': new Set(['regained', 'readbackEvidence']),
   'navigation.cleanup.settled': new Set([
+    'connectivityOffline',
     'catalogForegroundLoss',
     'catalogJourneyForegroundFailureEnd',
     'catalogJourneyRestoreEnd',
@@ -90,6 +109,7 @@ const GUIDANCE_CONTRACT_EVIDENCE_PHASES = Object.freeze({
     'denied'
   ]),
   'tracking.stop.settled': new Set([
+    'connectivityOffline',
     'catalogForegroundLoss',
     'catalogJourneyForegroundFailureEnd',
     'catalogJourneyRestoreEnd',
@@ -279,22 +299,35 @@ export function createGuidanceContractHandler({
   sleep = (milliseconds) => new Promise((resolve) => setTimeout(resolve, milliseconds))
 }) {
   return async (request, response) => {
-    const { mode, phase } = normalizeControlSnapshot(
+    const {
+      connectivity,
+      connectivitySequence,
+      mode,
+      phase,
+      sourceRevision
+    } = normalizeControlSnapshot(
       readControl ? readControl() : { mode: readMode(), phase: readPhase() }
     );
     const url = new URL(request.url || '/', 'http://127.0.0.1');
+    const requestSourceRevision = String(
+      url.searchParams.get('source_revision') || ''
+    ).trim().toLowerCase();
     const requestId = createRequestId();
     const startedAtMs = now();
     const requestEntry = requestLog({
       authorizationClass: classifyAuthorization(request.headers.authorization),
       authorized: hasExpectedBearerAuthorization(request.headers.authorization),
+      connectivity,
+      connectivitySequence,
       event: 'request',
       method: request.method || 'GET',
       mode,
       path: url.pathname,
       phase,
       requestId,
-      search: url.search
+      requestSourceRevision,
+      search: url.search,
+      sourceRevision
     });
     let completionRecorded = false;
     const recordCompletion = ({
@@ -310,6 +343,8 @@ export function createGuidanceContractHandler({
         authorizationClass: classifyAuthorization(request.headers.authorization),
         authorized: hasExpectedBearerAuthorization(request.headers.authorization),
         completed,
+        connectivity,
+        connectivitySequence,
         durationMs: Math.max(0, now() - startedAtMs),
         event: 'completion',
         method: request.method || 'GET',
@@ -320,8 +355,10 @@ export function createGuidanceContractHandler({
         requestSequence: Number.isInteger(requestEntry?.sequence)
           ? requestEntry.sequence
           : null,
+        requestSourceRevision,
         search: url.search,
         semanticOutcome,
+        sourceRevision,
         statusCode
       });
     };
@@ -347,6 +384,48 @@ export function createGuidanceContractHandler({
 
     if (url.pathname === '/__guidance_contract__/health') {
       sendJson(response, 200, { mode, status: 'ready' }, 'health-ready');
+      return;
+    }
+
+    if (
+      request.method === 'HEAD' &&
+      url.pathname === CONNECTIVITY_CONTRACT_REACHABILITY_PATH
+    ) {
+      if (
+        request.headers['x-saferoute-connectivity-contract'] !== '1' ||
+        request.headers['x-saferoute-source-revision'] !==
+          requestSourceRevision ||
+        !/^[0-9a-f]{40}$/.test(requestSourceRevision) ||
+        requestSourceRevision !== sourceRevision
+      ) {
+        sendApiError(
+          response,
+          403,
+          'Exact connectivity contract source headers are required.',
+          {},
+          'connectivity-header-rejected'
+        );
+        return;
+      }
+      const settledConnectivity = connectivity === CONNECTIVITY_CONTRACT_STATUSES.checking
+        ? await waitForConnectivityRelease({
+            connectivitySequence,
+            expectedSourceRevision: sourceRevision,
+            readControl,
+            sleep
+          })
+        : connectivity;
+      if (!settledConnectivity) {
+        sendEmpty(response, 504, 'connectivity-hold-timeout');
+        return;
+      }
+      sendEmpty(
+        response,
+        settledConnectivity === CONNECTIVITY_CONTRACT_STATUSES.online
+          ? 204
+          : 503,
+        `connectivity-${settledConnectivity}`
+      );
       return;
     }
 
@@ -1098,7 +1177,7 @@ export function assertGuidanceContractRouteCacheReadbackEvidence(entries, {
   );
 }
 
-function isSuccessfulGuidanceContractEvidence(event, journal) {
+export function isSuccessfulGuidanceContractEvidence(event, journal) {
   if (!GUIDANCE_CONTRACT_EVIDENCE_PHASES[event.type]?.has(journal.serverPhase)) {
     return false;
   }
@@ -1193,8 +1272,13 @@ function isSuccessfulGuidanceContractEvidence(event, journal) {
 
 function normalizeControlSnapshot(value) {
   return {
+    connectivity: normalizeConnectivityStatus(value?.connectivity),
+    connectivitySequence: normalizeConnectivitySequence(
+      value?.connectivitySequence
+    ),
     mode: normalizeMode(value?.mode),
-    phase: normalizePhase(value?.phase)
+    phase: normalizePhase(value?.phase),
+    sourceRevision: normalizeControlSourceRevision(value?.sourceRevision)
   };
 }
 
@@ -1216,6 +1300,33 @@ async function waitForWorkspaceCatalogRelease({ phase, readControl, sleep }) {
     await sleep(WORKSPACE_CATALOG_HOLD_POLL_MS);
   }
   return false;
+}
+
+async function waitForConnectivityRelease({
+  connectivitySequence,
+  expectedSourceRevision,
+  readControl,
+  sleep
+}) {
+  if (typeof readControl !== 'function') {
+    return null;
+  }
+  const maximumPolls = Math.ceil(
+    CONNECTIVITY_CONTRACT_HOLD_TIMEOUT_MS /
+      CONNECTIVITY_CONTRACT_HOLD_POLL_MS
+  );
+  for (let poll = 0; poll < maximumPolls; poll += 1) {
+    const control = normalizeControlSnapshot(readControl());
+    if (
+      control.connectivitySequence > connectivitySequence &&
+      control.sourceRevision === expectedSourceRevision &&
+      control.connectivity !== CONNECTIVITY_CONTRACT_STATUSES.checking
+    ) {
+      return control.connectivity;
+    }
+    await sleep(CONNECTIVITY_CONTRACT_HOLD_POLL_MS);
+  }
+  return null;
 }
 
 function normalizeEvidenceString(value, maxLength) {
@@ -1247,6 +1358,23 @@ function normalizeMode(value) {
   return Object.values(GUIDANCE_CONTRACT_MODES).includes(normalized)
     ? normalized
     : GUIDANCE_CONTRACT_MODES.offline;
+}
+
+function normalizeConnectivityStatus(value) {
+  const normalized = String(value || '').trim();
+  return Object.values(CONNECTIVITY_CONTRACT_STATUSES).includes(normalized)
+    ? normalized
+    : CONNECTIVITY_CONTRACT_STATUSES.online;
+}
+
+function normalizeConnectivitySequence(value) {
+  const normalized = Number(value);
+  return Number.isSafeInteger(normalized) && normalized >= 0 ? normalized : 0;
+}
+
+function normalizeControlSourceRevision(value) {
+  const normalized = String(value || '').trim().toLowerCase();
+  return /^[0-9a-f]{40}$/.test(normalized) ? normalized : '';
 }
 
 function normalizePhase(value) {
@@ -1310,6 +1438,15 @@ function sendJson(response, statusCode, body, semanticOutcome = `http-${statusCo
     'Content-Type': 'application/json'
   });
   response.end(serialized);
+}
+
+function sendEmpty(response, statusCode, semanticOutcome = `http-${statusCode}`) {
+  response[RESPONSE_SEMANTIC_OUTCOME] = semanticOutcome;
+  response.writeHead(statusCode, {
+    'Cache-Control': 'no-store',
+    'Content-Length': '0'
+  });
+  response.end();
 }
 
 function sendApiSuccess(response, body, semanticOutcome = 'api-success') {
@@ -1398,6 +1535,134 @@ function interpolateCoordinates(coordinates) {
   }
   interpolated.push(coordinates.at(-1));
   return interpolated;
+}
+
+export function assertConnectivityContractReconnectAuthorization(entries, {
+  onlinePhase = CONNECTIVITY_CONTRACT_PHASES.online,
+  settlementSequence
+}) {
+  const settlement = entries.find((entry) =>
+    entry.event === 'completion' &&
+    entry.sequence === settlementSequence &&
+    entry.phase === CONNECTIVITY_CONTRACT_PHASES.reconnectChecking &&
+    entry.path === CONNECTIVITY_CONTRACT_REACHABILITY_PATH &&
+    entry.completed === true &&
+    entry.statusCode === 204 &&
+    entry.semanticOutcome === 'connectivity-online'
+  );
+  assertJournalCondition(
+    settlement,
+    'Connectivity reconnect journal had no exact successful online settlement boundary.'
+  );
+
+  const prematureProductRequests = entries.filter((entry) =>
+    entry.event === 'request' &&
+    entry.phase === onlinePhase &&
+    entry.path.startsWith('/api/') &&
+    entry.sequence <= settlementSequence
+  );
+  assertJournalCondition(
+    prematureProductRequests.length === 0,
+    'Connectivity reconnect journal recorded product traffic before online settlement.'
+  );
+
+  const requests = entries.filter((entry) =>
+    entry.event === 'request' &&
+    entry.phase === onlinePhase &&
+    entry.path.startsWith('/api/')
+  );
+  const principal = requests.filter((entry) => entry.path === '/api/v1/users/me');
+  const catalog = requests.filter((entry) =>
+    entry.path === '/api/v1/mobile/safe-route/routes' && entry.search === ''
+  );
+  assertJournalCondition(
+    principal.length === 1 && catalog.length === 1,
+    `Connectivity reconnect expected one principal/catalog pair but recorded ` +
+      `${principal.length}/${catalog.length}.`
+  );
+  const principalCompletion = entries.find((entry) =>
+    entry.event === 'completion' &&
+    entry.requestId === principal[0].requestId
+  );
+  const catalogCompletion = entries.find((entry) =>
+    entry.event === 'completion' &&
+    entry.requestId === catalog[0].requestId
+  );
+  assertJournalCondition(
+    principal[0].authorized === true &&
+      catalog[0].authorized === true &&
+      settlement.sequence < principal[0].sequence &&
+      principal[0].sequence < principalCompletion?.sequence &&
+      principalCompletion?.completed === true &&
+      principalCompletion.statusCode === 200 &&
+      principalCompletion.semanticOutcome === 'principal-a' &&
+      principalCompletion.sequence < catalog[0].sequence &&
+      catalog[0].sequence < catalogCompletion?.sequence &&
+      catalogCompletion?.completed === true &&
+      catalogCompletion.statusCode === 200 &&
+      catalogCompletion.semanticOutcome === 'catalog-active',
+    'Connectivity reconnect principal/catalog pair did not complete after settlement in exact authorized order.'
+  );
+  return {
+    catalog: catalog[0],
+    catalogCompletion,
+    principal: principal[0],
+    principalCompletion,
+    settlement
+  };
+}
+
+export function assertConnectivityContractEndedJourneyStayedClosed(entries, {
+  expectedSourceRevision,
+  minimumOccurredAtMs
+}) {
+  const suspendedIndex = entries.findIndex((entry) =>
+    entry.type === 'restore.suspended' &&
+    entry.serverPhase === CONNECTIVITY_CONTRACT_PHASES.offline &&
+    entry.sourceRevision === expectedSourceRevision &&
+    entry.occurredAtMs >= minimumOccurredAtMs &&
+    isSuccessfulGuidanceContractEvidence(entry, entry)
+  );
+  assertJournalCondition(
+    suspendedIndex >= 0,
+    'Connectivity contract offline suspended restore evidence was absent.'
+  );
+  const suspended = entries[suspendedIndex];
+  const cleanupIndex = entries.findIndex((entry, index) =>
+    index > suspendedIndex &&
+    entry.type === 'navigation.cleanup.settled' &&
+    entry.serverPhase === CONNECTIVITY_CONTRACT_PHASES.offline &&
+    entry.appLaunchId === suspended.appLaunchId &&
+    entry.navigationInstanceId === suspended.navigationInstanceId &&
+    entry.routeId === suspended.routeId &&
+    entry.workspaceId === suspended.workspaceId &&
+    isSuccessfulGuidanceContractEvidence(entry, entry)
+  );
+  assertJournalCondition(
+    cleanupIndex >= 0,
+    'Connectivity contract offline End cleanup was not correlated to suspended restore.'
+  );
+  const cleanup = entries[cleanupIndex];
+  const tracking = entries.find((entry, index) =>
+    index > cleanupIndex &&
+    entry.type === 'tracking.stop.settled' &&
+    entry.serverPhase === CONNECTIVITY_CONTRACT_PHASES.offline &&
+    entry.appLaunchId === cleanup.appLaunchId &&
+    entry.navigationInstanceId === cleanup.navigationInstanceId &&
+    entry.routeId === cleanup.routeId &&
+    entry.workspaceId === cleanup.workspaceId &&
+    isSuccessfulGuidanceContractEvidence(entry, entry)
+  );
+  const reopened = entries.find((entry, index) =>
+    index > cleanupIndex &&
+    entry.type === 'restore.ready' &&
+    entry.navigationInstanceId === cleanup.navigationInstanceId
+  );
+  assertJournalCondition(
+    tracking && !reopened,
+    'Connectivity contract ended offline journey was not durably stopped or was reopened after reconnect.'
+  );
+  return { cleanup, suspended, tracking };
 }
 
 export function assertGuidanceContractRequestJournal(entries, {

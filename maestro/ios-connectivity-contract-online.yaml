@@ -1,0 +1,19 @@
+appId: host.exp.Exponent
+---
+- extendedWaitUntil:
+    notVisible:
+      id: "guest-map-network-status"
+    timeout: 30000
+- extendedWaitUntil:
+    visible:
+      id: "guest-map-workspace-selector"
+      enabled: true
+    timeout: 30000
+- assertVisible: "Workspace, Guidance Operations"
+- assertNotVisible:
+    id: "workspace-access-refresh"
+- assertNotVisible:
+    id: "safe-route-suspended-navigation"
+- assertNotVisible:
+    id: "safe-route-resume-action"
+- takeScreenshot: "connectivity-contract-online-recovered"

@@ -9,6 +9,7 @@ function source(path: string): string {
 describe("cold-start connectivity integration", () => {
   it("owns one checking-first native snapshot for every SafeRoute surface", () => {
     const app = source("App.tsx");
+    const index = source("index.ts");
     const network = source("src/features/api/useNetworkAvailability.ts");
 
     assert.match(
@@ -33,6 +34,20 @@ describe("cold-start connectivity integration", () => {
       app,
       /<NetworkAvailabilityProvider>[\s\S]*<SafeRouteApp \/>[\s\S]*<\/NetworkAvailabilityProvider>/,
     );
+    assert.match(
+      app,
+      /if \(online\) \{[\s\S]*flushGuidanceContractEvidence\(\)/,
+    );
+    assert.ok(
+      index.indexOf("configureNetworkAvailabilityContract();") <
+        index.indexOf("registerRootComponent(App);"),
+    );
+    const contract = source(
+      "src/features/api/networkAvailabilityContractCore.ts",
+    );
+    assert.match(contract, /useNativeReachability: false/);
+    assert.match(contract, /reachabilityMethod: "HEAD"/);
+    assert.match(contract, /X-SafeRoute-Source-Revision/);
   });
 
   it("waits for settled connectivity before restoring or discovering protected data", () => {
@@ -80,13 +95,18 @@ describe("cold-start connectivity integration", () => {
   it("keeps map tiles and automatic risk work off until native reachability is online", () => {
     const guest = source("src/features/guest-map/GuestMapScreen.tsx");
     const live = source("src/features/live-map/LiveMapScreen.tsx");
+    const liveCanvas = source("src/features/live-map/LiveMapCanvas.tsx");
     const viewportRisk = source(
       "src/features/live-map/useViewportRiskAreas.ts",
     );
 
     assert.match(
       guest,
-      /mapType=\{[\s\S]*online[\s\S]*'mutedStandard'[\s\S]*: 'none'/,
+      /mapType=\{resolveSafeRouteMapType\(\{[\s\S]*online,[\s\S]*platform: Platform\.OS/,
+    );
+    assert.match(
+      liveCanvas,
+      /mapType=\{resolveSafeRouteMapType\(\{[\s\S]*online: !offline,[\s\S]*platform: Platform\.OS/,
     );
     assert.match(
       guest,
@@ -107,6 +127,10 @@ describe("cold-start connectivity integration", () => {
     assert.match(
       guest,
       /activeMapReverseGeocodeRef\.current === controller[\s\S]*onlineRef\.current/,
+    );
+    assert.match(
+      guest,
+      /handleAddMapRiskArea[\s\S]*!onlineRef\.current[\s\S]*const requestNetworkEpoch = networkRequestEpochRef\.current[\s\S]*requestNetworkEpoch === networkRequestEpochRef\.current[\s\S]*await createGuestRiskArea/,
     );
     assert.match(
       guest,

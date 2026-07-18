@@ -1,0 +1,18 @@
+appId: host.exp.Exponent
+---
+- runFlow: subflows/ios-open-expo-project.yaml
+- extendedWaitUntil:
+    visible:
+      id: "saferoute-app-root"
+    timeout: 30000
+- extendedWaitUntil:
+    visible:
+      id: "guest-map-network-status"
+    timeout: 15000
+- assertVisible: "Checking connection…"
+- assertVisible: "Checking connection. Map downloads are paused."
+- assertVisible:
+    id: "guest-map-canvas"
+- assertNotVisible:
+    id: "safe-route-suspended-navigation"
+- takeScreenshot: "connectivity-contract-cold-checking"

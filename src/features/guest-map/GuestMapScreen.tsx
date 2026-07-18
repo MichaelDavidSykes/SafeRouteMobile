@@ -39,6 +39,7 @@ import {
 import { shouldRenderRouteCheckpointMarker } from '../maps/mapMarkerPresentation';
 import { isPreviewAccessToken } from '../auth/previewSession';
 import { createSessionNoticeState } from '../auth/sessionNoticeState';
+import { resolveSafeRouteMapType } from '../api/mapTransportState';
 import { useNetworkAvailability } from '../api/useNetworkAvailability';
 import { getRequestSessionExpiry } from '../api/sessionExpiry';
 import type { SafeRouteWorkspace } from '../workspaces/activeWorkspace';
@@ -1195,7 +1196,12 @@ export function GuestMapScreen({
       onSignIn();
       return;
     }
-    if (!action || !routingClientId || !routingAccessToken) {
+    if (
+      !action ||
+      !onlineRef.current ||
+      !routingClientId ||
+      !routingAccessToken
+    ) {
       setMapAction(null);
       setRouteMessage(
         !online
@@ -1216,6 +1222,7 @@ export function GuestMapScreen({
     setRiskAreaSavePending(true);
     const requestAccessToken = routingAccessToken;
     const requestWorkspaceId = routingClientId;
+    const requestNetworkEpoch = networkRequestEpochRef.current;
     const requestAuthorizationEpoch = workspaceAuthorizationEpochRef.current;
     const requestAuthorizationIsCurrent = () => isCurrentWorkspaceAuthorizationEpoch({
       currentEpoch: workspaceAuthorizationEpochRef.current,
@@ -1224,6 +1231,16 @@ export function GuestMapScreen({
       requestEpoch: requestAuthorizationEpoch,
       requestWorkspaceId,
     });
+    const requestIsCurrent = () =>
+      onlineRef.current &&
+      requestNetworkEpoch === networkRequestEpochRef.current &&
+      requestAuthorizationIsCurrent();
+    if (!requestIsCurrent()) {
+      controller.abort();
+      activeRiskAreaRequestRef.current = null;
+      setRiskAreaSavePending(false);
+      return;
+    }
     try {
       await createGuestRiskArea({
         accessToken: requestAccessToken,
@@ -1236,7 +1253,7 @@ export function GuestMapScreen({
         controller.signal.aborted ||
         riskAreaRequestIdRef.current !== requestId ||
         routingClientIdRef.current !== requestWorkspaceId ||
-        !requestAuthorizationIsCurrent()
+        !requestIsCurrent()
       ) {
         return;
       }
@@ -1248,7 +1265,7 @@ export function GuestMapScreen({
         controller.signal.aborted ||
         riskAreaRequestIdRef.current !== requestId ||
         routingClientIdRef.current !== requestWorkspaceId ||
-        !requestAuthorizationIsCurrent()
+        !requestIsCurrent()
       ) {
         return;
       }
@@ -1281,7 +1298,7 @@ export function GuestMapScreen({
       if (
         riskAreaRequestIdRef.current === requestId &&
         routingClientIdRef.current === requestWorkspaceId &&
-        requestAuthorizationIsCurrent()
+        requestIsCurrent()
       ) {
         activeRiskAreaRequestRef.current = null;
         setRiskAreaSavePending(false);
@@ -1293,6 +1310,7 @@ export function GuestMapScreen({
     <View style={styles.screen}>
       <MapView
         ref={mapRef}
+        testID={uiTestIds.guestMapCanvas}
         style={styles.map}
         initialRegion={GUEST_MAP_REGION}
         showsBuildings
@@ -1307,13 +1325,10 @@ export function GuestMapScreen({
         rotateEnabled
         toolbarEnabled={false}
         customMapStyle={SAFE_ROUTE_DARK_MAP_STYLE}
-        mapType={
-          online
-            ? Platform.OS === 'ios'
-              ? 'mutedStandard'
-              : 'standard'
-            : 'none'
-        }
+        mapType={resolveSafeRouteMapType({
+          online,
+          platform: Platform.OS,
+        })}
         userInterfaceStyle="dark"
         onMapReady={() => {
           setMapReady(true);
@@ -1432,6 +1447,7 @@ export function GuestMapScreen({
               }
               accessibilityRole="summary"
               style={styles.riskLoadStatus}
+              testID={uiTestIds.guestMapNetworkStatus}
             >
               <Text numberOfLines={1} style={styles.riskLoadStatusText}>
                 {networkChecking ? 'Checking connection…' : 'Offline map'}

@@ -256,7 +256,10 @@ describe("App active workspace integration", () => {
     assert.match(guest, /Checking workspace access before plotting this route/);
     assert.match(guest, /busy: workspaceAuthorizationRequired && workspaceCatalogLoading/);
     assert.match(guest, /riskAreaAuthorizationRequired =[\s\S]*workspaceSelectionRequired \|\| workspaceAuthorizationRequired/);
-    assert.match(guest, /!action \|\| !routingClientId \|\| !routingAccessToken/);
+    assert.match(
+      guest,
+      /!action \|\|[\s\S]*!onlineRef\.current \|\|[\s\S]*!routingClientId \|\|[\s\S]*!routingAccessToken/,
+    );
     assert.match(guest, /disabled=\{riskAreaSavePending \|\| riskAreaAuthorizationRequired\}/);
     assert.match(guest, /Verify current workspace access before adding a risk area/);
     assert.match(guest, /routeActionAccessibilityLabel = networkChecking/);

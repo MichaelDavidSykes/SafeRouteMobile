@@ -4,6 +4,8 @@ import type { RiskSeverity, RiskZone } from './liveMapTypes';
 
 export const AREA_RISK_ENDPOINT_PATH = '/intel/map/area-risk';
 export const AREA_RISK_RESEARCH_ENDPOINT_PATH = `${AREA_RISK_ENDPOINT_PATH}/research`;
+export const AREA_RISK_CAPABILITY_HEADER = 'X-SafeRoute-Area-Risk-Capability';
+export const MOBILE_AREA_RISK_CAPABILITY = 'mobile-explicit-research-strict-read-v1';
 export const MIN_VIEWPORT_RISK_ZOOM = 0;
 export const DEFAULT_DETAIL_AREA_RISK_MAX_RECORDS = 100;
 export const DEFAULT_REGIONAL_AREA_RISK_MAX_RECORDS = 120;
@@ -393,7 +395,10 @@ export function buildAreaRiskResearchPayload(
 }
 
 export function buildAreaRiskRequestHeaders(accessToken?: string | null): Record<string, string> {
-  const headers: Record<string, string> = { Accept: 'application/json' };
+  const headers: Record<string, string> = {
+    Accept: 'application/json',
+    [AREA_RISK_CAPABILITY_HEADER]: MOBILE_AREA_RISK_CAPABILITY
+  };
   const token = String(accessToken ?? '').trim();
   if (token) {
     headers.Authorization = `Bearer ${token}`;

@@ -16,6 +16,11 @@ appId: host.exp.Exponent
     enabled: true
 - assertNotVisible:
     id: "guest-map-workspace-selector"
+- assertNotVisible: "Workspace, Guidance Operations"
+- assertNotVisible: "Workspace, Support Operations"
+- assertNotVisible:
+    id: "safe-route-card-66b1b2c3d4e5f60718293b40"
+- assertNotVisible: "^Cold restart verification v1.*"
 - assertNotVisible:
     id: "safe-route-picker"
 - assertNotVisible:

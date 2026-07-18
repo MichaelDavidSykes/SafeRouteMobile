@@ -2,13 +2,16 @@ import AsyncStorage from "@react-native-async-storage/async-storage";
 import * as SecureStore from "expo-secure-store";
 
 import {
+  createTerminalWorkspacePrincipalRevocationRecord,
   createWorkspaceRecoveryRevocationRecord,
-  createSerializedWorkspaceRecoveryExecutor,
+  createSerializedWorkspaceMutationCoordinator,
   createSerializedWorkspaceRecordWriter,
   createOfflineWorkspaceCacheRecord,
+  isTerminalWorkspacePrincipalRevocationRecord,
   parseOfflineWorkspaceCacheRecord,
   parseWorkspaceRecoveryRevocationRecord,
   persistLatestOfflineWorkspaceSelection,
+  persistTerminalWorkspacePrincipalRevocation,
   persistWorkspaceRecoveryWithFallback,
   type OfflineWorkspaceCacheFreshness,
   type OfflineWorkspaceContext,
@@ -25,7 +28,10 @@ const DEVICE_ONLY_SECURE_STORE_OPTIONS: SecureStore.SecureStoreOptions =
 const writeWorkspaceRecord = createSerializedWorkspaceRecordWriter(
   (key, value) => AsyncStorage.setItem(key, value),
 );
-const executeWorkspaceRecovery = createSerializedWorkspaceRecoveryExecutor();
+const workspaceMutations = createSerializedWorkspaceMutationCoordinator();
+const executeWorkspaceRecovery = workspaceMutations.enqueueScoped;
+const terminalRevokedPrincipalIds = new Set<string>();
+let allWorkspaceContextsRevoked = false;
 
 function identityKey(principalId: string): string {
   return encodeURIComponent(principalId.trim());
@@ -38,6 +44,10 @@ function recoveryRevocationKey(principalId: string): string {
   return `${WORKSPACE_RECOVERY_REVOCATION_KEY_PREFIX}.${encodedPrincipalId}`;
 }
 
+function workspaceContextKey(principalId: string): string {
+  return `${WORKSPACE_CONTEXT_KEY_PREFIX}.${identityKey(principalId)}`;
+}
+
 export async function saveOfflineWorkspaceContext(
   principalId: string,
   context: OfflineWorkspaceContext,
@@ -46,6 +56,9 @@ export async function saveOfflineWorkspaceContext(
     return;
   }
   await executeWorkspaceRecovery(recoveryRevocationKey(principalId), async () => {
+    if (await hasBlockingWorkspaceRevocation(principalId)) {
+      return;
+    }
     const current = await loadOfflineWorkspaceRecordInternal(principalId);
     const freshness = freshnessForPreservedCatalog(current);
     if (!freshness) {
@@ -65,7 +78,7 @@ async function saveOfflineWorkspaceContextInternal(
   freshness: OfflineWorkspaceCacheFreshness,
 ): Promise<void> {
   await writeWorkspaceRecord(
-    `${WORKSPACE_CONTEXT_KEY_PREFIX}.${identityKey(principalId)}`,
+    workspaceContextKey(principalId),
     JSON.stringify(
       createOfflineWorkspaceCacheRecord(
         context,
@@ -84,15 +97,18 @@ export async function persistOfflineReviewWorkspaceSelection(
   if (!principalId.trim() || !workspaceId.trim()) {
     return null;
   }
-  return executeWorkspaceRecovery(recoveryRevocationKey(principalId), () =>
-    persistLatestOfflineWorkspaceSelection({
+  return executeWorkspaceRecovery(recoveryRevocationKey(principalId), async () => {
+    if (await hasBlockingWorkspaceRevocation(principalId)) {
+      return null;
+    }
+    return persistLatestOfflineWorkspaceSelection({
       loadCurrent: () => loadOfflineWorkspaceContextInternal(principalId),
       persistContext: (context, freshness) =>
         saveOfflineWorkspaceContextInternal(principalId, context, freshness),
       principalId,
       workspaceId,
-    }),
-  );
+    });
+  });
 }
 
 export async function migrateOfflineWorkspaceCatalogFromRouteCache(
@@ -107,6 +123,9 @@ export async function migrateOfflineWorkspaceCatalogFromRouteCache(
     return await executeWorkspaceRecovery(
       recoveryRevocationKey(principalId),
       async () => {
+        if (await hasBlockingWorkspaceRevocation(principalId)) {
+          return null;
+        }
         const current = await loadOfflineWorkspaceRecordInternal(principalId);
         if (current) {
           return current;
@@ -132,7 +151,7 @@ export async function migrateOfflineWorkspaceCatalogFromRouteCache(
           return null;
         }
         await writeWorkspaceRecord(
-          `${WORKSPACE_CONTEXT_KEY_PREFIX}.${identityKey(principalId)}`,
+          workspaceContextKey(principalId),
           JSON.stringify(record),
         );
         return snapshot;
@@ -164,6 +183,31 @@ export async function persistOfflineWorkspaceRecovery(
   }
   const revocationKey = recoveryRevocationKey(principalId);
   return executeWorkspaceRecovery(revocationKey, async () => {
+    let existingRevocation: string | null;
+    try {
+      existingRevocation = await SecureStore.getItemAsync(revocationKey);
+    } catch {
+      return "revoked";
+    }
+    if (
+      allWorkspaceContextsRevoked ||
+      terminalRevokedPrincipalIds.has(principalId.trim()) ||
+      (
+        existingRevocation !== null &&
+        (
+          isTerminalWorkspacePrincipalRevocationRecord(
+            existingRevocation,
+            principalId,
+          ) ||
+          parseWorkspaceRecoveryRevocationRecord(
+            existingRevocation,
+            principalId,
+          ) === null
+        )
+      )
+    ) {
+      return "revoked";
+    }
     let freshness: OfflineWorkspaceCacheFreshness | null;
     if (Number.isFinite(authoritativeCatalogStoredAtMs)) {
       freshness = {
@@ -218,6 +262,12 @@ export async function loadOfflineWorkspaceContext(
 async function loadOfflineWorkspaceContextInternal(
   principalId: string,
 ): Promise<OfflineWorkspaceSnapshot | null> {
+  if (
+    allWorkspaceContextsRevoked ||
+    terminalRevokedPrincipalIds.has(principalId.trim())
+  ) {
+    return createRevokedWorkspaceSnapshot(principalId, []);
+  }
   let recoveryRevocation: string | null;
   try {
     recoveryRevocation = await SecureStore.getItemAsync(
@@ -247,11 +297,265 @@ async function loadOfflineWorkspaceRecordInternal(
   principalId: string,
 ): Promise<OfflineWorkspaceSnapshot | null> {
   const raw = await AsyncStorage.getItem(
-    `${WORKSPACE_CONTEXT_KEY_PREFIX}.${identityKey(principalId)}`,
+    workspaceContextKey(principalId),
   );
   return raw
     ? parseOfflineWorkspaceCacheRecord(JSON.parse(raw), principalId)
     : null;
+}
+
+export async function isOfflineWorkspacePrincipalRevoked(
+  principalId: string,
+): Promise<boolean> {
+  if (!principalId.trim()) {
+    return true;
+  }
+  return hasBlockingWorkspaceRevocation(principalId);
+}
+
+export async function clearOfflineWorkspacePrincipal(
+  principalId: string,
+): Promise<void> {
+  const normalizedPrincipalId = principalId.trim();
+  if (!normalizedPrincipalId) {
+    return;
+  }
+  terminalRevokedPrincipalIds.add(normalizedPrincipalId);
+  const revocationKey = recoveryRevocationKey(normalizedPrincipalId);
+  await executeWorkspaceRecovery(revocationKey, async () => {
+    const marker = createTerminalWorkspacePrincipalRevocationRecord(
+      normalizedPrincipalId,
+    );
+    const contextKey = workspaceContextKey(normalizedPrincipalId);
+    await persistTerminalWorkspacePrincipalRevocation({
+      marker,
+      persistMarker: (value) =>
+        SecureStore.setItemAsync(
+          revocationKey,
+          value,
+          DEVICE_ONLY_SECURE_STORE_OPTIONS,
+        ),
+      readContext: () => AsyncStorage.getItem(contextKey),
+      readMarker: () => SecureStore.getItemAsync(revocationKey),
+      removeContext: () => AsyncStorage.removeItem(contextKey),
+    });
+  });
+}
+
+export async function activateOfflineWorkspacePrincipal(
+  principalId: string,
+  verifyRelatedCachesAbsent: () => Promise<void> = async () => undefined,
+): Promise<void> {
+  const normalizedPrincipalId = principalId.trim();
+  if (!normalizedPrincipalId) {
+    throw new Error("Workspace principal identity is invalid");
+  }
+  const revocationKey = recoveryRevocationKey(normalizedPrincipalId);
+  await executeWorkspaceRecovery(revocationKey, async () => {
+    let raw: string | null;
+    try {
+      raw = await SecureStore.getItemAsync(revocationKey);
+    } catch {
+      throw new Error("Workspace principal revocation is unavailable");
+    }
+    const terminalProcessRevoked =
+      terminalRevokedPrincipalIds.has(normalizedPrincipalId);
+    const globallyProcessRevoked = allWorkspaceContextsRevoked;
+    const processRevoked =
+      terminalProcessRevoked || globallyProcessRevoked;
+    if (
+      raw !== null &&
+      !isTerminalWorkspacePrincipalRevocationRecord(
+        raw,
+        normalizedPrincipalId,
+      )
+    ) {
+      const unavailableWorkspaceIds =
+        parseWorkspaceRecoveryRevocationRecord(
+          raw,
+          normalizedPrincipalId,
+        );
+      if (
+        unavailableWorkspaceIds !== null &&
+        !terminalProcessRevoked
+      ) {
+        if (globallyProcessRevoked) {
+          if (
+            (await AsyncStorage.getItem(
+              workspaceContextKey(normalizedPrincipalId),
+            )) !== null
+          ) {
+            throw new Error(
+              "Workspace principal context must be absent before activation",
+            );
+          }
+          await verifyRelatedCachesAbsent();
+          allWorkspaceContextsRevoked = false;
+        }
+        return;
+      }
+      throw new Error("Workspace principal revocation is invalid");
+    }
+    if (raw === null && !processRevoked) {
+      return;
+    }
+    if (raw === null && globallyProcessRevoked) {
+      const marker =
+        createTerminalWorkspacePrincipalRevocationRecord(
+          normalizedPrincipalId,
+        );
+      await persistTerminalWorkspacePrincipalRevocation({
+        marker,
+        persistMarker: (value) =>
+          SecureStore.setItemAsync(
+            revocationKey,
+            value,
+            DEVICE_ONLY_SECURE_STORE_OPTIONS,
+          ),
+        readContext: () =>
+          AsyncStorage.getItem(
+            workspaceContextKey(normalizedPrincipalId),
+          ),
+        readMarker: () => SecureStore.getItemAsync(revocationKey),
+        removeContext: () =>
+          AsyncStorage.removeItem(
+            workspaceContextKey(normalizedPrincipalId),
+          ),
+      });
+      terminalRevokedPrincipalIds.add(normalizedPrincipalId);
+      raw = marker;
+    }
+    if (
+      (await AsyncStorage.getItem(
+        workspaceContextKey(normalizedPrincipalId),
+      )) !== null
+    ) {
+      throw new Error(
+        "Workspace principal context must be absent before activation",
+      );
+    }
+    await verifyRelatedCachesAbsent();
+    if (raw !== null) {
+      await SecureStore.deleteItemAsync(revocationKey);
+      if ((await SecureStore.getItemAsync(revocationKey)) !== null) {
+        throw new Error(
+          "Workspace principal activation could not be verified",
+        );
+      }
+    }
+    terminalRevokedPrincipalIds.delete(normalizedPrincipalId);
+    allWorkspaceContextsRevoked = false;
+  });
+}
+
+export async function clearAllOfflineWorkspaceContexts(): Promise<void> {
+  allWorkspaceContextsRevoked = true;
+  await workspaceMutations.enqueueGlobal(async () => {
+    const keys = (await AsyncStorage.getAllKeys()).filter((key) =>
+      key.startsWith(`${WORKSPACE_CONTEXT_KEY_PREFIX}.`),
+    );
+    if (keys.length) {
+      await AsyncStorage.multiRemove(keys);
+    }
+    const remaining = (await AsyncStorage.getAllKeys()).filter((key) =>
+      key.startsWith(`${WORKSPACE_CONTEXT_KEY_PREFIX}.`),
+    );
+    if (remaining.length) {
+      throw new Error(
+        "Workspace principal contexts remained after global revocation",
+      );
+    }
+  });
+}
+
+export async function readOfflineWorkspacePrincipalContractState(
+  principalId: string,
+  expected: {
+    activeWorkspaceId: string;
+    workspaceIds: string[];
+  } | null = null,
+): Promise<"persisted" | "revoked" | "unknown"> {
+  const normalizedPrincipalId = principalId.trim();
+  if (!normalizedPrincipalId) {
+    return "unknown";
+  }
+  await workspaceMutations.waitForScoped(
+    recoveryRevocationKey(normalizedPrincipalId),
+  );
+  try {
+    const [revocation, context] = await Promise.all([
+      SecureStore.getItemAsync(
+        recoveryRevocationKey(normalizedPrincipalId),
+      ),
+      AsyncStorage.getItem(
+        workspaceContextKey(normalizedPrincipalId),
+      ),
+    ]);
+    if (revocation !== null) {
+      return context === null &&
+        isTerminalWorkspacePrincipalRevocationRecord(
+          revocation,
+          normalizedPrincipalId,
+        )
+        ? "revoked"
+        : "unknown";
+    }
+    if (context === null) {
+      return "unknown";
+    }
+    const snapshot = parseOfflineWorkspaceCacheRecord(
+      JSON.parse(context),
+      normalizedPrincipalId,
+    );
+    if (!snapshot) {
+      return "unknown";
+    }
+    if (expected) {
+      const expectedWorkspaceIds = Array.from(
+        new Set(
+          expected.workspaceIds.map((workspaceId) => workspaceId.trim()),
+        ),
+      ).filter(Boolean).sort();
+      const actualWorkspaceIds = snapshot.workspaces
+        .map((workspace) => workspace.id)
+        .sort();
+      if (
+        snapshot.activeWorkspaceId !== expected.activeWorkspaceId.trim() ||
+        actualWorkspaceIds.length !== expectedWorkspaceIds.length ||
+        actualWorkspaceIds.some(
+          (workspaceId, index) =>
+            workspaceId !== expectedWorkspaceIds[index],
+        )
+      ) {
+        return "unknown";
+      }
+    }
+    return "persisted";
+  } catch {
+    return "unknown";
+  }
+}
+
+async function hasBlockingWorkspaceRevocation(
+  principalId: string,
+): Promise<boolean> {
+  const normalizedPrincipalId = principalId.trim();
+  if (
+    !normalizedPrincipalId ||
+    allWorkspaceContextsRevoked ||
+    terminalRevokedPrincipalIds.has(normalizedPrincipalId)
+  ) {
+    return true;
+  }
+  try {
+    return (
+      await SecureStore.getItemAsync(
+        recoveryRevocationKey(normalizedPrincipalId),
+      )
+    ) !== null;
+  } catch {
+    return true;
+  }
 }
 
 function freshnessForPreservedCatalog(

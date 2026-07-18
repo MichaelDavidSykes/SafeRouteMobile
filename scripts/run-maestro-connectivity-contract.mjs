@@ -34,6 +34,7 @@ import {
   assertOfflineCalendarAuthStorageFaultRequests,
   assertOfflineCalendarPrincipalChangeEvidence,
   assertOfflineCalendarPrincipalChangeTraffic,
+  assertOfflineCalendarProtectedCacheSeedTraffic,
   assertOfflineCalendarWorkspaceDenialTraffic,
   assertOfflineCalendarWorkspaceRevocationEvidence,
 } from './maestro-guidance-contract-api.mjs';
@@ -807,7 +808,7 @@ async function main() {
 }
 
 async function runCalendarAuthCleanupSlice(sourceRevision) {
-  assertOperationsCalendarAuthCleanupSeed(readRequestJournal());
+  assertOfflineCalendarProtectedCacheSeedTraffic(readRequestJournal());
   setControl(
     OFFLINE_CALENDAR_AUTH_CONTRACT_PHASES.inactiveFailure,
     CONNECTIVITY_CONTRACT_STATUSES.online,
@@ -840,12 +841,12 @@ async function runCalendarAuthCleanupSlice(sourceRevision) {
   captureAccessibilityHierarchy('calendar-auth-inactive-failure', [
     {
       id: 'safe-route-calendar-cleanup-alert',
-      label: 'Offline Calendar unavailable. SafeRoute could not finish device storage protection. Retry before offline Calendar can be used.',
+      label: 'Offline data unavailable. SafeRoute could not finish protecting saved offline data. Retry before offline review can continue.',
       enabled: true,
     },
     {
       id: 'safe-route-calendar-cleanup-retry',
-      label: 'Retry offline Calendar storage',
+      label: 'Retry offline data cleanup',
       enabled: true,
     },
   ]);
@@ -874,12 +875,12 @@ async function runCalendarAuthCleanupSlice(sourceRevision) {
   captureAccessibilityHierarchy('calendar-auth-relaunch-failure', [
     {
       id: 'safe-route-calendar-cleanup-alert',
-      label: 'Offline Calendar unavailable. SafeRoute could not finish device storage protection. Retry before offline Calendar can be used.',
+      label: 'Offline data unavailable. SafeRoute could not finish protecting saved offline data. Retry before offline review can continue.',
       enabled: true,
     },
     {
       id: 'safe-route-calendar-cleanup-retry',
-      label: 'Retry offline Calendar storage',
+      label: 'Retry offline data cleanup',
       enabled: true,
     },
   ]);
@@ -962,7 +963,7 @@ async function runCalendarAuthCleanupSlice(sourceRevision) {
 }
 
 async function runCalendarPrincipalChangeSlice(sourceRevision) {
-  assertOperationsCalendarAuthCleanupSeed(readRequestJournal());
+  assertOfflineCalendarProtectedCacheSeedTraffic(readRequestJournal());
   terminateExpoGo(deviceId);
   setControl(
     OFFLINE_CALENDAR_PRINCIPAL_CONTRACT_PHASES.validationUnavailable,
@@ -974,6 +975,11 @@ async function runCalendarPrincipalChangeSlice(sourceRevision) {
     OFFLINE_CALENDAR_PRINCIPAL_CONTRACT_PHASES.validationUnavailable,
     'keep saved principal-A data dormant when online validation is unavailable',
     flows.calendarPrincipalValidationUnavailable,
+  );
+  await waitForEvidenceCause(
+    'offline.calendar.principal-lifecycle',
+    OFFLINE_CALENDAR_PRINCIPAL_CONTRACT_PHASES.validationUnavailable,
+    'principal-change-validation-unavailable',
   );
   captureAccessibilityHierarchy('calendar-principal-validation-unavailable', [
     {
@@ -1004,6 +1010,11 @@ async function runCalendarPrincipalChangeSlice(sourceRevision) {
     OFFLINE_CALENDAR_PRINCIPAL_CONTRACT_PHASES.validationOfflineRelaunch,
     'cold relaunch with saved principal-A data still quarantined offline',
     flows.calendarPrincipalValidationOfflineRelaunch,
+  );
+  await waitForEvidenceCause(
+    'offline.calendar.principal-lifecycle',
+    OFFLINE_CALENDAR_PRINCIPAL_CONTRACT_PHASES.validationOfflineRelaunch,
+    'principal-change-validation-offline-relaunch',
   );
   captureAccessibilityHierarchy(
     'calendar-principal-validation-offline-relaunch',
@@ -1131,7 +1142,7 @@ async function runCalendarPrincipalChangeSlice(sourceRevision) {
 }
 
 async function runCalendarWorkspaceDenialSlice(sourceRevision) {
-  assertOperationsCalendarAuthCleanupSeed(readRequestJournal());
+  assertOfflineCalendarProtectedCacheSeedTraffic(readRequestJournal());
   await runFlow(
     CONNECTIVITY_CONTRACT_PHASES.seed,
     'keep the Guidance workspace active before an owned Operations denial',
@@ -1267,38 +1278,6 @@ function assertOperationsCalendarSeed(entries) {
       completions[0].semanticOutcome === 'operations-active' &&
       completions[0].statusCode === 200,
     'Connectivity seed Operations request did not complete as operations-active.',
-  );
-}
-
-function assertOperationsCalendarAuthCleanupSeed(entries) {
-  const guidancePath =
-    '/api/v1/mobile/safe-route/operations/client/66a1b2c3d4e5f60718293a40';
-  const supportPath =
-    '/api/v1/mobile/safe-route/operations/client/66a1b2c3d4e5f60718293a41';
-  const requestsFor = (path) => entries.filter(
-    (entry) =>
-      entry.event === 'request' &&
-      entry.phase === CONNECTIVITY_CONTRACT_PHASES.seed &&
-      entry.method === 'GET' &&
-      entry.path === path,
-  );
-  const completedActive = (request) => entries.some(
-    (entry) =>
-      entry.event === 'completion' &&
-      entry.requestId === request.requestId &&
-      entry.completed === true &&
-      entry.semanticOutcome === 'operations-active' &&
-      entry.statusCode === 200,
-  );
-  const guidanceRequests = requestsFor(guidancePath);
-  const supportRequests = requestsFor(supportPath);
-  assertCondition(
-    guidanceRequests.length >= 2 &&
-      supportRequests.length === 1 &&
-      guidanceRequests.every(completedActive) &&
-      supportRequests.every(completedActive) &&
-      supportRequests[0].sequence < guidanceRequests.at(-1).sequence,
-    'Calendar auth cleanup seed did not preserve disabled Support consent before reseeding Guidance Operations.',
   );
 }
 

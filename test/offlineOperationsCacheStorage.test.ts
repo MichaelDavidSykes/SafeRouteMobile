@@ -131,6 +131,18 @@ describe("offline Operations secure storage", () => {
     );
     assert.match(
       text,
+      /clearTerminalPrincipal:[\s\S]*clearOfflineWorkspacePrincipal[\s\S]*clearOfflineRoutePrincipal[\s\S]*operationsStorage\.clearPrincipal/,
+    );
+    assert.match(
+      text,
+      /clearAllTerminal:[\s\S]*clearAllOfflineWorkspaceContexts[\s\S]*clearAllOfflineRouteCaches[\s\S]*operationsStorage\.clearAll/,
+    );
+    assert.match(
+      text,
+      /activatePrincipal:[\s\S]*activateOfflineWorkspacePrincipal[\s\S]*clearOfflineRoutePrincipal[\s\S]*operationsStorage\.activatePrincipal/,
+    );
+    assert.match(
+      text,
       /prepareOfflineOperationsPrincipalForFreshAuthentication[\s\S]*prepareFreshAuthentication/,
     );
     assert.match(
@@ -140,6 +152,18 @@ describe("offline Operations secure storage", () => {
     assert.match(
       text,
       /ensureSignedOutOfflineOperationsCalendarRemoved[\s\S]*operationsStorage\.clearAll/,
+    );
+    const signedOutCleanup = text.slice(
+      text.indexOf(
+        "export async function ensureSignedOutOfflineOperationsCalendarRemoved",
+      ),
+      text.indexOf(
+        "export async function readOfflineOperationsCalendarContractState",
+      ),
+    );
+    assert.doesNotMatch(
+      signedOutCleanup,
+      /clearAllOfflineWorkspaceContexts|clearAllOfflineRouteCaches/,
     );
     assert.match(
       text,

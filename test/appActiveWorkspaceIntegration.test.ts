@@ -228,7 +228,7 @@ describe("App active workspace integration", () => {
     );
     assert.match(
       app,
-      /handleRetryOfflineCalendarCleanup[\s\S]*recoverOfflineOperationsPrincipalCleanup\([\s\S]*ensureSignedOutOfflineOperationsCalendarRemoved\(\)[\s\S]*Offline Calendar storage restored for this session/,
+      /handleRetryOfflineCalendarCleanup[\s\S]*recoverOfflineOperationsPrincipalCleanup\([\s\S]*ensureSignedOutOfflineOperationsCalendarRemoved\(\)[\s\S]*Offline data storage restored for this session/,
     );
     const calendarCleanupRetry = app.slice(
       app.indexOf('const handleRetryOfflineCalendarCleanup'),
@@ -862,7 +862,11 @@ describe("App active workspace integration", () => {
     );
     assert.match(
       evidence,
-      /offlineCalendarPayload: calendar\.payload[\s\S]*offlineCalendarPreference: calendar\.preference[\s\S]*offlineCalendarSlot: calendar\.slot[\s\S]*offline\.calendar\.principal-lifecycle/,
+      /offlineCalendarPayload: calendar\.payload[\s\S]*offlineCalendarPreference: calendar\.preference[\s\S]*offlineCalendarSlot: calendar\.slot[\s\S]*routeCache,[\s\S]*workspaceContext,[\s\S]*offline\.calendar\.principal-lifecycle/,
+    );
+    assert.match(
+      evidence,
+      /CONTRACT_ROUTE_ID[\s\S]*activeWorkspaceId: CONTRACT_CALENDAR_WORKSPACE_ID[\s\S]*CONTRACT_PREFERENCE_WORKSPACE_ID/,
     );
     assert.doesNotMatch(
       evidence,
@@ -880,6 +884,10 @@ describe("App active workspace integration", () => {
     assert.match(
       unavailableBranch,
       /!storedSession\.onlineValidationRequired[\s\S]*requireOnlineAuthSessionValidation\(storedSession\)[\s\S]*quarantineResult === 'stale'[\s\S]*clearAuthSessionIfCurrent\(storedSession\)[\s\S]*clearResult === 'stale'[\s\S]*setSavedSessionValidationRetryAvailable\(true\)[\s\S]*setSession\(null\)[\s\S]*setAvailableWorkspaces\(\[\]\)[\s\S]*setWorkspaceAccessIssue\('verification-unavailable'\)[\s\S]*setNetworkAuthorizationReady\(false\)[\s\S]*setScreen\('login'\)/,
+    );
+    assert.match(
+      unavailableBranch,
+      /recordOfflineCalendarPrincipalChangeContractEvidence\([\s\S]*principal-change-validation-offline-relaunch[\s\S]*principal-change-validation-unavailable/,
     );
     assert.doesNotMatch(
       unavailableBranch,

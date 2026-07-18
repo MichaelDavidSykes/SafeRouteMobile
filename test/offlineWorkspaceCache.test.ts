@@ -4,13 +4,17 @@ import { describe, it } from "node:test";
 
 import {
   OFFLINE_WORKSPACE_CACHE_MAX_AGE_MS,
+  createTerminalWorkspacePrincipalRevocationRecord,
   createWorkspaceRecoveryRevocationRecord,
+  createSerializedWorkspaceMutationCoordinator,
   createSerializedWorkspaceRecoveryExecutor,
   createSerializedWorkspaceRecordWriter,
   createOfflineWorkspaceCacheRecord,
+  isTerminalWorkspacePrincipalRevocationRecord,
   parseOfflineWorkspaceCacheRecord,
   parseWorkspaceRecoveryRevocationRecord,
   persistLatestOfflineWorkspaceSelection,
+  persistTerminalWorkspacePrincipalRevocation,
   persistWorkspaceRecoveryWithFallback,
 } from "../src/features/workspaces/offlineWorkspaceCacheCore";
 
@@ -35,6 +39,39 @@ describe("offline active workspace cache", () => {
     assert.match(
       source,
       /if \(Number\.isFinite\(authoritativeCatalogStoredAtMs\)\) \{[\s\S]*catalogStoredAtMs: authoritativeCatalogStoredAtMs[\s\S]*\} else \{[\s\S]*loadOfflineWorkspaceRecordInternal[\s\S]*Continue into fallback-first recovery[\s\S]*persistWorkspaceRecoveryWithFallback/,
+    );
+  });
+
+  it("fences terminally revoked principals across workspace reads, writes, and recovery", () => {
+    const source = offlineWorkspaceCacheSource();
+
+    assert.match(
+      source,
+      /clearOfflineWorkspacePrincipal[\s\S]*terminalRevokedPrincipalIds\.add[\s\S]*persistTerminalWorkspacePrincipalRevocation/,
+    );
+    assert.match(
+      source,
+      /createSerializedWorkspaceMutationCoordinator[\s\S]*enqueueGlobal/,
+    );
+    assert.match(
+      source,
+      /unavailableWorkspaceIds !== null[\s\S]*globallyProcessRevoked[\s\S]*verifyRelatedCachesAbsent\(\)[\s\S]*allWorkspaceContextsRevoked = false/,
+    );
+    assert.match(
+      source,
+      /raw === null && globallyProcessRevoked[\s\S]*persistTerminalWorkspacePrincipalRevocation[\s\S]*verifyRelatedCachesAbsent\(\)/,
+    );
+    assert.match(
+      source,
+      /saveOfflineWorkspaceContext[\s\S]*hasBlockingWorkspaceRevocation/,
+    );
+    assert.match(
+      source,
+      /persistOfflineWorkspaceRecovery[\s\S]*isTerminalWorkspacePrincipalRevocationRecord[\s\S]*return "revoked"/,
+    );
+    assert.match(
+      source,
+      /activateOfflineWorkspacePrincipal[\s\S]*verifyRelatedCachesAbsent[\s\S]*deleteItemAsync[\s\S]*terminalRevokedPrincipalIds\.delete/,
     );
   });
 
@@ -222,6 +259,83 @@ describe("offline active workspace cache", () => {
     assert.equal(parseWorkspaceRecoveryRevocationRecord("invalid", "user-a"), null);
   });
 
+  it("strictly binds a terminal principal revocation marker", () => {
+    const marker =
+      createTerminalWorkspacePrincipalRevocationRecord(" user-a ");
+    assert.equal(
+      isTerminalWorkspacePrincipalRevocationRecord(
+        marker,
+        "user-a",
+      ),
+      true,
+    );
+    assert.equal(
+      isTerminalWorkspacePrincipalRevocationRecord(
+        marker,
+        "user-b",
+      ),
+      false,
+    );
+    assert.equal(
+      isTerminalWorkspacePrincipalRevocationRecord(
+        JSON.stringify({
+          kind: "terminal",
+          principalId: "user-a",
+          schema: 1,
+          unexpected: true,
+        }),
+        "user-a",
+      ),
+      false,
+    );
+  });
+
+  it("persists and verifies the terminal marker before removing workspace context", async () => {
+    const calls: string[] = [];
+    let marker: string | null = null;
+    let context: string | null = "sensitive-workspace";
+    const expectedMarker =
+      createTerminalWorkspacePrincipalRevocationRecord("user-a");
+
+    await persistTerminalWorkspacePrincipalRevocation({
+      marker: expectedMarker,
+      persistMarker: async (value) => {
+        calls.push("marker");
+        marker = value;
+      },
+      readContext: async () => context,
+      readMarker: async () => marker,
+      removeContext: async () => {
+        calls.push("context");
+        context = null;
+      },
+    });
+
+    assert.deepEqual(calls, ["marker", "context"]);
+    assert.equal(marker, expectedMarker);
+    assert.equal(context, null);
+  });
+
+  it("does not remove workspace context when terminal marker readback fails", async () => {
+    let contextRemoved = false;
+    await assert.rejects(
+      persistTerminalWorkspacePrincipalRevocation({
+        marker:
+          createTerminalWorkspacePrincipalRevocationRecord(
+            "user-a",
+          ),
+        persistMarker: async () => undefined,
+        readContext: async () => "sensitive-workspace",
+        readMarker: async () => null,
+        removeContext: async () => {
+          contextRemoved = true;
+        },
+      }),
+      /revocation could not be verified/,
+    );
+    assert.equal(contextRemoved, false);
+  });
+
   it("awaits every primary recovery write before clearing its fallback revocation", async () => {
     const calls: string[] = [];
     const result = await persistWorkspaceRecoveryWithFallback({
@@ -386,6 +500,44 @@ describe("offline active workspace cache", () => {
     releaseRecovery?.();
     await Promise.all([recovery, save, load]);
     assert.deepEqual(calls, ["recovery-start", "recovery-end", "save", "load"]);
+  });
+
+  it("places global revocation after in-flight writes and before later scoped writes", async () => {
+    const mutations = createSerializedWorkspaceMutationCoordinator();
+    let revoked = false;
+    let storedContext: string | null = null;
+    let releaseWrite: (() => void) | null = null;
+    let markWriteStarted: (() => void) | null = null;
+    const writeGate = new Promise<void>((resolve) => {
+      releaseWrite = resolve;
+    });
+    const writeStarted = new Promise<void>((resolve) => {
+      markWriteStarted = resolve;
+    });
+
+    const staleWrite = mutations.enqueueScoped("principal-a", async () => {
+      if (revoked) {
+        return;
+      }
+      markWriteStarted?.();
+      await writeGate;
+      storedContext = "stale";
+    });
+    await writeStarted;
+
+    revoked = true;
+    const globalPurge = mutations.enqueueGlobal(async () => {
+      storedContext = null;
+    });
+    const lateWrite = mutations.enqueueScoped("principal-a", async () => {
+      if (!revoked) {
+        storedContext = "late";
+      }
+    });
+
+    releaseWrite?.();
+    await Promise.all([staleWrite, globalPurge, lateWrite]);
+    assert.equal(storedContext, null);
   });
 
   it("selects review from the latest serialized recovery without replacing its catalog or tombstones", async () => {

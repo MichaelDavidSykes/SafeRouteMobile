@@ -7,6 +7,8 @@ import {
   createOfflineRouteCacheRecord,
   parseOfflineRouteCacheRecord,
   parseOfflineRouteCacheSnapshot,
+  purgeAllOfflineRouteStorage,
+  purgeOfflineRoutePrincipalStorage,
   purgeOfflineRouteWorkspaceStorage,
   removeWorkspaceFromOfflineRouteCache,
   removeWorkspaceFromOfflineRouteCacheRecord,
@@ -85,6 +87,120 @@ describe("offline saved route cache", () => {
         value: { clients: [], routes: [{ id: "bad" }], selectedClientId: null },
       }, "user-a", 2_000)?.routes,
       [],
+    );
+  });
+
+  it("removes every exact-principal list and detail while preserving colliding and unrelated principals", async () => {
+    const principalId = "user-a";
+    const collidingPrincipalId = "user-a.other";
+    const listPrefix = `routes.${principalId}.`;
+    const detailPrefix = `details.${principalId}.`;
+    const principalListKey = `${listPrefix}all`;
+    const principalDetailKey = `${detailPrefix}route-a`;
+    const collidingListKey = `${listPrefix}other.all`;
+    const unrelatedKey = "unrelated.preference";
+    const principalRecord = JSON.stringify(
+      createOfflineRouteCacheRecord(
+        { clients: [], routes: [], selectedClientId: null },
+        principalId,
+        1_000,
+      ),
+    );
+    const collidingRecord = JSON.stringify(
+      createOfflineRouteCacheRecord(
+        { clients: [], routes: [], selectedClientId: null },
+        collidingPrincipalId,
+        1_000,
+      ),
+    );
+    const storage = createMemoryRouteCacheStorage({
+      [collidingListKey]: collidingRecord,
+      [principalDetailKey]: principalRecord,
+      [principalListKey]: principalRecord,
+      [unrelatedKey]: "keep-me",
+    });
+
+    await purgeOfflineRoutePrincipalStorage({
+      detailKeyPrefix: detailPrefix,
+      listKeyPrefix: listPrefix,
+      principalId,
+      storage,
+    });
+
+    assert.equal(await storage.getItem(principalListKey), null);
+    assert.equal(await storage.getItem(principalDetailKey), null);
+    assert.equal(
+      await storage.getItem(collidingListKey),
+      collidingRecord,
+    );
+    assert.equal(await storage.getItem(unrelatedKey), "keep-me");
+  });
+
+  it("keeps terminal cleanup retryable when principal deletion is not durable", async () => {
+    const principalId = "user-a";
+    const listPrefix = `routes.${principalId}.`;
+    const principalListKey = `${listPrefix}all`;
+    const storage = createMemoryRouteCacheStorage(
+      {
+        [principalListKey]: JSON.stringify(
+          createOfflineRouteCacheRecord(
+            { clients: [], routes: [], selectedClientId: null },
+            principalId,
+            1_000,
+          ),
+        ),
+      },
+      { ignoreRemovals: true },
+    );
+
+    await assert.rejects(
+      purgeOfflineRoutePrincipalStorage({
+        detailKeyPrefix: `details.${principalId}.`,
+        listKeyPrefix: listPrefix,
+        principalId,
+        storage,
+      }),
+      /remained after principal revocation/,
+    );
+  });
+
+  it("fails closed on ambiguous malformed principal cache candidates", async () => {
+    const principalId = "user-a";
+    const storage = createMemoryRouteCacheStorage({
+      [`routes.${principalId}.all`]: "{not-json",
+    });
+
+    await assert.rejects(
+      purgeOfflineRoutePrincipalStorage({
+        detailKeyPrefix: `details.${principalId}.`,
+        listKeyPrefix: `routes.${principalId}.`,
+        principalId,
+        storage,
+      }),
+      /principal could not be verified/,
+    );
+  });
+
+  it("globally removes only route cache namespaces", async () => {
+    const storage = createMemoryRouteCacheStorage({
+      "routes.user-a.all": "route-list",
+      "details.user-a.route-a": "route-detail",
+      "workspace.user-a": "workspace",
+    });
+
+    await purgeAllOfflineRouteStorage(storage, [
+      "routes.",
+      "details.",
+    ]);
+
+    assert.equal(await storage.getItem("routes.user-a.all"), null);
+    assert.equal(
+      await storage.getItem("details.user-a.route-a"),
+      null,
+    );
+    assert.equal(
+      await storage.getItem("workspace.user-a"),
+      "workspace",
     );
   });
 
@@ -297,6 +413,18 @@ describe("offline saved route cache", () => {
     assert.match(source, /enqueueRouteCacheMutation\(identity/);
     assert.match(source, /purgeOfflineRouteWorkspaceStorage\(\{/);
     assert.match(source, /await waitForPendingRouteCacheMutation\(identity\)/);
+    assert.match(
+      source,
+      /saveOfflineRoutes[\s\S]*isOfflineWorkspacePrincipalRevoked/,
+    );
+    assert.match(
+      source,
+      /clearOfflineRoutePrincipal[\s\S]*purgeOfflineRoutePrincipalStorage/,
+    );
+    assert.match(
+      source,
+      /enqueueGlobalRouteCacheMutation[\s\S]*pendingRouteCacheMutations\.values/,
+    );
   });
 });
 

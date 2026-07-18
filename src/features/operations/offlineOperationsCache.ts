@@ -1,6 +1,15 @@
 import * as SecureStore from "expo-secure-store";
 
 import type { SavedSafeRoutePlan } from "../live-map/liveMapTypes";
+import {
+  clearAllOfflineRouteCaches,
+  clearOfflineRoutePrincipal,
+} from "../routes/offlineRouteCache";
+import {
+  activateOfflineWorkspacePrincipal,
+  clearAllOfflineWorkspaceContexts,
+  clearOfflineWorkspacePrincipal,
+} from "../workspaces/offlineWorkspaceCache";
 import type { OfflineOperationsSnapshot } from "./offlineOperationsCacheCore";
 import {
   createOfflineOperationsStorage,
@@ -70,9 +79,29 @@ const operationsPrincipalCleanupStorage =
   });
 const operationsPrincipalCleanup =
   createOfflineOperationsPrincipalCleanupCoordinator({
-    activatePrincipal: operationsStorage.activatePrincipal,
+    activatePrincipal: async (principalId) => {
+      await activateOfflineWorkspacePrincipal(
+        principalId,
+        () => clearOfflineRoutePrincipal(principalId),
+      );
+      await operationsStorage.activatePrincipal(principalId);
+    },
     clearAll: operationsStorage.clearAll,
+    clearAllTerminal: async () => {
+      await clearAllOfflineWorkspaceContexts();
+      await Promise.all([
+        clearAllOfflineRouteCaches(),
+        operationsStorage.clearAll(),
+      ]);
+    },
     clearPrincipal: operationsStorage.clearPrincipal,
+    clearTerminalPrincipal: async (principalId) => {
+      await clearOfflineWorkspacePrincipal(principalId);
+      await Promise.all([
+        clearOfflineRoutePrincipal(principalId),
+        operationsStorage.clearPrincipal(principalId),
+      ]);
+    },
     storage: operationsPrincipalCleanupStorage,
   });
 

@@ -180,6 +180,8 @@ const GUIDANCE_CONTRACT_EVIDENCE_PHASES = Object.freeze({
   ]),
   'offline.calendar.principal-lifecycle': new Set([
     CONNECTIVITY_CONTRACT_PHASES.seed,
+    OFFLINE_CALENDAR_PRINCIPAL_CONTRACT_PHASES.validationUnavailable,
+    OFFLINE_CALENDAR_PRINCIPAL_CONTRACT_PHASES.validationOfflineRelaunch,
     OFFLINE_CALENDAR_PRINCIPAL_CONTRACT_PHASES.change,
     OFFLINE_CALENDAR_PRINCIPAL_CONTRACT_PHASES.relaunch
   ]),
@@ -1521,6 +1523,14 @@ export function assertOfflineCalendarPrincipalChangeEvidence(entries, {
     OFFLINE_CALENDAR_PRINCIPAL_CONTRACT_PHASES.change,
     'principal-change'
   );
+  const validationUnavailable = one(
+    OFFLINE_CALENDAR_PRINCIPAL_CONTRACT_PHASES.validationUnavailable,
+    'principal-change-validation-unavailable'
+  );
+  const validationOfflineRelaunch = one(
+    OFFLINE_CALENDAR_PRINCIPAL_CONTRACT_PHASES.validationOfflineRelaunch,
+    'principal-change-validation-offline-relaunch'
+  );
   const revoked = one(
     OFFLINE_CALENDAR_PRINCIPAL_CONTRACT_PHASES.relaunch,
     'principal-change-relaunch-revoked'
@@ -1530,18 +1540,186 @@ export function assertOfflineCalendarPrincipalChangeEvidence(entries, {
     'principal-change-relaunch'
   );
   assertJournalCondition(
-    relevant.length === 4 &&
+    relevant.length === 6 &&
       seed.length === 1 &&
+      validationUnavailable.length === 1 &&
+      validationOfflineRelaunch.length === 1 &&
       changed.length === 1 &&
       revoked.length === 1 &&
       removed.length === 1 &&
-      seed[0].appLaunchId !== changed[0].appLaunchId &&
+      seed[0].durability?.workspaceContext === 'persisted' &&
+      seed[0].durability?.routeCache === 'present' &&
+      seed[0].authorization?.principal === 'matching' &&
+      validationUnavailable[0].durability?.workspaceContext === 'persisted' &&
+      validationUnavailable[0].durability?.routeCache === 'present' &&
+      validationUnavailable[0].authorization?.principal === 'unknown' &&
+      validationOfflineRelaunch[0].durability?.workspaceContext === 'persisted' &&
+      validationOfflineRelaunch[0].durability?.routeCache === 'present' &&
+      validationOfflineRelaunch[0].authorization?.principal === 'unknown' &&
+      changed[0].durability?.workspaceContext === 'revoked' &&
+      changed[0].durability?.routeCache === 'purged' &&
+      changed[0].authorization?.principal === 'mismatched' &&
+      revoked[0].durability?.workspaceContext === 'revoked' &&
+      revoked[0].durability?.routeCache === 'purged' &&
+      revoked[0].authorization?.principal === 'none' &&
+      removed[0].durability?.workspaceContext === 'revoked' &&
+      removed[0].durability?.routeCache === 'purged' &&
+      removed[0].authorization?.principal === 'none' &&
+      seed[0].appLaunchId !== validationUnavailable[0].appLaunchId &&
+      validationUnavailable[0].appLaunchId !==
+        validationOfflineRelaunch[0].appLaunchId &&
+      validationOfflineRelaunch[0].appLaunchId !== changed[0].appLaunchId &&
       changed[0].appLaunchId !== revoked[0].appLaunchId &&
       revoked[0].appLaunchId === removed[0].appLaunchId &&
-      seed[0].receivedAtMs < changed[0].receivedAtMs &&
+      seed[0].receivedAtMs < validationUnavailable[0].receivedAtMs &&
+      validationUnavailable[0].receivedAtMs <
+        validationOfflineRelaunch[0].receivedAtMs &&
+      validationOfflineRelaunch[0].receivedAtMs < changed[0].receivedAtMs &&
       changed[0].receivedAtMs < revoked[0].receivedAtMs &&
       revoked[0].receivedAtMs < removed[0].receivedAtMs,
-    'Offline Calendar principal-change evidence did not prove seed, terminal revocation, and distinct-process revoked-to-empty readback.'
+    'Offline Calendar principal-change evidence did not prove exact seeded caches, retained quarantine through two launches, terminal workspace/route revocation, and distinct-process revoked-to-empty readback.'
+  );
+}
+
+export function assertOfflineCalendarProtectedCacheSeedTraffic(entries) {
+  const seedRequests = Array.isArray(entries) ? entries.filter((entry) =>
+    entry.event === 'request' &&
+    entry.phase === CONNECTIVITY_CONTRACT_PHASES.seed &&
+    entry.path.startsWith('/api/')
+  ) : [];
+  const guidanceWorkspaceId = GUIDANCE_CONTRACT_WORKSPACES.denied.id;
+  const supportWorkspaceId = GUIDANCE_CONTRACT_WORKSPACES.survivor.id;
+  const guidanceRouteId = GUIDANCE_CONTRACT_ROUTE_IDS.denied;
+  const routesPath = '/api/v1/mobile/safe-route/routes';
+  const guidanceOperationsPath =
+    `/api/v1/mobile/safe-route/operations/client/${guidanceWorkspaceId}`;
+  const supportOperationsPath =
+    `/api/v1/mobile/safe-route/operations/client/${supportWorkspaceId}`;
+  const exactBearerGet = (entry, path, search = '') =>
+    entry.method === 'GET' &&
+    entry.path === path &&
+    entry.search === search &&
+    entry.authorized === true &&
+    entry.authorizationClass === 'expected-bearer';
+  const validAreaRisk = (entry) => {
+    if (entry.method !== 'GET' || entry.path !== '/api/v1/intel/map/area-risk') {
+      return false;
+    }
+    const params = new URLSearchParams(String(entry.search || '').replace(/^\?/, ''));
+    const allowedKeys = new Set([
+      '_read_nonce',
+      'bbox',
+      'client_id',
+      'countries',
+      'cursor',
+      'max_records',
+      'page_size',
+      'read_only',
+      'refresh',
+      'scope',
+      'zoom'
+    ]);
+    const actualKeys = Array.from(params.keys());
+    const clientId = String(params.get('client_id') || '').trim();
+    const bbox = String(params.get('bbox') || '').split(',').map(Number);
+    const authenticated =
+      entry.authorized === true &&
+      entry.authorizationClass === 'expected-bearer';
+    return (
+      actualKeys.length === new Set(actualKeys).size &&
+      actualKeys.every((key) => allowedKeys.has(key)) &&
+      params.get('refresh') === 'false' &&
+      params.get('read_only') === 'true' &&
+      Number.isInteger(Number(params.get('max_records'))) &&
+      Number(params.get('max_records')) > 0 &&
+      Number.isInteger(Number(params.get('page_size'))) &&
+      Number(params.get('page_size')) > 0 &&
+      ['detail', 'regional'].includes(params.get('scope')) &&
+      Number.isFinite(Number(params.get('zoom'))) &&
+      bbox.length === 4 &&
+      bbox.every(Number.isFinite) &&
+      (
+        authenticated
+          ? !clientId || clientId === guidanceWorkspaceId
+          : entry.authorized === false &&
+            entry.authorizationClass === 'none' &&
+            !clientId
+      )
+    );
+  };
+  const allowedRequest = (entry) =>
+    (
+      entry.method === 'POST' &&
+      entry.path === '/api/v1/auth/mobile-login' &&
+      entry.search === '' &&
+      entry.authorized === false &&
+      entry.authorizationClass === 'none'
+    ) ||
+    exactBearerGet(entry, '/api/v1/users/me') ||
+    exactBearerGet(entry, routesPath) ||
+    exactBearerGet(
+      entry,
+      routesPath,
+      `?client_id=${guidanceWorkspaceId}`
+    ) ||
+    exactBearerGet(
+      entry,
+      `${routesPath}/${guidanceRouteId}`
+    ) ||
+    exactBearerGet(entry, guidanceOperationsPath) ||
+    exactBearerGet(entry, supportOperationsPath) ||
+    validAreaRisk(entry);
+  const requestsFor = (path, search = '') => seedRequests.filter((entry) =>
+    entry.path === path && entry.search === search
+  );
+  const loginRequests = requestsFor('/api/v1/auth/mobile-login');
+  const principalRequests = requestsFor('/api/v1/users/me');
+  const catalogRequests = requestsFor(routesPath);
+  const guidanceRouteListRequests = requestsFor(
+    routesPath,
+    `?client_id=${guidanceWorkspaceId}`
+  );
+  const guidanceRouteDetailRequests = requestsFor(
+    `${routesPath}/${guidanceRouteId}`
+  );
+  const guidanceOperationsRequests = requestsFor(guidanceOperationsPath);
+  const supportOperationsRequests = requestsFor(supportOperationsPath);
+  const completionFor = (request, semanticOutcome) => entries.filter((entry) =>
+    entry.event === 'completion' &&
+    entry.requestId === request?.requestId &&
+    entry.completed === true &&
+    entry.statusCode === 200 &&
+    entry.semanticOutcome === semanticOutcome
+  );
+  assertJournalCondition(
+    seedRequests.length > 0 &&
+      seedRequests.every(allowedRequest) &&
+      loginRequests.length === 1 &&
+      principalRequests.length >= 1 &&
+      catalogRequests.length >= 1 &&
+      guidanceRouteListRequests.length === 1 &&
+      guidanceRouteDetailRequests.length === 1 &&
+      guidanceOperationsRequests.length === 2 &&
+      supportOperationsRequests.length === 1 &&
+      guidanceOperationsRequests.every(
+        (request) => completionFor(request, 'operations-active').length === 1
+      ) &&
+      supportOperationsRequests.every(
+        (request) => completionFor(request, 'operations-active').length === 1
+      ) &&
+      completionFor(
+        guidanceRouteListRequests[0],
+        'catalog-active'
+      ).length === 1 &&
+      completionFor(
+        guidanceRouteDetailRequests[0],
+        'route-detail-active'
+      ).length === 1 &&
+      guidanceRouteListRequests[0].sequence <
+        guidanceRouteDetailRequests[0].sequence &&
+      supportOperationsRequests[0].sequence <
+        guidanceOperationsRequests.at(-1).sequence,
+    'Calendar protected-cache seed traffic was not the exact authorized Guidance route list/detail and Guidance/Support Operations multiset.'
   );
 }
 
@@ -1575,6 +1753,16 @@ export function assertOfflineCalendarPrincipalChangeTraffic(
     entry.serverPhase === changePhase &&
     entry.cause === 'principal-change'
   );
+  const validationEvidence = evidenceEntries.filter((entry) =>
+    entry.type === 'offline.calendar.principal-lifecycle' &&
+    entry.serverPhase === validationPhase &&
+    entry.cause === 'principal-change-validation-unavailable'
+  );
+  const validationOfflineEvidence = evidenceEntries.filter((entry) =>
+    entry.type === 'offline.calendar.principal-lifecycle' &&
+    entry.serverPhase === validationOfflineRelaunchPhase &&
+    entry.cause === 'principal-change-validation-offline-relaunch'
+  );
   const relaunchProductTraffic = entries.filter((entry) =>
     entry.event === 'request' &&
     entry.phase === relaunchPhase &&
@@ -1603,8 +1791,16 @@ export function assertOfflineCalendarPrincipalChangeTraffic(
       principalCompletions[0].completed === true &&
       principalCompletions[0].statusCode === 200 &&
       principalCompletions[0].semanticOutcome === 'principal-b' &&
+      validationEvidence.length === 1 &&
+      validationOfflineEvidence.length === 1 &&
       terminalEvidence.length === 1 &&
       validationRequest.sequence < validationCompletions[0].sequence &&
+      validationCompletions[0].timestampMs <=
+        validationEvidence[0].receivedAtMs &&
+      validationEvidence[0].receivedAtMs <
+        validationOfflineEvidence[0].receivedAtMs &&
+      validationOfflineEvidence[0].receivedAtMs <
+        principalRequest.timestampMs &&
       validationCompletions[0].sequence < principalRequest.sequence &&
       principalRequest.sequence < principalCompletions[0].sequence &&
       principalCompletions[0].timestampMs <= terminalEvidence[0].receivedAtMs &&
@@ -2068,7 +2264,7 @@ export function isSuccessfulGuidanceContractEvidence(event, journal) {
     const common =
       !workspaceLifecycle &&
       event.navigationInstanceId === null &&
-      event.routeId === null &&
+      event.routeId === GUIDANCE_CONTRACT_ROUTE_IDS.denied &&
       event.workspaceId === GUIDANCE_CONTRACT_WORKSPACES.denied.id &&
       event.unavailableWorkspaceIds.length === 0 &&
       event.durability.offlineCalendarCleanup === 'absent' &&
@@ -2082,6 +2278,22 @@ export function isSuccessfulGuidanceContractEvidence(event, journal) {
         event.durability.authSession === 'present' &&
         event.durability.offlineCalendarPayload === 'present' &&
         event.durability.offlineCalendarSlot === 'payload'
+      );
+    }
+    const quarantined =
+      event.cause === 'principal-change-validation-unavailable' ||
+      event.cause === 'principal-change-validation-offline-relaunch';
+    if (quarantined) {
+      return Boolean(
+        common &&
+        event.authorization.catalog === 'not-checked' &&
+        event.authorization.principal === 'unknown' &&
+        event.outcome === 'quarantined' &&
+        event.durability.authSession === 'present' &&
+        event.durability.offlineCalendarPayload === 'present' &&
+        event.durability.offlineCalendarSlot === 'payload' &&
+        event.durability.workspaceContext === 'persisted' &&
+        event.durability.routeCache === 'present'
       );
     }
     const relaunch =

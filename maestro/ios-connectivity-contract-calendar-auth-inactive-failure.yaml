@@ -10,7 +10,7 @@ appId: host.exp.Exponent
     visible:
       id: "safe-route-calendar-cleanup-alert"
     timeout: 15000
-- assertVisible: "Offline Calendar unavailable. SafeRoute could not finish device storage protection. Retry before offline Calendar can be used."
+- assertVisible: "Offline data unavailable. SafeRoute could not finish protecting saved offline data. Retry before offline review can continue."
 - assertVisible:
     id: "safe-route-calendar-cleanup-retry"
     enabled: true

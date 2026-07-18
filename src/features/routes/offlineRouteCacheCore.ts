@@ -35,6 +35,13 @@ export interface PurgeOfflineRouteWorkspaceStorageOptions {
   workspaceId: string;
 }
 
+export interface PurgeOfflineRoutePrincipalStorageOptions {
+  detailKeyPrefix: string;
+  listKeyPrefix: string;
+  principalId: string;
+  storage: OfflineRouteCacheStorage;
+}
+
 export function createOfflineRouteCacheRecord(
   value: SavedRouteSyncResult,
   principalIdValue: string,
@@ -259,6 +266,100 @@ export async function purgeOfflineRouteWorkspaceStorage({
     storage,
     workspaceId: normalizedWorkspaceId,
   });
+}
+
+export async function purgeOfflineRoutePrincipalStorage({
+  detailKeyPrefix,
+  listKeyPrefix,
+  principalId,
+  storage,
+}: PurgeOfflineRoutePrincipalStorageOptions): Promise<void> {
+  const normalizedPrincipalId = principalId.trim();
+  if (!normalizedPrincipalId) {
+    return;
+  }
+
+  const candidateKeys = (await storage.getAllKeys()).filter(
+    (key) =>
+      key.startsWith(listKeyPrefix) ||
+      key.startsWith(detailKeyPrefix),
+  );
+  const candidates = candidateKeys.length
+    ? await storage.multiGet(candidateKeys)
+    : [];
+  const keysToRemove: string[] = [];
+  for (const [key, raw] of candidates) {
+    if (raw === null) {
+      continue;
+    }
+    const storedPrincipalId = readStoredRoutePrincipalId(raw);
+    if (storedPrincipalId === null) {
+      throw new Error(
+        `Route cache principal could not be verified for ${key}`,
+      );
+    }
+    if (storedPrincipalId === normalizedPrincipalId) {
+      keysToRemove.push(key);
+    }
+  }
+
+  if (keysToRemove.length) {
+    await storage.multiRemove(keysToRemove);
+  }
+
+  const remainingCandidateKeys = (await storage.getAllKeys()).filter(
+    (key) =>
+      key.startsWith(listKeyPrefix) ||
+      key.startsWith(detailKeyPrefix),
+  );
+  const remainingCandidates = remainingCandidateKeys.length
+    ? await storage.multiGet(remainingCandidateKeys)
+    : [];
+  for (const [key, raw] of remainingCandidates) {
+    if (raw === null) {
+      continue;
+    }
+    const storedPrincipalId = readStoredRoutePrincipalId(raw);
+    if (storedPrincipalId === null) {
+      throw new Error(
+        `Route cache principal could not be verified for ${key}`,
+      );
+    }
+    if (storedPrincipalId === normalizedPrincipalId) {
+      throw new Error(
+        "Route cache remained after principal revocation",
+      );
+    }
+  }
+}
+
+export async function purgeAllOfflineRouteStorage(
+  storage: OfflineRouteCacheStorage,
+  routeKeyPrefixes: readonly string[],
+): Promise<void> {
+  const keys = (await storage.getAllKeys()).filter((key) =>
+    routeKeyPrefixes.some((prefix) => key.startsWith(prefix)),
+  );
+  if (keys.length) {
+    await storage.multiRemove(keys);
+  }
+  if (
+    (await storage.getAllKeys()).some((key) =>
+      routeKeyPrefixes.some((prefix) => key.startsWith(prefix)),
+    )
+  ) {
+    throw new Error("Route caches remained after global revocation");
+  }
+}
+
+function readStoredRoutePrincipalId(raw: string): string | null {
+  try {
+    const record = JSON.parse(raw) as { principalId?: unknown };
+    const principalId = normalizePrincipalId(record.principalId);
+    return principalId || null;
+  } catch {
+    return null;
+  }
 }
 
 function parseStoredOfflineRouteCacheRecord(

@@ -396,7 +396,7 @@ describe("Maestro connectivity contract runtime", () => {
     );
     assert.match(
       retry,
-      /safe-route-calendar-cleanup-retry[\s\S]*safe-route-calendar-cleanup-alert[\s\S]*safe-route-calendar-cleanup"[\s\S]*Offline Calendar storage restored\. Sign in again[\s\S]*guest-map-primary-action/,
+      /safe-route-calendar-cleanup-retry[\s\S]*safe-route-calendar-cleanup-alert[\s\S]*safe-route-calendar-cleanup"[\s\S]*Offline data storage restored\. Sign in again[\s\S]*guest-map-primary-action/,
     );
     assert.match(
       finalRelaunch,
@@ -524,6 +524,10 @@ describe("Maestro connectivity contract runtime", () => {
     assert.match(
       runner,
       /calendarPrincipalValidationUnavailable[\s\S]*GUIDANCE_CONTRACT_MODES\.principalValidationUnavailable[\s\S]*SafeRoute could not verify this saved session\. Retry or sign in again\.[\s\S]*calendarPrincipalValidationOfflineRelaunch[\s\S]*assertProductTrafficQuiet[\s\S]*GUIDANCE_CONTRACT_MODES\.wrongPrincipal[\s\S]*calendarPrincipalChange[\s\S]*This saved session belongs to another account\. Sign in again\.[\s\S]*calendarPrincipalChangeRelaunch/,
+    );
+    assert.match(
+      runner,
+      /principal-change-validation-unavailable[\s\S]*principal-change-validation-offline-relaunch[\s\S]*assertOfflineCalendarPrincipalChangeEvidence/,
     );
     assert.match(
       runner,

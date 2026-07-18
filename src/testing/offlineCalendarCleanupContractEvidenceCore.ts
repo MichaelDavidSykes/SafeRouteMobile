@@ -11,7 +11,13 @@ export type OfflineCalendarContractStorageState = {
     | "disabled"
     | "enabled"
     | "unavailable";
-  slot: "empty" | "payload" | "revoked" | "unreadable" | "unknown";
+  slot:
+    | "empty"
+    | "payload"
+    | "principal-revoked"
+    | "unreadable"
+    | "unknown"
+    | "workspace-revoked";
 };
 
 export function classifyOfflineCalendarContractStorage({
@@ -90,14 +96,43 @@ export function classifyOfflineCalendarContractStorage({
   if (
     parsedCalendar &&
     typeof parsedCalendar === "object" &&
-    !Array.isArray(parsedCalendar) &&
-    (parsedCalendar as { revoked?: unknown }).revoked === true
+    !Array.isArray(parsedCalendar)
   ) {
-    return {
-      payload: "absent",
-      preference,
-      slot: "revoked",
+    const revocation = parsedCalendar as {
+      principalId?: unknown;
+      revoked?: unknown;
+      schema?: unknown;
+      workspaceId?: unknown;
     };
+    const exactRevocationShape =
+      Object.keys(revocation).sort().join(",") ===
+      "principalId,revoked,schema,workspaceId";
+    if (
+      exactRevocationShape &&
+      revocation.schema === 1 &&
+      revocation.revoked === true &&
+      revocation.principalId === principalId &&
+      revocation.workspaceId === calendarWorkspaceId
+    ) {
+      return {
+        payload: "absent",
+        preference,
+        slot: "workspace-revoked",
+      };
+    }
+    if (
+      exactRevocationShape &&
+      revocation.schema === 1 &&
+      revocation.revoked === true &&
+      revocation.principalId === principalId &&
+      revocation.workspaceId === null
+    ) {
+      return {
+        payload: "absent",
+        preference,
+        slot: "principal-revoked",
+      };
+    }
   }
   return {
     payload: "unknown",

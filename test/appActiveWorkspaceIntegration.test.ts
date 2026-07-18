@@ -765,4 +765,57 @@ describe("App active workspace integration", () => {
       /accessToken|authorizationHeader|email/,
     );
   });
+
+  it("records exact workspace-denial Calendar absence without mutating saving preferences", () => {
+    const app = appSource();
+    const evidence = readFileSync(
+      "src/testing/offlineCalendarCleanupContractEvidence.ts",
+      "utf8",
+    );
+    const cache = readFileSync(
+      "src/features/operations/offlineOperationsCache.ts",
+      "utf8",
+    );
+
+    assert.match(
+      app,
+      /networkStatus === 'offline' && cachedContext[\s\S]*workspace-denial-relaunch[\s\S]*cachedContext\.unavailableWorkspaceIds/,
+    );
+    assert.match(
+      app,
+      /result === 'persisted'[\s\S]*authoritativeCatalogObserved[\s\S]*workspace-denial[\s\S]*unavailableWorkspaceIds/,
+    );
+    assert.match(
+      app,
+      /if \(!freshCatalog\) \{[\s\S]*setNetworkAuthorizationReady\(false\)[\s\S]*setWorkspaceDiscoveryRevision/,
+    );
+    assert.match(
+      evidence,
+      /SAFEROUTE_CONNECTIVITY_CONTRACT_ENABLED[\s\S]*SAFEROUTE_GUIDANCE_CONTRACT_EVIDENCE_ENABLED/,
+    );
+    assert.match(
+      evidence,
+      /CONTRACT_CALENDAR_WORKSPACE_ID[\s\S]*CONTRACT_PREFERENCE_WORKSPACE_ID[\s\S]*offline\.calendar\.workspace-lifecycle/,
+    );
+    assert.match(
+      evidence,
+      /offlineCalendarPayload: calendar\.payload[\s\S]*offlineCalendarPreference: calendar\.preference[\s\S]*offlineCalendarSlot: calendar\.slot[\s\S]*workspaceContext: "persisted"/,
+    );
+    assert.match(
+      operationsSource(),
+      /saveOfflineOperationsSnapshotIfAllowed[\s\S]*recordOfflineCalendarWorkspaceSeedContractEvidence/,
+    );
+    assert.match(
+      cache,
+      /clearOfflineOperationsWorkspace[\s\S]*operationsStorage\.clearWorkspace/,
+    );
+    assert.doesNotMatch(
+      cache,
+      /clearOfflineOperationsWorkspace[\s\S]{0,500}setOfflineOperationsPreference/,
+    );
+    assert.doesNotMatch(
+      evidence,
+      /accessToken|authorizationHeader|calendarRaw|preferenceRaw/,
+    );
+  });
 });

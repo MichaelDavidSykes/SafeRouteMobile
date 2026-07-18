@@ -12,6 +12,7 @@ export const GUIDANCE_CONTRACT_EVIDENCE_TYPES = [
   "navigation.absence.readback",
   "navigation.prestart.readback",
   "offline.calendar.cleanup",
+  "offline.calendar.workspace-lifecycle",
 ] as const;
 
 export type GuidanceContractEvidenceType =
@@ -24,7 +25,7 @@ export type GuidanceContractEvidenceDurability = {
   offlineCalendarCleanup?: "absent" | "durable" | "nondurable" | "unreadable" | "unknown";
   offlineCalendarPayload?: "absent" | "present" | "unknown";
   offlineCalendarPreference?: "cleanup-pending" | "disabled" | "enabled" | "unavailable" | "unverified" | "unknown";
-  offlineCalendarSlot?: "empty" | "payload" | "revoked" | "unreadable" | "unknown";
+  offlineCalendarSlot?: "empty" | "payload" | "principal-revoked" | "unreadable" | "unknown" | "workspace-revoked";
   persistedPermit?: "present" | "revoked" | "unknown";
   routeCache?: "failed" | "present" | "purged" | "unknown";
   runtimePermit?: "active" | "none" | "pending" | "unknown";
@@ -230,7 +231,14 @@ function normalizeDurability(value: unknown): GuidanceContractEvidenceDurability
   const offlineCalendarCleanup = oneOf(value.offlineCalendarCleanup, ["absent", "durable", "nondurable", "unreadable", "unknown"]);
   const offlineCalendarPayload = oneOf(value.offlineCalendarPayload, ["absent", "present", "unknown"]);
   const offlineCalendarPreference = oneOf(value.offlineCalendarPreference, ["cleanup-pending", "disabled", "enabled", "unavailable", "unverified", "unknown"]);
-  const offlineCalendarSlot = oneOf(value.offlineCalendarSlot, ["empty", "payload", "revoked", "unreadable", "unknown"]);
+  const offlineCalendarSlot = oneOf(value.offlineCalendarSlot, [
+    "empty",
+    "payload",
+    "principal-revoked",
+    "unreadable",
+    "unknown",
+    "workspace-revoked",
+  ]);
   const persistedPermit = oneOf(value.persistedPermit, ["present", "revoked", "unknown"]);
   const routeCache = oneOf(value.routeCache, ["failed", "present", "purged", "unknown"]);
   const runtimePermit = oneOf(value.runtimePermit, ["active", "none", "pending", "unknown"]);

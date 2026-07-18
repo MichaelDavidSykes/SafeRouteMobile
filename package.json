@@ -65,6 +65,7 @@
     "test:maestro:ios:guidance-contract": "node scripts/run-maestro-guidance-contract.mjs",
     "test:maestro:ios:connectivity-contract": "node scripts/run-maestro-connectivity-contract.mjs",
     "test:maestro:ios:connectivity-contract:calendar-auth-cleanup": "SAFEROUTE_CONNECTIVITY_CONTRACT_SLICE=calendar-auth-cleanup node scripts/run-maestro-connectivity-contract.mjs",
+    "test:maestro:ios:connectivity-contract:calendar-workspace-denial": "SAFEROUTE_CONNECTIVITY_CONTRACT_SLICE=calendar-workspace-denial node scripts/run-maestro-connectivity-contract.mjs",
     "test:maestro:ios:workspace-catalog-recovery": "node scripts/run-maestro-workspace-catalog-recovery.mjs",
     "test:maestro:ios:workspace-catalog-recovery:restore-end": "SAFEROUTE_WORKSPACE_RECOVERY_SLICE=restore-end node scripts/run-maestro-workspace-catalog-recovery.mjs",
     "test:maestro:ios:workspace-catalog-recovery:active-503-end": "SAFEROUTE_WORKSPACE_RECOVERY_SLICE=active-503-end node scripts/run-maestro-workspace-catalog-recovery.mjs",

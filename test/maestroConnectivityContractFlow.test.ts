@@ -403,4 +403,81 @@ describe("Maestro connectivity contract runtime", () => {
       /guest-map-primary-action[\s\S]*guest-map-workspace-selector[\s\S]*safe-route-calendar-cleanup"[\s\S]*safe-route-calendar-cleanup-alert[\s\S]*safe-route-calendar-cleanup-retry[\s\S]*safe-route-login/,
     );
   });
+
+  it("wires direct workspace-denial Calendar revocation and cold absence", () => {
+    const packageJson = JSON.parse(read("package.json")) as {
+      scripts: Record<string, string>;
+    };
+    const start =
+      packageJson.scripts["start:maestro:ios:connectivity-contract"];
+    const run =
+      packageJson.scripts[
+        "test:maestro:ios:connectivity-contract:calendar-workspace-denial"
+      ];
+    const runner = read("scripts/run-maestro-connectivity-contract.mjs");
+    const fixture = read("scripts/maestro-guidance-contract-api.mjs");
+    const seed = read(
+      "maestro/ios-connectivity-contract-calendar-auth-preference-seed.yaml",
+    );
+    const prepare = read(
+      "maestro/ios-connectivity-contract-calendar-workspace-denial-prepare.yaml",
+    );
+    const denial = read(
+      "maestro/ios-connectivity-contract-calendar-workspace-denial.yaml",
+    );
+    const relaunch = read(
+      "maestro/ios-connectivity-contract-calendar-workspace-denial-relaunch.yaml",
+    );
+
+    assert.match(start, /SAFEROUTE_ENABLE_CONNECTIVITY_CONTRACT=true/);
+    assert.match(start, /SAFEROUTE_ENABLE_GUIDANCE_CONTRACT_EVIDENCE=true/);
+    assert.doesNotMatch(start, /SAFEROUTE_ENABLE_STORAGE_FAULT_CONTRACT=true/);
+    assert.match(
+      run,
+      /SAFEROUTE_CONNECTIVITY_CONTRACT_SLICE=calendar-workspace-denial/,
+    );
+    assert.doesNotMatch(
+      `${start}\n${run}`,
+      /npm run build|expo export|eas build|xcodebuild/i,
+    );
+    assert.match(
+      runner,
+      /flows\.calendarAuthPreferenceSeed[\s\S]*offline\.calendar\.workspace-lifecycle[\s\S]*runCalendarWorkspaceDenialSlice/,
+    );
+    assert.match(
+      runner,
+      /calendarWorkspaceDenialPrepare[\s\S]*GUIDANCE_CONTRACT_MODES\.denied[\s\S]*calendarWorkspaceDenial[\s\S]*workspace\.recovery\.settled[\s\S]*calendarWorkspaceDenialRelaunch/,
+    );
+    assert.match(
+      runner,
+      /assertOfflineCalendarWorkspaceDenialTraffic\(requests\)[\s\S]*assertOfflineCalendarWorkspaceRevocationEvidence/,
+    );
+    assert.match(
+      fixture,
+      /calendarWorkspaceDenial[\s\S]*calendarWorkspaceDenialRelaunch[\s\S]*offline\.calendar\.workspace-lifecycle/,
+    );
+    assert.match(
+      seed,
+      /Workspace, Support Operations[\s\S]*Stop saving[\s\S]*Offline Calendar saving is off[\s\S]*Workspace, Guidance Operations/,
+    );
+    assert.match(
+      prepare,
+      /subflows\/ios-open-expo-project\.yaml[\s\S]*Workspace, Guidance Operations/,
+    );
+    assert.doesNotMatch(prepare, /stopApp/);
+    assert.match(
+      denial,
+      /guest-map-gate-calendar[\s\S]*Workspace, Support Operations[\s\S]*Guidance Operations is no longer available\. Switched to Support Operations\.[\s\S]*safe-route-operations-route-66e1b2c3d4e5f60718293e41-66b1b2c3d4e5f60718293b41-0[\s\S]*Offline Calendar saving is off[\s\S]*safe-route-card-66b1b2c3d4e5f60718293b41/,
+    );
+    assert.doesNotMatch(denial, /stopApp/);
+    assert.match(
+      relaunch,
+      /Offline map\. Saved route information remains available\.[\s\S]*Workspace, Support Operations[\s\S]*safe-route-card-66b1b2c3d4e5f60718293b41[\s\S]*Offline Calendar saving is off[\s\S]*No offline Calendar is saved/,
+    );
+    assert.doesNotMatch(relaunch, /stopApp/);
+    assert.match(
+      runner,
+      /calendar-workspace-denial-relaunch[\s\S]*Support Operations\. Offline Calendar saving is off\.[\s\S]*No offline Calendar is saved/,
+    );
+  });
 });

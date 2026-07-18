@@ -43,6 +43,10 @@ export const OFFLINE_CALENDAR_AUTH_CONTRACT_PHASES = Object.freeze({
   inactiveFailure: 'calendarAuthInactiveFailure',
   relaunchFailure: 'calendarAuthRelaunchFailure'
 });
+export const OFFLINE_CALENDAR_WORKSPACE_CONTRACT_PHASES = Object.freeze({
+  denial: 'calendarWorkspaceDenial',
+  relaunch: 'calendarWorkspaceDenialRelaunch'
+});
 export const CONNECTIVITY_CONTRACT_HOLD_POLL_MS = 50;
 export const CONNECTIVITY_CONTRACT_HOLD_TIMEOUT_MS = 60_000;
 
@@ -87,7 +91,8 @@ export const GUIDANCE_CONTRACT_EVIDENCE_TYPES = Object.freeze([
   'tracking.stop.settled',
   'navigation.absence.readback',
   'navigation.prestart.readback',
-  'offline.calendar.cleanup'
+  'offline.calendar.cleanup',
+  'offline.calendar.workspace-lifecycle'
 ]);
 const GUIDANCE_CONTRACT_EVIDENCE_PHASES = Object.freeze({
   'navigation.persisted': new Set([
@@ -110,6 +115,7 @@ const GUIDANCE_CONTRACT_EVIDENCE_PHASES = Object.freeze({
   ]),
   'restore.ready': new Set(['workspacePrepare', 'workspaceReconnect']),
   'workspace.recovery.settled': new Set([
+    OFFLINE_CALENDAR_WORKSPACE_CONTRACT_PHASES.denial,
     'catalogForegroundLoss',
     'deniedStart',
     'workspaceReconnect',
@@ -163,6 +169,11 @@ const GUIDANCE_CONTRACT_EVIDENCE_PHASES = Object.freeze({
     OFFLINE_CALENDAR_AUTH_CONTRACT_PHASES.finalRelaunch,
     OFFLINE_CALENDAR_AUTH_CONTRACT_PHASES.inactiveFailure,
     OFFLINE_CALENDAR_AUTH_CONTRACT_PHASES.relaunchFailure
+  ]),
+  'offline.calendar.workspace-lifecycle': new Set([
+    CONNECTIVITY_CONTRACT_PHASES.seed,
+    OFFLINE_CALENDAR_WORKSPACE_CONTRACT_PHASES.denial,
+    OFFLINE_CALENDAR_WORKSPACE_CONTRACT_PHASES.relaunch
   ])
 });
 
@@ -1149,7 +1160,7 @@ export function normalizeGuidanceContractEvidence(value) {
       offlineCalendarCleanup: ['absent', 'durable', 'nondurable', 'unreadable', 'unknown'],
       offlineCalendarPayload: ['absent', 'present', 'unknown'],
       offlineCalendarPreference: ['cleanup-pending', 'disabled', 'enabled', 'unavailable', 'unverified', 'unknown'],
-      offlineCalendarSlot: ['empty', 'payload', 'revoked', 'unreadable', 'unknown'],
+      offlineCalendarSlot: ['empty', 'payload', 'principal-revoked', 'unreadable', 'unknown', 'workspace-revoked'],
       persistedPermit: ['present', 'revoked', 'unknown'],
       routeCache: ['failed', 'present', 'purged', 'unknown'],
       runtimePermit: ['active', 'none', 'pending', 'unknown'],
@@ -1415,6 +1426,213 @@ export function assertOfflineCalendarAuthCleanupEvidence(entries, {
       relaunchPending.appLaunchId === settled.appLaunchId &&
       settled.appLaunchId !== finalAbsence.appLaunchId,
     'Offline Calendar auth cleanup evidence did not prove pending, relaunched Retry, and final absence across distinct launches.'
+  );
+}
+
+export function assertOfflineCalendarWorkspaceRevocationEvidence(entries, {
+  expectedSourceRevision,
+  minimumOccurredAtMs = 0
+}) {
+  const relevant = Array.isArray(entries) ? entries.filter((entry) =>
+    entry.type === 'offline.calendar.workspace-lifecycle' &&
+    entry.sourceRevision === expectedSourceRevision &&
+    entry.occurredAtMs >= minimumOccurredAtMs &&
+    [
+      OFFLINE_CALENDAR_WORKSPACE_CONTRACT_PHASES.denial,
+      OFFLINE_CALENDAR_WORKSPACE_CONTRACT_PHASES.relaunch
+    ].includes(entry.serverPhase)
+  ) : [];
+  const seed = (Array.isArray(entries) ? entries : []).filter((entry) =>
+    entry.type === 'offline.calendar.workspace-lifecycle' &&
+    entry.sourceRevision === expectedSourceRevision &&
+    entry.occurredAtMs >= minimumOccurredAtMs &&
+    entry.serverPhase === CONNECTIVITY_CONTRACT_PHASES.seed &&
+    entry.cause === 'workspace-denial-seed' &&
+    entry.authorization?.catalog === 'fresh-authorized' &&
+    isSuccessfulGuidanceContractEvidence(entry, entry)
+  );
+  const recovery = relevant.filter((entry) =>
+    entry.serverPhase === OFFLINE_CALENDAR_WORKSPACE_CONTRACT_PHASES.denial &&
+    entry.cause === 'workspace-denial' &&
+    entry.authorization?.catalog === 'fresh-denied' &&
+    isSuccessfulGuidanceContractEvidence(entry, entry)
+  );
+  const relaunch = relevant.filter((entry) =>
+    entry.serverPhase === OFFLINE_CALENDAR_WORKSPACE_CONTRACT_PHASES.relaunch &&
+    entry.cause === 'workspace-denial-relaunch' &&
+    entry.authorization?.catalog === 'not-checked' &&
+    isSuccessfulGuidanceContractEvidence(entry, entry)
+  );
+  assertJournalCondition(
+    seed.length === 1 &&
+      relevant.length === 2 &&
+      recovery.length === 1 &&
+      relaunch.length === 1 &&
+      seed[0].appLaunchId !== recovery[0].appLaunchId &&
+      recovery[0].appLaunchId !== relaunch[0].appLaunchId &&
+      seed[0].receivedAtMs < recovery[0].receivedAtMs &&
+      recovery[0].receivedAtMs < relaunch[0].receivedAtMs,
+    'Offline Calendar workspace-denial evidence did not prove a real seed, one persisted revocation, and one distinct-process absence readback.'
+  );
+}
+
+export function assertOfflineCalendarWorkspaceDenialTraffic(entries) {
+  const denialPhase = OFFLINE_CALENDAR_WORKSPACE_CONTRACT_PHASES.denial;
+  const relaunchPhase = OFFLINE_CALENDAR_WORKSPACE_CONTRACT_PHASES.relaunch;
+  const supportOperationsPath =
+    `/api/v1/mobile/safe-route/operations/client/${GUIDANCE_CONTRACT_WORKSPACES.survivor.id}`;
+  const routesPath = '/api/v1/mobile/safe-route/routes';
+  const denialRequests = entries.filter((entry) =>
+    entry.phase === denialPhase &&
+    entry.event === 'request' &&
+    entry.path.startsWith('/api/')
+  );
+  const denialCompletions = entries.filter((entry) =>
+    entry.phase === denialPhase &&
+    entry.event === 'completion' &&
+    entry.completed === true
+  );
+  const scopedDenialRequests = denialRequests.filter((entry) =>
+    entry.path === routesPath &&
+    entry.search.includes(
+      `client_id=${GUIDANCE_CONTRACT_WORKSPACES.denied.id}`
+    )
+  );
+  const scopedDenials = denialCompletions.filter((entry) =>
+    entry.path === routesPath &&
+    entry.search.includes(
+      `client_id=${GUIDANCE_CONTRACT_WORKSPACES.denied.id}`
+    ) &&
+    entry.statusCode === 403 &&
+    entry.semanticOutcome === 'api-error-403'
+  );
+  const principalRequests = denialRequests.filter((entry) =>
+    entry.path === '/api/v1/users/me'
+  );
+  const principal = denialCompletions.filter((entry) =>
+    entry.path === '/api/v1/users/me' &&
+    entry.statusCode === 200 &&
+    entry.semanticOutcome === 'principal-a'
+  );
+  const catalogRequests = denialRequests.filter((entry) =>
+    entry.path === routesPath &&
+    entry.search === ''
+  );
+  const catalog = denialCompletions.filter((entry) =>
+    entry.path === routesPath &&
+    entry.search === '' &&
+    entry.statusCode === 200 &&
+    entry.semanticOutcome === 'catalog-survivor'
+  );
+  const support = denialCompletions.filter((entry) =>
+    entry.path === supportOperationsPath &&
+    entry.statusCode === 200 &&
+    entry.semanticOutcome === 'operations-active'
+  );
+  const supportRoutes = denialCompletions.filter((entry) =>
+    entry.path === routesPath &&
+    entry.search.includes(
+      `client_id=${GUIDANCE_CONTRACT_WORKSPACES.survivor.id}`
+    ) &&
+    entry.statusCode === 200 &&
+    entry.semanticOutcome === 'catalog-survivor'
+  );
+  const relaunchProductTraffic = entries.filter((entry) =>
+    entry.phase === relaunchPhase &&
+    entry.event === 'request' &&
+    entry.path.startsWith('/api/')
+  );
+  const catalogCompletionSequence = catalog[0]?.sequence ?? Number.MAX_SAFE_INTEGER;
+  const supportTrafficRequests = denialRequests.filter((entry) =>
+    entry.path === supportOperationsPath ||
+    entry.search.includes(GUIDANCE_CONTRACT_WORKSPACES.survivor.id)
+  );
+  const allDeniedTraffic = denialRequests.filter((entry) =>
+    entry.path ===
+      `/api/v1/mobile/safe-route/operations/client/${GUIDANCE_CONTRACT_WORKSPACES.denied.id}` ||
+    entry.search.includes(GUIDANCE_CONTRACT_WORKSPACES.denied.id)
+  );
+  const laterDeniedTraffic = denialRequests.filter((entry) =>
+    entry.sequence > catalogCompletionSequence &&
+    (
+      entry.path ===
+        `/api/v1/mobile/safe-route/operations/client/${GUIDANCE_CONTRACT_WORKSPACES.denied.id}` ||
+      entry.search.includes(GUIDANCE_CONTRACT_WORKSPACES.denied.id)
+    )
+  );
+  const deniedOperationsTraffic = denialRequests.filter((entry) =>
+    entry.path ===
+      `/api/v1/mobile/safe-route/operations/client/${GUIDANCE_CONTRACT_WORKSPACES.denied.id}`
+  );
+  const completionFor = (request, completions) =>
+    completions.filter((entry) => entry.requestId === request?.requestId);
+  const firstDenialRequestSequence = Math.min(
+    ...denialRequests.map((entry) => entry.sequence)
+  );
+  const scopedDenialCompletions = completionFor(
+    scopedDenialRequests[0],
+    scopedDenials
+  );
+  const principalCompletions = completionFor(
+    principalRequests[0],
+    principal
+  );
+  const catalogCompletions = completionFor(catalogRequests[0], catalog);
+  const supportRouteRequests = denialRequests.filter((entry) =>
+    entry.path === routesPath &&
+    entry.search.includes(
+      `client_id=${GUIDANCE_CONTRACT_WORKSPACES.survivor.id}`
+    )
+  );
+  const supportOperationsRequests = denialRequests.filter((entry) =>
+    entry.path === supportOperationsPath
+  );
+  const firstSupportRouteCompletion = completionFor(
+    supportRouteRequests[0],
+    supportRoutes
+  )[0];
+  const firstSupportOperationsCompletion = completionFor(
+    supportOperationsRequests[0],
+    support
+  )[0];
+  assertJournalCondition(
+    scopedDenialRequests.length === 1 &&
+      scopedDenialCompletions.length === 1 &&
+      scopedDenials.length === 1 &&
+      deniedOperationsTraffic.length === 0 &&
+      allDeniedTraffic.length === 1 &&
+      scopedDenialRequests[0].sequence === firstDenialRequestSequence &&
+      denialRequests.every((entry) =>
+        entry.authorized === true &&
+        entry.authorizationClass === 'expected-bearer'
+      ) &&
+      principalRequests.length === 1 &&
+      principalCompletions.length === 1 &&
+      principal.length === 1 &&
+      catalogRequests.length === 1 &&
+      catalogCompletions.length === 1 &&
+      catalog.length === 1 &&
+      supportRouteRequests.length >= 1 &&
+      supportOperationsRequests.length >= 1 &&
+      supportRoutes.length >= 1 &&
+      support.length >= 1 &&
+      scopedDenialRequests[0].sequence < scopedDenialCompletions[0].sequence &&
+      scopedDenialCompletions[0].sequence < principalRequests[0].sequence &&
+      principalRequests[0].sequence < principalCompletions[0].sequence &&
+      principalCompletions[0].sequence < catalogRequests[0].sequence &&
+      catalogRequests[0].sequence < catalogCompletions[0].sequence &&
+      catalogCompletions[0].sequence < supportRouteRequests[0].sequence &&
+      supportRouteRequests[0].sequence < firstSupportRouteCompletion?.sequence &&
+      firstSupportRouteCompletion?.sequence <
+        supportOperationsRequests[0].sequence &&
+      supportOperationsRequests[0].sequence <
+        firstSupportOperationsCompletion?.sequence &&
+      supportTrafficRequests.every(
+        (entry) => entry.sequence > catalogCompletionSequence
+      ) &&
+      laterDeniedTraffic.length === 0 &&
+      relaunchProductTraffic.length === 0,
+    'Offline Calendar workspace denial did not preserve the exact scoped-403, survivor reconciliation, and cold-relaunch traffic boundary.'
   );
 }
 
@@ -1706,6 +1924,48 @@ export function isSuccessfulGuidanceContractEvidence(event, journal) {
       event.durability.offlineCalendarPayload === 'absent' &&
       event.durability.offlineCalendarSlot === 'empty' &&
       preferencePreserved
+    );
+  }
+  if (event.type === 'offline.calendar.workspace-lifecycle') {
+    if (event.cause === 'workspace-denial-seed') {
+      return Boolean(
+        !workspaceLifecycle &&
+        event.navigationInstanceId === null &&
+        event.routeId === null &&
+        event.workspaceId === GUIDANCE_CONTRACT_WORKSPACES.denied.id &&
+        event.unavailableWorkspaceIds.length === 0 &&
+        event.authorization.catalog === 'fresh-authorized' &&
+        event.authorization.principal === 'matching' &&
+        event.outcome === 'seeded' &&
+        event.durability.authSession === 'present' &&
+        event.durability.offlineCalendarCleanup === 'absent' &&
+        event.durability.offlineCalendarPayload === 'present' &&
+        event.durability.offlineCalendarPreference === 'disabled' &&
+        event.durability.offlineCalendarSlot === 'payload'
+      );
+    }
+    return Boolean(
+      !workspaceLifecycle &&
+      event.navigationInstanceId === null &&
+      event.routeId === null &&
+      event.workspaceId === GUIDANCE_CONTRACT_WORKSPACES.denied.id &&
+      event.unavailableWorkspaceIds.includes(
+        GUIDANCE_CONTRACT_WORKSPACES.denied.id
+      ) &&
+      !event.unavailableWorkspaceIds.includes(
+        GUIDANCE_CONTRACT_WORKSPACES.survivor.id
+      ) &&
+      event.authorization.principal === 'matching' &&
+      ['fresh-denied', 'not-checked'].includes(
+        event.authorization.catalog
+      ) &&
+      event.outcome === 'clean' &&
+      event.durability.authSession === 'present' &&
+      event.durability.offlineCalendarCleanup === 'absent' &&
+      event.durability.offlineCalendarPayload === 'absent' &&
+      event.durability.offlineCalendarPreference === 'disabled' &&
+      event.durability.offlineCalendarSlot === 'workspace-revoked' &&
+      event.durability.workspaceContext === 'persisted'
     );
   }
   return event.type === 'tracking.stop.settled' &&

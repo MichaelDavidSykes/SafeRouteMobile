@@ -87,6 +87,7 @@ describe("Maestro connectivity contract runtime", () => {
     const seedJourney = read(
       "maestro/ios-connectivity-contract-seed-journey.yaml",
     );
+    const seed = read("maestro/ios-workspace-catalog-recovery-seed.yaml");
     const offline = read("maestro/ios-connectivity-contract-offline-end.yaml");
     const offlineObserve = read(
       "maestro/ios-connectivity-contract-offline-observe.yaml",
@@ -146,6 +147,10 @@ describe("Maestro connectivity contract runtime", () => {
     assert.match(
       seedJourney,
       /setLocation:[\s\S]*safe-route-primary-action"[\s\S]*enabled: true/,
+    );
+    assert.match(
+      seed,
+      /visible: "Autofill Password"[\s\S]*tapOn: "Cancel"/,
     );
     assert.match(checking, /Checking connection\. Map downloads are paused\./);
     assert.match(checking, /id: "guest-map-canvas"/);

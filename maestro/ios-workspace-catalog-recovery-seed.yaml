@@ -28,6 +28,11 @@ appId: host.exp.Exponent
       - tapOn: "Cancel"
 - runFlow:
     when:
+      visible: "Continue"
+    commands:
+      - tapOn: "Continue"
+- runFlow:
+    when:
       visible: "Not Now"
     commands:
       - tapOn:

@@ -99,6 +99,10 @@ describe("offline Operations secure storage", () => {
     );
     assert.match(
       text,
+      /OPERATIONS_CALENDAR_PRINCIPAL_CLEANUP_KEY[\s\S]*principal-cleanup\.v1/,
+    );
+    assert.match(
+      text,
       /SecureStore\.setItemAsync\([\s\S]*OPERATIONS_CALENDAR_PREFERENCE_KEY[\s\S]*DEVICE_ONLY_SECURE_STORE_OPTIONS/,
     );
     assert.match(
@@ -120,6 +124,34 @@ describe("offline Operations secure storage", () => {
     assert.match(
       text,
       /recoverOfflineOperationsPreferenceCleanup\([\s\S]*operationsStorage\.clearWorkspace/,
+    );
+    assert.match(
+      text,
+      /createOfflineOperationsPrincipalCleanupCoordinator\([\s\S]*clearAll: operationsStorage\.clearAll[\s\S]*clearPrincipal: operationsStorage\.clearPrincipal/,
+    );
+    assert.match(
+      text,
+      /prepareOfflineOperationsPrincipalForFreshAuthentication[\s\S]*prepareFreshAuthentication/,
+    );
+    assert.match(
+      text,
+      /purgeOfflineOperationsPrincipalAtTerminalBoundary[\s\S]*purgeTerminal/,
+    );
+    assert.match(
+      text,
+      /ensureSignedOutOfflineOperationsCalendarRemoved[\s\S]*operationsStorage\.clearAll/,
+    );
+    assert.match(
+      text,
+      /loadOfflineOperationsSnapshotIfAllowed[\s\S]*operationsPrincipalCleanup\.recover\(\)[\s\S]*status !== "clean"/,
+    );
+    assert.match(
+      text,
+      /saveOfflineOperationsSnapshotIfAllowed[\s\S]*operationsPrincipalCleanup\.recover\(\)[\s\S]*status !== "clean"/,
+    );
+    assert.doesNotMatch(
+      text,
+      /purgeOfflineOperationsPrincipalAtTerminalBoundary[\s\S]*operationsPreferenceStorage\.(?:enable|disable|remove)/,
     );
   });
 
@@ -158,6 +190,42 @@ describe("offline Operations secure storage", () => {
 
     await storage.activatePrincipal("principal");
     assert.ok(await storage.save("principal", "workspace-a", cacheValue("workspace-a"), nowMs + 2));
+  });
+
+  it("repairs an unreadable cleanup journal by removing only the Calendar cache and fencing saves until activation", async () => {
+    const memory = memoryStore();
+    const storage = createOfflineOperationsStorage(memory.adapter);
+    const nowMs = Date.now();
+    assert.ok(
+      await storage.save(
+        "principal",
+        "workspace-a",
+        cacheValue("workspace-a"),
+        nowMs,
+      ),
+    );
+
+    await storage.clearAll();
+    assert.equal(memory.value, null);
+    assert.equal(
+      await storage.save(
+        "principal",
+        "workspace-a",
+        cacheValue("workspace-a"),
+        nowMs + 1,
+      ),
+      null,
+    );
+
+    await storage.activatePrincipal("principal");
+    assert.ok(
+      await storage.save(
+        "principal",
+        "workspace-a",
+        cacheValue("workspace-a"),
+        nowMs + 2,
+      ),
+    );
   });
 
   it("fences principal saves when revocation starts from empty or another principal", async () => {

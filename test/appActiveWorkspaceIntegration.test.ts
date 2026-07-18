@@ -192,15 +192,15 @@ describe("App active workspace integration", () => {
 
     assert.match(
       app,
-      /restoreResult\.status === 'expired'[\s\S]*clearOfflineOperationsPrincipal\([\s\S]*getAuthSessionPrincipalId\(storedSession\)/,
+      /restoreResult\.status === 'expired'[\s\S]*purgeOfflineOperationsPrincipalAtTerminalBoundary\([\s\S]*getAuthSessionPrincipalId\(storedSession\)/,
     );
     assert.match(
       app,
-      /handleSignOut[\s\S]*signingOutPrincipalId[\s\S]*clearOfflineOperationsPrincipal\(signingOutPrincipalId\)/,
+      /handleSignOut[\s\S]*signingOutPrincipalId[\s\S]*purgeOfflineOperationsPrincipalAtTerminalBoundary\([\s\S]*signingOutPrincipalId,[\s\S]*clearAuthSession/,
     );
     assert.match(
       app,
-      /handleSessionExpired[\s\S]*expiredPrincipalId[\s\S]*clearOfflineOperationsPrincipal\(expiredPrincipalId\)/,
+      /handleSessionExpired[\s\S]*expiredPrincipalId[\s\S]*purgeOfflineOperationsPrincipalAtTerminalBoundary\([\s\S]*expiredPrincipalId,[\s\S]*clearAuthSession/,
     );
     assert.match(
       app,
@@ -208,9 +208,37 @@ describe("App active workspace integration", () => {
     );
     assert.match(
       app,
-      /handleAuthenticated[\s\S]*tryActivateOfflineOperationsPrincipal\([\s\S]*getAuthSessionPrincipalId\(persistedSession\)/,
+      /handleAuthenticated[\s\S]*prepareOfflineOperationsPrincipalForFreshAuthentication\([\s\S]*getAuthSessionPrincipalId\(acceptedSession\)/,
     );
-    assert.doesNotMatch(app, /await activateOfflineOperationsPrincipal/);
+    assert.match(
+      app,
+      /operationsPreparation\.persistenceSafe[\s\S]*saveAuthSession\(acceptedSession\)[\s\S]*authSessionPersisted = true/,
+    );
+    assert.match(
+      app,
+      /recoverOfflineOperationsPrincipalCleanup\([\s\S]*null,[\s\S]*clearAuthSession[\s\S]*\)[\s\S]*loadAuthSession\(\)/,
+    );
+    assert.match(
+      app,
+      /operationsCleanup\.status !== 'clean'[\s\S]*setSession\(null\)[\s\S]*return;[\s\S]*const storedSession = await loadAuthSession\(\)/,
+    );
+    assert.match(
+      app,
+      /if \(!storedSession\) \{[\s\S]*ensureSignedOutOfflineOperationsCalendarRemoved\(\)[\s\S]*setOfflineCalendarCleanupStatus/,
+    );
+    assert.match(
+      app,
+      /handleRetryOfflineCalendarCleanup[\s\S]*recoverOfflineOperationsPrincipalCleanup\([\s\S]*ensureSignedOutOfflineOperationsCalendarRemoved\(\)[\s\S]*Offline Calendar storage restored for this session/,
+    );
+    const calendarCleanupRetry = app.slice(
+      app.indexOf('const handleRetryOfflineCalendarCleanup'),
+      app.indexOf('const handleEndSuspendedNavigation'),
+    );
+    assert.doesNotMatch(calendarCleanupRetry, /saveAuthSession/);
+    assert.match(
+      app,
+      /OfflineCalendarCleanupNotice[\s\S]*navigationCleanupStatus === 'idle'/,
+    );
   });
 
   it("restores a denied membership only after an explicit fresh catalog retry", () => {

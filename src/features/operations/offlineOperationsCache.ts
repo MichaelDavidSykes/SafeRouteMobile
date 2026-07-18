@@ -11,12 +11,19 @@ import {
   OfflineOperationsPreferenceCapacityError,
   recoverOfflineOperationsPreferenceCleanup,
 } from "./offlineOperationsPreferenceStorageCore";
+import {
+  createOfflineOperationsPrincipalCleanupCoordinator,
+  createOfflineOperationsPrincipalCleanupStorage,
+  type OfflineOperationsPrincipalCleanupOutcome,
+} from "./offlineOperationsPrincipalCleanupCore";
 import type { SafeRouteOperationsState } from "./operationsTypes";
 
 const OPERATIONS_CALENDAR_CACHE_KEY =
   "saferoute.offline.operations.calendar.v1";
 const OPERATIONS_CALENDAR_PREFERENCE_KEY =
   "saferoute.offline.operations.calendar.preferences.v1";
+const OPERATIONS_CALENDAR_PRINCIPAL_CLEANUP_KEY =
+  "saferoute.offline.operations.calendar.principal-cleanup.v1";
 const DEVICE_ONLY_SECURE_STORE_OPTIONS: SecureStore.SecureStoreOptions =
   typeof SecureStore.WHEN_UNLOCKED_THIS_DEVICE_ONLY === "number"
     ? { keychainAccessible: SecureStore.WHEN_UNLOCKED_THIS_DEVICE_ONLY }
@@ -43,13 +50,34 @@ const operationsPreferenceStorage = createOfflineOperationsPreferenceStorage({
       DEVICE_ONLY_SECURE_STORE_OPTIONS,
     ),
 });
+const operationsPrincipalCleanupStorage =
+  createOfflineOperationsPrincipalCleanupStorage({
+    get: () =>
+      SecureStore.getItemAsync(
+        OPERATIONS_CALENDAR_PRINCIPAL_CLEANUP_KEY,
+      ),
+    remove: () =>
+      SecureStore.deleteItemAsync(
+        OPERATIONS_CALENDAR_PRINCIPAL_CLEANUP_KEY,
+      ),
+    set: (value) =>
+      SecureStore.setItemAsync(
+        OPERATIONS_CALENDAR_PRINCIPAL_CLEANUP_KEY,
+        value,
+        DEVICE_ONLY_SECURE_STORE_OPTIONS,
+      ),
+  });
+const operationsPrincipalCleanup =
+  createOfflineOperationsPrincipalCleanupCoordinator({
+    activatePrincipal: operationsStorage.activatePrincipal,
+    clearAll: operationsStorage.clearAll,
+    clearPrincipal: operationsStorage.clearPrincipal,
+    storage: operationsPrincipalCleanupStorage,
+  });
 
 export const clearOfflineOperationsWorkspace = operationsStorage.clearWorkspace;
 export const removeOfflineOperationsWorkspaceCalendar =
   operationsStorage.clearWorkspace;
-export const clearOfflineOperationsPrincipal = operationsStorage.clearPrincipal;
-export const activateOfflineOperationsPrincipal =
-  operationsStorage.activatePrincipal;
 export const activateOfflineOperationsWorkspace =
   operationsStorage.activateWorkspace;
 
@@ -97,6 +125,11 @@ export async function loadOfflineOperationsSnapshotIfAllowed(
   snapshot: OfflineOperationsSnapshot | null;
   status: "allowed" | "cleanup-retry" | "disabled" | "unavailable";
 }> {
+  const principalCleanup =
+    await operationsPrincipalCleanup.recover();
+  if (principalCleanup.status !== "clean") {
+    return { snapshot: null, status: "unavailable" };
+  }
   const blocked = blockedPreferenceResult(
     await recoverOfflineOperationsCalendarCleanup(principalId, workspaceId),
   );
@@ -132,6 +165,11 @@ export async function saveOfflineOperationsSnapshotIfAllowed(
   snapshot: OfflineOperationsSnapshot | null;
   status: "allowed" | "cleanup-retry" | "disabled" | "unavailable";
 }> {
+  const principalCleanup =
+    await operationsPrincipalCleanup.recover();
+  if (principalCleanup.status !== "clean") {
+    return { snapshot: null, status: "unavailable" };
+  }
   const blocked = blockedPreferenceResult(
     await recoverOfflineOperationsCalendarCleanup(principalId, workspaceId),
   );
@@ -193,12 +231,49 @@ export async function enableOfflineOperationsCalendarSaving(
   await operationsPreferenceStorage.enable(principalId, workspaceId);
 }
 
+export function prepareOfflineOperationsPrincipalForFreshAuthentication(
+  principalId: string,
+): Promise<OfflineOperationsPrincipalCleanupOutcome> {
+  return operationsPrincipalCleanup.prepareFreshAuthentication(
+    principalId,
+  );
+}
+
+export function purgeOfflineOperationsPrincipalAtTerminalBoundary(
+  principalId: string,
+  commitTerminalBoundary: () => Promise<void>,
+): Promise<OfflineOperationsPrincipalCleanupOutcome> {
+  return operationsPrincipalCleanup.purgeTerminal(
+    principalId,
+    commitTerminalBoundary,
+  );
+}
+
+export function recoverOfflineOperationsPrincipalCleanup(
+  activatePrincipalId: string | null = null,
+  commitTerminalBoundary: (() => Promise<void>) | null = null,
+): Promise<OfflineOperationsPrincipalCleanupOutcome> {
+  return operationsPrincipalCleanup.recover(
+    activatePrincipalId,
+    commitTerminalBoundary,
+  );
+}
+
+export async function ensureSignedOutOfflineOperationsCalendarRemoved(): Promise<boolean> {
+  try {
+    await operationsStorage.clearAll();
+    return true;
+  } catch {
+    return false;
+  }
+}
+
 export function tryActivateOfflineOperationsPrincipal(
   principalId: string,
-  activate: (principalId: string) => Promise<void> =
-    activateOfflineOperationsPrincipal,
 ): Promise<boolean> {
-  return tryActivateOfflineOperationsScope(() => activate(principalId));
+  return recoverOfflineOperationsPrincipalCleanup(principalId).then(
+    (result) => result.status === "clean",
+  );
 }
 
 export function tryActivateOfflineOperationsWorkspace(

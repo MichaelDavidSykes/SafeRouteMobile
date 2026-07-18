@@ -34,6 +34,7 @@ export function createOfflineOperationsStorage(
   const revokedWorkspaces = new Set<string>();
   const principalRevocationEpochs = new Map<string, number>();
   const workspaceRevocationEpochs = new Map<string, number>();
+  let allRevocationEpoch: number | null = null;
   let revocationEpoch = 0;
 
   const workspaceRevocationKey = (
@@ -103,6 +104,7 @@ export function createOfflineOperationsStorage(
       }
       const activationEpoch =
         principalRevocationEpochs.get(normalizedPrincipalId);
+      const activationAllEpoch = allRevocationEpoch;
       await enqueue(async () => {
         const current = await adapter.get();
         if (
@@ -121,6 +123,21 @@ export function createOfflineOperationsStorage(
         ) {
           revokedPrincipals.delete(normalizedPrincipalId);
           principalRevocationEpochs.delete(normalizedPrincipalId);
+        }
+        if (allRevocationEpoch === activationAllEpoch) {
+          allRevocationEpoch = null;
+        }
+      });
+    },
+
+    async clearAll(): Promise<void> {
+      allRevocationEpoch = ++revocationEpoch;
+      await enqueue(async () => {
+        await adapter.remove();
+        if ((await adapter.get()) !== null) {
+          throw new Error(
+            "Offline Operations calendar removal could not be verified",
+          );
         }
       });
     },
@@ -209,6 +226,7 @@ export function createOfflineOperationsStorage(
       }
       await pendingMutation.catch(() => undefined);
       if (
+        allRevocationEpoch !== null ||
         revokedPrincipals.has(principalId.trim()) ||
         revokedWorkspaces.has(workspaceRevocationKey(principalId, workspaceId))
       ) {
@@ -217,6 +235,7 @@ export function createOfflineOperationsStorage(
       try {
         const raw = await adapter.get();
         if (
+          allRevocationEpoch !== null ||
           revokedPrincipals.has(principalId.trim()) ||
           revokedWorkspaces.has(
             workspaceRevocationKey(principalId, workspaceId),
@@ -280,6 +299,7 @@ export function createOfflineOperationsStorage(
         await enqueue(async () => {
           const current = await adapter.get();
           if (
+            allRevocationEpoch !== null ||
             revokedPrincipals.has(principalId.trim()) ||
             revokedWorkspaces.has(
               workspaceRevocationKey(principalId, workspaceId),

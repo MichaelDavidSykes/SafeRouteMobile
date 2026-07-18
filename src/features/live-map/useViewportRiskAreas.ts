@@ -64,6 +64,28 @@ export function useViewportRiskAreas({
     () => requests.map((request) => areaRiskViewportRequestKey(request)).join('|'),
     [requests]
   );
+  const requestEligibilityEpochRef = useRef(0);
+  const requestEligibilityRef = useRef({
+    accessToken,
+    clientId,
+    enabled,
+    requestSignature,
+  });
+  const previousEligibility = requestEligibilityRef.current;
+  if (
+    previousEligibility.accessToken !== accessToken ||
+    previousEligibility.clientId !== clientId ||
+    previousEligibility.enabled !== enabled ||
+    previousEligibility.requestSignature !== requestSignature
+  ) {
+    requestEligibilityEpochRef.current += 1;
+    requestEligibilityRef.current = {
+      accessToken,
+      clientId,
+      enabled,
+      requestSignature,
+    };
+  }
   requestsRef.current = requests;
   zonesRef.current = zones;
   clientIdRef.current = clientId;
@@ -73,8 +95,14 @@ export function useViewportRiskAreas({
   useEffect(() => {
     const revision = requestRevisionRef.current + 1;
     requestRevisionRef.current = revision;
+    const requestEligibilityEpoch = requestEligibilityEpochRef.current;
     const controller = new AbortController();
     const activeRequests = requestsRef.current;
+    const requestIsCurrent = () =>
+      !controller.signal.aborted &&
+      requestRevisionRef.current === revision &&
+      requestEligibilityRef.current.enabled &&
+      requestEligibilityEpochRef.current === requestEligibilityEpoch;
 
     if (!enabled) {
       setLoading(false);
@@ -121,6 +149,9 @@ export function useViewportRiskAreas({
     setErrorMessage('');
     setStatusMessage('Loading risk areas…');
     const timer = setTimeout(() => {
+      if (!requestIsCurrent()) {
+        return;
+      }
       const receivedZones: RiskZone[][] = [];
       let failedRequestCount = 0;
       let successfulRequestCount = 0;
@@ -133,7 +164,7 @@ export function useViewportRiskAreas({
             signal: controller.signal,
             timeoutMs: VIEWPORT_RISK_TIMEOUT_MS
           });
-          if (controller.signal.aborted || requestRevisionRef.current !== revision) {
+          if (!requestIsCurrent()) {
             return;
           }
           cacheViewportRiskZones(cacheRef.current, request, feed.zones);
@@ -147,14 +178,16 @@ export function useViewportRiskAreas({
             false
           ));
         } catch (error) {
-          if (controller.signal.aborted || requestRevisionRef.current !== revision) {
+          if (!requestIsCurrent()) {
             return;
           }
           const sessionExpiry = getRequestSessionExpiry({
             authenticated: Boolean(accessToken && onSessionExpiredRef.current),
             error,
             handled: sessionExpiryHandled,
-            requestActive: clientIdRef.current === clientId
+            requestActive:
+              requestIsCurrent() &&
+              clientIdRef.current === clientId
           });
           if (sessionExpiry) {
             sessionExpiryHandled = true;
@@ -170,7 +203,7 @@ export function useViewportRiskAreas({
             error,
             handled: workspaceUnavailableHandled,
             requestActive:
-              requestRevisionRef.current === revision &&
+              requestIsCurrent() &&
               clientIdRef.current === clientId &&
               Boolean(onWorkspaceUnavailableRef.current),
             workspaceId: clientId
@@ -192,7 +225,7 @@ export function useViewportRiskAreas({
       });
 
       void Promise.allSettled(downloads).then(() => {
-        if (controller.signal.aborted || requestRevisionRef.current !== revision) {
+        if (!requestIsCurrent()) {
           return;
         }
         const nextZones = mergeRiskZonesById(...cachedZones, ...receivedZones);

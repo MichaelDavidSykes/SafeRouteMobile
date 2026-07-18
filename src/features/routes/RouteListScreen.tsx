@@ -83,6 +83,7 @@ interface RouteListScreenProps {
   onWorkspaceChange: (workspace: SafeRouteWorkspace) => void;
   workspaceCatalogError: string;
   workspaceCatalogLoading: boolean;
+  workspaceAuthorizationFresh: boolean;
   workspaceAccessRecoveryPending: boolean;
   workspaceAccessRefreshAvailable: boolean;
   workspaceAccessFocusTargetRef?: (target: View | null) => void;
@@ -106,13 +107,21 @@ export function RouteListScreen({
   userEmail,
   workspaceCatalogError,
   workspaceCatalogLoading,
+  workspaceAuthorizationFresh,
   workspaceAccessRecoveryPending,
   workspaceAccessRefreshAvailable,
   workspaceAccessFocusTargetRef,
   workspaceAccessIssue,
   workspaceSwitchDisabled,
 }: RouteListScreenProps) {
-  const { offline } = useNetworkAvailability();
+  const {
+    checking: networkChecking,
+    offline,
+    online,
+    status: networkStatus,
+  } = useNetworkAvailability();
+  const protectedRequestsAvailable = online && workspaceAuthorizationFresh;
+  const reviewOnly = !protectedRequestsAvailable;
   const [query, setQuery] = useState("");
   const [routes, setRoutes] = useState<SavedSafeRoutePlan[]>([]);
   const [loading, setLoading] = useState(true);
@@ -124,6 +133,11 @@ export function RouteListScreen({
   const [showingOfflineCopy, setShowingOfflineCopy] = useState(false);
   const loadRevisionRef = useRef(0);
   const detailRevisionRef = useRef(0);
+  const protectedRequestsAvailableRef = useRef(protectedRequestsAvailable);
+  if (protectedRequestsAvailableRef.current !== protectedRequestsAvailable) {
+    protectedRequestsAvailableRef.current = protectedRequestsAvailable;
+    detailRevisionRef.current += 1;
+  }
   const selectedClientId = activeWorkspace?.id || null;
   const activeWorkspaceIdRef = useRef<string | null>(selectedClientId);
   activeWorkspaceIdRef.current = selectedClientId;
@@ -165,17 +179,22 @@ export function RouteListScreen({
       }
 
       const requestWorkspaceId = selectedClientId;
+      const protectedListRequest = protectedRequestsAvailable;
       const requestOwnsWorkspace = () =>
         revision === loadRevisionRef.current &&
-        activeWorkspaceIdRef.current === requestWorkspaceId;
+        activeWorkspaceIdRef.current === requestWorkspaceId &&
+        (
+          !protectedListRequest ||
+          protectedRequestsAvailableRef.current
+        );
 
-      let cached = refresh
+      let cached = refresh && protectedRequestsAvailable
         ? null
         : await loadOfflineRoutes(cacheIdentity, requestWorkspaceId);
       if (!requestOwnsWorkspace()) {
         return;
       }
-      if (!cached && offline && !refresh) {
+      if (!cached && reviewOnly) {
         cached = await loadOfflineRoutes(cacheIdentity, null);
         if (!requestOwnsWorkspace()) {
           return;
@@ -183,7 +202,7 @@ export function RouteListScreen({
       }
       if (cached) {
         const cachedRoutes = routesForWorkspace(cached.routes, requestWorkspaceId);
-        if (offline) {
+        if (reviewOnly) {
           if (!(await recordOwnedRouteCacheReadback(
             requestOwnsWorkspace,
             () => recordOfflineRouteCacheReadback(
@@ -203,7 +222,11 @@ export function RouteListScreen({
         setRoutes(cachedRoutes);
         setLoading(false);
         setRefreshing(true);
-      } else if (offline) {
+      } else if (reviewOnly) {
+        if (networkChecking || online) {
+          setRefreshing(false);
+          return;
+        }
         setErrorState(
           createRouteSyncErrorState(new TypeError("Network request failed")),
         );
@@ -280,10 +303,15 @@ export function RouteListScreen({
     [
       accessToken,
       cacheIdentity,
-      offline,
+      networkChecking,
+      networkStatus,
+      online,
       onSessionExpired,
       recoverUnavailableWorkspace,
       selectedClientId,
+      protectedRequestsAvailable,
+      reviewOnly,
+      workspaceAuthorizationFresh,
     ],
   );
 
@@ -300,6 +328,12 @@ export function RouteListScreen({
     },
     [],
   );
+
+  useEffect(() => {
+    if (!protectedRequestsAvailable) {
+      setDetailLoadingId(null);
+    }
+  }, [protectedRequestsAvailable]);
 
   const handleChangeQuery = useCallback((nextQuery: string) => {
     setQuery(createRouteListSearchQueryValue(nextQuery));
@@ -321,7 +355,20 @@ export function RouteListScreen({
     () => filterSavedRoutes(workspaceRoutes, query),
     [query, workspaceRoutes],
   );
-  const loadingState = createRouteListLoadingState();
+  const loadingState =
+    reviewOnly && networkChecking
+      ? {
+          accessibilityLabel:
+            "Checking connection. No cached saved routes are available.",
+          title: "Checking connection",
+        }
+      : reviewOnly && online
+        ? {
+            accessibilityLabel:
+              "Checking workspace access. No cached saved routes are available.",
+            title: "Checking workspace access",
+          }
+        : createRouteListLoadingState();
   const emptyState = useMemo(
     () =>
       createRouteListEmptyState({
@@ -400,13 +447,18 @@ export function RouteListScreen({
     }
     const revision = detailRevisionRef.current + 1;
     detailRevisionRef.current = revision;
+    const protectedDetailRequest = !reviewOnly;
     const requestOwnsWorkspace = () =>
       revision === detailRevisionRef.current &&
-      activeWorkspaceIdRef.current === selectedClientId;
+      activeWorkspaceIdRef.current === selectedClientId &&
+      (
+        !protectedDetailRequest ||
+        protectedRequestsAvailableRef.current
+      );
     setDetailLoadingId(route.id);
     setErrorState(null);
 
-    if (offline) {
+    if (reviewOnly) {
       const cachedDetail = await loadOfflineRouteDetail(cacheIdentity, route.id);
       const cached =
         cachedDetail ||
@@ -443,6 +495,21 @@ export function RouteListScreen({
         onSelectRoute({ ...cached, clientId: selectedClientId });
         return;
       }
+      setErrorState({
+        ...createRouteDetailErrorState(
+          new Error(
+            networkChecking
+              ? "SafeRoute is still checking the connection. Try again shortly."
+              : offline
+                ? "Reconnect before loading this route."
+                : "SafeRoute is still checking workspace access. Try again shortly.",
+          ),
+          route.name,
+        ),
+        route,
+      });
+      setDetailLoadingId(null);
+      return;
     }
 
     try {
@@ -577,7 +644,11 @@ export function RouteListScreen({
       {showingOfflineCopy ? (
         <View accessibilityRole="alert" style={styles.offlineNotice}>
           <Text style={styles.offlineNoticeText}>
-            Offline saved copy · reconnect before starting guidance
+            {networkChecking
+              ? "Checking connection · saved copy is review only"
+              : offline
+                ? "Offline saved copy · reconnect before starting guidance"
+                : "Checking workspace access · saved copy is review only"}
           </Text>
         </View>
       ) : null}

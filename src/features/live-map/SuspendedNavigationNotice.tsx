@@ -7,23 +7,27 @@ import {
   createSuspendedNavigationPresentation,
   type SuspendedNavigationStatus,
 } from "./suspendedNavigationState";
+import type { NetworkAvailabilityStatus } from "../api/networkAvailabilityState";
 
 export function SuspendedNavigationNotice({
-  offline,
+  networkStatus,
   onEnd,
   onRetry,
   routeName,
   status,
 }: {
-  offline: boolean;
+  networkStatus: NetworkAvailabilityStatus;
   onEnd: () => void;
   onRetry: () => void;
   routeName: string;
   status: SuspendedNavigationStatus;
 }) {
   const insets = useSafeAreaInsets();
-  const presentation = createSuspendedNavigationPresentation({ offline, status });
-  const checking = status === "checking";
+  const presentation = createSuspendedNavigationPresentation({
+    networkStatus,
+    status,
+  });
+  const retryDisabled = presentation.retryBusy || networkStatus !== "online";
 
   return (
     <View
@@ -37,15 +41,18 @@ export function SuspendedNavigationNotice({
       <Text numberOfLines={2} style={styles.message}>{presentation.message}</Text>
       <View style={styles.actions}>
         <Pressable
-          accessibilityLabel={checking ? "Restoring saved route" : "Retry workspace access"}
+          accessibilityLabel={presentation.retryAccessibilityLabel}
           accessibilityRole="button"
-          accessibilityState={{ busy: checking, disabled: checking }}
-          disabled={checking}
+          accessibilityState={{
+            busy: presentation.retryBusy,
+            disabled: retryDisabled,
+          }}
+          disabled={retryDisabled}
           onPress={onRetry}
           style={({ pressed }) => [
             styles.primaryAction,
-            checking ? styles.actionDisabled : null,
-            pressed && !checking ? styles.actionPressed : null,
+            retryDisabled ? styles.actionDisabled : null,
+            pressed && !retryDisabled ? styles.actionPressed : null,
           ]}
           testID={uiTestIds.suspendedNavigationRetry}
         >

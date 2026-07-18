@@ -145,6 +145,45 @@ describe('saved LunarChain session restore', () => {
     assert.match(result.message || '', /saved LunarChain session/i);
   });
 
+  it('restores a strict principal-bound saved session offline without calling hosted validation', async () => {
+    let validated = false;
+    const result = await restoreSavedSession(
+      storedSession,
+      async () => {
+        validated = true;
+        throw new Error('should not validate while offline');
+      },
+      { validateOnline: false },
+    );
+
+    assert.equal(validated, false);
+    assert.equal(result.status, 'restored');
+    assert.equal(result.validatedOnline, false);
+    assert.equal(result.session.principalId, storedSession.principalId);
+  });
+
+  it('rejects locally untrusted sessions offline without calling hosted validation', async () => {
+    for (const session of [
+      { ...storedSession, accessToken: 'opaque-token' },
+      { ...storedSession, principalId: undefined },
+      { ...storedSession, email: 'another@example.com' },
+    ]) {
+      let validated = false;
+      const result = await restoreSavedSession(
+        session,
+        async () => {
+          validated = true;
+          throw new Error('should not validate while offline');
+        },
+        { validateOnline: false },
+      );
+
+      assert.equal(validated, false);
+      assert.equal(result.status, 'expired');
+      assert.match(result.message, /online validation/i);
+    }
+  });
+
   it('does not expire a structurally valid session when online validation returns 403', async () => {
     const result = await restoreSavedSession(storedSession, async () => {
       throw new ApiAuthorizationError('This account cannot access that resource.');

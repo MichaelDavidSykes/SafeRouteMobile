@@ -144,7 +144,17 @@ export function LiveMapScreen({
   workspaceAuthorizationChecking = false,
   workspaceAuthorizationUnavailable = false,
 }: LiveMapScreenProps) {
-  const { offline } = useNetworkAvailability();
+  const {
+    checking: networkChecking,
+    offline,
+    online,
+  } = useNetworkAvailability();
+  const networkOnlineRef = useRef(online);
+  const networkRequestEpochRef = useRef(0);
+  if (networkOnlineRef.current !== online) {
+    networkOnlineRef.current = online;
+    networkRequestEpochRef.current += 1;
+  }
   const resumedNavigationSession =
     initialNavigationSession?.routePlan.route.id === routePlan.route.id
       ? initialNavigationSession
@@ -324,7 +334,9 @@ export function LiveMapScreen({
   const viewportRisk = useViewportRiskAreas({
     accessToken: liveApiAccessToken,
     clientId: activeRoutePlan.clientId,
-    enabled: !activeRoutePlan.clientId || workspaceAuthorizationFresh,
+    enabled:
+      online &&
+      (!activeRoutePlan.clientId || workspaceAuthorizationFresh),
     onSessionExpired,
     onWorkspaceUnavailable: onWorkspaceUnavailable ? closeRouteForWorkspaceLoss : undefined,
     region: liveRiskRegion,
@@ -580,24 +592,33 @@ export function LiveMapScreen({
   const executeLiveReroute = async (request: LiveRerouteRequest) => {
     const plan = liveRoutePlanRef.current;
     const requestWorkspaceId = plan.clientId || null;
+    const requestNetworkEpoch = networkRequestEpochRef.current;
     const requestAuthorizationEpoch = workspaceAuthorizationEpochRef.current;
-    const requestAuthorizationIsCurrent = () => isCurrentWorkspaceAuthorizationEpoch({
-      currentEpoch: workspaceAuthorizationEpochRef.current,
-      currentFresh: workspaceAuthorizationFreshRef.current,
-      currentWorkspaceId: activeRouteWorkspaceIdRef.current,
-      requestEpoch: requestAuthorizationEpoch,
-      requestWorkspaceId,
-    });
+    const requestAuthorizationIsCurrent = () =>
+      networkOnlineRef.current &&
+      requestNetworkEpoch === networkRequestEpochRef.current &&
+      isCurrentWorkspaceAuthorizationEpoch({
+        currentEpoch: workspaceAuthorizationEpochRef.current,
+        currentFresh: workspaceAuthorizationFreshRef.current,
+        currentWorkspaceId: activeRouteWorkspaceIdRef.current,
+        requestEpoch: requestAuthorizationEpoch,
+        requestWorkspaceId,
+      });
     if (!requestAuthorizationIsCurrent()) {
       failRerouteRequest(
         request,
-        "Verify current workspace access before rerouting.",
+        networkOnlineRef.current
+          ? "Verify current workspace access before rerouting."
+          : "Reconnect before requesting a safer route.",
       );
       return;
     }
     activeRerouteRequestRef.current?.abort();
     const controller = new AbortController();
     activeRerouteRequestRef.current = controller;
+    const requestIsCurrent = () =>
+      !controller.signal.aborted &&
+      requestAuthorizationIsCurrent();
     const currentCoordinate = request.sample.coordinate;
     const targets = buildLiveRerouteTargets(
       plan,
@@ -625,11 +646,11 @@ export function LiveMapScreen({
         timeoutMs: 15_000,
       });
       if (
-        !requestAuthorizationIsCurrent() ||
+        !requestIsCurrent() ||
         !preview?.snapped ||
         preview.coordinates.length < 2
       ) {
-        if (!requestAuthorizationIsCurrent()) {
+        if (!requestIsCurrent()) {
           controller.abort();
           return;
         }
@@ -646,7 +667,7 @@ export function LiveMapScreen({
           timeoutMs: 9000,
         },
       );
-      if (!requestAuthorizationIsCurrent()) {
+      if (!requestIsCurrent()) {
         controller.abort();
         return;
       }
@@ -670,11 +691,11 @@ export function LiveMapScreen({
             timeoutMs: 15_000,
           });
       if (
-        !requestAuthorizationIsCurrent() ||
+        !requestIsCurrent() ||
         !finalPreview?.snapped ||
         finalPreview.coordinates.length < 2
       ) {
-        if (!requestAuthorizationIsCurrent()) {
+        if (!requestIsCurrent()) {
           controller.abort();
           return;
         }
@@ -709,8 +730,7 @@ export function LiveMapScreen({
     } catch (error) {
       const currentRerouteState = rerouteStateRef.current;
       const requestActive =
-        !controller.signal.aborted &&
-        requestAuthorizationIsCurrent() &&
+        requestIsCurrent() &&
         currentRerouteState.status === "pending" &&
         currentRerouteState.request.requestRevision === request.requestRevision &&
         currentRerouteState.request.routeId === request.routeId &&
@@ -753,6 +773,7 @@ export function LiveMapScreen({
   };
 
   const rerouteMonitoringActive = Boolean(
+    online &&
     !demoDriveActive &&
       (!activeRoutePlan.clientId || workspaceAuthorizationFresh) &&
       (navigationState === "navigating" || navigationState === "off-route"),
@@ -766,6 +787,18 @@ export function LiveMapScreen({
       rerouteStateRef.current = stopLiveRerouteMonitoring(currentState, Date.now());
     }
   }, []);
+
+  useEffect(() => {
+    if (online) {
+      return;
+    }
+    activeRerouteRequestRef.current?.abort();
+    activeRerouteRequestRef.current = null;
+    const currentState = rerouteStateRef.current;
+    if (currentState.status !== "idle") {
+      commitRerouteState(stopLiveRerouteMonitoring(currentState, Date.now()));
+    }
+  }, [online]);
 
   useEffect(() => {
     const currentState = rerouteStateRef.current;
@@ -1470,7 +1503,7 @@ export function LiveMapScreen({
         onPanDrag={handleMapPanDrag}
         onDismissRiskDetail={handleDismissRiskDetail}
         onRiskZonePress={handleRiskZonePress}
-        offline={offline}
+        offline={!online}
         permissionStatus={permissionStatus}
         progressCoordinates={progressCoordinates}
         routePlan={liveRoutePlan}
@@ -1520,7 +1553,9 @@ export function LiveMapScreen({
         routePlan={liveRoutePlan}
         selectedRiskZone={selectedRiskZone}
         trackingLabel={
-          offline
+          networkChecking
+            ? "Checking connection"
+            : offline
             ? "Offline route map"
             : viewportRisk.loading
               ? "Updating risk"

@@ -11,6 +11,7 @@ import { SafeAreaView } from "react-native-safe-area-context";
 
 import { createSessionNoticeState } from "../auth/sessionNoticeState";
 import { ApiSessionExpiredError } from "../api/apiClient";
+import { useNetworkAvailability } from "../api/useNetworkAvailability";
 import type { SavedSafeRoutePlan } from "../live-map/liveMapTypes";
 import { fetchSavedRoutes } from "../routes/routeApi";
 import { createRouteSyncErrorState, type RouteListErrorState } from "../routes/routeListErrors";
@@ -63,6 +64,7 @@ interface OperationsScreenProps {
   onWorkspaceChange: (workspace: SafeRouteWorkspace) => void;
   workspaceCatalogError: string;
   workspaceCatalogLoading: boolean;
+  workspaceAuthorizationFresh: boolean;
   workspaceAccessRecoveryPending: boolean;
   workspaceAccessRefreshAvailable: boolean;
   workspaceAccessFocusTargetRef?: (target: View | null) => void;
@@ -85,12 +87,19 @@ export function OperationsScreen({
   userEmail,
   workspaceCatalogError,
   workspaceCatalogLoading,
+  workspaceAuthorizationFresh,
   workspaceAccessRecoveryPending,
   workspaceAccessRefreshAvailable,
   workspaceAccessFocusTargetRef,
   workspaceAccessIssue,
   workspaceSwitchDisabled
 }: OperationsScreenProps) {
+  const {
+    checking: networkChecking,
+    online,
+    status: networkStatus,
+  } = useNetworkAvailability();
+  const protectedRequestsAvailable = online && workspaceAuthorizationFresh;
   const [activeTab, setActiveTab] = useState<OperationsTab>(initialTab);
   const [routes, setRoutes] = useState<SavedSafeRoutePlan[]>([]);
   const [operationsState, setOperationsState] = useState<SafeRouteOperationsState | null>(null);
@@ -101,6 +110,11 @@ export function OperationsScreen({
   const [refreshing, setRefreshing] = useState(false);
   const [errorState, setErrorState] = useState<RouteListErrorState | null>(null);
   const loadRevisionRef = useRef(0);
+  const protectedRequestsAvailableRef = useRef(protectedRequestsAvailable);
+  if (protectedRequestsAvailableRef.current !== protectedRequestsAvailable) {
+    protectedRequestsAvailableRef.current = protectedRequestsAvailable;
+    loadRevisionRef.current += 1;
+  }
   const selectedWorkspaceId = activeWorkspace?.id || null;
   const activeWorkspaceIdRef = useRef<string | null>(selectedWorkspaceId);
   activeWorkspaceIdRef.current = selectedWorkspaceId;
@@ -116,25 +130,57 @@ export function OperationsScreen({
       const revision = loadRevisionRef.current + 1;
       loadRevisionRef.current = revision;
       const requestWorkspaceId = selectedWorkspaceId;
+      const protectedOperationsRequest = protectedRequestsAvailable;
       const requestOwnsWorkspace = () =>
         revision === loadRevisionRef.current &&
-        activeWorkspaceIdRef.current === requestWorkspaceId;
+        activeWorkspaceIdRef.current === requestWorkspaceId &&
+        (
+          !protectedOperationsRequest ||
+          protectedRequestsAvailableRef.current
+        );
       if (refresh) {
         setRefreshing(true);
       } else {
         setLoading(true);
       }
-      setLoadedWorkspaceId(null);
-      setRoutes([]);
-      setOperationsState(null);
       setErrorState(null);
-      setOperationsWarning(null);
 
       if (!requestWorkspaceId) {
+        setLoadedWorkspaceId(null);
+        setRoutes([]);
+        setOperationsState(null);
+        setOperationsWarning(null);
         setLoading(false);
         setRefreshing(false);
         return;
       }
+
+      if (!protectedRequestsAvailable) {
+        if (loadedWorkspaceId === requestWorkspaceId) {
+          setOperationsWarning(
+            networkChecking
+              ? "Checking connection. Current operations remain available for review only."
+              : online
+                ? "Checking workspace access. Current operations remain available for review only."
+                : "Offline. Current operations remain available for review only.",
+          );
+          setLoading(false);
+        } else if (networkChecking || online) {
+          setLoading(true);
+        } else {
+          setErrorState(
+            createRouteSyncErrorState(new TypeError("Network request failed")),
+          );
+          setLoading(false);
+        }
+        setRefreshing(false);
+        return;
+      }
+
+      setLoadedWorkspaceId(null);
+      setRoutes([]);
+      setOperationsState(null);
+      setOperationsWarning(null);
 
       try {
         const result = await loadOperationsWorkspaceData({
@@ -190,7 +236,17 @@ export function OperationsScreen({
         }
       }
     },
-    [accessToken, onSessionExpired, onWorkspaceUnavailable, selectedWorkspaceId]
+    [
+      accessToken,
+      networkChecking,
+      networkStatus,
+      online,
+      onSessionExpired,
+      onWorkspaceUnavailable,
+      selectedWorkspaceId,
+      protectedRequestsAvailable,
+      workspaceAuthorizationFresh,
+    ]
   );
 
   useEffect(() => {
@@ -233,7 +289,12 @@ export function OperationsScreen({
   const sessionNoticeState = createSessionNoticeState(sessionNotice);
   const title = createOperationsTitle(activeTab);
   const subtitle = createOperationsSubtitle(activeTab);
-  const loadingLabel = createOperationsLoadingLabel(activeTab);
+  const loadingLabel =
+    !protectedRequestsAvailable && networkChecking
+      ? "Checking connection. No cached operations are available."
+      : !protectedRequestsAvailable && online
+        ? "Checking workspace access. No cached operations are available."
+        : createOperationsLoadingLabel(activeTab);
   const workspaceState = createOperationsWorkspaceState({
     activeWorkspaceId: selectedWorkspaceId,
     availableWorkspaceCount: availableWorkspaces.length,

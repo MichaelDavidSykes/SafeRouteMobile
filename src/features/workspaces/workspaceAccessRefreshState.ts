@@ -14,6 +14,7 @@ export type WorkspaceAccessIssue =
 export type WorkspaceAccessAnnouncementPhase =
   | "idle"
   | "checking"
+  | "connection-checking"
   | "offline-safety"
   | "verification-unavailable";
 
@@ -37,7 +38,7 @@ export function resolveWorkspaceAccessAnnouncement({
   availableWorkspaceCount,
   issue,
   loading,
-  offline,
+  networkStatus,
   previousPhase,
   retrying,
 }: {
@@ -45,10 +46,26 @@ export function resolveWorkspaceAccessAnnouncement({
   availableWorkspaceCount: number;
   issue: WorkspaceAccessIssue;
   loading: boolean;
-  offline: boolean;
+  networkStatus: NetworkAvailabilityStatus;
   previousPhase: WorkspaceAccessAnnouncementPhase;
   retrying: boolean;
 }): WorkspaceAccessAnnouncementTransition {
+  if (networkStatus === "checking") {
+    return {
+      announcement:
+        previousPhase === "connection-checking"
+          ? null
+          : createWorkspaceAccessRefreshState({
+              accessRecoveryPending,
+              availableWorkspaceCount,
+              issue,
+              loading,
+              networkStatus,
+            }).accessibilityLabel,
+      phase: "connection-checking",
+    };
+  }
+
   if (retrying) {
     return {
       announcement:
@@ -59,7 +76,7 @@ export function resolveWorkspaceAccessAnnouncement({
               availableWorkspaceCount,
               issue,
               loading: true,
-              offline,
+              networkStatus,
             }).accessibilityLabel,
       phase: "checking",
     };
@@ -79,7 +96,7 @@ export function resolveWorkspaceAccessAnnouncement({
         availableWorkspaceCount,
         issue,
         loading: false,
-        offline,
+        networkStatus,
       }).accessibilityLabel,
       phase: issue,
     };
@@ -92,7 +109,7 @@ export function resolveWorkspaceAccessAnnouncement({
         availableWorkspaceCount,
         issue,
         loading: false,
-        offline,
+        networkStatus,
       }).accessibilityLabel,
       phase: issue,
     };
@@ -109,15 +126,30 @@ export function createWorkspaceAccessRefreshState({
   availableWorkspaceCount,
   issue,
   loading,
-  offline,
+  networkStatus,
 }: {
   accessRecoveryPending: boolean;
   availableWorkspaceCount: number;
   issue: WorkspaceAccessIssue;
   loading: boolean;
-  offline: boolean;
+  networkStatus: NetworkAvailabilityStatus;
 }): WorkspaceAccessRefreshState {
   const hasAvailableWorkspace = availableWorkspaceCount > 0;
+  const offline = networkStatus === "offline";
+
+  if (networkStatus === "checking") {
+    return {
+      accessibilityHint: "Wait while SafeRoute checks the connection.",
+      accessibilityLabel: hasAvailableWorkspace
+        ? "Checking connection. Cached workspace remains available for review only."
+        : "Checking connection. No workspace is currently available.",
+      actionLabel: "Waiting…",
+      detail: hasAvailableWorkspace
+        ? "Cached workspace remains review only"
+        : "Waiting for connectivity",
+      title: "Checking connection",
+    };
+  }
 
   if (loading) {
     if (issue === "offline-safety") {
@@ -269,3 +301,4 @@ export function shouldStackWorkspaceAccessControl({
 }): boolean {
   return width < 390 || fontScale >= 1.3;
 }
+import type { NetworkAvailabilityStatus } from "../api/networkAvailabilityState";

@@ -85,6 +85,7 @@ export const uiTestIds = {
   navigationCleanupNotice: "safe-route-navigation-cleanup",
   navigationCleanupRetry: "safe-route-navigation-cleanup-retry",
   offlineCalendarCleanupNotice: "safe-route-calendar-cleanup",
+  offlineCalendarCleanupAlert: "safe-route-calendar-cleanup-alert",
   offlineCalendarCleanupRetry: "safe-route-calendar-cleanup-retry",
   liveMapReturn: "safe-route-return",
   liveMapRouteSummarySheet: "safe-route-summary-sheet",

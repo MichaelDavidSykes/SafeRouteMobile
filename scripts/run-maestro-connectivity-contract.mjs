@@ -20,12 +20,16 @@ import {
   CONNECTIVITY_CONTRACT_STATUSES,
   GUIDANCE_CONTRACT_API_PORT,
   GUIDANCE_CONTRACT_MODES,
+  OFFLINE_CALENDAR_AUTH_CONTRACT_PHASES,
   assertConnectivityContractEndedJourneyStayedClosed,
   assertConnectivityContractInactiveGuidanceRevocation,
   assertConnectivityContractInactiveSessionRevocation,
   assertConnectivityContractReconnectAuthorization,
   assertGuidanceContractEvidenceJournal,
   assertGuidanceContractRequestJournal,
+  assertOfflineCalendarAuthBoundaryTraffic,
+  assertOfflineCalendarAuthCleanupEvidence,
+  assertOfflineCalendarAuthStorageFaultRequests,
 } from './maestro-guidance-contract-api.mjs';
 import {
   assertGuidanceSourceCheckoutClean,
@@ -41,6 +45,10 @@ import {
 
 const METRO_PORT = 8081;
 const EXPO_GO_BUNDLE_ID = 'host.exp.Exponent';
+const CALENDAR_AUTH_CLEANUP_SLICE = 'calendar-auth-cleanup';
+const connectivityContractSlice = String(
+  process.env.SAFEROUTE_CONNECTIVITY_CONTRACT_SLICE || '',
+).trim();
 const MAESTRO_PHASE_TIMEOUT_MS = resolveHeldMaestroPhaseTimeoutMs(
   process.env.MAESTRO_DRIVER_STARTUP_TIMEOUT,
 );
@@ -65,6 +73,16 @@ const flows = Object.freeze({
   coldChecking: 'maestro/ios-connectivity-contract-cold-checking.yaml',
   inactiveRelaunch: 'maestro/ios-connectivity-contract-inactive-relaunch.yaml',
   inactiveSession: 'maestro/ios-connectivity-contract-inactive-session.yaml',
+  calendarAuthInactiveFailure:
+    'maestro/ios-connectivity-contract-calendar-auth-inactive-failure.yaml',
+  calendarAuthFinalRelaunch:
+    'maestro/ios-connectivity-contract-calendar-auth-final-relaunch.yaml',
+  calendarAuthPreferenceSeed:
+    'maestro/ios-connectivity-contract-calendar-auth-preference-seed.yaml',
+  calendarAuthRelaunchFailure:
+    'maestro/ios-connectivity-contract-calendar-auth-relaunch-failure.yaml',
+  calendarAuthRetry:
+    'maestro/ios-connectivity-contract-calendar-auth-retry.yaml',
   offlineEnd: 'maestro/ios-connectivity-contract-offline-end.yaml',
   offlineObserve: 'maestro/ios-connectivity-contract-offline-observe.yaml',
   offlineRelaunch: 'maestro/ios-connectivity-contract-offline-relaunch.yaml',
@@ -121,6 +139,11 @@ try {
 }
 
 async function main() {
+  assertCondition(
+    !connectivityContractSlice ||
+      connectivityContractSlice === CALENDAR_AUTH_CLEANUP_SLICE,
+    `Unsupported connectivity contract slice: ${connectivityContractSlice}.`,
+  );
   assertCondition(deviceId, 'Set SAFEROUTE_IOS_DEVICE_ID to the booted iOS simulator UDID.');
   assertBootedSimulator(deviceId);
   assertCondition(
@@ -145,6 +168,8 @@ async function main() {
     expectedProjectRoot: realpathSync(process.cwd()),
     expectedSlug: 'saferoute-mobile',
     expectedSourceRevision: sourceRevision,
+    expectedStorageFaultContractEnabled:
+      connectivityContractSlice === CALENDAR_AUTH_CLEANUP_SLICE,
     manifestUrl: `http://127.0.0.1:${METRO_PORT}`,
   });
   process.stdout.write(
@@ -162,6 +187,13 @@ async function main() {
   await startApi();
   await runFlow(CONNECTIVITY_CONTRACT_PHASES.seed, 'reset signed-out SafeRoute state', flows.reset);
   await runFlow(CONNECTIVITY_CONTRACT_PHASES.seed, 'seed principal/workspace/Saved caches', flows.seed);
+  if (connectivityContractSlice === CALENDAR_AUTH_CLEANUP_SLICE) {
+    await runFlow(
+      CONNECTIVITY_CONTRACT_PHASES.seed,
+      'seed a durable Support Operations Calendar-saving preference',
+      flows.calendarAuthPreferenceSeed,
+    );
+  }
   await runFlow(
     CONNECTIVITY_CONTRACT_PHASES.seed,
     'start and pause one exact workspace journey',
@@ -171,6 +203,10 @@ async function main() {
     'navigation.persisted',
     CONNECTIVITY_CONTRACT_PHASES.seed,
   );
+  if (connectivityContractSlice === CALENDAR_AUTH_CLEANUP_SLICE) {
+    await runCalendarAuthCleanupSlice(sourceRevision);
+    return;
+  }
 
   setControl(
     CONNECTIVITY_CONTRACT_PHASES.coldChecking,
@@ -722,6 +758,161 @@ async function main() {
   );
 }
 
+async function runCalendarAuthCleanupSlice(sourceRevision) {
+  assertOperationsCalendarAuthCleanupSeed(readRequestJournal());
+  setControl(
+    OFFLINE_CALENDAR_AUTH_CONTRACT_PHASES.inactiveFailure,
+    CONNECTIVITY_CONTRACT_STATUSES.online,
+    [
+      {
+        id: 'inactive-auth-clear',
+        operation: 'auth-session-tombstone-set',
+        remaining: 1,
+      },
+    ],
+  );
+  terminateExpoGo(deviceId);
+  await runFlow(
+    OFFLINE_CALENDAR_AUTH_CONTRACT_PHASES.inactiveFailure,
+    'fail the inactive-account auth tombstone after durable Calendar intent',
+    flows.calendarAuthInactiveFailure,
+  );
+  await waitForEvidenceType(
+    'offline.calendar.cleanup',
+    OFFLINE_CALENDAR_AUTH_CONTRACT_PHASES.inactiveFailure,
+  );
+  await waitForEvidenceType(
+    'navigation.cleanup.settled',
+    OFFLINE_CALENDAR_AUTH_CONTRACT_PHASES.inactiveFailure,
+  );
+  await waitForEvidenceType(
+    'tracking.stop.settled',
+    OFFLINE_CALENDAR_AUTH_CONTRACT_PHASES.inactiveFailure,
+  );
+  captureAccessibilityHierarchy('calendar-auth-inactive-failure', [
+    {
+      id: 'safe-route-calendar-cleanup-alert',
+      label: 'Offline Calendar unavailable. SafeRoute could not finish device storage protection. Retry before offline Calendar can be used.',
+      enabled: true,
+    },
+    {
+      id: 'safe-route-calendar-cleanup-retry',
+      label: 'Retry offline Calendar storage',
+      enabled: true,
+    },
+  ]);
+
+  terminateExpoGo(deviceId);
+  setControl(
+    OFFLINE_CALENDAR_AUTH_CONTRACT_PHASES.relaunchFailure,
+    CONNECTIVITY_CONTRACT_STATUSES.online,
+    [
+      {
+        id: 'relaunch-auth-clear',
+        operation: 'auth-session-tombstone-set',
+        remaining: 1,
+      },
+    ],
+  );
+  await runFlow(
+    OFFLINE_CALENDAR_AUTH_CONTRACT_PHASES.relaunchFailure,
+    'relaunch the durable terminal cleanup into one replay failure',
+    flows.calendarAuthRelaunchFailure,
+  );
+  await waitForEvidenceType(
+    'offline.calendar.cleanup',
+    OFFLINE_CALENDAR_AUTH_CONTRACT_PHASES.relaunchFailure,
+  );
+  captureAccessibilityHierarchy('calendar-auth-relaunch-failure', [
+    {
+      id: 'safe-route-calendar-cleanup-alert',
+      label: 'Offline Calendar unavailable. SafeRoute could not finish device storage protection. Retry before offline Calendar can be used.',
+      enabled: true,
+    },
+    {
+      id: 'safe-route-calendar-cleanup-retry',
+      label: 'Retry offline Calendar storage',
+      enabled: true,
+    },
+  ]);
+  await runFlow(
+    OFFLINE_CALENDAR_AUTH_CONTRACT_PHASES.relaunchFailure,
+    'retry the consumed one-shot auth fault and verify clean signed-out state',
+    flows.calendarAuthRetry,
+  );
+  await waitForEvidenceOutcome(
+    'offline.calendar.cleanup',
+    OFFLINE_CALENDAR_AUTH_CONTRACT_PHASES.relaunchFailure,
+    'clean',
+  );
+
+  terminateExpoGo(deviceId);
+  setControl(
+    OFFLINE_CALENDAR_AUTH_CONTRACT_PHASES.finalRelaunch,
+    CONNECTIVITY_CONTRACT_STATUSES.offline,
+  );
+  await runFlow(
+    OFFLINE_CALENDAR_AUTH_CONTRACT_PHASES.finalRelaunch,
+    'cold relaunch after Retry into signed-out global Calendar absence',
+    flows.calendarAuthFinalRelaunch,
+  );
+  await waitForEvidenceOutcome(
+    'offline.calendar.cleanup',
+    OFFLINE_CALENDAR_AUTH_CONTRACT_PHASES.finalRelaunch,
+    'clean',
+  );
+  await assertProductTrafficQuiet([
+    OFFLINE_CALENDAR_AUTH_CONTRACT_PHASES.finalRelaunch,
+  ], 1_000);
+  await new Promise((resolve) => setTimeout(resolve, 1_500));
+  terminateExpoGo(deviceId);
+  await waitForAllRequestsTerminal();
+
+  const requests = readRequestJournal();
+  const evidence = readEvidenceJournal();
+  assertGuidanceContractRequestJournal(requests, {
+    expectedModeByPhase: {
+      [CONNECTIVITY_CONTRACT_PHASES.seed]: GUIDANCE_CONTRACT_MODES.active,
+      [OFFLINE_CALENDAR_AUTH_CONTRACT_PHASES.inactiveFailure]:
+        GUIDANCE_CONTRACT_MODES.active,
+      [OFFLINE_CALENDAR_AUTH_CONTRACT_PHASES.relaunchFailure]:
+        GUIDANCE_CONTRACT_MODES.active,
+      [OFFLINE_CALENDAR_AUTH_CONTRACT_PHASES.finalRelaunch]:
+        GUIDANCE_CONTRACT_MODES.active,
+    },
+    requiredPhases: [
+      CONNECTIVITY_CONTRACT_PHASES.seed,
+      OFFLINE_CALENDAR_AUTH_CONTRACT_PHASES.inactiveFailure,
+      OFFLINE_CALENDAR_AUTH_CONTRACT_PHASES.relaunchFailure,
+      OFFLINE_CALENDAR_AUTH_CONTRACT_PHASES.finalRelaunch,
+    ],
+  });
+  assertOfflineCalendarAuthStorageFaultRequests(requests, {
+    expectedSourceRevision: sourceRevision,
+  });
+  assertOfflineCalendarAuthBoundaryTraffic(requests);
+  assertGuidanceContractEvidenceJournal(evidence, {
+    expectedSourceRevision: sourceRevision,
+    minimumOccurredAtMs: startedAtMs,
+    requiredTypes: [
+      'navigation.persisted',
+      'navigation.cleanup.settled',
+      'tracking.stop.settled',
+      'offline.calendar.cleanup',
+    ],
+  });
+  assertOfflineCalendarAuthCleanupEvidence(evidence, {
+    expectedSourceRevision: sourceRevision,
+    minimumOccurredAtMs: startedAtMs,
+  });
+
+  process.stdout.write(
+    `Offline Calendar auth-cleanup runtime passed. Request journal: ${requestLogFile}. ` +
+      `Evidence journal: ${evidenceLogFile}. Screenshots: ${screenshotDirectory}. ` +
+      `Accessibility hierarchies: ${accessibilityDirectory}\n`,
+  );
+}
+
 function assertOperationsCalendarSeed(entries) {
   const path =
     '/api/v1/mobile/safe-route/operations/client/66a1b2c3d4e5f60718293a40';
@@ -750,11 +941,44 @@ function assertOperationsCalendarSeed(entries) {
   );
 }
 
-function setControl(phase, connectivity) {
+function assertOperationsCalendarAuthCleanupSeed(entries) {
+  const guidancePath =
+    '/api/v1/mobile/safe-route/operations/client/66a1b2c3d4e5f60718293a40';
+  const supportPath =
+    '/api/v1/mobile/safe-route/operations/client/66a1b2c3d4e5f60718293a41';
+  const requestsFor = (path) => entries.filter(
+    (entry) =>
+      entry.event === 'request' &&
+      entry.phase === CONNECTIVITY_CONTRACT_PHASES.seed &&
+      entry.method === 'GET' &&
+      entry.path === path,
+  );
+  const completedActive = (request) => entries.some(
+    (entry) =>
+      entry.event === 'completion' &&
+      entry.requestId === request.requestId &&
+      entry.completed === true &&
+      entry.semanticOutcome === 'operations-active' &&
+      entry.statusCode === 200,
+  );
+  const guidanceRequests = requestsFor(guidancePath);
+  const supportRequests = requestsFor(supportPath);
+  assertCondition(
+    guidanceRequests.length >= 2 &&
+      supportRequests.length === 1 &&
+      guidanceRequests.every(completedActive) &&
+      supportRequests.every(completedActive) &&
+      supportRequests[0].sequence < guidanceRequests.at(-1).sequence,
+    'Calendar auth cleanup seed did not preserve disabled Support consent before reseeding Guidance Operations.',
+  );
+}
+
+function setControl(phase, connectivity, calendarAuthFaults = []) {
   connectivitySequence += 1;
   writeFileSync(
     pendingControlFile,
     JSON.stringify({
+      calendarAuthFaults,
       catalogReleased: true,
       connectivity,
       connectivitySequence,
@@ -929,6 +1153,25 @@ async function waitForEvidenceType(type, serverPhase) {
     await new Promise((resolve) => setTimeout(resolve, 100));
   }
   throw new Error(`Device evidence did not record ${type} in ${serverPhase}.`);
+}
+
+async function waitForEvidenceOutcome(type, serverPhase, outcome) {
+  const deadline = Date.now() + 20_000;
+  while (Date.now() < deadline) {
+    const entry = readEvidenceJournal().find(
+      (candidate) =>
+        candidate.type === type &&
+        candidate.serverPhase === serverPhase &&
+        candidate.outcome === outcome,
+    );
+    if (entry) {
+      return entry;
+    }
+    await new Promise((resolve) => setTimeout(resolve, 100));
+  }
+  throw new Error(
+    `Device evidence did not record ${type}/${outcome} in ${serverPhase}.`,
+  );
 }
 
 async function waitForReconnectAuthorization(

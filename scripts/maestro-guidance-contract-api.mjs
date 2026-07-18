@@ -13,6 +13,8 @@ export const GUIDANCE_CONTRACT_MODES = Object.freeze({
 });
 export const CONNECTIVITY_CONTRACT_REACHABILITY_PATH =
   '/__connectivity_contract__/reachability';
+export const CONNECTIVITY_CONTRACT_STORAGE_FAULT_PATH =
+  '/__connectivity_contract__/storage-fault';
 export const CONNECTIVITY_CONTRACT_STATUSES = Object.freeze({
   checking: 'checking',
   offline: 'offline',
@@ -35,6 +37,11 @@ export const CONNECTIVITY_CONTRACT_PHASES = Object.freeze({
   resaveOnline: 'connectivityResaveOnline',
   resaveReconnectChecking: 'connectivityResaveReconnectChecking',
   seed: 'connectivitySeed'
+});
+export const OFFLINE_CALENDAR_AUTH_CONTRACT_PHASES = Object.freeze({
+  finalRelaunch: 'calendarAuthFinalRelaunch',
+  inactiveFailure: 'calendarAuthInactiveFailure',
+  relaunchFailure: 'calendarAuthRelaunchFailure'
 });
 export const CONNECTIVITY_CONTRACT_HOLD_POLL_MS = 50;
 export const CONNECTIVITY_CONTRACT_HOLD_TIMEOUT_MS = 60_000;
@@ -79,7 +86,8 @@ export const GUIDANCE_CONTRACT_EVIDENCE_TYPES = Object.freeze([
   'navigation.cleanup.settled',
   'tracking.stop.settled',
   'navigation.absence.readback',
-  'navigation.prestart.readback'
+  'navigation.prestart.readback',
+  'offline.calendar.cleanup'
 ]);
 const GUIDANCE_CONTRACT_EVIDENCE_PHASES = Object.freeze({
   'navigation.persisted': new Set([
@@ -119,6 +127,7 @@ const GUIDANCE_CONTRACT_EVIDENCE_PHASES = Object.freeze({
     'readbackEvidence',
   ]),
   'navigation.cleanup.settled': new Set([
+    OFFLINE_CALENDAR_AUTH_CONTRACT_PHASES.inactiveFailure,
     'connectivityInactiveSession',
     'connectivityOffline',
     'catalogForegroundLoss',
@@ -130,6 +139,7 @@ const GUIDANCE_CONTRACT_EVIDENCE_PHASES = Object.freeze({
     'denied'
   ]),
   'tracking.stop.settled': new Set([
+    OFFLINE_CALENDAR_AUTH_CONTRACT_PHASES.inactiveFailure,
     'connectivityInactiveSession',
     'connectivityOffline',
     'catalogForegroundLoss',
@@ -148,7 +158,12 @@ const GUIDANCE_CONTRACT_EVIDENCE_PHASES = Object.freeze({
     'connectivityRemovalRelaunch',
     'connectivityResaveOffline',
   ]),
-  'navigation.prestart.readback': new Set(['catalogJourneyEndedRouteReload'])
+  'navigation.prestart.readback': new Set(['catalogJourneyEndedRouteReload']),
+  'offline.calendar.cleanup': new Set([
+    OFFLINE_CALENDAR_AUTH_CONTRACT_PHASES.finalRelaunch,
+    OFFLINE_CALENDAR_AUTH_CONTRACT_PHASES.inactiveFailure,
+    OFFLINE_CALENDAR_AUTH_CONTRACT_PHASES.relaunchFailure
+  ])
 });
 
 const ACCOUNT_EMAIL = 'driver@example.com';
@@ -387,8 +402,10 @@ export function createGuidanceContractHandler({
   requestLog = () => undefined,
   sleep = (milliseconds) => new Promise((resolve) => setTimeout(resolve, milliseconds))
 }) {
+  const claimedStorageFaults = new Set();
   return async (request, response) => {
     const {
+      calendarAuthFaults,
       connectivity,
       connectivitySequence,
       mode,
@@ -518,6 +535,51 @@ export function createGuidanceContractHandler({
       return;
     }
 
+    if (
+      request.method === 'POST' &&
+      url.pathname.startsWith(`${CONNECTIVITY_CONTRACT_STORAGE_FAULT_PATH}/`)
+    ) {
+      const operation = url.pathname.slice(
+        CONNECTIVITY_CONTRACT_STORAGE_FAULT_PATH.length + 1
+      );
+      if (
+        request.headers['x-saferoute-connectivity-contract'] !== '1' ||
+        request.headers['x-saferoute-source-revision'] !==
+          requestSourceRevision ||
+        request.headers.authorization ||
+        (
+          request.headers['content-length'] &&
+          request.headers['content-length'] !== '0'
+        ) ||
+        request.headers['transfer-encoding'] ||
+        !/^[0-9a-f]{40}$/.test(requestSourceRevision) ||
+        requestSourceRevision !== sourceRevision ||
+        url.search !== `?source_revision=${sourceRevision}` ||
+        operation !== 'auth-session-tombstone-set'
+      ) {
+        sendEmpty(response, 403, 'storage-fault-source-rejected');
+        return;
+      }
+      const armedFault = calendarAuthFaults.find(
+        (fault) => fault.operation === operation
+      );
+      const claimKey = armedFault
+        ? [
+            sourceRevision,
+            connectivitySequence,
+            armedFault.id,
+            operation
+          ].join(':')
+        : '';
+      if (armedFault && !claimedStorageFaults.has(claimKey)) {
+        claimedStorageFaults.add(claimKey);
+        sendEmpty(response, 503, 'storage-fault-injected');
+        return;
+      }
+      sendEmpty(response, 204, 'storage-fault-not-armed');
+      return;
+    }
+
     if (request.method === 'POST' && url.pathname === GUIDANCE_START_BOUNDARY_PATH) {
       const boundary = String(url.searchParams.get('boundary') || '').trim();
       const edge = String(url.searchParams.get('edge') || '').trim();
@@ -622,7 +684,10 @@ export function createGuidanceContractHandler({
     }
 
     if (request.method === 'GET' && url.pathname === '/api/v1/users/me') {
-      if (phase === CONNECTIVITY_CONTRACT_PHASES.inactiveSession) {
+      if (
+        phase === CONNECTIVITY_CONTRACT_PHASES.inactiveSession ||
+        phase === OFFLINE_CALENDAR_AUTH_CONTRACT_PHASES.inactiveFailure
+      ) {
         sendInactiveAccountError(response);
         return;
       }
@@ -1079,7 +1144,12 @@ export function normalizeGuidanceContractEvidence(value) {
     cause,
     durability: normalizeEvidenceRecord(value.durability, {
       activeNavigation: ['absent', 'present', 'revoked', 'unknown'],
+      authSession: ['present', 'signed-out', 'unavailable', 'unknown'],
       nativeTracking: ['active', 'not-started', 'stopped', 'unknown', 'unsupported'],
+      offlineCalendarCleanup: ['absent', 'durable', 'nondurable', 'unreadable', 'unknown'],
+      offlineCalendarPayload: ['absent', 'present', 'unknown'],
+      offlineCalendarPreference: ['cleanup-pending', 'disabled', 'enabled', 'unavailable', 'unverified', 'unknown'],
+      offlineCalendarSlot: ['empty', 'payload', 'revoked', 'unreadable', 'unknown'],
       persistedPermit: ['present', 'revoked', 'unknown'],
       routeCache: ['failed', 'present', 'purged', 'unknown'],
       runtimePermit: ['active', 'none', 'pending', 'unknown'],
@@ -1277,6 +1347,175 @@ export function assertGuidanceContractEvidenceJournal(entries, {
   }
 }
 
+export function assertOfflineCalendarAuthCleanupEvidence(entries, {
+  expectedSourceRevision,
+  minimumOccurredAtMs = 0
+}) {
+  const contractPhases = new Set([
+    OFFLINE_CALENDAR_AUTH_CONTRACT_PHASES.inactiveFailure,
+    OFFLINE_CALENDAR_AUTH_CONTRACT_PHASES.relaunchFailure,
+    OFFLINE_CALENDAR_AUTH_CONTRACT_PHASES.finalRelaunch
+  ]);
+  const relevant = Array.isArray(entries) ? entries.filter((entry) =>
+    entry.type === 'offline.calendar.cleanup' &&
+    entry.sourceRevision === expectedSourceRevision &&
+    entry.occurredAtMs >= minimumOccurredAtMs &&
+    contractPhases.has(entry.serverPhase)
+  ) : [];
+  const initialPendingMatches = relevant.filter((entry) =>
+    entry.serverPhase ===
+      OFFLINE_CALENDAR_AUTH_CONTRACT_PHASES.inactiveFailure &&
+    entry.cause === 'inactive-account' &&
+    entry.outcome === 'retry-required' &&
+    entry.durability.offlineCalendarPreference === 'disabled' &&
+    isSuccessfulGuidanceContractEvidence(entry, entry)
+  );
+  const relaunchPendingMatches = relevant.filter((entry) =>
+    entry.serverPhase ===
+      OFFLINE_CALENDAR_AUTH_CONTRACT_PHASES.relaunchFailure &&
+    entry.cause === 'startup-terminal-replay' &&
+    entry.outcome === 'retry-required' &&
+    entry.durability.offlineCalendarPreference === 'disabled' &&
+    isSuccessfulGuidanceContractEvidence(entry, entry)
+  );
+  const settledMatches = relevant.filter((entry) =>
+    entry.serverPhase ===
+      OFFLINE_CALENDAR_AUTH_CONTRACT_PHASES.relaunchFailure &&
+    entry.cause === 'cleanup-retry' &&
+    entry.outcome === 'clean' &&
+    entry.durability.offlineCalendarPreference === 'disabled' &&
+    isSuccessfulGuidanceContractEvidence(entry, entry)
+  );
+  const finalAbsenceMatches = relevant.filter((entry) =>
+    entry.serverPhase ===
+      OFFLINE_CALENDAR_AUTH_CONTRACT_PHASES.finalRelaunch &&
+    entry.cause === 'signed-out-boot' &&
+    entry.outcome === 'clean' &&
+    entry.durability.offlineCalendarPreference === 'disabled' &&
+    isSuccessfulGuidanceContractEvidence(entry, entry)
+  );
+  const [initialPending] = initialPendingMatches;
+  const [relaunchPending] = relaunchPendingMatches;
+  const [settled] = settledMatches;
+  const [finalAbsence] = finalAbsenceMatches;
+  assertJournalCondition(
+    relevant.length === 4 &&
+      initialPendingMatches.length === 1 &&
+      relaunchPendingMatches.length === 1 &&
+      settledMatches.length === 1 &&
+      finalAbsenceMatches.length === 1 &&
+      initialPending &&
+      relaunchPending &&
+      settled &&
+      finalAbsence &&
+      initialPending.sequence < relaunchPending.sequence &&
+      relaunchPending.sequence < settled.sequence &&
+      settled.sequence < finalAbsence.sequence &&
+      initialPending.appLaunchId !== relaunchPending.appLaunchId &&
+      relaunchPending.appLaunchId === settled.appLaunchId &&
+      settled.appLaunchId !== finalAbsence.appLaunchId,
+    'Offline Calendar auth cleanup evidence did not prove pending, relaunched Retry, and final absence across distinct launches.'
+  );
+}
+
+export function assertOfflineCalendarAuthStorageFaultRequests(entries, {
+  expectedSourceRevision
+}) {
+  const faultPath =
+    `${CONNECTIVITY_CONTRACT_STORAGE_FAULT_PATH}/auth-session-tombstone-set`;
+  const requestsForPhase = (phase) => entries.filter((entry) =>
+    entry.event === 'request' &&
+    entry.phase === phase &&
+    entry.path === faultPath
+  );
+  const completionFor = (request) => entries.find((entry) =>
+    entry.event === 'completion' &&
+    entry.requestId === request?.requestId
+  );
+  const exactRequest = (request) =>
+    request?.method === 'POST' &&
+    request.authorizationClass === 'none' &&
+    request.authorized === false &&
+    request.requestSourceRevision === expectedSourceRevision &&
+    request.sourceRevision === expectedSourceRevision &&
+    request.search === `?source_revision=${expectedSourceRevision}`;
+  const injectedCompletion = (completion) =>
+    completion?.completed === true &&
+    completion.statusCode === 503 &&
+    completion.semanticOutcome === 'storage-fault-injected';
+  const consumedCompletion = (completion) =>
+    completion?.completed === true &&
+    completion.statusCode === 204 &&
+    completion.semanticOutcome === 'storage-fault-not-armed';
+  const inactiveRequests = requestsForPhase(
+    OFFLINE_CALENDAR_AUTH_CONTRACT_PHASES.inactiveFailure
+  );
+  const inactiveCompletion = completionFor(inactiveRequests[0]);
+  assertJournalCondition(
+    inactiveRequests.length === 1 &&
+      exactRequest(inactiveRequests[0]) &&
+      injectedCompletion(inactiveCompletion),
+    'Offline Calendar inactive cleanup did not issue exactly one injected auth tombstone fault.'
+  );
+  const relaunchRequests = requestsForPhase(
+    OFFLINE_CALENDAR_AUTH_CONTRACT_PHASES.relaunchFailure
+  );
+  const relaunchInjected = completionFor(relaunchRequests[0]);
+  const relaunchConsumed = completionFor(relaunchRequests[1]);
+  assertJournalCondition(
+    relaunchRequests.length === 2 &&
+      relaunchRequests.every(exactRequest) &&
+      injectedCompletion(relaunchInjected) &&
+      consumedCompletion(relaunchConsumed) &&
+      relaunchRequests[0].sequence < relaunchInjected.sequence &&
+      relaunchInjected.sequence < relaunchRequests[1].sequence &&
+      relaunchRequests[1].sequence < relaunchConsumed.sequence,
+    'Offline Calendar relaunch did not issue exactly one injected fault followed by one consumed Retry.'
+  );
+}
+
+export function assertOfflineCalendarAuthBoundaryTraffic(entries) {
+  const productRequests = (phase) => entries.filter((entry) =>
+    entry.event === 'request' &&
+    entry.phase === phase &&
+    entry.path.startsWith('/api/')
+  );
+  const inactiveProductRequests = productRequests(
+    OFFLINE_CALENDAR_AUTH_CONTRACT_PHASES.inactiveFailure
+  );
+  const principal = inactiveProductRequests[0];
+  const principalCompletion = entries.find((entry) =>
+    entry.event === 'completion' &&
+    entry.requestId === principal?.requestId
+  );
+  const inactiveFault = entries.find((entry) =>
+    entry.event === 'request' &&
+    entry.phase === OFFLINE_CALENDAR_AUTH_CONTRACT_PHASES.inactiveFailure &&
+    entry.path ===
+      `${CONNECTIVITY_CONTRACT_STORAGE_FAULT_PATH}/auth-session-tombstone-set`
+  );
+  assertJournalCondition(
+    inactiveProductRequests.length === 1 &&
+      principal?.method === 'GET' &&
+      principal.path === '/api/v1/users/me' &&
+      principal.authorized === true &&
+      principalCompletion?.completed === true &&
+      principalCompletion.statusCode === 400 &&
+      principalCompletion.semanticOutcome === 'principal-inactive' &&
+      principalCompletion.sequence < inactiveFault?.sequence,
+    'Offline Calendar inactive boundary did not complete one principal rejection before auth cleanup.'
+  );
+  for (const phase of [
+    OFFLINE_CALENDAR_AUTH_CONTRACT_PHASES.relaunchFailure,
+    OFFLINE_CALENDAR_AUTH_CONTRACT_PHASES.finalRelaunch
+  ]) {
+    assertJournalCondition(
+      productRequests(phase).length === 0,
+      `Offline Calendar ${phase} issued product API traffic after the terminal boundary.`
+    );
+  }
+}
+
 export function assertGuidanceContractRouteCacheReadbackEvidence(entries, {
   expectedSourceRevision,
   minimumOccurredAtMs = 0
@@ -1433,6 +1672,42 @@ export function isSuccessfulGuidanceContractEvidence(event, journal) {
       event.durability.runtimePermit === 'none'
     );
   }
+  if (event.type === 'offline.calendar.cleanup') {
+    const preferencePreserved = ['disabled', 'enabled'].includes(
+      event.durability.offlineCalendarPreference
+    );
+    if (event.outcome === 'retry-required') {
+      return Boolean(
+        !workspaceLifecycle &&
+        event.navigationInstanceId === null &&
+        event.routeId === null &&
+        event.workspaceId === null &&
+        event.unavailableWorkspaceIds.length === 0 &&
+        event.authorization.catalog === 'not-checked' &&
+        event.authorization.principal === 'matching' &&
+        event.durability.authSession === 'present' &&
+        event.durability.offlineCalendarCleanup === 'durable' &&
+        event.durability.offlineCalendarPayload === 'present' &&
+        event.durability.offlineCalendarSlot === 'payload' &&
+        preferencePreserved
+      );
+    }
+    return Boolean(
+      event.outcome === 'clean' &&
+      !workspaceLifecycle &&
+      event.navigationInstanceId === null &&
+      event.routeId === null &&
+      event.workspaceId === null &&
+      event.unavailableWorkspaceIds.length === 0 &&
+      event.authorization.catalog === 'not-checked' &&
+      event.authorization.principal === 'none' &&
+      event.durability.authSession === 'signed-out' &&
+      event.durability.offlineCalendarCleanup === 'absent' &&
+      event.durability.offlineCalendarPayload === 'absent' &&
+      event.durability.offlineCalendarSlot === 'empty' &&
+      preferencePreserved
+    );
+  }
   return event.type === 'tracking.stop.settled' &&
     workspaceLifecycle &&
     event.authorization.catalog === 'not-checked' &&
@@ -1445,6 +1720,9 @@ export function isSuccessfulGuidanceContractEvidence(event, journal) {
 
 function normalizeControlSnapshot(value) {
   return {
+    calendarAuthFaults: normalizeCalendarAuthFaults(
+      value?.calendarAuthFaults
+    ),
     connectivity: normalizeConnectivityStatus(value?.connectivity),
     connectivitySequence: normalizeConnectivitySequence(
       value?.connectivitySequence
@@ -1453,6 +1731,30 @@ function normalizeControlSnapshot(value) {
     phase: normalizePhase(value?.phase),
     sourceRevision: normalizeControlSourceRevision(value?.sourceRevision)
   };
+}
+
+function normalizeCalendarAuthFaults(value) {
+  if (!Array.isArray(value)) {
+    return [];
+  }
+  const seen = new Set();
+  return value.flatMap((candidate) => {
+    const id = String(candidate?.id || '').trim();
+    const operation = String(candidate?.operation || '').trim();
+    if (
+      !/^[a-z][a-z0-9-]{0,63}$/.test(id) ||
+      operation !== 'auth-session-tombstone-set' ||
+      candidate?.remaining !== 1
+    ) {
+      return [];
+    }
+    const key = `${id}:${operation}`;
+    if (seen.has(key)) {
+      return [];
+    }
+    seen.add(key);
+    return [{ id, operation, remaining: 1 }];
+  });
 }
 
 async function waitForWorkspaceCatalogRelease({ phase, readControl, sleep }) {

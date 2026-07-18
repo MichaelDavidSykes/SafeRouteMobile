@@ -5,7 +5,9 @@ import { join } from 'node:path';
 import { describe, it } from 'node:test';
 
 import {
+  CONNECTIVITY_CONTRACT_PHASES,
   CONNECTIVITY_CONTRACT_REACHABILITY_PATH,
+  CONNECTIVITY_CONTRACT_STORAGE_FAULT_PATH,
   CONNECTIVITY_CONTRACT_STATUSES,
   GUIDANCE_CONTRACT_EVIDENCE_PATH,
   GUIDANCE_CONTRACT_MODES,
@@ -14,6 +16,7 @@ import {
   GUIDANCE_CONTRACT_TRIP_IDS,
   GUIDANCE_CONTRACT_WORKSPACES,
   GUIDANCE_START_BOUNDARY_PATH,
+  OFFLINE_CALENDAR_AUTH_CONTRACT_PHASES,
   WORKSPACE_CATALOG_RECOVERY_PHASES,
   WORKSPACE_CATALOG_RETRY_DELAY_MS,
   WORKSPACE_CATALOG_SUCCESS_DELAY_MS,
@@ -25,6 +28,9 @@ import {
   assertGuidanceContractRequestJournal,
   assertGuidanceContractRouteCacheReadbackEvidence,
   assertGuidanceStartTrafficBoundary,
+  assertOfflineCalendarAuthBoundaryTraffic,
+  assertOfflineCalendarAuthCleanupEvidence,
+  assertOfflineCalendarAuthStorageFaultRequests,
   createGuidanceContractAccessToken,
   createGuidanceContractOperations,
   createGuidanceContractEvidenceJournal,
@@ -184,6 +190,70 @@ describe('Maestro guidance contract API', () => {
             sourceRevision,
           ],
         ],
+      );
+    } finally {
+      await new Promise<void>((resolve) => server.close(() => resolve()));
+    }
+  });
+
+  it('injects an exact source-bound auth tombstone fault only once per control', async () => {
+    const sourceRevision = 'd'.repeat(40);
+    const control = {
+      calendarAuthFaults: [{
+        id: 'inactive-auth-clear',
+        operation: 'auth-session-tombstone-set',
+        remaining: 1,
+      }],
+      connectivity: CONNECTIVITY_CONTRACT_STATUSES.online,
+      connectivitySequence: 7,
+      mode: GUIDANCE_CONTRACT_MODES.active,
+      phase: OFFLINE_CALENDAR_AUTH_CONTRACT_PHASES.inactiveFailure,
+      sourceRevision,
+    };
+    const requests: Record<string, unknown>[] = [];
+    const server = await startGuidanceContractApi({
+      port: 0,
+      readControl: () => control,
+      requestLog: (entry: Record<string, unknown>) => requests.push(entry),
+    });
+    const address = server.address();
+    assert.ok(address && typeof address === 'object');
+    const endpoint =
+      `http://127.0.0.1:${address.port}${CONNECTIVITY_CONTRACT_STORAGE_FAULT_PATH}` +
+      `/auth-session-tombstone-set?source_revision=${sourceRevision}`;
+    const headers = {
+      'X-SafeRoute-Connectivity-Contract': '1',
+      'X-SafeRoute-Source-Revision': sourceRevision,
+    };
+
+    try {
+      assert.equal((await fetch(endpoint, {
+        body: 'credential-shaped-body',
+        headers,
+        method: 'POST',
+      })).status, 403);
+      assert.equal((await fetch(`${endpoint}&extra=1`, {
+        headers,
+        method: 'POST',
+      })).status, 403);
+      assert.equal((await fetch(endpoint, {
+        headers: { ...headers, Authorization: 'Bearer secret' },
+        method: 'POST',
+      })).status, 403);
+      assert.equal((await fetch(endpoint, { headers, method: 'POST' })).status, 503);
+      assert.equal((await fetch(endpoint, { headers, method: 'POST' })).status, 204);
+
+      const validRequests = requests.filter((entry) =>
+        entry.event === 'request' &&
+        entry.path ===
+          `${CONNECTIVITY_CONTRACT_STORAGE_FAULT_PATH}/auth-session-tombstone-set` &&
+        entry.search === `?source_revision=${sourceRevision}` &&
+        entry.authorizationClass === 'none'
+      );
+      assert.equal(validRequests.length, 3);
+      assert.deepEqual(
+        validRequests.map((request) => request.requestSourceRevision),
+        [sourceRevision, sourceRevision, sourceRevision],
       );
     } finally {
       await new Promise<void>((resolve) => server.close(() => resolve()));
@@ -432,6 +502,321 @@ describe('Maestro guidance contract API', () => {
           options,
         ),
       /not absent after process relaunch/,
+    );
+  });
+
+  it('correlates one-shot auth faults with durable Calendar cleanup and cold absence', () => {
+    const sourceRevision = '9'.repeat(40);
+    const faultPath =
+      `${CONNECTIVITY_CONTRACT_STORAGE_FAULT_PATH}/auth-session-tombstone-set`;
+    const request = (
+      phase: string,
+      requestId: string,
+      sequence: number,
+    ) => ({
+      authorizationClass: 'none',
+      authorized: false,
+      event: 'request',
+      method: 'POST',
+      path: faultPath,
+      phase,
+      requestId,
+      requestSourceRevision: sourceRevision,
+      search: `?source_revision=${sourceRevision}`,
+      sequence,
+      sourceRevision,
+    });
+    const completion = (
+      phase: string,
+      requestId: string,
+      sequence: number,
+      statusCode: number,
+      semanticOutcome: string,
+    ) => ({
+      completed: true,
+      event: 'completion',
+      path: faultPath,
+      phase,
+      requestId,
+      semanticOutcome,
+      sequence,
+      statusCode,
+    });
+    const requests = [
+      request(
+        OFFLINE_CALENDAR_AUTH_CONTRACT_PHASES.inactiveFailure,
+        'inactive-fault',
+        1,
+      ),
+      completion(
+        OFFLINE_CALENDAR_AUTH_CONTRACT_PHASES.inactiveFailure,
+        'inactive-fault',
+        2,
+        503,
+        'storage-fault-injected',
+      ),
+      request(
+        OFFLINE_CALENDAR_AUTH_CONTRACT_PHASES.relaunchFailure,
+        'relaunch-fault',
+        3,
+      ),
+      completion(
+        OFFLINE_CALENDAR_AUTH_CONTRACT_PHASES.relaunchFailure,
+        'relaunch-fault',
+        4,
+        503,
+        'storage-fault-injected',
+      ),
+      request(
+        OFFLINE_CALENDAR_AUTH_CONTRACT_PHASES.relaunchFailure,
+        'retry-consumed',
+        5,
+      ),
+      completion(
+        OFFLINE_CALENDAR_AUTH_CONTRACT_PHASES.relaunchFailure,
+        'retry-consumed',
+        6,
+        204,
+        'storage-fault-not-armed',
+      ),
+    ];
+    const pendingDurability = {
+      authSession: 'present',
+      offlineCalendarCleanup: 'durable',
+      offlineCalendarPayload: 'present',
+      offlineCalendarPreference: 'disabled',
+      offlineCalendarSlot: 'payload',
+    };
+    const cleanDurability = {
+      authSession: 'signed-out',
+      offlineCalendarCleanup: 'absent',
+      offlineCalendarPayload: 'absent',
+      offlineCalendarPreference: 'disabled',
+      offlineCalendarSlot: 'empty',
+    };
+    const event = (
+      serverPhase: string,
+      cause: string,
+      outcome: string,
+      appLaunchId: string,
+      sequence: number,
+      durability: Record<string, string>,
+    ) => ({
+      appLaunchId,
+      authorization: {
+        catalog: 'not-checked',
+        principal: outcome === 'clean' ? 'none' : 'matching',
+      },
+      cause,
+      durability,
+      navigationInstanceId: null,
+      occurredAtMs: 200 + sequence,
+      outcome,
+      routeId: null,
+      sequence,
+      serverPhase,
+      sourceRevision,
+      type: 'offline.calendar.cleanup',
+      unavailableWorkspaceIds: [],
+      workspaceId: null,
+    });
+    const evidence = [
+      event(
+        OFFLINE_CALENDAR_AUTH_CONTRACT_PHASES.inactiveFailure,
+        'inactive-account',
+        'retry-required',
+        'launch-inactive-failure',
+        1,
+        pendingDurability,
+      ),
+      event(
+        OFFLINE_CALENDAR_AUTH_CONTRACT_PHASES.relaunchFailure,
+        'startup-terminal-replay',
+        'retry-required',
+        'launch-relaunch-failure',
+        2,
+        pendingDurability,
+      ),
+      event(
+        OFFLINE_CALENDAR_AUTH_CONTRACT_PHASES.relaunchFailure,
+        'cleanup-retry',
+        'clean',
+        'launch-relaunch-failure',
+        3,
+        cleanDurability,
+      ),
+      event(
+        OFFLINE_CALENDAR_AUTH_CONTRACT_PHASES.finalRelaunch,
+        'signed-out-boot',
+        'clean',
+        'launch-final-absence',
+        4,
+        cleanDurability,
+      ),
+    ];
+
+    assert.doesNotThrow(() =>
+      assertOfflineCalendarAuthStorageFaultRequests(requests, {
+        expectedSourceRevision: sourceRevision,
+      }),
+    );
+    const inactivePrincipalRequest = {
+      authorized: true,
+      event: 'request',
+      method: 'GET',
+      path: '/api/v1/users/me',
+      phase: OFFLINE_CALENDAR_AUTH_CONTRACT_PHASES.inactiveFailure,
+      requestId: 'inactive-principal',
+      sequence: 0,
+    };
+    const inactivePrincipalCompletion = {
+      completed: true,
+      event: 'completion',
+      requestId: 'inactive-principal',
+      semanticOutcome: 'principal-inactive',
+      sequence: 0.5,
+      statusCode: 400,
+    };
+    const boundaryRequests = [
+      inactivePrincipalRequest,
+      inactivePrincipalCompletion,
+      ...requests,
+    ];
+    assert.doesNotThrow(() =>
+      assertOfflineCalendarAuthBoundaryTraffic(boundaryRequests),
+    );
+    assert.doesNotThrow(() =>
+      assertOfflineCalendarAuthCleanupEvidence(evidence, {
+        expectedSourceRevision: sourceRevision,
+        minimumOccurredAtMs: 100,
+      }),
+    );
+    assert.doesNotThrow(() =>
+      assertOfflineCalendarAuthCleanupEvidence(
+        [
+          event(
+            CONNECTIVITY_CONTRACT_PHASES.seed,
+            'signed-out-boot',
+            'clean',
+            'launch-seed',
+            0,
+            cleanDurability,
+          ),
+          ...evidence,
+        ],
+        {
+          expectedSourceRevision: sourceRevision,
+          minimumOccurredAtMs: 100,
+        },
+      ),
+    );
+    assert.throws(
+      () =>
+        assertOfflineCalendarAuthCleanupEvidence(
+          evidence.map((entry) =>
+            entry.cause === 'cleanup-retry'
+              ? { ...entry, routeId: 'leaked-route' }
+              : entry,
+          ),
+          {
+            expectedSourceRevision: sourceRevision,
+            minimumOccurredAtMs: 100,
+          },
+        ),
+      /did not prove pending, relaunched Retry, and final absence/,
+    );
+    assert.throws(
+      () =>
+        assertOfflineCalendarAuthCleanupEvidence(
+          evidence.map((entry) => ({
+            ...entry,
+            durability: {
+              ...entry.durability,
+              offlineCalendarPreference: 'enabled',
+            },
+          })),
+          {
+            expectedSourceRevision: sourceRevision,
+            minimumOccurredAtMs: 100,
+          },
+        ),
+      /did not prove pending, relaunched Retry, and final absence/,
+    );
+    assert.throws(
+      () =>
+        assertOfflineCalendarAuthCleanupEvidence(
+          [...evidence, { ...evidence[0], sequence: 5 }],
+          {
+            expectedSourceRevision: sourceRevision,
+            minimumOccurredAtMs: 100,
+          },
+        ),
+      /did not prove pending, relaunched Retry, and final absence/,
+    );
+    assert.throws(
+      () =>
+        assertOfflineCalendarAuthStorageFaultRequests(
+          requests.filter((entry) => entry.requestId !== 'retry-consumed'),
+          { expectedSourceRevision: sourceRevision },
+        ),
+      /did not issue exactly one injected fault followed by one consumed Retry/,
+    );
+    const extraConsumedRequest = request(
+      OFFLINE_CALENDAR_AUTH_CONTRACT_PHASES.inactiveFailure,
+      'extra-inactive-consumed',
+      7,
+    );
+    assert.throws(
+      () =>
+        assertOfflineCalendarAuthStorageFaultRequests(
+          [
+            ...requests,
+            extraConsumedRequest,
+            completion(
+              OFFLINE_CALENDAR_AUTH_CONTRACT_PHASES.inactiveFailure,
+              'extra-inactive-consumed',
+              8,
+              204,
+              'storage-fault-not-armed',
+            ),
+          ],
+          { expectedSourceRevision: sourceRevision },
+        ),
+      /did not issue exactly one injected auth tombstone fault/,
+    );
+    for (const phase of [
+      OFFLINE_CALENDAR_AUTH_CONTRACT_PHASES.inactiveFailure,
+      OFFLINE_CALENDAR_AUTH_CONTRACT_PHASES.relaunchFailure,
+      OFFLINE_CALENDAR_AUTH_CONTRACT_PHASES.finalRelaunch,
+    ]) {
+      assert.throws(
+        () =>
+          assertOfflineCalendarAuthBoundaryTraffic([
+            ...boundaryRequests,
+            {
+              authorized: true,
+              event: 'request',
+              method: 'GET',
+              path: '/api/v1/mobile/safe-route/routes',
+              phase,
+              requestId: `escaped-${phase}`,
+              sequence: 20,
+            },
+          ]),
+        /did not complete one principal rejection|issued product API traffic/,
+      );
+    }
+    assert.throws(
+      () =>
+        assertOfflineCalendarAuthBoundaryTraffic(
+          boundaryRequests.map((entry) =>
+            entry.requestId === 'inactive-principal' &&
+            entry.event === 'completion'
+              ? { ...entry, sequence: 2 }
+              : entry,
+          ),
+        ),
+      /did not complete one principal rejection before auth cleanup/,
     );
   });
 

@@ -6,6 +6,7 @@ import { describe, it } from 'node:test';
 import {
   createDeviceOnlySecureStoreOptions,
   createStoredAuthSession,
+  classifyStoredAuthSessionForContract,
   parseStoredAuthSession,
   serializeSignedOutAuthSession,
   serializeStoredAuthSession
@@ -99,6 +100,46 @@ describe('stored auth session normalization', () => {
     assert.doesNotMatch(
       authStorageSource.slice(tombstoneWriteIndex),
       /deleteItemAsync\(AUTH_SESSION_KEY\)/
+    );
+    assert.equal(classifyStoredAuthSessionForContract(tombstone), 'signed-out');
+    assert.equal(
+      classifyStoredAuthSessionForContract(serializeStoredAuthSession({
+        accessToken: 'token',
+        email: 'driver@example.com',
+        principalId: 'principal-1',
+      })),
+      'present',
+    );
+    assert.equal(classifyStoredAuthSessionForContract('{bad-json'), 'unknown');
+    assert.equal(
+      classifyStoredAuthSessionForContract(
+        '{"schema":2,"signedOut":true,"accessToken":"secret"}',
+      ),
+      'unknown',
+    );
+  });
+
+  it('injects the one-shot contract failure immediately before the real auth tombstone', () => {
+    const authStorageSource = readFileSync(
+      join(process.cwd(), 'src/features/auth/authStorage.ts'),
+      'utf8'
+    );
+    const hookIndex = authStorageSource.indexOf(
+      "shouldInjectConnectivityContractStorageFault(\n      'auth-session-tombstone-set'",
+    );
+    const disabledGateIndex = authStorageSource.indexOf(
+      "SAFEROUTE_STORAGE_FAULT_CONTRACT_ENABLED &&",
+    );
+    const tombstoneWriteIndex = authStorageSource.indexOf(
+      'SecureStore.setItemAsync(\n    AUTH_SESSION_KEY,\n    serializeSignedOutAuthSession()',
+    );
+
+    assert.ok(disabledGateIndex >= 0);
+    assert.ok(hookIndex > disabledGateIndex);
+    assert.ok(tombstoneWriteIndex > hookIndex);
+    assert.doesNotMatch(
+      authStorageSource.slice(hookIndex, tombstoneWriteIndex),
+      /accessToken|EMAIL_KEY|ACCESS_TOKEN_KEY/,
     );
   });
 

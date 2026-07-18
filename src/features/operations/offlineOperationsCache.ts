@@ -17,6 +17,7 @@ import {
   type OfflineOperationsPrincipalCleanupOutcome,
 } from "./offlineOperationsPrincipalCleanupCore";
 import type { SafeRouteOperationsState } from "./operationsTypes";
+import { classifyOfflineCalendarContractStorage } from "../../testing/offlineCalendarCleanupContractEvidenceCore";
 
 const OPERATIONS_CALENDAR_CACHE_KEY =
   "saferoute.offline.operations.calendar.v1";
@@ -266,6 +267,78 @@ export async function ensureSignedOutOfflineOperationsCalendarRemoved(): Promise
   } catch {
     return false;
   }
+}
+
+export async function readOfflineOperationsCalendarContractState(
+  principalId: string,
+  workspaceId: string,
+  preferenceWorkspaceId = workspaceId,
+): Promise<{
+  cleanup:
+    | "absent"
+    | "durable"
+    | "nondurable"
+    | "unreadable"
+    | "unknown";
+  payload: "absent" | "present" | "unknown";
+  preference:
+    | "cleanup-pending"
+    | "disabled"
+    | "enabled"
+    | "unavailable"
+    | "unverified";
+  slot: "empty" | "payload" | "revoked" | "unreadable" | "unknown";
+}> {
+  let rawCalendar: string | null;
+  let rawPreference: string | null | undefined;
+  let cleanup:
+    | "absent"
+    | "durable"
+    | "nondurable"
+    | "unreadable"
+    | "unknown" = "unknown";
+  try {
+    rawCalendar = await SecureStore.getItemAsync(
+      OPERATIONS_CALENDAR_CACHE_KEY,
+    );
+    rawPreference = await SecureStore.getItemAsync(
+      OPERATIONS_CALENDAR_PREFERENCE_KEY,
+    );
+  } catch {
+    rawCalendar = null;
+    rawPreference = undefined;
+    return {
+      cleanup,
+      payload: "unknown",
+      preference: "unavailable",
+      slot: "unknown",
+    };
+  }
+  try {
+    const cleanupState =
+      await operationsPrincipalCleanupStorage.getState();
+    cleanup =
+      cleanupState.status === "clean"
+        ? "absent"
+        : cleanupState.status === "corrupt"
+          ? "unreadable"
+          : cleanupState.pending.durable
+            ? "durable"
+            : "nondurable";
+  } catch {
+    cleanup = "unreadable";
+  }
+  const storage = classifyOfflineCalendarContractStorage({
+    calendarRaw: rawCalendar,
+    calendarWorkspaceId: workspaceId,
+    preferenceRaw: rawPreference,
+    preferenceWorkspaceId,
+    principalId,
+  });
+  return {
+    cleanup,
+    ...storage,
+  };
 }
 
 export function tryActivateOfflineOperationsPrincipal(

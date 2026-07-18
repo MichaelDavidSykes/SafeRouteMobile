@@ -1,0 +1,20 @@
+appId: host.exp.Exponent
+---
+- tapOn:
+    id: "safe-route-calendar-cleanup-retry"
+- extendedWaitUntil:
+    notVisible:
+      id: "safe-route-calendar-cleanup-alert"
+    timeout: 15000
+- assertNotVisible:
+    id: "safe-route-calendar-cleanup"
+- assertVisible: "Offline Calendar storage restored. Sign in again to resume offline review."
+- assertVisible:
+    id: "guest-map-primary-action"
+- assertNotVisible:
+    id: "guest-map-workspace-selector"
+- assertNotVisible:
+    id: "safe-route-suspended-navigation"
+- assertNotVisible:
+    id: "safe-route-resume-action"
+- takeScreenshot: "connectivity-contract-calendar-auth-retry"

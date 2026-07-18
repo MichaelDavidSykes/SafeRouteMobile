@@ -19,6 +19,7 @@ export type SafeRouteExtra = {
   safeRouteApiUrl?: string;
   safeRouteApiVersion?: string;
   safeRouteConnectivityContractEnabled?: boolean;
+  safeRouteStorageFaultContractEnabled?: boolean;
   safeRouteEnvironment?: string;
   safeRouteDemoDriveEnabled?: boolean;
   safeRouteGuidanceContractEvidenceEnabled?: boolean;
@@ -38,6 +39,7 @@ export type SafeRouteRuntimeConfig = {
   previewInitialScreen: SafeRoutePreviewInitialScreen;
   previewModeEnabled: boolean;
   sourceRevision: string;
+  storageFaultContractEnabled: boolean;
 };
 
 export type SafeRouteConstantsLike = {
@@ -62,6 +64,7 @@ const SAFE_ROUTE_EXTRA_KEYS: (keyof SafeRouteExtra)[] = [
   'safeRouteApiUrl',
   'safeRouteApiVersion',
   'safeRouteConnectivityContractEnabled',
+  'safeRouteStorageFaultContractEnabled',
   'safeRouteEnvironment',
   'safeRouteDemoDriveEnabled',
   'safeRouteGuidanceContractEvidenceEnabled',
@@ -157,6 +160,9 @@ export function resolveSafeRouteRuntimeConfig(extra: SafeRouteExtra | undefined)
     appEnvironment === 'development' &&
     sourceRevision.length === 40 &&
     isLoopbackApiUrl(lunarchainApiUrl);
+  const storageFaultContractEnabled =
+    extra?.safeRouteStorageFaultContractEnabled === true &&
+    connectivityContractEnabled;
   const previewInitialScreen = normalizePreviewInitialScreen(
     extra?.safeRoutePreviewInitialScreen,
     previewModeEnabled
@@ -172,7 +178,8 @@ export function resolveSafeRouteRuntimeConfig(extra: SafeRouteExtra | undefined)
     lunarchainApiVersion,
     previewInitialScreen,
     previewModeEnabled,
-    sourceRevision
+    sourceRevision,
+    storageFaultContractEnabled
   };
 }
 

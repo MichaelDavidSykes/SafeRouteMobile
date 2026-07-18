@@ -98,6 +98,37 @@ describe("guidance contract device evidence", () => {
     assert.ok(prestart);
     assert.equal(prestart.navigationInstanceId, null);
     assert.equal(prestart.type, "navigation.prestart.readback");
+    const calendarCleanup = createGuidanceContractEvidenceEvent({
+      appLaunchId: "launch-evidence-3",
+      authorization: { catalog: "not-checked", principal: "matching" },
+      cause: "inactive-account",
+      durability: {
+        authSession: "present",
+        offlineCalendarCleanup: "durable",
+        offlineCalendarPayload: "present",
+        offlineCalendarPreference: "enabled",
+        offlineCalendarSlot: "payload",
+      },
+      eventId: "evidence-calendar-1",
+      navigationInstanceId: null,
+      outcome: "retry-required",
+      routeId: null,
+      sourceRevision: revision,
+      type: "offline.calendar.cleanup",
+      unavailableWorkspaceIds: [],
+      workspaceId: null,
+    });
+    assert.ok(calendarCleanup);
+    assert.deepEqual(calendarCleanup.durability, {
+      authSession: "present",
+      offlineCalendarCleanup: "durable",
+      offlineCalendarPayload: "present",
+      offlineCalendarPreference: "enabled",
+      offlineCalendarSlot: "payload",
+    });
+    assert.equal(calendarCleanup.workspaceId, null);
+    assert.equal(calendarCleanup.routeId, null);
+    assert.equal(calendarCleanup.navigationInstanceId, null);
     assert.deepEqual(parseGuidanceContractEvidenceSpool("not-json"), []);
   });
 

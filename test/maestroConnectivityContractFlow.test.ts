@@ -315,4 +315,92 @@ describe("Maestro connectivity contract runtime", () => {
       /guest-map-primary-action[\s\S]*guest-map-workspace-selector[\s\S]*safe-route-login/,
     );
   });
+
+  it("wires the one-shot Calendar auth cleanup slice without a frontend build", () => {
+    const packageJson = JSON.parse(read("package.json")) as {
+      scripts: Record<string, string>;
+    };
+    const start =
+      packageJson.scripts[
+        "start:maestro:ios:connectivity-contract:calendar-auth-cleanup"
+      ];
+    const run =
+      packageJson.scripts[
+        "test:maestro:ios:connectivity-contract:calendar-auth-cleanup"
+      ];
+    const prestart =
+      packageJson.scripts[
+        "prestart:maestro:ios:connectivity-contract:calendar-auth-cleanup"
+      ];
+    const runner = read("scripts/run-maestro-connectivity-contract.mjs");
+    const fixture = read("scripts/maestro-guidance-contract-api.mjs");
+    const inactiveFailure = read(
+      "maestro/ios-connectivity-contract-calendar-auth-inactive-failure.yaml",
+    );
+    const preferenceSeed = read(
+      "maestro/ios-connectivity-contract-calendar-auth-preference-seed.yaml",
+    );
+    const finalRelaunch = read(
+      "maestro/ios-connectivity-contract-calendar-auth-final-relaunch.yaml",
+    );
+    const relaunchFailure = read(
+      "maestro/ios-connectivity-contract-calendar-auth-relaunch-failure.yaml",
+    );
+    const retry = read(
+      "maestro/ios-connectivity-contract-calendar-auth-retry.yaml",
+    );
+
+    assert.match(start, /SAFEROUTE_SOURCE_REVISION=\$\(git rev-parse HEAD\)/);
+    assert.match(start, /SAFEROUTE_ENABLE_CONNECTIVITY_CONTRACT=true/);
+    assert.match(start, /SAFEROUTE_ENABLE_STORAGE_FAULT_CONTRACT=true/);
+    assert.match(start, /SAFEROUTE_ENABLE_GUIDANCE_CONTRACT_EVIDENCE=true/);
+    assert.match(start, /SAFEROUTE_DEV_API_URL=http:\/\/127\.0\.0\.1:18080/);
+    assert.match(run, /SAFEROUTE_CONNECTIVITY_CONTRACT_SLICE=calendar-auth-cleanup/);
+    assert.equal(prestart, "node scripts/maestro-ios-preflight.mjs");
+    assert.doesNotMatch(
+      `${start}\n${run}`,
+      /npm run build|expo export|eas build|xcodebuild/i,
+    );
+    assert.match(
+      runner,
+      /expectedStorageFaultContractEnabled:[\s\S]*CALENDAR_AUTH_CLEANUP_SLICE/,
+    );
+    assert.match(
+      runner,
+      /inactive-auth-clear[\s\S]*terminateExpoGo\(deviceId\)[\s\S]*relaunch-auth-clear[\s\S]*flows\.calendarAuthRetry[\s\S]*OFFLINE_CALENDAR_AUTH_CONTRACT_PHASES\.finalRelaunch/,
+    );
+    assert.match(
+      runner,
+      /offline\.calendar\.cleanup[\s\S]*assertOfflineCalendarAuthStorageFaultRequests[\s\S]*assertOfflineCalendarAuthCleanupEvidence/,
+    );
+    assert.match(
+      runner,
+      /flows\.seed[\s\S]*flows\.calendarAuthPreferenceSeed[\s\S]*flows\.seedJourney[\s\S]*runCalendarAuthCleanupSlice/,
+    );
+    assert.match(runner, /assertOfflineCalendarAuthBoundaryTraffic\(requests\)/);
+    assert.match(
+      fixture,
+      /CONNECTIVITY_CONTRACT_STORAGE_FAULT_PATH[\s\S]*auth-session-tombstone-set[\s\S]*storage-fault-injected[\s\S]*storage-fault-not-armed/,
+    );
+    assert.match(
+      inactiveFailure,
+      /safe-route-login[\s\S]*safe-route-calendar-cleanup-alert[\s\S]*safe-route-calendar-cleanup-retry[\s\S]*enabled: true/,
+    );
+    assert.match(
+      preferenceSeed,
+      /safe-route-operations-workspace-66a1b2c3d4e5f60718293a41[\s\S]*Workspace, Support Operations[\s\S]*Stop saving[\s\S]*Offline Calendar saving is off[\s\S]*safe-route-operations-workspace-66a1b2c3d4e5f60718293a40[\s\S]*Workspace, Guidance Operations[\s\S]*Offline saving is on/,
+    );
+    assert.match(
+      relaunchFailure,
+      /guest-map-primary-action[\s\S]*guest-map-workspace-selector[\s\S]*safe-route-calendar-cleanup-alert[\s\S]*safe-route-calendar-cleanup-retry/,
+    );
+    assert.match(
+      retry,
+      /safe-route-calendar-cleanup-retry[\s\S]*safe-route-calendar-cleanup-alert[\s\S]*safe-route-calendar-cleanup"[\s\S]*Offline Calendar storage restored\. Sign in again[\s\S]*guest-map-primary-action/,
+    );
+    assert.match(
+      finalRelaunch,
+      /guest-map-primary-action[\s\S]*guest-map-workspace-selector[\s\S]*safe-route-calendar-cleanup"[\s\S]*safe-route-calendar-cleanup-alert[\s\S]*safe-route-calendar-cleanup-retry[\s\S]*safe-route-login/,
+    );
+  });
 });

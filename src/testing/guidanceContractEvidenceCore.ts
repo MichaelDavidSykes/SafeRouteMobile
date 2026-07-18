@@ -11,6 +11,7 @@ export const GUIDANCE_CONTRACT_EVIDENCE_TYPES = [
   "tracking.stop.settled",
   "navigation.absence.readback",
   "navigation.prestart.readback",
+  "offline.calendar.cleanup",
 ] as const;
 
 export type GuidanceContractEvidenceType =
@@ -18,7 +19,12 @@ export type GuidanceContractEvidenceType =
 
 export type GuidanceContractEvidenceDurability = {
   activeNavigation?: "absent" | "present" | "revoked" | "unknown";
+  authSession?: "present" | "signed-out" | "unavailable" | "unknown";
   nativeTracking?: "active" | "not-started" | "stopped" | "unknown" | "unsupported";
+  offlineCalendarCleanup?: "absent" | "durable" | "nondurable" | "unreadable" | "unknown";
+  offlineCalendarPayload?: "absent" | "present" | "unknown";
+  offlineCalendarPreference?: "cleanup-pending" | "disabled" | "enabled" | "unavailable" | "unverified" | "unknown";
+  offlineCalendarSlot?: "empty" | "payload" | "revoked" | "unreadable" | "unknown";
   persistedPermit?: "present" | "revoked" | "unknown";
   routeCache?: "failed" | "present" | "purged" | "unknown";
   runtimePermit?: "active" | "none" | "pending" | "unknown";
@@ -219,14 +225,24 @@ function normalizeDurability(value: unknown): GuidanceContractEvidenceDurability
     return {};
   }
   const activeNavigation = oneOf(value.activeNavigation, ["absent", "present", "revoked", "unknown"]);
+  const authSession = oneOf(value.authSession, ["present", "signed-out", "unavailable", "unknown"]);
   const nativeTracking = oneOf(value.nativeTracking, ["active", "not-started", "stopped", "unknown", "unsupported"]);
+  const offlineCalendarCleanup = oneOf(value.offlineCalendarCleanup, ["absent", "durable", "nondurable", "unreadable", "unknown"]);
+  const offlineCalendarPayload = oneOf(value.offlineCalendarPayload, ["absent", "present", "unknown"]);
+  const offlineCalendarPreference = oneOf(value.offlineCalendarPreference, ["cleanup-pending", "disabled", "enabled", "unavailable", "unverified", "unknown"]);
+  const offlineCalendarSlot = oneOf(value.offlineCalendarSlot, ["empty", "payload", "revoked", "unreadable", "unknown"]);
   const persistedPermit = oneOf(value.persistedPermit, ["present", "revoked", "unknown"]);
   const routeCache = oneOf(value.routeCache, ["failed", "present", "purged", "unknown"]);
   const runtimePermit = oneOf(value.runtimePermit, ["active", "none", "pending", "unknown"]);
   const workspaceContext = oneOf(value.workspaceContext, ["failed", "persisted", "revoked", "unknown"]);
   return {
     ...(activeNavigation ? { activeNavigation } : {}),
+    ...(authSession ? { authSession } : {}),
     ...(nativeTracking ? { nativeTracking } : {}),
+    ...(offlineCalendarCleanup ? { offlineCalendarCleanup } : {}),
+    ...(offlineCalendarPayload ? { offlineCalendarPayload } : {}),
+    ...(offlineCalendarPreference ? { offlineCalendarPreference } : {}),
+    ...(offlineCalendarSlot ? { offlineCalendarSlot } : {}),
     ...(persistedPermit ? { persistedPermit } : {}),
     ...(routeCache ? { routeCache } : {}),
     ...(runtimePermit ? { runtimePermit } : {}),

@@ -13,7 +13,9 @@ export function readGuidanceMetroIdentity(manifest) {
     previewModeEnabled: runtimeExtra.safeRoutePreviewModeEnabled,
     projectRoot: String(expoGo?.developer?.projectRoot || '').trim(),
     slug: String(expoClient?.slug || '').trim(),
-    sourceRevision: String(runtimeExtra.safeRouteSourceRevision || '').trim().toLowerCase()
+    sourceRevision: String(runtimeExtra.safeRouteSourceRevision || '').trim().toLowerCase(),
+    storageFaultContractEnabled:
+      runtimeExtra.safeRouteStorageFaultContractEnabled === true
   };
 }
 
@@ -22,7 +24,8 @@ export function assertGuidanceMetroIdentity(identity, {
   expectedConnectivityContractEnabled,
   expectedProjectRoot,
   expectedSlug,
-  expectedSourceRevision
+  expectedSourceRevision,
+  expectedStorageFaultContractEnabled
 }) {
   const expected = {
     apiUrl: String(expectedApiUrl || '').trim(),
@@ -74,6 +77,14 @@ export function assertGuidanceMetroIdentity(identity, {
       actual.connectivityContractEnabled
     );
   }
+  if (typeof expectedStorageFaultContractEnabled === 'boolean') {
+    assertIdentityField(
+      actual.storageFaultContractEnabled === expectedStorageFaultContractEnabled,
+      'storage-fault-contract flag',
+      expectedStorageFaultContractEnabled,
+      actual.storageFaultContractEnabled
+    );
+  }
 
   return actual;
 }
@@ -94,6 +105,7 @@ export async function verifyGuidanceContractMetroIdentity({
   expectedProjectRoot,
   expectedSlug,
   expectedSourceRevision,
+  expectedStorageFaultContractEnabled,
   fetchImpl = fetch,
   manifestUrl,
   timeoutMs = DEFAULT_MANIFEST_TIMEOUT_MS
@@ -126,7 +138,8 @@ export async function verifyGuidanceContractMetroIdentity({
       expectedConnectivityContractEnabled,
       expectedProjectRoot,
       expectedSlug,
-      expectedSourceRevision
+      expectedSourceRevision,
+      expectedStorageFaultContractEnabled
     });
   } catch (error) {
     if (error?.name === 'AbortError') {

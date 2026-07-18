@@ -494,4 +494,37 @@ describe("offline Operations secure storage", () => {
       ),
     );
   });
+
+  it("keeps Calendar contract readback redacted and preference-preserving", () => {
+    const source = readFileSync(
+      "src/features/operations/offlineOperationsCache.ts",
+      "utf8",
+    );
+    const readbackIndex = source.indexOf(
+      "export async function readOfflineOperationsCalendarContractState",
+    );
+    assert.ok(readbackIndex >= 0);
+    const readback = source.slice(readbackIndex);
+
+    assert.match(
+      readback,
+      /cleanup:[\s\S]*payload:[\s\S]*preference:[\s\S]*slot:/,
+    );
+    assert.match(
+      readback,
+      /operationsPrincipalCleanupStorage\.getState\(\)/,
+    );
+    assert.match(
+      readback,
+      /preferenceWorkspaceId = workspaceId[\s\S]*OPERATIONS_CALENDAR_PREFERENCE_KEY[\s\S]*classifyOfflineCalendarContractStorage\(\{[\s\S]*calendarWorkspaceId: workspaceId,[\s\S]*preferenceWorkspaceId,[\s\S]*principalId/,
+    );
+    assert.doesNotMatch(
+      readback,
+      /getOfflineOperationsCalendarSavingPreference|recoverOfflineOperationsCalendarCleanup|operationsPreferenceStorage\.(?:enable|disable|completeCleanup)/,
+    );
+    assert.doesNotMatch(
+      readback,
+      /accessToken|email|return rawCalendar/,
+    );
+  });
 });

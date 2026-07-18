@@ -16,6 +16,7 @@ describe('SafeRoute runtime config', () => {
     assert.equal(config.guidanceContractEvidenceEnabled, false);
     assert.equal(config.previewModeEnabled, false);
     assert.equal(config.previewInitialScreen, 'guest-map');
+    assert.equal(config.storageFaultContractEnabled, false);
     assert.equal(config.lunarchainApiUrl, 'https://api.lunarchain.net');
     assert.equal(config.lunarchainApiVersion, 'v1');
     assert.equal(config.lunarchainApiBase, 'https://api.lunarchain.net/api/v1');
@@ -124,6 +125,39 @@ describe('SafeRoute runtime config', () => {
       safeRouteConnectivityContractEnabled: true,
       safeRouteEnvironment: 'development',
     }).connectivityContractEnabled, false);
+  });
+
+  it('enables storage faults only behind the exact local connectivity contract', () => {
+    const revision = 'C'.repeat(40);
+    const enabled = resolveSafeRouteRuntimeConfig({
+      safeRouteApiUrl: 'http://127.0.0.1:18080',
+      safeRouteConnectivityContractEnabled: true,
+      safeRouteEnvironment: 'development',
+      safeRouteSourceRevision: revision,
+      safeRouteStorageFaultContractEnabled: true,
+    });
+
+    assert.equal(enabled.storageFaultContractEnabled, true);
+    assert.equal(resolveSafeRouteRuntimeConfig({
+      safeRouteApiUrl: 'http://127.0.0.1:18080',
+      safeRouteEnvironment: 'development',
+      safeRouteSourceRevision: revision,
+      safeRouteStorageFaultContractEnabled: true,
+    }).storageFaultContractEnabled, false);
+    assert.equal(resolveSafeRouteRuntimeConfig({
+      safeRouteApiUrl: 'https://api.lunarchain.net',
+      safeRouteConnectivityContractEnabled: true,
+      safeRouteEnvironment: 'development',
+      safeRouteSourceRevision: revision,
+      safeRouteStorageFaultContractEnabled: true,
+    }).storageFaultContractEnabled, false);
+    assert.equal(resolveSafeRouteRuntimeConfig({
+      safeRouteApiUrl: 'http://127.0.0.1:18080',
+      safeRouteConnectivityContractEnabled: true,
+      safeRouteEnvironment: 'production',
+      safeRouteSourceRevision: revision,
+      safeRouteStorageFaultContractEnabled: true,
+    }).storageFaultContractEnabled, false);
   });
 
   it('allows preview mode only for explicit non-production runtime config', () => {

@@ -1,0 +1,23 @@
+appId: host.exp.Exponent
+---
+- runFlow: subflows/ios-open-expo-project.yaml
+- extendedWaitUntil:
+    visible:
+      id: "safe-route-login"
+    timeout: 30000
+- assertVisible: "This LunarChain account is inactive. Contact an administrator or sign in with another account."
+- extendedWaitUntil:
+    visible:
+      id: "safe-route-calendar-cleanup-alert"
+    timeout: 15000
+- assertVisible: "Offline Calendar unavailable. SafeRoute could not finish device storage protection. Retry before offline Calendar can be used."
+- assertVisible:
+    id: "safe-route-calendar-cleanup-retry"
+    enabled: true
+- assertNotVisible:
+    id: "safe-route-suspended-navigation"
+- assertNotVisible:
+    id: "safe-route-resume-action"
+- assertNotVisible:
+    id: "safe-route-picker"
+- takeScreenshot: "connectivity-contract-calendar-auth-inactive-failure"

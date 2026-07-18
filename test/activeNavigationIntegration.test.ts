@@ -85,6 +85,10 @@ describe("production navigation reliability integration", () => {
     assert.match(appSource, /openActiveNavigationSession/);
     assert.match(appSource, /ResumeNavigationButton/);
     assert.match(appSource, /clearActiveNavigationSession/);
+    assert.match(
+      activeSessionSource,
+      /revokeTerminalActiveNavigationStorage[\s\S]*clearActiveNavigationSession\(\)[\s\S]*if \(!revoked\)[\s\S]*throw new Error/,
+    );
     assert.match(liveMapSource, /createActiveNavigationSession/);
     assert.match(liveMapSource, /saveActiveNavigationSession/);
     assert.match(liveMapSource, /initialNavigationSession/);

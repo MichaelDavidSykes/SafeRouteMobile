@@ -144,6 +144,15 @@ export async function clearActiveNavigationSession(): Promise<boolean> {
   );
 }
 
+export async function revokeTerminalActiveNavigationStorage(): Promise<void> {
+  const revoked = await clearActiveNavigationSession();
+  if (!revoked) {
+    throw new Error(
+      "Active guidance storage could not be revoked at the terminal account boundary.",
+    );
+  }
+}
+
 export function hasRuntimeBackgroundNavigationPermit(): boolean {
   return runtimeBackgroundNavigationPermit.hasActivePermit();
 }

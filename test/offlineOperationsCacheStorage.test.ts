@@ -129,13 +129,21 @@ describe("offline Operations secure storage", () => {
       text,
       /createOfflineOperationsPrincipalCleanupCoordinator\([\s\S]*clearAll: operationsStorage\.clearAll[\s\S]*clearPrincipal: operationsStorage\.clearPrincipal/,
     );
-    assert.match(
-      text,
-      /clearTerminalPrincipal:[\s\S]*clearOfflineWorkspacePrincipal[\s\S]*clearOfflineRoutePrincipal[\s\S]*operationsStorage\.clearPrincipal/,
+    const clearAllTerminalBlock = text.slice(
+      text.indexOf("clearAllTerminal:"),
+      text.indexOf("clearPrincipal:"),
+    );
+    const clearTerminalPrincipalBlock = text.slice(
+      text.indexOf("clearTerminalPrincipal:"),
+      text.indexOf("storage: operationsPrincipalCleanupStorage"),
     );
     assert.match(
-      text,
-      /clearAllTerminal:[\s\S]*clearAllOfflineWorkspaceContexts[\s\S]*clearAllOfflineRouteCaches[\s\S]*operationsStorage\.clearAll/,
+      clearAllTerminalBlock,
+      /clearAllOfflineWorkspaceContexts[\s\S]*clearAllOfflineRouteCaches[\s\S]*operationsStorage\.clearAll[\s\S]*revokeTerminalActiveNavigationStorage/,
+    );
+    assert.match(
+      clearTerminalPrincipalBlock,
+      /clearOfflineWorkspacePrincipal[\s\S]*clearOfflineRoutePrincipal[\s\S]*operationsStorage\.clearPrincipal[\s\S]*revokeTerminalActiveNavigationStorage/,
     );
     assert.match(
       text,
@@ -163,7 +171,7 @@ describe("offline Operations secure storage", () => {
     );
     assert.doesNotMatch(
       signedOutCleanup,
-      /clearAllOfflineWorkspaceContexts|clearAllOfflineRouteCaches/,
+      /clearAllOfflineWorkspaceContexts|clearAllOfflineRouteCaches|revokeTerminalActiveNavigationStorage/,
     );
     assert.match(
       text,

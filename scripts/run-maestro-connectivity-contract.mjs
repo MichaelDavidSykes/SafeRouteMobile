@@ -214,7 +214,8 @@ async function main() {
   captureAccessibilityHierarchy('offline-saved-review', [
     {
       id: 'safe-route-offline-notice',
-      label: 'Offline saved copy · reconnect before starting guidance',
+      // Maestro 2.6.1 compact CSV transliterates the rendered middle dot to ?.
+      label: 'Offline saved copy ? reconnect before starting guidance',
       enabled: true,
     },
     {

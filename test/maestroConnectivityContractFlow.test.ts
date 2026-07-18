@@ -145,6 +145,10 @@ describe("Maestro connectivity contract runtime", () => {
       /captureAccessibilityHierarchy\('offline-saved-review'[\s\S]*safe-route-offline-notice[\s\S]*safe-route-card-66b1b2c3d4e5f60718293b40/,
     );
     assert.match(
+      runner,
+      /label: 'Offline saved copy \? reconnect before starting guidance'/,
+    );
+    assert.match(
       seedJourney,
       /setLocation:[\s\S]*safe-route-primary-action"[\s\S]*enabled: true/,
     );

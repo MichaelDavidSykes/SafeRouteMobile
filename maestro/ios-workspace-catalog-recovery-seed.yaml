@@ -18,9 +18,6 @@ appId: host.exp.Exponent
     speed: 40
 - tapOn:
     id: "safe-route-login-password"
-- eraseText
-- inputText: "guidance-contract-password"
-- pressKey: ENTER
 - runFlow:
     when:
       visible: "Autofill Password"
@@ -31,6 +28,11 @@ appId: host.exp.Exponent
       visible: "Continue"
     commands:
       - tapOn: "Continue"
+- tapOn:
+    id: "safe-route-login-password"
+- eraseText
+- inputText: "guidance-contract-password"
+- pressKey: ENTER
 - runFlow:
     when:
       visible: "Not Now"

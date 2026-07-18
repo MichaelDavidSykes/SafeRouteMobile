@@ -65,6 +65,7 @@ interface OperationsScreenProps {
   workspaceCatalogLoading: boolean;
   workspaceAccessRecoveryPending: boolean;
   workspaceAccessRefreshAvailable: boolean;
+  workspaceAccessFocusTargetRef?: (target: View | null) => void;
   workspaceAccessIssue: WorkspaceAccessIssue;
   workspaceSwitchDisabled: boolean;
 }
@@ -86,6 +87,7 @@ export function OperationsScreen({
   workspaceCatalogLoading,
   workspaceAccessRecoveryPending,
   workspaceAccessRefreshAvailable,
+  workspaceAccessFocusTargetRef,
   workspaceAccessIssue,
   workspaceSwitchDisabled
 }: OperationsScreenProps) {
@@ -323,6 +325,7 @@ export function OperationsScreen({
       {shouldShowOperationsWorkspaceSelector(workspaceOptions) ? (
         <View style={styles.clientFilter}>
           <Pressable
+            ref={workspaceAccessFocusTargetRef}
             accessibilityHint={workspaceSwitchDisabled
               ? "End active guidance before changing workspace."
               : "Opens the active workspace menu."}

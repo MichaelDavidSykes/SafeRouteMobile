@@ -104,6 +104,10 @@ import {
   type WorkspaceAccessAnnouncementPhase,
   type WorkspaceAccessIssue,
 } from './src/features/workspaces/workspaceAccessRefreshState';
+import {
+  createWorkspaceAccessFocusHandoff,
+  type WorkspaceAccessFocusHandoff,
+} from './src/features/workspaces/workspaceAccessFocusHandoff';
 import { SuspendedNavigationNotice } from './src/features/live-map/SuspendedNavigationNotice';
 import { NavigationCleanupNotice } from './src/features/live-map/NavigationCleanupNotice';
 import { isNavigationStartRequestCurrent } from './src/features/live-map/navigationStartRequestIdentity';
@@ -166,6 +170,36 @@ export default function App() {
   const workspaceWasBackgroundedRef = useRef(AppState.currentState === 'background');
   const workspaceAccessAnnouncementPhaseRef =
     useRef<WorkspaceAccessAnnouncementPhase>('idle');
+  const workspaceAccessFocusTargetRef = useRef<View | null>(null);
+  const workspaceAccessFocusHandoffRef =
+    useRef<WorkspaceAccessFocusHandoff<View> | null>(null);
+  if (!workspaceAccessFocusHandoffRef.current) {
+    workspaceAccessFocusHandoffRef.current = createWorkspaceAccessFocusHandoff({
+      announce: (announcement) => {
+        AccessibilityInfo.announceForAccessibilityWithOptions(announcement, {
+          queue: true,
+        });
+      },
+      focus: (target) => {
+        AccessibilityInfo.sendAccessibilityEvent(target, 'focus');
+      },
+      isScreenReaderEnabled: () => AccessibilityInfo.isScreenReaderEnabled(),
+      scheduleFallback: (callback, delayMs) => {
+        const timeout = setTimeout(callback, delayMs);
+        return () => clearTimeout(timeout);
+      },
+      subscribeToAnnouncementFinished: (listener) => {
+        const subscription = AccessibilityInfo.addEventListener(
+          'announcementFinished',
+          listener,
+        );
+        return () => subscription.remove();
+      },
+    });
+  }
+  const updateWorkspaceAccessFocusTarget = useCallback((target: View | null) => {
+    workspaceAccessFocusTargetRef.current = target;
+  }, []);
   const workspaceRequestRevisionRef = useRef(0);
   const activeWorkspaceRef = useRef<SafeRouteWorkspace | null>(null);
   const availableWorkspacesRef = useRef<SafeRouteWorkspace[]>([]);
@@ -238,6 +272,7 @@ export default function App() {
     });
     workspaceAccessAnnouncementPhaseRef.current = transition.phase;
     if (Platform.OS === 'ios' && transition.announcement) {
+      workspaceAccessFocusHandoffRef.current?.cancel();
       AccessibilityInfo.announceForAccessibilityWithOptions(
         transition.announcement,
         { queue: true },
@@ -251,6 +286,10 @@ export default function App() {
     workspaceCatalogLoading,
     workspaceCatalogRetrying,
   ]);
+
+  useEffect(() => () => {
+    workspaceAccessFocusHandoffRef.current?.cancel();
+  }, []);
 
   const requestWorkspaceForegroundRevalidation = useCallback(
     (nextAppState: Parameters<typeof resolveWorkspaceForegroundRevalidation>[0]['nextAppState']) => {
@@ -1259,10 +1298,25 @@ export default function App() {
           const confirmation = workspaceAccessRestored
             ? 'Workspace access refreshed.'
             : 'Workspace access verified.';
-          setSessionMessage(confirmation);
-          AccessibilityInfo.announceForAccessibilityWithOptions(confirmation, {
-            queue: true,
+          const workspaceAccessRefreshWillRemain = shouldOfferWorkspaceAccessRefresh({
+            accessRecoveryPending: unavailableWorkspaceIds.size > 0,
+            authenticated: true,
+            availableWorkspaceCount: catalog.length,
+            catalogLoading: false,
+            catalogRetrying: false,
+            issue: 'none',
           });
+          setSessionMessage(confirmation);
+          if (Platform.OS === 'ios' && !workspaceAccessRefreshWillRemain) {
+            void workspaceAccessFocusHandoffRef.current?.request(
+              confirmation,
+              () => workspaceAccessFocusTargetRef.current,
+            );
+          } else {
+            AccessibilityInfo.announceForAccessibilityWithOptions(confirmation, {
+              queue: true,
+            });
+          }
         }
       } catch (error) {
         if (!requestIsCurrent()) {
@@ -1309,6 +1363,7 @@ export default function App() {
     if (workspaceCatalogRetryingRef.current) {
       return;
     }
+    workspaceAccessFocusHandoffRef.current?.cancel();
     workspaceCatalogRetryingRef.current = true;
     if (pendingNavigationRestoreRef.current) {
       setPendingNavigationRestoreStatus('checking');
@@ -1939,6 +1994,7 @@ export default function App() {
             workspaceAccessRecoveryPending={workspaceAccessRecoveryPending}
             workspaceAccessRefreshAvailable={workspaceAccessRefreshAvailable}
             workspaceAccessIssue={workspaceAccessIssue}
+            workspaceAccessFocusTargetRef={updateWorkspaceAccessFocusTarget}
             workspaceSwitchDisabled={navigationWorkspaceLocked}
           />
         ) : screen === 'operations' && session && authenticated ? (
@@ -1960,6 +2016,7 @@ export default function App() {
             workspaceAccessRecoveryPending={workspaceAccessRecoveryPending}
             workspaceAccessRefreshAvailable={workspaceAccessRefreshAvailable}
             workspaceAccessIssue={workspaceAccessIssue}
+            workspaceAccessFocusTargetRef={updateWorkspaceAccessFocusTarget}
             workspaceSwitchDisabled={navigationWorkspaceLocked}
           />
         ) : (
@@ -1987,6 +2044,7 @@ export default function App() {
             workspaceAccessRecoveryPending={workspaceAccessRecoveryPending}
             workspaceAccessRefreshAvailable={workspaceAccessRefreshAvailable}
             workspaceAccessIssue={workspaceAccessIssue}
+            workspaceAccessFocusTargetRef={updateWorkspaceAccessFocusTarget}
             workspaceSwitchDisabled={navigationWorkspaceLocked}
           />
         )}

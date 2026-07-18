@@ -85,6 +85,7 @@ interface RouteListScreenProps {
   workspaceCatalogLoading: boolean;
   workspaceAccessRecoveryPending: boolean;
   workspaceAccessRefreshAvailable: boolean;
+  workspaceAccessFocusTargetRef?: (target: View | null) => void;
   workspaceAccessIssue: WorkspaceAccessIssue;
   workspaceSwitchDisabled: boolean;
 }
@@ -107,6 +108,7 @@ export function RouteListScreen({
   workspaceCatalogLoading,
   workspaceAccessRecoveryPending,
   workspaceAccessRefreshAvailable,
+  workspaceAccessFocusTargetRef,
   workspaceAccessIssue,
   workspaceSwitchDisabled,
 }: RouteListScreenProps) {
@@ -542,6 +544,7 @@ export function RouteListScreen({
         showClientFilters={shouldShowClientFilters(clientFilterOptions)}
         showSearch={showRouteSearch}
         showSummary={!loading && showRouteSummary}
+        workspaceAccessFocusTargetRef={workspaceAccessFocusTargetRef}
         onChangeQuery={handleChangeQuery}
         workspaceSwitchDisabled={workspaceSwitchDisabled}
         onSelectClient={(clientId) => {

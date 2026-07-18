@@ -10,7 +10,11 @@ import {
   fetchAreaRiskViewport as fetchAreaRiskViewportTransport,
   type AreaRiskHttpRequester
 } from '../src/features/live-map/areaRiskApiTransportCore';
-import type { AreaRiskViewportRequest } from '../src/features/live-map/areaRiskApiCore';
+import {
+  AREA_RISK_CAPABILITY_HEADER,
+  MOBILE_AREA_RISK_CAPABILITY,
+  type AreaRiskViewportRequest
+} from '../src/features/live-map/areaRiskApiCore';
 
 describe('area risk API transport', () => {
   it('loads every page with strict non-mutating GETs and opaque cursors', async () => {
@@ -43,6 +47,10 @@ describe('area risk API transport', () => {
       assert.equal(url.searchParams.get('client_id'), 'tenant-1');
       assert.equal(url.searchParams.get('page_size'), index === 0 ? '100' : '20');
       assert.equal((init.headers as Record<string, string>).Authorization, 'Bearer token-1');
+      assert.equal(
+        (init.headers as Record<string, string>)[AREA_RISK_CAPABILITY_HEADER],
+        MOBILE_AREA_RISK_CAPABILITY
+      );
     });
     assert.equal(calls[0].url.searchParams.has('cursor'), false);
     assert.equal(calls[1].url.searchParams.get('cursor'), 'opaque-next');
@@ -82,6 +90,10 @@ describe('area risk API transport', () => {
     assert.equal(calls.length, 2);
     assert.equal(calls[0].url.pathname.endsWith('/intel/map/area-risk/research'), true);
     assert.equal(calls[0].init.method, 'POST');
+    assert.equal(
+      (calls[0].init.headers as Record<string, string>)[AREA_RISK_CAPABILITY_HEADER],
+      MOBILE_AREA_RISK_CAPABILITY
+    );
     assert.deepEqual(JSON.parse(String(calls[0].init.body)), {
       client_id: 'tenant-1',
       scope: 'detail',
@@ -96,6 +108,10 @@ describe('area risk API transport', () => {
     });
     assert.equal(calls[1].url.searchParams.get('refresh'), 'false');
     assert.equal(calls[1].url.searchParams.get('read_only'), 'true');
+    assert.equal(
+      (calls[1].init.headers as Record<string, string>)[AREA_RISK_CAPABILITY_HEADER],
+      MOBILE_AREA_RISK_CAPABILITY
+    );
     assert.ok(calls[1].url.searchParams.get('_read_nonce'));
     assert.equal(feed.research?.pending, true);
     assert.equal(feed.research?.status, 'queued');
@@ -157,6 +173,10 @@ describe('area risk API transport', () => {
       assert.equal(calls.length, 2);
       assert.equal(calls[1].url.searchParams.get('read_only'), 'false');
       assert.equal(calls[1].url.searchParams.get('refresh'), 'false');
+      assert.equal(
+        (calls[1].init.headers as Record<string, string>)[AREA_RISK_CAPABILITY_HEADER],
+        MOBILE_AREA_RISK_CAPABILITY
+      );
       assert.equal(feed.legacyFallback, true);
       assert.match(feed.researchError ?? '', /legacy compatibility request/i);
     }

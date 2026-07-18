@@ -181,6 +181,36 @@ describe("App active workspace integration", () => {
       /const \[, workspaceRecoveryPersistence\] = await Promise\.all\([\s\S]*if \(!recoveryIsCurrent\(\)\) \{[\s\S]*return;[\s\S]*workspaceRecoveryPersistence === 'failed'/,
     );
     assert.match(app, /setWorkspaceDiscoveryRevision\(\(revision\) => revision \+ 1\)/);
+    assert.match(
+      app,
+      /clearOfflineWorkspaceProductCaches[\s\S]*clearOfflineRouteWorkspace\([\s\S]*clearOfflineOperationsWorkspace\(/,
+    );
+  });
+
+  it("revokes the secure Operations calendar at every terminal authentication boundary", () => {
+    const app = appSource();
+
+    assert.match(
+      app,
+      /restoreResult\.status === 'expired'[\s\S]*clearOfflineOperationsPrincipal\([\s\S]*getAuthSessionPrincipalId\(storedSession\)/,
+    );
+    assert.match(
+      app,
+      /handleSignOut[\s\S]*signingOutPrincipalId[\s\S]*clearOfflineOperationsPrincipal\(signingOutPrincipalId\)/,
+    );
+    assert.match(
+      app,
+      /handleSessionExpired[\s\S]*expiredPrincipalId[\s\S]*clearOfflineOperationsPrincipal\(expiredPrincipalId\)/,
+    );
+    assert.match(
+      app,
+      /restoreResult\.status === 'restored'[\s\S]*tryActivateOfflineOperationsPrincipal\(restoredPrincipalId\)/,
+    );
+    assert.match(
+      app,
+      /handleAuthenticated[\s\S]*tryActivateOfflineOperationsPrincipal\([\s\S]*getAuthSessionPrincipalId\(persistedSession\)/,
+    );
+    assert.doesNotMatch(app, /await activateOfflineOperationsPrincipal/);
   });
 
   it("restores a denied membership only after an explicit fresh catalog retry", () => {

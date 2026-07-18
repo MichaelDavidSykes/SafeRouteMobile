@@ -249,6 +249,21 @@ export const operationsStyles = StyleSheet.create({
     lineHeight: 16,
     textAlign: "center"
   },
+  offlineNotice: {
+    alignSelf: "center",
+    maxWidth: "94%",
+    marginBottom: spacing.xs,
+    paddingHorizontal: spacing.sm,
+    paddingVertical: spacing.xs,
+    borderRadius: radius.pill,
+    backgroundColor: colors.surfaceGlass
+  },
+  offlineNoticeText: {
+    color: colors.inkSoft,
+    fontSize: typeScale.xs,
+    fontWeight: "700",
+    textAlign: "center"
+  },
   errorBox: {
     alignSelf: "center",
     maxWidth: "100%",

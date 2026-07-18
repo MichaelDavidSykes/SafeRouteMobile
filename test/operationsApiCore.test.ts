@@ -26,15 +26,16 @@ describe("SafeRoute operations API core", () => {
       return {
         client_id: " client-1 ",
         people: [
-          { id: " person-1 ", name: " Driver One ", role: "driver", is_active: true },
-          { id: "person-bad", name: "Inactive", role: "invalid", is_active: false }
+          { id: " person-1 ", client_id: "client-1", name: " Driver One ", role: "driver", is_active: true },
+          { id: "person-bad", client_id: "client-1", name: "Inactive", role: "invalid", is_active: false }
         ],
         vehicles: [
-          { id: " vehicle-1 ", callsign: " Lead 1 ", make: " BMW ", model: " X5 ", vehicle_type: "lead", protection_profile: "armored", seat_count: "4" }
+          { id: " vehicle-1 ", client_id: "client-1", callsign: " Lead 1 ", make: " BMW ", model: " X5 ", vehicle_type: "lead", protection_profile: "armored", seat_count: "4" }
         ],
         trips: [
           {
             id: " trip-1 ",
+            client_id: "client-1",
             name: " Morning move ",
             status: "ready",
             route_ids: [" route-1 ", "route-1"],
@@ -87,7 +88,12 @@ describe("SafeRoute operations API core", () => {
     let receivedToken = "";
     const request: OperationsApiRequester = async (_path, accessToken) => {
       receivedToken = accessToken;
-      return {} as never;
+      return {
+        client_id: "client-1",
+        people: [],
+        trips: [],
+        vehicles: [],
+      } as never;
     };
 
     await loadOperationsState(request, ` ${longToken} `, "client-1");
@@ -98,6 +104,44 @@ describe("SafeRoute operations API core", () => {
 
   it("treats malformed operations payloads as an empty read-only state", () => {
     assert.deepEqual(normalizeOperationsState("maintenance", "client-1"), createEmptyOperationsState("client-1"));
+  });
+
+  it("rejects malformed, foreign, or duplicate live workspace projections", async () => {
+    const base = {
+      client_id: "client-1",
+      people: [],
+      trips: [],
+      vehicles: [],
+    };
+    await assert.rejects(
+      () => loadOperationsState(async () => "maintenance" as never, "token", "client-1"),
+      /invalid workspace projection/i,
+    );
+    await assert.rejects(
+      () =>
+        loadOperationsState(
+          async () => ({ ...base, client_id: "client-2" }) as never,
+          "token",
+          "client-1",
+        ),
+      /invalid workspace projection/i,
+    );
+    await assert.rejects(
+      () =>
+        loadOperationsState(
+          async () =>
+            ({
+              ...base,
+              people: [
+                { client_id: "client-1", id: "person-1" },
+                { client_id: "client-1", id: "person-1" },
+              ],
+            }) as never,
+          "token",
+          "client-1",
+        ),
+      /invalid workspace projection/i,
+    );
   });
 
   it("keeps the requested tenant authoritative and bounds malformed projection fields", () => {

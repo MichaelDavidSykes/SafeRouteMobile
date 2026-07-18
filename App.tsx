@@ -58,6 +58,11 @@ import {
   type RoutePreviewSource
 } from './src/features/navigation/appRouting';
 import { OperationsScreen } from './src/features/operations/OperationsScreen';
+import {
+  clearOfflineOperationsPrincipal,
+  clearOfflineOperationsWorkspace,
+  tryActivateOfflineOperationsPrincipal
+} from './src/features/operations/offlineOperationsCache';
 import type { OperationsTab } from './src/features/operations/operationsUiState';
 import { RouteListScreen } from './src/features/routes/RouteListScreen';
 import { uiTestIds } from './src/testing/uiTestIds';
@@ -930,7 +935,14 @@ function SafeRouteApp() {
         );
 
         if (restoreResult.status === 'expired') {
-          await clearAuthSession();
+          const [, operationsCleanup] = await Promise.allSettled([
+            clearAuthSession(),
+            clearOfflineOperationsPrincipal(
+              getAuthSessionPrincipalId(storedSession),
+            ),
+          ]);
+          const operationsCleanupNeedsRetry =
+            operationsCleanup.status === 'rejected';
           if (
             restoreResult.reason === 'inactive-account' &&
             !enablePreviewSession() &&
@@ -945,8 +957,16 @@ function SafeRouteApp() {
               return;
             }
             const inactiveMessage = guidanceCleared
-              ? restoreResult.message
-              : `${restoreResult.message} Saved guidance cleanup needs retry before signing in again.`;
+              ? `${restoreResult.message}${
+                  operationsCleanupNeedsRetry
+                    ? ' Saved calendar cleanup needs retry before signing in again.'
+                    : ''
+                }`
+              : `${restoreResult.message} Saved guidance cleanup needs retry before signing in again.${
+                  operationsCleanupNeedsRetry
+                    ? ' Saved calendar cleanup also needs retry.'
+                    : ''
+                }`;
             setSession(null);
             setSelectedRoute(null);
             setAvailableWorkspaces([]);
@@ -977,12 +997,18 @@ function SafeRouteApp() {
             }
           }
         } else if (restoreResult.status === 'restored' && mounted) {
+          const restoredPrincipalId = getAuthSessionPrincipalId(restoreResult.session);
+          const operationsCacheActivated =
+            await tryActivateOfflineOperationsPrincipal(restoredPrincipalId);
           if (restoreResult.validatedOnline) {
             await saveAuthSession(restoreResult.session);
           }
-          const restoredPrincipalId = getAuthSessionPrincipalId(restoreResult.session);
           activeSessionPrincipalIdRef.current = restoredPrincipalId;
-          setSessionMessage(restoreResult.message || '');
+          setSessionMessage(
+            operationsCacheActivated
+              ? restoreResult.message || ''
+              : 'Secure offline Calendar is unavailable until device storage can be accessed.',
+          );
           setSession(restoreResult.session);
           if (persistedNavigation?.accessScope.kind === 'workspace') {
             if (hasMatchingAuthPrincipal(
@@ -1059,8 +1085,16 @@ function SafeRouteApp() {
       setScreen('login');
       return;
     }
+    const operationsCacheActivated =
+      await tryActivateOfflineOperationsPrincipal(
+        getAuthSessionPrincipalId(persistedSession),
+      );
 
-    setSessionMessage('');
+    setSessionMessage(
+      operationsCacheActivated
+        ? ''
+        : 'Secure offline Calendar is unavailable until device storage can be accessed.',
+    );
     setAuthPrompt('');
     setAvailableWorkspaces([]);
     activeWorkspaceRef.current = null;
@@ -1112,19 +1146,30 @@ function SafeRouteApp() {
   };
 
   const handleSignOut = async () => {
+    const signingOutPrincipalId = activeSessionPrincipalIdRef.current;
     workspaceRequestRevisionRef.current += 1;
     unavailableWorkspaceIdsRef.current.clear();
     sessionEpochRef.current += 1;
     activeSessionTokenRef.current = null;
     activeSessionPrincipalIdRef.current = '';
     sessionExpiryHandledRef.current = true;
-    await discardPersistedNavigation();
-    await clearAuthSession();
-    setSessionMessage('');
-    setAuthPrompt('');
     setAvailableWorkspaces([]);
     activeWorkspaceRef.current = null;
     setActiveWorkspace(null);
+    setSession(null);
+    setScreen('guest-map');
+    const cleanup = Promise.allSettled([
+      discardPersistedNavigation(),
+      clearAuthSession(),
+      clearOfflineOperationsPrincipal(signingOutPrincipalId),
+    ]);
+    sessionCleanupRef.current = cleanup;
+    await cleanup;
+    if (sessionCleanupRef.current === cleanup) {
+      sessionCleanupRef.current = null;
+    }
+    setSessionMessage('');
+    setAuthPrompt('');
     setWorkspaceCatalogLoading(false);
     workspaceForegroundAuthorizationPausedRef.current = false;
     setWorkspaceForegroundAuthorizationPaused(false);
@@ -1136,8 +1181,6 @@ function SafeRouteApp() {
     setWorkspaceCatalogRetrying(false);
     setOperationsTab('planned-routes');
     pendingFullAccessFeatureRef.current = null;
-    setSession(null);
-    setScreen('guest-map');
   };
 
   const returnToMapHome = () => {
@@ -1166,6 +1209,7 @@ function SafeRouteApp() {
     workspaceRequestRevisionRef.current += 1;
     unavailableWorkspaceIdsRef.current.clear();
     sessionExpiryHandledRef.current = true;
+    const expiredPrincipalId = activeSessionPrincipalIdRef.current;
     activeSessionTokenRef.current = null;
     activeSessionPrincipalIdRef.current = '';
     pendingNavigationRestoreRef.current = null;
@@ -1179,7 +1223,8 @@ function SafeRouteApp() {
           : null;
     const cleanup = Promise.allSettled([
       discardPersistedNavigation(),
-      clearAuthSession()
+      clearAuthSession(),
+      clearOfflineOperationsPrincipal(expiredPrincipalId)
     ]);
     sessionCleanupRef.current = cleanup;
     setActiveNavigationSession(null);
@@ -1576,7 +1621,7 @@ function SafeRouteApp() {
           : Promise.resolve(true);
         const purgeStagedWorkspaceCaches = () =>
           Array.from(stagedUnavailableWorkspaceIds).map((workspaceId) =>
-            () => clearOfflineRouteWorkspace(principalId, workspaceId)
+            () => clearOfflineWorkspaceProductCaches(principalId, workspaceId)
           );
         const workspaceRecoveryPersistence = (async () => {
           if (workspaceAccessRestored) {
@@ -2031,7 +2076,7 @@ function SafeRouteApp() {
           workspaces: recovery.workspaces,
         },
         Array.from(unavailableWorkspaceIdsRef.current).map((workspaceId) =>
-          () => clearOfflineRouteWorkspace(principalId, workspaceId)
+          () => clearOfflineWorkspaceProductCaches(principalId, workspaceId)
         ),
         { authoritativeCatalogStoredAtMs },
         'workspace-access-loss',
@@ -2224,7 +2269,7 @@ function SafeRouteApp() {
           workspaces: reconciliation.workspaces,
         },
         Array.from(reconciliation.unavailableWorkspaceIds).map((unavailableWorkspaceId) =>
-          () => clearOfflineRouteWorkspace(principalId, unavailableWorkspaceId)
+          () => clearOfflineWorkspaceProductCaches(principalId, unavailableWorkspaceId)
         ),
         { authoritativeCatalogStoredAtMs },
         'navigation-start-revalidation',
@@ -2533,6 +2578,7 @@ function SafeRouteApp() {
             accessToken={session.accessToken}
             activeWorkspace={activeWorkspace}
             availableWorkspaces={availableWorkspaces}
+            cacheIdentity={sessionPrincipalId}
             initialTab={operationsTab}
             sessionNotice={routeListSessionNotice}
             userEmail={session.user?.email || session.email}
@@ -2673,6 +2719,16 @@ async function recordNavigationAbsenceReadback(
     unavailableWorkspaceIds: [],
     workspaceId: null,
   });
+}
+
+async function clearOfflineWorkspaceProductCaches(
+  principalId: string,
+  workspaceId: string,
+): Promise<void> {
+  await Promise.all([
+    clearOfflineRouteWorkspace(principalId, workspaceId),
+    clearOfflineOperationsWorkspace(principalId, workspaceId),
+  ]);
 }
 
 async function persistWorkspaceRecoveryWithEvidence(

@@ -7,8 +7,23 @@ import type {
   SafeRouteTripRouteAssignment,
   SafeRouteVehicleInventoryItem
 } from "./operationsTypes";
+import {
+  OFFLINE_OPERATIONS_CACHE_MAX_AGE_MS,
+  type OfflineOperationsCalendarEntry,
+} from "./offlineOperationsCacheCore";
 
 export type OperationsTab = "planned-routes" | "calendar" | "convoy-management";
+
+export type OperationsOfflineReviewStatus =
+  | "checking-access"
+  | "checking-connection"
+  | "offline"
+  | "sync-unavailable";
+
+export type OperationsOfflineReviewPresentation = {
+  accessibilityLabel: string;
+  visibleLabel: string;
+};
 
 export type OperationsTabOption = {
   accessibilityLabel: string;
@@ -94,6 +109,99 @@ const TAB_COPY: Record<OperationsTab, { label: string; accessibilityLabel: strin
     accessibilityLabel: "View convoy management"
   }
 };
+
+export function createOperationsOfflineReviewPresentation({
+  nowMs = Date.now(),
+  status,
+  storedAtMs,
+}: {
+  nowMs?: number;
+  status: OperationsOfflineReviewStatus;
+  storedAtMs: number;
+}): OperationsOfflineReviewPresentation | null {
+  if (
+    !Number.isFinite(nowMs) ||
+    !Number.isFinite(storedAtMs) ||
+    storedAtMs > nowMs ||
+    nowMs - storedAtMs >= OFFLINE_OPERATIONS_CACHE_MAX_AGE_MS
+  ) {
+    return null;
+  }
+
+  const hourMs = 60 * 60 * 1000;
+  const ageHours = Math.floor((nowMs - storedAtMs) / hourMs);
+  const visibleAge = ageHours < 1 ? "<1h" : `${ageHours}h`;
+  const spokenAge =
+    ageHours < 1
+      ? "less than one hour ago"
+      : `${ageHours} ${ageHours === 1 ? "hour" : "hours"} ago`;
+  const stateLabel =
+    status === "offline"
+      ? "Offline"
+      : status === "checking-connection"
+        ? "Checking connection"
+        : status === "checking-access"
+          ? "Checking access"
+          : "Sync unavailable";
+  const safetySentence =
+    status === "offline"
+      ? "Reconnect and verify workspace access before relying on this calendar. Saved calendar labels and endpoints are stored. Full route plans, live risk and ETA, and convoy manifests are not stored offline."
+      : status === "checking-connection"
+        ? "Wait for the connection check and workspace access verification before relying on this calendar. Saved calendar labels and endpoints are stored. Full route plans, live risk and ETA, and convoy manifests are not stored offline."
+        : status === "checking-access"
+          ? "Wait for workspace access verification before relying on this calendar. Saved calendar labels and endpoints are stored. Full route plans, live risk and ETA, and convoy manifests are not stored offline."
+          : "Retry sync before relying on this calendar. Saved calendar labels and endpoints are stored. Full route plans, live risk and ETA, and convoy manifests are not stored offline.";
+
+  return {
+    accessibilityLabel:
+      `${stateLabel} Operations. This calendar was saved ${spokenAge} and is review only. ${safetySentence}`,
+    visibleLabel:
+      `${stateLabel} · calendar saved ${visibleAge} · review only`,
+  };
+}
+
+export function createOperationsExpiredCacheMessage(
+  status: OperationsOfflineReviewStatus,
+): string {
+  if (status === "offline") {
+    return "Saved calendar expired. Reconnect to refresh.";
+  }
+  if (status === "checking-connection") {
+    return "Saved calendar expired. Wait for the connection check before refreshing.";
+  }
+  if (status === "sync-unavailable") {
+    return "Saved calendar expired. Retry sync to refresh.";
+  }
+  return "Saved calendar expired. Wait for workspace access verification before refreshing.";
+}
+
+export function getOperationsOfflineReviewRefreshDelayMs({
+  nowMs = Date.now(),
+  storedAtMs,
+}: {
+  nowMs?: number;
+  storedAtMs: number;
+}): number | null {
+  if (
+    !Number.isFinite(nowMs) ||
+    !Number.isFinite(storedAtMs) ||
+    storedAtMs > nowMs ||
+    nowMs - storedAtMs >= OFFLINE_OPERATIONS_CACHE_MAX_AGE_MS
+  ) {
+    return null;
+  }
+
+  const hourMs = 60 * 60 * 1000;
+  const ageMs = nowMs - storedAtMs;
+  const nextHourBoundaryMs =
+    storedAtMs + (Math.floor(ageMs / hourMs) + 1) * hourMs;
+  const expiryBoundaryMs =
+    storedAtMs + OFFLINE_OPERATIONS_CACHE_MAX_AGE_MS;
+  return Math.max(
+    1,
+    Math.min(nextHourBoundaryMs - nowMs, expiryBoundaryMs - nowMs),
+  );
+}
 
 const OPERATIONS_CLIENT_DISPLAY_MAX_LENGTH = 28;
 
@@ -239,6 +347,89 @@ export function createOperationsEmptyState(tab: OperationsTab): OperationsEmptyS
     copy: "Upcoming SafeRoute plans will appear here.",
     accessibilityLabel: "No planned routes. Upcoming SafeRoute plans will appear here."
   };
+}
+
+export function createOperationsOfflineEmptyState(
+  tab: OperationsTab,
+  calendarWasSaved: boolean,
+  status: OperationsOfflineReviewStatus = "offline",
+): OperationsEmptyState {
+  if (status === "checking-connection") {
+    return {
+      title: "Checking connection",
+      copy:
+        "Looking for securely saved Operations data while the connection check finishes.",
+      accessibilityLabel:
+        "Checking connection. Looking for securely saved Operations data while the connection check finishes.",
+    };
+  }
+  if (status === "checking-access") {
+    return {
+      title: "Checking workspace access",
+      copy: "Waiting to verify current access before loading Operations.",
+      accessibilityLabel:
+        "Checking workspace access. Waiting to verify current access before loading Operations.",
+    };
+  }
+  if (tab === "calendar") {
+    if (calendarWasSaved) {
+      return {
+        title: "No saved movements",
+        copy: "No scheduled movements were in the last saved calendar.",
+        accessibilityLabel:
+          "No saved movements. No scheduled movements were in the last saved calendar. Review only.",
+      };
+    }
+    return {
+      title: "Calendar unavailable offline",
+      copy: "Reconnect to load and securely save this calendar.",
+      accessibilityLabel:
+        "Calendar unavailable offline. Reconnect to load and securely save this calendar.",
+    };
+  }
+
+  if (tab === "convoy-management") {
+    return {
+      title: "Convoys unavailable offline",
+      copy: "Convoy manifests aren't stored offline. Reconnect and verify access.",
+      accessibilityLabel:
+        "Convoys unavailable offline. Convoy manifests are not stored offline. Reconnect and verify workspace access.",
+    };
+  }
+
+  return {
+    title: "Planned details unavailable offline",
+    copy:
+      "Full planned-route details aren't available in this tab. Reconnect and verify access.",
+    accessibilityLabel:
+      "Full planned route details unavailable offline. Saved calendar labels and endpoints remain in Calendar. Reconnect and verify workspace access.",
+  };
+}
+
+export function createOfflineCalendarRows(
+  entries: OfflineOperationsCalendarEntry[],
+): OperationsRouteRow[] {
+  return entries.map((entry) => {
+    const scheduleLabel = formatMovementDate(entry.movementIso);
+    const statusLabel = toTitleLabel(entry.status);
+    const durationLabel = formatDuration(entry.durationMinutes);
+    const metaLabel = durationLabel
+      ? `${statusLabel} · ${durationLabel}`
+      : statusLabel;
+    const endpointLabel = `${entry.origin} → ${entry.destination}`;
+    const manifestLabel = "Manifest not stored offline";
+    return {
+      accessibilityLabel:
+        `${entry.title}. ${scheduleLabel}. ${endpointLabel}. ${metaLabel}. ${manifestLabel}. Saved calendar, review only.`,
+      badgeLabel: scheduleLabel,
+      endpointLabel,
+      id: entry.id,
+      manifestLabel,
+      metaLabel,
+      scheduleLabel,
+      title: entry.title,
+    };
+  });
 }
 
 export function createOperationsSyncWarningState(error: unknown): OperationsSyncWarningState {

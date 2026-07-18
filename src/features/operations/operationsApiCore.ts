@@ -50,8 +50,28 @@ export async function loadOperationsState(
   const token = requireAccessToken(accessToken);
   const path = buildOperationsStatePath(clientId);
   const payload = unwrapMaybeEnvelope(await request<unknown>(path, token));
+  assertOwnedOperationsPayload(payload, clientId);
 
   return normalizeOperationsState(payload, clientId);
+}
+
+export function assertOwnedOperationsPayload(
+  payload: unknown,
+  clientIdValue: string,
+): asserts payload is Record<string, unknown> {
+  const clientId = cleanText(clientIdValue, "");
+  if (
+    !clientId ||
+    !isRecord(payload) ||
+    cleanText(payload.client_id, "") !== clientId ||
+    !isOwnedEntityList(payload.people, clientId) ||
+    !isOwnedEntityList(payload.vehicles, clientId) ||
+    !isOwnedEntityList(payload.trips, clientId)
+  ) {
+    throw new Error(
+      "SafeRoute operations returned an invalid workspace projection.",
+    );
+  }
 }
 
 export function normalizeOperationsState(payload: unknown, clientId: string): SafeRouteOperationsState {
@@ -241,6 +261,28 @@ function uniqueEntitiesById<T extends { id: string }>(entities: T[]): T[] {
     seen.add(entity.id);
     return true;
   });
+}
+
+function isOwnedEntityList(value: unknown, clientId: string): boolean {
+  if (!Array.isArray(value) || value.length > MAX_LIST_SIZE) {
+    return false;
+  }
+  const seen = new Set<string>();
+  for (const entry of value) {
+    if (!isRecord(entry)) {
+      return false;
+    }
+    const id = cleanText(entry.id, "");
+    if (
+      !id ||
+      seen.has(id) ||
+      cleanText(entry.client_id, "") !== clientId
+    ) {
+      return false;
+    }
+    seen.add(id);
+  }
+  return true;
 }
 
 function cleanOptionalText(value: unknown): string | null {

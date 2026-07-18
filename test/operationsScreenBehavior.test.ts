@@ -67,12 +67,9 @@ describe("operations screen behavior", () => {
     const expiryCalls = text.match(/instanceof ApiSessionExpiredError\)[\s\S]{0,100}onSessionExpired/g) || [];
 
     assert.equal(expiryCalls.length, 1);
-    assert.match(
-      text,
-      /result\.error instanceof ApiSessionExpiredError[\s\S]*Trip and convoy manifests could not sync/
-    );
     assert.match(text, /error instanceof ApiSessionExpiredError/);
     assert.match(text, /createOperationsSyncWarningState\(/);
+    assert.match(loaderSource(), /error instanceof ApiSessionExpiredError[\s\S]*throw error/);
   });
 
   it("fails closed and reports only an owned workspace 403 or 404 to App", () => {
@@ -101,7 +98,7 @@ describe("operations screen behavior", () => {
     assert.doesNotMatch(text, /onEdit|Edit route|Save changes|Delete route|Create convoy|saveSelected|upsert|deleteTrip/);
   });
 
-  it("keeps workspace-list age separate from retained Operations freshness", () => {
+  it("keeps workspace-list age separate from the secure saved calendar", () => {
     const source = readFileSync(
       "src/features/operations/OperationsScreen.tsx",
       "utf8",
@@ -109,13 +106,25 @@ describe("operations screen behavior", () => {
 
     assert.match(
       source,
-      /Previously loaded operations remain available for review only; their freshness is not verified/,
+      /loadOfflineOperationsSnapshot\([\s\S]*cacheIdentity[\s\S]*requestWorkspaceId/,
     );
     assert.match(
       source,
       /catalogStoredAtMs=\{[\s\S]*workspaceAuthorizationFresh[\s\S]*workspaceCatalogStoredAtMs/,
     );
     assert.doesNotMatch(source, /Current operations remain available/);
-    assert.doesNotMatch(source, /operations cached/);
+    assert.match(source, /createOperationsOfflineReviewPresentation/);
+    assert.match(source, /createOfflineCalendarRows\(offlineCalendarEntries\)/);
+    assert.match(source, /convoy manifests are not stored offline/i);
+    assert.match(
+      source,
+      /result\.status === "loaded"[\s\S]*tryActivateOfflineOperationsWorkspace\([\s\S]*if \(!requestOwnsWorkspace\(\)\) \{[\s\S]*return;[\s\S]*saveOfflineOperationsSnapshot\(/,
+    );
+    assert.match(
+      source,
+      /Checking connection and securely saved Operations data\./,
+    );
+    assert.doesNotMatch(source, /No cached operations are available/);
+    assert.doesNotMatch(source, /snapshot\.operationsState|snapshot\.routes/);
   });
 });

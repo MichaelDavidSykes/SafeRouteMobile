@@ -52,6 +52,7 @@ export const uiTestIds = {
   operationsErrorState: "safe-route-operations-error-state",
   operationsRetry: "safe-route-operations-retry",
   operationsSyncWarning: "safe-route-operations-sync-warning",
+  operationsOfflineNotice: "safe-route-operations-offline-notice",
   operationsEmptyState: "safe-route-operations-empty-state",
   operationsTab: (tabId: string) =>
     `safe-route-operations-tab-${normalizeTestIdSegment(tabId)}`,

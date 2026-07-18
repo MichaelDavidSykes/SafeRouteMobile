@@ -1,4 +1,5 @@
 import type { SavedSafeRoutePlan } from "../live-map/liveMapTypes";
+import { ApiSessionExpiredError } from "../api/apiClientCore";
 import type { SavedRouteSyncResult } from "../routes/routeApiCore";
 import { isWorkspaceUnavailableError } from "../workspaces/workspaceAccessRecovery";
 import type { SafeRouteOperationsState } from "./operationsTypes";
@@ -44,6 +45,9 @@ export async function loadOperationsWorkspaceData({
     if (!ownsRequest()) {
       return { status: "stale" };
     }
+    if (error instanceof ApiSessionExpiredError) {
+      throw error;
+    }
     if (isWorkspaceUnavailableError(error)) {
       return { status: "workspace-unavailable" };
     }
@@ -68,6 +72,9 @@ export async function loadOperationsWorkspaceData({
   } catch (error) {
     if (!ownsRequest()) {
       return { status: "stale" };
+    }
+    if (error instanceof ApiSessionExpiredError) {
+      throw error;
     }
     if (isWorkspaceUnavailableError(error)) {
       return { status: "workspace-unavailable" };

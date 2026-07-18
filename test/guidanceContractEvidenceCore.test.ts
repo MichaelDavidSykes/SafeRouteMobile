@@ -129,6 +129,36 @@ describe("guidance contract device evidence", () => {
     assert.equal(calendarCleanup.workspaceId, null);
     assert.equal(calendarCleanup.routeId, null);
     assert.equal(calendarCleanup.navigationInstanceId, null);
+    const workspaceRevocation = createGuidanceContractEvidenceEvent({
+      appLaunchId: "launch-evidence-4",
+      authorization: { catalog: "fresh-denied", principal: "matching" },
+      cause: "workspace-denial",
+      durability: {
+        authSession: "present",
+        offlineCalendarCleanup: "absent",
+        offlineCalendarPayload: "absent",
+        offlineCalendarPreference: "disabled",
+        offlineCalendarSlot: "workspace-revoked",
+        workspaceContext: "persisted",
+      },
+      eventId: "evidence-calendar-workspace-1",
+      navigationInstanceId: null,
+      outcome: "clean",
+      routeId: null,
+      sourceRevision: revision,
+      type: "offline.calendar.workspace-lifecycle",
+      unavailableWorkspaceIds: ["workspace-1"],
+      workspaceId: "workspace-1",
+    });
+    assert.ok(workspaceRevocation);
+    assert.equal(
+      workspaceRevocation.type,
+      "offline.calendar.workspace-lifecycle",
+    );
+    assert.equal(
+      workspaceRevocation.durability.offlineCalendarPreference,
+      "disabled",
+    );
     assert.deepEqual(parseGuidanceContractEvidenceSpool("not-json"), []);
   });
 

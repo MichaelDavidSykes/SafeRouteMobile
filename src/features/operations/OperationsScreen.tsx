@@ -21,6 +21,7 @@ import {
   createRouteListSignOutState
 } from "../routes/routeListUiState";
 import { colors } from "../../theme";
+import { recordOfflineCalendarWorkspaceSeedContractEvidence } from "../../testing/offlineCalendarCleanupContractEvidence";
 import { uiTestIds } from "../../testing/uiTestIds";
 import { operationsStyles as styles } from "./OperationsScreen.styles";
 import { fetchOperationsState } from "./operationsApi";
@@ -407,6 +408,15 @@ export function OperationsScreen({
             );
           if (!requestOwnsWorkspace()) {
             return;
+          }
+          if (cacheResult.status === "allowed" && cacheResult.snapshot) {
+            await recordOfflineCalendarWorkspaceSeedContractEvidence(
+              cacheIdentity,
+              requestWorkspaceId,
+            );
+            if (!requestOwnsWorkspace()) {
+              return;
+            }
           }
           const cachedSnapshot = cacheResult.snapshot;
           const awaitingVerifiedSave =

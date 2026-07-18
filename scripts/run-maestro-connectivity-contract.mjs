@@ -21,6 +21,7 @@ import {
   GUIDANCE_CONTRACT_API_PORT,
   GUIDANCE_CONTRACT_MODES,
   OFFLINE_CALENDAR_AUTH_CONTRACT_PHASES,
+  OFFLINE_CALENDAR_WORKSPACE_CONTRACT_PHASES,
   assertConnectivityContractEndedJourneyStayedClosed,
   assertConnectivityContractInactiveGuidanceRevocation,
   assertConnectivityContractInactiveSessionRevocation,
@@ -30,6 +31,8 @@ import {
   assertOfflineCalendarAuthBoundaryTraffic,
   assertOfflineCalendarAuthCleanupEvidence,
   assertOfflineCalendarAuthStorageFaultRequests,
+  assertOfflineCalendarWorkspaceDenialTraffic,
+  assertOfflineCalendarWorkspaceRevocationEvidence,
 } from './maestro-guidance-contract-api.mjs';
 import {
   assertGuidanceSourceCheckoutClean,
@@ -46,6 +49,7 @@ import {
 const METRO_PORT = 8081;
 const EXPO_GO_BUNDLE_ID = 'host.exp.Exponent';
 const CALENDAR_AUTH_CLEANUP_SLICE = 'calendar-auth-cleanup';
+const CALENDAR_WORKSPACE_DENIAL_SLICE = 'calendar-workspace-denial';
 const connectivityContractSlice = String(
   process.env.SAFEROUTE_CONNECTIVITY_CONTRACT_SLICE || '',
 ).trim();
@@ -83,6 +87,12 @@ const flows = Object.freeze({
     'maestro/ios-connectivity-contract-calendar-auth-relaunch-failure.yaml',
   calendarAuthRetry:
     'maestro/ios-connectivity-contract-calendar-auth-retry.yaml',
+  calendarWorkspaceDenial:
+    'maestro/ios-connectivity-contract-calendar-workspace-denial.yaml',
+  calendarWorkspaceDenialPrepare:
+    'maestro/ios-connectivity-contract-calendar-workspace-denial-prepare.yaml',
+  calendarWorkspaceDenialRelaunch:
+    'maestro/ios-connectivity-contract-calendar-workspace-denial-relaunch.yaml',
   offlineEnd: 'maestro/ios-connectivity-contract-offline-end.yaml',
   offlineObserve: 'maestro/ios-connectivity-contract-offline-observe.yaml',
   offlineRelaunch: 'maestro/ios-connectivity-contract-offline-relaunch.yaml',
@@ -141,7 +151,10 @@ try {
 async function main() {
   assertCondition(
     !connectivityContractSlice ||
-      connectivityContractSlice === CALENDAR_AUTH_CLEANUP_SLICE,
+      [
+        CALENDAR_AUTH_CLEANUP_SLICE,
+        CALENDAR_WORKSPACE_DENIAL_SLICE,
+      ].includes(connectivityContractSlice),
     `Unsupported connectivity contract slice: ${connectivityContractSlice}.`,
   );
   assertCondition(deviceId, 'Set SAFEROUTE_IOS_DEVICE_ID to the booted iOS simulator UDID.');
@@ -187,12 +200,25 @@ async function main() {
   await startApi();
   await runFlow(CONNECTIVITY_CONTRACT_PHASES.seed, 'reset signed-out SafeRoute state', flows.reset);
   await runFlow(CONNECTIVITY_CONTRACT_PHASES.seed, 'seed principal/workspace/Saved caches', flows.seed);
-  if (connectivityContractSlice === CALENDAR_AUTH_CLEANUP_SLICE) {
+  if (
+    [
+      CALENDAR_AUTH_CLEANUP_SLICE,
+      CALENDAR_WORKSPACE_DENIAL_SLICE,
+    ].includes(connectivityContractSlice)
+  ) {
     await runFlow(
       CONNECTIVITY_CONTRACT_PHASES.seed,
       'seed a durable Support Operations Calendar-saving preference',
       flows.calendarAuthPreferenceSeed,
     );
+  }
+  if (connectivityContractSlice === CALENDAR_WORKSPACE_DENIAL_SLICE) {
+    await waitForEvidenceType(
+      'offline.calendar.workspace-lifecycle',
+      CONNECTIVITY_CONTRACT_PHASES.seed,
+    );
+    await runCalendarWorkspaceDenialSlice(sourceRevision);
+    return;
   }
   await runFlow(
     CONNECTIVITY_CONTRACT_PHASES.seed,
@@ -913,6 +939,118 @@ async function runCalendarAuthCleanupSlice(sourceRevision) {
   );
 }
 
+async function runCalendarWorkspaceDenialSlice(sourceRevision) {
+  assertOperationsCalendarAuthCleanupSeed(readRequestJournal());
+  await runFlow(
+    CONNECTIVITY_CONTRACT_PHASES.seed,
+    'keep the Guidance workspace active before an owned Operations denial',
+    flows.calendarWorkspaceDenialPrepare,
+  );
+
+  setControl(
+    OFFLINE_CALENDAR_WORKSPACE_CONTRACT_PHASES.denial,
+    CONNECTIVITY_CONTRACT_STATUSES.online,
+    [],
+    GUIDANCE_CONTRACT_MODES.denied,
+  );
+  await runFlow(
+    OFFLINE_CALENDAR_WORKSPACE_CONTRACT_PHASES.denial,
+    'deny Guidance Operations, reconcile Support, and preserve disabled saving',
+    flows.calendarWorkspaceDenial,
+  );
+  await waitForEvidenceType(
+    'workspace.recovery.settled',
+    OFFLINE_CALENDAR_WORKSPACE_CONTRACT_PHASES.denial,
+  );
+  await waitForEvidenceType(
+    'offline.calendar.workspace-lifecycle',
+    OFFLINE_CALENDAR_WORKSPACE_CONTRACT_PHASES.denial,
+  );
+  captureAccessibilityHierarchy('calendar-workspace-denial-support', [
+    {
+      id: 'guest-map-workspace-selector',
+      label: 'Workspace, Support Operations',
+      enabled: true,
+    },
+  ]);
+
+  terminateExpoGo(deviceId);
+  setControl(
+    OFFLINE_CALENDAR_WORKSPACE_CONTRACT_PHASES.relaunch,
+    CONNECTIVITY_CONTRACT_STATUSES.offline,
+    [],
+    GUIDANCE_CONTRACT_MODES.denied,
+  );
+  await runFlow(
+    OFFLINE_CALENDAR_WORKSPACE_CONTRACT_PHASES.relaunch,
+    'cold relaunch offline with Guidance revoked and Support saving still off',
+    flows.calendarWorkspaceDenialRelaunch,
+  );
+  await waitForEvidenceType(
+    'offline.calendar.workspace-lifecycle',
+    OFFLINE_CALENDAR_WORKSPACE_CONTRACT_PHASES.relaunch,
+  );
+  captureAccessibilityHierarchy('calendar-workspace-denial-relaunch', [
+    {
+      id: 'safe-route-operations-calendar-saving-status',
+      label: 'Support Operations. Offline Calendar saving is off. Nothing will be saved for this workspace until you allow it. Online Operations are unchanged.',
+      enabled: true,
+    },
+    {
+      id: 'safe-route-operations-calendar-saving-control',
+      label: 'Allow offline Calendar saving for Support Operations on this device',
+      enabled: true,
+    },
+    {
+      id: 'safe-route-operations-empty-state',
+      label: 'No offline Calendar is saved. Allow offline saving, then reconnect and sync to save a new Calendar.',
+      enabled: true,
+    },
+  ]);
+  await assertProductTrafficQuiet([
+    OFFLINE_CALENDAR_WORKSPACE_CONTRACT_PHASES.relaunch,
+  ], 1_000);
+  await new Promise((resolve) => setTimeout(resolve, 1_500));
+  terminateExpoGo(deviceId);
+  await waitForAllRequestsTerminal();
+
+  const requests = readRequestJournal();
+  const evidence = readEvidenceJournal();
+  assertGuidanceContractRequestJournal(requests, {
+    expectedModeByPhase: {
+      [CONNECTIVITY_CONTRACT_PHASES.seed]: GUIDANCE_CONTRACT_MODES.active,
+      [OFFLINE_CALENDAR_WORKSPACE_CONTRACT_PHASES.denial]:
+        GUIDANCE_CONTRACT_MODES.denied,
+      [OFFLINE_CALENDAR_WORKSPACE_CONTRACT_PHASES.relaunch]:
+        GUIDANCE_CONTRACT_MODES.denied,
+    },
+    requiredPhases: [
+      CONNECTIVITY_CONTRACT_PHASES.seed,
+      OFFLINE_CALENDAR_WORKSPACE_CONTRACT_PHASES.denial,
+      OFFLINE_CALENDAR_WORKSPACE_CONTRACT_PHASES.relaunch,
+    ],
+  });
+  assertOfflineCalendarWorkspaceDenialTraffic(requests);
+  assertGuidanceContractEvidenceJournal(evidence, {
+    expectedSourceRevision: sourceRevision,
+    minimumOccurredAtMs: startedAtMs,
+    requiredTypes: [
+      'workspace.recovery.settled',
+      'offline.calendar.workspace-lifecycle',
+    ],
+  });
+  assertOfflineCalendarWorkspaceRevocationEvidence(evidence, {
+    expectedSourceRevision: sourceRevision,
+    minimumOccurredAtMs: startedAtMs,
+  });
+
+  process.stdout.write(
+    `Offline Calendar workspace-denial runtime passed. Request journal: ${requestLogFile}. ` +
+      `Evidence journal: ${evidenceLogFile}. Screenshots: ${screenshotDirectory}. ` +
+      `Accessibility hierarchies: ${accessibilityDirectory}\n`,
+  );
+}
+
 function assertOperationsCalendarSeed(entries) {
   const path =
     '/api/v1/mobile/safe-route/operations/client/66a1b2c3d4e5f60718293a40';
@@ -973,7 +1111,12 @@ function assertOperationsCalendarAuthCleanupSeed(entries) {
   );
 }
 
-function setControl(phase, connectivity, calendarAuthFaults = []) {
+function setControl(
+  phase,
+  connectivity,
+  calendarAuthFaults = [],
+  mode = GUIDANCE_CONTRACT_MODES.active,
+) {
   connectivitySequence += 1;
   writeFileSync(
     pendingControlFile,
@@ -982,7 +1125,7 @@ function setControl(phase, connectivity, calendarAuthFaults = []) {
       catalogReleased: true,
       connectivity,
       connectivitySequence,
-      mode: GUIDANCE_CONTRACT_MODES.active,
+      mode,
       phase,
       sourceRevision: currentSourceRevision,
     }),

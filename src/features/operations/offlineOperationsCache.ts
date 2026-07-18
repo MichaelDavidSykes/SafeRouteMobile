@@ -287,7 +287,13 @@ export async function readOfflineOperationsCalendarContractState(
     | "enabled"
     | "unavailable"
     | "unverified";
-  slot: "empty" | "payload" | "revoked" | "unreadable" | "unknown";
+  slot:
+    | "empty"
+    | "payload"
+    | "principal-revoked"
+    | "unreadable"
+    | "unknown"
+    | "workspace-revoked";
 }> {
   let rawCalendar: string | null;
   let rawPreference: string | null | undefined;

@@ -62,12 +62,25 @@ describe("offline Calendar cleanup contract readback", () => {
         principalId,
         revoked: true,
         schema: 1,
+        workspaceId: calendarWorkspaceId,
+      })),
+      {
+        payload: "absent",
+        preference: "disabled",
+        slot: "workspace-revoked",
+      },
+    );
+    assert.deepEqual(
+      classify(JSON.stringify({
+        principalId,
+        revoked: true,
+        schema: 1,
         workspaceId: null,
       })),
       {
         payload: "absent",
         preference: "disabled",
-        slot: "revoked",
+        slot: "principal-revoked",
       },
     );
     assert.deepEqual(classify("{bad-json"), {
@@ -83,6 +96,39 @@ describe("offline Calendar cleanup contract readback", () => {
         slot: "unreadable",
       },
     );
+    for (const revocation of [
+      {
+        principalId: "foreign-principal",
+        revoked: true,
+        schema: 1,
+        workspaceId: calendarWorkspaceId,
+      },
+      {
+        principalId,
+        revoked: true,
+        schema: 1,
+        workspaceId: "foreign-workspace",
+      },
+      {
+        principalId,
+        revoked: true,
+        schema: 2,
+        workspaceId: calendarWorkspaceId,
+      },
+      {
+        extra: "unsafe",
+        principalId,
+        revoked: true,
+        schema: 1,
+        workspaceId: calendarWorkspaceId,
+      },
+    ]) {
+      assert.deepEqual(classify(JSON.stringify(revocation)), {
+        payload: "unknown",
+        preference: "disabled",
+        slot: "unreadable",
+      });
+    }
   });
 
   it("proves disabled consent is durable rather than default-enabled", () => {

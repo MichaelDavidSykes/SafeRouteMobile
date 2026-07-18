@@ -143,7 +143,10 @@ import {
   recordGuidanceContractEvidence,
 } from './src/testing/guidanceContractEvidence';
 import type { SuspendedNavigationStatus } from './src/features/live-map/suspendedNavigationState';
-import { recordOfflineCalendarCleanupContractEvidence } from './src/testing/offlineCalendarCleanupContractEvidence';
+import {
+  recordOfflineCalendarCleanupContractEvidence,
+  recordOfflineCalendarWorkspaceRevocationContractEvidence,
+} from './src/testing/offlineCalendarCleanupContractEvidence';
 
 type PendingNavigationRestore = {
   session: ActiveNavigationSession;
@@ -1480,6 +1483,14 @@ function SafeRouteApp() {
         ...unavailableWorkspaceIdsRef.current,
         ...(cachedContext?.unavailableWorkspaceIds || []),
       ]);
+      if (networkStatus === 'offline' && cachedContext) {
+        await recordOfflineCalendarWorkspaceRevocationContractEvidence({
+          authorizationCatalog: 'not-checked',
+          cause: 'workspace-denial-relaunch',
+          principalId,
+          unavailableWorkspaceIds: cachedContext.unavailableWorkspaceIds,
+        });
+      }
       const stagedNavigation = pendingNavigationRestoreRef.current;
       const stagedWorkspaceId = stagedNavigation?.accessScope.kind === 'workspace'
         ? stagedNavigation.accessScope.clientId
@@ -2142,6 +2153,12 @@ function SafeRouteApp() {
     const unavailableWorkspace = activeWorkspaceRef.current;
     const principalId = recoveryPrincipalId;
     restoreUnavailableWorkspacesFromFreshCatalogRef.current = false;
+    if (!freshCatalog) {
+      // A scoped denial is authoritative only for the requested workspace.
+      // Hold every other protected surface until the owned principal and full
+      // catalog have completed, rather than reusing pre-denial freshness.
+      setNetworkAuthorizationReady(false);
+    }
     unavailableWorkspaceIdsRef.current = freshRecovery?.status === 'recovered'
       ? freshRecovery.unavailableWorkspaceIds
       : new Set([
@@ -2926,6 +2943,18 @@ async function persistWorkspaceRecoveryWithEvidence(
     unavailableWorkspaceIds,
     workspaceId: unavailableWorkspaceIds[0] || context.activeWorkspaceId || null,
   });
+  if (
+    result === 'persisted' &&
+    authoritativeCatalogObserved &&
+    unavailableWorkspaceIds.length > 0
+  ) {
+    await recordOfflineCalendarWorkspaceRevocationContractEvidence({
+      authorizationCatalog: 'fresh-denied',
+      cause: 'workspace-denial',
+      principalId,
+      unavailableWorkspaceIds,
+    });
+  }
   return result;
 }
 

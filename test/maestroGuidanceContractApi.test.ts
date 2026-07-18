@@ -17,6 +17,7 @@ import {
   GUIDANCE_CONTRACT_WORKSPACES,
   GUIDANCE_START_BOUNDARY_PATH,
   OFFLINE_CALENDAR_AUTH_CONTRACT_PHASES,
+  OFFLINE_CALENDAR_WORKSPACE_CONTRACT_PHASES,
   WORKSPACE_CATALOG_RECOVERY_PHASES,
   WORKSPACE_CATALOG_RETRY_DELAY_MS,
   WORKSPACE_CATALOG_SUCCESS_DELAY_MS,
@@ -31,6 +32,8 @@ import {
   assertOfflineCalendarAuthBoundaryTraffic,
   assertOfflineCalendarAuthCleanupEvidence,
   assertOfflineCalendarAuthStorageFaultRequests,
+  assertOfflineCalendarWorkspaceDenialTraffic,
+  assertOfflineCalendarWorkspaceRevocationEvidence,
   createGuidanceContractAccessToken,
   createGuidanceContractOperations,
   createGuidanceContractEvidenceJournal,
@@ -817,6 +820,232 @@ describe('Maestro guidance contract API', () => {
           ),
         ),
       /did not complete one principal rejection before auth cleanup/,
+    );
+  });
+
+  it('correlates an owned Operations denial with durable Calendar revocation and cold absence', () => {
+    const sourceRevision = '8'.repeat(40);
+    const supportOperationsPath =
+      `/api/v1/mobile/safe-route/operations/client/${GUIDANCE_CONTRACT_WORKSPACES.survivor.id}`;
+    const routesPath = '/api/v1/mobile/safe-route/routes';
+    const request = (
+      requestId: string,
+      sequence: number,
+      path: string,
+      search = '',
+      phase = OFFLINE_CALENDAR_WORKSPACE_CONTRACT_PHASES.denial,
+    ) => ({
+      authorizationClass: 'expected-bearer',
+      authorized: true,
+      event: 'request',
+      method: 'GET',
+      path,
+      phase,
+      requestId,
+      search,
+      sequence,
+    });
+    const completion = (
+      source: ReturnType<typeof request>,
+      sequence: number,
+      statusCode: number,
+      semanticOutcome: string,
+    ) => ({
+      ...source,
+      completed: true,
+      event: 'completion',
+      semanticOutcome,
+      sequence,
+      statusCode,
+    });
+    const deniedRequest = request(
+      'denied-routes',
+      1,
+      routesPath,
+      `?client_id=${GUIDANCE_CONTRACT_WORKSPACES.denied.id}`,
+    );
+    const principalRequest = request('principal', 3, '/api/v1/users/me');
+    const catalogRequest = request(
+      'catalog',
+      5,
+      '/api/v1/mobile/safe-route/routes',
+    );
+    const supportRoutesRequest = request(
+      'support-routes',
+      7,
+      routesPath,
+      `?client_id=${GUIDANCE_CONTRACT_WORKSPACES.survivor.id}`,
+    );
+    const supportRequest = request(
+      'support-operations',
+      9,
+      supportOperationsPath,
+    );
+    const requests = [
+      deniedRequest,
+      completion(deniedRequest, 2, 403, 'api-error-403'),
+      principalRequest,
+      completion(principalRequest, 4, 200, 'principal-a'),
+      catalogRequest,
+      completion(catalogRequest, 6, 200, 'catalog-survivor'),
+      supportRoutesRequest,
+      completion(supportRoutesRequest, 8, 200, 'catalog-survivor'),
+      supportRequest,
+      completion(supportRequest, 10, 200, 'operations-active'),
+    ];
+    const durability = {
+      authSession: 'present',
+      offlineCalendarCleanup: 'absent',
+      offlineCalendarPayload: 'absent',
+      offlineCalendarPreference: 'disabled',
+      offlineCalendarSlot: 'workspace-revoked',
+      workspaceContext: 'persisted',
+    };
+    const event = (
+      serverPhase: string,
+      cause: string,
+      appLaunchId: string,
+      authorizationCatalog: string,
+      sequence: number,
+    ) => ({
+      appLaunchId,
+      authorization: {
+        catalog: authorizationCatalog,
+        principal: 'matching',
+      },
+      cause,
+      durability,
+      navigationInstanceId: null,
+      occurredAtMs: 200 + sequence,
+      outcome: 'clean',
+      receivedAtMs: 300 + sequence,
+      routeId: null,
+      sequence,
+      serverPhase,
+      sourceRevision,
+      type: 'offline.calendar.workspace-lifecycle',
+      unavailableWorkspaceIds: [GUIDANCE_CONTRACT_WORKSPACES.denied.id],
+      workspaceId: GUIDANCE_CONTRACT_WORKSPACES.denied.id,
+    });
+    const seedEvidence = {
+      ...event(
+        CONNECTIVITY_CONTRACT_PHASES.seed,
+        'workspace-denial-seed',
+        'launch-workspace-seed',
+        'fresh-authorized',
+        0,
+      ),
+      durability: {
+        ...durability,
+        offlineCalendarPayload: 'present',
+        offlineCalendarSlot: 'payload',
+        workspaceContext: undefined,
+      },
+      outcome: 'seeded',
+      receivedAtMs: 300,
+      unavailableWorkspaceIds: [],
+    };
+    const evidence = [
+      seedEvidence,
+      event(
+        OFFLINE_CALENDAR_WORKSPACE_CONTRACT_PHASES.denial,
+        'workspace-denial',
+        'launch-workspace-denial',
+        'fresh-denied',
+        1,
+      ),
+      event(
+        OFFLINE_CALENDAR_WORKSPACE_CONTRACT_PHASES.relaunch,
+        'workspace-denial-relaunch',
+        'launch-workspace-relaunch',
+        'not-checked',
+        2,
+      ),
+    ];
+
+    assert.doesNotThrow(() =>
+      assertOfflineCalendarWorkspaceDenialTraffic(requests),
+    );
+    assert.doesNotThrow(() =>
+      assertOfflineCalendarWorkspaceRevocationEvidence(evidence, {
+        expectedSourceRevision: sourceRevision,
+        minimumOccurredAtMs: 100,
+      }),
+    );
+    assert.throws(
+      () =>
+        assertOfflineCalendarWorkspaceRevocationEvidence(
+          evidence.map((entry) => ({
+            ...entry,
+            durability: {
+              ...entry.durability,
+              offlineCalendarPreference: 'enabled',
+            },
+          })),
+          {
+            expectedSourceRevision: sourceRevision,
+            minimumOccurredAtMs: 100,
+          },
+        ),
+      /did not prove a real seed, one persisted revocation, and one distinct-process absence/,
+    );
+    assert.throws(
+      () =>
+        assertOfflineCalendarWorkspaceRevocationEvidence(
+          evidence.map((entry) => ({
+            ...entry,
+            appLaunchId: 'same-launch',
+          })),
+          {
+            expectedSourceRevision: sourceRevision,
+            minimumOccurredAtMs: 100,
+          },
+        ),
+      /did not prove a real seed, one persisted revocation, and one distinct-process absence/,
+    );
+    assert.throws(
+      () =>
+        assertOfflineCalendarWorkspaceDenialTraffic(
+          requests.filter((entry) => entry.requestId !== 'support-operations'),
+        ),
+      /did not preserve the exact scoped-403, survivor reconciliation/,
+    );
+    assert.throws(
+      () =>
+        assertOfflineCalendarWorkspaceDenialTraffic(
+          requests.map((entry) =>
+            entry.requestId === 'principal' && entry.event === 'request'
+              ? { ...entry, sequence: 2 }
+              : entry,
+          ),
+        ),
+      /did not preserve the exact scoped-403, survivor reconciliation/,
+    );
+    assert.throws(
+      () =>
+        assertOfflineCalendarWorkspaceDenialTraffic(
+          requests.map((entry) =>
+            entry.requestId === 'catalog' && entry.event === 'request'
+              ? { ...entry, sequence: 4 }
+              : entry,
+          ),
+        ),
+      /did not preserve the exact scoped-403, survivor reconciliation/,
+    );
+    const escapedDeniedRequest = request(
+      'escaped-denied-routes',
+      11,
+      routesPath,
+      `?client_id=${GUIDANCE_CONTRACT_WORKSPACES.denied.id}`,
+    );
+    assert.throws(
+      () =>
+        assertOfflineCalendarWorkspaceDenialTraffic([
+          ...requests,
+          escapedDeniedRequest,
+          completion(escapedDeniedRequest, 12, 403, 'api-error-403'),
+        ]),
+      /did not preserve the exact scoped-403, survivor reconciliation/,
     );
   });
 

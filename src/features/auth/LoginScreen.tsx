@@ -283,7 +283,9 @@ export function LoginScreen({
                   placeholder="Password"
                   placeholderTextColor={colors.muted}
                   returnKeyType="go"
-                  secureTextEntry={!passwordVisible}
+                  secureTextEntry={
+                    !passwordVisible && !SAFEROUTE_CONNECTIVITY_CONTRACT_ENABLED
+                  }
                   style={styles.input}
                   value={password}
                   testID={uiTestIds.loginPassword}

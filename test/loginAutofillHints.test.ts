@@ -37,7 +37,10 @@ describe('login autofill hints', () => {
 
     assert.match(passwordInput, /\{\.\.\.passwordAutofillHints\}/);
     assert.match(passwordInput, /returnKeyType="go"/);
-    assert.match(passwordInput, /secureTextEntry=\{!passwordVisible\}/);
+    assert.match(
+      passwordInput,
+      /secureTextEntry=\{\s*!passwordVisible && !SAFEROUTE_CONNECTIVITY_CONTRACT_ENABLED\s*\}/,
+    );
     assert.match(passwordInput, /onSubmitEditing=\{submitCredentials\}/);
   });
 

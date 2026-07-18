@@ -5,6 +5,7 @@ import {
   buildRouteRiskCorridorRegions,
   loadRouteRiskCorridor
 } from '../src/features/live-map/routeRiskCorridorCore';
+import { fetchAreaRiskAlongRoute as fetchAreaRiskAlongRouteTransport } from '../src/features/live-map/routeRiskCorridorApiCore';
 import type { RiskZone } from '../src/features/live-map/liveMapTypes';
 
 describe('route risk corridor loading', () => {
@@ -58,7 +59,178 @@ describe('route risk corridor loading', () => {
     assert.deepEqual(zones, []);
     assert.equal(requests, 0);
   });
+
+  it('uses strict read-only transport for every corridor chunk and never researches', async () => {
+    const calls: Array<{ init: RequestInit; url: URL }> = [];
+    const zones = await fetchAreaRiskAlongRoute([
+      { latitude: -33.9249, longitude: 18.4241 },
+      { latitude: -33.9696, longitude: 18.5972 }
+    ], {
+      accessToken: 'token-1',
+      clientId: 'tenant-1',
+      request: async (input, init = {}) => {
+        const url = new URL(String(input));
+        calls.push({ init, url });
+        const [minLat, minLon, maxLat, maxLon] = String(url.searchParams.get('bbox'))
+          .split(',')
+          .map(Number);
+        return new Response(JSON.stringify({
+          data: {
+            bounds: { minLat, maxLat, minLon, maxLon },
+            hasMore: false,
+            items: [{
+              id: `risk-${calls.length}`,
+              label: `Risk ${calls.length}`,
+              lat: (minLat + maxLat) / 2,
+              lon: (minLon + maxLon) / 2,
+              severity: 'high'
+            }],
+            providerStatus: 'primary',
+            seedStatus: 'covered'
+          }
+        }), { status: 200 });
+      }
+    });
+
+    assert.ok(zones.length >= 1);
+    assert.ok(calls.length >= 2);
+    calls.forEach(({ init, url }) => {
+      assert.notEqual(init.method, 'POST');
+      assert.equal(url.pathname.endsWith('/intel/map/area-risk'), true);
+      assert.equal(url.searchParams.get('refresh'), 'false');
+      assert.equal(url.searchParams.get('read_only'), 'true');
+      assert.equal(url.searchParams.get('client_id'), 'tenant-1');
+    });
+  });
+
+  it('fails closed when a strict corridor chunk is pending or incomplete', async () => {
+    const calls: Array<{ init: RequestInit; url: URL }> = [];
+    await assert.rejects(
+      fetchAreaRiskAlongRoute([
+        { latitude: -33.9249, longitude: 18.4241 },
+        { latitude: -33.9696, longitude: 18.5972 }
+      ], {
+        accessToken: 'token-1',
+        clientId: 'tenant-1',
+        request: async (input, init = {}) => {
+          const url = new URL(String(input));
+          calls.push({ init, url });
+          const [minLat, minLon, maxLat, maxLon] = String(url.searchParams.get('bbox'))
+            .split(',')
+            .map(Number);
+          return new Response(JSON.stringify({
+            data: {
+              bounds: { minLat, maxLat, minLon, maxLon },
+              hasMore: false,
+              items: [],
+              providerStatus: 'queued',
+              seedStatus: 'researching'
+            }
+          }), { status: 200 });
+        }
+      }),
+      /coverage is incomplete/i
+    );
+    assert.equal(calls.some(({ init }) => init.method === 'POST'), false);
+    assert.ok(calls.every(({ url }) => url.searchParams.get('read_only') === 'true'));
+  });
+
+  it('fails closed when strict coverage reports a terminal research failure', async () => {
+    await assert.rejects(
+      fetchAreaRiskAlongRoute([
+        { latitude: -33.9249, longitude: 18.4241 },
+        { latitude: -33.9696, longitude: 18.5972 }
+      ], {
+        accessToken: 'token-1',
+        clientId: 'tenant-1',
+        request: async (input) => {
+          const url = new URL(String(input));
+          const [minLat, minLon, maxLat, maxLon] = String(url.searchParams.get('bbox'))
+            .split(',')
+            .map(Number);
+          return new Response(JSON.stringify({
+            data: {
+              bounds: { minLat, maxLat, minLon, maxLon },
+              hasMore: false,
+              items: [],
+              providerStatus: 'empty',
+              seedStatus: 'failed'
+            }
+          }), { status: 200 });
+        }
+      }),
+      /coverage is incomplete/i
+    );
+  });
+
+  it('does not treat shared items as complete tenant AOI research', async () => {
+    await assert.rejects(
+      fetchAreaRiskAlongRoute([
+        { latitude: -33.9249, longitude: 18.4241 },
+        { latitude: -33.9696, longitude: 18.5972 }
+      ], {
+        accessToken: 'token-1',
+        clientId: 'tenant-1',
+        request: async (input) => {
+          const url = new URL(String(input));
+          const [minLat, minLon, maxLat, maxLon] = String(url.searchParams.get('bbox'))
+            .split(',')
+            .map(Number);
+          return new Response(JSON.stringify({
+            data: {
+              bounds: { minLat, maxLat, minLon, maxLon },
+              hasMore: false,
+              items: [{
+                id: 'shared-only',
+                label: 'Shared signal',
+                lat: (minLat + maxLat) / 2,
+                lon: (minLon + maxLon) / 2,
+                severity: 'high'
+              }],
+              providerStatus: 'primary',
+              seedStatus: 'not-requested'
+            }
+          }), { status: 200 });
+        }
+      }),
+      /coverage is incomplete/i
+    );
+  });
+
+  it('accepts an honestly empty public strict feed without requiring tenant research', async () => {
+    const zones = await fetchAreaRiskAlongRoute([
+      { latitude: -33.9249, longitude: 18.4241 },
+      { latitude: -33.9696, longitude: 18.5972 }
+    ], {
+      request: async (input) => {
+        const url = new URL(String(input));
+        const [minLat, minLon, maxLat, maxLon] = String(url.searchParams.get('bbox'))
+          .split(',')
+          .map(Number);
+        return new Response(JSON.stringify({
+          data: {
+            bounds: { minLat, maxLat, minLon, maxLon },
+            hasMore: false,
+            items: [],
+            providerStatus: 'empty',
+            seedStatus: 'not-requested'
+          }
+        }), { status: 200 });
+      }
+    });
+
+    assert.deepEqual(zones, []);
+  });
 });
+
+function fetchAreaRiskAlongRoute(
+  ...[coordinates, options]: Parameters<typeof fetchAreaRiskAlongRouteTransport>
+) {
+  return fetchAreaRiskAlongRouteTransport(coordinates, {
+    ...options,
+    apiBase: 'https://api.example.test/api/v1'
+  });
+}
 
 function riskZone(id: string): RiskZone {
   return {

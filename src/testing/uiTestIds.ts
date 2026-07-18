@@ -17,6 +17,7 @@ export const uiTestIds = {
   guestMapLongPressAddWaypoint: "guest-map-long-press-add-waypoint",
   guestMapLongPressAddRisk: "guest-map-long-press-add-risk",
   guestMapRiskLoadingStatus: "guest-map-risk-loading-status",
+  guestMapRiskResearch: "guest-map-risk-research",
   workspaceAccessRefresh: "workspace-access-refresh",
   guestMapWorkspaceSelector: "guest-map-workspace-selector",
   guestMapWorkspaceOption: (workspaceId: string) =>

@@ -37,6 +37,21 @@ describe('guest map interaction contract', () => {
     assert.doesNotMatch(screen, /Ionicons|MaterialIcons|FontAwesome/);
   });
 
+  it('offers bounded authenticated research separately from passive reloads', () => {
+    assert.match(screen, /viewportRisk\.researchAvailable/);
+    assert.match(screen, /testID=\{uiTestIds\.guestMapRiskResearch\}/);
+    assert.match(screen, /onPress=\{viewportRisk\.research\}/);
+    assert.match(screen, /Research this area for updated risk intelligence/);
+    assert.match(screen, /No current risks · Research/);
+    assert.match(screen, /Risks current · Research/);
+    assert.match(screen, /:\s*'Research risks'/);
+    assert.match(screen, /Check risks/);
+    assert.match(screen, /Research cooling down/);
+    assert.match(screen, /Coverage unavailable/);
+    assert.match(screen, /viewportRisk\.coverageState === 'pending'/);
+    assert.match(screen, /accessibilityLiveRegion="polite"/);
+  });
+
   it('turns the collapsed card into a one-tap next-stop search', () => {
     assert.match(screen, /accessibilityLabel="Search for the next stop"/);
     assert.match(screen, />\s*Search for a location\s*</);

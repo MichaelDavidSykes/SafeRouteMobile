@@ -1459,7 +1459,9 @@ export function GuestMapScreen({
             <Pressable
               accessibilityLabel={viewportRisk.loading
                 ? 'Risk areas are loading'
-                : 'Retry loading risk areas'}
+                : viewportRisk.coverageState === 'pending-timeout'
+                  ? 'Check whether risk research finished'
+                  : 'Retry loading risk areas'}
               accessibilityRole={viewportRisk.loading ? 'progressbar' : 'button'}
               disabled={viewportRisk.loading}
               testID={viewportRisk.loading ? uiTestIds.guestMapRiskLoadingStatus : undefined}
@@ -1470,9 +1472,66 @@ export function GuestMapScreen({
                 <ActivityIndicator color={colors.appleBlue} size="small" />
               ) : null}
               <Text numberOfLines={1} style={styles.riskLoadStatusText}>
-                {viewportRisk.loading ? 'Loading risks…' : 'Retry risks'}
+                {viewportRisk.loading
+                  ? 'Loading risks…'
+                  : viewportRisk.coverageState === 'pending-timeout'
+                    ? 'Check risks'
+                    : 'Retry risks'}
               </Text>
             </Pressable>
+          ) : viewportRisk.coverageState === 'pending' ? (
+            <View
+              accessible
+              accessibilityLabel={viewportRisk.statusMessage || 'Risk research is in progress.'}
+              accessibilityLiveRegion="polite"
+              accessibilityRole="summary"
+              style={styles.riskLoadStatus}
+            >
+              <ActivityIndicator color={colors.appleBlue} size="small" />
+              <Text numberOfLines={1} style={styles.riskLoadStatusText}>
+                Researching risks…
+              </Text>
+            </View>
+          ) : viewportRisk.researchAvailable ? (
+            <Pressable
+              accessibilityHint={
+                viewportRisk.statusMessage
+                || 'Requests updated SafeRoute intelligence for the visible bounded area.'
+              }
+              accessibilityLabel="Research this area for updated risk intelligence"
+              accessibilityRole="button"
+              testID={uiTestIds.guestMapRiskResearch}
+              style={styles.riskLoadStatus}
+              onPress={viewportRisk.research}
+            >
+              <Text numberOfLines={1} style={styles.riskLoadStatusText}>
+                {viewportRisk.coverageState === 'current-empty'
+                  ? 'No current risks · Research'
+                  : viewportRisk.coverageState === 'current'
+                    ? 'Risks current · Research'
+                    : viewportRisk.coverageState === 'cached'
+                      ? 'Cached risks · Research'
+                      : 'Research risks'}
+              </Text>
+            </Pressable>
+          ) : viewportRisk.statusMessage ? (
+            <View
+              accessible
+              accessibilityLabel={viewportRisk.statusMessage}
+              accessibilityLiveRegion="polite"
+              accessibilityRole="summary"
+              style={styles.riskLoadStatus}
+            >
+              <Text numberOfLines={1} style={styles.riskLoadStatusText}>
+                {viewportRisk.coverageState === 'current-empty'
+                  ? 'No current risks'
+                  : viewportRisk.coverageState === 'cooldown'
+                    ? 'Research cooling down'
+                    : viewportRisk.coverageState === 'missing'
+                      ? 'Coverage unavailable'
+                      : 'Risk coverage ready'}
+              </Text>
+            </View>
           ) : <View />}
           <Pressable
             accessibilityRole="button"

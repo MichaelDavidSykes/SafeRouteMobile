@@ -49,6 +49,35 @@ export type OperationsOfflineCalendarRemovalPresentation = {
   } | null;
 };
 
+export type OperationsOfflineCalendarSavingState =
+  | "allow-retry"
+  | "allowed"
+  | "allowing"
+  | "capacity"
+  | "checking"
+  | "cleanup-retry"
+  | "disabled"
+  | "enabled"
+  | "saved"
+  | "stop-retry"
+  | "stopping"
+  | "unavailable";
+
+export type OperationsOfflineCalendarSavingPresentation = {
+  actionAccessibilityHint: string | null;
+  actionAccessibilityLabel: string | null;
+  actionKind: "allow" | "check" | "stop" | null;
+  actionLabel: string | null;
+  busy: boolean;
+  confirmation: {
+    copy: string;
+    title: string;
+  } | null;
+  message: string;
+  title: string;
+  tone: "failure" | "neutral" | "success";
+};
+
 export type OperationsTabOption = {
   accessibilityLabel: string;
   id: OperationsTab;
@@ -244,6 +273,175 @@ export function createOperationsOfflineCalendarRemovalPresentation(
                 tone: "failure",
               }
             : null,
+  };
+}
+
+export function createOperationsOfflineCalendarSavingPresentation(
+  state: OperationsOfflineCalendarSavingState,
+  workspaceLabel = "this workspace",
+): OperationsOfflineCalendarSavingPresentation {
+  const normalizedWorkspaceLabel = workspaceLabel.trim() || "this workspace";
+  if (state === "checking") {
+    return {
+      actionAccessibilityHint: null,
+      actionAccessibilityLabel: null,
+      actionKind: null,
+      actionLabel: null,
+      busy: true,
+      confirmation: null,
+      message: "Checking this device's setting.",
+      title: "Offline Calendar",
+      tone: "neutral",
+    };
+  }
+  if (state === "stopping") {
+    return {
+      actionAccessibilityHint: null,
+      actionAccessibilityLabel:
+        `Stopping offline Calendar saves for ${normalizedWorkspaceLabel} on this device`,
+      actionKind: null,
+      actionLabel: "Stopping…",
+      busy: true,
+      confirmation: null,
+      message: "Removing the saved copy and recording your choice.",
+      title: "Stopping offline saves…",
+      tone: "neutral",
+    };
+  }
+  if (state === "allowing") {
+    return {
+      actionAccessibilityHint: null,
+      actionAccessibilityLabel:
+        `Allowing offline Calendar saving for ${normalizedWorkspaceLabel} on this device`,
+      actionKind: null,
+      actionLabel: "Allowing…",
+      busy: true,
+      confirmation: null,
+      message: "Updating this device's setting.",
+      title: "Allowing offline saves…",
+      tone: "neutral",
+    };
+  }
+  if (state === "enabled" || state === "allowed" || state === "saved") {
+    return {
+      actionAccessibilityHint:
+        "Removes this workspace's saved Calendar and prevents future offline saves on this device until you allow them again.",
+      actionAccessibilityLabel:
+        `Stop future offline Calendar saves for ${normalizedWorkspaceLabel} on this device`,
+      actionKind: "stop",
+      actionLabel: "Stop future offline saves",
+      busy: false,
+      confirmation: {
+        copy:
+          "SafeRoute will remove this workspace's saved Calendar from this device and won't save it again until you allow offline saving. Online Operations data, Saved routes, and other workspaces are unchanged.",
+        title: "Stop offline Calendar saves?",
+      },
+      message:
+        state === "allowed"
+          ? "Reconnect and sync to save a new limited Calendar on this device."
+          : state === "saved"
+            ? "A limited Calendar was verified on this device after the latest authorized sync."
+            : "SafeRoute securely saves a limited Calendar after a successful sync.",
+      title:
+        state === "allowed"
+          ? "Offline saving allowed"
+          : state === "saved"
+            ? "Offline Calendar saved"
+            : "Offline saving is on",
+      tone: state === "enabled" ? "neutral" : "success",
+    };
+  }
+  if (state === "disabled") {
+    return {
+      actionAccessibilityHint:
+        "Allows a future successful authorized sync to save this workspace's limited Calendar on this device.",
+      actionAccessibilityLabel:
+        `Allow offline Calendar saving for ${normalizedWorkspaceLabel} on this device`,
+      actionKind: "allow",
+      actionLabel: "Allow offline saving",
+      busy: false,
+      confirmation: null,
+      message:
+        "Nothing will be saved for this workspace until you allow it. Online Operations are unchanged.",
+      title: "Offline Calendar saving is off",
+      tone: "success",
+    };
+  }
+  if (state === "cleanup-retry") {
+    return {
+      actionAccessibilityHint:
+        "Retries removing any previous saved Calendar. Future offline saves remain blocked.",
+      actionAccessibilityLabel:
+        `Retry saved Calendar cleanup for ${normalizedWorkspaceLabel} on this device`,
+      actionKind: "stop",
+      actionLabel: "Retry cleanup",
+      busy: false,
+      confirmation: null,
+      message:
+        "Future saves are off and the Calendar is hidden, but SafeRoute could not confirm removal of the previous saved copy. Retry before closing the app.",
+      title: "Saved copy cleanup needs retry",
+      tone: "failure",
+    };
+  }
+  if (state === "stop-retry") {
+    return {
+      actionAccessibilityHint:
+        "Retries recording that this workspace must not save an offline Calendar on this device.",
+      actionAccessibilityLabel:
+        `Retry stopping offline Calendar saves for ${normalizedWorkspaceLabel} on this device`,
+      actionKind: "stop",
+      actionLabel: "Retry stopping saves",
+      busy: false,
+      confirmation: null,
+      message:
+        "SafeRoute could not confirm the setting. The Calendar is hidden in this session. Retry before closing the app.",
+      title: "Setting needs retry",
+      tone: "failure",
+    };
+  }
+  if (state === "allow-retry") {
+    return {
+      actionAccessibilityHint:
+        "Retries allowing future offline Calendar saves for this workspace on this device.",
+      actionAccessibilityLabel:
+        `Retry allowing offline Calendar saving for ${normalizedWorkspaceLabel} on this device`,
+      actionKind: "allow",
+      actionLabel: "Retry allowing saves",
+      busy: false,
+      confirmation: null,
+      message:
+        "Offline saving remains off because SafeRoute could not confirm the change.",
+      title: "Setting needs retry",
+      tone: "failure",
+    };
+  }
+  if (state === "capacity") {
+    return {
+      actionAccessibilityHint: null,
+      actionAccessibilityLabel: null,
+      actionKind: null,
+      actionLabel: null,
+      busy: false,
+      confirmation: null,
+      message:
+        "Stop did not complete. This workspace's setting is unchanged and its saved Calendar may remain on this device. Allow offline saving for another workspace, then try again.",
+      title: "Stop did not complete",
+      tone: "failure",
+    };
+  }
+  return {
+    actionAccessibilityHint:
+      "Retries checking whether this workspace may save an offline Calendar on this device.",
+    actionAccessibilityLabel:
+      `Retry checking offline Calendar saving for ${normalizedWorkspaceLabel} on this device`,
+    actionKind: "check",
+    actionLabel: "Retry check",
+    busy: false,
+    confirmation: null,
+    message:
+      "SafeRoute cannot verify this device's setting, so Calendar reads and saves are blocked.",
+    title: "Offline saving unavailable",
+    tone: "failure",
   };
 }
 
@@ -491,6 +689,67 @@ export function createOperationsOfflineEmptyState(
     accessibilityLabel:
       "Full planned route details unavailable offline. Saved calendar labels and endpoints remain in Calendar. Reconnect and verify workspace access.",
   };
+}
+
+export function createOperationsOfflineSavingEmptyState(
+  state: OperationsOfflineCalendarSavingState,
+): OperationsEmptyState | null {
+  if (
+    state === "disabled" ||
+    state === "allow-retry"
+  ) {
+    return {
+      accessibilityLabel:
+        "No offline Calendar is saved. Allow offline saving, then reconnect and sync to save a new Calendar.",
+      copy:
+        "Allow offline saving, then reconnect and sync to save a new Calendar.",
+      title: "No offline Calendar saved",
+    };
+  }
+  if (state === "allowed") {
+    return {
+      accessibilityLabel:
+        "No offline Calendar is saved yet. Reconnect and sync to save a new Calendar.",
+      copy: "Reconnect and sync to save a new Calendar.",
+      title: "Offline saving allowed",
+    };
+  }
+  if (state === "cleanup-retry") {
+    return {
+      accessibilityLabel:
+        "Saved Calendar hidden. Cleanup needs retry before closing the app.",
+      copy: "The previous saved copy is hidden. Retry cleanup before closing.",
+      title: "Saved Calendar hidden",
+    };
+  }
+  if (state === "stop-retry") {
+    return {
+      accessibilityLabel:
+        "Saved Calendar hidden in this session. Retry the privacy setting before closing the app.",
+      copy:
+        "The Calendar is hidden in this session. Retry the setting before closing.",
+      title: "Saved Calendar hidden",
+    };
+  }
+  if (state === "capacity") {
+    return {
+      accessibilityLabel:
+        "Stop did not complete. This Calendar may still be saved on this device.",
+      copy:
+        "This Calendar may still be saved. Allow offline saving for another workspace, then try again.",
+      title: "Stop did not complete",
+    };
+  }
+  if (state === "unavailable") {
+    return {
+      accessibilityLabel:
+        "Offline Calendar unavailable. SafeRoute cannot verify this device's saving setting.",
+      copy:
+        "SafeRoute cannot verify this device's setting, so no saved Calendar is shown.",
+      title: "Offline Calendar unavailable",
+    };
+  }
+  return null;
 }
 
 export function createOfflineCalendarRows(

@@ -37,8 +37,9 @@ appId: host.exp.Exponent
     visible:
       id: "safe-route-operations-empty-state"
     timeout: 20000
-- assertVisible: "Calendar unavailable offline"
-- assertVisible: "Offline saving is on"
+- assertVisible: "No offline Calendar saved"
+- assertVisible: "Allow offline saving, then reconnect and sync to save a new Calendar."
+- assertVisible: "Offline Calendar saving is off"
 - assertVisible:
     id: "safe-route-operations-calendar-saving-control"
 - assertNotVisible:
@@ -49,4 +50,4 @@ appId: host.exp.Exponent
     id: "safe-route-operations-remove-calendar"
 - assertNotVisible:
     id: "safe-route-operations-calendar-removal-status"
-- takeScreenshot: "connectivity-contract-offline-operations-removal-relaunch"
+- takeScreenshot: "connectivity-contract-offline-operations-saving-off-relaunch"

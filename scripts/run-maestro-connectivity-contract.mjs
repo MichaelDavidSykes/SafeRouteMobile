@@ -68,10 +68,20 @@ const flows = Object.freeze({
   offlineEnd: 'maestro/ios-connectivity-contract-offline-end.yaml',
   offlineObserve: 'maestro/ios-connectivity-contract-offline-observe.yaml',
   offlineRelaunch: 'maestro/ios-connectivity-contract-offline-relaunch.yaml',
+  operationsAllowCalendarSaving:
+    'maestro/ios-connectivity-contract-operations-allow-saving.yaml',
+  operationsDisabledOnline:
+    'maestro/ios-connectivity-contract-operations-disabled-online.yaml',
   operationsRemoveCalendar:
     'maestro/ios-connectivity-contract-operations-remove-calendar.yaml',
   operationsRemovalRelaunch:
     'maestro/ios-connectivity-contract-operations-removal-relaunch.yaml',
+  operationsResavedCalendarRelaunch:
+    'maestro/ios-connectivity-contract-operations-resaved-relaunch.yaml',
+  operationsSavingOffRelaunch:
+    'maestro/ios-connectivity-contract-operations-saving-off-relaunch.yaml',
+  operationsStopCalendarSaving:
+    'maestro/ios-connectivity-contract-operations-stop-saving.yaml',
   operationsReturnMap: 'maestro/ios-connectivity-contract-operations-return-map.yaml',
   online: 'maestro/ios-connectivity-contract-online.yaml',
   reconnectChecking: 'maestro/ios-connectivity-contract-reconnect-checking.yaml',
@@ -263,21 +273,31 @@ async function main() {
       label: 'Remove saved calendar from this device',
       enabled: true,
     },
+    {
+      id: 'safe-route-operations-calendar-saving-control',
+      label: 'Stop future offline Calendar saves for Guidance Operations on this device',
+      enabled: true,
+    },
   ]);
   await runFlow(
     CONNECTIVITY_CONTRACT_PHASES.offlineRelaunch,
-    'remove the exact offline Operations calendar after cancellation proof',
-    flows.operationsRemoveCalendar,
+    'stop exact-scope offline Calendar saves after cancellation proof',
+    flows.operationsStopCalendarSaving,
   );
-  captureAccessibilityHierarchy('offline-operations-calendar-removed', [
+  captureAccessibilityHierarchy('offline-operations-calendar-saving-off', [
     {
-      id: 'safe-route-operations-calendar-removal-status',
-      label: "Saved calendar removed. This workspace's saved calendar was removed from this device. Online Operations data is unchanged. A future successful sync may save a new calendar.",
+      id: 'safe-route-operations-calendar-saving-status',
+      label: 'Guidance Operations. Offline Calendar saving is off. Nothing will be saved for this workspace until you allow it. Online Operations are unchanged.',
+      enabled: true,
+    },
+    {
+      id: 'safe-route-operations-calendar-saving-control',
+      label: 'Allow offline Calendar saving for Guidance Operations on this device',
       enabled: true,
     },
     {
       id: 'safe-route-operations-empty-state',
-      label: 'Calendar unavailable offline. Reconnect to load and securely save this calendar.',
+      label: 'No offline Calendar is saved. Allow offline saving, then reconnect and sync to save a new Calendar.',
       enabled: true,
     },
   ]);
@@ -288,22 +308,32 @@ async function main() {
   terminateExpoGo(deviceId);
   await runFlow(
     CONNECTIVITY_CONTRACT_PHASES.offlineRelaunch,
-    'cold relaunch after exact Operations calendar removal',
-    flows.operationsRemovalRelaunch,
+    'cold relaunch with exact-scope offline Calendar saving still off',
+    flows.operationsSavingOffRelaunch,
   );
   captureAccessibilityHierarchy(
-    'offline-operations-calendar-removal-relaunch',
+    'offline-operations-calendar-saving-off-relaunch',
     [
       {
+        id: 'safe-route-operations-calendar-saving-status',
+        label: 'Guidance Operations. Offline Calendar saving is off. Nothing will be saved for this workspace until you allow it. Online Operations are unchanged.',
+        enabled: true,
+      },
+      {
+        id: 'safe-route-operations-calendar-saving-control',
+        label: 'Allow offline Calendar saving for Guidance Operations on this device',
+        enabled: true,
+      },
+      {
         id: 'safe-route-operations-empty-state',
-        label: 'Calendar unavailable offline. Reconnect to load and securely save this calendar.',
+        label: 'No offline Calendar is saved. Allow offline saving, then reconnect and sync to save a new Calendar.',
         enabled: true,
       },
     ],
   );
   await runFlow(
     CONNECTIVITY_CONTRACT_PHASES.offlineRelaunch,
-    'return to the offline map after durable Operations removal evidence',
+    'return to the offline map after durable Operations saving opt-out evidence',
     flows.operationsReturnMap,
   );
   await waitForEvidenceType(
@@ -347,6 +377,230 @@ async function main() {
     flows.online,
   );
   await waitForReconnectAuthorization(onlineSettlement.sequence);
+  await runFlow(
+    CONNECTIVITY_CONTRACT_PHASES.online,
+    'prove online Operations stays live while Calendar saving remains off',
+    flows.operationsDisabledOnline,
+  );
+  captureAccessibilityHierarchy('online-operations-calendar-saving-off', [
+    {
+      id: 'guest-map-workspace-selector',
+      label: 'Workspace, Guidance Operations',
+      enabled: true,
+    },
+  ]);
+
+  terminateExpoGo(deviceId);
+  setControl(
+    CONNECTIVITY_CONTRACT_PHASES.disabledSyncOffline,
+    CONNECTIVITY_CONTRACT_STATUSES.offline,
+  );
+  await runFlow(
+    CONNECTIVITY_CONTRACT_PHASES.disabledSyncOffline,
+    'cold relaunch after a successful online sync that remained opted out',
+    flows.operationsSavingOffRelaunch,
+  );
+  captureAccessibilityHierarchy(
+    'offline-operations-calendar-disabled-sync-relaunch',
+    [
+      {
+        id: 'safe-route-operations-calendar-saving-status',
+        label: 'Guidance Operations. Offline Calendar saving is off. Nothing will be saved for this workspace until you allow it. Online Operations are unchanged.',
+        enabled: true,
+      },
+      {
+        id: 'safe-route-operations-calendar-saving-control',
+        label: 'Allow offline Calendar saving for Guidance Operations on this device',
+        enabled: true,
+      },
+      {
+        id: 'safe-route-operations-empty-state',
+        label: 'No offline Calendar is saved. Allow offline saving, then reconnect and sync to save a new Calendar.',
+        enabled: true,
+      },
+    ],
+  );
+  await assertProductTrafficQuiet([
+    CONNECTIVITY_CONTRACT_PHASES.disabledSyncOffline,
+  ], 1_000);
+  await runFlow(
+    CONNECTIVITY_CONTRACT_PHASES.disabledSyncOffline,
+    'return to Map after proving the disabled online sync created no cache',
+    flows.operationsReturnMap,
+  );
+
+  setControl(
+    CONNECTIVITY_CONTRACT_PHASES.allowReconnectChecking,
+    CONNECTIVITY_CONTRACT_STATUSES.checking,
+  );
+  const allowReconnectRun = startFlow(
+    CONNECTIVITY_CONTRACT_PHASES.allowReconnectChecking,
+    'foreground toward an authorized explicit Allow',
+    flows.reconnectChecking,
+  );
+  await waitForHeldReachability(
+    CONNECTIVITY_CONTRACT_PHASES.allowReconnectChecking,
+  );
+  await finishFlow(allowReconnectRun);
+  await assertProductTrafficQuiet([
+    CONNECTIVITY_CONTRACT_PHASES.allowReconnectChecking,
+  ], 1_000);
+
+  setControl(
+    CONNECTIVITY_CONTRACT_PHASES.allowOnline,
+    CONNECTIVITY_CONTRACT_STATUSES.online,
+  );
+  const allowOnlineSettlement = await waitForReachabilityOutcome(
+    CONNECTIVITY_CONTRACT_PHASES.allowReconnectChecking,
+    'connectivity-online',
+  );
+  await runFlow(
+    CONNECTIVITY_CONTRACT_PHASES.allowOnline,
+    'complete exact authorization before explicit offline-saving consent',
+    flows.online,
+  );
+  await waitForReconnectAuthorization(
+    allowOnlineSettlement.sequence,
+    CONNECTIVITY_CONTRACT_PHASES.allowReconnectChecking,
+    CONNECTIVITY_CONTRACT_PHASES.allowOnline,
+  );
+  await runFlow(
+    CONNECTIVITY_CONTRACT_PHASES.allowOnline,
+    'explicitly allow saving and verify one fresh Calendar readback',
+    flows.operationsAllowCalendarSaving,
+  );
+  captureAccessibilityHierarchy('online-operations-calendar-saving-allowed', [
+    {
+      id: 'guest-map-workspace-selector',
+      label: 'Workspace, Guidance Operations',
+      enabled: true,
+    },
+  ]);
+
+  terminateExpoGo(deviceId);
+  setControl(
+    CONNECTIVITY_CONTRACT_PHASES.resaveOffline,
+    CONNECTIVITY_CONTRACT_STATUSES.offline,
+  );
+  await runFlow(
+    CONNECTIVITY_CONTRACT_PHASES.resaveOffline,
+    'cold relaunch offline with the newly allowed Calendar save restored',
+    flows.operationsResavedCalendarRelaunch,
+  );
+  captureAccessibilityHierarchy('offline-operations-calendar-resaved', [
+    {
+      id: 'safe-route-operations-offline-notice',
+      label: 'Offline Operations. This calendar was saved less than one hour ago and is review only. Reconnect and verify workspace access before relying on this calendar. Saved calendar labels and endpoints are stored. Full route plans, live risk and ETA, and convoy manifests are not stored offline.',
+      enabled: true,
+    },
+    {
+      id: 'safe-route-operations-route-movement-1-1',
+      labelStartsWith: 'Cold restart verification v1. ',
+      enabled: true,
+    },
+    {
+      id: 'safe-route-operations-calendar-saving-status',
+      label: 'Guidance Operations. Offline saving is on. SafeRoute securely saves a limited Calendar after a successful sync.',
+      enabled: true,
+    },
+    {
+      id: 'safe-route-operations-calendar-saving-control',
+      label: 'Stop future offline Calendar saves for Guidance Operations on this device',
+      enabled: true,
+    },
+  ]);
+  await runFlow(
+    CONNECTIVITY_CONTRACT_PHASES.resaveOffline,
+    'prove one-shot Calendar removal remains independent from future-saving consent',
+    flows.operationsRemoveCalendar,
+  );
+  captureAccessibilityHierarchy('offline-operations-calendar-removed', [
+    {
+      id: 'safe-route-operations-calendar-removal-status',
+      label: "Saved calendar removed. This workspace's saved calendar was removed from this device. Online Operations data is unchanged. A future successful sync may save a new calendar.",
+      enabled: true,
+    },
+    {
+      id: 'safe-route-operations-calendar-saving-status',
+      label: 'Guidance Operations. Offline saving is on. SafeRoute securely saves a limited Calendar after a successful sync.',
+      enabled: true,
+    },
+  ]);
+  await assertProductTrafficQuiet([
+    CONNECTIVITY_CONTRACT_PHASES.resaveOffline,
+  ], 1_000);
+
+  terminateExpoGo(deviceId);
+  setControl(
+    CONNECTIVITY_CONTRACT_PHASES.removalRelaunch,
+    CONNECTIVITY_CONTRACT_STATUSES.offline,
+  );
+  await runFlow(
+    CONNECTIVITY_CONTRACT_PHASES.removalRelaunch,
+    'cold relaunch after one-shot removal while future saving remains allowed',
+    flows.operationsRemovalRelaunch,
+  );
+  captureAccessibilityHierarchy('offline-operations-calendar-removal-relaunch', [
+    {
+      id: 'safe-route-operations-calendar-saving-status',
+      label: 'Guidance Operations. Offline saving is on. SafeRoute securely saves a limited Calendar after a successful sync.',
+      enabled: true,
+    },
+    {
+      id: 'safe-route-operations-calendar-saving-control',
+      label: 'Stop future offline Calendar saves for Guidance Operations on this device',
+      enabled: true,
+    },
+    {
+      id: 'safe-route-operations-empty-state',
+      label: 'Calendar unavailable offline. Reconnect to load and securely save this calendar.',
+      enabled: true,
+    },
+  ]);
+  await assertProductTrafficQuiet([
+    CONNECTIVITY_CONTRACT_PHASES.removalRelaunch,
+  ], 1_000);
+  await runFlow(
+    CONNECTIVITY_CONTRACT_PHASES.removalRelaunch,
+    'return to Map after durable one-shot removal evidence',
+    flows.operationsReturnMap,
+  );
+
+  setControl(
+    CONNECTIVITY_CONTRACT_PHASES.resaveReconnectChecking,
+    CONNECTIVITY_CONTRACT_STATUSES.checking,
+  );
+  const resaveReconnectRun = startFlow(
+    CONNECTIVITY_CONTRACT_PHASES.resaveReconnectChecking,
+    'foreground the resaved Calendar into a held reachability check',
+    flows.reconnectChecking,
+  );
+  await waitForHeldReachability(
+    CONNECTIVITY_CONTRACT_PHASES.resaveReconnectChecking,
+  );
+  await finishFlow(resaveReconnectRun);
+  await assertProductTrafficQuiet([
+    CONNECTIVITY_CONTRACT_PHASES.resaveReconnectChecking,
+  ], 1_000);
+
+  setControl(
+    CONNECTIVITY_CONTRACT_PHASES.resaveOnline,
+    CONNECTIVITY_CONTRACT_STATUSES.online,
+  );
+  const resaveOnlineSettlement = await waitForReachabilityOutcome(
+    CONNECTIVITY_CONTRACT_PHASES.resaveReconnectChecking,
+    'connectivity-online',
+  );
+  await runFlow(
+    CONNECTIVITY_CONTRACT_PHASES.resaveOnline,
+    'complete exact authorization after the resaved offline relaunch',
+    flows.online,
+  );
+  await waitForReconnectAuthorization(
+    resaveOnlineSettlement.sequence,
+    CONNECTIVITY_CONTRACT_PHASES.resaveReconnectChecking,
+    CONNECTIVITY_CONTRACT_PHASES.resaveOnline,
+  );
 
   setControl(
     CONNECTIVITY_CONTRACT_PHASES.inactiveSeed,
@@ -412,6 +666,13 @@ async function main() {
       [CONNECTIVITY_CONTRACT_PHASES.offlineRelaunch]: GUIDANCE_CONTRACT_MODES.active,
       [CONNECTIVITY_CONTRACT_PHASES.reconnectChecking]: GUIDANCE_CONTRACT_MODES.active,
       [CONNECTIVITY_CONTRACT_PHASES.online]: GUIDANCE_CONTRACT_MODES.active,
+      [CONNECTIVITY_CONTRACT_PHASES.disabledSyncOffline]: GUIDANCE_CONTRACT_MODES.active,
+      [CONNECTIVITY_CONTRACT_PHASES.allowReconnectChecking]: GUIDANCE_CONTRACT_MODES.active,
+      [CONNECTIVITY_CONTRACT_PHASES.allowOnline]: GUIDANCE_CONTRACT_MODES.active,
+      [CONNECTIVITY_CONTRACT_PHASES.resaveOffline]: GUIDANCE_CONTRACT_MODES.active,
+      [CONNECTIVITY_CONTRACT_PHASES.removalRelaunch]: GUIDANCE_CONTRACT_MODES.active,
+      [CONNECTIVITY_CONTRACT_PHASES.resaveReconnectChecking]: GUIDANCE_CONTRACT_MODES.active,
+      [CONNECTIVITY_CONTRACT_PHASES.resaveOnline]: GUIDANCE_CONTRACT_MODES.active,
       [CONNECTIVITY_CONTRACT_PHASES.inactiveSeed]: GUIDANCE_CONTRACT_MODES.active,
       [CONNECTIVITY_CONTRACT_PHASES.inactiveSession]: GUIDANCE_CONTRACT_MODES.active,
       [CONNECTIVITY_CONTRACT_PHASES.inactiveRelaunch]: GUIDANCE_CONTRACT_MODES.active,
@@ -421,6 +682,16 @@ async function main() {
   assertNoProductTrafficBeforeOnline(requests);
   assertConnectivityContractReconnectAuthorization(requests, {
     settlementSequence: onlineSettlement.sequence,
+  });
+  assertConnectivityContractReconnectAuthorization(requests, {
+    onlinePhase: CONNECTIVITY_CONTRACT_PHASES.allowOnline,
+    reconnectPhase: CONNECTIVITY_CONTRACT_PHASES.allowReconnectChecking,
+    settlementSequence: allowOnlineSettlement.sequence,
+  });
+  assertConnectivityContractReconnectAuthorization(requests, {
+    onlinePhase: CONNECTIVITY_CONTRACT_PHASES.resaveOnline,
+    reconnectPhase: CONNECTIVITY_CONTRACT_PHASES.resaveReconnectChecking,
+    settlementSequence: resaveOnlineSettlement.sequence,
   });
   assertConnectivityContractInactiveSessionRevocation(requests);
   assertConnectivityContractInactiveGuidanceRevocation(evidence, {
@@ -660,13 +931,17 @@ async function waitForEvidenceType(type, serverPhase) {
   throw new Error(`Device evidence did not record ${type} in ${serverPhase}.`);
 }
 
-async function waitForReconnectAuthorization(settlementSequence) {
+async function waitForReconnectAuthorization(
+  settlementSequence,
+  reconnectPhase = CONNECTIVITY_CONTRACT_PHASES.reconnectChecking,
+  onlinePhase = CONNECTIVITY_CONTRACT_PHASES.online,
+) {
   const deadline = Date.now() + 20_000;
   while (Date.now() < deadline) {
     const requests = readRequestJournal();
     const phaseRequests = apiRequests(
       requests,
-      CONNECTIVITY_CONTRACT_PHASES.online,
+      onlinePhase,
     );
     if (
       phaseRequests.some((entry) => entry.path === '/api/v1/users/me') &&
@@ -675,6 +950,8 @@ async function waitForReconnectAuthorization(settlementSequence) {
       )
     ) {
       assertConnectivityContractReconnectAuthorization(requests, {
+        onlinePhase,
+        reconnectPhase,
         settlementSequence,
       });
       return;
@@ -696,6 +973,11 @@ function assertNoProductTrafficBeforeOnline(entries) {
     CONNECTIVITY_CONTRACT_PHASES.offline,
     CONNECTIVITY_CONTRACT_PHASES.offlineRelaunch,
     CONNECTIVITY_CONTRACT_PHASES.reconnectChecking,
+    CONNECTIVITY_CONTRACT_PHASES.disabledSyncOffline,
+    CONNECTIVITY_CONTRACT_PHASES.allowReconnectChecking,
+    CONNECTIVITY_CONTRACT_PHASES.resaveOffline,
+    CONNECTIVITY_CONTRACT_PHASES.removalRelaunch,
+    CONNECTIVITY_CONTRACT_PHASES.resaveReconnectChecking,
   ]);
 }
 

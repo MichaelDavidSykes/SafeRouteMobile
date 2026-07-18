@@ -1,0 +1,33 @@
+appId: host.exp.Exponent
+---
+- runFlow: subflows/ios-open-expo-project.yaml
+- extendedWaitUntil:
+    visible:
+      id: "saferoute-app-root"
+    timeout: 30000
+- extendedWaitUntil:
+    visible:
+      id: "guest-map-network-status"
+    timeout: 15000
+- assertVisible: "Offline map. Saved route information remains available."
+- assertVisible: "Workspace, Guidance Operations"
+- scrollUntilVisible:
+    element:
+      id: "guest-map-gate-calendar"
+    direction: DOWN
+    timeout: 20000
+    speed: 40
+- tapOn:
+    id: "guest-map-gate-calendar"
+- extendedWaitUntil:
+    visible:
+      id: "safe-route-operations-route-movement-1-1"
+    timeout: 20000
+- assertVisible:
+    id: "safe-route-operations-offline-notice"
+- assertVisible: "Offline saving is on"
+- assertVisible:
+    id: "safe-route-operations-calendar-saving-control"
+- assertNotVisible:
+    id: "safe-route-operations-empty-state"
+- takeScreenshot: "connectivity-contract-offline-operations-resaved-relaunch"

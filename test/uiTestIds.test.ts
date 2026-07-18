@@ -79,6 +79,14 @@ describe("UI test identifiers", () => {
     assert.equal(uiTestIds.operationsMapReturn, "safe-route-operations-map-return");
     assert.equal(uiTestIds.operationsSignOut, "safe-route-operations-sign-out");
     assert.equal(
+      uiTestIds.operationsCalendarSavingControl,
+      "safe-route-operations-calendar-saving-control",
+    );
+    assert.equal(
+      uiTestIds.operationsCalendarSavingStatus,
+      "safe-route-operations-calendar-saving-status",
+    );
+    assert.equal(
       uiTestIds.operationsWorkspaceSelector,
       "safe-route-operations-workspace-selector",
     );

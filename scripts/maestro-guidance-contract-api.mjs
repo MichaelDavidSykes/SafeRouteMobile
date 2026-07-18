@@ -19,7 +19,10 @@ export const CONNECTIVITY_CONTRACT_STATUSES = Object.freeze({
   online: 'online'
 });
 export const CONNECTIVITY_CONTRACT_PHASES = Object.freeze({
+  allowOnline: 'connectivityAllowOnline',
+  allowReconnectChecking: 'connectivityAllowReconnectChecking',
   coldChecking: 'connectivityColdChecking',
+  disabledSyncOffline: 'connectivityDisabledSyncOffline',
   inactiveRelaunch: 'connectivityInactiveRelaunch',
   inactiveSeed: 'connectivityInactiveSeed',
   inactiveSession: 'connectivityInactiveSession',
@@ -27,6 +30,10 @@ export const CONNECTIVITY_CONTRACT_PHASES = Object.freeze({
   offlineRelaunch: 'connectivityOfflineRelaunch',
   online: 'connectivityOnline',
   reconnectChecking: 'connectivityReconnectChecking',
+  removalRelaunch: 'connectivityRemovalRelaunch',
+  resaveOffline: 'connectivityResaveOffline',
+  resaveOnline: 'connectivityResaveOnline',
+  resaveReconnectChecking: 'connectivityResaveReconnectChecking',
   seed: 'connectivitySeed'
 });
 export const CONNECTIVITY_CONTRACT_HOLD_POLL_MS = 50;
@@ -103,8 +110,11 @@ const GUIDANCE_CONTRACT_EVIDENCE_PHASES = Object.freeze({
     'regained'
   ]),
   'route.cache.readback': new Set([
+    'connectivityDisabledSyncOffline',
     'connectivityOffline',
     'connectivityOfflineRelaunch',
+    'connectivityRemovalRelaunch',
+    'connectivityResaveOffline',
     'regained',
     'readbackEvidence',
   ]),
@@ -132,8 +142,11 @@ const GUIDANCE_CONTRACT_EVIDENCE_PHASES = Object.freeze({
   ]),
   'navigation.absence.readback': new Set([
     'catalogJourneyEndedRelaunch',
+    'connectivityDisabledSyncOffline',
     'connectivityInactiveRelaunch',
     'connectivityOfflineRelaunch',
+    'connectivityRemovalRelaunch',
+    'connectivityResaveOffline',
   ]),
   'navigation.prestart.readback': new Set(['catalogJourneyEndedRouteReload'])
 });
@@ -1753,12 +1766,13 @@ function interpolateCoordinates(coordinates) {
 
 export function assertConnectivityContractReconnectAuthorization(entries, {
   onlinePhase = CONNECTIVITY_CONTRACT_PHASES.online,
+  reconnectPhase = CONNECTIVITY_CONTRACT_PHASES.reconnectChecking,
   settlementSequence
 }) {
   const settlement = entries.find((entry) =>
     entry.event === 'completion' &&
     entry.sequence === settlementSequence &&
-    entry.phase === CONNECTIVITY_CONTRACT_PHASES.reconnectChecking &&
+    entry.phase === reconnectPhase &&
     entry.path === CONNECTIVITY_CONTRACT_REACHABILITY_PATH &&
     entry.completed === true &&
     entry.statusCode === 204 &&

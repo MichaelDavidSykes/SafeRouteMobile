@@ -93,6 +93,34 @@ describe("offline Operations secure storage", () => {
       text,
       /removeOfflineOperationsWorkspaceCalendar\s*=\s*operationsStorage\.clearWorkspace/,
     );
+    assert.match(
+      text,
+      /OPERATIONS_CALENDAR_PREFERENCE_KEY[\s\S]*calendar\.preferences\.v1/,
+    );
+    assert.match(
+      text,
+      /SecureStore\.setItemAsync\([\s\S]*OPERATIONS_CALENDAR_PREFERENCE_KEY[\s\S]*DEVICE_ONLY_SECURE_STORE_OPTIONS/,
+    );
+    assert.match(
+      text,
+      /loadOfflineOperationsSnapshotIfAllowed[\s\S]*operationsPreferenceStorage\.runIfAllowed/,
+    );
+    assert.match(
+      text,
+      /saveOfflineOperationsSnapshotIfAllowed[\s\S]*operationsPreferenceStorage\.runIfAllowed/,
+    );
+    assert.match(
+      text,
+      /disableOfflineOperationsCalendarSaving[\s\S]*operationsPreferenceStorage\.disable\([\s\S]*operationsStorage\.clearWorkspace/,
+    );
+    assert.match(
+      text,
+      /operationsStorage\.clearWorkspace\([\s\S]*operationsPreferenceStorage\.completeCleanup/,
+    );
+    assert.match(
+      text,
+      /recoverOfflineOperationsPreferenceCleanup\([\s\S]*operationsStorage\.clearWorkspace/,
+    );
   });
 
   it("preserves a survivor cache when another workspace is purged", async () => {

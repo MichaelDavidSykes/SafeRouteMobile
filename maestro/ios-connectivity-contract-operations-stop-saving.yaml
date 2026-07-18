@@ -1,0 +1,39 @@
+appId: host.exp.Exponent
+---
+- assertVisible:
+    id: "safe-route-operations-calendar-saving-control"
+- assertVisible: "Offline saving is on"
+- tapOn:
+    id: "safe-route-operations-calendar-saving-control"
+- extendedWaitUntil:
+    visible: '^Stop offline Calendar saves\?$'
+    timeout: 10000
+- assertVisible: "SafeRoute will remove this workspace's saved Calendar from this device and won't save it again until you allow offline saving. Online Operations data, Saved routes, and other workspaces are unchanged."
+- tapOn: "Cancel"
+- assertNotVisible: '^Stop offline Calendar saves\?$'
+- assertVisible:
+    id: "safe-route-operations-route-movement-1-1"
+- tapOn:
+    id: "safe-route-operations-calendar-saving-control"
+- extendedWaitUntil:
+    visible: '^Stop offline Calendar saves\?$'
+    timeout: 10000
+- tapOn: "^Stop saving$"
+- extendedWaitUntil:
+    visible:
+      id: "safe-route-operations-calendar-saving-status"
+    timeout: 15000
+- assertVisible: "Offline Calendar saving is off. Nothing will be saved for this workspace until you allow it. Online Operations are unchanged."
+- assertVisible:
+    id: "safe-route-operations-calendar-saving-control"
+- assertNotVisible:
+    id: "safe-route-operations-offline-notice"
+- assertNotVisible:
+    id: "safe-route-operations-route-movement-1-1"
+- assertNotVisible:
+    id: "safe-route-operations-remove-calendar"
+- assertVisible:
+    id: "safe-route-operations-empty-state"
+- assertVisible: "No offline Calendar saved"
+- assertVisible: "Allow offline saving, then reconnect and sync to save a new Calendar."
+- takeScreenshot: "connectivity-contract-offline-operations-saving-off"

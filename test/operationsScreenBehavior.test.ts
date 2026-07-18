@@ -106,7 +106,7 @@ describe("operations screen behavior", () => {
 
     assert.match(
       source,
-      /loadOfflineOperationsSnapshot\([\s\S]*cacheIdentity[\s\S]*requestWorkspaceId/,
+      /loadOfflineOperationsSnapshotIfAllowed\([\s\S]*cacheIdentity[\s\S]*requestWorkspaceId/,
     );
     assert.match(
       source,
@@ -118,7 +118,7 @@ describe("operations screen behavior", () => {
     assert.match(source, /convoy manifests are not stored offline/i);
     assert.match(
       source,
-      /result\.status === "loaded"[\s\S]*tryActivateOfflineOperationsWorkspace\([\s\S]*if \(!requestOwnsWorkspace\(\)\) \{[\s\S]*return;[\s\S]*saveOfflineOperationsSnapshot\(/,
+      /result\.status === "loaded"[\s\S]*saveOfflineOperationsSnapshotIfAllowed\([\s\S]*if \(!requestOwnsWorkspace\(\)\) \{[\s\S]*return;/,
     );
     assert.match(
       source,
@@ -191,7 +191,7 @@ describe("operations screen behavior", () => {
     );
     assert.match(
       source,
-      /accessibilityState=\{\{[\s\S]*busy: offlineCalendarRemovalPresentation\.busy,[\s\S]*disabled: offlineCalendarRemovalPresentation\.busy/,
+      /accessibilityState=\{\{[\s\S]*busy: offlineCalendarRemovalPresentation\.busy,[\s\S]*disabled:[\s\S]*offlineCalendarRemovalPresentation\.busy[\s\S]*offlineCalendarSavingPresentation\.busy/,
     );
     assert.match(
       source,
@@ -251,11 +251,99 @@ describe("operations screen behavior", () => {
     );
     assert.match(
       source,
-      /if \(cacheWorkspaceActivated\) \{[\s\S]*offlineCalendarRemovalRetryScopesRef\.current\.delete\([\s\S]*setOfflineCalendarRemovalState\("idle"\)/,
+      /if \(cacheResult\.status === "allowed"\) \{[\s\S]*offlineCalendarRemovalRetryScopesRef\.current\.delete\([\s\S]*setOfflineCalendarRemovalState\("idle"\)/,
     );
     assert.match(
       source,
       /!errorState &&[\s\S]*protectedRequestsAvailable &&[\s\S]*workspaceOwnsResults &&[\s\S]*visibleOperationsState !== null \|\| visibleRoutes\.length > 0[\s\S]*!showingOfflineCopy[\s\S]*styles\.summaryStrip/,
+    );
+  });
+
+  it("owns durable offline Calendar consent by exact principal and workspace", () => {
+    const source = screenSource();
+    const stopBlock =
+      /const stopOfflineCalendarSaving = async \(\) => \{[\s\S]*?\n  \};/.exec(
+        source,
+      )?.[0] || "";
+    const allowBlock =
+      /const allowOfflineCalendarSaving = async \(\) => \{[\s\S]*?\n  \};/.exec(
+        source,
+      )?.[0] || "";
+
+    assert.match(
+      source,
+      /getOfflineOperationsCalendarSavingPreference\([\s\S]*cacheIdentity,[\s\S]*preferenceWorkspaceId/,
+    );
+    assert.match(source, /loadOfflineOperationsSnapshotIfAllowed\(/);
+    assert.match(source, /saveOfflineOperationsSnapshotIfAllowed\(/);
+    assert.doesNotMatch(source, /\bloadOfflineOperationsSnapshot\(/);
+    assert.doesNotMatch(source, /\bsaveOfflineOperationsSnapshot\(/);
+    assert.match(
+      stopBlock,
+      /const preferenceWorkspaceId = selectedWorkspaceId/,
+    );
+    assert.match(stopBlock, /loadRevisionRef\.current \+= 1/);
+    assert.match(
+      stopBlock,
+      /offlineCalendarSavingPendingRef\.current = \{[\s\S]*revision: preferenceRevision,[\s\S]*scopeKey: offlineCalendarRemovalScopeKey/,
+    );
+    assert.match(stopBlock, /setLoading\(false\)/);
+    assert.match(stopBlock, /setRefreshing\(false\)/);
+    assert.match(
+      stopBlock,
+      /disableOfflineOperationsCalendarSaving\([\s\S]*preferenceCacheIdentity,[\s\S]*preferenceWorkspaceId/,
+    );
+    assert.ok(
+      stopBlock.indexOf("setOfflineCalendarSavingState(\"stopping\")") <
+        stopBlock.indexOf("await disableOfflineOperationsCalendarSaving"),
+    );
+    assert.match(
+      allowBlock,
+      /enableOfflineOperationsCalendarSaving\([\s\S]*preferenceCacheIdentity,[\s\S]*preferenceWorkspaceId/,
+    );
+    assert.match(
+      allowBlock,
+      /protectedRequestsAvailableRef\.current[\s\S]*loadOperationsRef\.current\(\)/,
+    );
+    assert.match(
+      source,
+      /setOfflineCalendarSavingStateFromLoad[\s\S]*offlineCalendarSavingPendingRef\.current\?\.scopeKey ===[\s\S]*return;/,
+    );
+    assert.match(
+      source,
+      /offlineCalendarSavingAwaitingSaveScopeRef\.current ===[\s\S]*cachedSnapshot[\s\S]*\? "saved"/,
+    );
+    assert.match(
+      source,
+      /createOperationsOfflineSavingEmptyState\([\s\S]*offlineCalendarSavingState/,
+    );
+    assert.match(
+      source,
+      /activeTab === "calendar" && !protectedRequestsAvailable/,
+    );
+    assert.match(
+      stopBlock,
+      /offlineCalendarSavingAwaitingSaveScopeRef\.current = null/,
+    );
+    assert.match(
+      source,
+      /offlineCalendarRemovalState === "removing"[\s\S]*offlineCalendarSavingPresentation\.busy/,
+    );
+    assert.match(
+      source,
+      /Alert\.alert\(confirmation\.title, confirmation\.copy[\s\S]*style: "destructive"[\s\S]*text: "Stop saving"/,
+    );
+    assert.match(
+      source,
+      /testID=\{uiTestIds\.operationsCalendarSavingStatus\}/,
+    );
+    assert.match(
+      source,
+      /testID=\{uiTestIds\.operationsCalendarSavingControl\}/,
+    );
+    assert.match(
+      source,
+      /activeTab === "calendar"[\s\S]*selectedWorkspaceId[\s\S]*!workspaceState/,
     );
   });
 });

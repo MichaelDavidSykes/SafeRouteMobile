@@ -86,6 +86,10 @@ describe("UI test identifiers", () => {
     assert.equal(uiTestIds.loginEmail, "safe-route-login-email");
     assert.equal(uiTestIds.loginPassword, "safe-route-login-password");
     assert.equal(uiTestIds.loginPrimaryAction, "safe-route-login-primary-action");
+    assert.equal(
+      uiTestIds.loginSavedSessionRetry,
+      "safe-route-login-saved-session-retry",
+    );
     assert.equal(uiTestIds.loginMapReturn, "safe-route-login-map-return");
     assert.equal(uiTestIds.operationsScreen, "safe-route-operations");
     assert.equal(uiTestIds.operationsMapReturn, "safe-route-operations-map-return");

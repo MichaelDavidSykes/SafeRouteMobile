@@ -33,6 +33,7 @@ export const uiTestIds = {
   loginPassword: "safe-route-login-password",
   loginCode: "safe-route-login-code",
   loginPrimaryAction: "safe-route-login-primary-action",
+  loginSavedSessionRetry: "safe-route-login-saved-session-retry",
   loginSecondaryAction: "safe-route-login-secondary-action",
   loginMapReturn: "safe-route-login-map-return",
   loginNotice: "safe-route-login-notice",

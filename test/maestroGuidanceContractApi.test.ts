@@ -828,8 +828,31 @@ describe('Maestro guidance contract API', () => {
 
   it('correlates a saved-principal change with terminal Calendar revocation and cold absence', () => {
     const sourceRevision = '7'.repeat(40);
+    const validationPhase =
+      OFFLINE_CALENDAR_PRINCIPAL_CONTRACT_PHASES.validationUnavailable;
     const changePhase = OFFLINE_CALENDAR_PRINCIPAL_CONTRACT_PHASES.change;
     const relaunchPhase = OFFLINE_CALENDAR_PRINCIPAL_CONTRACT_PHASES.relaunch;
+    const validationRequest = {
+      authorizationClass: 'expected-bearer',
+      authorized: true,
+      event: 'request',
+      method: 'GET',
+      path: '/api/v1/users/me',
+      phase: validationPhase,
+      requestId: 'principal-validation-unavailable-request',
+      search: '',
+      sequence: 1,
+      timestampMs: 180,
+    };
+    const validationCompletion = {
+      ...validationRequest,
+      completed: true,
+      event: 'completion',
+      semanticOutcome: 'principal-validation-unavailable',
+      sequence: 2,
+      statusCode: 503,
+      timestampMs: 190,
+    };
     const request = {
       authorizationClass: 'expected-bearer',
       authorized: true,
@@ -839,7 +862,7 @@ describe('Maestro guidance contract API', () => {
       phase: changePhase,
       requestId: 'principal-change-request',
       search: '',
-      sequence: 1,
+      sequence: 3,
       timestampMs: 200,
     };
     const completion = {
@@ -847,7 +870,7 @@ describe('Maestro guidance contract API', () => {
       completed: true,
       event: 'completion',
       semanticOutcome: 'principal-b',
-      sequence: 2,
+      sequence: 4,
       statusCode: 200,
       timestampMs: 210,
     };
@@ -923,7 +946,7 @@ describe('Maestro guidance contract API', () => {
 
     assert.doesNotThrow(() =>
       assertOfflineCalendarPrincipalChangeTraffic(
-        [request, completion],
+        [validationRequest, validationCompletion, request, completion],
         entries,
       ),
     );
@@ -937,19 +960,64 @@ describe('Maestro guidance contract API', () => {
       () =>
         assertOfflineCalendarPrincipalChangeTraffic(
           [
+            validationRequest,
+            validationCompletion,
             request,
             completion,
             {
               ...request,
               path: '/api/v1/mobile/safe-route/routes',
               requestId: 'escaped-catalog',
-              sequence: 3,
+              sequence: 5,
               timestampMs: 220,
             },
           ],
           entries,
         ),
-      /did not complete exactly one principal-B validation/,
+      /did not durably quarantine one unavailable validation/,
+    );
+    assert.throws(
+      () =>
+        assertOfflineCalendarPrincipalChangeTraffic(
+          [
+            validationRequest,
+            {
+              ...validationCompletion,
+              statusCode: 200,
+            },
+            request,
+            completion,
+          ],
+          entries,
+        ),
+      /did not durably quarantine one unavailable validation/,
+    );
+    assert.throws(
+      () =>
+        assertOfflineCalendarPrincipalChangeTraffic(
+          [
+            validationRequest,
+            validationCompletion,
+            {
+              ...validationRequest,
+              phase:
+                OFFLINE_CALENDAR_PRINCIPAL_CONTRACT_PHASES
+                  .validationOfflineRelaunch,
+              requestId: 'offline-cache-escape',
+              sequence: 3,
+            },
+            {
+              ...request,
+              sequence: 4,
+            },
+            {
+              ...completion,
+              sequence: 5,
+            },
+          ],
+          entries,
+        ),
+      /did not durably quarantine one unavailable validation/,
     );
     assert.throws(
       () =>
@@ -2092,6 +2160,16 @@ describe('Maestro guidance contract API', () => {
         headers: { Authorization: authorization }
       });
       assert.equal((await userA.json()).data._id, '66d1b2c3d4e5f60718293d40');
+
+      mode = GUIDANCE_CONTRACT_MODES.principalValidationUnavailable;
+      const unavailableUser = await fetch(`${base}/users/me`, {
+        headers: { Authorization: authorization }
+      });
+      assert.equal(unavailableUser.status, 503);
+      assert.equal(
+        (await unavailableUser.json()).message,
+        'Saved-session verification is temporarily unavailable.'
+      );
 
       mode = GUIDANCE_CONTRACT_MODES.wrongPrincipal;
       const userB = await fetch(`${base}/users/me`, {

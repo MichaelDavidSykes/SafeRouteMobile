@@ -52,6 +52,8 @@ interface LoginScreenProps {
   sessionMessage?: string;
   onAuthenticated: (session: AuthSession) => Promise<void> | void;
   onCancel?: () => void;
+  onRetrySavedSession?: () => void;
+  savedSessionRetrying?: boolean;
 }
 
 const LOGIN_CONNECTION_MESSAGE = 'Unable to reach LunarChain. Check your connection and try again.';
@@ -62,6 +64,8 @@ export function LoginScreen({
   initialChallenge = null,
   onCancel,
   onAuthenticated,
+  onRetrySavedSession,
+  savedSessionRetrying = false,
   sessionMessage
 }: LoginScreenProps) {
   const [email, setEmail] = useState(
@@ -117,6 +121,9 @@ export function LoginScreen({
     loading,
     password
   });
+  const formBusy = loading || savedSessionRetrying;
+  const primaryActionDisabled =
+    primaryActionState.disabled || savedSessionRetrying;
 
   useEffect(() => {
     if (!challenge?.expiresAt) {
@@ -259,12 +266,12 @@ export function LoginScreen({
 
           {!challenge ? (
             <>
-              <View style={[styles.inputShell, loading ? styles.inputShellDisabled : null]}>
+              <View style={[styles.inputShell, formBusy ? styles.inputShellDisabled : null]}>
                 <TextInput
                   autoCapitalize="none"
                   autoComplete="username"
                   autoCorrect={false}
-                  editable={!loading}
+                  editable={!formBusy}
                   keyboardType="email-address"
                   placeholder="Email"
                   returnKeyType="next"
@@ -284,11 +291,11 @@ export function LoginScreen({
                 />
               </View>
 
-              <View style={[styles.inputShell, loading ? styles.inputShellDisabled : null]}>
+              <View style={[styles.inputShell, formBusy ? styles.inputShellDisabled : null]}>
                 <TextInput
                   {...passwordAutofillHints}
                   autoCapitalize="none"
-                  editable={!loading}
+                  editable={!formBusy}
                   placeholder="Password"
                   placeholderTextColor={colors.muted}
                   returnKeyType="go"
@@ -313,12 +320,12 @@ export function LoginScreen({
                   accessibilityLabel={passwordVisible ? 'Hide LunarChain password' : 'Show LunarChain password'}
                   accessibilityHint={passwordVisible ? 'Masks the password field.' : 'Reveals the password field for review.'}
                   accessibilityState={{ selected: passwordVisible }}
-                  disabled={loading}
+                  disabled={formBusy}
                   hitSlop={PASSWORD_TOGGLE_HIT_SLOP}
                   style={({ pressed }) => [
                     styles.passwordToggle,
-                    pressed && !loading ? styles.passwordTogglePressed : null,
-                    loading ? styles.passwordToggleDisabled : null
+                    pressed && !formBusy ? styles.passwordTogglePressed : null,
+                    formBusy ? styles.passwordToggleDisabled : null
                   ]}
                   onPress={() => setPasswordVisible((value) => !value)}
                 >
@@ -385,17 +392,50 @@ export function LoginScreen({
             </View>
           ) : null}
 
+          {!challenge && onRetrySavedSession ? (
+            <Pressable
+              accessibilityRole="button"
+              accessibilityLabel={
+                savedSessionRetrying
+                  ? "Verifying saved session"
+                  : "Retry saved session verification"
+              }
+              accessibilityHint="Checks the saved account before any workspace, route, or Calendar data is shown."
+              accessibilityState={{
+                busy: savedSessionRetrying,
+                disabled: formBusy,
+              }}
+              disabled={formBusy}
+              testID={uiTestIds.loginSavedSessionRetry}
+              style={({ pressed }) => [
+                styles.savedSessionRetryButton,
+                pressed && !formBusy
+                  ? styles.savedSessionRetryButtonPressed
+                  : null,
+                formBusy ? styles.secondaryButtonDisabled : null,
+              ]}
+              onPress={onRetrySavedSession}
+            >
+              {savedSessionRetrying ? (
+                <ActivityIndicator color={colors.appleBlue} />
+              ) : null}
+              <Text numberOfLines={1} style={styles.savedSessionRetryButtonText}>
+                {savedSessionRetrying ? "Verifying…" : "Retry saved session"}
+              </Text>
+            </Pressable>
+          ) : null}
+
           <Pressable
             accessibilityRole="button"
             accessibilityLabel={primaryActionState.accessibilityLabel}
             accessibilityHint={primaryActionState.accessibilityHint}
-            accessibilityState={{ disabled: primaryActionState.disabled }}
-            disabled={primaryActionState.disabled}
+            accessibilityState={{ disabled: primaryActionDisabled }}
+            disabled={primaryActionDisabled}
             testID={uiTestIds.loginPrimaryAction}
             style={({ pressed }) => [
               styles.primaryButton,
-              pressed && !primaryActionState.disabled ? styles.primaryButtonPressed : null,
-              primaryActionState.disabled ? styles.primaryButtonDisabled : null
+              pressed && !primaryActionDisabled ? styles.primaryButtonPressed : null,
+              primaryActionDisabled ? styles.primaryButtonDisabled : null
             ]}
             onPress={challenge ? submitCode : submitCredentials}
           >
@@ -408,13 +448,13 @@ export function LoginScreen({
               accessibilityRole="button"
               accessibilityLabel={secondaryChallengeAction?.accessibilityLabel}
               accessibilityHint={secondaryChallengeAction?.accessibilityHint}
-              disabled={loading}
+              disabled={formBusy}
               hitSlop={LOGIN_SECONDARY_ACTION_HIT_SLOP}
               testID={uiTestIds.loginSecondaryAction}
               style={({ pressed }) => [
                 styles.secondaryButton,
-                pressed && !loading ? styles.secondaryButtonPressed : null,
-                loading ? styles.secondaryButtonDisabled : null
+                pressed && !formBusy ? styles.secondaryButtonPressed : null,
+                formBusy ? styles.secondaryButtonDisabled : null
               ]}
               onPress={backToCredentials}
             >
@@ -427,13 +467,13 @@ export function LoginScreen({
               accessibilityRole="button"
               accessibilityLabel={mapReturnAction.accessibilityLabel}
               accessibilityHint={mapReturnAction.accessibilityHint}
-              disabled={loading}
+              disabled={formBusy}
               hitSlop={LOGIN_SECONDARY_ACTION_HIT_SLOP}
               testID={uiTestIds.loginMapReturn}
               style={({ pressed }) => [
                 styles.secondaryButton,
-                pressed && !loading ? styles.secondaryButtonPressed : null,
-                loading ? styles.secondaryButtonDisabled : null
+                pressed && !formBusy ? styles.secondaryButtonPressed : null,
+                formBusy ? styles.secondaryButtonDisabled : null
               ]}
               onPress={onCancel}
             >

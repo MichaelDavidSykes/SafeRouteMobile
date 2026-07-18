@@ -9,6 +9,7 @@ export const GUIDANCE_CONTRACT_MODES = Object.freeze({
   active: 'active-a',
   denied: 'denied-a',
   offline: 'offline',
+  principalValidationUnavailable: 'principal-validation-unavailable',
   wrongPrincipal: 'active-b'
 });
 export const CONNECTIVITY_CONTRACT_REACHABILITY_PATH =
@@ -45,7 +46,9 @@ export const OFFLINE_CALENDAR_AUTH_CONTRACT_PHASES = Object.freeze({
 });
 export const OFFLINE_CALENDAR_PRINCIPAL_CONTRACT_PHASES = Object.freeze({
   change: 'calendarPrincipalChange',
-  relaunch: 'calendarPrincipalChangeRelaunch'
+  relaunch: 'calendarPrincipalChangeRelaunch',
+  validationOfflineRelaunch: 'calendarPrincipalValidationOfflineRelaunch',
+  validationUnavailable: 'calendarPrincipalValidationUnavailable'
 });
 export const OFFLINE_CALENDAR_WORKSPACE_CONTRACT_PHASES = Object.freeze({
   denial: 'calendarWorkspaceDenial',
@@ -710,6 +713,16 @@ export function createGuidanceContractHandler({
         phase === OFFLINE_CALENDAR_AUTH_CONTRACT_PHASES.inactiveFailure
       ) {
         sendInactiveAccountError(response);
+        return;
+      }
+      if (mode === GUIDANCE_CONTRACT_MODES.principalValidationUnavailable) {
+        sendApiError(
+          response,
+          503,
+          'Saved-session verification is temporarily unavailable.',
+          {},
+          'principal-validation-unavailable'
+        );
         return;
       }
       sendApiSuccess(
@@ -1536,18 +1549,27 @@ export function assertOfflineCalendarPrincipalChangeTraffic(
   entries,
   evidenceEntries = []
 ) {
+  const validationPhase =
+    OFFLINE_CALENDAR_PRINCIPAL_CONTRACT_PHASES.validationUnavailable;
+  const validationOfflineRelaunchPhase =
+    OFFLINE_CALENDAR_PRINCIPAL_CONTRACT_PHASES.validationOfflineRelaunch;
   const changePhase = OFFLINE_CALENDAR_PRINCIPAL_CONTRACT_PHASES.change;
   const relaunchPhase = OFFLINE_CALENDAR_PRINCIPAL_CONTRACT_PHASES.relaunch;
-  const productRequests = entries.filter((entry) =>
+  const phaseProductRequests = (phase) => entries.filter((entry) =>
     entry.event === 'request' &&
-    entry.phase === changePhase &&
+    entry.phase === phase &&
     entry.path.startsWith('/api/')
   );
-  const principalRequest = productRequests[0];
-  const principalCompletions = entries.filter((entry) =>
+  const completionFor = (request) => entries.filter((entry) =>
     entry.event === 'completion' &&
-    entry.requestId === principalRequest?.requestId
+    entry.requestId === request?.requestId
   );
+  const validationRequests = phaseProductRequests(validationPhase);
+  const validationRequest = validationRequests[0];
+  const validationCompletions = completionFor(validationRequest);
+  const changeRequests = phaseProductRequests(changePhase);
+  const principalRequest = changeRequests[0];
+  const principalCompletions = completionFor(principalRequest);
   const terminalEvidence = evidenceEntries.filter((entry) =>
     entry.type === 'offline.calendar.principal-lifecycle' &&
     entry.serverPhase === changePhase &&
@@ -1558,8 +1580,21 @@ export function assertOfflineCalendarPrincipalChangeTraffic(
     entry.phase === relaunchPhase &&
     entry.path.startsWith('/api/')
   );
+  const validationOfflineProductTraffic = phaseProductRequests(
+    validationOfflineRelaunchPhase,
+  );
   assertJournalCondition(
-    productRequests.length === 1 &&
+    validationRequests.length === 1 &&
+      validationRequest?.method === 'GET' &&
+      validationRequest.path === '/api/v1/users/me' &&
+      validationRequest.authorized === true &&
+      validationRequest.authorizationClass === 'expected-bearer' &&
+      validationCompletions.length === 1 &&
+      validationCompletions[0].completed === true &&
+      validationCompletions[0].statusCode === 503 &&
+      validationCompletions[0].semanticOutcome ===
+        'principal-validation-unavailable' &&
+      changeRequests.length === 1 &&
       principalRequest?.method === 'GET' &&
       principalRequest.path === '/api/v1/users/me' &&
       principalRequest.authorized === true &&
@@ -1569,10 +1604,13 @@ export function assertOfflineCalendarPrincipalChangeTraffic(
       principalCompletions[0].statusCode === 200 &&
       principalCompletions[0].semanticOutcome === 'principal-b' &&
       terminalEvidence.length === 1 &&
+      validationRequest.sequence < validationCompletions[0].sequence &&
+      validationCompletions[0].sequence < principalRequest.sequence &&
       principalRequest.sequence < principalCompletions[0].sequence &&
       principalCompletions[0].timestampMs <= terminalEvidence[0].receivedAtMs &&
+      validationOfflineProductTraffic.length === 0 &&
       relaunchProductTraffic.length === 0,
-    'Offline Calendar principal change did not complete exactly one principal-B validation before terminal evidence with a quiet offline relaunch.'
+    'Offline Calendar principal change did not durably quarantine one unavailable validation through a quiet offline relaunch, complete exactly one principal-B validation before terminal evidence, and keep the signed-out relaunch quiet.'
   );
 }
 

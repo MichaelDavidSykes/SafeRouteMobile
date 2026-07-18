@@ -647,7 +647,21 @@ describe("App active workspace integration", () => {
 
     assert.match(app, /pendingNavigationRestoreRef = useRef<ActiveNavigationSession \| null>\(null\)/);
     assert.match(app, /entryTrackingVerification[\s\S]*confirmBackgroundNavigationStopped\(\)[\s\S]*await stopBackgroundNavigation\(\);[\s\S]*readActiveNavigationSession\(\);[\s\S]*recordNavigationAbsenceReadback\(entryTrackingVerification\);[\s\S]*const storedSession = await loadAuthSession\(\)/);
-    assert.match(app, /catch \{[\s\S]*clearAuthSession\(\)\.catch\(\(\) => undefined\)[\s\S]*openActiveNavigationSession\(persistedNavigation, false/);
+    const restoreCatch = app.slice(
+      app.indexOf(
+        "} catch {\n        if (!restoreIsCurrent())",
+        app.indexOf("const restoreSession = async"),
+      ),
+      app.indexOf("} finally {", app.indexOf("const restoreSession = async")),
+    );
+    assert.match(
+      restoreCatch,
+      /setSession\(null\)[\s\S]*setAvailableWorkspaces\(\[\]\)[\s\S]*setNetworkAuthorizationReady\(false\)[\s\S]*setScreen\('login'\)/,
+    );
+    assert.doesNotMatch(
+      restoreCatch,
+      /openActiveNavigationSession|tryActivateOfflineOperationsPrincipal/,
+    );
     assert.match(app, /persistedNavigation\?\.accessScope\.kind === 'workspace'[\s\S]*stagePendingNavigationRestore\(persistedNavigation\)/);
     assert.match(app, /hasMatchingAuthPrincipal\([\s\S]*persistedNavigation\.accessScope\.principalId/);
     assert.match(app, /stagePendingNavigationRestore\(persistedNavigation\);[\s\S]*stopBackgroundNavigation\(\)/);
@@ -853,6 +867,60 @@ describe("App active workspace integration", () => {
     assert.doesNotMatch(
       evidence,
       /accessToken|authorizationHeader|calendarRaw|preferenceRaw/,
+    );
+  });
+
+  it("does not activate principal-scoped storage when online saved-session validation is unavailable", () => {
+    const app = appSource();
+    const unavailableBranch = app.slice(
+      app.indexOf("if (restoreResult.status === 'validation-unavailable')"),
+      app.indexOf("if (restoreResult.status === 'expired')"),
+    );
+
+    assert.match(
+      unavailableBranch,
+      /!storedSession\.onlineValidationRequired[\s\S]*requireOnlineAuthSessionValidation\(storedSession\)[\s\S]*quarantineResult === 'stale'[\s\S]*clearAuthSessionIfCurrent\(storedSession\)[\s\S]*clearResult === 'stale'[\s\S]*setSavedSessionValidationRetryAvailable\(true\)[\s\S]*setSession\(null\)[\s\S]*setAvailableWorkspaces\(\[\]\)[\s\S]*setWorkspaceAccessIssue\('verification-unavailable'\)[\s\S]*setNetworkAuthorizationReady\(false\)[\s\S]*setScreen\('login'\)/,
+    );
+    assert.doesNotMatch(
+      unavailableBranch,
+      /tryActivateOfflineOperationsPrincipal|saveAuthSession|setSession\(restoreResult\.session\)|openActiveNavigationSession/,
+    );
+    assert.match(
+      app,
+      /restoreNetworkStatus === 'online'[\s\S]*restoreResult\.status === 'validation-unavailable'/,
+    );
+  });
+
+  it("invalidates a saved-session restore before fresh authentication can install another principal", () => {
+    const app = appSource();
+    const restoreFlow = app.slice(
+      app.indexOf('useEffect(() => {', app.indexOf('sessionRestoreNetworkStatus')),
+      app.indexOf('const handleRetrySavedSessionValidation'),
+    );
+
+    assert.match(
+      restoreFlow,
+      /const restoreGeneration = \+\+sessionRestoreGenerationRef\.current[\s\S]*restoreIsCurrent[\s\S]*restoreSavedSession\([\s\S]*if \(!restoreIsCurrent\(\)\) \{[\s\S]*return;/,
+    );
+    assert.match(
+      restoreFlow,
+      /requireOnlineAuthSessionValidation\(storedSession\)[\s\S]*quarantineResult === 'stale'[\s\S]*return;/,
+    );
+    assert.match(
+      restoreFlow,
+      /saveAuthSessionIfCurrent\([\s\S]*storedSession,[\s\S]*restoreResult\.session[\s\S]*saveResult === 'stale'[\s\S]*return;/,
+    );
+    assert.match(
+      restoreFlow,
+      /purgeOfflineOperationsPrincipalAtTerminalBoundary\([\s\S]*clearAuthSessionIfCurrent\(storedSession\)/,
+    );
+    assert.match(
+      app,
+      /const handleAuthenticated = async[\s\S]*sessionRestoreGenerationRef\.current \+= 1/,
+    );
+    assert.match(
+      app,
+      /const openSignIn = [\s\S]*sessionRestoreGenerationRef\.current \+= 1/,
     );
   });
 });

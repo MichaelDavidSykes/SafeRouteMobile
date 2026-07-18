@@ -12,7 +12,14 @@ import { getCurrentUser } from './src/features/auth/authApi';
 import { LoginScreen } from './src/features/auth/LoginScreen';
 import { prepareAuthenticatedSession } from './src/features/auth/authCompletion';
 import { getAuthSessionPrincipalId, hasMatchingAuthPrincipal } from './src/features/auth/authPrincipal';
-import { clearAuthSession, loadAuthSession, saveAuthSession } from './src/features/auth/authStorage';
+import {
+  clearAuthSession,
+  clearAuthSessionIfCurrent,
+  loadAuthSession,
+  requireOnlineAuthSessionValidation,
+  saveAuthSession,
+  saveAuthSessionIfCurrent,
+} from './src/features/auth/authStorage';
 import {
   createPreviewLoginCodeChallenge,
   createPreviewAuthSession,
@@ -22,6 +29,10 @@ import {
   PREVIEW_SESSION_NOTICE
 } from './src/features/auth/previewSession';
 import { restoreSavedSession } from './src/features/auth/sessionRestore';
+import {
+  isSessionRestoreAttemptCurrent,
+  requireCurrentSessionRestoreAttempt,
+} from './src/features/auth/sessionRestoreAttempt';
 import type { AuthSession } from './src/features/auth/authTypes';
 import {
   createActiveSessionExpiryMonitor,
@@ -185,6 +196,11 @@ function SafeRouteApp() {
   const [session, setSession] = useState<AuthSession | null>(null);
   const [sessionRestoreNetworkStatus, setSessionRestoreNetworkStatus] =
     useState<typeof networkStatus | null>(null);
+  const [sessionRestoreRevision, setSessionRestoreRevision] = useState(0);
+  const [savedSessionValidationRetryAvailable, setSavedSessionValidationRetryAvailable] =
+    useState(false);
+  const [savedSessionValidationRetrying, setSavedSessionValidationRetrying] =
+    useState(false);
   const [selectedRoute, setSelectedRoute] = useState<SavedSafeRoutePlan | null>(null);
   const [activeNavigationSession, setActiveNavigationSession] =
     useState<ActiveNavigationSession | null>(null);
@@ -222,6 +238,7 @@ function SafeRouteApp() {
   const sessionEpochRef = useRef(0);
   const sessionExpiryHandledRef = useRef(false);
   const sessionRestoreStartedRef = useRef(false);
+  const sessionRestoreGenerationRef = useRef(0);
   const activeSessionExpiryHandlerRef =
     useRef<((identity: ActiveSessionExpiryIdentity) => void) | null>(null);
   const activeSessionExpiryMonitorRef =
@@ -870,17 +887,36 @@ function SafeRouteApp() {
   };
 
   useEffect(() => {
+    const restoreNetworkStatus =
+      sessionRestoreRevision > 0
+        ? networkStatusRef.current
+        : sessionRestoreNetworkStatus;
     if (
       sessionRestoreStartedRef.current ||
-      sessionRestoreNetworkStatus === null
+      restoreNetworkStatus === null
     ) {
       return;
     }
     sessionRestoreStartedRef.current = true;
     let mounted = true;
+    const restoreGeneration = ++sessionRestoreGenerationRef.current;
+    const restoreIsCurrent = () =>
+      isSessionRestoreAttemptCurrent(
+        sessionRestoreGenerationRef.current,
+        restoreGeneration,
+        mounted,
+      );
+    const clearAuthSessionForCurrentRestore = async () => {
+      requireCurrentSessionRestoreAttempt(
+        sessionRestoreGenerationRef.current,
+        restoreGeneration,
+        mounted,
+      );
+      await clearAuthSession();
+    };
 
     const enablePreviewSession = () => {
-      if (!SAFEROUTE_PREVIEW_MODE_ENABLED || !mounted) {
+      if (!SAFEROUTE_PREVIEW_MODE_ENABLED || !restoreIsCurrent()) {
         return false;
       }
 
@@ -924,7 +960,10 @@ function SafeRouteApp() {
     };
 
     const restoreSession = async () => {
-      setAuthPrompt('');
+      const manualRetry = sessionRestoreRevision > 0;
+      if (!manualRetry) {
+        setAuthPrompt('');
+      }
       setSelectedRoute(null);
       setAvailableWorkspaces([]);
       activeWorkspaceRef.current = null;
@@ -937,78 +976,107 @@ function SafeRouteApp() {
       setNetworkAuthorizationReady(false);
       workspaceCatalogRetryingRef.current = false;
       setWorkspaceCatalogRetrying(false);
-      setScreen('guest-map');
+      if (!manualRetry) {
+        setScreen('guest-map');
+      }
       let persistedNavigation: ActiveNavigationSession | null = null;
+      let storedSessionAvailableForRetry = false;
 
       try {
         const entryTrackingVerification =
           SAFEROUTE_GUIDANCE_CONTRACT_EVIDENCE_ENABLED
             ? await confirmBackgroundNavigationStopped()
             : null;
+        if (!restoreIsCurrent()) {
+          return;
+        }
         await stopBackgroundNavigation();
+        if (!restoreIsCurrent()) {
+          return;
+        }
         const navigationReadback = SAFEROUTE_PREVIEW_MODE_ENABLED
           ? { session: null, status: 'absent' as const }
           : await readActiveNavigationSession();
+        if (!restoreIsCurrent()) {
+          return;
+        }
         persistedNavigation = navigationReadback.session;
         if (
           !SAFEROUTE_PREVIEW_MODE_ENABLED &&
           navigationReadback.status === 'absent'
         ) {
           await recordNavigationAbsenceReadback(entryTrackingVerification);
+          if (!restoreIsCurrent()) {
+            return;
+          }
         }
         const operationsCleanup =
           await recoverOfflineOperationsPrincipalCleanup(
             null,
-            clearAuthSession,
+            clearAuthSessionForCurrentRestore,
           );
-        if (mounted) {
-          setOfflineCalendarCleanupStatus(
-            operationsCleanup.status === 'clean' ? 'idle' : 'failed',
-          );
+        if (!restoreIsCurrent()) {
+          return;
         }
+        setOfflineCalendarCleanupStatus(
+          operationsCleanup.status === 'clean' ? 'idle' : 'failed',
+        );
         if (operationsCleanup.status !== 'clean') {
           await recordOfflineCalendarCleanupContractEvidence(
             'startup-terminal-replay',
             'retry-required',
           );
-          if (mounted) {
-            setSession(null);
-            setSessionMessage(
-              'Secure offline Calendar storage needs retry before account access can be restored.',
-            );
-            setAuthPrompt(
-              'Retry offline Calendar storage before signing in.',
-            );
-            setScreen('guest-map');
+          if (!restoreIsCurrent()) {
+            return;
           }
+          setSession(null);
+          setSessionMessage(
+            'Secure offline Calendar storage needs retry before account access can be restored.',
+          );
+          setAuthPrompt(
+            'Retry offline Calendar storage before signing in.',
+          );
+          setScreen('guest-map');
           return;
         }
         const storedSession = await loadAuthSession();
-        if (!mounted) {
+        if (!restoreIsCurrent()) {
           return;
         }
+        storedSessionAvailableForRetry = Boolean(storedSession);
 
         if (!storedSession) {
+          setSavedSessionValidationRetryAvailable(false);
           const principalChangeRevocationObserved =
             await recordOfflineCalendarPrincipalChangeContractEvidence(
               'principal-change-relaunch-revoked',
             );
+          if (!restoreIsCurrent()) {
+            return;
+          }
           const signedOutCalendarRemoved =
             await ensureSignedOutOfflineOperationsCalendarRemoved();
-          if (mounted) {
-            setOfflineCalendarCleanupStatus(
-              signedOutCalendarRemoved ? 'idle' : 'failed',
-            );
+          if (!restoreIsCurrent()) {
+            return;
           }
+          setOfflineCalendarCleanupStatus(
+            signedOutCalendarRemoved ? 'idle' : 'failed',
+          );
           if (signedOutCalendarRemoved) {
             await recordOfflineCalendarCleanupContractEvidence(
               'signed-out-boot',
               'clean',
             );
+            if (!restoreIsCurrent()) {
+              return;
+            }
             if (principalChangeRevocationObserved) {
               await recordOfflineCalendarPrincipalChangeContractEvidence(
                 'principal-change-relaunch',
               );
+              if (!restoreIsCurrent()) {
+                return;
+              }
             }
           }
           if (
@@ -1019,6 +1087,9 @@ function SafeRouteApp() {
               await discardPersistedNavigation(
                 'Active guidance needs workspace access. Sign in and plot the route again.',
               );
+              if (!restoreIsCurrent()) {
+                return;
+              }
             }
             enablePreviewSession();
           }
@@ -1033,15 +1104,70 @@ function SafeRouteApp() {
         const restoreResult = await restoreSavedSession(
           storedSession,
           getCurrentUser,
-          { validateOnline: sessionRestoreNetworkStatus === 'online' },
+          { validateOnline: restoreNetworkStatus === 'online' },
         );
+        if (!restoreIsCurrent()) {
+          return;
+        }
+
+        if (restoreResult.status === 'validation-unavailable') {
+          if (!storedSession.onlineValidationRequired) {
+            try {
+              const quarantineResult =
+                await requireOnlineAuthSessionValidation(storedSession);
+              if (!restoreIsCurrent() || quarantineResult === 'stale') {
+                return;
+              }
+            } catch {
+              if (!restoreIsCurrent()) {
+                return;
+              }
+              storedSessionAvailableForRetry = false;
+              const clearResult = await clearAuthSessionIfCurrent(storedSession);
+              if (!restoreIsCurrent() || clearResult === 'stale') {
+                return;
+              }
+              throw new Error(
+                'Saved-session validation quarantine could not be persisted.',
+              );
+            }
+          }
+          if (!restoreIsCurrent()) {
+            return;
+          }
+          setSavedSessionValidationRetryAvailable(true);
+          setSession(null);
+          setSelectedRoute(null);
+          setAvailableWorkspaces([]);
+          activeWorkspaceRef.current = null;
+          setActiveWorkspace(null);
+          setWorkspaceCatalogLoading(false);
+          setWorkspaceCatalogError('');
+          setWorkspaceCatalogStoredAtMs(null);
+          setWorkspaceCatalogRetentionStoredAtMs(null);
+          setWorkspaceAccessIssue('verification-unavailable');
+          setNetworkAuthorizationReady(false);
+          setSessionMessage(restoreResult.message);
+          setAuthPrompt(restoreResult.message);
+          setScreen('login');
+          return;
+        }
 
         if (restoreResult.status === 'expired') {
+          if (!restoreIsCurrent()) {
+            return;
+          }
+          setSavedSessionValidationRetryAvailable(false);
           const operationsCleanup = await
             purgeOfflineOperationsPrincipalAtTerminalBoundary(
               getAuthSessionPrincipalId(storedSession),
-              clearAuthSession,
+              async () => {
+                await clearAuthSessionIfCurrent(storedSession);
+              },
             ).catch(() => null);
+          if (!restoreIsCurrent()) {
+            return;
+          }
           const operationsCleanupNeedsRetry =
             operationsCleanup?.status !== 'clean';
           setOfflineCalendarCleanupStatus(
@@ -1052,6 +1178,9 @@ function SafeRouteApp() {
               'inactive-account',
               'retry-required',
             );
+            if (!restoreIsCurrent()) {
+              return;
+            }
           }
           const terminalAccountBoundary =
             restoreResult.reason === 'inactive-account' ||
@@ -1062,7 +1191,7 @@ function SafeRouteApp() {
               restoreResult.reason === 'principal-changed' ||
               !enablePreviewSession()
             ) &&
-            mounted
+            restoreIsCurrent()
           ) {
             if (
               restoreResult.reason === 'principal-changed' &&
@@ -1071,13 +1200,16 @@ function SafeRouteApp() {
               await recordOfflineCalendarPrincipalChangeContractEvidence(
                 'principal-change',
               );
+              if (!restoreIsCurrent()) {
+                return;
+              }
             }
             const guidanceCleared = persistedNavigation
               ? await discardPersistedNavigation(undefined, {
                   evidenceSession: persistedNavigation,
                 })
               : true;
-            if (!mounted) {
+            if (!restoreIsCurrent()) {
               return;
             }
             const terminalMessage = guidanceCleared
@@ -1100,7 +1232,7 @@ function SafeRouteApp() {
           }
           if (
             !enablePreviewSession() &&
-            mounted &&
+            restoreIsCurrent() &&
             (!persistedNavigation ||
               !openActiveNavigationSession(persistedNavigation, false, null, null))
           ) {
@@ -1108,19 +1240,32 @@ function SafeRouteApp() {
               await discardPersistedNavigation(
                 'Active guidance could not be restored safely. Plot the route again.',
               );
+              if (!restoreIsCurrent()) {
+                return;
+              }
             } else {
               setSessionMessage(restoreResult.message);
             }
           }
-        } else if (restoreResult.status === 'restored' && mounted) {
+        } else if (restoreResult.status === 'restored' && restoreIsCurrent()) {
+          setSavedSessionValidationRetryAvailable(false);
           const restoredPrincipalId = getAuthSessionPrincipalId(restoreResult.session);
           const operationsCacheActivated =
             await tryActivateOfflineOperationsPrincipal(restoredPrincipalId);
+          if (!restoreIsCurrent()) {
+            return;
+          }
           setOfflineCalendarCleanupStatus(
             operationsCacheActivated ? 'idle' : 'failed',
           );
           if (restoreResult.validatedOnline) {
-            await saveAuthSession(restoreResult.session);
+            const saveResult = await saveAuthSessionIfCurrent(
+              storedSession,
+              restoreResult.session,
+            );
+            if (!restoreIsCurrent() || saveResult === 'stale') {
+              return;
+            }
           }
           activeSessionPrincipalIdRef.current = restoredPrincipalId;
           setSessionMessage(
@@ -1137,16 +1282,28 @@ function SafeRouteApp() {
               stagePendingNavigationRestore(persistedNavigation);
               setSessionMessage('Restoring your saved route…');
               await stopBackgroundNavigation();
+              if (!restoreIsCurrent()) {
+                return;
+              }
               await recordNavigationRestoreSuspended(persistedNavigation);
+              if (!restoreIsCurrent()) {
+                return;
+              }
             } else {
               await discardPersistedNavigation(
                 'Active guidance belongs to another signed-in account. Plot the route again.',
               );
+              if (!restoreIsCurrent()) {
+                return;
+              }
             }
           } else if (persistedNavigation) {
             await discardPersistedNavigation(
               'Active guidance could not be restored after sign-in. Plot the route again.',
             );
+            if (!restoreIsCurrent()) {
+              return;
+            }
           }
           if (!pendingNavigationRestoreRef.current) {
             const pendingFeature = takePendingFullAccessFeature();
@@ -1158,18 +1315,34 @@ function SafeRouteApp() {
           }
         }
       } catch {
-        await clearAuthSession().catch(() => undefined);
-        if (
-          mounted &&
-          (!persistedNavigation ||
-            !openActiveNavigationSession(persistedNavigation, false, null, null))
-        ) {
-          if (persistedNavigation) {
-            await discardPersistedNavigation(
-              'Active guidance could not be restored safely. Plot the route again.',
-            );
-          }
+        if (!restoreIsCurrent()) {
+          return;
+        }
+        setSession(null);
+        setSelectedRoute(null);
+        setAvailableWorkspaces([]);
+        activeWorkspaceRef.current = null;
+        setActiveWorkspace(null);
+        setWorkspaceCatalogLoading(false);
+        setWorkspaceCatalogError('');
+        setWorkspaceCatalogStoredAtMs(null);
+        setWorkspaceCatalogRetentionStoredAtMs(null);
+        setWorkspaceAccessIssue('verification-unavailable');
+        setNetworkAuthorizationReady(false);
+        const message = storedSessionAvailableForRetry
+          ? 'Saved session verification did not finish. Retry or sign in again.'
+          : 'SafeRoute could not restore account access. Sign in again.';
+        setSavedSessionValidationRetryAvailable(storedSessionAvailableForRetry);
+        setSessionMessage(message);
+        setAuthPrompt(message);
+        setScreen('login');
+        if (SAFEROUTE_PREVIEW_MODE_ENABLED) {
           enablePreviewSession();
+        }
+      } finally {
+        sessionRestoreStartedRef.current = false;
+        if (restoreIsCurrent()) {
+          setSavedSessionValidationRetrying(false);
         }
       }
     };
@@ -1179,9 +1352,20 @@ function SafeRouteApp() {
     return () => {
       mounted = false;
     };
-  }, [sessionRestoreNetworkStatus]);
+  }, [sessionRestoreNetworkStatus, sessionRestoreRevision]);
+
+  const handleRetrySavedSessionValidation = () => {
+    if (savedSessionValidationRetrying) {
+      return;
+    }
+    setSavedSessionValidationRetrying(true);
+    setSessionRestoreRevision((revision) => revision + 1);
+  };
 
   const handleAuthenticated = async (nextSession: AuthSession) => {
+    sessionRestoreGenerationRef.current += 1;
+    setSavedSessionValidationRetryAvailable(false);
+    setSavedSessionValidationRetrying(false);
     workspaceRequestRevisionRef.current += 1;
     unavailableWorkspaceIdsRef.current.clear();
     setAvailableWorkspaces([]);
@@ -2559,6 +2743,7 @@ function SafeRouteApp() {
   ]);
 
   const openSignIn = (message = DEFAULT_SIGN_IN_PROMPT) => {
+    sessionRestoreGenerationRef.current += 1;
     setAuthPrompt(message);
     setScreen('login');
   };
@@ -2695,6 +2880,12 @@ function SafeRouteApp() {
             }
             sessionMessage={authPrompt || sessionMessage}
             onAuthenticated={handleAuthenticated}
+            onRetrySavedSession={
+              savedSessionValidationRetryAvailable
+                ? handleRetrySavedSessionValidation
+                : undefined
+            }
+            savedSessionRetrying={savedSessionValidationRetrying}
             onCancel={() => {
               pendingFullAccessFeatureRef.current = null;
               setAuthPrompt('');

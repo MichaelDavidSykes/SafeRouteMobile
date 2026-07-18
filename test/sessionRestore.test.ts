@@ -164,15 +164,16 @@ describe('saved LunarChain session restore', () => {
     }
   });
 
-  it('keeps a non-expired saved session through transient validation failures', async () => {
+  it('keeps principal-scoped data closed when online validation is unavailable', async () => {
     const result = await restoreSavedSession(storedSession, async () => {
       throw new Error('Network request failed');
     });
 
-    assert.equal(result.status, 'restored');
-    assert.equal(result.validatedOnline, false);
-    assert.equal(result.session.email, storedSession.email);
-    assert.match(result.message || '', /saved LunarChain session/i);
+    assert.equal(result.status, 'validation-unavailable');
+    assert.equal(
+      result.message,
+      'SafeRoute could not verify this saved session. Retry or sign in again.',
+    );
   });
 
   it('restores a strict principal-bound saved session offline without calling hosted validation', async () => {
@@ -190,6 +191,48 @@ describe('saved LunarChain session restore', () => {
     assert.equal(result.status, 'restored');
     assert.equal(result.validatedOnline, false);
     assert.equal(result.session.principalId, storedSession.principalId);
+  });
+
+  it('keeps a quarantined saved session dormant across an offline retry or relaunch', async () => {
+    let validated = false;
+    const result = await restoreSavedSession(
+      {
+        ...storedSession,
+        onlineValidationRequired: true,
+      },
+      async () => {
+        validated = true;
+        throw new Error('should not validate while offline');
+      },
+      { validateOnline: false },
+    );
+
+    assert.equal(validated, false);
+    assert.deepEqual(result, {
+      status: 'validation-unavailable',
+      message:
+        'SafeRoute could not verify this saved session. Retry or sign in again.',
+    });
+  });
+
+  it('releases a quarantined saved session only after matching online validation', async () => {
+    const result = await restoreSavedSession(
+      {
+        ...storedSession,
+        onlineValidationRequired: true,
+      },
+      async () => ({
+        email: storedSession.email,
+        id: storedSession.principalId,
+        name: 'Validated Driver',
+      }),
+      { validateOnline: true },
+    );
+
+    assert.equal(result.status, 'restored');
+    assert.equal(result.validatedOnline, true);
+    assert.equal(result.session.onlineValidationRequired, undefined);
+    assert.equal(result.session.user?.name, 'Validated Driver');
   });
 
   it('rejects locally untrusted sessions offline without calling hosted validation', async () => {
@@ -214,17 +257,16 @@ describe('saved LunarChain session restore', () => {
     }
   });
 
-  it('does not expire a structurally valid session when online validation returns 403', async () => {
+  it('does not expose a structurally valid session when online validation returns 403', async () => {
     const result = await restoreSavedSession(storedSession, async () => {
       throw new ApiAuthorizationError('This account cannot access that resource.');
     });
 
-    assert.equal(result.status, 'restored');
-    assert.equal(result.validatedOnline, false);
-    assert.equal(result.session.email, storedSession.email);
+    assert.equal(result.status, 'validation-unavailable');
+    assert.match(result.message, /could not verify this saved session/i);
   });
 
-  it('requires online validation before restoring opaque saved sessions', async () => {
+  it('rejects locally untrusted opaque sessions when online validation cannot repair them', async () => {
     const result = await restoreSavedSession(
       {
         accessToken: 'opaque-token',

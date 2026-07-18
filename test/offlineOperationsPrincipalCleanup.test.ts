@@ -10,6 +10,7 @@ import {
   type OfflineOperationsPrincipalCleanupAdapter,
 } from "../src/features/operations/offlineOperationsPrincipalCleanupCore";
 import { createOfflineOperationsStorage } from "../src/features/operations/offlineOperationsStorageCore";
+import { requireCurrentSessionRestoreAttempt } from "../src/features/auth/sessionRestoreAttempt";
 
 function memoryStore(initialValue: string | null = null) {
   let value = initialValue;
@@ -50,6 +51,20 @@ function memoryStore(initialValue: string | null = null) {
     setFailSet(next: boolean) {
       failSet = next;
     },
+  };
+}
+
+function deferred(): {
+  promise: Promise<void>;
+  resolve: () => void;
+} {
+  let resolvePromise: (() => void) | undefined;
+  const promise = new Promise<void>((resolve) => {
+    resolvePromise = resolve;
+  });
+  return {
+    promise,
+    resolve: () => resolvePromise?.(),
   };
 }
 
@@ -202,6 +217,42 @@ describe("offline Operations principal cleanup", () => {
     );
     assert.deepEqual(events, ["auth", "calendar:principal-a"]);
     assert.equal(memory.value, null);
+  });
+
+  it("keeps terminal cleanup pending when fresh sign-in invalidates startup recovery", async () => {
+    const memory = memoryStore();
+    const storage = createOfflineOperationsPrincipalCleanupStorage(
+      memory.adapter,
+    );
+    await storage.begin("principal-a", "terminal");
+    let clearPrincipalCalls = 0;
+    const cleanup = coordinator({
+      clearPrincipal: async () => {
+        clearPrincipalCalls += 1;
+      },
+      memory,
+    });
+    let currentGeneration = 1;
+    const authBoundary = deferred();
+    const recovery = cleanup.recover(null, async () => {
+      await authBoundary.promise;
+      requireCurrentSessionRestoreAttempt(
+        currentGeneration,
+        1,
+        true,
+      );
+    });
+
+    currentGeneration += 1;
+    authBoundary.resolve();
+
+    assert.deepEqual(await recovery, {
+      persistenceSafe: false,
+      principalId: "principal-a",
+      status: "retry",
+    });
+    assert.equal(clearPrincipalCalls, 0);
+    assert.match(memory.value || "", /"purpose":"terminal"/);
   });
 
   it("promotes an older cleanup when another principal signs out instead of dropping the terminal boundary", async () => {

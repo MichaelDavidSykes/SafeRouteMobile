@@ -496,6 +496,12 @@ describe("Maestro connectivity contract runtime", () => {
     const change = read(
       "maestro/ios-connectivity-contract-calendar-principal-change.yaml",
     );
+    const validationUnavailable = read(
+      "maestro/ios-connectivity-contract-calendar-principal-validation-unavailable.yaml",
+    );
+    const validationOfflineRelaunch = read(
+      "maestro/ios-connectivity-contract-calendar-principal-validation-offline-relaunch.yaml",
+    );
     const relaunch = read(
       "maestro/ios-connectivity-contract-calendar-principal-change-relaunch.yaml",
     );
@@ -517,7 +523,7 @@ describe("Maestro connectivity contract runtime", () => {
     );
     assert.match(
       runner,
-      /calendarPrincipalChange[\s\S]*GUIDANCE_CONTRACT_MODES\.wrongPrincipal[\s\S]*This saved session belongs to another account\. Sign in again\.[\s\S]*calendarPrincipalChangeRelaunch/,
+      /calendarPrincipalValidationUnavailable[\s\S]*GUIDANCE_CONTRACT_MODES\.principalValidationUnavailable[\s\S]*SafeRoute could not verify this saved session\. Retry or sign in again\.[\s\S]*calendarPrincipalValidationOfflineRelaunch[\s\S]*assertProductTrafficQuiet[\s\S]*GUIDANCE_CONTRACT_MODES\.wrongPrincipal[\s\S]*calendarPrincipalChange[\s\S]*This saved session belongs to another account\. Sign in again\.[\s\S]*calendarPrincipalChangeRelaunch/,
     );
     assert.match(
       runner,
@@ -525,11 +531,21 @@ describe("Maestro connectivity contract runtime", () => {
     );
     assert.match(
       fixture,
-      /calendarPrincipalChange[\s\S]*calendarPrincipalChangeRelaunch[\s\S]*offline\.calendar\.principal-lifecycle/,
+      /principalValidationUnavailable[\s\S]*calendarPrincipalChange[\s\S]*calendarPrincipalChangeRelaunch[\s\S]*calendarPrincipalValidationOfflineRelaunch[\s\S]*calendarPrincipalValidationUnavailable[\s\S]*offline\.calendar\.principal-lifecycle/,
     );
     assert.match(
+      validationUnavailable,
+      /subflows\/ios-open-expo-project\.yaml[\s\S]*safe-route-login-saved-session-retry[\s\S]*SafeRoute could not verify this saved session\. Retry or sign in again\.[\s\S]*safe-route-login-email[\s\S]*safe-route-live-map/,
+    );
+    assert.doesNotMatch(validationUnavailable, /stopApp/);
+    assert.match(
+      validationOfflineRelaunch,
+      /subflows\/ios-open-expo-project\.yaml[\s\S]*safe-route-login-saved-session-retry[\s\S]*SafeRoute could not verify this saved session\. Retry or sign in again\.[\s\S]*safe-route-login-email[\s\S]*safe-route-live-map/,
+    );
+    assert.doesNotMatch(validationOfflineRelaunch, /stopApp/);
+    assert.match(
       change,
-      /safe-route-login[\s\S]*This saved session belongs to another account\. Sign in again\.[\s\S]*safe-route-login-email[\s\S]*safe-route-live-map/,
+      /subflows\/ios-open-expo-project\.yaml[\s\S]*safe-route-login[\s\S]*This saved session belongs to another account\. Sign in again\.[\s\S]*safe-route-login-saved-session-retry[\s\S]*safe-route-login-email[\s\S]*safe-route-live-map/,
     );
     assert.doesNotMatch(change, /stopApp/);
     assert.match(

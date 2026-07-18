@@ -10,7 +10,7 @@ export type SessionRestoreResult =
   | {
       status: 'expired';
       message: string;
-      reason: 'inactive-account' | 'session-expired';
+      reason: 'inactive-account' | 'principal-changed' | 'session-expired';
     }
   | {
       status: 'restored';
@@ -24,6 +24,8 @@ type GetCurrentUser = (accessToken: string) => Promise<AuthenticatedUser>;
 const DEFAULT_EXPIRED_MESSAGE = 'Your LunarChain session expired. Sign in again.';
 const OFFLINE_RESTORE_MESSAGE = 'Using your saved LunarChain session. Some SafeRoute data may need a network refresh.';
 const ONLINE_VALIDATION_REQUIRED_MESSAGE = 'Your saved LunarChain session needs online validation. Sign in again to unlock saved routes.';
+const PRINCIPAL_CHANGED_MESSAGE =
+  'This saved session belongs to another account. Sign in again.';
 
 const GENERIC_SESSION_REJECTION_PATTERNS = [
   /^not authenticated$/i,
@@ -83,13 +85,28 @@ export async function restoreSavedSession(
 
   try {
     const user = await getUser(accessToken);
+    const storedPrincipalId = String(
+      normalizedStoredSession.principalId || '',
+    ).trim();
+    const currentPrincipalId = String(user.id || '').trim();
+    if (
+      storedPrincipalId &&
+      currentPrincipalId &&
+      storedPrincipalId !== currentPrincipalId
+    ) {
+      return {
+        status: 'expired',
+        message: PRINCIPAL_CHANGED_MESSAGE,
+        reason: 'principal-changed',
+      };
+    }
     return {
       status: 'restored',
       validatedOnline: true,
       session: {
         ...normalizedStoredSession,
         email: user.email || normalizedStoredSession.email,
-        principalId: user.id,
+        principalId: currentPrincipalId || storedPrincipalId,
         user
       }
     };

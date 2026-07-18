@@ -17,6 +17,7 @@ import {
   GUIDANCE_CONTRACT_WORKSPACES,
   GUIDANCE_START_BOUNDARY_PATH,
   OFFLINE_CALENDAR_AUTH_CONTRACT_PHASES,
+  OFFLINE_CALENDAR_PRINCIPAL_CONTRACT_PHASES,
   OFFLINE_CALENDAR_WORKSPACE_CONTRACT_PHASES,
   WORKSPACE_CATALOG_RECOVERY_PHASES,
   WORKSPACE_CATALOG_RETRY_DELAY_MS,
@@ -32,6 +33,8 @@ import {
   assertOfflineCalendarAuthBoundaryTraffic,
   assertOfflineCalendarAuthCleanupEvidence,
   assertOfflineCalendarAuthStorageFaultRequests,
+  assertOfflineCalendarPrincipalChangeEvidence,
+  assertOfflineCalendarPrincipalChangeTraffic,
   assertOfflineCalendarWorkspaceDenialTraffic,
   assertOfflineCalendarWorkspaceRevocationEvidence,
   createGuidanceContractAccessToken,
@@ -820,6 +823,168 @@ describe('Maestro guidance contract API', () => {
           ),
         ),
       /did not complete one principal rejection before auth cleanup/,
+    );
+  });
+
+  it('correlates a saved-principal change with terminal Calendar revocation and cold absence', () => {
+    const sourceRevision = '7'.repeat(40);
+    const changePhase = OFFLINE_CALENDAR_PRINCIPAL_CONTRACT_PHASES.change;
+    const relaunchPhase = OFFLINE_CALENDAR_PRINCIPAL_CONTRACT_PHASES.relaunch;
+    const request = {
+      authorizationClass: 'expected-bearer',
+      authorized: true,
+      event: 'request',
+      method: 'GET',
+      path: '/api/v1/users/me',
+      phase: changePhase,
+      requestId: 'principal-change-request',
+      search: '',
+      sequence: 1,
+      timestampMs: 200,
+    };
+    const completion = {
+      ...request,
+      completed: true,
+      event: 'completion',
+      semanticOutcome: 'principal-b',
+      sequence: 2,
+      statusCode: 200,
+      timestampMs: 210,
+    };
+    const evidence = (
+      serverPhase: string,
+      cause: string,
+      appLaunchId: string,
+      sequence: number,
+    ) => ({
+      appLaunchId,
+      authorization: {
+        catalog: cause === 'principal-change-seed'
+          ? 'fresh-authorized'
+          : 'not-checked',
+        principal: cause === 'principal-change-seed'
+          ? 'matching'
+          : cause === 'principal-change'
+            ? 'mismatched'
+            : 'none',
+      },
+      cause,
+      durability: {
+        authSession: cause === 'principal-change-seed' ? 'present' : 'signed-out',
+        offlineCalendarCleanup: 'absent',
+        offlineCalendarPayload:
+          cause === 'principal-change-seed' ? 'present' : 'absent',
+        offlineCalendarPreference: 'disabled',
+        offlineCalendarSlot:
+          cause === 'principal-change-seed'
+            ? 'payload'
+            : cause === 'principal-change-relaunch'
+              ? 'empty'
+              : 'principal-revoked',
+      },
+      navigationInstanceId: null,
+      occurredAtMs: 100 + sequence,
+      outcome: cause === 'principal-change-seed' ? 'seeded' : 'clean',
+      receivedAtMs: 300 + sequence,
+      routeId: null,
+      sequence,
+      serverPhase,
+      sourceRevision,
+      type: 'offline.calendar.principal-lifecycle',
+      unavailableWorkspaceIds: [],
+      workspaceId: GUIDANCE_CONTRACT_WORKSPACES.denied.id,
+    });
+    const entries = [
+      evidence(
+        CONNECTIVITY_CONTRACT_PHASES.seed,
+        'principal-change-seed',
+        'launch-principal-seed',
+        1,
+      ),
+      evidence(
+        changePhase,
+        'principal-change',
+        'launch-principal-change',
+        2,
+      ),
+      evidence(
+        relaunchPhase,
+        'principal-change-relaunch-revoked',
+        'launch-principal-relaunch',
+        3,
+      ),
+      evidence(
+        relaunchPhase,
+        'principal-change-relaunch',
+        'launch-principal-relaunch',
+        4,
+      ),
+    ];
+
+    assert.doesNotThrow(() =>
+      assertOfflineCalendarPrincipalChangeTraffic(
+        [request, completion],
+        entries,
+      ),
+    );
+    assert.doesNotThrow(() =>
+      assertOfflineCalendarPrincipalChangeEvidence(entries, {
+        expectedSourceRevision: sourceRevision,
+        minimumOccurredAtMs: 100,
+      }),
+    );
+    assert.throws(
+      () =>
+        assertOfflineCalendarPrincipalChangeTraffic(
+          [
+            request,
+            completion,
+            {
+              ...request,
+              path: '/api/v1/mobile/safe-route/routes',
+              requestId: 'escaped-catalog',
+              sequence: 3,
+              timestampMs: 220,
+            },
+          ],
+          entries,
+        ),
+      /did not complete exactly one principal-B validation/,
+    );
+    assert.throws(
+      () =>
+        assertOfflineCalendarPrincipalChangeEvidence(
+          entries.map((entry) =>
+            entry.cause === 'principal-change'
+              ? {
+                  ...entry,
+                  durability: {
+                    ...entry.durability,
+                    offlineCalendarSlot: 'payload',
+                  },
+                }
+              : entry,
+          ),
+          {
+            expectedSourceRevision: sourceRevision,
+            minimumOccurredAtMs: 100,
+          },
+        ),
+      /did not prove seed, terminal revocation/,
+    );
+    assert.throws(
+      () =>
+        assertOfflineCalendarPrincipalChangeEvidence(
+          entries.map((entry) => ({
+            ...entry,
+            appLaunchId: 'same-launch',
+          })),
+          {
+            expectedSourceRevision: sourceRevision,
+            minimumOccurredAtMs: 100,
+          },
+        ),
+      /did not prove seed, terminal revocation/,
     );
   });
 

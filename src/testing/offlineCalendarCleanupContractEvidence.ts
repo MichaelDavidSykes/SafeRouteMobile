@@ -10,6 +10,7 @@ import { recordGuidanceContractEvidence } from "./guidanceContractEvidence";
 const CONTRACT_PRINCIPAL_ID = "66d1b2c3d4e5f60718293d40";
 const CONTRACT_CALENDAR_WORKSPACE_ID = "66a1b2c3d4e5f60718293a40";
 const CONTRACT_PREFERENCE_WORKSPACE_ID = "66a1b2c3d4e5f60718293a41";
+const principalChangeEvidence = new Map<string, Promise<boolean>>();
 const workspaceRevocationEvidence = new Map<string, Promise<boolean>>();
 
 export type OfflineCalendarCleanupContractCause =
@@ -61,6 +62,35 @@ export async function recordOfflineCalendarCleanupContractEvidence(
 export type OfflineCalendarWorkspaceRevocationContractCause =
   | "workspace-denial"
   | "workspace-denial-relaunch";
+
+export type OfflineCalendarPrincipalChangeContractCause =
+  | "principal-change"
+  | "principal-change-relaunch"
+  | "principal-change-relaunch-revoked"
+  | "principal-change-seed";
+
+export function recordOfflineCalendarPrincipalChangeContractEvidence(
+  cause: OfflineCalendarPrincipalChangeContractCause,
+): Promise<boolean> {
+  if (
+    !SAFEROUTE_CONNECTIVITY_CONTRACT_ENABLED ||
+    !SAFEROUTE_GUIDANCE_CONTRACT_EVIDENCE_ENABLED
+  ) {
+    return Promise.resolve(false);
+  }
+  const existing = principalChangeEvidence.get(cause);
+  if (existing) {
+    return existing;
+  }
+  const pending = recordPrincipalChangeEvidence(cause);
+  principalChangeEvidence.set(cause, pending);
+  void pending.then((recorded) => {
+    if (!recorded && principalChangeEvidence.get(cause) === pending) {
+      principalChangeEvidence.delete(cause);
+    }
+  });
+  return pending;
+}
 
 export function recordOfflineCalendarWorkspaceSeedContractEvidence(
   principalId: string,
@@ -203,7 +233,7 @@ async function recordWorkspaceSeedEvidence(
   ) {
     return false;
   }
-  return recordGuidanceContractEvidence({
+  const workspaceEvidenceRecorded = await recordGuidanceContractEvidence({
     authorization: {
       catalog: "fresh-authorized",
       principal: "matching",
@@ -220,6 +250,63 @@ async function recordWorkspaceSeedEvidence(
     outcome: "seeded",
     routeId: null,
     type: "offline.calendar.workspace-lifecycle",
+    unavailableWorkspaceIds: [],
+    workspaceId: CONTRACT_CALENDAR_WORKSPACE_ID,
+  });
+  if (workspaceEvidenceRecorded) {
+    await recordOfflineCalendarPrincipalChangeContractEvidence(
+      "principal-change-seed",
+    );
+  }
+  return workspaceEvidenceRecorded;
+}
+
+async function recordPrincipalChangeEvidence(
+  cause: OfflineCalendarPrincipalChangeContractCause,
+): Promise<boolean> {
+  const [authSession, calendar] = await Promise.all([
+    readAuthSessionContractState(),
+    readOfflineOperationsCalendarContractState(
+      CONTRACT_PRINCIPAL_ID,
+      CONTRACT_CALENDAR_WORKSPACE_ID,
+      CONTRACT_PREFERENCE_WORKSPACE_ID,
+    ),
+  ]);
+  const seed = cause === "principal-change-seed";
+  const finalRelaunch = cause === "principal-change-relaunch";
+  if (
+    seed
+      ? authSession !== "present" ||
+        calendar.cleanup !== "absent" ||
+        calendar.payload !== "present" ||
+        calendar.preference !== "disabled" ||
+        calendar.slot !== "payload"
+      : authSession !== "signed-out" ||
+        calendar.cleanup !== "absent" ||
+        calendar.payload !== "absent" ||
+        calendar.preference !== "disabled" ||
+        calendar.slot !== (finalRelaunch ? "empty" : "principal-revoked")
+  ) {
+    return false;
+  }
+  return recordGuidanceContractEvidence({
+    authorization: {
+      catalog: seed ? "fresh-authorized" : "not-checked",
+      principal:
+        cause === "principal-change" ? "mismatched" : seed ? "matching" : "none",
+    },
+    cause,
+    durability: {
+      authSession,
+      offlineCalendarCleanup: calendar.cleanup,
+      offlineCalendarPayload: calendar.payload,
+      offlineCalendarPreference: calendar.preference,
+      offlineCalendarSlot: calendar.slot,
+    },
+    navigationInstanceId: null,
+    outcome: seed ? "seeded" : "clean",
+    routeId: null,
+    type: "offline.calendar.principal-lifecycle",
     unavailableWorkspaceIds: [],
     workspaceId: CONTRACT_CALENDAR_WORKSPACE_ID,
   });

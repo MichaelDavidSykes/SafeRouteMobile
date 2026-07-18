@@ -299,7 +299,7 @@ async function main() {
 
   runPhase(
     'denialSeedPrepare',
-    'sign out principal B and prepare a fresh principal-A journey',
+    'reauthenticate principal A and prepare a fresh journey',
     phases.denialSeedPrepare
   );
   await runStartBoundary({

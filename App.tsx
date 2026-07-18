@@ -145,6 +145,7 @@ import {
 import type { SuspendedNavigationStatus } from './src/features/live-map/suspendedNavigationState';
 import {
   recordOfflineCalendarCleanupContractEvidence,
+  recordOfflineCalendarPrincipalChangeContractEvidence,
   recordOfflineCalendarWorkspaceRevocationContractEvidence,
 } from './src/testing/offlineCalendarCleanupContractEvidence';
 
@@ -988,6 +989,10 @@ function SafeRouteApp() {
         }
 
         if (!storedSession) {
+          const principalChangeRevocationObserved =
+            await recordOfflineCalendarPrincipalChangeContractEvidence(
+              'principal-change-relaunch-revoked',
+            );
           const signedOutCalendarRemoved =
             await ensureSignedOutOfflineOperationsCalendarRemoved();
           if (mounted) {
@@ -1000,6 +1005,11 @@ function SafeRouteApp() {
               'signed-out-boot',
               'clean',
             );
+            if (principalChangeRevocationObserved) {
+              await recordOfflineCalendarPrincipalChangeContractEvidence(
+                'principal-change-relaunch',
+              );
+            }
           }
           if (
             !persistedNavigation ||
@@ -1043,11 +1053,25 @@ function SafeRouteApp() {
               'retry-required',
             );
           }
+          const terminalAccountBoundary =
+            restoreResult.reason === 'inactive-account' ||
+            restoreResult.reason === 'principal-changed';
           if (
-            restoreResult.reason === 'inactive-account' &&
-            !enablePreviewSession() &&
+            terminalAccountBoundary &&
+            (
+              restoreResult.reason === 'principal-changed' ||
+              !enablePreviewSession()
+            ) &&
             mounted
           ) {
+            if (
+              restoreResult.reason === 'principal-changed' &&
+              !operationsCleanupNeedsRetry
+            ) {
+              await recordOfflineCalendarPrincipalChangeContractEvidence(
+                'principal-change',
+              );
+            }
             const guidanceCleared = persistedNavigation
               ? await discardPersistedNavigation(undefined, {
                   evidenceSession: persistedNavigation,
@@ -1056,7 +1080,7 @@ function SafeRouteApp() {
             if (!mounted) {
               return;
             }
-            const inactiveMessage = guidanceCleared
+            const terminalMessage = guidanceCleared
               ? restoreResult.message
               : `${restoreResult.message} Saved guidance cleanup needs retry before signing in again.`;
             setSession(null);
@@ -1069,8 +1093,8 @@ function SafeRouteApp() {
             setWorkspaceCatalogStoredAtMs(null);
             setWorkspaceCatalogRetentionStoredAtMs(null);
             setWorkspaceAccessIssue('none');
-            setSessionMessage(inactiveMessage);
-            setAuthPrompt(inactiveMessage);
+            setSessionMessage(terminalMessage);
+            setAuthPrompt(terminalMessage);
             setScreen('login');
             return;
           }

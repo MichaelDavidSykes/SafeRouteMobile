@@ -818,4 +818,41 @@ describe("App active workspace integration", () => {
       /accessToken|authorizationHeader|calendarRaw|preferenceRaw/,
     );
   });
+
+  it("fails closed on saved-principal replacement before any replacement session is installed", () => {
+    const app = appSource();
+    const evidence = readFileSync(
+      "src/testing/offlineCalendarCleanupContractEvidence.ts",
+      "utf8",
+    );
+    const expiredBranch = app.slice(
+      app.indexOf("if (restoreResult.status === 'expired')"),
+      app.indexOf("} else if (restoreResult.status === 'restored'"),
+    );
+
+    assert.match(
+      expiredBranch,
+      /purgeOfflineOperationsPrincipalAtTerminalBoundary\([\s\S]*restoreResult\.reason === 'principal-changed'[\s\S]*recordOfflineCalendarPrincipalChangeContractEvidence\([\s\S]*'principal-change'[\s\S]*discardPersistedNavigation[\s\S]*setSession\(null\)[\s\S]*setScreen\('login'\)/,
+    );
+    assert.match(
+      expiredBranch,
+      /restoreResult\.reason === 'principal-changed' \|\|[\s\S]*!enablePreviewSession\(\)/,
+    );
+    assert.doesNotMatch(
+      expiredBranch,
+      /tryActivateOfflineOperationsPrincipal|saveAuthSession|setSession\(restoreResult\.session\)/,
+    );
+    assert.match(
+      app,
+      /principal-change-relaunch-revoked[\s\S]*ensureSignedOutOfflineOperationsCalendarRemoved\(\)[\s\S]*principal-change-relaunch/,
+    );
+    assert.match(
+      evidence,
+      /offlineCalendarPayload: calendar\.payload[\s\S]*offlineCalendarPreference: calendar\.preference[\s\S]*offlineCalendarSlot: calendar\.slot[\s\S]*offline\.calendar\.principal-lifecycle/,
+    );
+    assert.doesNotMatch(
+      evidence,
+      /accessToken|authorizationHeader|calendarRaw|preferenceRaw/,
+    );
+  });
 });

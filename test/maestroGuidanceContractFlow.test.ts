@@ -322,6 +322,12 @@ describe('Maestro cold guidance contract matrix', () => {
     const denialPreparation = read(
       'maestro/ios-guidance-contract-denial-seed-prepare.yaml',
     );
+    const wrongPrincipalRelaunch = read(
+      'maestro/ios-guidance-contract-wrong-principal-relaunch.yaml',
+    );
+    const wrongPrincipal = read(
+      'maestro/ios-guidance-contract-wrong-principal.yaml',
+    );
 
     assert.match(fixture, /id: '66a1b2c3d4e5f60718293a40'/);
     assert.match(fixture, /id: '66a1b2c3d4e5f60718293a41'/);
@@ -335,6 +341,22 @@ describe('Maestro cold guidance contract matrix', () => {
     assert.match(
       denialPreparation,
       /safe-route-workspace-66a1b2c3d4e5f60718293a41[\s\S]*safe-route-card-66b1b2c3d4e5f60718293b41[\s\S]*safe-route-workspace-66a1b2c3d4e5f60718293a40/,
+    );
+    assert.match(
+      wrongPrincipal,
+      /safe-route-login[\s\S]*This saved session belongs to another account\. Sign in again\.[\s\S]*guest-map-workspace-selector/,
+    );
+    assert.match(
+      wrongPrincipalRelaunch,
+      /guest-map-primary-action[\s\S]*guest-map-workspace-selector[\s\S]*safe-route-login/,
+    );
+    assert.match(
+      denialPreparation,
+      /^appId:[\s\S]*guest-map-primary-action[\s\S]*safe-route-login[\s\S]*safe-route-login-email[\s\S]*safe-route-login-password[\s\S]*safe-route-login-primary-action/,
+    );
+    assert.doesNotMatch(
+      denialPreparation,
+      /route-list-sign-out/,
     );
     assert.match(deniedOffline, /runFlow: subflows\/ios-open-expo-project\.yaml/);
     assert.match(deniedOffline, /safe-route-card-66b1b2c3d4e5f60718293b41/);

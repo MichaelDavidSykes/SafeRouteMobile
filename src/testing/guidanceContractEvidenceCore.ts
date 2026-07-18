@@ -12,6 +12,7 @@ export const GUIDANCE_CONTRACT_EVIDENCE_TYPES = [
   "navigation.absence.readback",
   "navigation.prestart.readback",
   "offline.calendar.cleanup",
+  "offline.calendar.principal-lifecycle",
   "offline.calendar.workspace-lifecycle",
 ] as const;
 

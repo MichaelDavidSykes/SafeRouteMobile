@@ -21,6 +21,7 @@ import {
   GUIDANCE_CONTRACT_API_PORT,
   GUIDANCE_CONTRACT_MODES,
   OFFLINE_CALENDAR_AUTH_CONTRACT_PHASES,
+  OFFLINE_CALENDAR_PRINCIPAL_CONTRACT_PHASES,
   OFFLINE_CALENDAR_WORKSPACE_CONTRACT_PHASES,
   assertConnectivityContractEndedJourneyStayedClosed,
   assertConnectivityContractInactiveGuidanceRevocation,
@@ -31,6 +32,8 @@ import {
   assertOfflineCalendarAuthBoundaryTraffic,
   assertOfflineCalendarAuthCleanupEvidence,
   assertOfflineCalendarAuthStorageFaultRequests,
+  assertOfflineCalendarPrincipalChangeEvidence,
+  assertOfflineCalendarPrincipalChangeTraffic,
   assertOfflineCalendarWorkspaceDenialTraffic,
   assertOfflineCalendarWorkspaceRevocationEvidence,
 } from './maestro-guidance-contract-api.mjs';
@@ -49,6 +52,7 @@ import {
 const METRO_PORT = 8081;
 const EXPO_GO_BUNDLE_ID = 'host.exp.Exponent';
 const CALENDAR_AUTH_CLEANUP_SLICE = 'calendar-auth-cleanup';
+const CALENDAR_PRINCIPAL_CHANGE_SLICE = 'calendar-principal-change';
 const CALENDAR_WORKSPACE_DENIAL_SLICE = 'calendar-workspace-denial';
 const connectivityContractSlice = String(
   process.env.SAFEROUTE_CONNECTIVITY_CONTRACT_SLICE || '',
@@ -87,6 +91,10 @@ const flows = Object.freeze({
     'maestro/ios-connectivity-contract-calendar-auth-relaunch-failure.yaml',
   calendarAuthRetry:
     'maestro/ios-connectivity-contract-calendar-auth-retry.yaml',
+  calendarPrincipalChange:
+    'maestro/ios-connectivity-contract-calendar-principal-change.yaml',
+  calendarPrincipalChangeRelaunch:
+    'maestro/ios-connectivity-contract-calendar-principal-change-relaunch.yaml',
   calendarWorkspaceDenial:
     'maestro/ios-connectivity-contract-calendar-workspace-denial.yaml',
   calendarWorkspaceDenialPrepare:
@@ -153,6 +161,7 @@ async function main() {
     !connectivityContractSlice ||
       [
         CALENDAR_AUTH_CLEANUP_SLICE,
+        CALENDAR_PRINCIPAL_CHANGE_SLICE,
         CALENDAR_WORKSPACE_DENIAL_SLICE,
       ].includes(connectivityContractSlice),
     `Unsupported connectivity contract slice: ${connectivityContractSlice}.`,
@@ -203,6 +212,7 @@ async function main() {
   if (
     [
       CALENDAR_AUTH_CLEANUP_SLICE,
+      CALENDAR_PRINCIPAL_CHANGE_SLICE,
       CALENDAR_WORKSPACE_DENIAL_SLICE,
     ].includes(connectivityContractSlice)
   ) {
@@ -218,6 +228,14 @@ async function main() {
       CONNECTIVITY_CONTRACT_PHASES.seed,
     );
     await runCalendarWorkspaceDenialSlice(sourceRevision);
+    return;
+  }
+  if (connectivityContractSlice === CALENDAR_PRINCIPAL_CHANGE_SLICE) {
+    await waitForEvidenceType(
+      'offline.calendar.principal-lifecycle',
+      CONNECTIVITY_CONTRACT_PHASES.seed,
+    );
+    await runCalendarPrincipalChangeSlice(sourceRevision);
     return;
   }
   await runFlow(
@@ -939,6 +957,107 @@ async function runCalendarAuthCleanupSlice(sourceRevision) {
   );
 }
 
+async function runCalendarPrincipalChangeSlice(sourceRevision) {
+  assertOperationsCalendarAuthCleanupSeed(readRequestJournal());
+  terminateExpoGo(deviceId);
+  setControl(
+    OFFLINE_CALENDAR_PRINCIPAL_CONTRACT_PHASES.change,
+    CONNECTIVITY_CONTRACT_STATUSES.online,
+    [],
+    GUIDANCE_CONTRACT_MODES.wrongPrincipal,
+  );
+  await runFlow(
+    OFFLINE_CALENDAR_PRINCIPAL_CONTRACT_PHASES.change,
+    'reject a saved principal-A session when validation resolves principal B',
+    flows.calendarPrincipalChange,
+  );
+  await waitForEvidenceType(
+    'offline.calendar.principal-lifecycle',
+    OFFLINE_CALENDAR_PRINCIPAL_CONTRACT_PHASES.change,
+  );
+  captureAccessibilityHierarchy('calendar-principal-change', [
+    {
+      id: 'safe-route-login-notice',
+      label: 'This saved session belongs to another account. Sign in again.',
+      enabled: true,
+    },
+    {
+      id: 'safe-route-login-email',
+      label: 'LunarChain email',
+      enabled: true,
+    },
+  ]);
+
+  terminateExpoGo(deviceId);
+  setControl(
+    OFFLINE_CALENDAR_PRINCIPAL_CONTRACT_PHASES.relaunch,
+    CONNECTIVITY_CONTRACT_STATUSES.offline,
+    [],
+    GUIDANCE_CONTRACT_MODES.wrongPrincipal,
+  );
+  await runFlow(
+    OFFLINE_CALENDAR_PRINCIPAL_CONTRACT_PHASES.relaunch,
+    'cold relaunch offline through durable principal revocation to global absence',
+    flows.calendarPrincipalChangeRelaunch,
+  );
+  await waitForEvidenceCause(
+    'offline.calendar.principal-lifecycle',
+    OFFLINE_CALENDAR_PRINCIPAL_CONTRACT_PHASES.relaunch,
+    'principal-change-relaunch-revoked',
+  );
+  await waitForEvidenceCause(
+    'offline.calendar.principal-lifecycle',
+    OFFLINE_CALENDAR_PRINCIPAL_CONTRACT_PHASES.relaunch,
+    'principal-change-relaunch',
+  );
+  captureAccessibilityHierarchy('calendar-principal-change-relaunch', [
+    {
+      id: 'guest-map-primary-action',
+      label: 'Sign in to SafeRoute',
+      enabled: true,
+    },
+  ]);
+  await assertProductTrafficQuiet([
+    OFFLINE_CALENDAR_PRINCIPAL_CONTRACT_PHASES.relaunch,
+  ], 1_000);
+  await new Promise((resolve) => setTimeout(resolve, 1_500));
+  terminateExpoGo(deviceId);
+  await waitForAllRequestsTerminal();
+
+  const requests = readRequestJournal();
+  const evidence = readEvidenceJournal();
+  assertGuidanceContractRequestJournal(requests, {
+    expectedModeByPhase: {
+      [CONNECTIVITY_CONTRACT_PHASES.seed]: GUIDANCE_CONTRACT_MODES.active,
+      [OFFLINE_CALENDAR_PRINCIPAL_CONTRACT_PHASES.change]:
+        GUIDANCE_CONTRACT_MODES.wrongPrincipal,
+      [OFFLINE_CALENDAR_PRINCIPAL_CONTRACT_PHASES.relaunch]:
+        GUIDANCE_CONTRACT_MODES.wrongPrincipal,
+    },
+    requiredPhases: [
+      CONNECTIVITY_CONTRACT_PHASES.seed,
+      OFFLINE_CALENDAR_PRINCIPAL_CONTRACT_PHASES.change,
+      OFFLINE_CALENDAR_PRINCIPAL_CONTRACT_PHASES.relaunch,
+    ],
+  });
+  assertOfflineCalendarPrincipalChangeTraffic(requests, evidence);
+  assertGuidanceContractEvidenceJournal(evidence, {
+    expectedSourceRevision: sourceRevision,
+    minimumOccurredAtMs: startedAtMs,
+    requiredTypes: ['offline.calendar.principal-lifecycle'],
+  });
+  assertOfflineCalendarPrincipalChangeEvidence(evidence, {
+    expectedSourceRevision: sourceRevision,
+    minimumOccurredAtMs: startedAtMs,
+  });
+
+  process.stdout.write(
+    `Offline Calendar principal-change runtime passed. Request journal: ${requestLogFile}. ` +
+      `Evidence journal: ${evidenceLogFile}. Screenshots: ${screenshotDirectory}. ` +
+      `Accessibility hierarchies: ${accessibilityDirectory}\n`,
+  );
+}
+
 async function runCalendarWorkspaceDenialSlice(sourceRevision) {
   assertOperationsCalendarAuthCleanupSeed(readRequestJournal());
   await runFlow(
@@ -1314,6 +1433,25 @@ async function waitForEvidenceOutcome(type, serverPhase, outcome) {
   }
   throw new Error(
     `Device evidence did not record ${type}/${outcome} in ${serverPhase}.`,
+  );
+}
+
+async function waitForEvidenceCause(type, serverPhase, cause) {
+  const deadline = Date.now() + 20_000;
+  while (Date.now() < deadline) {
+    const entry = readEvidenceJournal().find(
+      (candidate) =>
+        candidate.type === type &&
+        candidate.serverPhase === serverPhase &&
+        candidate.cause === cause,
+    );
+    if (entry) {
+      return entry;
+    }
+    await new Promise((resolve) => setTimeout(resolve, 100));
+  }
+  throw new Error(
+    `Device evidence did not record ${type}/${cause} in ${serverPhase}.`,
   );
 }
 

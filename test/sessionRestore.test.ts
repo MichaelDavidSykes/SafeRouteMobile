@@ -35,15 +35,29 @@ describe('saved LunarChain session restore', () => {
   it('restores and refreshes the stored user when online validation succeeds', async () => {
     const result = await restoreSavedSession(storedSession, async () => ({
       email: 'fresh@example.com',
-      id: 'user-fresh',
+      id: ' user-saved ',
       name: 'Fresh User'
     }));
 
     assert.equal(result.status, 'restored');
     assert.equal(result.validatedOnline, true);
     assert.equal(result.session.email, 'fresh@example.com');
-    assert.equal(result.session.principalId, 'user-fresh');
+    assert.equal(result.session.principalId, 'user-saved');
     assert.equal(result.session.user?.name, 'Fresh User');
+  });
+
+  it('fails closed when hosted validation changes the saved stable principal', async () => {
+    const result = await restoreSavedSession(storedSession, async () => ({
+      email: storedSession.email,
+      id: 'user-fresh',
+      name: 'Another Account'
+    }));
+
+    assert.deepEqual(result, {
+      status: 'expired',
+      message: 'This saved session belongs to another account. Sign in again.',
+      reason: 'principal-changed'
+    });
   });
 
   it('allows online validation to repair a saved session with missing local email', async () => {

@@ -250,6 +250,7 @@ export function LoginScreen({
                   accessibilityLabel={loginNoticeState.accessibilityLabel || undefined}
                   numberOfLines={2}
                   style={styles.noticeText}
+                  testID={uiTestIds.loginNotice}
                 >
                   {loginNoticeState.message}
                 </Text>

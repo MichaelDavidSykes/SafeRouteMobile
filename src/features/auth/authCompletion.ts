@@ -1,4 +1,5 @@
 import { ApiSessionExpiredError } from '../api/apiClientCore';
+import { resolveActiveSessionExpiry } from './activeSessionExpiry';
 import type { AuthenticatedUser, AuthSession } from './authTypes';
 
 type SaveAuthSession = (session: AuthSession) => Promise<void>;
@@ -42,6 +43,14 @@ export async function prepareAuthenticatedSession(
 
   if (!String(acceptedSession.principalId || '').trim()) {
     throw new Error('Unable to verify the LunarChain account identity. Check your connection and retry.');
+  }
+
+  if (
+    resolveActiveSessionExpiry({ accessToken }).status === 'expired'
+  ) {
+    throw new ApiSessionExpiredError(
+      'Your LunarChain session expired. Sign in again.',
+    );
   }
 
   await saveSession(acceptedSession);

@@ -74,10 +74,16 @@ import {
   buildLiveRerouteTargets,
   createLiveRiskRegion,
 } from "./liveReroutePlan";
-import { SAFEROUTE_DEMO_DRIVE_ENABLED } from "../../config/env";
+import {
+  SAFEROUTE_DEMO_DRIVE_ENABLED,
+  SAFEROUTE_GUIDANCE_CONTRACT_EVIDENCE_ENABLED,
+} from "../../config/env";
 import { colors } from "../../theme";
 import { uiTestIds } from "../../testing/uiTestIds";
-import { stopBackgroundNavigation } from "./backgroundNavigation";
+import {
+  confirmBackgroundNavigationStopped,
+  stopBackgroundNavigation,
+} from "./backgroundNavigation";
 import { createBackgroundNavigationPresentation } from "./backgroundNavigationState";
 import {
   createActiveNavigationInstanceId,
@@ -87,6 +93,7 @@ import {
 } from "./activeNavigationSessionCore";
 import {
   clearActiveNavigationSession,
+  readActiveNavigationSession,
   saveActiveNavigationSession,
 } from "./activeNavigationSession";
 import { recordGuidanceContractEvidence } from "../../testing/guidanceContractEvidence";
@@ -153,6 +160,7 @@ export function LiveMapScreen({
   const activeSessionSnapshotRef = useRef<ActiveNavigationSession | null>(null);
   const navigationPersistenceRevisionRef = useRef(0);
   const persistedEvidenceNavigationIdRef = useRef<string | null>(null);
+  const prestartEvidenceRouteIdRef = useRef<string | null>(null);
   const navigationAuthorizationGateRef = useRef(createNavigationStartAuthorizationGate());
   const navigationStartBlockedReasonRef = useRef<string | null>(null);
   const onAuthorizeNavigationStartRef = useRef(onAuthorizeNavigationStart);
@@ -933,6 +941,61 @@ export function LiveMapScreen({
       cancelNavigationStartAuthorization(navigationAuthorizationGateRef.current);
     };
   }, [routePlan.id]);
+
+  useEffect(() => {
+    const workspaceId = activeRoutePlan.clientId?.trim() || "";
+    const routeId = activeRoutePlan.route.id.trim();
+    if (
+      !SAFEROUTE_GUIDANCE_CONTRACT_EVIDENCE_ENABLED ||
+      routeContext !== "saved" ||
+      !workspaceAuthorizationFresh ||
+      resumedNavigationSession ||
+      navigationState !== "loaded" ||
+      !principalId?.trim() ||
+      !workspaceId ||
+      !routeId ||
+      prestartEvidenceRouteIdRef.current === routeId
+    ) {
+      return;
+    }
+
+    prestartEvidenceRouteIdRef.current = routeId;
+    const recordPrestartReadback = async () => {
+      const navigationReadback = await readActiveNavigationSession();
+      const trackingVerification = await confirmBackgroundNavigationStopped();
+      await recordGuidanceContractEvidence({
+        authorization: {
+          catalog: "fresh-authorized",
+          principal: "matching",
+        },
+        cause: "loaded-route-prestart-readback",
+        durability: {
+          activeNavigation: navigationReadback.status,
+          nativeTracking: trackingVerification.nativeTracking,
+          runtimePermit: trackingVerification.runtimePermit,
+        },
+        navigationInstanceId: null,
+        outcome:
+          navigationReadback.status === "absent" && trackingVerification.stopped
+            ? "ready"
+            : "navigation-active",
+        routeId,
+        type: "navigation.prestart.readback",
+        unavailableWorkspaceIds: [],
+        workspaceId,
+      });
+    };
+
+    void recordPrestartReadback();
+  }, [
+    activeRoutePlan.clientId,
+    activeRoutePlan.route.id,
+    navigationState,
+    principalId,
+    resumedNavigationSession,
+    routeContext,
+    workspaceAuthorizationFresh,
+  ]);
 
   useEffect(() => {
     if (demoDriveActive) {

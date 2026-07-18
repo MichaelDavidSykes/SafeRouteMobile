@@ -20,6 +20,9 @@ export const WORKSPACE_CATALOG_RECOVERY_PHASES = Object.freeze({
   journeyForegroundFailure: 'catalogJourneyForegroundFailure',
   journeyForegroundFailureEnd: 'catalogJourneyForegroundFailureEnd',
   journeyEndedRelaunch: 'catalogJourneyEndedRelaunch',
+  journeyEndedRetrySuccess: 'catalogJourneyEndedRetrySuccess',
+  journeyEndedRouteReload: 'catalogJourneyEndedRouteReload',
+  journeyEndedRestart: 'catalogJourneyEndedRestart',
   journeyRestart: 'catalogJourneyRestart',
   journeyRouteBackground: 'catalogJourneyRouteBackground',
   journeyRoutePrepare: 'catalogJourneyRoutePrepare',
@@ -48,12 +51,14 @@ export const GUIDANCE_CONTRACT_EVIDENCE_TYPES = Object.freeze([
   'route.cache.readback',
   'navigation.cleanup.settled',
   'tracking.stop.settled',
-  'navigation.absence.readback'
+  'navigation.absence.readback',
+  'navigation.prestart.readback'
 ]);
 const GUIDANCE_CONTRACT_EVIDENCE_PHASES = Object.freeze({
   'navigation.persisted': new Set([
     'catalogJourneyStart',
     'catalogJourneyRestart',
+    'catalogJourneyEndedRestart',
     'publicStart',
     'workspaceStart',
     'workspaceReconnect',
@@ -93,7 +98,8 @@ const GUIDANCE_CONTRACT_EVIDENCE_PHASES = Object.freeze({
     'wrongPrincipal',
     'denied'
   ]),
-  'navigation.absence.readback': new Set(['catalogJourneyEndedRelaunch'])
+  'navigation.absence.readback': new Set(['catalogJourneyEndedRelaunch']),
+  'navigation.prestart.readback': new Set(['catalogJourneyEndedRouteReload'])
 });
 
 const ACCOUNT_EMAIL = 'driver@example.com';
@@ -525,7 +531,10 @@ export function createGuidanceContractHandler({
       }
       if (
         !requestedWorkspaceId &&
-        phase === WORKSPACE_CATALOG_RECOVERY_PHASES.freshSuccess
+        [
+          WORKSPACE_CATALOG_RECOVERY_PHASES.freshSuccess,
+          WORKSPACE_CATALOG_RECOVERY_PHASES.journeyEndedRetrySuccess
+        ].includes(phase)
       ) {
         await sleep(WORKSPACE_CATALOG_SUCCESS_DELAY_MS);
       }
@@ -533,6 +542,7 @@ export function createGuidanceContractHandler({
         !requestedWorkspaceId &&
         [
           WORKSPACE_CATALOG_RECOVERY_PHASES.foregroundLoss,
+          WORKSPACE_CATALOG_RECOVERY_PHASES.journeyEndedRestart,
           WORKSPACE_CATALOG_RECOVERY_PHASES.journeyRestoreEnd,
           WORKSPACE_CATALOG_RECOVERY_PHASES.journeyStartGate
         ].includes(phase)
@@ -1157,6 +1167,19 @@ function isSuccessfulGuidanceContractEvidence(event, journal) {
       event.durability.activeNavigation === 'absent' &&
       ['not-started', 'stopped', 'unsupported'].includes(event.durability.nativeTracking) &&
       event.durability.runtimePermit === 'none';
+  }
+  if (event.type === 'navigation.prestart.readback') {
+    return Boolean(
+      !event.navigationInstanceId &&
+      event.routeId &&
+      event.workspaceId &&
+      event.authorization.catalog === 'fresh-authorized' &&
+      event.authorization.principal === 'matching' &&
+      event.outcome === 'ready' &&
+      event.durability.activeNavigation === 'absent' &&
+      ['not-started', 'stopped', 'unsupported'].includes(event.durability.nativeTracking) &&
+      event.durability.runtimePermit === 'none'
+    );
   }
   return event.type === 'tracking.stop.settled' &&
     workspaceLifecycle &&

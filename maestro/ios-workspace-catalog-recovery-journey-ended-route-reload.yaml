@@ -1,0 +1,52 @@
+appId: host.exp.Exponent
+---
+- assertVisible: "Workspace, Guidance Operations"
+- assertNotVisible:
+    id: "workspace-access-refresh"
+- assertNotVisible:
+    id: "safe-route-live-map"
+- assertNotVisible:
+    id: "safe-route-stop-action"
+- assertNotVisible:
+    id: "safe-route-remaining-metrics"
+- tapOn:
+    id: "guest-map-primary-action"
+    retryTapIfNoChange: true
+    waitToSettleTimeoutMs: 1000
+- runFlow:
+    when:
+      visible:
+        id: "guest-map-primary-action"
+    commands:
+      - tapOn:
+          id: "guest-map-primary-action"
+          waitToSettleTimeoutMs: 1000
+- extendedWaitUntil:
+    visible:
+      id: "safe-route-picker"
+    timeout: 15000
+- assertVisible:
+    id: "safe-route-card-66b1b2c3d4e5f60718293b40"
+- setLocation:
+    latitude: 51.5075
+    longitude: -0.1277
+- tapOn:
+    id: "safe-route-card-66b1b2c3d4e5f60718293b40"
+- extendedWaitUntil:
+    visible:
+      id: "safe-route-live-map"
+    timeout: 20000
+- extendedWaitUntil:
+    visible:
+      id: "safe-route-primary-action"
+      enabled: true
+    timeout: 15000
+- assertNotVisible:
+    id: "safe-route-resume-action"
+- assertNotVisible:
+    id: "safe-route-suspended-navigation"
+- assertNotVisible:
+    id: "safe-route-stop-action"
+- assertNotVisible:
+    id: "safe-route-remaining-metrics"
+- takeScreenshot: "workspace-catalog-ended-journey-route-reloaded"

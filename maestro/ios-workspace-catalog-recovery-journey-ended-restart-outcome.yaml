@@ -1,0 +1,23 @@
+appId: host.exp.Exponent
+---
+- extendedWaitUntil:
+    visible:
+      id: "safe-route-stop-action"
+      enabled: true
+    timeout: 15000
+- assertVisible:
+    id: "safe-route-remaining-metrics"
+- assertVisible:
+    id: "safe-route-journey-66b1b2c3d4e5f60718293b40"
+- assertVisible: "Pause route guidance"
+- tapOn:
+    id: "safe-route-primary-action"
+- assertVisible: "Resume route guidance"
+- assertVisible:
+    id: "safe-route-stop-action"
+    enabled: true
+- assertVisible:
+    id: "safe-route-remaining-metrics"
+- assertVisible:
+    id: "safe-route-journey-66b1b2c3d4e5f60718293b40"
+- takeScreenshot: "workspace-catalog-ended-journey-restarted-new-identity"

@@ -5,6 +5,8 @@ import {
   AREA_RISK_RESEARCH_ENDPOINT_PATH,
   approximateMapZoom,
   buildAreaRiskRequestHeaders,
+  AREA_RISK_CAPABILITY_HEADER,
+  MOBILE_AREA_RISK_CAPABILITY,
   buildAreaRiskResearchPayload,
   buildAreaRiskViewportPath,
   canRequestAreaRiskResearch,
@@ -305,10 +307,12 @@ describe('area risk API core', () => {
 
   it('adds bearer auth only when supplied by the caller', () => {
     assert.deepEqual(buildAreaRiskRequestHeaders(), {
-      Accept: 'application/json'
+      Accept: 'application/json',
+      [AREA_RISK_CAPABILITY_HEADER]: MOBILE_AREA_RISK_CAPABILITY
     });
     assert.deepEqual(buildAreaRiskRequestHeaders(' token-123 '), {
       Accept: 'application/json',
+      [AREA_RISK_CAPABILITY_HEADER]: MOBILE_AREA_RISK_CAPABILITY,
       Authorization: 'Bearer token-123'
     });
   });

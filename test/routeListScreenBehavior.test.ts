@@ -26,7 +26,7 @@ describe("route list screen behavior", () => {
     assert.match(loadSource, /loadRevisionRef\.current = revision/);
     assert.match(
       loadSource,
-      /await loadOfflineRoutes[\s\S]*?!requestOwnsWorkspace\(\)[\s\S]*?if \(cached\)/,
+      /await loadOfflineRoutesSnapshot[\s\S]*?!requestOwnsWorkspace\(\)[\s\S]*?if \(cachedSnapshot\)/,
     );
     assert.match(
       loadSource,
@@ -38,7 +38,7 @@ describe("route list screen behavior", () => {
     );
     assert.match(
       loadSource,
-      /cached \|\| \(await loadOfflineRoutes[\s\S]*?!requestOwnsWorkspace\(\)[\s\S]*?if \(offlineCopy\)/,
+      /cachedSnapshot \|\|[\s\S]*?await loadOfflineRoutesSnapshot[\s\S]*?!requestOwnsWorkspace\(\)[\s\S]*?if \(offlineSnapshot\)/,
     );
     assert.match(
       loadSource,
@@ -59,11 +59,49 @@ describe("route list screen behavior", () => {
     );
     assert.match(
       loadSource,
-      /error instanceof ApiSessionExpiredError[\s\S]*?isWorkspaceUnavailableError\(error\)[\s\S]*?recoverUnavailableWorkspace\(requestWorkspaceId\)[\s\S]*?cached \|\| \(await loadOfflineRoutes/,
+      /error instanceof ApiSessionExpiredError[\s\S]*?isWorkspaceUnavailableError\(error\)[\s\S]*?recoverUnavailableWorkspace\(requestWorkspaceId\)[\s\S]*?cachedSnapshot \|\|[\s\S]*?await loadOfflineRoutesSnapshot/,
     );
     assert.match(
       screenSource(),
       /const recoverUnavailableWorkspace = useCallback[\s\S]*?loadRevisionRef\.current \+= 1[\s\S]*?detailRevisionRef\.current \+= 1[\s\S]*?activeWorkspaceIdRef\.current = null[\s\S]*?setRoutes\(\[\]\)[\s\S]*?setShowingOfflineCopy\(false\)[\s\S]*?setDetailLoadingId\(null\)[\s\S]*?setLoading\(false\)[\s\S]*?setRefreshing\(false\)[\s\S]*?onWorkspaceUnavailable\(workspaceId\)/,
+    );
+  });
+
+  it("publishes and clears cache age with the same owned route-list state", () => {
+    const source = screenSource();
+    const loadSource = sourceBetween(
+      source,
+      "const loadRoutes = useCallback(",
+      "const handleChangeQuery",
+    );
+
+    assert.match(
+      loadSource,
+      /if \(cachedSnapshot\)[\s\S]*?recordOwnedRouteCacheReadback[\s\S]*?setRoutes\(cachedRoutes\)[\s\S]*?setShowingOfflineCopy\(true\)[\s\S]*?setOfflineCopyStoredAtMs\(cachedSnapshot\.storedAtMs\)/,
+    );
+    assert.match(
+      loadSource,
+      /setRoutes\(scopedResult\.routes\)[\s\S]*?setShowingOfflineCopy\(false\)[\s\S]*?setOfflineCopyStoredAtMs\(null\)/,
+    );
+    assert.match(
+      loadSource,
+      /if \(offlineSnapshot\)[\s\S]*?recordOwnedRouteCacheReadback[\s\S]*?setRoutes\(offlineRoutes\)[\s\S]*?setShowingOfflineCopy\(true\)[\s\S]*?setOfflineCopyStoredAtMs\(offlineSnapshot\.storedAtMs\)/,
+    );
+    assert.match(
+      source,
+      /onSelectClient[\s\S]*?setRoutes\(\[\]\)[\s\S]*?setShowingOfflineCopy\(false\)[\s\S]*?setOfflineCopyStoredAtMs\(null\)[\s\S]*?onWorkspaceChange\(workspace\)/,
+    );
+    assert.match(
+      source,
+      /cachedReviewAccessibilityLabel=\{[\s\S]*?offlineReviewPresentation\?\.cardAccessibilityLabel/,
+    );
+    assert.match(
+      source,
+      /getRouteListOfflineReviewRefreshDelayMs\([\s\S]*?setTimeout\(\(\) => \{[\s\S]*?setOfflineCopyNowMs\(Date\.now\(\)\)/,
+    );
+    assert.match(
+      source,
+      /if \(refreshDelayMs === null\) \{[\s\S]*?setRoutes\(\[\]\)[\s\S]*?setShowingOfflineCopy\(false\)[\s\S]*?setOfflineCopyStoredAtMs\(null\)[\s\S]*?createRouteListExpiredCacheMessage\(offlineReviewStatus\)/,
     );
   });
 

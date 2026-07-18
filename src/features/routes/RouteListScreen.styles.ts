@@ -300,6 +300,7 @@ export const routeListStyles = StyleSheet.create({
   },
   offlineNotice: {
     alignSelf: "center",
+    maxWidth: "94%",
     marginBottom: spacing.xs,
     paddingHorizontal: spacing.sm,
     paddingVertical: spacing.xs,

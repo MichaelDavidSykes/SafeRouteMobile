@@ -13,13 +13,23 @@ import {
 } from "./routeCardPresentation";
 
 interface RouteCardProps {
+  cachedReviewAccessibilityLabel?: string | null;
   loading: boolean;
   onPress: () => void;
   route: SavedSafeRoutePlan;
 }
 
-export function RouteCard({ loading, onPress, route }: RouteCardProps) {
-  const presentation = createRouteCardPresentation(route, loading);
+export function RouteCard({
+  cachedReviewAccessibilityLabel,
+  loading,
+  onPress,
+  route,
+}: RouteCardProps) {
+  const presentation = createRouteCardPresentation(
+    route,
+    loading,
+    cachedReviewAccessibilityLabel,
+  );
 
   return (
     <Pressable

@@ -2,17 +2,21 @@ import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 
 import type { SavedSafeRoutePlan } from "../src/features/live-map/liveMapTypes";
+import { OFFLINE_ROUTE_CACHE_MAX_AGE_MS } from "../src/features/routes/offlineRouteCacheCore";
 import {
   createRouteListHeaderCopy,
   createRouteListLoadingState,
+  createRouteListOfflineReviewPresentation,
   createRouteListMapReturnState,
   createRouteListSearchQueryValue,
   createRouteListSignOutState,
   createRouteListClientFilterOptions,
   createRouteListEmptyState,
+  createRouteListExpiredCacheMessage,
   createRouteListSummaryState,
   filterSavedRoutes,
   findSelectedClient,
+  getRouteListOfflineReviewRefreshDelayMs,
   ROUTE_LIST_CLIENT_DISPLAY_MAX_LENGTH,
   ROUTE_LIST_QUERY_DISPLAY_MAX_LENGTH,
   ROUTE_LIST_QUERY_INPUT_MAX_LENGTH,
@@ -95,6 +99,141 @@ describe("route list UI state helpers", () => {
         "Syncing saved SafeRoute plans. The map remains available.",
       title: "Syncing routes",
     });
+  });
+
+  it("discloses a bounded offline cache age without implying authorization", () => {
+    const nowMs = 30 * 24 * 60 * 60 * 1000;
+
+    assert.deepEqual(
+      createRouteListOfflineReviewPresentation({
+        nowMs,
+        status: "offline",
+        storedAtMs: nowMs - 59 * 60 * 1000,
+      }),
+      {
+        accessibilityLabel:
+          "Offline saved routes. This copy was cached less than one hour ago and is review only. Reconnect and verify workspace access before starting guidance.",
+        cardAccessibilityLabel:
+          "Saved copy is review only. Reconnect and verify workspace access before starting guidance.",
+        visibleLabel: "Offline · <1h old · reconnect to start",
+      },
+    );
+
+    const sixHours = createRouteListOfflineReviewPresentation({
+      nowMs,
+      status: "checking-connection",
+      storedAtMs: nowMs - 6.9 * 60 * 60 * 1000,
+    });
+    assert.equal(sixHours?.visibleLabel, "Checking connection · cached 6h ago");
+    assert.equal(
+      sixHours?.accessibilityLabel,
+      "Checking connection for saved routes. This copy was cached 6 hours ago and is review only. Wait for the connection check and workspace access verification before starting guidance.",
+    );
+    assert.equal(
+      sixHours?.cardAccessibilityLabel,
+      "Saved copy is review only. Wait for the connection check and workspace access verification before starting guidance.",
+    );
+
+    const twelveDays = createRouteListOfflineReviewPresentation({
+      nowMs,
+      status: "checking-access",
+      storedAtMs: nowMs - 12.9 * 24 * 60 * 60 * 1000,
+    });
+    assert.equal(twelveDays?.visibleLabel, "Checking access · cached 12d ago");
+    assert.equal(
+      twelveDays?.accessibilityLabel,
+      "Checking workspace access for saved routes. This copy was cached 12 days ago and is review only. Wait for workspace access verification before starting guidance.",
+    );
+    assert.doesNotMatch(
+      [
+        sixHours?.accessibilityLabel,
+        twelveDays?.accessibilityLabel,
+      ].join(" "),
+      /\b(?:authorized|current|fresh)\b/i,
+    );
+  });
+
+  it("advances cache-age copy at hour/day boundaries and expires it on time", () => {
+    const hourMs = 60 * 60 * 1000;
+    const dayMs = 24 * hourMs;
+
+    assert.equal(
+      getRouteListOfflineReviewRefreshDelayMs({
+        nowMs: 30 * 60 * 1000,
+        storedAtMs: 0,
+      }),
+      30 * 60 * 1000,
+    );
+    assert.equal(
+      getRouteListOfflineReviewRefreshDelayMs({
+        nowMs: hourMs,
+        storedAtMs: 0,
+      }),
+      hourMs,
+    );
+    assert.equal(
+      getRouteListOfflineReviewRefreshDelayMs({
+        nowMs: dayMs,
+        storedAtMs: 0,
+      }),
+      dayMs,
+    );
+    assert.equal(
+      getRouteListOfflineReviewRefreshDelayMs({
+        nowMs: OFFLINE_ROUTE_CACHE_MAX_AGE_MS,
+        storedAtMs: 0,
+      }),
+      1,
+    );
+    assert.equal(
+      getRouteListOfflineReviewRefreshDelayMs({
+        nowMs: OFFLINE_ROUTE_CACHE_MAX_AGE_MS + 1,
+        storedAtMs: 0,
+      }),
+      null,
+    );
+  });
+
+  it("uses connectivity-specific guidance when a displayed copy expires", () => {
+    assert.equal(
+      createRouteListExpiredCacheMessage("offline"),
+      "Saved route copy expired. Reconnect to refresh.",
+    );
+    assert.equal(
+      createRouteListExpiredCacheMessage("checking-connection"),
+      "Saved route copy expired. Wait for the connection check before refreshing.",
+    );
+    assert.equal(
+      createRouteListExpiredCacheMessage("checking-access"),
+      "Saved route copy expired. Wait for workspace access verification before refreshing.",
+    );
+  });
+
+  it("does not present invalid or future cache ages", () => {
+    assert.equal(
+      createRouteListOfflineReviewPresentation({
+        nowMs: 1_000,
+        status: "offline",
+        storedAtMs: 1_001,
+      }),
+      null,
+    );
+    assert.equal(
+      createRouteListOfflineReviewPresentation({
+        nowMs: Number.NaN,
+        status: "offline",
+        storedAtMs: 1_000,
+      }),
+      null,
+    );
+    assert.equal(
+      createRouteListOfflineReviewPresentation({
+        nowMs: OFFLINE_ROUTE_CACHE_MAX_AGE_MS + 1,
+        status: "offline",
+        storedAtMs: 0,
+      }),
+      null,
+    );
   });
 
   it("keeps route search hidden until the picker needs it", () => {

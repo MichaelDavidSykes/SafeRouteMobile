@@ -174,7 +174,7 @@ describe("cold-start connectivity integration", () => {
 
     assert.match(
       routes,
-      /if \(cached\) \{[\s\S]*if \(reviewOnly\)[\s\S]*return;[\s\S]*fetchSavedRoutes/,
+      /if \(cachedSnapshot\) \{[\s\S]*if \(reviewOnly\)[\s\S]*return;[\s\S]*fetchSavedRoutes/,
     );
     assert.match(
       routes,

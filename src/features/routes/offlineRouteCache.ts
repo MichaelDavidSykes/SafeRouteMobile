@@ -6,7 +6,9 @@ import {
   createOfflineRouteCacheRecord,
   hasUsableRoutePlan,
   parseOfflineRouteCacheRecord,
+  parseOfflineRouteCacheSnapshot,
   purgeOfflineRouteWorkspaceStorage,
+  type OfflineRouteCacheSnapshot,
 } from "./offlineRouteCacheCore";
 
 const ROUTE_LIST_KEY_PREFIX = "saferoute.offline.routes.v2";
@@ -40,6 +42,13 @@ export async function loadOfflineRoutes(
   principalId: string,
   clientId?: string | null,
 ): Promise<SavedRouteSyncResult | null> {
+  return (await loadOfflineRoutesSnapshot(principalId, clientId))?.value || null;
+}
+
+export async function loadOfflineRoutesSnapshot(
+  principalId: string,
+  clientId?: string | null,
+): Promise<OfflineRouteCacheSnapshot | null> {
   if (!principalId.trim()) return null;
   const identity = identityKey(principalId);
   await waitForPendingRouteCacheMutation(identity);
@@ -48,7 +57,7 @@ export async function loadOfflineRoutes(
       `${ROUTE_LIST_KEY_PREFIX}.${identity}.${clientKey(clientId)}`,
     );
     return raw
-      ? parseOfflineRouteCacheRecord(JSON.parse(raw), principalId)
+      ? parseOfflineRouteCacheSnapshot(JSON.parse(raw), principalId)
       : null;
   } catch {
     return null;

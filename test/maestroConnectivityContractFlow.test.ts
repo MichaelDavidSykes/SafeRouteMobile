@@ -167,7 +167,7 @@ describe("Maestro connectivity contract runtime", () => {
     );
     assert.match(
       runner,
-      /label: 'Offline saved copy \? reconnect before starting guidance'/,
+      /label: 'Offline saved routes\. This copy was cached less than one hour ago and is review only\. Reconnect and verify workspace access before starting guidance\.'/,
     );
     assert.match(
       seedJourney,
@@ -197,7 +197,7 @@ describe("Maestro connectivity contract runtime", () => {
     );
     assert.match(
       offline,
-      /Offline saved copy · reconnect before starting guidance/,
+      /Offline · <1h old · reconnect to start/,
     );
     assert.match(
       offline,

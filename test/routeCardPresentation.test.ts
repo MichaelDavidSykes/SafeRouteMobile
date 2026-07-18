@@ -392,4 +392,21 @@ describe("route card presentation", () => {
     assert.equal(createRouteUpdatedLabel("yesterday"), "Yesterday");
     assert.equal(createRouteUpdatedLabel(""), "Updated");
   });
+
+  it("replaces frozen route-update copy with cache-age safety context during offline review", () => {
+    const cacheContext =
+      "Saved copy is review only. Reconnect and verify workspace access before starting guidance.";
+    const presentation = createRouteCardPresentation(
+      baseRoute,
+      false,
+      cacheContext,
+    );
+
+    assert.doesNotMatch(presentation.accessibilityLabel, /Updated today/);
+    assert.match(presentation.accessibilityLabel, /Saved copy is review only/);
+    assert.equal(
+      presentation.accessibilityHint,
+      "Opens this saved route on the map for review",
+    );
+  });
 });

@@ -82,11 +82,11 @@ describe("authenticated Map workspace recovery integration", () => {
     );
     assert.match(
       live,
-      /useViewportRiskAreas\(\{[\s\S]*enabled: !activeRoutePlan\.clientId \|\| workspaceAuthorizationFresh/,
+      /useViewportRiskAreas\(\{[\s\S]*enabled:[\s\S]*online &&[\s\S]*\(!activeRoutePlan\.clientId \|\| workspaceAuthorizationFresh\)/,
     );
     assert.match(
       live,
-      /requestAuthorizationIsCurrent[\s\S]*Verify current workspace access before rerouting[\s\S]*requestAuthorizationIsCurrent\(\)[\s\S]*fetchAreaRiskAlongRoute[\s\S]*requestAuthorizationIsCurrent\(\)/,
+      /requestAuthorizationIsCurrent[\s\S]*Verify current workspace access before rerouting[\s\S]*const requestIsCurrent[\s\S]*fetchAreaRiskAlongRoute[\s\S]*requestIsCurrent\(\)/,
     );
     assert.match(
       live,

@@ -11,7 +11,10 @@ describe('authenticated map session expiry integration', () => {
   it('propagates only the active viewport request expiry and deduplicates split views', () => {
     const hook = source('src/features/live-map/useViewportRiskAreas.ts');
 
-    assert.match(hook, /requestRevisionRef\.current !== revision/);
+    assert.match(
+      hook,
+      /const requestIsCurrent = \(\) =>[\s\S]*requestRevisionRef\.current === revision/,
+    );
     assert.match(hook, /getRequestSessionExpiry/);
     assert.match(hook, /handled: sessionExpiryHandled/);
     assert.match(hook, /sessionExpiryHandled = true;[\s\S]*controller\.abort\(\);[\s\S]*setZones\(\[\]\);[\s\S]*onSessionExpiredRef\.current\?\.\(sessionExpiry\.message\)/);

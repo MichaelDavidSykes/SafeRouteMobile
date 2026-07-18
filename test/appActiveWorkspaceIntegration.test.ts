@@ -95,7 +95,7 @@ describe("App active workspace integration", () => {
     assert.match(app, /restoreUnavailableWorkspacesFromFreshCatalogRef = useRef\(false\)/);
     assert.match(app, /allowFreshWorkspaceRestoration[\s\S]*fetchSavedRoutes\(accessToken\)[\s\S]*normalizedCatalog[\s\S]*restoreUnavailableWorkspacesFromFreshCatalogRef\.current = false/);
     assert.match(app, /normalizedCatalog = normalizeWorkspaceCatalog\(result\.clients\)/);
-    assert.match(app, /fetchSavedRoutes\(accessToken\)[\s\S]*!requestIsCurrent\(\)[\s\S]*return[\s\S]*reconcileUnavailableWorkspaceIds/);
+    assert.match(app, /fetchSavedRoutes\(accessToken\)[\s\S]*!onlineRequestIsCurrent\(\)[\s\S]*return[\s\S]*reconcileUnavailableWorkspaceIds/);
     assert.match(app, /reconcileUnavailableWorkspaceIds\(\{[\s\S]*allowFreshRestoration: allowFreshWorkspaceRestoration[\s\S]*freshWorkspaces: normalizedCatalog/);
     assert.match(app, /previousUnavailableWorkspaceIds[\s\S]*workspaceAccessRestored = findRestoredWorkspaceIds\([\s\S]*previousUnavailableWorkspaceIds,[\s\S]*unavailableWorkspaceIds,[\s\S]*\)\.length > 0/);
     assert.match(app, /workspaceAccessRestored[\s\S]*Workspace access refreshed\./);
@@ -108,18 +108,18 @@ describe("App active workspace integration", () => {
       3,
     );
     assert.match(app, /transition\.announcement[\s\S]*workspaceAccessFocusHandoffRef\.current\?\.cancel\(\)[\s\S]*announceForAccessibilityWithOptions/);
-    assert.match(app, /handleRetryWorkspaceCatalog = useCallback\(\(\) => \{[\s\S]*workspaceCatalogRetryingRef\.current[\s\S]*return;[\s\S]*workspaceAccessFocusHandoffRef\.current\?\.cancel\(\)[\s\S]*workspaceCatalogRetryingRef\.current = true/);
+    assert.match(app, /beginWorkspaceCatalogRetry = useCallback\(\(replaceInFlight: boolean\) => \{[\s\S]*workspaceCatalogRetryingRef\.current[\s\S]*workspaceCatalogBusyRef\.current[\s\S]*return false;[\s\S]*workspaceAccessFocusHandoffRef\.current\?\.cancel\(\)[\s\S]*workspaceCatalogRetryingRef\.current = true/);
     assert.match(
       app,
       /Platform\.OS === 'ios' && transition\.announcement[\s\S]*AccessibilityInfo\.announceForAccessibilityWithOptions\([\s\S]*transition\.announcement/,
     );
-    assert.match(app, /handleRetryWorkspaceCatalog[\s\S]*restoreUnavailableWorkspacesFromFreshCatalogRef\.current = true[\s\S]*setWorkspaceDiscoveryRevision/);
+    assert.match(app, /beginWorkspaceCatalogRetry[\s\S]*restoreUnavailableWorkspacesFromFreshCatalogRef\.current = true[\s\S]*setWorkspaceDiscoveryRevision/);
     assert.match(
       app,
       /handleWorkspaceUnavailable[\s\S]*restoreUnavailableWorkspacesFromFreshCatalogRef\.current = false[\s\S]*unavailableWorkspaceIdsRef\.current =/,
     );
-    assert.match(app, /handleRetryWorkspaceCatalog[\s\S]*setWorkspaceCatalogRetrying\(true\)[\s\S]*setWorkspaceDiscoveryRevision/);
-    assert.match(app, /handleRetryWorkspaceCatalog[\s\S]*workspaceCatalogRetryingRef\.current[\s\S]*return;[\s\S]*workspaceCatalogRetryingRef\.current = true/);
+    assert.match(app, /beginWorkspaceCatalogRetry[\s\S]*setWorkspaceCatalogRetrying\(true\)[\s\S]*setWorkspaceDiscoveryRevision/);
+    assert.match(app, /beginWorkspaceCatalogRetry[\s\S]*workspaceCatalogRetryingRef\.current[\s\S]*return false;[\s\S]*workspaceCatalogRetryingRef\.current = true/);
     assert.match(app, /shouldOfferWorkspaceAccessRefresh\(\{[\s\S]*catalogRetrying: workspaceCatalogRetrying[\s\S]*issue: workspaceAccessIssue/);
     assert.equal(
       (app.match(/completeWorkspaceCatalogRetry\([\s\S]{0,160}workspaceRequestRevisionRef\.current \+= 1/g) || []).length,
@@ -168,7 +168,10 @@ describe("App active workspace integration", () => {
     }
     assert.match(workspaceRefreshSource(), /accessibilityLabel=\{state\.accessibilityLabel\}/);
     assert.match(workspaceRefreshSource(), /accessibilityLiveRegion="polite"/);
-    assert.match(workspaceRefreshSource(), /accessibilityState=\{\{ disabled: loading, busy: loading \}\}/);
+    assert.match(
+      workspaceRefreshSource(),
+      /const disabled = loading \|\| !online[\s\S]*busy: loading \|\| networkChecking,[\s\S]*disabled,/,
+    );
     assert.match(workspaceRefreshSource(), /shouldStackWorkspaceAccessControl\(\{ fontScale, width \}\)/);
     assert.match(workspaceRefreshSource(), /useNetworkAvailability\(\)/);
     assert.doesNotMatch(workspaceRefreshSource(), /numberOfLines=/);
@@ -256,12 +259,15 @@ describe("App active workspace integration", () => {
     assert.match(guest, /!action \|\| !routingClientId \|\| !routingAccessToken/);
     assert.match(guest, /disabled=\{riskAreaSavePending \|\| riskAreaAuthorizationRequired\}/);
     assert.match(guest, /Verify current workspace access before adding a risk area/);
-    assert.match(guest, /routeActionAccessibilityLabel = workspaceSelectionRequired/);
+    assert.match(guest, /routeActionAccessibilityLabel = networkChecking/);
     assert.match(guest, /retryAvailable =[\s\S]*!loading && Boolean\(onRetry && errorMessage\)/);
     assert.match(guest, /Choose the SafeRoute workspace above before plotting this route/);
     assert.match(guest, /routeMessage \|\| sessionNoticeState\?\.message \|\| locationErrorMessage/);
     assert.match(guest, /sessionNoticeState\.accessibilityRole/);
-    assert.match(guest, /enabled: !workspaceSelectionRequired && !workspaceAuthorizationRequired/);
+    assert.match(
+      guest,
+      /enabled:[\s\S]*online &&[\s\S]*!workspaceSelectionRequired &&[\s\S]*!workspaceAuthorizationRequired/,
+    );
     assert.match(
       guest,
       /if \(!workspaceAuthorizationRequired\) \{[\s\S]*cancelRoadRouteUpgrade\(\)[\s\S]*activeRiskAreaRequestRef\.current\?\.abort\(\)/,
@@ -271,7 +277,10 @@ describe("App active workspace integration", () => {
     assert.match(routes, /selectedClientId = activeWorkspace\?\.id \|\| null/);
     assert.match(routes, /fetchSavedRoutes\([\s\S]*requestWorkspaceId/);
     assert.match(routes, /routesForWorkspace\(result\.routes, requestWorkspaceId\)/);
-    assert.match(routes, /!cached && offline && !refresh[\s\S]*loadOfflineRoutes\(cacheIdentity, null\)/);
+    assert.match(
+      routes,
+      /!cached && reviewOnly[\s\S]*loadOfflineRoutes\(cacheIdentity, null\)/,
+    );
     assert.match(routes, /routeDetail\.clientId !== selectedClientId/);
     assert.match(routes, /activeWorkspaceIdRef\.current === selectedClientId/);
     assert.match(routes, /isWorkspaceUnavailableError\(error\)[\s\S]*recoverUnavailableWorkspace\(requestWorkspaceId\)/);
@@ -539,6 +548,9 @@ describe("App active workspace integration", () => {
       app,
       /navigationRestoreRejected =[\s\S]*pendingNavigationResolution === 'stale'[\s\S]*!navigationRestoreRejected[\s\S]*Workspace access verified/,
     );
-    assert.match(app, /wasOffline[\s\S]*reconnectRetryPendingRef\.current = true[\s\S]*pendingNavigationRestore\?\.status === 'paused'[\s\S]*!workspaceCatalogLoading[\s\S]*handleRetryWorkspaceCatalog\(\)/);
+    assert.match(
+      app,
+      /resolveNetworkReconnectTransition\(\{[\s\S]*current: networkStatus,[\s\S]*offlineObserved:[\s\S]*previous,[\s\S]*pendingNavigationRestore\?\.status === 'paused'[\s\S]*handleNetworkReconnectWorkspaceCatalog\(\)/,
+    );
   });
 });

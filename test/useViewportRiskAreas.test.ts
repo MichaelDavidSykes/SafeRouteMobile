@@ -13,7 +13,10 @@ describe('viewport risk hook integration contract', () => {
     assert.match(source, /VIEWPORT_RISK_DEBOUNCE_MS\s*=\s*450/);
     assert.match(source, /VIEWPORT_RISK_TIMEOUT_MS\s*=\s*6000/);
     assert.match(source, /new AbortController\(\)/);
-    assert.match(source, /requestRevisionRef\.current !== revision/);
+    assert.match(
+      source,
+      /const requestIsCurrent = \(\) =>[\s\S]*requestRevisionRef\.current === revision/,
+    );
     assert.match(source, /getCachedViewportRiskZones/);
     assert.match(source, /cacheViewportRiskZones/);
     assert.match(source, /Promise\.allSettled/);

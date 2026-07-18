@@ -38,7 +38,10 @@ const GENERIC_SESSION_REJECTION_PATTERNS = [
 
 export async function restoreSavedSession(
   storedSession: AuthSession | null,
-  getUser: GetCurrentUser
+  getUser: GetCurrentUser,
+  options: {
+    validateOnline?: boolean;
+  } = {},
 ): Promise<SessionRestoreResult> {
   if (!storedSession) {
     return { status: 'empty' };
@@ -68,6 +71,13 @@ export async function restoreSavedSession(
     };
   }
 
+  if (options.validateOnline === false) {
+    return restoreStrictOfflineSession(
+      normalizedStoredSession,
+      offlineAccessClaims,
+    );
+  }
+
   try {
     const user = await getUser(accessToken);
     return {
@@ -88,27 +98,37 @@ export async function restoreSavedSession(
       };
     }
 
-    const storedEmail = normalizedStoredSession.email.trim().toLowerCase();
-    const storedPrincipalId = String(normalizedStoredSession.principalId || '').trim();
-    if (
-      !offlineAccessClaims ||
-      !storedEmail ||
-      !storedPrincipalId ||
-      offlineAccessClaims.sub.trim().toLowerCase() !== storedEmail
-    ) {
-      return {
-        status: 'expired',
-        message: ONLINE_VALIDATION_REQUIRED_MESSAGE
-      };
-    }
+    return restoreStrictOfflineSession(
+      normalizedStoredSession,
+      offlineAccessClaims,
+    );
+  }
+}
 
+function restoreStrictOfflineSession(
+  normalizedStoredSession: AuthSession,
+  offlineAccessClaims: ReturnType<typeof getOfflineAccessJwtClaims>,
+): SessionRestoreResult {
+  const storedEmail = normalizedStoredSession.email.trim().toLowerCase();
+  const storedPrincipalId = String(normalizedStoredSession.principalId || '').trim();
+  if (
+    !offlineAccessClaims ||
+    !storedEmail ||
+    !storedPrincipalId ||
+    offlineAccessClaims.sub.trim().toLowerCase() !== storedEmail
+  ) {
     return {
-      status: 'restored',
-      validatedOnline: false,
-      message: OFFLINE_RESTORE_MESSAGE,
-      session: normalizedStoredSession
+      status: 'expired',
+      message: ONLINE_VALIDATION_REQUIRED_MESSAGE
     };
   }
+
+  return {
+    status: 'restored',
+    validatedOnline: false,
+    message: OFFLINE_RESTORE_MESSAGE,
+    session: normalizedStoredSession
+  };
 }
 
 function getSessionRestoreExpiredMessage(message: string | undefined): string {

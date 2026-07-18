@@ -15,7 +15,7 @@ describe("workspace access refresh state", () => {
       accessRecoveryPending: false,
       availableWorkspaceCount: 0,
       loading: false,
-      offline: false,
+      networkStatus: "online",
       issue: "none",
     });
 
@@ -30,7 +30,7 @@ describe("workspace access refresh state", () => {
       accessRecoveryPending: true,
       availableWorkspaceCount: 2,
       loading: false,
-      offline: false,
+      networkStatus: "online",
       issue: "none",
     });
 
@@ -44,35 +44,35 @@ describe("workspace access refresh state", () => {
       accessRecoveryPending: true,
       availableWorkspaceCount: 0,
       loading: true,
-      offline: false,
+      networkStatus: "online",
       issue: "none",
     });
     const survivorState = createWorkspaceAccessRefreshState({
       accessRecoveryPending: true,
       availableWorkspaceCount: 1,
       loading: true,
-      offline: false,
+      networkStatus: "online",
       issue: "none",
     });
     const verificationState = createWorkspaceAccessRefreshState({
       accessRecoveryPending: false,
       availableWorkspaceCount: 1,
       loading: true,
-      offline: false,
+      networkStatus: "online",
       issue: "verification-unavailable",
     });
     const survivorRecoveryState = createWorkspaceAccessRefreshState({
       accessRecoveryPending: true,
       availableWorkspaceCount: 1,
       loading: true,
-      offline: false,
+      networkStatus: "online",
       issue: "verification-unavailable",
     });
     const noAccessRecoveryState = createWorkspaceAccessRefreshState({
       accessRecoveryPending: true,
       availableWorkspaceCount: 0,
       loading: true,
-      offline: false,
+      networkStatus: "online",
       issue: "verification-unavailable",
     });
 
@@ -95,14 +95,14 @@ describe("workspace access refresh state", () => {
       accessRecoveryPending: false,
       availableWorkspaceCount: 2,
       loading: false,
-      offline: false,
+      networkStatus: "online",
       issue: "verification-unavailable",
     });
     const offlineState = createWorkspaceAccessRefreshState({
       accessRecoveryPending: false,
       availableWorkspaceCount: 1,
       loading: false,
-      offline: true,
+      networkStatus: "offline",
       issue: "verification-unavailable",
     });
 
@@ -115,12 +115,27 @@ describe("workspace access refresh state", () => {
     assert.doesNotMatch(offlineState.accessibilityHint, /^Reconnects/i);
   });
 
+  it("presents connectivity checking instead of an online retry", () => {
+    const state = createWorkspaceAccessRefreshState({
+      accessRecoveryPending: false,
+      availableWorkspaceCount: 1,
+      issue: "verification-unavailable",
+      loading: false,
+      networkStatus: "checking",
+    });
+
+    assert.equal(state.title, "Checking connection");
+    assert.equal(state.actionLabel, "Waiting…");
+    assert.match(state.accessibilityLabel, /Checking connection.*review only/i);
+    assert.doesNotMatch(state.accessibilityLabel, /try again/i);
+  });
+
   it("keeps membership recovery ahead of a transient verification failure", () => {
     const state = createWorkspaceAccessRefreshState({
       accessRecoveryPending: true,
       availableWorkspaceCount: 1,
       loading: false,
-      offline: true,
+      networkStatus: "offline",
       issue: "verification-unavailable",
     });
 
@@ -134,14 +149,14 @@ describe("workspace access refresh state", () => {
       availableWorkspaceCount: 1,
       issue: "offline-safety",
       loading: false,
-      offline: false,
+      networkStatus: "online",
     });
     const busyState = createWorkspaceAccessRefreshState({
       accessRecoveryPending: false,
       availableWorkspaceCount: 1,
       issue: "offline-safety",
       loading: true,
-      offline: false,
+      networkStatus: "online",
     });
 
     assert.equal(onlineState.title, "Offline safety needs retry");
@@ -199,7 +214,7 @@ describe("workspace access refresh state", () => {
       availableWorkspaceCount: 1,
       issue: "verification-unavailable",
       loading: true,
-      offline: false,
+      networkStatus: "online",
       previousPhase: "verification-unavailable",
       retrying: true,
     });
@@ -208,7 +223,7 @@ describe("workspace access refresh state", () => {
       availableWorkspaceCount: 1,
       issue: "verification-unavailable",
       loading: true,
-      offline: false,
+      networkStatus: "online",
       previousPhase: checking.phase,
       retrying: true,
     });
@@ -217,7 +232,7 @@ describe("workspace access refresh state", () => {
       availableWorkspaceCount: 1,
       issue: "verification-unavailable",
       loading: false,
-      offline: false,
+      networkStatus: "online",
       previousPhase: duplicateChecking.phase,
       retrying: false,
     });
@@ -226,7 +241,7 @@ describe("workspace access refresh state", () => {
       availableWorkspaceCount: 1,
       issue: "verification-unavailable",
       loading: false,
-      offline: false,
+      networkStatus: "online",
       previousPhase: failed.phase,
       retrying: false,
     });
@@ -243,7 +258,7 @@ describe("workspace access refresh state", () => {
       availableWorkspaceCount: 1,
       issue: "verification-unavailable",
       loading: true,
-      offline: false,
+      networkStatus: "online",
       previousPhase: "idle",
       retrying: false,
     });
@@ -252,7 +267,7 @@ describe("workspace access refresh state", () => {
       availableWorkspaceCount: 1,
       issue: "verification-unavailable",
       loading: false,
-      offline: false,
+      networkStatus: "online",
       previousPhase: pendingFailure.phase,
       retrying: false,
     });
@@ -261,7 +276,7 @@ describe("workspace access refresh state", () => {
       availableWorkspaceCount: 1,
       issue: "verification-unavailable",
       loading: false,
-      offline: false,
+      networkStatus: "online",
       previousPhase: coldFailure.phase,
       retrying: false,
     });
@@ -281,7 +296,7 @@ describe("workspace access refresh state", () => {
       availableWorkspaceCount: 1,
       issue: "verification-unavailable",
       loading: true,
-      offline: false,
+      networkStatus: "online",
       previousPhase: "checking",
       retrying: false,
     });
@@ -290,7 +305,7 @@ describe("workspace access refresh state", () => {
       availableWorkspaceCount: 1,
       issue: "verification-unavailable",
       loading: false,
-      offline: false,
+      networkStatus: "online",
       previousPhase: stillLoading.phase,
       retrying: false,
     });
@@ -308,7 +323,7 @@ describe("workspace access refresh state", () => {
       availableWorkspaceCount: 1,
       issue: "verification-unavailable",
       loading: false,
-      offline: true,
+      networkStatus: "offline",
       previousPhase: "checking",
       retrying: false,
     });
@@ -317,7 +332,7 @@ describe("workspace access refresh state", () => {
       availableWorkspaceCount: 1,
       issue: "offline-safety",
       loading: false,
-      offline: true,
+      networkStatus: "offline",
       previousPhase: "checking",
       retrying: false,
     });
@@ -327,13 +342,57 @@ describe("workspace access refresh state", () => {
     assert.match(offlineSafety.announcement || "", /Offline safety needs retry.*Reconnect/i);
   });
 
+  it("announces checking and its offline correction only once", () => {
+    const checking = resolveWorkspaceAccessAnnouncement({
+      accessRecoveryPending: false,
+      availableWorkspaceCount: 1,
+      issue: "verification-unavailable",
+      loading: false,
+      networkStatus: "checking",
+      previousPhase: "verification-unavailable",
+      retrying: false,
+    });
+    const duplicateChecking = resolveWorkspaceAccessAnnouncement({
+      accessRecoveryPending: false,
+      availableWorkspaceCount: 1,
+      issue: "verification-unavailable",
+      loading: false,
+      networkStatus: "checking",
+      previousPhase: checking.phase,
+      retrying: false,
+    });
+    const offline = resolveWorkspaceAccessAnnouncement({
+      accessRecoveryPending: false,
+      availableWorkspaceCount: 1,
+      issue: "verification-unavailable",
+      loading: false,
+      networkStatus: "offline",
+      previousPhase: duplicateChecking.phase,
+      retrying: false,
+    });
+    const duplicateOffline = resolveWorkspaceAccessAnnouncement({
+      accessRecoveryPending: false,
+      availableWorkspaceCount: 1,
+      issue: "verification-unavailable",
+      loading: false,
+      networkStatus: "offline",
+      previousPhase: offline.phase,
+      retrying: false,
+    });
+
+    assert.match(checking.announcement || "", /Checking connection/i);
+    assert.equal(duplicateChecking.announcement, null);
+    assert.match(offline.announcement || "", /Reconnect/i);
+    assert.equal(duplicateOffline.announcement, null);
+  });
+
   it("leaves successful retries to the single explicit confirmation announcement", () => {
     assert.deepEqual(resolveWorkspaceAccessAnnouncement({
       accessRecoveryPending: false,
       availableWorkspaceCount: 1,
       issue: "none",
       loading: false,
-      offline: false,
+      networkStatus: "online",
       previousPhase: "checking",
       retrying: false,
     }), {

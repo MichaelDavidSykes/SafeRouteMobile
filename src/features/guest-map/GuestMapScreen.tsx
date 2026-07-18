@@ -39,6 +39,7 @@ import {
 import { shouldRenderRouteCheckpointMarker } from '../maps/mapMarkerPresentation';
 import { isPreviewAccessToken } from '../auth/previewSession';
 import { createSessionNoticeState } from '../auth/sessionNoticeState';
+import { useNetworkAvailability } from '../api/useNetworkAvailability';
 import { getRequestSessionExpiry } from '../api/sessionExpiry';
 import type { SafeRouteWorkspace } from '../workspaces/activeWorkspace';
 import { getRequestUnavailableWorkspaceId } from '../workspaces/workspaceAccessRecovery';
@@ -151,11 +152,23 @@ export function GuestMapScreen({
   workspaceSwitchDisabled = false
 }: GuestMapScreenProps) {
   const viewport = useWindowDimensions();
+  const {
+    checking: networkChecking,
+    offline,
+    online,
+  } = useNetworkAvailability();
+  const onlineRef = useRef(online);
+  const networkRequestEpochRef = useRef(0);
+  if (onlineRef.current !== online) {
+    onlineRef.current = online;
+    networkRequestEpochRef.current += 1;
+  }
   const mapRef = useRef<MapView | null>(null);
   const activeRoadRouteRequestRef = useRef<AbortController | null>(null);
   const activeLocationSearchRef = useRef<AbortController | null>(null);
   const activeDraftResolutionRef = useRef<AbortController | null>(null);
   const activeRiskAreaRequestRef = useRef<AbortController | null>(null);
+  const activeMapReverseGeocodeRef = useRef<AbortController | null>(null);
   const lastCenteredLocationRef = useRef<GuestMapCenteredLocation | null>(null);
   const onSessionExpiredRef = useRef(onSessionExpired);
   const onWorkspaceUnavailableRef = useRef(onWorkspaceUnavailable);
@@ -220,7 +233,7 @@ export function GuestMapScreen({
   const workspaceAuthorizationRequired =
     authenticated && Boolean(routingClientId) && !workspaceAuthorizationFresh;
   const riskAreaAuthorizationRequired =
-    workspaceSelectionRequired || workspaceAuthorizationRequired;
+    !online || workspaceSelectionRequired || workspaceAuthorizationRequired;
   const routingAccessToken =
     !workspaceSelectionRequired &&
     !workspaceAuthorizationRequired &&
@@ -245,6 +258,7 @@ export function GuestMapScreen({
     routePlotted
   });
   const routeActionDisabled =
+    !online ||
     routeAction.disabled ||
     routeResolutionPending ||
     roadPreviewPending ||
@@ -261,6 +275,10 @@ export function GuestMapScreen({
     ? 'Resolving route points…'
     : roadPreviewPending
       ? 'Finding safest route…'
+    : networkChecking
+      ? 'Checking connection…'
+    : offline
+      ? 'Offline'
     : workspaceSelectionRequired
       ? workspaceBlockingActionLabel
       : workspaceAuthorizationRequired
@@ -268,14 +286,20 @@ export function GuestMapScreen({
           ? 'Checking workspace…'
           : 'Verify workspace access'
       : routeAction.label;
-  const routeActionAccessibilityLabel = workspaceSelectionRequired
+  const routeActionAccessibilityLabel = networkChecking
+    ? 'Checking connection before plotting this route'
+    : offline
+      ? 'Reconnect before plotting this route'
+    : workspaceSelectionRequired
     ? workspaceBlockingActionLabel
     : workspaceAuthorizationRequired
       ? workspaceCatalogLoading
         ? 'Checking workspace access before plotting this route'
         : 'Verify workspace access before plotting this route'
     : routeAction.accessibilityLabel;
-  const routeActionAccessibilityHint = workspaceSelectionRequired
+  const routeActionAccessibilityHint = !online
+    ? 'Wait for a connection before requesting a road-snapped route.'
+    : workspaceSelectionRequired
     ? availableWorkspaces.length
       ? 'Choose the SafeRoute workspace above before plotting this route.'
       : workspaceCatalogError
@@ -302,7 +326,10 @@ export function GuestMapScreen({
   const viewportRisk = useViewportRiskAreas({
     accessToken: routingAccessToken,
     clientId: routingClientId,
-    enabled: !workspaceSelectionRequired && !workspaceAuthorizationRequired,
+    enabled:
+      online &&
+      !workspaceSelectionRequired &&
+      !workspaceAuthorizationRequired,
     onSessionExpired,
     onWorkspaceUnavailable: onWorkspaceUnavailable
       ? (workspaceId) => recoverWorkspaceAccessRef.current(workspaceId)
@@ -440,9 +467,28 @@ export function GuestMapScreen({
       return;
     }
 
+    if (!online) {
+      setLocationSearchPending(false);
+      setLocationSearchMessage(
+        networkChecking
+          ? 'Checking connection before searching.'
+          : 'Reconnect to search for places.',
+      );
+      return;
+    }
+
     const controller = new AbortController();
     activeLocationSearchRef.current = controller;
+    const requestNetworkEpoch = networkRequestEpochRef.current;
+    const requestIsCurrent = () =>
+      !controller.signal.aborted &&
+      activeLocationSearchRef.current === controller &&
+      onlineRef.current &&
+      requestNetworkEpoch === networkRequestEpochRef.current;
     const timer = setTimeout(() => {
+      if (!requestIsCurrent()) {
+        return;
+      }
       setLocationSearchPending(true);
       void searchGuestLocations(query, {
         bias: {
@@ -452,13 +498,17 @@ export function GuestMapScreen({
         serviceBaseUrl: LUNARCHAIN_API_BASE,
         signal: controller.signal
       }).then((results) => {
-        if (controller.signal.aborted) {
+        if (!requestIsCurrent()) {
           return;
         }
         setLocationSearchResults(results);
         setLocationSearchMessage(results.length ? '' : 'No matching places found.');
+      }).catch(() => {
+        if (requestIsCurrent()) {
+          setLocationSearchMessage('Places could not be searched. Check your connection and try again.');
+        }
       }).finally(() => {
-        if (!controller.signal.aborted) {
+        if (requestIsCurrent()) {
           setLocationSearchPending(false);
         }
       });
@@ -478,6 +528,8 @@ export function GuestMapScreen({
     mapRegion.longitude,
     mapRegion.latitudeDelta,
     mapRegion.longitudeDelta,
+    networkChecking,
+    online,
   ]);
 
   useEffect(() => {
@@ -503,6 +555,7 @@ export function GuestMapScreen({
   useEffect(() => () => {
     cancelRoadRouteUpgrade();
     activeLocationSearchRef.current?.abort();
+    activeMapReverseGeocodeRef.current?.abort();
   }, []);
 
   const cancelRoadRouteUpgrade = () => {
@@ -527,6 +580,21 @@ export function GuestMapScreen({
     activeRiskAreaRequestRef.current = null;
     setRiskAreaSavePending(false);
   }, [workspaceAuthorizationRequired]);
+
+  useEffect(() => {
+    if (online) {
+      return;
+    }
+    cancelRoadRouteUpgrade();
+    activeLocationSearchRef.current?.abort();
+    activeRiskAreaRequestRef.current?.abort();
+    activeMapReverseGeocodeRef.current?.abort();
+    activeMapReverseGeocodeRef.current = null;
+    setMapAction((current) => current ? { ...current, pending: false } : current);
+    activeRiskAreaRequestRef.current = null;
+    riskAreaRequestIdRef.current += 1;
+    setRiskAreaSavePending(false);
+  }, [online]);
 
   const clearWorkspaceScopedMapState = () => {
     cancelRoadRouteUpgrade();
@@ -569,13 +637,17 @@ export function GuestMapScreen({
     }
     const plotWorkspaceId = routingClientId;
     const plotAuthorizationEpoch = workspaceAuthorizationEpochRef.current;
-    const plotAuthorizationIsCurrent = () => isCurrentWorkspaceAuthorizationEpoch({
-      currentEpoch: workspaceAuthorizationEpochRef.current,
-      currentFresh: workspaceAuthorizationFreshRef.current,
-      currentWorkspaceId: routingClientIdRef.current,
-      requestEpoch: plotAuthorizationEpoch,
-      requestWorkspaceId: plotWorkspaceId,
-    });
+    const plotNetworkRequestEpoch = networkRequestEpochRef.current;
+    const plotAuthorizationIsCurrent = () =>
+      onlineRef.current &&
+      plotNetworkRequestEpoch === networkRequestEpochRef.current &&
+      isCurrentWorkspaceAuthorizationEpoch({
+        currentEpoch: workspaceAuthorizationEpochRef.current,
+        currentFresh: workspaceAuthorizationFreshRef.current,
+        currentWorkspaceId: routingClientIdRef.current,
+        requestEpoch: plotAuthorizationEpoch,
+        requestWorkspaceId: plotWorkspaceId,
+      });
 
     Keyboard.dismiss();
     cancelRoadRouteUpgrade();
@@ -624,6 +696,11 @@ export function GuestMapScreen({
             });
           }
         }
+      } catch {
+        if (!controller.signal.aborted) {
+          setRouteMessage('Route points could not be resolved. Check your connection and try again.');
+        }
+        return;
       } finally {
         if (activeDraftResolutionRef.current === controller) {
           activeDraftResolutionRef.current = null;
@@ -681,7 +758,7 @@ export function GuestMapScreen({
   const upgradeGuestRouteWithRoadPreview = (localRoutePlan: SavedSafeRoutePlan) => {
     const stops = resolveRoadPreviewStops(localRoutePlan);
 
-    if (!stops) {
+    if (!stops || !onlineRef.current) {
       return;
     }
 
@@ -699,14 +776,18 @@ export function GuestMapScreen({
     const authenticatedSnapshot = authenticated;
     const requestAccessToken = routingAccessToken;
     const requestWorkspaceId = routingClientId;
+    const requestNetworkEpoch = networkRequestEpochRef.current;
     const requestAuthorizationEpoch = workspaceAuthorizationEpochRef.current;
-    const requestAuthorizationIsCurrent = () => isCurrentWorkspaceAuthorizationEpoch({
-      currentEpoch: workspaceAuthorizationEpochRef.current,
-      currentFresh: workspaceAuthorizationFreshRef.current,
-      currentWorkspaceId: routingClientIdRef.current,
-      requestEpoch: requestAuthorizationEpoch,
-      requestWorkspaceId,
-    });
+    const requestAuthorizationIsCurrent = () =>
+      onlineRef.current &&
+      requestNetworkEpoch === networkRequestEpochRef.current &&
+      isCurrentWorkspaceAuthorizationEpoch({
+        currentEpoch: workspaceAuthorizationEpochRef.current,
+        currentFresh: workspaceAuthorizationFreshRef.current,
+        currentWorkspaceId: routingClientIdRef.current,
+        requestEpoch: requestAuthorizationEpoch,
+        requestWorkspaceId,
+      });
     let acceptedRoadPreview = false;
     let sessionExpiryHandled = false;
     let workspaceUnavailableHandled = false;
@@ -1022,14 +1103,28 @@ export function GuestMapScreen({
     setMapAction({
       coordinate,
       label: formatCoordinateLabel(coordinate),
-      pending: true
+      pending: online
     });
+    if (!online) {
+      return;
+    }
+    activeMapReverseGeocodeRef.current?.abort();
     const controller = new AbortController();
+    activeMapReverseGeocodeRef.current = controller;
+    const requestNetworkEpoch = networkRequestEpochRef.current;
+    const requestIsCurrent = () =>
+      !controller.signal.aborted &&
+      activeMapReverseGeocodeRef.current === controller &&
+      onlineRef.current &&
+      requestNetworkEpoch === networkRequestEpochRef.current;
     void reverseGeocodeGuestLocation(coordinate, {
       serviceBaseUrl: LUNARCHAIN_API_BASE,
       signal: controller.signal,
       timeoutMs: 7000
     }).then((result) => {
+      if (!requestIsCurrent()) {
+        return;
+      }
       setMapAction((current) => current && coordinatesMatch(current.coordinate, coordinate)
         ? {
             ...current,
@@ -1037,6 +1132,17 @@ export function GuestMapScreen({
             pending: false
           }
         : current);
+    }).catch(() => {
+      if (!requestIsCurrent()) {
+        return;
+      }
+      setMapAction((current) => current && coordinatesMatch(current.coordinate, coordinate)
+        ? { ...current, pending: false }
+        : current);
+    }).finally(() => {
+      if (activeMapReverseGeocodeRef.current === controller) {
+        activeMapReverseGeocodeRef.current = null;
+      }
     });
   };
 
@@ -1092,7 +1198,11 @@ export function GuestMapScreen({
     if (!action || !routingClientId || !routingAccessToken) {
       setMapAction(null);
       setRouteMessage(
-        workspaceAuthorizationRequired
+        !online
+          ? networkChecking
+            ? 'Checking connection before adding a risk area.'
+            : 'Reconnect before adding a risk area.'
+        : workspaceAuthorizationRequired
           ? 'Verify current workspace access before adding a risk area.'
           : 'Your workspace is still loading. Try adding the risk area again.'
       );
@@ -1197,7 +1307,13 @@ export function GuestMapScreen({
         rotateEnabled
         toolbarEnabled={false}
         customMapStyle={SAFE_ROUTE_DARK_MAP_STYLE}
-        mapType={Platform.OS === 'ios' ? 'mutedStandard' : 'standard'}
+        mapType={
+          online
+            ? Platform.OS === 'ios'
+              ? 'mutedStandard'
+              : 'standard'
+            : 'none'
+        }
         userInterfaceStyle="dark"
         onMapReady={() => {
           setMapReady(true);
@@ -1306,7 +1422,22 @@ export function GuestMapScreen({
       >
       <SafeAreaView pointerEvents="box-none" style={styles.overlay}>
         <View style={styles.topBar}>
-          {viewportRisk.loading || viewportRisk.errorMessage ? (
+          {networkChecking || offline ? (
+            <View
+              accessible
+              accessibilityLabel={
+                networkChecking
+                  ? 'Checking connection. Map downloads are paused.'
+                  : 'Offline map. Saved route information remains available.'
+              }
+              accessibilityRole="summary"
+              style={styles.riskLoadStatus}
+            >
+              <Text numberOfLines={1} style={styles.riskLoadStatusText}>
+                {networkChecking ? 'Checking connection…' : 'Offline map'}
+              </Text>
+            </View>
+          ) : viewportRisk.loading || viewportRisk.errorMessage ? (
             <Pressable
               accessibilityLabel={viewportRisk.loading
                 ? 'Risk areas are loading'
@@ -1385,7 +1516,11 @@ export function GuestMapScreen({
               </Pressable>
               <Pressable
                 accessibilityLabel={authenticated
-                  ? workspaceSelectionRequired
+                  ? networkChecking
+                    ? 'Checking connection before adding a risk area'
+                    : offline
+                      ? 'Reconnect before adding a risk area'
+                  : workspaceSelectionRequired
                     ? 'Choose a workspace before adding a risk area'
                     : workspaceAuthorizationRequired
                       ? 'Verify current workspace access before adding a risk area'

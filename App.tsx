@@ -67,7 +67,11 @@ import {
   waitForSessionCleanup
 } from './src/features/api/sessionExpiry';
 import { ApiSessionExpiredError } from './src/features/api/apiClient';
-import { useNetworkAvailability } from './src/features/api/useNetworkAvailability';
+import { resolveNetworkReconnectTransition } from './src/features/api/networkAvailabilityState';
+import {
+  NetworkAvailabilityProvider,
+  useNetworkAvailability,
+} from './src/features/api/useNetworkAvailability';
 import { fetchSavedRoutes } from './src/features/routes/routeApi';
 import {
   clearOfflineRouteWorkspace,
@@ -134,11 +138,31 @@ type PendingNavigationRestore = {
 type NavigationCleanupStatus = 'idle' | 'checking' | 'failed';
 
 export default function App() {
+  return (
+    <NetworkAvailabilityProvider>
+      <SafeRouteApp />
+    </NetworkAvailabilityProvider>
+  );
+}
+
+function SafeRouteApp() {
   useEffect(() => {
     void flushGuidanceContractEvidence();
   }, []);
-  const { offline } = useNetworkAvailability();
+  const {
+    offline,
+    online,
+    status: networkStatus,
+  } = useNetworkAvailability();
+  const networkStatusRef = useRef(networkStatus);
+  const networkRequestEpochRef = useRef(0);
+  if (networkStatusRef.current !== networkStatus) {
+    networkStatusRef.current = networkStatus;
+    networkRequestEpochRef.current += 1;
+  }
   const [session, setSession] = useState<AuthSession | null>(null);
+  const [sessionRestoreNetworkStatus, setSessionRestoreNetworkStatus] =
+    useState<typeof networkStatus | null>(null);
   const [selectedRoute, setSelectedRoute] = useState<SavedSafeRoutePlan | null>(null);
   const [activeNavigationSession, setActiveNavigationSession] =
     useState<ActiveNavigationSession | null>(null);
@@ -156,6 +180,8 @@ export default function App() {
   const [workspaceCatalogRetrying, setWorkspaceCatalogRetrying] = useState(false);
   const [workspaceForegroundAuthorizationPaused, setWorkspaceForegroundAuthorizationPaused] =
     useState(false);
+  const [networkAuthorizationReady, setNetworkAuthorizationReady] =
+    useState(false);
   const [workspaceDiscoveryRevision, setWorkspaceDiscoveryRevision] = useState(0);
   const [pendingNavigationRestore, setPendingNavigationRestore] =
     useState<PendingNavigationRestore | null>(null);
@@ -167,6 +193,7 @@ export default function App() {
   const sessionCleanupRef = useRef<Promise<unknown> | null>(null);
   const sessionEpochRef = useRef(0);
   const sessionExpiryHandledRef = useRef(false);
+  const sessionRestoreStartedRef = useRef(false);
   const activeSessionExpiryHandlerRef =
     useRef<((identity: ActiveSessionExpiryIdentity) => void) | null>(null);
   const activeSessionExpiryMonitorRef =
@@ -188,6 +215,7 @@ export default function App() {
   const workspaceForegroundAuthorizationPausedRef = useRef(false);
   const workspaceForegroundRefreshPendingRef = useRef(false);
   const workspaceWasBackgroundedRef = useRef(AppState.currentState === 'background');
+  const offlineNetworkObservedRef = useRef(networkStatus === 'offline');
   const workspaceAccessAnnouncementPhaseRef =
     useRef<WorkspaceAccessAnnouncementPhase>('idle');
   const workspaceAccessFocusTargetRef = useRef<View | null>(null);
@@ -248,6 +276,8 @@ export default function App() {
     };
   }
   const activeWorkspaceAuthorizationFresh = Boolean(
+    online &&
+    networkAuthorizationReady &&
     activeWorkspace &&
     freshWorkspaceAuthorizationRef.current.workspaceIds.has(activeWorkspace.id) &&
     !workspaceForegroundRefreshPendingRef.current &&
@@ -286,7 +316,7 @@ export default function App() {
       availableWorkspaceCount: availableWorkspaces.length,
       issue: workspaceAccessIssue,
       loading: workspaceCatalogLoading,
-      offline,
+      networkStatus,
       previousPhase: workspaceAccessAnnouncementPhaseRef.current,
       retrying: workspaceCatalogRetrying,
     });
@@ -300,7 +330,7 @@ export default function App() {
     }
   }, [
     availableWorkspaces.length,
-    offline,
+    networkStatus,
     workspaceAccessIssue,
     workspaceAccessRecoveryPending,
     workspaceCatalogLoading,
@@ -311,6 +341,21 @@ export default function App() {
     workspaceAccessFocusHandoffRef.current?.cancel();
   }, []);
 
+  useEffect(() => {
+    if (!online) {
+      setNetworkAuthorizationReady(false);
+    }
+  }, [online]);
+
+  useEffect(() => {
+    if (
+      sessionRestoreNetworkStatus === null &&
+      (networkStatus !== 'checking' || SAFEROUTE_PREVIEW_MODE_ENABLED)
+    ) {
+      setSessionRestoreNetworkStatus(networkStatus);
+    }
+  }, [networkStatus, sessionRestoreNetworkStatus]);
+
   const requestWorkspaceForegroundRevalidation = useCallback(
     (nextAppState: Parameters<typeof resolveWorkspaceForegroundRevalidation>[0]['nextAppState']) => {
       if (
@@ -318,6 +363,15 @@ export default function App() {
         activeSessionExpiryMonitorRef.current?.checkNow()
       ) {
         workspaceWasBackgroundedRef.current = false;
+        return;
+      }
+      if (
+        nextAppState === 'active' &&
+        (
+          AppState.currentState !== 'active' ||
+          networkStatusRef.current !== 'online'
+        )
+      ) {
         return;
       }
       const accessToken = activeSessionTokenRef.current?.trim() || '';
@@ -351,6 +405,10 @@ export default function App() {
       workspaceForegroundAuthorizationPausedRef.current = true;
       setWorkspaceForegroundAuthorizationPaused(true);
       workspaceCatalogBusyRef.current = true;
+      if (pendingNavigationRestoreRef.current) {
+        setPendingNavigationRestoreStatus('checking');
+        setSessionMessage('Restoring your saved route…');
+      }
       restoreUnavailableWorkspacesFromFreshCatalogRef.current = false;
       setWorkspaceCatalogLoading(true);
       setWorkspaceCatalogError('');
@@ -578,6 +636,13 @@ export default function App() {
   };
 
   useEffect(() => {
+    if (
+      sessionRestoreStartedRef.current ||
+      sessionRestoreNetworkStatus === null
+    ) {
+      return;
+    }
+    sessionRestoreStartedRef.current = true;
     let mounted = true;
 
     const enablePreviewSession = () => {
@@ -633,6 +698,7 @@ export default function App() {
       setWorkspaceCatalogLoading(true);
       setWorkspaceCatalogError('');
       setWorkspaceAccessIssue('none');
+      setNetworkAuthorizationReady(false);
       workspaceCatalogRetryingRef.current = false;
       setWorkspaceCatalogRetrying(false);
       setScreen('guest-map');
@@ -679,7 +745,11 @@ export default function App() {
           return;
         }
 
-        const restoreResult = await restoreSavedSession(storedSession, getCurrentUser);
+        const restoreResult = await restoreSavedSession(
+          storedSession,
+          getCurrentUser,
+          { validateOnline: sessionRestoreNetworkStatus === 'online' },
+        );
 
         if (restoreResult.status === 'expired') {
           await clearAuthSession();
@@ -755,7 +825,7 @@ export default function App() {
     return () => {
       mounted = false;
     };
-  }, []);
+  }, [sessionRestoreNetworkStatus]);
 
   const handleAuthenticated = async (nextSession: AuthSession) => {
     workspaceRequestRevisionRef.current += 1;
@@ -946,6 +1016,7 @@ export default function App() {
   useEffect(() => {
     const revision = workspaceRequestRevisionRef.current + 1;
     workspaceRequestRevisionRef.current = revision;
+    const networkRequestEpoch = networkRequestEpochRef.current;
     const catalogRetryWasRequested = workspaceCatalogRetryingRef.current;
     const allowFreshWorkspaceRestoration =
       restoreUnavailableWorkspacesFromFreshCatalogRef.current;
@@ -990,6 +1061,10 @@ export default function App() {
         revision === workspaceRequestRevisionRef.current &&
         activeSessionTokenRef.current === accessToken &&
         activeSessionPrincipalIdRef.current === principalId;
+      const onlineRequestIsCurrent = () =>
+        requestIsCurrent() &&
+        networkStatusRef.current === 'online' &&
+        networkRequestEpoch === networkRequestEpochRef.current;
       const forceExplicitPreviewWorkspaceChoice =
         SAFEROUTE_PREVIEW_MODE_ENABLED &&
         SAFEROUTE_PREVIEW_INITIAL_SCREEN === 'workspace-choice';
@@ -1032,6 +1107,13 @@ export default function App() {
         ),
         unavailableWorkspaceIdsRef.current,
       );
+      if (!online) {
+        setNetworkAuthorizationReady(false);
+        freshWorkspaceAuthorizationRef.current = {
+          principalId,
+          workspaceIds: new Set<string>(),
+        };
+      }
       if (cachedCatalog.length) {
         const pendingNavigation = pendingNavigationRestoreRef.current;
         const cachedWorkspace = resolveActiveWorkspace(
@@ -1046,12 +1128,41 @@ export default function App() {
         setActiveWorkspace(pendingNavigation ? null : cachedWorkspace);
       }
 
+      if (!online) {
+        if (pendingNavigationRestoreRef.current) {
+          setPendingNavigationRestoreStatus(
+            networkStatus === 'checking' ? 'checking' : 'paused',
+          );
+          setSessionMessage(
+            networkStatus === 'checking'
+              ? 'Checking connection before restoring your saved route…'
+              : 'Guidance paused until workspace access can be verified.',
+          );
+        }
+        if (networkStatus === 'checking') {
+          return;
+        }
+        setWorkspaceCatalogError(
+          'Offline. Saved workspace data is available for review only.',
+        );
+        setWorkspaceAccessIssue('verification-unavailable');
+        setWorkspaceCatalogLoading(false);
+        workspaceCatalogBusyRef.current = false;
+        workspaceForegroundRefreshPendingRef.current = false;
+        workspaceCatalogRetryingRef.current = false;
+        setWorkspaceCatalogRetrying(false);
+        return;
+      }
+
       try {
+        if (!onlineRequestIsCurrent()) {
+          return;
+        }
         const pendingNavigationForAuthorization = pendingNavigationRestoreRef.current;
         let currentPrincipalId = principalId;
         if (!isPreviewAccessToken(accessToken)) {
           const currentUser = await getCurrentUser(accessToken);
-          if (!requestIsCurrent()) {
+          if (!onlineRequestIsCurrent()) {
             return;
           }
           currentPrincipalId = String(currentUser.id || '').trim();
@@ -1081,7 +1192,7 @@ export default function App() {
         }
 
         const result = await fetchSavedRoutes(accessToken);
-        if (!requestIsCurrent()) {
+        if (!onlineRequestIsCurrent()) {
           return;
         }
 
@@ -1176,6 +1287,9 @@ export default function App() {
               result.selectedClientId,
             )
           : resolvedWorkspace;
+        if (!onlineRequestIsCurrent()) {
+          return;
+        }
 
         // Publish fresh authorization immediately. If a later cache cleanup or
         // persistence write fails, stale workspace state must not remain usable.
@@ -1252,7 +1366,7 @@ export default function App() {
           pendingNavigationCleanup,
           workspaceRecoveryPersistence,
         ]);
-        if (!requestIsCurrent()) {
+        if (!onlineRequestIsCurrent()) {
           return;
         }
         if (workspaceAccessRestored && recoveryPersistence !== 'persisted') {
@@ -1297,9 +1411,11 @@ export default function App() {
           return;
         }
         if (recoveryPersistence === 'revoked') {
+          setNetworkAuthorizationReady(false);
           setWorkspaceCatalogError('Offline workspace access stays locked until retry.');
           setWorkspaceAccessIssue('offline-safety');
         } else {
+          setNetworkAuthorizationReady(true);
           if (!workspaceWasBackgroundedRef.current) {
             workspaceForegroundAuthorizationPausedRef.current = false;
             setWorkspaceForegroundAuthorizationPaused(false);
@@ -1376,7 +1492,7 @@ export default function App() {
           }
         }
       } catch (error) {
-        if (!requestIsCurrent()) {
+        if (!onlineRequestIsCurrent()) {
           return;
         }
         if (workspaceForegroundRefreshPendingRef.current) {
@@ -1385,6 +1501,7 @@ export default function App() {
             workspaceIds: new Set<string>(),
           };
         }
+        setNetworkAuthorizationReady(false);
         restoreUnavailableWorkspacesFromFreshCatalogRef.current = false;
         if (error instanceof ApiSessionExpiredError) {
           void handleSessionExpired(error.message);
@@ -1416,9 +1533,15 @@ export default function App() {
     };
   }, [authenticated, session?.accessToken, workspaceDiscoveryRevision]);
 
-  const handleRetryWorkspaceCatalog = useCallback(() => {
-    if (workspaceCatalogRetryingRef.current) {
-      return;
+  const beginWorkspaceCatalogRetry = useCallback((replaceInFlight: boolean) => {
+    if (
+      !replaceInFlight &&
+      (
+        workspaceCatalogRetryingRef.current ||
+        workspaceCatalogBusyRef.current
+      )
+    ) {
+      return false;
     }
     workspaceAccessFocusHandoffRef.current?.cancel();
     workspaceCatalogRetryingRef.current = true;
@@ -1429,32 +1552,54 @@ export default function App() {
     restoreUnavailableWorkspacesFromFreshCatalogRef.current = true;
     setWorkspaceCatalogRetrying(true);
     setWorkspaceDiscoveryRevision((revision) => revision + 1);
+    return true;
   }, []);
 
-  const previousOfflineRef = useRef(offline);
-  const reconnectRetryPendingRef = useRef(false);
+  const handleRetryWorkspaceCatalog = useCallback(() => {
+    beginWorkspaceCatalogRetry(false);
+  }, [beginWorkspaceCatalogRetry]);
+
+  const handleNetworkReconnectWorkspaceCatalog = useCallback(() => {
+    beginWorkspaceCatalogRetry(true);
+  }, [beginWorkspaceCatalogRetry]);
+
+  const previousNetworkStatusRef = useRef(networkStatus);
   useEffect(() => {
-    const wasOffline = previousOfflineRef.current;
-    previousOfflineRef.current = offline;
-    if (offline || !pendingNavigationRestore) {
-      reconnectRetryPendingRef.current = false;
-    } else if (wasOffline) {
-      reconnectRetryPendingRef.current = true;
+    const previous = previousNetworkStatusRef.current;
+    previousNetworkStatusRef.current = networkStatus;
+    if (previous === networkStatus) {
+      return;
+    }
+    const reconnect = resolveNetworkReconnectTransition({
+      current: networkStatus,
+      offlineObserved: offlineNetworkObservedRef.current,
+      previous,
+    });
+    offlineNetworkObservedRef.current = reconnect.offlineObserved;
+    if (networkStatus === 'checking') {
+      return;
     }
     if (
-      !offline &&
-      reconnectRetryPendingRef.current &&
-      pendingNavigationRestore?.status === 'paused' &&
-      !workspaceCatalogLoading
+      networkStatus === 'online' &&
+      workspaceWasBackgroundedRef.current &&
+      AppState.currentState === 'active'
     ) {
-      reconnectRetryPendingRef.current = false;
-      handleRetryWorkspaceCatalog();
+      requestWorkspaceForegroundRevalidation('active');
+      return;
     }
+    if (
+      reconnect.retry &&
+      pendingNavigationRestore?.status === 'paused'
+    ) {
+      handleNetworkReconnectWorkspaceCatalog();
+      return;
+    }
+    setWorkspaceDiscoveryRevision((revision) => revision + 1);
   }, [
-    handleRetryWorkspaceCatalog,
-    offline,
+    handleNetworkReconnectWorkspaceCatalog,
+    networkStatus,
     pendingNavigationRestore?.status,
-    workspaceCatalogLoading,
+    requestWorkspaceForegroundRevalidation,
   ]);
 
   const handleActiveWorkspaceChange = useCallback((workspace: SafeRouteWorkspace | null) => {
@@ -1657,6 +1802,11 @@ export default function App() {
     if (!workspaceId) {
       return null;
     }
+    if (networkStatusRef.current !== 'online') {
+      return networkStatusRef.current === 'checking'
+        ? 'SafeRoute is checking the connection. Wait before starting guidance.'
+        : 'Reconnect before starting guidance.';
+    }
     if (
       workspaceForegroundAuthorizationPausedRef.current ||
       workspaceForegroundRefreshPendingRef.current
@@ -1671,11 +1821,14 @@ export default function App() {
       principalId,
       routePlan,
       routePreviewRevision: routePreviewRevisionRef.current,
+      networkRequestEpoch: networkRequestEpochRef.current,
       sessionEpoch: sessionEpochRef.current,
       workspaceAuthorizationEpoch: workspaceForegroundAuthorizationEpochRef.current,
       workspaceId,
     };
     const requestIsCurrent = () =>
+      networkStatusRef.current === 'online' &&
+      request.networkRequestEpoch === networkRequestEpochRef.current &&
       !workspaceForegroundAuthorizationPausedRef.current &&
       !workspaceForegroundRefreshPendingRef.current &&
       request.workspaceAuthorizationEpoch ===
@@ -1739,6 +1892,9 @@ export default function App() {
         knownWorkspaces: availableWorkspacesRef.current,
         unavailableWorkspaceIds: unavailableWorkspaceIdsRef.current,
       });
+      if (!requestIsCurrent()) {
+        return 'The connection changed. Verify workspace access and try again.';
+      }
       if (!findWorkspace(reconciliation.workspaces, workspaceId)) {
         await handleWorkspaceUnavailable(workspaceId, authorization.workspaces);
         return 'This route closed because its workspace is no longer available.';
@@ -2048,6 +2204,7 @@ export default function App() {
             onWorkspaceChange={handleActiveWorkspaceChange}
             workspaceCatalogError={workspaceCatalogError}
             workspaceCatalogLoading={workspaceCatalogBusy}
+            workspaceAuthorizationFresh={activeWorkspaceAuthorizationFresh}
             workspaceAccessRecoveryPending={workspaceAccessRecoveryPending}
             workspaceAccessRefreshAvailable={workspaceAccessRefreshAvailable}
             workspaceAccessIssue={workspaceAccessIssue}
@@ -2070,6 +2227,7 @@ export default function App() {
             onWorkspaceChange={handleActiveWorkspaceChange}
             workspaceCatalogError={workspaceCatalogError}
             workspaceCatalogLoading={workspaceCatalogBusy}
+            workspaceAuthorizationFresh={activeWorkspaceAuthorizationFresh}
             workspaceAccessRecoveryPending={workspaceAccessRecoveryPending}
             workspaceAccessRefreshAvailable={workspaceAccessRefreshAvailable}
             workspaceAccessIssue={workspaceAccessIssue}
@@ -2115,7 +2273,7 @@ export default function App() {
         ) : null}
         {pendingNavigationRestore && screen !== 'login' ? (
           <SuspendedNavigationNotice
-            offline={offline}
+            networkStatus={networkStatus}
             routeName={pendingNavigationRestore.session.routePlan.name}
             status={pendingNavigationRestore.status}
             onEnd={() => {

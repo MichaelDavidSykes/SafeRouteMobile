@@ -15,8 +15,10 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { getUserFacingErrorMessage } from '../api/userFacingErrors';
 import { colors } from '../../theme';
 import { SafeRouteLogo } from '../../brand/SafeRouteLogo';
+import { SAFEROUTE_CONNECTIVITY_CONTRACT_ENABLED } from '../../config/env';
 import { uiTestIds } from '../../testing/uiTestIds';
 import { loginWithPassword, verifyLoginCode } from './authApi';
+import { resolveLoginPasswordAutofillHints } from './loginAutofillHints';
 import { createLoginErrorState } from './loginErrorState';
 import { createLoginHeaderState } from './loginHeaderState';
 import { createLoginNoticeState } from './loginNoticeState';
@@ -34,6 +36,10 @@ import {
   getTwoFactorSubtitle,
   sanitizeLoginCode
 } from './twoFactorChallenge';
+
+const passwordAutofillHints = resolveLoginPasswordAutofillHints(
+  SAFEROUTE_CONNECTIVITY_CONTRACT_ENABLED
+);
 
 interface LoginScreenProps {
   initialChallenge?: TwoFactorChallenge | null;
@@ -271,15 +277,14 @@ export function LoginScreen({
 
               <View style={[styles.inputShell, loading ? styles.inputShellDisabled : null]}>
                 <TextInput
+                  {...passwordAutofillHints}
                   autoCapitalize="none"
-                  autoComplete="current-password"
                   editable={!loading}
                   placeholder="Password"
                   placeholderTextColor={colors.muted}
                   returnKeyType="go"
                   secureTextEntry={!passwordVisible}
                   style={styles.input}
-                  textContentType="password"
                   value={password}
                   testID={uiTestIds.loginPassword}
                   accessibilityLabel="LunarChain password"

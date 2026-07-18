@@ -3,6 +3,8 @@ import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { describe, it } from 'node:test';
 
+import { resolveLoginPasswordAutofillHints } from '../src/features/auth/loginAutofillHints';
+
 const loginSource = readFileSync(
   join(process.cwd(), 'src/features/auth/LoginScreen.tsx'),
   'utf8'
@@ -30,14 +32,24 @@ describe('login autofill hints', () => {
     assert.match(emailInput, /textContentType="username"/);
   });
 
-  it('marks the password field for current-password autofill and keyboard submit', () => {
+  it('marks the password field with environment-aware autofill hints and keyboard submit', () => {
     const passwordInput = textInputBlock('LunarChain password');
 
-    assert.match(passwordInput, /autoComplete="current-password"/);
+    assert.match(passwordInput, /\{\.\.\.passwordAutofillHints\}/);
     assert.match(passwordInput, /returnKeyType="go"/);
     assert.match(passwordInput, /secureTextEntry=\{!passwordVisible\}/);
-    assert.match(passwordInput, /textContentType="password"/);
     assert.match(passwordInput, /onSubmitEditing=\{submitCredentials\}/);
+  });
+
+  it('preserves production autofill while suppressing system credential UI in the exact-source contract', () => {
+    assert.deepEqual(resolveLoginPasswordAutofillHints(false), {
+      autoComplete: 'current-password',
+      textContentType: 'password'
+    });
+    assert.deepEqual(resolveLoginPasswordAutofillHints(true), {
+      autoComplete: 'off',
+      textContentType: 'none'
+    });
   });
 
   it('keeps one-time-code autofill while preserving formatted code paste support', () => {

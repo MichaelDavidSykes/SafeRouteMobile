@@ -43,6 +43,7 @@ export function OfflineCalendarCleanupNotice({
         accessibilityLabel={`Offline Calendar unavailable. ${message}`}
         accessibilityRole="alert"
         style={styles.alertContent}
+        testID={uiTestIds.offlineCalendarCleanupAlert}
       >
         <Text style={styles.title}>Offline Calendar unavailable</Text>
         <ScrollView

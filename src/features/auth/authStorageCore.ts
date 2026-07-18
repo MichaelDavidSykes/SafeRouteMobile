@@ -20,6 +20,11 @@ type SignedOutAuthSessionEnvelope = {
   signedOut: true;
 };
 
+export type StoredAuthSessionContractState =
+  | 'present'
+  | 'signed-out'
+  | 'unknown';
+
 export function createDeviceOnlySecureStoreOptions(
   deviceOnlyAccessibility: unknown
 ): AuthSecureStoreOptions {
@@ -101,4 +106,29 @@ export function parseStoredAuthSession(value: unknown): AuthSession | null {
   } catch {
     return null;
   }
+}
+
+export function classifyStoredAuthSessionForContract(
+  value: unknown
+): StoredAuthSessionContractState {
+  if (parseStoredAuthSession(value)) {
+    return 'present';
+  }
+  try {
+    const parsed = typeof value === 'string' ? JSON.parse(value) : value;
+    if (
+      parsed &&
+      typeof parsed === 'object' &&
+      !Array.isArray(parsed) &&
+      Object.keys(parsed).sort().join('|') === 'schema|signedOut' &&
+      (parsed as Partial<SignedOutAuthSessionEnvelope>).schema ===
+        STORED_AUTH_SESSION_SCHEMA &&
+      (parsed as Partial<SignedOutAuthSessionEnvelope>).signedOut === true
+    ) {
+      return 'signed-out';
+    }
+  } catch {
+    // A redacted contract readback reports only that the envelope is unknown.
+  }
+  return 'unknown';
 }

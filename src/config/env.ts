@@ -11,6 +11,8 @@ const runtimeConfig = resolveSafeRouteRuntimeConfig(extra);
 export const SAFEROUTE_DEMO_DRIVE_ENABLED = runtimeConfig.demoDriveEnabled;
 export const SAFEROUTE_CONNECTIVITY_CONTRACT_ENABLED =
   runtimeConfig.connectivityContractEnabled;
+export const SAFEROUTE_STORAGE_FAULT_CONTRACT_ENABLED =
+  runtimeConfig.storageFaultContractEnabled;
 export const SAFEROUTE_GUIDANCE_CONTRACT_EVIDENCE_ENABLED =
   runtimeConfig.guidanceContractEvidenceEnabled;
 export const SAFEROUTE_PREVIEW_MODE_ENABLED = runtimeConfig.previewModeEnabled;

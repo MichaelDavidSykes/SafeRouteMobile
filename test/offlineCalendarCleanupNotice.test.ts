@@ -29,6 +29,7 @@ describe("offline Calendar cleanup notice", () => {
     assert.match(source, /maxHeight:/);
     assert.match(source, /<ScrollView/);
     assert.match(source, /uiTestIds\.offlineCalendarCleanupNotice/);
+    assert.match(source, /uiTestIds\.offlineCalendarCleanupAlert/);
     assert.match(source, /uiTestIds\.offlineCalendarCleanupRetry/);
     assert.doesNotMatch(source, /principalId|workspaceId|email/);
   });

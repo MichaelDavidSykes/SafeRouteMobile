@@ -104,6 +104,9 @@ const enableGuidanceContractEvidenceOverride = trimmedEnv(
 const enableConnectivityContractOverride = trimmedEnv(
   'SAFEROUTE_ENABLE_CONNECTIVITY_CONTRACT'
 );
+const enableStorageFaultContractOverride = trimmedEnv(
+  'SAFEROUTE_ENABLE_STORAGE_FAULT_CONTRACT'
+);
 const enablePreviewModeOverride = trimmedEnv('SAFEROUTE_ENABLE_PREVIEW_MODE');
 const previewInitialScreenOverride = trimmedEnv('SAFEROUTE_PREVIEW_INITIAL_SCREEN');
 const sourceRevisionOverride = trimmedEnv('SAFEROUTE_SOURCE_REVISION');
@@ -142,6 +145,9 @@ const safeRouteConnectivityContractEnabled =
   enableConnectivityContractOverride?.toLowerCase() === 'true' &&
   Boolean(sourceRevisionOverride) &&
   isLoopbackUrl(safeRouteApiUrl);
+const safeRouteStorageFaultContractEnabled =
+  safeRouteConnectivityContractEnabled &&
+  enableStorageFaultContractOverride?.toLowerCase() === 'true';
 
 if (appEnvironment === 'production') {
   if (!productionApiUrlOverride) {
@@ -227,6 +233,7 @@ module.exports = {
       safeRouteApiUrl,
       safeRouteApiVersion,
       safeRouteConnectivityContractEnabled,
+      safeRouteStorageFaultContractEnabled,
       safeRouteDemoDriveEnabled,
       safeRouteGuidanceContractEvidenceEnabled,
       safeRoutePreviewInitialScreen,

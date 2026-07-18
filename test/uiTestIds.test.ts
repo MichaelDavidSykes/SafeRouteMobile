@@ -57,6 +57,10 @@ describe("UI test identifiers", () => {
       "safe-route-calendar-cleanup",
     );
     assert.equal(
+      uiTestIds.offlineCalendarCleanupAlert,
+      "safe-route-calendar-cleanup-alert",
+    );
+    assert.equal(
       uiTestIds.offlineCalendarCleanupRetry,
       "safe-route-calendar-cleanup-retry",
     );

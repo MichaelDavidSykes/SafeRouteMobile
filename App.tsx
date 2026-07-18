@@ -143,6 +143,7 @@ import {
   recordGuidanceContractEvidence,
 } from './src/testing/guidanceContractEvidence';
 import type { SuspendedNavigationStatus } from './src/features/live-map/suspendedNavigationState';
+import { recordOfflineCalendarCleanupContractEvidence } from './src/testing/offlineCalendarCleanupContractEvidence';
 
 type PendingNavigationRestore = {
   session: ActiveNavigationSession;
@@ -774,6 +775,10 @@ function SafeRouteApp() {
     if (retrySessionEpoch !== sessionEpochRef.current) {
       return;
     }
+    await recordOfflineCalendarCleanupContractEvidence(
+      'cleanup-retry',
+      'clean',
+    );
     setOfflineCalendarCleanupStatus('idle');
     setSessionMessage(
       retrySession
@@ -958,6 +963,10 @@ function SafeRouteApp() {
           );
         }
         if (operationsCleanup.status !== 'clean') {
+          await recordOfflineCalendarCleanupContractEvidence(
+            'startup-terminal-replay',
+            'retry-required',
+          );
           if (mounted) {
             setSession(null);
             setSessionMessage(
@@ -981,6 +990,12 @@ function SafeRouteApp() {
           if (mounted) {
             setOfflineCalendarCleanupStatus(
               signedOutCalendarRemoved ? 'idle' : 'failed',
+            );
+          }
+          if (signedOutCalendarRemoved) {
+            await recordOfflineCalendarCleanupContractEvidence(
+              'signed-out-boot',
+              'clean',
             );
           }
           if (
@@ -1019,6 +1034,12 @@ function SafeRouteApp() {
           setOfflineCalendarCleanupStatus(
             operationsCleanupNeedsRetry ? 'failed' : 'idle',
           );
+          if (operationsCleanupNeedsRetry) {
+            await recordOfflineCalendarCleanupContractEvidence(
+              'inactive-account',
+              'retry-required',
+            );
+          }
           if (
             restoreResult.reason === 'inactive-account' &&
             !enablePreviewSession() &&

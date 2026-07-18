@@ -1,0 +1,22 @@
+appId: host.exp.Exponent
+---
+- runFlow: subflows/ios-open-expo-project.yaml
+- extendedWaitUntil:
+    visible:
+      id: "guest-map-primary-action"
+    timeout: 30000
+- assertNotVisible:
+    id: "guest-map-workspace-selector"
+- assertNotVisible:
+    id: "safe-route-calendar-cleanup"
+- assertNotVisible:
+    id: "safe-route-calendar-cleanup-alert"
+- assertNotVisible:
+    id: "safe-route-calendar-cleanup-retry"
+- assertNotVisible:
+    id: "safe-route-suspended-navigation"
+- assertNotVisible:
+    id: "safe-route-resume-action"
+- assertNotVisible:
+    id: "safe-route-login"
+- takeScreenshot: "connectivity-contract-calendar-auth-final-relaunch"

@@ -12,6 +12,7 @@ type MetroIdentity = {
   projectRoot: string;
   slug: string;
   sourceRevision: string;
+  storageFaultContractEnabled: boolean;
 };
 
 type MetroIdentityModule = {
@@ -30,6 +31,7 @@ const EXPECTED = {
   expectedProjectRoot: '/workspace/SafeRouteMobile',
   expectedSlug: 'saferoute-mobile',
   expectedSourceRevision: REVISION,
+  expectedStorageFaultContractEnabled: false,
 };
 
 const manifest = () => ({
@@ -41,6 +43,7 @@ const manifest = () => ({
         safeRouteDemoDriveEnabled: false,
         safeRoutePreviewModeEnabled: false,
         safeRouteSourceRevision: REVISION.toUpperCase(),
+        safeRouteStorageFaultContractEnabled: false,
       },
       slug: EXPECTED.expectedSlug,
     },
@@ -69,6 +72,7 @@ describe('guidance-contract Metro identity', () => {
       projectRoot: EXPECTED.expectedProjectRoot,
       slug: EXPECTED.expectedSlug,
       sourceRevision: REVISION,
+      storageFaultContractEnabled: false,
     });
   });
 
@@ -82,6 +86,10 @@ describe('guidance-contract Metro identity', () => {
       [{ ...valid, apiUrl: 'https://api.lunarchain.net' }, /API URL mismatch/],
       [{ ...valid, previewModeEnabled: true }, /preview-mode flag mismatch/],
       [{ ...valid, demoDriveEnabled: true }, /demo-drive flag mismatch/],
+      [
+        { ...valid, storageFaultContractEnabled: true },
+        /storage-fault-contract flag mismatch/,
+      ],
     ] as const;
 
     for (const [identity, pattern] of mismatches) {
@@ -94,6 +102,14 @@ describe('guidance-contract Metro identity', () => {
           expectedConnectivityContractEnabled: true,
         }),
       /connectivity-contract flag mismatch/,
+    );
+    assert.throws(
+      () =>
+        assertGuidanceMetroIdentity(valid, {
+          ...EXPECTED,
+          expectedStorageFaultContractEnabled: true,
+        }),
+      /storage-fault-contract flag mismatch/,
     );
   });
 

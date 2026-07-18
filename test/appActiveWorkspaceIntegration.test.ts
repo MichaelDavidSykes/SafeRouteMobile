@@ -728,4 +728,41 @@ describe("App active workspace integration", () => {
       /resolveNetworkReconnectTransition\(\{[\s\S]*current: networkStatus,[\s\S]*offlineObserved:[\s\S]*previous,[\s\S]*pendingNavigationRestore\?\.status === 'paused'[\s\S]*handleNetworkReconnectWorkspaceCatalog\(\)/,
     );
   });
+
+  it("records redacted Calendar cleanup evidence at failure, Retry, and cold absence boundaries", () => {
+    const app = appSource();
+    const evidence = readFileSync(
+      "src/testing/offlineCalendarCleanupContractEvidence.ts",
+      "utf8",
+    );
+
+    assert.match(
+      app,
+      /purgeOfflineOperationsPrincipalAtTerminalBoundary\([\s\S]*operationsCleanupNeedsRetry[\s\S]*recordOfflineCalendarCleanupContractEvidence\([\s\S]*'inactive-account'[\s\S]*'retry-required'/,
+    );
+    assert.match(
+      app,
+      /recoverOfflineOperationsPrincipalCleanup\([\s\S]*operationsCleanup\.status !== 'clean'[\s\S]*recordOfflineCalendarCleanupContractEvidence\([\s\S]*'startup-terminal-replay'[\s\S]*'retry-required'/,
+    );
+    assert.match(
+      app,
+      /handleRetryOfflineCalendarCleanup[\s\S]*ensureSignedOutOfflineOperationsCalendarRemoved\(\)[\s\S]*recordOfflineCalendarCleanupContractEvidence\([\s\S]*'cleanup-retry'[\s\S]*'clean'[\s\S]*setOfflineCalendarCleanupStatus\('idle'\)/,
+    );
+    assert.match(
+      app,
+      /ensureSignedOutOfflineOperationsCalendarRemoved\(\)[\s\S]*signedOutCalendarRemoved[\s\S]*recordOfflineCalendarCleanupContractEvidence\([\s\S]*'signed-out-boot'[\s\S]*'clean'/,
+    );
+    assert.match(
+      evidence,
+      /SAFEROUTE_GUIDANCE_CONTRACT_EVIDENCE_ENABLED[\s\S]*SAFEROUTE_STORAGE_FAULT_CONTRACT_ENABLED/,
+    );
+    assert.match(
+      evidence,
+      /navigationInstanceId: null[\s\S]*routeId: null[\s\S]*unavailableWorkspaceIds: \[\][\s\S]*workspaceId: null/,
+    );
+    assert.doesNotMatch(
+      evidence,
+      /accessToken|authorizationHeader|email/,
+    );
+  });
 });

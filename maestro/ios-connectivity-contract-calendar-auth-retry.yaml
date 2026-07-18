@@ -8,7 +8,7 @@ appId: host.exp.Exponent
     timeout: 15000
 - assertNotVisible:
     id: "safe-route-calendar-cleanup"
-- assertVisible: "Offline Calendar storage restored. Sign in again to resume offline review."
+- assertVisible: "Offline data storage restored. Sign in again to resume offline review."
 - assertVisible:
     id: "guest-map-primary-action"
 - assertNotVisible:

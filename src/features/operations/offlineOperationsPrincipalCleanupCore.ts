@@ -5,7 +5,8 @@ export const OFFLINE_OPERATIONS_PRINCIPAL_CLEANUP_MAX_BYTES = 640;
 
 export type OfflineOperationsPrincipalCleanupPurpose =
   | "fresh-auth"
-  | "terminal";
+  | "terminal"
+  | "terminal-global";
 
 export type OfflineOperationsPrincipalCleanupRecord = {
   pending: true;
@@ -45,7 +46,11 @@ export function createOfflineOperationsPrincipalCleanupRecord(
     normalizeOfflineOperationsPreferenceScopeIdentity(principalIdValue);
   if (
     !principalId ||
-    (purpose !== "fresh-auth" && purpose !== "terminal")
+    (
+      purpose !== "fresh-auth" &&
+      purpose !== "terminal" &&
+      purpose !== "terminal-global"
+    )
   ) {
     return null;
   }
@@ -83,7 +88,11 @@ export function parseOfflineOperationsPrincipalCleanupRecord(
       ]) ||
       value.pending !== true ||
       value.schema !== OFFLINE_OPERATIONS_PRINCIPAL_CLEANUP_SCHEMA ||
-      (value.purpose !== "fresh-auth" && value.purpose !== "terminal")
+      (
+        value.purpose !== "fresh-auth" &&
+        value.purpose !== "terminal" &&
+        value.purpose !== "terminal-global"
+      )
     ) {
       return null;
     }
@@ -123,26 +132,50 @@ export function createOfflineOperationsPrincipalCleanupStorage(
     current: OfflineOperationsPrincipalCleanupPending,
     requested: OfflineOperationsPrincipalCleanupRecord,
   ): OfflineOperationsPrincipalCleanupPending => {
-    if (
-      current.principalId !== requested.principalId &&
-      requested.purpose !== "terminal"
-    ) {
-      throw new Error(
-        "Another Offline Operations principal cleanup is pending",
-      );
+    if (current.purpose === "terminal-global") {
+      if (requested.purpose === "fresh-auth") {
+        throw new Error(
+          "Another Offline Operations principal cleanup is pending",
+        );
+      }
+      return current;
+    }
+    if (current.principalId !== requested.principalId) {
+      if (requested.purpose === "fresh-auth") {
+        throw new Error(
+          "Another Offline Operations principal cleanup is pending",
+        );
+      }
+      if (current.purpose === "terminal") {
+        // Two distinct terminal identities cannot be represented safely by
+        // either exact-principal tombstone alone. Persist the global scope
+        // before any cache is touched so a crash replays the global purge.
+        return {
+          durable: false,
+          principalId: requested.principalId,
+          purpose: "terminal-global",
+        };
+      }
+      // A fresh-auth record protects the single Calendar slot only. A later
+      // terminal boundary for the active principal replaces it so product
+      // caches are revoked for the principal that is actually signing out;
+      // the same terminal clear also revokes the shared Calendar slot.
+      return {
+        durable: false,
+        principalId: requested.principalId,
+        purpose: "terminal",
+      };
     }
     return {
       durable: current.durable,
-      // A terminal request is a global authentication boundary. If it arrives
-      // behind an older Calendar cleanup, retaining the older principal is
-      // sufficient because clearing that single cache key removes either
-      // principal's stored value.
       principalId: current.principalId,
       purpose:
-        current.purpose === "terminal" ||
-        requested.purpose === "terminal"
-          ? "terminal"
-          : "fresh-auth",
+        requested.purpose === "terminal-global"
+          ? "terminal-global"
+          : current.purpose === "terminal" ||
+              requested.purpose === "terminal"
+            ? "terminal"
+            : "fresh-auth",
     };
   };
 
@@ -267,6 +300,15 @@ export function createOfflineOperationsPrincipalCleanupStorage(
       return enqueue(async () => {
         const durableState = await readDurableState(adapter);
         if (durableState.status === "pending") {
+          if (processPending && !processPending.durable) {
+            // A failed promotion write can leave an older durable principal
+            // record behind. The newer process-only scope is authoritative
+            // until it is either durably persisted or conservatively reset.
+            return {
+              pending: processPending,
+              status: "pending",
+            };
+          }
           processPending = durableState.pending;
           return durableState;
         }
@@ -296,17 +338,24 @@ export function createOfflineOperationsPrincipalCleanupStorage(
 export function createOfflineOperationsPrincipalCleanupCoordinator({
   activatePrincipal,
   clearAll,
+  clearAllTerminal,
   clearPrincipal,
+  clearTerminalPrincipal,
   storage,
 }: {
   activatePrincipal: (principalId: string) => Promise<void>;
   clearAll: () => Promise<void>;
+  clearAllTerminal?: () => Promise<void>;
   clearPrincipal: (principalId: string) => Promise<void>;
+  clearTerminalPrincipal?: (principalId: string) => Promise<void>;
   storage: ReturnType<
     typeof createOfflineOperationsPrincipalCleanupStorage
   >;
 }) {
   let pendingOperation = Promise.resolve();
+  const clearEveryTerminalCache = clearAllTerminal || clearAll;
+  const clearTerminalCachesForPrincipal =
+    clearTerminalPrincipal || clearPrincipal;
 
   const enqueue = async (
     operation: () => Promise<OfflineOperationsPrincipalCleanupOutcome>,
@@ -343,14 +392,14 @@ export function createOfflineOperationsPrincipalCleanupCoordinator({
 
     if (state.status === "corrupt") {
       // A malformed record cannot safely disclose whether it represented a
-      // sign-out. Require the terminal callback before repairing the exact
-      // Calendar cache key and journal; preference storage is separate.
+      // sign-out. Require the terminal callback before repairing protected
+      // offline cache data and the journal; preference storage is separate.
       if (!commitTerminalBoundary) {
         return retry(null);
       }
       try {
         await commitTerminalBoundary();
-        await clearAll();
+        await clearEveryTerminalCache();
         await storage.reset();
       } catch {
         return retry(null);
@@ -360,26 +409,43 @@ export function createOfflineOperationsPrincipalCleanupCoordinator({
     const pending =
       state.status === "pending" ? state.pending : null;
     if (pending) {
-      if (pending.purpose === "terminal") {
+      const terminal =
+        pending.purpose === "terminal" ||
+        pending.purpose === "terminal-global";
+      if (terminal) {
         if (!commitTerminalBoundary) {
           return retry(pending.principalId);
         }
-        try {
-          await commitTerminalBoundary();
-        } catch {
-          return retry(pending.principalId);
-        }
       }
-      try {
-        await clearPrincipal(pending.principalId);
-      } catch {
-        return retry(
-          pending.principalId,
-          pending.purpose === "fresh-auth" && pending.durable,
+      const clearPendingCaches = () =>
+        (
+          pending.purpose === "terminal-global"
+            ? clearEveryTerminalCache()
+            : (
+                pending.purpose === "terminal"
+                  ? clearTerminalCachesForPrincipal
+                  : clearPrincipal
+              )(pending.principalId)
         );
-      }
       try {
-        await storage.complete(pending.principalId);
+        if (terminal && !pending.durable) {
+          // A process-only Retry must preserve the same cleanup-before-auth
+          // ordering as the initial nondurable attempt. If cleanup fails
+          // again, process death still leaves the authenticated principal as
+          // the only identity allowed to see its surviving data.
+          await clearPendingCaches();
+          await commitTerminalBoundary?.();
+        } else {
+          if (terminal) {
+            await commitTerminalBoundary?.();
+          }
+          await clearPendingCaches();
+        }
+        if (pending.durable) {
+          await storage.complete(pending.principalId);
+        } else {
+          await storage.reset();
+        }
       } catch {
         return retry(
           pending.principalId,
@@ -486,8 +552,8 @@ export function createOfflineOperationsPrincipalCleanupCoordinator({
           );
         if (!record) {
           try {
+            await clearEveryTerminalCache();
             await commitTerminalBoundary();
-            await clearAll();
             await storage.reset();
           } catch {
             return retry(null);
@@ -501,26 +567,46 @@ export function createOfflineOperationsPrincipalCleanupCoordinator({
 
         let pending: OfflineOperationsPrincipalCleanupPending | null =
           null;
+        let beginFailed = false;
         try {
           pending = await storage.begin(
             record.principalId,
             record.purpose,
           );
         } catch {
-          // A global auth tombstone plus a verified removal of the single
-          // Calendar cache is the conservative fallback when the journal
-          // cannot be inspected or repaired in place.
+          beginFailed = true;
+          // If the journal cannot be inspected or repaired, verified global
+          // cache removal must finish before the auth boundary can commit.
         }
 
-        try {
-          await commitTerminalBoundary();
-        } catch {
-          return retry(pending?.principalId || record.principalId);
+        if (beginFailed) {
+          try {
+            await clearEveryTerminalCache();
+            await commitTerminalBoundary();
+            await storage.reset();
+          } catch {
+            return retry(record.principalId);
+          }
+          return {
+            persistenceSafe: true,
+            principalId: record.principalId,
+            status: "clean",
+          };
         }
 
         if (!pending?.durable) {
           try {
-            await clearAll();
+            if (pending?.purpose === "terminal-global") {
+              await clearEveryTerminalCache();
+            } else {
+              await clearTerminalCachesForPrincipal(
+                pending?.principalId || record.principalId,
+              );
+            }
+            // A nondurable cleanup has no replayable journal after process
+            // death. Remove and verify protected data while authentication is
+            // still valid, then commit sign-out as the final boundary.
+            await commitTerminalBoundary();
             await storage.reset();
           } catch {
             return retry(pending?.principalId || record.principalId);
@@ -533,7 +619,14 @@ export function createOfflineOperationsPrincipalCleanupCoordinator({
         }
 
         try {
-          await clearPrincipal(pending.principalId);
+          await commitTerminalBoundary();
+          if (pending.purpose === "terminal-global") {
+            await clearEveryTerminalCache();
+          } else {
+            await clearTerminalCachesForPrincipal(
+              pending.principalId,
+            );
+          }
           await storage.complete(pending.principalId);
         } catch {
           return retry(pending.principalId);

@@ -5,11 +5,14 @@ import {
 } from "../config/env";
 import { readAuthSessionContractState } from "../features/auth/authStorage";
 import { readOfflineOperationsCalendarContractState } from "../features/operations/offlineOperationsCache";
+import { readOfflineRoutePrincipalContractState } from "../features/routes/offlineRouteCache";
+import { readOfflineWorkspacePrincipalContractState } from "../features/workspaces/offlineWorkspaceCache";
 import { recordGuidanceContractEvidence } from "./guidanceContractEvidence";
 
 const CONTRACT_PRINCIPAL_ID = "66d1b2c3d4e5f60718293d40";
 const CONTRACT_CALENDAR_WORKSPACE_ID = "66a1b2c3d4e5f60718293a40";
 const CONTRACT_PREFERENCE_WORKSPACE_ID = "66a1b2c3d4e5f60718293a41";
+const CONTRACT_ROUTE_ID = "66b1b2c3d4e5f60718293b40";
 const principalChangeEvidence = new Map<string, Promise<boolean>>();
 const workspaceRevocationEvidence = new Map<string, Promise<boolean>>();
 
@@ -67,7 +70,9 @@ export type OfflineCalendarPrincipalChangeContractCause =
   | "principal-change"
   | "principal-change-relaunch"
   | "principal-change-relaunch-revoked"
-  | "principal-change-seed";
+  | "principal-change-seed"
+  | "principal-change-validation-offline-relaunch"
+  | "principal-change-validation-unavailable";
 
 export function recordOfflineCalendarPrincipalChangeContractEvidence(
   cause: OfflineCalendarPrincipalChangeContractCause,
@@ -264,28 +269,50 @@ async function recordWorkspaceSeedEvidence(
 async function recordPrincipalChangeEvidence(
   cause: OfflineCalendarPrincipalChangeContractCause,
 ): Promise<boolean> {
-  const [authSession, calendar] = await Promise.all([
+  const [authSession, calendar, routeCache, workspaceContext] =
+    await Promise.all([
     readAuthSessionContractState(),
     readOfflineOperationsCalendarContractState(
       CONTRACT_PRINCIPAL_ID,
       CONTRACT_CALENDAR_WORKSPACE_ID,
       CONTRACT_PREFERENCE_WORKSPACE_ID,
     ),
+    readOfflineRoutePrincipalContractState(
+      CONTRACT_PRINCIPAL_ID,
+      CONTRACT_ROUTE_ID,
+    ),
+    readOfflineWorkspacePrincipalContractState(
+      CONTRACT_PRINCIPAL_ID,
+      {
+        activeWorkspaceId: CONTRACT_CALENDAR_WORKSPACE_ID,
+        workspaceIds: [
+          CONTRACT_CALENDAR_WORKSPACE_ID,
+          CONTRACT_PREFERENCE_WORKSPACE_ID,
+        ],
+      },
+    ),
   ]);
   const seed = cause === "principal-change-seed";
+  const quarantined =
+    cause === "principal-change-validation-unavailable" ||
+    cause === "principal-change-validation-offline-relaunch";
   const finalRelaunch = cause === "principal-change-relaunch";
   if (
-    seed
+    seed || quarantined
       ? authSession !== "present" ||
         calendar.cleanup !== "absent" ||
         calendar.payload !== "present" ||
         calendar.preference !== "disabled" ||
-        calendar.slot !== "payload"
+        calendar.slot !== "payload" ||
+        routeCache !== "present" ||
+        workspaceContext !== "persisted"
       : authSession !== "signed-out" ||
         calendar.cleanup !== "absent" ||
         calendar.payload !== "absent" ||
         calendar.preference !== "disabled" ||
-        calendar.slot !== (finalRelaunch ? "empty" : "principal-revoked")
+        calendar.slot !== (finalRelaunch ? "empty" : "principal-revoked") ||
+        routeCache !== "purged" ||
+        workspaceContext !== "revoked"
   ) {
     return false;
   }
@@ -293,7 +320,13 @@ async function recordPrincipalChangeEvidence(
     authorization: {
       catalog: seed ? "fresh-authorized" : "not-checked",
       principal:
-        cause === "principal-change" ? "mismatched" : seed ? "matching" : "none",
+        cause === "principal-change"
+          ? "mismatched"
+          : seed
+            ? "matching"
+            : quarantined
+              ? "unknown"
+            : "none",
     },
     cause,
     durability: {
@@ -302,10 +335,12 @@ async function recordPrincipalChangeEvidence(
       offlineCalendarPayload: calendar.payload,
       offlineCalendarPreference: calendar.preference,
       offlineCalendarSlot: calendar.slot,
+      routeCache,
+      workspaceContext,
     },
     navigationInstanceId: null,
-    outcome: seed ? "seeded" : "clean",
-    routeId: null,
+    outcome: seed ? "seeded" : quarantined ? "quarantined" : "clean",
+    routeId: CONTRACT_ROUTE_ID,
     type: "offline.calendar.principal-lifecycle",
     unavailableWorkspaceIds: [],
     workspaceId: CONTRACT_CALENDAR_WORKSPACE_ID,

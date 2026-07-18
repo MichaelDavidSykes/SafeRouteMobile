@@ -254,6 +254,58 @@ export type SerializedWorkspaceRecoveryExecutor = <Result>(
   operation: () => Promise<Result>,
 ) => Promise<Result>;
 
+export function createSerializedWorkspaceMutationCoordinator() {
+  const pendingScopedMutations = new Map<string, Promise<unknown>>();
+  let pendingGlobalMutation: Promise<unknown> = Promise.resolve();
+
+  const enqueueScoped = async <Result>(
+    key: string,
+    operation: () => Promise<Result>,
+  ): Promise<Result> => {
+    const previousScopedMutation =
+      pendingScopedMutations.get(key) || Promise.resolve();
+    const currentMutation = Promise.all([
+      previousScopedMutation.catch(() => undefined),
+      pendingGlobalMutation.catch(() => undefined),
+    ]).then(operation);
+    pendingScopedMutations.set(key, currentMutation);
+
+    try {
+      return await currentMutation;
+    } finally {
+      if (pendingScopedMutations.get(key) === currentMutation) {
+        pendingScopedMutations.delete(key);
+      }
+    }
+  };
+
+  return {
+    enqueueGlobal: async <Result>(
+      operation: () => Promise<Result>,
+    ): Promise<Result> => {
+      const currentMutation = Promise.all([
+        pendingGlobalMutation.catch(() => undefined),
+        ...Array.from(
+          pendingScopedMutations.values(),
+          (pending) => pending.catch(() => undefined),
+        ),
+      ]).then(operation);
+      pendingGlobalMutation = currentMutation.then(
+        () => undefined,
+        () => undefined,
+      );
+      return currentMutation;
+    },
+    enqueueScoped,
+    waitForScoped: async (key: string): Promise<void> => {
+      await Promise.all([
+        pendingGlobalMutation.catch(() => undefined),
+        pendingScopedMutations.get(key)?.catch(() => undefined),
+      ]);
+    },
+  };
+}
+
 export function createSerializedWorkspaceRecoveryExecutor(): SerializedWorkspaceRecoveryExecutor {
   const pendingRecoveries = new Map<string, Promise<unknown>>();
 
@@ -324,6 +376,67 @@ export function createWorkspaceRecoveryRevocationRecord(
     principalId: normalizePrincipalId(principalIdValue),
     unavailableWorkspaceIds: normalizeWorkspaceIds(unavailableWorkspaceIds),
   });
+}
+
+export function createTerminalWorkspacePrincipalRevocationRecord(
+  principalIdValue: string,
+): string {
+  return JSON.stringify({
+    kind: "terminal",
+    principalId: normalizePrincipalId(principalIdValue),
+    schema: 1,
+  });
+}
+
+export function isTerminalWorkspacePrincipalRevocationRecord(
+  raw: string,
+  principalIdValue: string,
+): boolean {
+  const principalId = normalizePrincipalId(principalIdValue);
+  try {
+    const record = JSON.parse(raw) as {
+      kind?: unknown;
+      principalId?: unknown;
+      schema?: unknown;
+    };
+    return (
+      Object.keys(record).sort().join(",") ===
+        "kind,principalId,schema" &&
+      record.kind === "terminal" &&
+      record.schema === 1 &&
+      normalizePrincipalId(record.principalId) === principalId &&
+      Boolean(principalId)
+    );
+  } catch {
+    return false;
+  }
+}
+
+export async function persistTerminalWorkspacePrincipalRevocation({
+  marker,
+  persistMarker,
+  readContext,
+  readMarker,
+  removeContext,
+}: {
+  marker: string;
+  persistMarker: (marker: string) => Promise<void>;
+  readContext: () => Promise<string | null>;
+  readMarker: () => Promise<string | null>;
+  removeContext: () => Promise<void>;
+}): Promise<void> {
+  await persistMarker(marker);
+  if ((await readMarker()) !== marker) {
+    throw new Error(
+      "Workspace principal revocation could not be verified",
+    );
+  }
+  await removeContext();
+  if ((await readContext()) !== null) {
+    throw new Error(
+      "Workspace principal context remained after revocation",
+    );
+  }
 }
 
 export function parseWorkspaceRecoveryRevocationRecord(

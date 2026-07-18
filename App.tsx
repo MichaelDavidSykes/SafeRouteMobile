@@ -803,8 +803,8 @@ function SafeRouteApp() {
     setOfflineCalendarCleanupStatus('idle');
     setSessionMessage(
       retrySession
-        ? 'Offline Calendar storage restored for this session. Fresh sync can resume.'
-        : 'Offline Calendar storage restored. Sign in again to resume offline review.',
+        ? 'Offline data storage restored for this session. Fresh sync can resume.'
+        : 'Offline data storage restored. Sign in again to resume offline review.',
     );
   };
 
@@ -1031,10 +1031,10 @@ function SafeRouteApp() {
           }
           setSession(null);
           setSessionMessage(
-            'Secure offline Calendar storage needs retry before account access can be restored.',
+            'Secure offline data cleanup needs retry before account access can be restored.',
           );
           setAuthPrompt(
-            'Retry offline Calendar storage before signing in.',
+            'Retry offline data cleanup before signing in.',
           );
           setScreen('guest-map');
           return;
@@ -1150,6 +1150,14 @@ function SafeRouteApp() {
           setSessionMessage(restoreResult.message);
           setAuthPrompt(restoreResult.message);
           setScreen('login');
+          await recordOfflineCalendarPrincipalChangeContractEvidence(
+            restoreNetworkStatus === 'offline'
+              ? 'principal-change-validation-offline-relaunch'
+              : 'principal-change-validation-unavailable',
+          );
+          if (!restoreIsCurrent()) {
+            return;
+          }
           return;
         }
 

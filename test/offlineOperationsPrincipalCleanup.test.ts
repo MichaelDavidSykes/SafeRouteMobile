@@ -9,7 +9,6 @@ import {
   parseOfflineOperationsPrincipalCleanupRecord,
   type OfflineOperationsPrincipalCleanupAdapter,
 } from "../src/features/operations/offlineOperationsPrincipalCleanupCore";
-import { createOfflineOperationsStorage } from "../src/features/operations/offlineOperationsStorageCore";
 import { requireCurrentSessionRestoreAttempt } from "../src/features/auth/sessionRestoreAttempt";
 
 function memoryStore(initialValue: string | null = null) {
@@ -71,18 +70,24 @@ function deferred(): {
 function coordinator({
   activatePrincipal = async () => undefined,
   clearAll = async () => undefined,
+  clearAllTerminal,
   clearPrincipal = async () => undefined,
+  clearTerminalPrincipal,
   memory,
 }: {
   activatePrincipal?: (principalId: string) => Promise<void>;
   clearAll?: () => Promise<void>;
+  clearAllTerminal?: () => Promise<void>;
   clearPrincipal?: (principalId: string) => Promise<void>;
+  clearTerminalPrincipal?: (principalId: string) => Promise<void>;
   memory: ReturnType<typeof memoryStore>;
 }) {
   return createOfflineOperationsPrincipalCleanupCoordinator({
     activatePrincipal,
     clearAll,
+    clearAllTerminal,
     clearPrincipal,
+    clearTerminalPrincipal,
     storage: createOfflineOperationsPrincipalCleanupStorage(
       memory.adapter,
     ),
@@ -114,6 +119,15 @@ describe("offline Operations principal cleanup", () => {
         JSON.stringify({ ...record, purpose: "unknown" }),
       ),
       null,
+    );
+    assert.deepEqual(
+      parseOfflineOperationsPrincipalCleanupRecord(
+        JSON.stringify({
+          ...record,
+          purpose: "terminal-global",
+        }),
+      )?.purpose,
+      "terminal-global",
     );
     assert.equal(
       createOfflineOperationsPrincipalCleanupRecord(
@@ -165,16 +179,16 @@ describe("offline Operations principal cleanup", () => {
       await relaunched.begin("principal-b", "terminal"),
       {
         durable: true,
-        principalId: "principal-a",
+        principalId: "principal-b",
         purpose: "terminal",
       },
     );
     assert.match(memory.value || "", /"purpose":"terminal"/);
     await assert.rejects(
-      () => relaunched.begin("principal-b", "fresh-auth"),
+      () => relaunched.begin("principal-a", "fresh-auth"),
       /Another Offline Operations principal cleanup is pending/,
     );
-    await relaunched.complete("principal-a");
+    await relaunched.complete("principal-b");
     assert.equal(memory.value, null);
   });
 
@@ -216,6 +230,98 @@ describe("offline Operations principal cleanup", () => {
       },
     );
     assert.deepEqual(events, ["auth", "calendar:principal-a"]);
+    assert.equal(memory.value, null);
+  });
+
+  it("uses the composite protected-cache purge only for terminal cleanup", async () => {
+    const freshMemory = memoryStore();
+    const freshEvents: string[] = [];
+    const freshCleanup = coordinator({
+      clearPrincipal: async (principalId) => {
+        freshEvents.push(`calendar:${principalId}`);
+      },
+      clearTerminalPrincipal: async (principalId) => {
+        freshEvents.push(`protected:${principalId}`);
+      },
+      memory: freshMemory,
+    });
+    assert.equal(
+      (
+        await freshCleanup.prepareFreshAuthentication(
+          "principal-a",
+        )
+      ).status,
+      "clean",
+    );
+    assert.deepEqual(freshEvents, ["calendar:principal-a"]);
+
+    const terminalMemory = memoryStore();
+    const terminalEvents: string[] = [];
+    const terminalCleanup = coordinator({
+      clearPrincipal: async (principalId) => {
+        terminalEvents.push(`calendar:${principalId}`);
+      },
+      clearTerminalPrincipal: async (principalId) => {
+        terminalEvents.push(`protected:${principalId}`);
+      },
+      memory: terminalMemory,
+    });
+    assert.equal(
+      (
+        await terminalCleanup.purgeTerminal(
+          "principal-a",
+          async () => {
+            terminalEvents.push("auth");
+          },
+        )
+      ).status,
+      "clean",
+    );
+    assert.deepEqual(terminalEvents, [
+      "auth",
+      "protected:principal-a",
+    ]);
+  });
+
+  it("retains the terminal journal until every protected principal cache is removed", async () => {
+    const memory = memoryStore();
+    let routeStorageFails = true;
+    const first = coordinator({
+      clearTerminalPrincipal: async () => {
+        if (routeStorageFails) {
+          throw new Error("route storage unavailable");
+        }
+      },
+      memory,
+    });
+
+    assert.deepEqual(
+      await first.purgeTerminal(
+        "principal-a",
+        async () => undefined,
+      ),
+      {
+        persistenceSafe: false,
+        principalId: "principal-a",
+        status: "retry",
+      },
+    );
+    assert.match(memory.value || "", /"purpose":"terminal"/);
+
+    routeStorageFails = false;
+    const relaunched = coordinator({
+      clearTerminalPrincipal: async () => undefined,
+      memory,
+    });
+    assert.equal(
+      (
+        await relaunched.recover(
+          null,
+          async () => undefined,
+        )
+      ).status,
+      "clean",
+    );
     assert.equal(memory.value, null);
   });
 
@@ -278,8 +384,14 @@ describe("offline Operations principal cleanup", () => {
     calendarFails = false;
     const events: string[] = [];
     const next = coordinator({
+      clearAllTerminal: async () => {
+        events.push("protected:all");
+      },
       clearPrincipal: async (principalId) => {
         events.push(`calendar:${principalId}`);
+      },
+      clearTerminalPrincipal: async (principalId) => {
+        events.push(`protected:${principalId}`);
       },
       memory,
     });
@@ -289,11 +401,132 @@ describe("offline Operations principal cleanup", () => {
       }),
       {
         persistenceSafe: true,
-        principalId: "principal-a",
+        principalId: "principal-b",
         status: "clean",
       },
     );
-    assert.deepEqual(events, ["auth", "calendar:principal-a"]);
+    assert.deepEqual(events, ["auth", "protected:principal-b"]);
+    assert.equal(memory.value, null);
+  });
+
+  it("durably replays the global fallback when two different terminal principals are pending", async () => {
+    const memory = memoryStore();
+    const storage = createOfflineOperationsPrincipalCleanupStorage(
+      memory.adapter,
+    );
+    await storage.begin("principal-a", "terminal");
+    const events: string[] = [];
+    let globalCleanupFails = true;
+    const first = coordinator({
+      clearAllTerminal: async () => {
+        events.push("protected:all");
+        if (globalCleanupFails) {
+          throw new Error("route global purge interrupted");
+        }
+      },
+      clearTerminalPrincipal: async (principalId) => {
+        events.push(`protected:${principalId}`);
+      },
+      memory,
+    });
+
+    assert.deepEqual(
+      await first.purgeTerminal("principal-b", async () => {
+        events.push("auth");
+      }),
+      {
+        persistenceSafe: false,
+        principalId: "principal-b",
+        status: "retry",
+      },
+    );
+    assert.deepEqual(events, ["auth", "protected:all"]);
+    assert.match(memory.value || "", /"purpose":"terminal-global"/);
+
+    globalCleanupFails = false;
+    const relaunched = coordinator({
+      clearAllTerminal: async () => {
+        events.push("protected:all:relaunch");
+      },
+      clearTerminalPrincipal: async (principalId) => {
+        events.push(`protected:${principalId}:relaunch`);
+      },
+      memory,
+    });
+    assert.deepEqual(
+      await relaunched.recover(null, async () => {
+        events.push("auth:relaunch");
+      }),
+      {
+        persistenceSafe: true,
+        principalId: "principal-b",
+        status: "clean",
+      },
+    );
+    assert.deepEqual(events, [
+      "auth",
+      "protected:all",
+      "auth:relaunch",
+      "protected:all:relaunch",
+    ]);
+    assert.equal(memory.value, null);
+  });
+
+  it("keeps a failed global promotion authoritative for same-process Retry", async () => {
+    const memory = memoryStore();
+    const storage = createOfflineOperationsPrincipalCleanupStorage(
+      memory.adapter,
+    );
+    await storage.begin("principal-a", "terminal");
+    memory.setFailSet(true);
+    let globalCleanupFails = true;
+    const events: string[] = [];
+    const cleanup = coordinator({
+      clearAllTerminal: async () => {
+        events.push("protected:all");
+        if (globalCleanupFails) {
+          throw new Error("global purge interrupted");
+        }
+      },
+      clearTerminalPrincipal: async (principalId) => {
+        events.push(`protected:${principalId}`);
+      },
+      memory,
+    });
+
+    assert.deepEqual(
+      await cleanup.purgeTerminal("principal-b", async () => {
+        events.push("auth");
+      }),
+      {
+        persistenceSafe: false,
+        principalId: "principal-b",
+        status: "retry",
+      },
+    );
+    assert.deepEqual(events, ["protected:all"]);
+    assert.match(memory.value || "", /"principalId":"principal-a"/);
+    assert.doesNotMatch(
+      memory.value || "",
+      /"purpose":"terminal-global"/,
+    );
+
+    globalCleanupFails = false;
+    assert.deepEqual(
+      await cleanup.recover(null, async () => {
+        events.push("auth:retry");
+      }),
+      {
+        persistenceSafe: true,
+        principalId: "principal-b",
+        status: "clean",
+      },
+    );
+    assert.deepEqual(events, [
+      "protected:all",
+      "protected:all",
+      "auth:retry",
+    ]);
     assert.equal(memory.value, null);
   });
 
@@ -327,7 +560,7 @@ describe("offline Operations principal cleanup", () => {
     );
   });
 
-  it("uses a verified global Calendar removal when terminal intent is not durable", async () => {
+  it("uses the exact-principal terminal purge when journal intent is not durable", async () => {
     const memory = memoryStore();
     memory.setFailSet(true);
     const events: string[] = [];
@@ -337,6 +570,9 @@ describe("offline Operations principal cleanup", () => {
       },
       clearPrincipal: async () => {
         events.push("calendar:principal");
+      },
+      clearTerminalPrincipal: async (principalId) => {
+        events.push(`protected:${principalId}`);
       },
       memory,
     });
@@ -351,7 +587,7 @@ describe("offline Operations principal cleanup", () => {
         status: "clean",
       },
     );
-    assert.deepEqual(events, ["auth", "calendar:all"]);
+    assert.deepEqual(events, ["protected:principal-a", "auth"]);
     assert.equal(memory.value, null);
   });
 
@@ -375,26 +611,30 @@ describe("offline Operations principal cleanup", () => {
         status: "clean",
       },
     );
-    assert.deepEqual(events, ["auth", "calendar:all"]);
+    assert.deepEqual(events, ["calendar:all", "auth"]);
   });
 
-  it("uses the durable signed-out state to retry a lost nondurable cleanup on the next boot", async () => {
+  it("does not commit a nondurable terminal boundary until exact cleanup survives a relaunch", async () => {
     const journal = memoryStore();
     journal.setFailSet(true);
-    const calendar = memoryStore("sensitive-calendar-bytes");
-    calendar.setFailRemove(true);
-    const calendarStorage = createOfflineOperationsStorage(
-      calendar.adapter,
-    );
+    let exactCleanupFails = true;
+    const events: string[] = [];
     const first = coordinator({
-      clearAll: calendarStorage.clearAll,
+      clearTerminalPrincipal: async () => {
+        events.push("protected:first");
+        if (exactCleanupFails) {
+          throw new Error("protected cache unavailable");
+        }
+      },
       memory: journal,
     });
 
     assert.deepEqual(
       await first.purgeTerminal(
         "principal-a",
-        async () => undefined,
+        async () => {
+          events.push("auth:first");
+        },
       ),
       {
         persistenceSafe: false,
@@ -402,16 +642,51 @@ describe("offline Operations principal cleanup", () => {
         status: "retry",
       },
     );
-    assert.equal(calendar.value, "sensitive-calendar-bytes");
     assert.equal(journal.value, null);
+    assert.deepEqual(events, ["protected:first"]);
 
-    // A new process cannot recover a process-only journal. App therefore uses
-    // the durable signed-out auth result as a second cleanup invariant.
-    const relaunched = coordinator({ memory: journal });
-    assert.equal((await relaunched.recover()).status, "clean");
-    calendar.setFailRemove(false);
-    await calendarStorage.clearAll();
-    assert.equal(calendar.value, null);
+    assert.deepEqual(
+      await first.recover(null, async () => {
+        events.push("auth:retry");
+      }),
+      {
+        persistenceSafe: false,
+        principalId: "principal-a",
+        status: "retry",
+      },
+    );
+    assert.deepEqual(events, [
+      "protected:first",
+      "protected:first",
+    ]);
+
+    // Model a process death after the nondurable marker failure. Because the
+    // auth boundary never committed, the surviving principal data was never
+    // exposed to a signed-out or different-principal session.
+    journal.setFailSet(false);
+    exactCleanupFails = false;
+    const relaunched = coordinator({
+      clearTerminalPrincipal: async () => {
+        events.push("protected:relaunch");
+      },
+      memory: journal,
+    });
+    assert.deepEqual(
+      await relaunched.purgeTerminal("principal-a", async () => {
+        events.push("auth:relaunch");
+      }),
+      {
+        persistenceSafe: true,
+        principalId: "principal-a",
+        status: "clean",
+      },
+    );
+    assert.deepEqual(events, [
+      "protected:first",
+      "protected:first",
+      "auth:relaunch",
+      "protected:relaunch",
+    ]);
   });
 
   it("repairs malformed and oversized journals only with a terminal callback", async () => {

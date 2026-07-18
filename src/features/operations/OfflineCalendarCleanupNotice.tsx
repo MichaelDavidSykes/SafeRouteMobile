@@ -21,8 +21,8 @@ export function OfflineCalendarCleanupNotice({
   const insets = useSafeAreaInsets();
   const { height } = useWindowDimensions();
   const message = checking
-    ? "Securing saved Calendar data before offline review can continue."
-    : "SafeRoute could not finish device storage protection. Retry before offline Calendar can be used.";
+    ? "Protecting saved offline data before review can continue."
+    : "SafeRoute could not finish protecting saved offline data. Retry before offline review can continue.";
 
   return (
     <View
@@ -40,12 +40,12 @@ export function OfflineCalendarCleanupNotice({
     >
       <View
         accessible
-        accessibilityLabel={`Offline Calendar unavailable. ${message}`}
+        accessibilityLabel={`Offline data unavailable. ${message}`}
         accessibilityRole="alert"
         style={styles.alertContent}
         testID={uiTestIds.offlineCalendarCleanupAlert}
       >
-        <Text style={styles.title}>Offline Calendar unavailable</Text>
+        <Text style={styles.title}>Offline data unavailable</Text>
         <ScrollView
           contentContainerStyle={styles.messageContent}
           style={styles.messageScroll}
@@ -56,8 +56,8 @@ export function OfflineCalendarCleanupNotice({
       <Pressable
         accessibilityLabel={
           checking
-            ? "Securing offline Calendar storage"
-            : "Retry offline Calendar storage"
+            ? "Protecting saved offline data"
+            : "Retry offline data cleanup"
         }
         accessibilityRole="button"
         accessibilityState={{ busy: checking, disabled: checking }}

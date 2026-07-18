@@ -9,11 +9,12 @@ describe("offline Calendar cleanup notice", () => {
   );
 
   it("offers an honest accessible retry without exposing account identity", () => {
-    assert.match(source, /Offline Calendar unavailable/);
+    assert.match(source, /Offline data unavailable/);
     assert.match(
       source,
-      /could not finish device storage protection[\s\S]*Retry before offline Calendar can be used/,
+      /could not finish protecting saved offline data[\s\S]*Retry before offline review can continue/,
     );
+    assert.match(source, /Retry offline data cleanup/);
     assert.match(source, /accessibilityRole="alert"/);
     assert.match(source, /accessibilityRole="button"/);
     assert.match(

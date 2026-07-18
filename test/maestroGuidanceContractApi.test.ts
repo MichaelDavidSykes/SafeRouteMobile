@@ -35,6 +35,7 @@ import {
   assertOfflineCalendarAuthStorageFaultRequests,
   assertOfflineCalendarPrincipalChangeEvidence,
   assertOfflineCalendarPrincipalChangeTraffic,
+  assertOfflineCalendarProtectedCacheSeedTraffic,
   assertOfflineCalendarWorkspaceDenialTraffic,
   assertOfflineCalendarWorkspaceRevocationEvidence,
   createGuidanceContractAccessToken,
@@ -826,10 +827,147 @@ describe('Maestro guidance contract API', () => {
     );
   });
 
+  it('requires an exact authorized protected-cache seed request multiset', () => {
+    const seedPhase = CONNECTIVITY_CONTRACT_PHASES.seed;
+    const guidanceWorkspaceId = GUIDANCE_CONTRACT_WORKSPACES.denied.id;
+    const supportWorkspaceId = GUIDANCE_CONTRACT_WORKSPACES.survivor.id;
+    const request = (
+      requestId: string,
+      sequence: number,
+      method: string,
+      path: string,
+      search = '',
+      authenticated = true,
+    ) => ({
+      authorizationClass: authenticated ? 'expected-bearer' : 'none',
+      authorized: authenticated,
+      event: 'request',
+      method,
+      path,
+      phase: seedPhase,
+      requestId,
+      search,
+      sequence,
+    });
+    const completion = (
+      original: ReturnType<typeof request>,
+      sequence: number,
+      semanticOutcome: string,
+    ) => ({
+      ...original,
+      completed: true,
+      event: 'completion',
+      semanticOutcome,
+      sequence,
+      statusCode: 200,
+    });
+    const login = request(
+      'seed-login',
+      1,
+      'POST',
+      '/api/v1/auth/mobile-login',
+      '',
+      false,
+    );
+    const principal = request(
+      'seed-principal',
+      2,
+      'GET',
+      '/api/v1/users/me',
+    );
+    const catalog = request(
+      'seed-catalog',
+      3,
+      'GET',
+      '/api/v1/mobile/safe-route/routes',
+    );
+    const routeList = request(
+      'seed-route-list',
+      4,
+      'GET',
+      '/api/v1/mobile/safe-route/routes',
+      `?client_id=${guidanceWorkspaceId}`,
+    );
+    const routeDetail = request(
+      'seed-route-detail',
+      6,
+      'GET',
+      `/api/v1/mobile/safe-route/routes/${GUIDANCE_CONTRACT_ROUTE_IDS.denied}`,
+    );
+    const guidanceOperationsFirst = request(
+      'seed-guidance-operations-first',
+      8,
+      'GET',
+      `/api/v1/mobile/safe-route/operations/client/${guidanceWorkspaceId}`,
+    );
+    const supportOperations = request(
+      'seed-support-operations',
+      10,
+      'GET',
+      `/api/v1/mobile/safe-route/operations/client/${supportWorkspaceId}`,
+    );
+    const guidanceOperationsLast = request(
+      'seed-guidance-operations-last',
+      12,
+      'GET',
+      `/api/v1/mobile/safe-route/operations/client/${guidanceWorkspaceId}`,
+    );
+    const entries = [
+      login,
+      principal,
+      catalog,
+      routeList,
+      completion(routeList, 5, 'catalog-active'),
+      routeDetail,
+      completion(routeDetail, 7, 'route-detail-active'),
+      guidanceOperationsFirst,
+      completion(guidanceOperationsFirst, 9, 'operations-active'),
+      supportOperations,
+      completion(supportOperations, 11, 'operations-active'),
+      guidanceOperationsLast,
+      completion(guidanceOperationsLast, 13, 'operations-active'),
+    ];
+
+    assert.doesNotThrow(() =>
+      assertOfflineCalendarProtectedCacheSeedTraffic(entries),
+    );
+    assert.throws(
+      () =>
+        assertOfflineCalendarProtectedCacheSeedTraffic([
+          ...entries,
+          request(
+            'seed-unexpected',
+            14,
+            'GET',
+            '/api/v1/mobile/safe-route/routes/66b1b2c3d4e5f60718293b41',
+          ),
+        ]),
+      /protected-cache seed traffic was not the exact authorized/,
+    );
+    assert.throws(
+      () =>
+        assertOfflineCalendarProtectedCacheSeedTraffic(
+          entries.map((entry) =>
+            entry.requestId === 'seed-route-list' &&
+            entry.event === 'request'
+              ? {
+                  ...entry,
+                  authorizationClass: 'none',
+                  authorized: false,
+                }
+              : entry,
+          ),
+        ),
+      /protected-cache seed traffic was not the exact authorized/,
+    );
+  });
+
   it('correlates a saved-principal change with terminal Calendar revocation and cold absence', () => {
     const sourceRevision = '7'.repeat(40);
     const validationPhase =
       OFFLINE_CALENDAR_PRINCIPAL_CONTRACT_PHASES.validationUnavailable;
+    const validationOfflineRelaunchPhase =
+      OFFLINE_CALENDAR_PRINCIPAL_CONTRACT_PHASES.validationOfflineRelaunch;
     const changePhase = OFFLINE_CALENDAR_PRINCIPAL_CONTRACT_PHASES.change;
     const relaunchPhase = OFFLINE_CALENDAR_PRINCIPAL_CONTRACT_PHASES.relaunch;
     const validationRequest = {
@@ -879,37 +1017,71 @@ describe('Maestro guidance contract API', () => {
       cause: string,
       appLaunchId: string,
       sequence: number,
+      receivedAtMs: number,
     ) => ({
       appLaunchId,
       authorization: {
         catalog: cause === 'principal-change-seed'
           ? 'fresh-authorized'
           : 'not-checked',
-        principal: cause === 'principal-change-seed'
+        principal:
+          cause === 'principal-change-seed'
           ? 'matching'
+          : cause === 'principal-change-validation-unavailable' ||
+              cause === 'principal-change-validation-offline-relaunch'
+            ? 'unknown'
           : cause === 'principal-change'
             ? 'mismatched'
             : 'none',
       },
       cause,
       durability: {
-        authSession: cause === 'principal-change-seed' ? 'present' : 'signed-out',
+        authSession:
+          cause === 'principal-change-seed' ||
+          cause === 'principal-change-validation-unavailable' ||
+          cause === 'principal-change-validation-offline-relaunch'
+            ? 'present'
+            : 'signed-out',
         offlineCalendarCleanup: 'absent',
         offlineCalendarPayload:
-          cause === 'principal-change-seed' ? 'present' : 'absent',
+          cause === 'principal-change-seed' ||
+          cause === 'principal-change-validation-unavailable' ||
+          cause === 'principal-change-validation-offline-relaunch'
+            ? 'present'
+            : 'absent',
         offlineCalendarPreference: 'disabled',
         offlineCalendarSlot:
-          cause === 'principal-change-seed'
+          cause === 'principal-change-seed' ||
+          cause === 'principal-change-validation-unavailable' ||
+          cause === 'principal-change-validation-offline-relaunch'
             ? 'payload'
             : cause === 'principal-change-relaunch'
               ? 'empty'
               : 'principal-revoked',
+        routeCache:
+          cause === 'principal-change-seed' ||
+          cause === 'principal-change-validation-unavailable' ||
+          cause === 'principal-change-validation-offline-relaunch'
+            ? 'present'
+            : 'purged',
+        workspaceContext:
+          cause === 'principal-change-seed' ||
+          cause === 'principal-change-validation-unavailable' ||
+          cause === 'principal-change-validation-offline-relaunch'
+            ? 'persisted'
+            : 'revoked',
       },
       navigationInstanceId: null,
       occurredAtMs: 100 + sequence,
-      outcome: cause === 'principal-change-seed' ? 'seeded' : 'clean',
-      receivedAtMs: 300 + sequence,
-      routeId: null,
+      outcome:
+        cause === 'principal-change-seed'
+          ? 'seeded'
+          : cause === 'principal-change-validation-unavailable' ||
+              cause === 'principal-change-validation-offline-relaunch'
+            ? 'quarantined'
+            : 'clean',
+      receivedAtMs,
+      routeId: GUIDANCE_CONTRACT_ROUTE_IDS.denied,
       sequence,
       serverPhase,
       sourceRevision,
@@ -923,24 +1095,42 @@ describe('Maestro guidance contract API', () => {
         'principal-change-seed',
         'launch-principal-seed',
         1,
+        150,
+      ),
+      evidence(
+        validationPhase,
+        'principal-change-validation-unavailable',
+        'launch-principal-validation',
+        2,
+        195,
+      ),
+      evidence(
+        validationOfflineRelaunchPhase,
+        'principal-change-validation-offline-relaunch',
+        'launch-principal-validation-offline',
+        3,
+        198,
       ),
       evidence(
         changePhase,
         'principal-change',
         'launch-principal-change',
-        2,
+        4,
+        215,
       ),
       evidence(
         relaunchPhase,
         'principal-change-relaunch-revoked',
         'launch-principal-relaunch',
-        3,
+        5,
+        220,
       ),
       evidence(
         relaunchPhase,
         'principal-change-relaunch',
         'launch-principal-relaunch',
-        4,
+        6,
+        225,
       ),
     ];
 
@@ -1038,7 +1228,7 @@ describe('Maestro guidance contract API', () => {
             minimumOccurredAtMs: 100,
           },
         ),
-      /did not prove seed, terminal revocation/,
+      /did not prove exact seeded caches/,
     );
     assert.throws(
       () =>
@@ -1052,7 +1242,7 @@ describe('Maestro guidance contract API', () => {
             minimumOccurredAtMs: 100,
           },
         ),
-      /did not prove seed, terminal revocation/,
+      /did not prove exact seeded caches/,
     );
   });
 

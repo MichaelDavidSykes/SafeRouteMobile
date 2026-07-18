@@ -3,7 +3,10 @@ import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { describe, it } from 'node:test';
 
-import { resolveLoginPasswordAutofillHints } from '../src/features/auth/loginAutofillHints';
+import {
+  resolveLoginCredentialDefaults,
+  resolveLoginPasswordAutofillHints
+} from '../src/features/auth/loginAutofillHints';
 
 const loginSource = readFileSync(
   join(process.cwd(), 'src/features/auth/LoginScreen.tsx'),
@@ -52,6 +55,17 @@ describe('login autofill hints', () => {
     assert.deepEqual(resolveLoginPasswordAutofillHints(true), {
       autoComplete: 'off',
       textContentType: 'none'
+    });
+  });
+
+  it('prefills only the loopback exact-source contract with its API fixture credentials', () => {
+    assert.deepEqual(resolveLoginCredentialDefaults(false), {
+      email: '',
+      password: ''
+    });
+    assert.deepEqual(resolveLoginCredentialDefaults(true), {
+      email: 'driver@example.com',
+      password: 'guidance-contract-password'
     });
   });
 

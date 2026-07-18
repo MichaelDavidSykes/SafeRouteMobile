@@ -18,7 +18,10 @@ import { SafeRouteLogo } from '../../brand/SafeRouteLogo';
 import { SAFEROUTE_CONNECTIVITY_CONTRACT_ENABLED } from '../../config/env';
 import { uiTestIds } from '../../testing/uiTestIds';
 import { loginWithPassword, verifyLoginCode } from './authApi';
-import { resolveLoginPasswordAutofillHints } from './loginAutofillHints';
+import {
+  resolveLoginCredentialDefaults,
+  resolveLoginPasswordAutofillHints
+} from './loginAutofillHints';
 import { createLoginErrorState } from './loginErrorState';
 import { createLoginHeaderState } from './loginHeaderState';
 import { createLoginNoticeState } from './loginNoticeState';
@@ -40,6 +43,9 @@ import {
 const passwordAutofillHints = resolveLoginPasswordAutofillHints(
   SAFEROUTE_CONNECTIVITY_CONTRACT_ENABLED
 );
+const loginCredentialDefaults = resolveLoginCredentialDefaults(
+  SAFEROUTE_CONNECTIVITY_CONTRACT_ENABLED
+);
 
 interface LoginScreenProps {
   initialChallenge?: TwoFactorChallenge | null;
@@ -58,8 +64,10 @@ export function LoginScreen({
   onAuthenticated,
   sessionMessage
 }: LoginScreenProps) {
-  const [email, setEmail] = useState(initialChallenge?.email ?? '');
-  const [password, setPassword] = useState('');
+  const [email, setEmail] = useState(
+    initialChallenge?.email ?? loginCredentialDefaults.email
+  );
+  const [password, setPassword] = useState(loginCredentialDefaults.password);
   const [code, setCode] = useState('');
   const [challenge, setChallenge] = useState<TwoFactorChallenge | null>(initialChallenge);
   const [passwordVisible, setPasswordVisible] = useState(false);

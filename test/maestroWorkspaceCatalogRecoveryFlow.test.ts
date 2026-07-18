@@ -125,7 +125,7 @@ describe('Maestro workspace catalog recovery runtime', () => {
     assert.match(runner, /request\.authorizationClass === 'expected-bearer'/);
     assert.match(
       seed,
-      /safe-route-login-password"[\s\S]*inputText: "guidance-contract-password"\n- pressKey: ENTER/,
+      /safe-route-login"[\s\S]*safe-route-login-primary-action/,
     );
     assert.match(
       seed,

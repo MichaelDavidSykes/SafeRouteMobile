@@ -6,24 +6,6 @@ appId: host.exp.Exponent
     visible:
       id: "safe-route-login"
     timeout: 15000
-- tapOn:
-    id: "safe-route-login-email"
-- eraseText
-- inputText: "driver@example.com"
-- scrollUntilVisible:
-    element:
-      id: "safe-route-login-password"
-    direction: DOWN
-    timeout: 10000
-    speed: 40
-- tapOn:
-    id: "safe-route-login-password"
-- eraseText
-- inputText: "guidance-contract-password"
-- tapOn:
-    point: "50%, 18%"
-- waitForAnimationToEnd:
-    timeout: 1000
 - scrollUntilVisible:
     element:
       id: "safe-route-login-primary-action"

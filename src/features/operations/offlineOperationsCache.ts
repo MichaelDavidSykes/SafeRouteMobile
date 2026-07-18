@@ -1,5 +1,6 @@
 import * as SecureStore from "expo-secure-store";
 
+import { revokeTerminalActiveNavigationStorage } from "../live-map/activeNavigationSession";
 import type { SavedSafeRoutePlan } from "../live-map/liveMapTypes";
 import {
   clearAllOfflineRouteCaches,
@@ -92,6 +93,7 @@ const operationsPrincipalCleanup =
       await Promise.all([
         clearAllOfflineRouteCaches(),
         operationsStorage.clearAll(),
+        revokeTerminalActiveNavigationStorage(),
       ]);
     },
     clearPrincipal: operationsStorage.clearPrincipal,
@@ -100,6 +102,7 @@ const operationsPrincipalCleanup =
       await Promise.all([
         clearOfflineRoutePrincipal(principalId),
         operationsStorage.clearPrincipal(principalId),
+        revokeTerminalActiveNavigationStorage(),
       ]);
     },
     storage: operationsPrincipalCleanupStorage,

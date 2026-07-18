@@ -283,13 +283,15 @@ describe("offline Operations principal cleanup", () => {
     ]);
   });
 
-  it("retains the terminal journal until every protected principal cache is removed", async () => {
+  it("retains and replays the terminal journal when guidance storage cannot be revoked", async () => {
     const memory = memoryStore();
-    let routeStorageFails = true;
+    let guidanceStorageFails = true;
+    const events: string[] = [];
     const first = coordinator({
       clearTerminalPrincipal: async () => {
-        if (routeStorageFails) {
-          throw new Error("route storage unavailable");
+        events.push("guidance:first");
+        if (guidanceStorageFails) {
+          throw new Error("guidance storage unavailable");
         }
       },
       memory,
@@ -307,10 +309,13 @@ describe("offline Operations principal cleanup", () => {
       },
     );
     assert.match(memory.value || "", /"purpose":"terminal"/);
+    assert.deepEqual(events, ["guidance:first"]);
 
-    routeStorageFails = false;
+    guidanceStorageFails = false;
     const relaunched = coordinator({
-      clearTerminalPrincipal: async () => undefined,
+      clearTerminalPrincipal: async () => {
+        events.push("guidance:relaunch");
+      },
       memory,
     });
     assert.equal(
@@ -322,6 +327,10 @@ describe("offline Operations principal cleanup", () => {
       ).status,
       "clean",
     );
+    assert.deepEqual(events, [
+      "guidance:first",
+      "guidance:relaunch",
+    ]);
     assert.equal(memory.value, null);
   });
 

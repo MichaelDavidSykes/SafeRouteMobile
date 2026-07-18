@@ -994,22 +994,6 @@ function SafeRouteApp() {
         if (!restoreIsCurrent()) {
           return;
         }
-        const navigationReadback = SAFEROUTE_PREVIEW_MODE_ENABLED
-          ? { session: null, status: 'absent' as const }
-          : await readActiveNavigationSession();
-        if (!restoreIsCurrent()) {
-          return;
-        }
-        persistedNavigation = navigationReadback.session;
-        if (
-          !SAFEROUTE_PREVIEW_MODE_ENABLED &&
-          navigationReadback.status === 'absent'
-        ) {
-          await recordNavigationAbsenceReadback(entryTrackingVerification);
-          if (!restoreIsCurrent()) {
-            return;
-          }
-        }
         const operationsCleanup =
           await recoverOfflineOperationsPrincipalCleanup(
             null,
@@ -1038,6 +1022,22 @@ function SafeRouteApp() {
           );
           setScreen('guest-map');
           return;
+        }
+        const navigationReadback = SAFEROUTE_PREVIEW_MODE_ENABLED
+          ? { session: null, status: 'absent' as const }
+          : await readActiveNavigationSession();
+        if (!restoreIsCurrent()) {
+          return;
+        }
+        persistedNavigation = navigationReadback.session;
+        if (
+          !SAFEROUTE_PREVIEW_MODE_ENABLED &&
+          navigationReadback.status === 'absent'
+        ) {
+          await recordNavigationAbsenceReadback(entryTrackingVerification);
+          if (!restoreIsCurrent()) {
+            return;
+          }
         }
         const storedSession = await loadAuthSession();
         if (!restoreIsCurrent()) {

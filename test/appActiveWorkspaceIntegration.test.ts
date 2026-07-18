@@ -646,7 +646,7 @@ describe("App active workspace integration", () => {
     const liveMap = readFileSync("src/features/live-map/LiveMapScreen.tsx", "utf8");
 
     assert.match(app, /pendingNavigationRestoreRef = useRef<ActiveNavigationSession \| null>\(null\)/);
-    assert.match(app, /entryTrackingVerification[\s\S]*confirmBackgroundNavigationStopped\(\)[\s\S]*await stopBackgroundNavigation\(\);[\s\S]*readActiveNavigationSession\(\);[\s\S]*recordNavigationAbsenceReadback\(entryTrackingVerification\);[\s\S]*const storedSession = await loadAuthSession\(\)/);
+    assert.match(app, /entryTrackingVerification[\s\S]*confirmBackgroundNavigationStopped\(\)[\s\S]*await stopBackgroundNavigation\(\);[\s\S]*recoverOfflineOperationsPrincipalCleanup\([\s\S]*operationsCleanup\.status !== 'clean'[\s\S]*return;[\s\S]*readActiveNavigationSession\(\);[\s\S]*recordNavigationAbsenceReadback\(entryTrackingVerification\);[\s\S]*const storedSession = await loadAuthSession\(\)/);
     const restoreCatch = app.slice(
       app.indexOf(
         "} catch {\n        if (!restoreIsCurrent())",

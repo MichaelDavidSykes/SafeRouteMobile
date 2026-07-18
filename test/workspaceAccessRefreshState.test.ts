@@ -4,6 +4,8 @@ import { describe, it } from "node:test";
 import {
   completeWorkspaceCatalogRetry,
   createWorkspaceAccessRefreshState,
+  getWorkspaceCatalogAgeRefreshDelayMs,
+  getWorkspaceCatalogExpiryDelayMs,
   resolveWorkspaceAccessAnnouncement,
   shouldArmAutomaticReconnectAnnouncement,
   shouldStackWorkspaceAccessControl,
@@ -80,14 +82,16 @@ describe("workspace access refresh state", () => {
     assert.equal(noAccessState.title, "Checking workspace access");
     assert.equal(noAccessState.actionLabel, "Checking…");
     assert.match(noAccessState.accessibilityLabel, /No workspace is currently available/i);
-    assert.match(survivorState.accessibilityLabel, /Current workspace remains available/i);
+    assert.equal(survivorState.title, "Checking current access");
+    assert.match(survivorState.detail, /review only/i);
+    assert.match(survivorState.accessibilityLabel, /Current workspace access is not verified/i);
     assert.equal(verificationState.title, "Checking current access");
     assert.match(verificationState.detail, /review only/i);
-    assert.match(verificationState.accessibilityLabel, /Cached workspace.*review only/i);
+    assert.match(verificationState.accessibilityLabel, /workspace list.*review only/i);
     assert.doesNotMatch(verificationState.detail, /restored/i);
-    assert.equal(survivorRecoveryState.title, "Checking workspace access");
-    assert.match(survivorRecoveryState.accessibilityLabel, /Current workspace remains available/i);
-    assert.match(survivorRecoveryState.detail, /restored workspaces/i);
+    assert.equal(survivorRecoveryState.title, "Checking current access");
+    assert.match(survivorRecoveryState.accessibilityLabel, /Current workspace access is not verified/i);
+    assert.match(survivorRecoveryState.detail, /review only/i);
     assert.match(noAccessRecoveryState.accessibilityLabel, /No workspace is currently available/i);
   });
 
@@ -109,9 +113,9 @@ describe("workspace access refresh state", () => {
 
     assert.equal(onlineState.title, "Workspace access not verified");
     assert.equal(onlineState.actionLabel, "Try again");
-    assert.match(onlineState.detail, /try again.*current access/i);
+    assert.match(onlineState.detail, /workspace list.*review only/i);
     assert.equal(offlineState.actionLabel, "Check again");
-    assert.match(offlineState.detail, /reconnect.*current access/i);
+    assert.match(offlineState.detail, /workspace list.*review only/i);
     assert.match(offlineState.accessibilityHint, /Reconnect, then activate/i);
     assert.doesNotMatch(offlineState.accessibilityHint, /^Reconnects/i);
   });
@@ -210,46 +214,62 @@ describe("workspace access refresh state", () => {
   });
 
   it("announces one iOS checking and failure transition per explicit retry", () => {
+    const hourMs = 60 * 60 * 1000;
+    const nowMs = 10 * hourMs;
     const checking = resolveWorkspaceAccessAnnouncement({
       accessRecoveryPending: false,
       availableWorkspaceCount: 1,
+      catalogStoredAtMs: nowMs - 6 * hourMs,
       issue: "verification-unavailable",
       loading: true,
       networkStatus: "online",
+      nowMs,
       previousPhase: "verification-unavailable",
       retrying: true,
     });
     const duplicateChecking = resolveWorkspaceAccessAnnouncement({
       accessRecoveryPending: false,
       availableWorkspaceCount: 1,
+      catalogStoredAtMs: nowMs - 6 * hourMs,
       issue: "verification-unavailable",
       loading: true,
       networkStatus: "online",
+      nowMs,
       previousPhase: checking.phase,
       retrying: true,
     });
     const failed = resolveWorkspaceAccessAnnouncement({
       accessRecoveryPending: false,
       availableWorkspaceCount: 1,
+      catalogStoredAtMs: nowMs - 6 * hourMs,
       issue: "verification-unavailable",
       loading: false,
       networkStatus: "online",
+      nowMs,
       previousPhase: duplicateChecking.phase,
       retrying: false,
     });
     const duplicateFailure = resolveWorkspaceAccessAnnouncement({
       accessRecoveryPending: false,
       availableWorkspaceCount: 1,
+      catalogStoredAtMs: nowMs - 6 * hourMs,
       issue: "verification-unavailable",
       loading: false,
       networkStatus: "online",
+      nowMs,
       previousPhase: failed.phase,
       retrying: false,
     });
 
-    assert.match(checking.announcement || "", /Checking current workspace access.*review only/i);
+    assert.match(
+      checking.announcement || "",
+      /Checking current workspace access.*cached 6 hours ago.*review only/i,
+    );
     assert.equal(duplicateChecking.announcement, null);
-    assert.match(failed.announcement || "", /Workspace access not verified.*Try checking/i);
+    assert.match(
+      failed.announcement || "",
+      /Workspace access not verified.*cached 6 hours ago.*Try checking/i,
+    );
     assert.equal(duplicateFailure.announcement, null);
   });
 
@@ -418,7 +438,7 @@ describe("workspace access refresh state", () => {
 
     assert.match(emptyChecking.announcement || "", /No workspace is currently available/i);
     assert.equal(emptyChecking.phase, "connection-checking-empty");
-    assert.match(cachedChecking.announcement || "", /Cached workspace remains available/i);
+    assert.match(cachedChecking.announcement || "", /workspace list/i);
     assert.equal(cachedChecking.phase, "connection-checking-cached");
     assert.equal(duplicateCachedChecking.announcement, null);
   });
@@ -542,5 +562,82 @@ describe("workspace access refresh state", () => {
     assert.equal(shouldStackWorkspaceAccessControl({ fontScale: 1, width: 375 }), true);
     assert.equal(shouldStackWorkspaceAccessControl({ fontScale: 1.3, width: 430 }), true);
     assert.equal(shouldStackWorkspaceAccessControl({ fontScale: 1, width: 430 }), false);
+  });
+
+  it("discloses authoritative workspace-list age without claiming data freshness", () => {
+    const hourMs = 60 * 60 * 1000;
+    const nowMs = 30 * 24 * hourMs;
+    const recent = createWorkspaceAccessRefreshState({
+      accessRecoveryPending: false,
+      availableWorkspaceCount: 2,
+      catalogStoredAtMs: nowMs - 59 * 60 * 1000,
+      issue: "verification-unavailable",
+      loading: false,
+      networkStatus: "offline",
+      nowMs,
+    });
+    const hours = createWorkspaceAccessRefreshState({
+      accessRecoveryPending: false,
+      availableWorkspaceCount: 1,
+      catalogStoredAtMs: nowMs - 6.9 * hourMs,
+      issue: "verification-unavailable",
+      loading: true,
+      networkStatus: "online",
+      nowMs,
+    });
+    const days = createWorkspaceAccessRefreshState({
+      accessRecoveryPending: false,
+      availableWorkspaceCount: 1,
+      catalogStoredAtMs: nowMs - 12.9 * 24 * hourMs,
+      issue: "verification-unavailable",
+      loading: false,
+      networkStatus: "checking",
+      nowMs,
+    });
+
+    assert.equal(
+      recent.detail,
+      "Workspace list cached <1h ago · review only",
+    );
+    assert.match(
+      recent.accessibilityLabel,
+      /workspace list was cached less than one hour ago for review only/i,
+    );
+    assert.equal(hours.detail, "Workspace list cached 6h ago · review only");
+    assert.match(hours.accessibilityLabel, /cached 6 hours ago/i);
+    assert.equal(days.detail, "Workspace list cached 12d ago · review only");
+    assert.match(days.accessibilityLabel, /cached 12 days ago/i);
+    for (const state of [recent, hours, days]) {
+      assert.match(
+        state.accessibilityLabel,
+        /does not verify access or the age of routes, risk intelligence, or operations/i,
+      );
+      assert.doesNotMatch(state.detail, /operations cached|current operations/i);
+    }
+  });
+
+  it("advances workspace age bands and expires the retained catalog on time", () => {
+    const hourMs = 60 * 60 * 1000;
+    assert.equal(
+      getWorkspaceCatalogAgeRefreshDelayMs({
+        catalogStoredAtMs: 0,
+        nowMs: 30 * 60 * 1000,
+      }),
+      30 * 60 * 1000,
+    );
+    assert.equal(
+      getWorkspaceCatalogExpiryDelayMs({
+        retentionStoredAtMs: 0,
+        nowMs: 30 * 24 * hourMs,
+      }),
+      1,
+    );
+    assert.equal(
+      getWorkspaceCatalogExpiryDelayMs({
+        retentionStoredAtMs: 0,
+        nowMs: 30 * 24 * hourMs + 1,
+      }),
+      null,
+    );
   });
 });

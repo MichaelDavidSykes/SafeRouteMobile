@@ -206,7 +206,7 @@ describe("cold-start connectivity integration", () => {
     );
     assert.match(
       operations,
-      /Checking connection\. Current operations remain available for review only\./,
+      /Checking connection\. Previously loaded operations remain available for review only; their freshness is not verified\./,
     );
   });
 });

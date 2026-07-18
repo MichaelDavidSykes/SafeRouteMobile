@@ -21,9 +21,12 @@ describe("App active workspace integration", () => {
     assert.match(app, /normalizeWorkspaceCatalog\(result\.clients\)/);
     assert.match(app, /resolveActiveWorkspace\([\s\S]*result\.selectedClientId/);
     assert.match(app, /loadOfflineWorkspaceContext\(principalId\)/);
-    assert.match(app, /loadOfflineRoutes\(principalId, null\)/);
-    assert.match(app, /saveOfflineWorkspaceContext\(principalId/);
-    assert.match(app, /navigationWorkspace[\s\S]*activeWorkspaceId: navigationWorkspace\.id/);
+    assert.match(app, /loadOfflineRoutesSnapshot\(principalId, null\)/);
+    assert.match(app, /migrateOfflineWorkspaceCatalogFromRouteCache\([\s\S]*legacyRouteCacheSnapshot\.storedAtMs/);
+    assert.match(
+      app,
+      /navigationWorkspace[\s\S]*persistOfflineReviewWorkspaceSelection\([\s\S]*navigationWorkspace\.id/,
+    );
     assert.match(app, /<RouteListScreen[\s\S]*activeWorkspace=\{activeWorkspace\}[\s\S]*availableWorkspaces=\{availableWorkspaces\}/);
     assert.match(app, /<OperationsScreen[\s\S]*activeWorkspace=\{activeWorkspace\}[\s\S]*availableWorkspaces=\{availableWorkspaces\}/);
     assert.match(app, /<GuestMapScreen[\s\S]*activeWorkspace=\{activeWorkspace\}[\s\S]*availableWorkspaces=\{availableWorkspaces\}/);
@@ -34,6 +37,48 @@ describe("App active workspace integration", () => {
     assert.match(app, /Active guidance ended because this workspace is no longer available/);
     assert.match(app, /This route closed because its workspace is no longer available/);
     assert.match(app, /<GuestMapScreen[\s\S]*sessionNotice=/);
+    assert.equal(
+      (app.match(/workspaceCatalogStoredAtMs=\{workspaceCatalogStoredAtMs\}/g) || [])
+        .length,
+      3,
+    );
+  });
+
+  it("advances catalog age only for owned full-catalog responses", () => {
+    const app = appSource();
+
+    assert.match(
+      app,
+      /const authoritativeCatalogStoredAtMs = Date\.now\(\);[\s\S]*normalizeWorkspaceCatalog\(result\.clients\)/,
+    );
+    assert.match(
+      app,
+      /catalog-restoration-staged[\s\S]*authoritativeCatalogStoredAtMs[\s\S]*catalog-restoration-final/,
+    );
+    assert.match(
+      app,
+      /const authoritativeCatalogStoredAtMs = freshCatalog \? Date\.now\(\) : undefined[\s\S]*persistWorkspaceRecoveryWithEvidence\([\s\S]*\{ authoritativeCatalogStoredAtMs \}/,
+    );
+    assert.match(
+      app,
+      /handleActiveWorkspaceChange[\s\S]*persistOfflineReviewWorkspaceSelection\([\s\S]*nextWorkspace\.id/,
+    );
+    assert.match(
+      app,
+      /getWorkspaceCatalogExpiryDelayMs[\s\S]*Saved workspace list expired[\s\S]*setAvailableWorkspaces\(\[\]\)/,
+    );
+    assert.match(
+      app,
+      /scheduleExpiryCheck[\s\S]*getWorkspaceCatalogExpiryDelayMs[\s\S]*setTimeout\(scheduleExpiryCheck/,
+    );
+    assert.match(
+      app,
+      /setAvailableWorkspaces\(stagedCatalog\)[\s\S]*setWorkspaceCatalogRetentionStoredAtMs\(authoritativeCatalogStoredAtMs\)[\s\S]*workspaceRecoveryPersistence/,
+    );
+    assert.match(
+      app,
+      /resolveWorkspaceAccessAnnouncement\(\{[\s\S]*catalogStoredAtMs: activeWorkspaceAuthorizationFresh[\s\S]*workspaceCatalogStoredAtMs/,
+    );
   });
 
   it("lets Operations update App's workspace and preserves catalog recovery plus guidance locks", () => {

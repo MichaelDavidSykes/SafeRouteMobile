@@ -147,8 +147,8 @@ describe('Maestro workspace catalog recovery runtime', () => {
       assert.match(flow, /id: "workspace-access-refresh"[\s\S]*enabled: true/);
       assert.match(flow, /id: "workspace-access-refresh"[\s\S]*retryTapIfNoChange: true/);
       assert.match(flow, /id: "workspace-access-refresh"[\s\S]*enabled: false/);
-      assert.match(flow, /Checking current workspace access\. Cached workspace remains available for review only\./);
-      assert.match(flow, /Workspace access not verified\. Try checking current access again\./);
+      assert.match(flow, /Checking current workspace access\.[\s\S]*workspace list was cached less than one hour ago[\s\S]*Current workspace access is not verified\./);
+      assert.match(flow, /Workspace access not verified\.[\s\S]*workspace list was cached less than one hour ago[\s\S]*Try checking current access again\./);
       assert.doesNotMatch(flow, /optional: true/);
       assert.match(flow, /takeScreenshot:/);
     }
@@ -163,7 +163,7 @@ describe('Maestro workspace catalog recovery runtime', () => {
   it('proves fresh success persists across Operations, Map, and Saved', () => {
     const success = read(flowPaths[5]);
 
-    assert.match(success, /Checking current workspace access\. Cached workspace remains available for review only\./);
+    assert.match(success, /Checking current workspace access\.[\s\S]*workspace list was cached less than one hour ago[\s\S]*Current workspace access is not verified\./);
     assert.match(success, /id: "workspace-access-refresh"[\s\S]*retryTapIfNoChange: true/);
     assert.match(success, /notVisible:[\s\S]*id: "workspace-access-refresh"/);
     assert.match(success, /Workspace access verified\./);
@@ -495,7 +495,7 @@ describe('Maestro workspace catalog recovery runtime', () => {
     assert.doesNotMatch(ready, /pressKey: HOME|safe-route-stop-action"\n    waitToSettle/);
     assert.match(
       end,
-      /safe-route-stop-action[\s\S]*waitToSettleTimeoutMs: 100[\s\S]*workspace-access-refresh[\s\S]*safe-route-navigation-cleanup[\s\S]*Workspace access not verified\. Try checking current access again\./,
+      /safe-route-stop-action[\s\S]*waitToSettleTimeoutMs: 100[\s\S]*workspace-access-refresh[\s\S]*safe-route-navigation-cleanup[\s\S]*Workspace access not verified\.[\s\S]*workspace list was cached less than one hour ago[\s\S]*Try checking current access again\./,
     );
     for (const id of [
       'safe-route-live-map',
@@ -510,7 +510,7 @@ describe('Maestro workspace catalog recovery runtime', () => {
     }
     assert.match(
       relaunch,
-      /stopApp[\s\S]*subflows\/ios-open-expo-project\.yaml[\s\S]*workspace-access-refresh[\s\S]*Workspace, Guidance Operations[\s\S]*Workspace access not verified\. Try checking current access again\./,
+      /stopApp[\s\S]*subflows\/ios-open-expo-project\.yaml[\s\S]*workspace-access-refresh[\s\S]*Workspace, Guidance Operations[\s\S]*Workspace access not verified\.[\s\S]*workspace list was cached less than one hour ago[\s\S]*Try checking current access again\./,
     );
   });
 

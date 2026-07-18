@@ -3,7 +3,7 @@ appId: host.exp.Exponent
 - assertVisible:
     id: "workspace-access-refresh"
     enabled: true
-- assertVisible: "Workspace access not verified. Try checking current access again."
+- assertVisible: "Workspace access not verified. This workspace list was cached less than one hour ago for review only. It does not verify access or the age of routes, risk intelligence, or operations. Try checking current access again."
 - tapOn:
     id: "workspace-access-refresh"
     retryTapIfNoChange: true
@@ -13,7 +13,7 @@ appId: host.exp.Exponent
       id: "workspace-access-refresh"
       enabled: false
     timeout: 3000
-- assertVisible: "Checking current workspace access. Cached workspace remains available for review only."
+- assertVisible: "Checking current workspace access. This workspace list was cached less than one hour ago for review only. It does not verify access or the age of routes, risk intelligence, or operations. Current workspace access is not verified."
 - assertNotVisible:
     id: "safe-route-live-map"
 - assertNotVisible:

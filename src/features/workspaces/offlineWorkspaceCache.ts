@@ -10,6 +10,7 @@ import {
   parseWorkspaceRecoveryRevocationRecord,
   persistLatestOfflineWorkspaceSelection,
   persistWorkspaceRecoveryWithFallback,
+  type OfflineWorkspaceCacheFreshness,
   type OfflineWorkspaceContext,
   type OfflineWorkspaceSnapshot,
   type WorkspaceRecoveryPersistenceResult,
@@ -44,19 +45,35 @@ export async function saveOfflineWorkspaceContext(
   if (!principalId.trim()) {
     return;
   }
-  await executeWorkspaceRecovery(
-    recoveryRevocationKey(principalId),
-    () => saveOfflineWorkspaceContextInternal(principalId, context),
-  );
+  await executeWorkspaceRecovery(recoveryRevocationKey(principalId), async () => {
+    const current = await loadOfflineWorkspaceRecordInternal(principalId);
+    const freshness = freshnessForPreservedCatalog(current);
+    if (!freshness) {
+      return;
+    }
+    await saveOfflineWorkspaceContextInternal(
+      principalId,
+      context,
+      freshness,
+    );
+  });
 }
 
 async function saveOfflineWorkspaceContextInternal(
   principalId: string,
   context: OfflineWorkspaceContext,
+  freshness: OfflineWorkspaceCacheFreshness,
 ): Promise<void> {
   await writeWorkspaceRecord(
     `${WORKSPACE_CONTEXT_KEY_PREFIX}.${identityKey(principalId)}`,
-    JSON.stringify(createOfflineWorkspaceCacheRecord(context, principalId)),
+    JSON.stringify(
+      createOfflineWorkspaceCacheRecord(
+        context,
+        principalId,
+        Date.now(),
+        freshness,
+      ),
+    ),
   );
 }
 
@@ -70,12 +87,62 @@ export async function persistOfflineReviewWorkspaceSelection(
   return executeWorkspaceRecovery(recoveryRevocationKey(principalId), () =>
     persistLatestOfflineWorkspaceSelection({
       loadCurrent: () => loadOfflineWorkspaceContextInternal(principalId),
-      persistContext: (context) =>
-        saveOfflineWorkspaceContextInternal(principalId, context),
+      persistContext: (context, freshness) =>
+        saveOfflineWorkspaceContextInternal(principalId, context, freshness),
       principalId,
       workspaceId,
     }),
   );
+}
+
+export async function migrateOfflineWorkspaceCatalogFromRouteCache(
+  principalId: string,
+  context: OfflineWorkspaceContext,
+  catalogStoredAtMs: number,
+): Promise<OfflineWorkspaceSnapshot | null> {
+  if (!principalId.trim() || !Number.isFinite(catalogStoredAtMs)) {
+    return null;
+  }
+  try {
+    return await executeWorkspaceRecovery(
+      recoveryRevocationKey(principalId),
+      async () => {
+        const current = await loadOfflineWorkspaceRecordInternal(principalId);
+        if (current) {
+          return current;
+        }
+
+        const nowMs = Date.now();
+        const freshness = {
+          catalogStoredAtMs,
+          retentionStoredAtMs: catalogStoredAtMs,
+        };
+        const record = createOfflineWorkspaceCacheRecord(
+          context,
+          principalId,
+          nowMs,
+          freshness,
+        );
+        const snapshot = parseOfflineWorkspaceCacheRecord(
+          record,
+          principalId,
+          nowMs,
+        );
+        if (!snapshot) {
+          return null;
+        }
+        await writeWorkspaceRecord(
+          `${WORKSPACE_CONTEXT_KEY_PREFIX}.${identityKey(principalId)}`,
+          JSON.stringify(record),
+        );
+        return snapshot;
+      },
+    );
+  } catch {
+    // Legacy migration is opportunistic. Storage failure must not block the
+    // validated legacy review snapshot or a current online catalog request.
+    return null;
+  }
 }
 
 export async function persistOfflineWorkspaceRecovery(
@@ -84,9 +151,11 @@ export async function persistOfflineWorkspaceRecovery(
   purgeWorkspaceCaches: Array<() => Promise<void>>,
   {
     fallbackUnavailableWorkspaceIds = context.unavailableWorkspaceIds || [],
+    authoritativeCatalogStoredAtMs,
     requireFallback = false,
   }: {
     fallbackUnavailableWorkspaceIds?: Iterable<string>;
+    authoritativeCatalogStoredAtMs?: number;
     requireFallback?: boolean;
   } = {},
 ): Promise<WorkspaceRecoveryPersistenceResult> {
@@ -94,8 +163,24 @@ export async function persistOfflineWorkspaceRecovery(
     return "failed";
   }
   const revocationKey = recoveryRevocationKey(principalId);
-  return executeWorkspaceRecovery(revocationKey, () =>
-    persistWorkspaceRecoveryWithFallback({
+  return executeWorkspaceRecovery(revocationKey, async () => {
+    let freshness: OfflineWorkspaceCacheFreshness | null;
+    if (Number.isFinite(authoritativeCatalogStoredAtMs)) {
+      freshness = {
+        catalogStoredAtMs: authoritativeCatalogStoredAtMs as number,
+        retentionStoredAtMs: authoritativeCatalogStoredAtMs as number,
+      };
+    } else {
+      let current: OfflineWorkspaceSnapshot | null = null;
+      try {
+        current = await loadOfflineWorkspaceRecordInternal(principalId);
+      } catch {
+        // Continue into fallback-first recovery. If catalog freshness cannot be
+        // preserved, the primary write fails closed after durable revocation.
+      }
+      freshness = freshnessForPreservedCatalog(current);
+    }
+    return persistWorkspaceRecoveryWithFallback({
       clearFallback: () => SecureStore.deleteItemAsync(revocationKey),
       persistFallback: () => SecureStore.setItemAsync(
         revocationKey,
@@ -106,12 +191,16 @@ export async function persistOfflineWorkspaceRecovery(
         DEVICE_ONLY_SECURE_STORE_OPTIONS,
       ),
       persistPrimary: [
-        () => saveOfflineWorkspaceContextInternal(principalId, context),
+        () => freshness
+          ? saveOfflineWorkspaceContextInternal(principalId, context, freshness)
+          : Promise.reject(
+              new Error("Workspace catalog age cannot be preserved safely"),
+            ),
         ...purgeWorkspaceCaches,
       ],
       requireFallback,
-    }),
-  );
+    });
+  });
 }
 
 export async function loadOfflineWorkspaceContext(
@@ -148,15 +237,37 @@ async function loadOfflineWorkspaceContextInternal(
   }
 
   try {
-    const raw = await AsyncStorage.getItem(
-      `${WORKSPACE_CONTEXT_KEY_PREFIX}.${identityKey(principalId)}`,
-    );
-    return raw
-      ? parseOfflineWorkspaceCacheRecord(JSON.parse(raw), principalId)
-      : null;
+    return await loadOfflineWorkspaceRecordInternal(principalId);
   } catch {
     return null;
   }
+}
+
+async function loadOfflineWorkspaceRecordInternal(
+  principalId: string,
+): Promise<OfflineWorkspaceSnapshot | null> {
+  const raw = await AsyncStorage.getItem(
+    `${WORKSPACE_CONTEXT_KEY_PREFIX}.${identityKey(principalId)}`,
+  );
+  return raw
+    ? parseOfflineWorkspaceCacheRecord(JSON.parse(raw), principalId)
+    : null;
+}
+
+function freshnessForPreservedCatalog(
+  current: OfflineWorkspaceSnapshot | null,
+): OfflineWorkspaceCacheFreshness | null {
+  if (
+    !current ||
+    current.retentionStoredAtMs === null ||
+    !Number.isFinite(current.retentionStoredAtMs)
+  ) {
+    return null;
+  }
+  return {
+    catalogStoredAtMs: current.catalogStoredAtMs,
+    retentionStoredAtMs: current.retentionStoredAtMs,
+  };
 }
 
 function createRevokedWorkspaceSnapshot(
@@ -165,7 +276,9 @@ function createRevokedWorkspaceSnapshot(
 ): OfflineWorkspaceSnapshot {
   return {
     activeWorkspaceId: null,
+    catalogStoredAtMs: null,
     principalId: principalId.trim(),
+    retentionStoredAtMs: null,
     unavailableWorkspaceIds,
     workspaces: [],
   };

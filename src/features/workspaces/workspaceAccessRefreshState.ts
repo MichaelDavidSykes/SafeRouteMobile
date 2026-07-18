@@ -1,3 +1,6 @@
+import type { NetworkAvailabilityStatus } from "../api/networkAvailabilityState";
+import { OFFLINE_WORKSPACE_CACHE_MAX_AGE_MS } from "./offlineWorkspaceCacheCore";
+
 export interface WorkspaceAccessRefreshState {
   accessibilityHint: string;
   accessibilityLabel: string;
@@ -25,6 +28,13 @@ export interface WorkspaceAccessAnnouncementTransition {
   phase: WorkspaceAccessAnnouncementPhase;
 }
 
+type WorkspaceCatalogCacheDisclosure = {
+  accessibilitySentence: string;
+  visibleLabel: string;
+};
+
+const WORKSPACE_CATALOG_TIMER_MAX_DELAY_MS = 2_147_483_647;
+
 export function completeWorkspaceCatalogRetry(
   retryingRef: { current: boolean },
   setRetrying: (retrying: boolean) => void,
@@ -38,18 +48,22 @@ export function completeWorkspaceCatalogRetry(
 export function resolveWorkspaceAccessAnnouncement({
   accessRecoveryPending,
   availableWorkspaceCount,
+  catalogStoredAtMs = null,
   issue,
   loading,
   networkStatus,
+  nowMs = Date.now(),
   previousPhase,
   retrying,
   workspaceContextResolved = true,
 }: {
   accessRecoveryPending: boolean;
   availableWorkspaceCount: number;
+  catalogStoredAtMs?: number | null;
   issue: WorkspaceAccessIssue;
   loading: boolean;
   networkStatus: NetworkAvailabilityStatus;
+  nowMs?: number;
   previousPhase: WorkspaceAccessAnnouncementPhase;
   retrying: boolean;
   workspaceContextResolved?: boolean;
@@ -80,9 +94,11 @@ export function resolveWorkspaceAccessAnnouncement({
           : createWorkspaceAccessRefreshState({
               accessRecoveryPending,
               availableWorkspaceCount,
+              catalogStoredAtMs,
               issue,
               loading,
               networkStatus,
+              nowMs,
             }).accessibilityLabel,
       phase,
     };
@@ -94,12 +110,14 @@ export function resolveWorkspaceAccessAnnouncement({
         previousPhase === "checking"
           ? null
           : createWorkspaceAccessRefreshState({
-              accessRecoveryPending,
-              availableWorkspaceCount,
-              issue,
-              loading: true,
-              networkStatus,
-            }).accessibilityLabel,
+            accessRecoveryPending,
+            availableWorkspaceCount,
+            catalogStoredAtMs,
+            issue,
+            loading: true,
+            networkStatus,
+            nowMs,
+          }).accessibilityLabel,
       phase: "checking",
     };
   }
@@ -125,9 +143,11 @@ export function resolveWorkspaceAccessAnnouncement({
       announcement: createWorkspaceAccessRefreshState({
         accessRecoveryPending,
         availableWorkspaceCount,
+        catalogStoredAtMs,
         issue,
         loading: false,
         networkStatus,
+        nowMs,
       }).accessibilityLabel,
       phase: issue,
     };
@@ -138,9 +158,11 @@ export function resolveWorkspaceAccessAnnouncement({
       announcement: createWorkspaceAccessRefreshState({
         accessRecoveryPending,
         availableWorkspaceCount,
+        catalogStoredAtMs,
         issue,
         loading: false,
         networkStatus,
+        nowMs,
       }).accessibilityLabel,
       phase: issue,
     };
@@ -167,28 +189,36 @@ export function shouldArmAutomaticReconnectAnnouncement({
 export function createWorkspaceAccessRefreshState({
   accessRecoveryPending,
   availableWorkspaceCount,
+  catalogStoredAtMs = null,
   issue,
   loading,
   networkStatus,
+  nowMs = Date.now(),
 }: {
   accessRecoveryPending: boolean;
   availableWorkspaceCount: number;
+  catalogStoredAtMs?: number | null;
   issue: WorkspaceAccessIssue;
   loading: boolean;
   networkStatus: NetworkAvailabilityStatus;
+  nowMs?: number;
 }): WorkspaceAccessRefreshState {
   const hasAvailableWorkspace = availableWorkspaceCount > 0;
   const offline = networkStatus === "offline";
+  const online = networkStatus === "online";
+  const cachedCatalogDisclosure = hasAvailableWorkspace
+    ? createWorkspaceCatalogCacheDisclosure(catalogStoredAtMs, nowMs)
+    : null;
 
   if (networkStatus === "checking") {
     return {
       accessibilityHint: "Wait while SafeRoute checks the connection.",
       accessibilityLabel: hasAvailableWorkspace
-        ? "Checking connection. Cached workspace remains available for review only."
+        ? `Checking connection. ${cachedCatalogDisclosure?.accessibilitySentence} Current workspace access is not verified.`
         : "Checking connection. No workspace is currently available.",
       actionLabel: "Waiting…",
       detail: hasAvailableWorkspace
-        ? "Cached workspace remains review only"
+        ? cachedCatalogDisclosure?.visibleLabel || "Workspace list · review only"
         : "Waiting for connectivity",
       title: "Checking connection",
     };
@@ -209,12 +239,24 @@ export function createWorkspaceAccessRefreshState({
       return {
         accessibilityHint: "Wait while SafeRoute verifies current workspace membership.",
         accessibilityLabel: hasAvailableWorkspace
-          ? "Checking current workspace access. Cached workspace remains available for review only."
+          ? `Checking current workspace access. ${cachedCatalogDisclosure?.accessibilitySentence} Current workspace access is not verified.`
           : "Checking current workspace access. No workspace is currently available.",
         actionLabel: "Checking…",
         detail: hasAvailableWorkspace
-          ? "Cached workspace remains review only"
+          ? cachedCatalogDisclosure?.visibleLabel || "Workspace list · review only"
           : "Verifying current membership",
+        title: "Checking current access",
+      };
+    }
+
+    if (hasAvailableWorkspace && accessRecoveryPending) {
+      return {
+        accessibilityHint:
+          "Wait while SafeRoute checks whether workspace membership was restored.",
+        accessibilityLabel:
+          `Checking current workspace access. ${cachedCatalogDisclosure?.accessibilitySentence} Current workspace access is not verified.`,
+        actionLabel: "Checking…",
+        detail: cachedCatalogDisclosure?.visibleLabel || "Workspace list · review only",
         title: "Checking current access",
       };
     }
@@ -233,6 +275,17 @@ export function createWorkspaceAccessRefreshState({
   }
 
   if (accessRecoveryPending && hasAvailableWorkspace) {
+    if (!online) {
+      return {
+        accessibilityHint:
+          "Reconnect, then check whether an administrator restored another workspace membership.",
+        accessibilityLabel:
+          `Workspace access changed. ${cachedCatalogDisclosure?.accessibilitySentence} Current workspace access is not verified.`,
+        actionLabel: "Refresh",
+        detail: cachedCatalogDisclosure?.visibleLabel || "Workspace list · review only",
+        title: "Workspace access changed",
+      };
+    }
     return {
       accessibilityHint: "Checks whether an administrator restored another workspace membership.",
       accessibilityLabel: "Workspace access changed. Check for restored access.",
@@ -270,17 +323,27 @@ export function createWorkspaceAccessRefreshState({
   }
 
   if (issue === "verification-unavailable") {
+    const cachedCatalogSentence =
+      cachedCatalogDisclosure?.accessibilitySentence || "";
     return {
       accessibilityHint: offline
         ? "Reconnect, then activate this control to check current workspace membership."
         : "Retries checking current workspace membership.",
       accessibilityLabel: offline
-        ? "Workspace access not verified. Reconnect, then check current access."
-        : "Workspace access not verified. Try checking current access again.",
+        ? `Workspace access not verified. ${cachedCatalogSentence} Reconnect, then check current access.`.replace(
+            /\s+/g,
+            " ",
+          )
+        : `Workspace access not verified. ${cachedCatalogSentence} Try checking current access again.`.replace(
+            /\s+/g,
+            " ",
+          ),
       actionLabel: offline ? "Check again" : "Try again",
-      detail: offline
-        ? "Reconnect, then check current access"
-        : "Try again to check current access",
+      detail: cachedCatalogDisclosure?.visibleLabel || (
+        offline
+          ? "Reconnect, then check current access"
+          : "Try again to check current access"
+      ),
       title: "Workspace access not verified",
     };
   }
@@ -302,6 +365,108 @@ export function createWorkspaceAccessRefreshState({
     actionLabel: "Check again",
     detail: "Check current access",
     title: "Workspace access",
+  };
+}
+
+export function getWorkspaceCatalogAgeRefreshDelayMs({
+  catalogStoredAtMs,
+  nowMs = Date.now(),
+}: {
+  catalogStoredAtMs: number;
+  nowMs?: number;
+}): number | null {
+  if (
+    !Number.isFinite(nowMs) ||
+    !Number.isFinite(catalogStoredAtMs) ||
+    catalogStoredAtMs > nowMs ||
+    nowMs - catalogStoredAtMs > OFFLINE_WORKSPACE_CACHE_MAX_AGE_MS
+  ) {
+    return null;
+  }
+
+  const hourMs = 60 * 60 * 1000;
+  const dayMs = 24 * hourMs;
+  const ageMs = nowMs - catalogStoredAtMs;
+  const bucketMs = ageMs < dayMs ? hourMs : dayMs;
+  const nextAgeBoundaryMs =
+    catalogStoredAtMs + (Math.floor(ageMs / bucketMs) + 1) * bucketMs;
+  const expiryBoundaryMs =
+    catalogStoredAtMs + OFFLINE_WORKSPACE_CACHE_MAX_AGE_MS + 1;
+
+  return Math.max(
+    1,
+    Math.min(
+      WORKSPACE_CATALOG_TIMER_MAX_DELAY_MS,
+      nextAgeBoundaryMs - nowMs,
+      expiryBoundaryMs - nowMs,
+    ),
+  );
+}
+
+export function getWorkspaceCatalogExpiryDelayMs({
+  nowMs = Date.now(),
+  retentionStoredAtMs,
+}: {
+  nowMs?: number;
+  retentionStoredAtMs: number;
+}): number | null {
+  if (
+    !Number.isFinite(nowMs) ||
+    !Number.isFinite(retentionStoredAtMs) ||
+    retentionStoredAtMs > nowMs ||
+    nowMs - retentionStoredAtMs > OFFLINE_WORKSPACE_CACHE_MAX_AGE_MS
+  ) {
+    return null;
+  }
+  return Math.max(
+    1,
+    Math.min(
+      WORKSPACE_CATALOG_TIMER_MAX_DELAY_MS,
+      retentionStoredAtMs + OFFLINE_WORKSPACE_CACHE_MAX_AGE_MS + 1 - nowMs,
+    ),
+  );
+}
+
+function createWorkspaceCatalogCacheDisclosure(
+  catalogStoredAtMs: number | null,
+  nowMs: number,
+): WorkspaceCatalogCacheDisclosure {
+  if (
+    catalogStoredAtMs === null ||
+    !Number.isFinite(nowMs) ||
+    !Number.isFinite(catalogStoredAtMs) ||
+    catalogStoredAtMs > nowMs ||
+    nowMs - catalogStoredAtMs > OFFLINE_WORKSPACE_CACHE_MAX_AGE_MS
+  ) {
+    return {
+      accessibilitySentence:
+        "The saved time for this workspace list is unavailable. It is review only and does not verify access or the age of routes, risk intelligence, or operations.",
+      visibleLabel: "Workspace list age unavailable · review only",
+    };
+  }
+
+  const hourMs = 60 * 60 * 1000;
+  const dayMs = 24 * hourMs;
+  const ageMs = nowMs - catalogStoredAtMs;
+  let spokenAge: string;
+  let visibleAge: string;
+  if (ageMs < hourMs) {
+    spokenAge = "less than one hour ago";
+    visibleAge = "<1h ago";
+  } else if (ageMs < dayMs) {
+    const hours = Math.floor(ageMs / hourMs);
+    spokenAge = `${hours} ${hours === 1 ? "hour" : "hours"} ago`;
+    visibleAge = `${hours}h ago`;
+  } else {
+    const days = Math.floor(ageMs / dayMs);
+    spokenAge = `${days} ${days === 1 ? "day" : "days"} ago`;
+    visibleAge = `${days}d ago`;
+  }
+
+  return {
+    accessibilitySentence:
+      `This workspace list was cached ${spokenAge} for review only. It does not verify access or the age of routes, risk intelligence, or operations.`,
+    visibleLabel: `Workspace list cached ${visibleAge} · review only`,
   };
 }
 
@@ -344,4 +509,3 @@ export function shouldStackWorkspaceAccessControl({
 }): boolean {
   return width < 390 || fontScale >= 1.3;
 }
-import type { NetworkAvailabilityStatus } from "../api/networkAvailabilityState";

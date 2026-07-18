@@ -121,6 +121,7 @@ interface GuestMapScreenProps {
   onWorkspaceChange?: (workspace: SafeRouteWorkspace) => void;
   workspaceCatalogError?: string;
   workspaceCatalogLoading?: boolean;
+  workspaceCatalogStoredAtMs?: number | null;
   workspaceAuthorizationFresh?: boolean;
   workspaceAccessRecoveryPending?: boolean;
   workspaceAccessRefreshAvailable?: boolean;
@@ -145,6 +146,7 @@ export function GuestMapScreen({
   onWorkspaceChange,
   workspaceCatalogError = '',
   workspaceCatalogLoading = false,
+  workspaceCatalogStoredAtMs = null,
   workspaceAuthorizationFresh = false,
   workspaceAccessRecoveryPending = false,
   workspaceAccessRefreshAvailable = false,
@@ -1641,9 +1643,14 @@ export function GuestMapScreen({
                   />
                   {workspaceAccessRefreshAvailable ? (
                     <WorkspaceAccessRefreshControl
-                      accessRecoveryPending={workspaceAccessRecoveryPending}
-                      availableWorkspaceCount={availableWorkspaces.length}
-                      issue={workspaceAccessIssue}
+                    accessRecoveryPending={workspaceAccessRecoveryPending}
+                    availableWorkspaceCount={availableWorkspaces.length}
+                    catalogStoredAtMs={
+                      workspaceAuthorizationFresh
+                        ? null
+                        : workspaceCatalogStoredAtMs
+                    }
+                    issue={workspaceAccessIssue}
                       loading={workspaceCatalogLoading}
                       onRefresh={() => {
                         setWorkspaceMenuOpen(false);

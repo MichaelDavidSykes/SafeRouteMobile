@@ -101,6 +101,9 @@ const enableDemoDriveOverride = trimmedEnv('SAFEROUTE_ENABLE_DEMO_DRIVE');
 const enableGuidanceContractEvidenceOverride = trimmedEnv(
   'SAFEROUTE_ENABLE_GUIDANCE_CONTRACT_EVIDENCE'
 );
+const enableConnectivityContractOverride = trimmedEnv(
+  'SAFEROUTE_ENABLE_CONNECTIVITY_CONTRACT'
+);
 const enablePreviewModeOverride = trimmedEnv('SAFEROUTE_ENABLE_PREVIEW_MODE');
 const previewInitialScreenOverride = trimmedEnv('SAFEROUTE_PREVIEW_INITIAL_SCREEN');
 const sourceRevisionOverride = trimmedEnv('SAFEROUTE_SOURCE_REVISION');
@@ -132,6 +135,11 @@ const googleMapsIosApiKey = trimmedEnv('GOOGLE_MAPS_IOS_API_KEY');
 const safeRouteGuidanceContractEvidenceEnabled =
   appEnvironment === 'development' &&
   enableGuidanceContractEvidenceOverride?.toLowerCase() === 'true' &&
+  Boolean(sourceRevisionOverride) &&
+  isLoopbackUrl(safeRouteApiUrl);
+const safeRouteConnectivityContractEnabled =
+  appEnvironment === 'development' &&
+  enableConnectivityContractOverride?.toLowerCase() === 'true' &&
   Boolean(sourceRevisionOverride) &&
   isLoopbackUrl(safeRouteApiUrl);
 
@@ -218,6 +226,7 @@ module.exports = {
       safeRouteEnvironment: appEnvironment,
       safeRouteApiUrl,
       safeRouteApiVersion,
+      safeRouteConnectivityContractEnabled,
       safeRouteDemoDriveEnabled,
       safeRouteGuidanceContractEvidenceEnabled,
       safeRoutePreviewInitialScreen,

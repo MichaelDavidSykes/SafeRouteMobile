@@ -11,6 +11,7 @@ describe('SafeRoute runtime config', () => {
     const config = resolveSafeRouteRuntimeConfig(undefined);
 
     assert.equal(config.appEnvironment, 'production');
+    assert.equal(config.connectivityContractEnabled, false);
     assert.equal(config.demoDriveEnabled, false);
     assert.equal(config.guidanceContractEvidenceEnabled, false);
     assert.equal(config.previewModeEnabled, false);
@@ -95,6 +96,34 @@ describe('SafeRoute runtime config', () => {
       safeRouteGuidanceContractEvidenceEnabled: true,
       safeRouteSourceRevision: revision,
     }).guidanceContractEvidenceEnabled, false);
+  });
+
+  it('enables deterministic connectivity only for local development with an exact revision', () => {
+    const revision = 'B'.repeat(40);
+    const enabled = resolveSafeRouteRuntimeConfig({
+      safeRouteApiUrl: 'http://127.0.0.1:18080',
+      safeRouteConnectivityContractEnabled: true,
+      safeRouteEnvironment: 'development',
+      safeRouteSourceRevision: revision,
+    });
+    assert.equal(enabled.connectivityContractEnabled, true);
+    assert.equal(resolveSafeRouteRuntimeConfig({
+      safeRouteApiUrl: 'https://api.lunarchain.net',
+      safeRouteConnectivityContractEnabled: true,
+      safeRouteEnvironment: 'development',
+      safeRouteSourceRevision: revision,
+    }).connectivityContractEnabled, false);
+    assert.equal(resolveSafeRouteRuntimeConfig({
+      safeRouteApiUrl: 'http://127.0.0.1:18080',
+      safeRouteConnectivityContractEnabled: true,
+      safeRouteEnvironment: 'production',
+      safeRouteSourceRevision: revision,
+    }).connectivityContractEnabled, false);
+    assert.equal(resolveSafeRouteRuntimeConfig({
+      safeRouteApiUrl: 'http://127.0.0.1:18080',
+      safeRouteConnectivityContractEnabled: true,
+      safeRouteEnvironment: 'development',
+    }).connectivityContractEnabled, false);
   });
 
   it('allows preview mode only for explicit non-production runtime config', () => {

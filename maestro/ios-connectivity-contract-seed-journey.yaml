@@ -1,0 +1,45 @@
+appId: host.exp.Exponent
+---
+- runFlow: subflows/ios-open-expo-project.yaml
+- setLocation:
+    latitude: 51.5074
+    longitude: -0.1278
+- extendedWaitUntil:
+    visible:
+      id: "guest-map-workspace-selector"
+    timeout: 30000
+- tapOn:
+    id: "guest-map-primary-action"
+- extendedWaitUntil:
+    visible:
+      id: "safe-route-picker"
+    timeout: 15000
+- extendedWaitUntil:
+    visible:
+      id: "safe-route-card-66b1b2c3d4e5f60718293b40"
+    timeout: 30000
+- tapOn:
+    id: "safe-route-card-66b1b2c3d4e5f60718293b40"
+- extendedWaitUntil:
+    visible:
+      id: "safe-route-live-map"
+    timeout: 20000
+- extendedWaitUntil:
+    visible:
+      id: "safe-route-primary-action"
+      enabled: true
+    timeout: 20000
+- tapOn:
+    id: "safe-route-primary-action"
+    waitToSettleTimeoutMs: 100
+- extendedWaitUntil:
+    visible:
+      id: "safe-route-stop-action"
+    timeout: 15000
+- tapOn:
+    id: "safe-route-primary-action"
+- assertVisible: "Resume route guidance"
+- assertVisible:
+    id: "safe-route-journey-66b1b2c3d4e5f60718293b40"
+- takeScreenshot: "connectivity-contract-seeded-journey"
+- stopApp

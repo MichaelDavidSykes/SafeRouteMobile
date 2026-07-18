@@ -7,6 +7,8 @@ export function readGuidanceMetroIdentity(manifest) {
 
   return {
     apiUrl: String(runtimeExtra.safeRouteApiUrl || '').trim(),
+    connectivityContractEnabled:
+      runtimeExtra.safeRouteConnectivityContractEnabled === true,
     demoDriveEnabled: runtimeExtra.safeRouteDemoDriveEnabled,
     previewModeEnabled: runtimeExtra.safeRoutePreviewModeEnabled,
     projectRoot: String(expoGo?.developer?.projectRoot || '').trim(),
@@ -17,6 +19,7 @@ export function readGuidanceMetroIdentity(manifest) {
 
 export function assertGuidanceMetroIdentity(identity, {
   expectedApiUrl,
+  expectedConnectivityContractEnabled,
   expectedProjectRoot,
   expectedSlug,
   expectedSourceRevision
@@ -63,6 +66,14 @@ export function assertGuidanceMetroIdentity(identity, {
     false,
     actual.demoDriveEnabled
   );
+  if (typeof expectedConnectivityContractEnabled === 'boolean') {
+    assertIdentityField(
+      actual.connectivityContractEnabled === expectedConnectivityContractEnabled,
+      'connectivity-contract flag',
+      expectedConnectivityContractEnabled,
+      actual.connectivityContractEnabled
+    );
+  }
 
   return actual;
 }
@@ -79,6 +90,7 @@ export function assertGuidanceSourceCheckoutClean(statusOutput) {
 
 export async function verifyGuidanceContractMetroIdentity({
   expectedApiUrl,
+  expectedConnectivityContractEnabled,
   expectedProjectRoot,
   expectedSlug,
   expectedSourceRevision,
@@ -111,6 +123,7 @@ export async function verifyGuidanceContractMetroIdentity({
 
     return assertGuidanceMetroIdentity(readGuidanceMetroIdentity(manifest), {
       expectedApiUrl,
+      expectedConnectivityContractEnabled,
       expectedProjectRoot,
       expectedSlug,
       expectedSourceRevision

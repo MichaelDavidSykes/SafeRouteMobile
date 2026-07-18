@@ -146,14 +146,16 @@ export default function App() {
 }
 
 function SafeRouteApp() {
-  useEffect(() => {
-    void flushGuidanceContractEvidence();
-  }, []);
   const {
     offline,
     online,
     status: networkStatus,
   } = useNetworkAvailability();
+  useEffect(() => {
+    if (online) {
+      void flushGuidanceContractEvidence();
+    }
+  }, [online]);
   const networkStatusRef = useRef(networkStatus);
   const networkRequestEpochRef = useRef(0);
   if (networkStatusRef.current !== networkStatus) {

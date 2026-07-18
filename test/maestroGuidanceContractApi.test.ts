@@ -5,6 +5,8 @@ import { join } from 'node:path';
 import { describe, it } from 'node:test';
 
 import {
+  CONNECTIVITY_CONTRACT_REACHABILITY_PATH,
+  CONNECTIVITY_CONTRACT_STATUSES,
   GUIDANCE_CONTRACT_EVIDENCE_PATH,
   GUIDANCE_CONTRACT_MODES,
   GUIDANCE_CONTRACT_ROUTE_IDS,
@@ -14,6 +16,8 @@ import {
   WORKSPACE_CATALOG_RECOVERY_PHASES,
   WORKSPACE_CATALOG_RETRY_DELAY_MS,
   WORKSPACE_CATALOG_SUCCESS_DELAY_MS,
+  assertConnectivityContractEndedJourneyStayedClosed,
+  assertConnectivityContractReconnectAuthorization,
   assertGuidanceContractEvidenceJournal,
   assertGuidanceContractRequestJournal,
   assertGuidanceContractRouteCacheReadbackEvidence,
@@ -38,6 +42,268 @@ describe('Maestro guidance contract API', () => {
     assert.equal(payload.iat, 9_999);
     assert.equal(payload.exp, 96_400);
     assert.equal(signature, 'guidance-contract-signature');
+  });
+
+  it('holds exact-source NetInfo reachability until a terminal control settles', async () => {
+    const sourceRevision = 'c'.repeat(40);
+    let control = {
+      connectivity: CONNECTIVITY_CONTRACT_STATUSES.checking,
+      connectivitySequence: 1,
+      mode: GUIDANCE_CONTRACT_MODES.active,
+      phase: 'connectivityColdChecking',
+      sourceRevision,
+    };
+    const requests: Record<string, unknown>[] = [];
+    const server = await startGuidanceContractApi({
+      port: 0,
+      readControl: () => control,
+      requestLog: (entry: Record<string, unknown>) => requests.push(entry),
+    });
+    const address = server.address();
+    assert.ok(address && typeof address === 'object');
+    const endpoint =
+      `http://127.0.0.1:${address.port}${CONNECTIVITY_CONTRACT_REACHABILITY_PATH}` +
+      `?source_revision=${sourceRevision}`;
+
+    try {
+      assert.equal((await fetch(endpoint, { method: 'HEAD' })).status, 403);
+      const headers = {
+        'X-SafeRoute-Connectivity-Contract': '1',
+        'X-SafeRoute-Source-Revision': sourceRevision,
+      };
+      assert.equal(
+        (
+          await fetch(endpoint.replace(sourceRevision, 'd'.repeat(40)), {
+            headers: {
+              ...headers,
+              'X-SafeRoute-Source-Revision': 'd'.repeat(40),
+            },
+            method: 'HEAD',
+          })
+        ).status,
+        403,
+      );
+      let completed = false;
+      const checking = fetch(endpoint, { headers, method: 'HEAD' }).then((response) => {
+        completed = true;
+        return response;
+      });
+      await new Promise((resolve) => setTimeout(resolve, 120));
+      assert.equal(completed, false);
+
+      control = {
+        ...control,
+        connectivity: CONNECTIVITY_CONTRACT_STATUSES.offline,
+        connectivitySequence: 2,
+        phase: 'connectivityOffline',
+      };
+      assert.equal((await checking).status, 503);
+
+      control = {
+        ...control,
+        connectivity: CONNECTIVITY_CONTRACT_STATUSES.online,
+        connectivitySequence: 3,
+        phase: 'connectivityOnline',
+      };
+      assert.equal(
+        (await fetch(endpoint, { headers, method: 'HEAD' })).status,
+        204,
+      );
+
+      const requestEntries = requests.filter((entry) => entry.event === 'request');
+      assert.deepEqual(
+        requestEntries.map((entry) => [
+          entry.phase,
+          entry.connectivity,
+          entry.connectivitySequence,
+          entry.path,
+          entry.requestSourceRevision,
+          entry.sourceRevision,
+        ]),
+        [
+          [
+            'connectivityColdChecking',
+            'checking',
+            1,
+            CONNECTIVITY_CONTRACT_REACHABILITY_PATH,
+            sourceRevision,
+            sourceRevision,
+          ],
+          [
+            'connectivityColdChecking',
+            'checking',
+            1,
+            CONNECTIVITY_CONTRACT_REACHABILITY_PATH,
+            'd'.repeat(40),
+            sourceRevision,
+          ],
+          [
+            'connectivityColdChecking',
+            'checking',
+            1,
+            CONNECTIVITY_CONTRACT_REACHABILITY_PATH,
+            sourceRevision,
+            sourceRevision,
+          ],
+          [
+            'connectivityOnline',
+            'online',
+            3,
+            CONNECTIVITY_CONTRACT_REACHABILITY_PATH,
+            sourceRevision,
+            sourceRevision,
+          ],
+        ],
+      );
+    } finally {
+      await new Promise<void>((resolve) => server.close(() => resolve()));
+    }
+  });
+
+  it('rejects reconnect authorization sequenced before online settlement', () => {
+    const entries = [
+      {
+        authorized: true,
+        event: 'request',
+        path: '/api/v1/users/me',
+        phase: 'connectivitySeed',
+        requestId: 'seed-principal-request',
+        search: '',
+        sequence: 1,
+      },
+      {
+        completed: true,
+        event: 'completion',
+        path: CONNECTIVITY_CONTRACT_REACHABILITY_PATH,
+        phase: 'connectivityReconnectChecking',
+        semanticOutcome: 'connectivity-online',
+        sequence: 2,
+        statusCode: 204,
+      },
+      {
+        authorized: true,
+        event: 'request',
+        path: '/api/v1/users/me',
+        phase: 'connectivityOnline',
+        requestId: 'principal-request',
+        search: '',
+        sequence: 3,
+      },
+      {
+        completed: true,
+        event: 'completion',
+        requestId: 'principal-request',
+        semanticOutcome: 'principal-a',
+        sequence: 4,
+        statusCode: 200,
+      },
+      {
+        authorized: true,
+        event: 'request',
+        path: '/api/v1/mobile/safe-route/routes',
+        phase: 'connectivityOnline',
+        requestId: 'catalog-request',
+        search: '',
+        sequence: 5,
+      },
+      {
+        completed: true,
+        event: 'completion',
+        requestId: 'catalog-request',
+        semanticOutcome: 'catalog-active',
+        sequence: 6,
+        statusCode: 200,
+      },
+    ];
+
+    assert.doesNotThrow(() =>
+      assertConnectivityContractReconnectAuthorization(entries, {
+        settlementSequence: 2,
+      }),
+    );
+    assert.throws(
+      () =>
+        assertConnectivityContractReconnectAuthorization(
+          entries.map((entry) =>
+            entry.requestId === 'principal-request'
+              ? { ...entry, sequence: 1 }
+              : entry,
+          ),
+          { settlementSequence: 2 },
+        ),
+      /product traffic before online settlement/,
+    );
+  });
+
+  it('correlates offline suspension, End cleanup, and tracking stop to one launch', () => {
+    const sourceRevision = 'e'.repeat(40);
+    const identity = {
+      appLaunchId: 'launch-connectivity',
+      navigationInstanceId: 'navigation-connectivity',
+      occurredAtMs: 200,
+      routeId: 'route-connectivity',
+      serverPhase: 'connectivityOffline',
+      sourceRevision,
+      workspaceId: 'workspace-connectivity',
+    };
+    const entries = [
+      {
+        ...identity,
+        authorization: { catalog: 'unavailable', principal: 'matching' },
+        durability: {
+          activeNavigation: 'present',
+          nativeTracking: 'stopped',
+          runtimePermit: 'none',
+        },
+        outcome: 'suspended',
+        type: 'restore.suspended',
+      },
+      {
+        ...identity,
+        authorization: { catalog: 'not-checked', principal: 'matching' },
+        durability: {
+          activeNavigation: 'revoked',
+          persistedPermit: 'revoked',
+        },
+        occurredAtMs: 201,
+        outcome: 'cleared',
+        type: 'navigation.cleanup.settled',
+      },
+      {
+        ...identity,
+        authorization: { catalog: 'not-checked', principal: 'matching' },
+        durability: {
+          nativeTracking: 'stopped',
+          persistedPermit: 'revoked',
+          runtimePermit: 'none',
+        },
+        occurredAtMs: 202,
+        outcome: 'off',
+        type: 'tracking.stop.settled',
+      },
+    ];
+
+    assert.doesNotThrow(() =>
+      assertConnectivityContractEndedJourneyStayedClosed(entries, {
+        expectedSourceRevision: sourceRevision,
+        minimumOccurredAtMs: 100,
+      }),
+    );
+    assert.throws(
+      () =>
+        assertConnectivityContractEndedJourneyStayedClosed(
+          entries.map((entry) =>
+            entry.type === 'navigation.cleanup.settled'
+              ? { ...entry, appLaunchId: 'another-launch' }
+              : entry,
+          ),
+          {
+            expectedSourceRevision: sourceRevision,
+            minimumOccurredAtMs: 100,
+          },
+        ),
+      /cleanup was not correlated/,
+    );
   });
 
   it('models transient unscoped catalog failure without blocking cached-workspace surfaces', async () => {

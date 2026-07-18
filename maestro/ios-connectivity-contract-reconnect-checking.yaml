@@ -1,0 +1,16 @@
+appId: host.exp.Exponent
+---
+- pressKey: HOME
+- waitForAnimationToEnd:
+    timeout: 1000
+- tapOn: "Expo Go"
+- extendedWaitUntil:
+    visible:
+      id: "guest-map-network-status"
+    timeout: 15000
+- assertVisible: "Checking connection. Map downloads are paused."
+- assertVisible:
+    id: "guest-map-canvas"
+- assertNotVisible:
+    id: "safe-route-suspended-navigation"
+- takeScreenshot: "connectivity-contract-reconnect-checking"

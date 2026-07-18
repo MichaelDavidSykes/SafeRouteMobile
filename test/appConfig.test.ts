@@ -9,6 +9,7 @@ const ENV_KEYS = [
   'SAFEROUTE_API_URL',
   'SAFEROUTE_API_VERSION',
   'SAFEROUTE_ENABLE_DEMO_DRIVE',
+  'SAFEROUTE_ENABLE_CONNECTIVITY_CONTRACT',
   'SAFEROUTE_ENABLE_GUIDANCE_CONTRACT_EVIDENCE',
   'SAFEROUTE_ENABLE_PREVIEW_MODE',
   'SAFEROUTE_PREVIEW_INITIAL_SCREEN',
@@ -39,6 +40,7 @@ type ExpoConfig = {
     safeRouteEnvironment: string;
     safeRouteApiUrl: string;
     safeRouteApiVersion: string;
+    safeRouteConnectivityContractEnabled: boolean;
     safeRouteDemoDriveEnabled: boolean;
     safeRouteGuidanceContractEvidenceEnabled: boolean;
     safeRoutePreviewInitialScreen: string;
@@ -108,6 +110,7 @@ describe('Expo production configuration', () => {
 
     assert.equal(expo.extra.safeRouteEnvironment, 'development');
     assert.equal(expo.extra.safeRouteApiUrl, 'https://api.lunarchain.net');
+    assert.equal(expo.extra.safeRouteConnectivityContractEnabled, false);
     assert.equal(expo.extra.safeRouteDemoDriveEnabled, true);
     assert.equal(expo.extra.safeRouteGuidanceContractEvidenceEnabled, false);
     assert.equal(expo.extra.safeRoutePreviewInitialScreen, 'guest-map');
@@ -165,6 +168,32 @@ describe('Expo production configuration', () => {
       SAFEROUTE_SOURCE_REVISION: revision,
       GOOGLE_MAPS_IOS_API_KEY: 'ios-key',
     }).extra.safeRouteGuidanceContractEvidenceEnabled, false);
+  });
+
+  it('enables deterministic connectivity only for an exact local development runtime', () => {
+    const revision = 'b'.repeat(40);
+    assert.equal(loadExpoConfig({
+      SAFEROUTE_DEV_API_URL: 'http://127.0.0.1:18080',
+      SAFEROUTE_ENABLE_CONNECTIVITY_CONTRACT: 'true',
+      SAFEROUTE_SOURCE_REVISION: revision,
+    }).extra.safeRouteConnectivityContractEnabled, true);
+    assert.equal(loadExpoConfig({
+      SAFEROUTE_ENABLE_CONNECTIVITY_CONTRACT: 'true',
+      SAFEROUTE_SOURCE_REVISION: revision,
+    }).extra.safeRouteConnectivityContractEnabled, false);
+    assert.equal(loadExpoConfig({
+      SAFEROUTE_DEV_API_URL: 'http://127.attacker.example:18080',
+      SAFEROUTE_ENABLE_CONNECTIVITY_CONTRACT: 'true',
+      SAFEROUTE_SOURCE_REVISION: revision,
+    }).extra.safeRouteConnectivityContractEnabled, false);
+    assert.equal(loadExpoConfig({
+      SAFEROUTE_APP_ENV: 'production',
+      SAFEROUTE_ENABLE_CONNECTIVITY_CONTRACT: 'true',
+      SAFEROUTE_PROD_API_URL: 'https://api.lunarchain.net',
+      SAFEROUTE_IOS_BUILD_NUMBER: '1',
+      SAFEROUTE_SOURCE_REVISION: revision,
+      GOOGLE_MAPS_IOS_API_KEY: 'ios-key',
+    }).extra.safeRouteConnectivityContractEnabled, false);
   });
 
   it('keeps iOS release identity and URL scheme stable in production config', () => {

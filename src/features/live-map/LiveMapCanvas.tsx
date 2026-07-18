@@ -19,6 +19,7 @@ import {
   SAFE_ROUTE_ROUTE_GLOW_WIDTH,
 } from "../maps/safeRouteMapTheme";
 import { shouldRenderRouteCheckpointMarker } from "../maps/mapMarkerPresentation";
+import { resolveSafeRouteMapType } from "../api/mapTransportState";
 
 interface LiveMapCanvasProps {
   activeNavigationState: NavigationLifecycle;
@@ -97,7 +98,10 @@ export function LiveMapCanvas({
       }
       toolbarEnabled={false}
       customMapStyle={SAFE_ROUTE_DARK_MAP_STYLE}
-      mapType={offline ? "none" : Platform.OS === "ios" ? "mutedStandard" : "standard"}
+      mapType={resolveSafeRouteMapType({
+        online: !offline,
+        platform: Platform.OS,
+      })}
       userInterfaceStyle="dark"
       onPanDrag={onPanDrag}
       onMapReady={onMapReady}

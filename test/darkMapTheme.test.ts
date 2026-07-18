@@ -48,12 +48,18 @@ describe("SafeRoute dark map theme", () => {
   it("uses muted native iOS tiles while retaining pitch and 3D buildings", () => {
     const guestMap = source("src/features/guest-map/GuestMapScreen.tsx");
     const liveMap = source("src/features/live-map/LiveMapCanvas.tsx");
+    const mapTransport = source("src/features/api/mapTransportState.ts");
 
     for (const mapSource of [guestMap, liveMap]) {
-      assert.match(mapSource, /Platform\.OS === ["']ios["']\s*\? ["']mutedStandard["']/);
+      assert.match(mapSource, /resolveSafeRouteMapType/);
+      assert.match(mapSource, /platform: Platform\.OS/);
       assert.match(mapSource, /showsBuildings/);
       assert.match(mapSource, /pitchEnabled/);
     }
+    assert.match(
+      mapTransport,
+      /platform === "ios" \? "mutedStandard" : "standard"/,
+    );
     assert.match(guestMap, /animateCamera\(\{ heading: 0, pitch: 38 \}/);
     assert.match(guestMap, /rotateEnabled/);
   });

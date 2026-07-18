@@ -25,6 +25,30 @@ export type OperationsOfflineReviewPresentation = {
   visibleLabel: string;
 };
 
+export type OperationsOfflineCalendarRemovalState =
+  | "idle"
+  | "removed"
+  | "removing"
+  | "retry";
+
+export type OperationsOfflineCalendarRemovalPresentation = {
+  actionAccessibilityHint: string | null;
+  actionAccessibilityLabel: string | null;
+  actionLabel: string | null;
+  busy: boolean;
+  confirmation: {
+    accessibilityLabel: string;
+    copy: string;
+    title: string;
+  } | null;
+  status: {
+    accessibilityLabel: string;
+    message: string;
+    title: string;
+    tone: "failure" | "progress" | "success";
+  } | null;
+};
+
 export type OperationsTabOption = {
   accessibilityLabel: string;
   id: OperationsTab;
@@ -157,6 +181,69 @@ export function createOperationsOfflineReviewPresentation({
       `${stateLabel} Operations. This calendar was saved ${spokenAge} and is review only. ${safetySentence}`,
     visibleLabel:
       `${stateLabel} · calendar saved ${visibleAge} · review only`,
+  };
+}
+
+export function createOperationsOfflineCalendarRemovalPresentation(
+  state: OperationsOfflineCalendarRemovalState,
+): OperationsOfflineCalendarRemovalPresentation {
+  const removing = state === "removing";
+  const retrying = state === "retry";
+  const removed = state === "removed";
+  const actionLabel = removed || removing
+    ? null
+    : retrying
+      ? "Retry removal"
+      : "Remove saved calendar";
+
+  return {
+    actionAccessibilityHint: removed || removing
+      ? null
+      : retrying
+        ? "Retries deleting this workspace's saved calendar from this device."
+        : "Deletes this workspace's saved calendar. Online Operations data is not changed. A future successful sync may save a new calendar.",
+    actionAccessibilityLabel: retrying
+      ? "Retry removing saved calendar from this device"
+      : actionLabel
+        ? "Remove saved calendar from this device"
+        : null,
+    actionLabel,
+    busy: removing,
+    confirmation: {
+      accessibilityLabel:
+        "Remove saved calendar confirmation. This deletes this workspace's saved calendar from this device. Online Operations data is unchanged. A future successful sync may save a new calendar.",
+      copy:
+        "This deletes this workspace's saved calendar from this device. Online Operations data is unchanged. A future successful sync may save a new calendar.",
+      title: "Remove saved calendar?",
+    },
+    status:
+      state === "removing"
+        ? {
+            accessibilityLabel:
+              "Removing saved calendar from this device.",
+            message: "Removing saved calendar from this device.",
+            title: "Removing…",
+            tone: "progress",
+          }
+        : state === "removed"
+          ? {
+              accessibilityLabel:
+                "Saved calendar removed. This workspace's saved calendar was removed from this device. Online Operations data is unchanged. A future successful sync may save a new calendar.",
+              message:
+                "This workspace's saved calendar was removed from this device. Online Operations data is unchanged. A future successful sync may save a new calendar.",
+              title: "Saved calendar removed",
+              tone: "success",
+            }
+          : state === "retry"
+            ? {
+                accessibilityLabel:
+                  "Removal needs retry. The saved calendar is hidden, but SafeRoute could not confirm removal from this device. Retry before closing the app.",
+                message:
+                  "The saved calendar is hidden, but SafeRoute could not confirm removal from this device. Retry before closing the app.",
+                title: "Removal needs retry",
+                tone: "failure",
+              }
+            : null,
   };
 }
 

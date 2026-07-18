@@ -1,0 +1,49 @@
+appId: host.exp.Exponent
+---
+- runFlow: subflows/ios-open-expo-project.yaml
+- extendedWaitUntil:
+    visible:
+      id: "saferoute-app-root"
+    timeout: 30000
+- extendedWaitUntil:
+    visible:
+      id: "guest-map-network-status"
+    timeout: 15000
+- assertVisible: "Offline map. Saved route information remains available."
+- assertVisible: "Workspace, Guidance Operations"
+- tapOn:
+    id: "guest-map-primary-action"
+- extendedWaitUntil:
+    visible:
+      id: "safe-route-picker"
+    timeout: 15000
+- assertVisible:
+    id: "safe-route-card-66b1b2c3d4e5f60718293b40"
+- tapOn:
+    id: "route-list-map-return"
+- extendedWaitUntil:
+    visible:
+      id: "guest-map-network-status"
+    timeout: 15000
+- scrollUntilVisible:
+    element:
+      id: "guest-map-gate-calendar"
+    direction: DOWN
+    timeout: 20000
+    speed: 40
+- tapOn:
+    id: "guest-map-gate-calendar"
+- extendedWaitUntil:
+    visible:
+      id: "safe-route-operations-empty-state"
+    timeout: 20000
+- assertVisible: "Calendar unavailable offline"
+- assertNotVisible:
+    id: "safe-route-operations-offline-notice"
+- assertNotVisible:
+    id: "safe-route-operations-route-movement-1-1"
+- assertNotVisible:
+    id: "safe-route-operations-remove-calendar"
+- assertNotVisible:
+    id: "safe-route-operations-calendar-removal-status"
+- takeScreenshot: "connectivity-contract-offline-operations-removal-relaunch"

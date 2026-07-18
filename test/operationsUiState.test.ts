@@ -8,6 +8,7 @@ import {
   createConvoyRows,
   createOfflineCalendarRows,
   createOperationsEmptyState,
+  createOperationsOfflineCalendarRemovalPresentation,
   createOperationsOfflineEmptyState,
   createOperationsOfflineReviewPresentation,
   createOperationsLoadingLabel,
@@ -262,5 +263,46 @@ describe("view-only operations UI state", () => {
       createOperationsOfflineEmptyState("planned-routes", true).copy,
       /Full planned-route details/,
     );
+  });
+
+  it("presents honest, accessible saved-calendar removal states", () => {
+    const idle = createOperationsOfflineCalendarRemovalPresentation("idle");
+    assert.equal(idle.actionLabel, "Remove saved calendar");
+    assert.equal(
+      idle.actionAccessibilityLabel,
+      "Remove saved calendar from this device",
+    );
+    assert.match(
+      idle.actionAccessibilityHint || "",
+      /future successful sync may save a new calendar/i,
+    );
+    assert.equal(idle.busy, false);
+    assert.equal(idle.status, null);
+    assert.equal(idle.confirmation?.title, "Remove saved calendar?");
+    assert.match(idle.confirmation?.copy || "", /Online Operations data is unchanged/);
+
+    const removing =
+      createOperationsOfflineCalendarRemovalPresentation("removing");
+    assert.equal(removing.busy, true);
+    assert.equal(removing.actionLabel, null);
+    assert.equal(removing.status?.tone, "progress");
+    assert.equal(removing.status?.title, "Removing…");
+
+    const removed =
+      createOperationsOfflineCalendarRemovalPresentation("removed");
+    assert.equal(removed.actionLabel, null);
+    assert.equal(removed.status?.tone, "success");
+    assert.equal(removed.status?.title, "Saved calendar removed");
+    assert.match(
+      removed.status?.message || "",
+      /future successful sync may save a new calendar/i,
+    );
+
+    const retry = createOperationsOfflineCalendarRemovalPresentation("retry");
+    assert.equal(retry.actionLabel, "Retry removal");
+    assert.equal(retry.status?.tone, "failure");
+    assert.equal(retry.status?.title, "Removal needs retry");
+    assert.match(retry.status?.message || "", /hidden/);
+    assert.match(retry.status?.message || "", /could not confirm removal/);
   });
 });

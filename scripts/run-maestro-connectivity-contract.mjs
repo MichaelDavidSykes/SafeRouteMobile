@@ -68,6 +68,10 @@ const flows = Object.freeze({
   offlineEnd: 'maestro/ios-connectivity-contract-offline-end.yaml',
   offlineObserve: 'maestro/ios-connectivity-contract-offline-observe.yaml',
   offlineRelaunch: 'maestro/ios-connectivity-contract-offline-relaunch.yaml',
+  operationsRemoveCalendar:
+    'maestro/ios-connectivity-contract-operations-remove-calendar.yaml',
+  operationsRemovalRelaunch:
+    'maestro/ios-connectivity-contract-operations-removal-relaunch.yaml',
   operationsReturnMap: 'maestro/ios-connectivity-contract-operations-return-map.yaml',
   online: 'maestro/ios-connectivity-contract-online.yaml',
   reconnectChecking: 'maestro/ios-connectivity-contract-reconnect-checking.yaml',
@@ -254,10 +258,52 @@ async function main() {
       labelStartsWith: 'Cold restart verification v1. ',
       enabled: true,
     },
+    {
+      id: 'safe-route-operations-remove-calendar',
+      label: 'Remove saved calendar from this device',
+      enabled: true,
+    },
   ]);
   await runFlow(
     CONNECTIVITY_CONTRACT_PHASES.offlineRelaunch,
-    'return to the offline map after Operations cache evidence',
+    'remove the exact offline Operations calendar after cancellation proof',
+    flows.operationsRemoveCalendar,
+  );
+  captureAccessibilityHierarchy('offline-operations-calendar-removed', [
+    {
+      id: 'safe-route-operations-calendar-removal-status',
+      label: "Saved calendar removed. This workspace's saved calendar was removed from this device. Online Operations data is unchanged. A future successful sync may save a new calendar.",
+      enabled: true,
+    },
+    {
+      id: 'safe-route-operations-empty-state',
+      label: 'Calendar unavailable offline. Reconnect to load and securely save this calendar.',
+      enabled: true,
+    },
+  ]);
+  await assertProductTrafficQuiet([
+    CONNECTIVITY_CONTRACT_PHASES.offlineRelaunch,
+  ], 1_000);
+
+  terminateExpoGo(deviceId);
+  await runFlow(
+    CONNECTIVITY_CONTRACT_PHASES.offlineRelaunch,
+    'cold relaunch after exact Operations calendar removal',
+    flows.operationsRemovalRelaunch,
+  );
+  captureAccessibilityHierarchy(
+    'offline-operations-calendar-removal-relaunch',
+    [
+      {
+        id: 'safe-route-operations-empty-state',
+        label: 'Calendar unavailable offline. Reconnect to load and securely save this calendar.',
+        enabled: true,
+      },
+    ],
+  );
+  await runFlow(
+    CONNECTIVITY_CONTRACT_PHASES.offlineRelaunch,
+    'return to the offline map after durable Operations removal evidence',
     flows.operationsReturnMap,
   );
   await waitForEvidenceType(

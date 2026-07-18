@@ -127,6 +127,7 @@ interface GuestMapScreenProps {
   workspaceAccessRefreshAvailable?: boolean;
   workspaceAccessFocusTargetRef?: (target: View | null) => void;
   workspaceAccessIssue?: WorkspaceAccessIssue;
+  workspaceChangeEndsNavigation?: boolean;
   workspaceSwitchDisabled?: boolean;
 }
 
@@ -152,6 +153,7 @@ export function GuestMapScreen({
   workspaceAccessRefreshAvailable = false,
   workspaceAccessFocusTargetRef,
   workspaceAccessIssue = 'none',
+  workspaceChangeEndsNavigation = false,
   workspaceSwitchDisabled = false
 }: GuestMapScreenProps) {
   const viewport = useWindowDimensions();
@@ -630,7 +632,6 @@ export function GuestMapScreen({
       return;
     }
 
-    clearWorkspaceScopedMapState();
     onWorkspaceChange?.(workspace);
   };
 
@@ -1697,6 +1698,7 @@ export function GuestMapScreen({
                       setWorkspaceMenuOpen((open) => !open);
                     }}
                     sharedRetryAvailable={workspaceAccessRefreshAvailable}
+                    changeEndsNavigation={workspaceChangeEndsNavigation}
                     switchDisabled={workspaceSwitchDisabled}
                     focusTargetRef={handleWorkspaceAccessFocusTarget}
                   />
@@ -1908,6 +1910,7 @@ export function GuestMapScreen({
 
 function GuestWorkspaceSelector({
   activeWorkspace,
+  changeEndsNavigation,
   errorMessage,
   focusTargetRef,
   loading,
@@ -1920,6 +1923,7 @@ function GuestWorkspaceSelector({
   workspaces
 }: {
   activeWorkspace: SafeRouteWorkspace | null;
+  changeEndsNavigation: boolean;
   errorMessage: string;
   focusTargetRef?: (target: View | null) => void;
   loading: boolean;
@@ -1950,7 +1954,7 @@ function GuestWorkspaceSelector({
   const action = retryAvailable
     ? 'Retry'
     : switchDisabled
-      ? 'Route active'
+      ? 'Finishing…'
       : catalogUnavailable
         ? (sharedRetryAvailable ? 'Check below' : 'Retry')
         : menuOpen ? 'Close' : errorMessage ? 'Verify' : 'Change';
@@ -1964,7 +1968,9 @@ function GuestWorkspaceSelector({
           : sharedRetryAvailable && catalogUnavailable
             ? 'Use the workspace access control below to check current access.'
           : switchDisabled
-            ? 'End active guidance before changing workspace.'
+            ? 'Finish guidance cleanup before changing workspace.'
+            : changeEndsNavigation
+              ? 'Opens the workspace menu. Choosing another workspace asks before ending active guidance.'
             : 'Opens the active workspace menu.'}
         accessibilityLabel={`Workspace, ${value}`}
         accessibilityRole={waitingForCatalog ? "progressbar" : "button"}
@@ -1999,7 +2005,9 @@ function GuestWorkspaceSelector({
             return (
               <Pressable
                 key={workspace.id}
-                accessibilityHint={`Uses ${workspace.name} for routes and risk intelligence.`}
+                accessibilityHint={changeEndsNavigation && !selected
+                  ? `Asks to end active guidance before changing to ${workspace.name}.`
+                  : `Uses ${workspace.name} for routes and risk intelligence.`}
                 accessibilityLabel={`Use workspace ${workspace.name}${selected ? ', selected' : ''}`}
                 accessibilityRole="button"
                 accessibilityState={{ selected }}

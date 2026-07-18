@@ -1,6 +1,13 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { StatusBar } from 'expo-status-bar';
-import { AccessibilityInfo, AppState, Platform, StyleSheet, View } from 'react-native';
+import {
+  AccessibilityInfo,
+  Alert,
+  AppState,
+  Platform,
+  StyleSheet,
+  View,
+} from 'react-native';
 import { SafeAreaProvider, initialWindowMetrics } from 'react-native-safe-area-context';
 
 import {
@@ -105,6 +112,7 @@ import {
   resolveReviewWorkspaceAfterNavigationEnd,
   type SafeRouteWorkspace
 } from './src/features/workspaces/activeWorkspace';
+import { resolveEndRouteWorkspaceChangeTarget } from './src/features/workspaces/endRouteWorkspaceChange';
 import {
   loadOfflineWorkspaceContext,
   migrateOfflineWorkspaceCatalogFromRouteCache,
@@ -229,6 +237,7 @@ function SafeRouteApp() {
     useState<PendingNavigationRestore | null>(null);
   const [navigationCleanupStatus, setNavigationCleanupStatus] =
     useState<NavigationCleanupStatus>('idle');
+  const [workspaceHandoffPending, setWorkspaceHandoffPending] = useState(false);
   const [offlineCalendarCleanupStatus, setOfflineCalendarCleanupStatus] =
     useState<OfflineCalendarCleanupStatus>('idle');
   const pendingFullAccessFeatureRef = useRef<GuestFullAccessFeature | null>(null);
@@ -313,6 +322,7 @@ function SafeRouteApp() {
   const routePreviewSourceRef = useRef<RoutePreviewSource>(routePreviewSource);
   const navigationCleanupRequiredRef = useRef(false);
   const navigationCleanupPromiseRef = useRef<Promise<boolean> | null>(null);
+  const workspaceHandoffPendingRef = useRef(false);
   const authenticated = hasAuthenticatedSession(session);
   const sessionPrincipalId = getAuthSessionPrincipalId(session);
   if (freshWorkspaceAuthorizationRef.current.principalId !== sessionPrincipalId) {
@@ -343,6 +353,8 @@ function SafeRouteApp() {
   const navigationWorkspaceLocked = Boolean(
     activeNavigationSession || pendingNavigationRestore,
   );
+  const workspaceCleanupLocked =
+    navigationCleanupStatus !== 'idle' || workspaceHandoffPending;
   const sessionEpoch = sessionEpochRef.current;
   activeSessionTokenRef.current = session?.accessToken || null;
   activeSessionPrincipalIdRef.current = getAuthSessionPrincipalId(session);
@@ -2305,6 +2317,7 @@ function SafeRouteApp() {
 
   const handleActiveWorkspaceChange = useCallback((workspace: SafeRouteWorkspace | null) => {
     if (
+      workspaceHandoffPendingRef.current ||
       pendingNavigationRestoreRef.current ||
       (activeNavigationSession && workspace?.id !== activeWorkspace?.id)
     ) {
@@ -2323,6 +2336,184 @@ function SafeRouteApp() {
       ).catch(() => undefined);
     }
   }, [activeNavigationSession, activeWorkspace?.id, availableWorkspaces, session]);
+
+  const handleMapWorkspaceChange = useCallback((workspace: SafeRouteWorkspace) => {
+    if (workspaceHandoffPendingRef.current) {
+      return;
+    }
+    const requestedNavigation =
+      pendingNavigationRestoreRef.current ||
+      activeNavigationSessionRef.current;
+    if (!requestedNavigation) {
+      handleActiveWorkspaceChange(workspace);
+      return;
+    }
+
+    const requestedTarget = findWorkspace(
+      availableWorkspacesRef.current,
+      workspace.id,
+    );
+    const requestedSource = activeWorkspaceRef.current;
+    if (!requestedTarget) {
+      return;
+    }
+    const requestedRouteWorkspaceId =
+      requestedNavigation.accessScope.kind === 'workspace'
+        ? requestedNavigation.accessScope.clientId
+        : requestedNavigation.routePlan.clientId;
+    const requestedRouteWorkspace = findWorkspace(
+      availableWorkspacesRef.current,
+      requestedRouteWorkspaceId,
+    );
+    if (
+      requestedTarget.id ===
+      (requestedSource?.id || requestedRouteWorkspace?.id)
+    ) {
+      return;
+    }
+
+    const requestedPrincipalId = activeSessionPrincipalIdRef.current;
+    const requestedSessionEpoch = sessionEpochRef.current;
+    const requestedWorkspaceRequestRevision = workspaceRequestRevisionRef.current;
+    const requestedSourceWorkspaceId = requestedSource?.id || null;
+    const requestedTargetWorkspaceId = requestedTarget.id;
+    const routeName = requestedNavigation.routePlan.name.trim() || 'Active route';
+    const requestedSourceName =
+      requestedSource?.name ||
+      requestedRouteWorkspace?.name ||
+      'the current route workspace';
+    const requestOwnerIsCurrent = () =>
+      requestedPrincipalId === activeSessionPrincipalIdRef.current &&
+      requestedSessionEpoch === sessionEpochRef.current;
+    const requestIsCurrentBeforeCleanup = () =>
+      requestOwnerIsCurrent() &&
+      requestedWorkspaceRequestRevision === workspaceRequestRevisionRef.current &&
+      requestedSourceWorkspaceId === (activeWorkspaceRef.current?.id || null) &&
+      Boolean(
+        findWorkspace(
+          availableWorkspacesRef.current,
+          requestedTargetWorkspaceId,
+        ),
+      ) &&
+      isCurrentPendingNavigationRestore(
+        pendingNavigationRestoreRef.current ||
+          activeNavigationSessionRef.current,
+        requestedNavigation,
+      );
+    const requestTargetIsCurrent = () =>
+      resolveEndRouteWorkspaceChangeTarget({
+        availableWorkspaces: availableWorkspacesRef.current,
+        currentPrincipalId: activeSessionPrincipalIdRef.current,
+        currentSessionEpoch: sessionEpochRef.current,
+        currentSourceWorkspaceId: activeWorkspaceRef.current?.id || null,
+        currentWorkspaceRequestRevision: workspaceRequestRevisionRef.current,
+        hasActiveNavigation: Boolean(activeNavigationSessionRef.current),
+        hasPendingNavigation: Boolean(pendingNavigationRestoreRef.current),
+        requestedPrincipalId,
+        requestedSessionEpoch,
+        requestedSourceWorkspaceId,
+        requestedTargetWorkspaceId,
+        requestedWorkspaceRequestRevision,
+      });
+
+    Alert.alert(
+      'End route and change workspace?',
+      `End ${routeName} in ${requestedSourceName}, then change to ${requestedTarget.name}. Guidance and background tracking will stop.`,
+      [
+        {
+          style: 'cancel',
+          text: 'Keep route',
+        },
+        {
+          onPress: () => {
+            void (async () => {
+              if (
+                workspaceHandoffPendingRef.current ||
+                !requestIsCurrentBeforeCleanup()
+              ) {
+                return;
+              }
+              workspaceHandoffPendingRef.current = true;
+              setWorkspaceHandoffPending(true);
+              try {
+                const cleanupSucceeded = await discardPersistedNavigation(undefined, {
+                  evidenceSession: requestedNavigation,
+                  publishCleanupFailure: false,
+                });
+                const currentTarget = requestTargetIsCurrent();
+                if (!cleanupSucceeded) {
+                  if (currentTarget) {
+                    setSessionMessage(
+                      'Saved guidance could not be removed. Retry cleanup before changing workspace.',
+                    );
+                  }
+                  return;
+                }
+                if (!currentTarget) {
+                  if (requestOwnerIsCurrent()) {
+                    setSessionMessage(
+                      'Route ended, but workspace access changed. Choose a workspace again.',
+                    );
+                  }
+                  return;
+                }
+
+                let persistedSelection: Awaited<
+                  ReturnType<typeof persistOfflineReviewWorkspaceSelection>
+                >;
+                try {
+                  persistedSelection = await persistOfflineReviewWorkspaceSelection(
+                    requestedPrincipalId,
+                    currentTarget.id,
+                  );
+                } catch {
+                  if (requestOwnerIsCurrent()) {
+                    setSessionMessage(
+                      'Route ended, but the workspace could not be changed. Choose it again.',
+                    );
+                  }
+                  return;
+                }
+                const persistedTarget = requestTargetIsCurrent();
+                if (
+                  !persistedTarget ||
+                  persistedSelection?.activeWorkspaceId !== persistedTarget.id
+                ) {
+                  if (requestOwnerIsCurrent()) {
+                    setSessionMessage(
+                      'Route ended, but the workspace could not be changed. Choose it again.',
+                    );
+                  }
+                  return;
+                }
+                activeWorkspaceRef.current = persistedTarget;
+                setActiveWorkspace(persistedTarget);
+                const confirmation =
+                  `Route ended. Workspace changed to ${persistedTarget.name}.`;
+                setSessionMessage(confirmation);
+                if (Platform.OS === 'ios') {
+                  void workspaceAccessFocusHandoffRef.current?.request(
+                    confirmation,
+                    () => workspaceAccessFocusTargetRef.current,
+                  );
+                } else {
+                  AccessibilityInfo.announceForAccessibilityWithOptions(
+                    confirmation,
+                    { queue: true },
+                  );
+                }
+              } finally {
+                workspaceHandoffPendingRef.current = false;
+                setWorkspaceHandoffPending(false);
+              }
+            })();
+          },
+          style: 'destructive',
+          text: 'End route and change workspace',
+        },
+      ],
+    );
+  }, [handleActiveWorkspaceChange]);
 
   const handleWorkspaceUnavailable = useCallback(async (
     workspaceId: string,
@@ -2949,7 +3140,7 @@ function SafeRouteApp() {
             workspaceAccessRefreshAvailable={workspaceAccessRefreshAvailable}
             workspaceAccessIssue={workspaceAccessIssue}
             workspaceAccessFocusTargetRef={updateWorkspaceAccessFocusTarget}
-            workspaceSwitchDisabled={navigationWorkspaceLocked}
+            workspaceSwitchDisabled={navigationWorkspaceLocked || workspaceCleanupLocked}
           />
         ) : screen === 'operations' && session && authenticated ? (
           <OperationsScreen
@@ -2974,7 +3165,7 @@ function SafeRouteApp() {
             workspaceAccessRefreshAvailable={workspaceAccessRefreshAvailable}
             workspaceAccessIssue={workspaceAccessIssue}
             workspaceAccessFocusTargetRef={updateWorkspaceAccessFocusTarget}
-            workspaceSwitchDisabled={navigationWorkspaceLocked}
+            workspaceSwitchDisabled={navigationWorkspaceLocked || workspaceCleanupLocked}
           />
         ) : (
           <GuestMapScreen
@@ -2994,7 +3185,7 @@ function SafeRouteApp() {
               pendingFullAccessFeatureRef.current = null;
               openSignIn();
             }}
-            onWorkspaceChange={handleActiveWorkspaceChange}
+            onWorkspaceChange={handleMapWorkspaceChange}
             workspaceCatalogError={workspaceCatalogError}
             workspaceCatalogLoading={workspaceCatalogBusy}
             workspaceCatalogStoredAtMs={workspaceCatalogStoredAtMs}
@@ -3003,7 +3194,8 @@ function SafeRouteApp() {
             workspaceAccessRefreshAvailable={workspaceAccessRefreshAvailable}
             workspaceAccessIssue={workspaceAccessIssue}
             workspaceAccessFocusTargetRef={updateWorkspaceAccessFocusTarget}
-            workspaceSwitchDisabled={navigationWorkspaceLocked}
+            workspaceChangeEndsNavigation={navigationWorkspaceLocked}
+            workspaceSwitchDisabled={workspaceCleanupLocked}
           />
         )}
         {activeNavigationSession && screen !== 'route-preview' && screen !== 'login' ? (

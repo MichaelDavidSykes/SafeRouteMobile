@@ -236,12 +236,16 @@ describe("Maestro iOS preview smoke flow", () => {
     assert.match(flow, /assertNotVisible:\s*\n\s+id: "safe-route-card-sr-city-airport-alpha"/);
   });
 
-  it("exercises paused workspace guidance retry and end actions", () => {
+  it("cancels then confirms the guarded paused-guidance workspace handoff", () => {
     const flow = suspendedGuidanceFlowSource();
     const scripts = packageJson().scripts;
     const noticeIndex = flow.indexOf('id: "safe-route-suspended-navigation"');
     const retryIndex = flow.indexOf('id: "safe-route-suspended-navigation-retry"');
-    const endIndex = flow.indexOf('id: "safe-route-suspended-navigation-end"');
+    const selectorIndex = flow.indexOf('id: "guest-map-workspace-selector"');
+    const cancelIndex = flow.indexOf('tapOn: "Keep route"');
+    const confirmIndex = flow.indexOf(
+      'tapOn: "End route and change workspace"',
+    );
 
     assert.equal(
       scripts["start:maestro:ios:preview:guidance-suspended"],
@@ -253,10 +257,14 @@ describe("Maestro iOS preview smoke flow", () => {
     );
     assert.ok(noticeIndex >= 0);
     assert.ok(retryIndex > noticeIndex);
-    assert.ok(endIndex > retryIndex);
+    assert.ok(selectorIndex > retryIndex);
+    assert.ok(cancelIndex > selectorIndex);
+    assert.ok(confirmIndex > cancelIndex);
     assert.match(flow, /assertNotVisible:[\s\S]*safe-route-live-map/);
     assert.match(flow, /tapOn:[\s\S]*safe-route-suspended-navigation-retry/);
-    assert.match(flow, /tapOn:[\s\S]*safe-route-suspended-navigation-end/);
+    assert.match(flow, /End route and change workspace\?/);
+    assert.match(flow, /assertVisible: "Workspace, Central Operations"/);
+    assert.match(flow, /assertVisible: "Workspace, West Corridor"/);
   });
 
   it("plots a guest route before opening the live map", () => {

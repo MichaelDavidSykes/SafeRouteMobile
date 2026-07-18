@@ -89,7 +89,10 @@ describe("App active workspace integration", () => {
     assert.match(app, /<OperationsScreen[\s\S]*onRetryWorkspaceCatalog=/);
     assert.match(app, /<OperationsScreen[\s\S]*workspaceCatalogError=\{workspaceCatalogError\}/);
     assert.match(app, /<OperationsScreen[\s\S]*workspaceCatalogLoading=\{workspaceCatalogBusy\}/);
-    assert.match(app, /<OperationsScreen[\s\S]*workspaceSwitchDisabled=\{navigationWorkspaceLocked\}/);
+    assert.match(
+      app,
+      /<OperationsScreen[\s\S]*workspaceSwitchDisabled=\{navigationWorkspaceLocked \|\| workspaceCleanupLocked\}/,
+    );
     assert.match(app, /<OperationsScreen[\s\S]*onWorkspaceUnavailable=\{handleWorkspaceUnavailable\}/);
     assert.match(app, /<RouteListScreen[\s\S]*onWorkspaceUnavailable=\{handleWorkspaceUnavailable\}/);
     assert.match(operations, /onWorkspaceChange\(nextWorkspace\)/);
@@ -467,12 +470,81 @@ describe("App active workspace integration", () => {
     assert.doesNotMatch(operationsSource(), /clients\[0\]|resolveOperationsClientId/);
   });
 
-  it("blocks a cross-workspace switch while guidance remains resumable", () => {
+  it("guards a Map workspace change with confirmed durable guidance cleanup", () => {
     const app = appSource();
+    const guest = guestSource();
 
     assert.match(app, /handleActiveWorkspaceChange[\s\S]*activeNavigationSession[\s\S]*workspace\?\.id !== activeWorkspace\?\.id[\s\S]*return/);
     assert.match(app, /navigationWorkspaceLocked = Boolean\([\s\S]*activeNavigationSession \|\| pendingNavigationRestore/);
-    assert.match(app, /workspaceSwitchDisabled=\{navigationWorkspaceLocked\}/);
+    assert.match(
+      app,
+      /handleMapWorkspaceChange[\s\S]*Alert\.alert\([\s\S]*End route and change workspace\?[\s\S]*Keep route[\s\S]*End route and change workspace/,
+    );
+    assert.match(
+      app,
+      /handleMapWorkspaceChange[\s\S]*requestIsCurrentBeforeCleanup\(\)[\s\S]*await discardPersistedNavigation\([\s\S]*await persistOfflineReviewWorkspaceSelection\([\s\S]*setActiveWorkspace\(persistedTarget\)/,
+    );
+    assert.match(
+      app,
+      /requestedSourceWorkspaceId = requestedSource\?\.id \|\| null[\s\S]*requestedSourceName =[\s\S]*requestedRouteWorkspace\?\.name/,
+    );
+    assert.match(
+      app,
+      /workspaceHandoffPendingRef\.current = true[\s\S]*setWorkspaceHandoffPending\(true\)[\s\S]*finally \{[\s\S]*workspaceHandoffPendingRef\.current = false[\s\S]*setWorkspaceHandoffPending\(false\)/,
+    );
+    assert.match(
+      app,
+      /workspaceCleanupLocked =[\s\S]*navigationCleanupStatus !== 'idle' \|\| workspaceHandoffPending/,
+    );
+    assert.match(
+      app,
+      /resolveEndRouteWorkspaceChangeTarget\(\{[\s\S]*currentWorkspaceRequestRevision: workspaceRequestRevisionRef\.current[\s\S]*hasActiveNavigation:[\s\S]*hasPendingNavigation:/,
+    );
+    assert.match(
+      app,
+      /requestIsCurrentBeforeCleanup[\s\S]*isCurrentPendingNavigationRestore\([\s\S]*requestedNavigation/,
+    );
+    assert.match(
+      app,
+      /Route ended\. Workspace changed to \$\{persistedTarget\.name\}\.[\s\S]*workspaceAccessFocusHandoffRef\.current\?\.request/,
+    );
+    assert.match(
+      app,
+      /if \(!currentTarget\) \{[\s\S]*requestOwnerIsCurrent\(\)[\s\S]*Route ended, but workspace access changed/,
+    );
+    assert.match(
+      app,
+      /persistedSelection\?\.activeWorkspaceId !== persistedTarget\.id[\s\S]*requestOwnerIsCurrent\(\)[\s\S]*Route ended, but the workspace could not be changed/,
+    );
+    assert.match(
+      app,
+      /<GuestMapScreen[\s\S]*onWorkspaceChange=\{handleMapWorkspaceChange\}[\s\S]*workspaceChangeEndsNavigation=\{navigationWorkspaceLocked\}[\s\S]*workspaceSwitchDisabled=\{workspaceCleanupLocked\}/,
+    );
+    assert.equal(
+      (
+        app.match(
+          /workspaceSwitchDisabled=\{navigationWorkspaceLocked \|\| workspaceCleanupLocked\}/g,
+        ) || []
+      ).length,
+      2,
+    );
+    assert.match(
+      guest,
+      /Choosing another workspace asks before ending active guidance/,
+    );
+    assert.match(guest, /Finishing…/);
+    assert.match(guest, /Finish guidance cleanup before changing workspace/);
+    assert.match(
+      guest,
+      /handleWorkspaceChange[\s\S]*setWorkspaceMenuOpen\(false\)[\s\S]*onWorkspaceChange\?\.\(workspace\)/,
+    );
+    assert.doesNotMatch(
+      guest.slice(
+        guest.indexOf("const handleWorkspaceChange ="),
+        guest.indexOf("const handlePlotRoute ="),
+      ),
+      /clearWorkspaceScopedMapState/,
+    );
   });
 
   it("does not open a replacement route until prior guidance cleanup succeeds", () => {

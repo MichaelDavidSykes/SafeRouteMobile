@@ -150,7 +150,7 @@ describe("Maestro connectivity contract runtime", () => {
     );
     assert.match(
       seed,
-      /inputText: "guidance-contract-password"\n- tapOn: "go"/,
+      /inputText: "guidance-contract-password"\n- tapOn:\n    point: "87%, 89%"/,
     );
     assert.doesNotMatch(seed, /Autofill Password|hideKeyboard|pressKey: ENTER/);
     assert.match(checking, /Checking connection\. Map downloads are paused\./);

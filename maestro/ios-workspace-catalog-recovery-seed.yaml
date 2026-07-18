@@ -20,7 +20,8 @@ appId: host.exp.Exponent
     id: "safe-route-login-password"
 - eraseText
 - inputText: "guidance-contract-password"
-- tapOn: "go"
+- tapOn:
+    point: "87%, 89%"
 - runFlow:
     when:
       visible: "Not Now"

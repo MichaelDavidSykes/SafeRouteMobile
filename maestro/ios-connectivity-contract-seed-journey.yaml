@@ -1,6 +1,9 @@
 appId: host.exp.Exponent
 ---
 - runFlow: subflows/ios-open-expo-project.yaml
+- setLocation:
+    latitude: 51.5074
+    longitude: -0.1278
 - extendedWaitUntil:
     visible:
       id: "guest-map-workspace-selector"
@@ -20,6 +23,11 @@ appId: host.exp.Exponent
 - extendedWaitUntil:
     visible:
       id: "safe-route-live-map"
+    timeout: 20000
+- extendedWaitUntil:
+    visible:
+      id: "safe-route-primary-action"
+      enabled: true
     timeout: 20000
 - tapOn:
     id: "safe-route-primary-action"

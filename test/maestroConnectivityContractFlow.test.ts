@@ -84,6 +84,9 @@ describe("Maestro connectivity contract runtime", () => {
     const runner = read("scripts/run-maestro-connectivity-contract.mjs");
     const fixture = read("scripts/maestro-guidance-contract-api.mjs");
     const checking = read("maestro/ios-connectivity-contract-cold-checking.yaml");
+    const seedJourney = read(
+      "maestro/ios-connectivity-contract-seed-journey.yaml",
+    );
     const offline = read("maestro/ios-connectivity-contract-offline-end.yaml");
     const reconnect = read(
       "maestro/ios-connectivity-contract-reconnect-checking.yaml",
@@ -116,6 +119,10 @@ describe("Maestro connectivity contract runtime", () => {
     assert.match(
       runner,
       /navigation\.cleanup\.settled[\s\S]*tracking\.stop\.settled/,
+    );
+    assert.match(
+      seedJourney,
+      /setLocation:[\s\S]*safe-route-primary-action"[\s\S]*enabled: true/,
     );
     assert.match(checking, /Checking connection\. Map downloads are paused\./);
     assert.match(checking, /id: "guest-map-canvas"/);

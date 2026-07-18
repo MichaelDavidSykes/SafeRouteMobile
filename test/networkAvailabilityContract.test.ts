@@ -18,8 +18,8 @@ describe("network availability contract", () => {
     assert.ok(configuration);
     assert.equal(configuration.useNativeReachability, false);
     assert.equal(configuration.reachabilityMethod, "HEAD");
-    assert.equal(configuration.reachabilityShortTimeout, 250);
-    assert.equal(configuration.reachabilityLongTimeout, 250);
+    assert.equal(configuration.reachabilityShortTimeout, 60_000);
+    assert.equal(configuration.reachabilityLongTimeout, 60_000);
     assert.equal(configuration.reachabilityRequestTimeout, 120_000);
     assert.equal(
       configuration.reachabilityUrl,

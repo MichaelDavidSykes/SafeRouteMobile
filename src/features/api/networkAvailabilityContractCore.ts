@@ -35,10 +35,10 @@ export function createNetworkAvailabilityContractConfiguration({
       "X-SafeRoute-Connectivity-Contract": "1",
       "X-SafeRoute-Source-Revision": normalizedRevision,
     },
-    reachabilityLongTimeout: 250,
+    reachabilityLongTimeout: 60_000,
     reachabilityMethod: "HEAD",
     reachabilityRequestTimeout: 120_000,
-    reachabilityShortTimeout: 250,
+    reachabilityShortTimeout: 60_000,
     reachabilityTest: async (response) => response.status === 204,
     reachabilityUrl:
       `${normalizedApiUrl}${CONNECTIVITY_CONTRACT_REACHABILITY_PATH}` +

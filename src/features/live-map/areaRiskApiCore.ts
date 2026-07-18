@@ -3,16 +3,21 @@ import type { Region } from 'react-native-maps';
 import type { RiskSeverity, RiskZone } from './liveMapTypes';
 
 export const AREA_RISK_ENDPOINT_PATH = '/intel/map/area-risk';
+export const AREA_RISK_RESEARCH_ENDPOINT_PATH = `${AREA_RISK_ENDPOINT_PATH}/research`;
 export const MIN_VIEWPORT_RISK_ZOOM = 0;
 export const DEFAULT_DETAIL_AREA_RISK_MAX_RECORDS = 100;
 export const DEFAULT_REGIONAL_AREA_RISK_MAX_RECORDS = 120;
 export const DEFAULT_GLOBAL_AREA_RISK_MAX_RECORDS = 120;
 export const MAX_AREA_RISK_RECORDS = 160;
-export const AREA_RISK_CACHE_COORDINATE_QUANTUM = 0.05;
+export const MAX_AREA_RISK_RESEARCH_SPAN_KM = 1500;
+export const DEFAULT_AREA_RISK_PAGE_SIZE = 100;
+export const MAX_AREA_RISK_PAGES = 8;
+export const AREA_RISK_CACHE_COORDINATE_QUANTUM = 0.00001;
 export const AREA_RISK_CACHE_ZOOM_QUANTUM = 0.5;
 export const AREA_RISK_VIEWPORT_PADDING_RATIO = 0.35;
 
 export type AreaRiskScope = 'global' | 'regional' | 'detail';
+export type AreaRiskLoadIntent = 'read' | 'research';
 
 export interface AreaRiskBounds {
   south: number;
@@ -30,7 +35,6 @@ export interface AreaRiskViewportRequest {
   maxRecords: number;
   minLat: number;
   minLon: number;
-  refresh?: boolean;
   scope: AreaRiskScope;
   zoom: number;
 }
@@ -41,12 +45,15 @@ export interface AreaRiskViewportRequestOptions {
   detailMaxRecords?: number;
   globalMaxRecords?: number;
   minZoom?: number;
-  refresh?: boolean;
   regionalMaxRecords?: number;
 }
 
 export interface AreaRiskPathOptions {
   authenticated?: boolean;
+  bypassCacheNonce?: string | null;
+  cursor?: string | null;
+  pageSize?: number | null;
+  strictRead?: boolean;
 }
 
 export interface AreaRiskCacheKeyOptions {
@@ -55,10 +62,48 @@ export interface AreaRiskCacheKeyOptions {
 }
 
 export interface AreaRiskFeed {
+  coverageStatus: string | null;
   fetchedAt: string | null;
+  legacyFallback: boolean;
   message: string;
+  pagesLoaded: number;
+  partial: boolean;
   providerStatus: string | null;
+  readError: string | null;
+  research: AreaRiskResearchState | null;
+  researchError: string | null;
+  seedStatus: string | null;
   zones: RiskZone[];
+}
+
+export interface AreaRiskResearchState {
+  accepted: boolean;
+  coalesced: boolean;
+  coverageStatus: string | null;
+  pending: boolean;
+  queued: boolean;
+  retryAfterSeconds: number | null;
+  seedId: string | null;
+  seedStatus: string | null;
+  status: string | null;
+}
+
+export interface AreaRiskResearchPayload {
+  bounds: {
+    max_lat: number;
+    max_lon: number;
+    min_lat: number;
+    min_lon: number;
+  };
+  client_id: string;
+  country_hints: string[];
+  scope: Exclude<AreaRiskScope, 'global'>;
+  zoom: number;
+}
+
+export interface AreaRiskFeedPage extends AreaRiskFeed {
+  hasMore: boolean;
+  nextCursor: string | null;
 }
 
 export interface AreaRiskAvoidRectangle {
@@ -171,7 +216,6 @@ export function regionToAreaRiskViewportRequests(
     maxRecords,
     minLat: bounds.south,
     minLon: bounds.west,
-    ...(options.refresh === true ? { refresh: true } : {}),
     scope,
     zoom: stableZoom
   }));
@@ -234,8 +278,70 @@ function areaRiskViewportGridSize(zoom: number): number {
 /** The configured API base contributes /api/v1 to this endpoint-relative path. */
 export function buildAreaRiskViewportPath(
   request: AreaRiskViewportRequest,
-  { authenticated = false }: AreaRiskPathOptions = {}
+  {
+    authenticated = false,
+    bypassCacheNonce,
+    cursor,
+    pageSize,
+    strictRead = true
+  }: AreaRiskPathOptions = {}
 ): string {
+  const scope = normalizeScope(request.scope, request.zoom);
+  const bounds = scope === 'global'
+    ? null
+    : normalizeNonCrossingBounds({
+        south: request.minLat,
+        west: request.minLon,
+        north: request.maxLat,
+        east: request.maxLon
+      });
+  if (scope !== 'global' && !bounds) {
+    throw new Error('A valid, non-crossing viewport bbox is required for area risk.');
+  }
+
+  const params = new URLSearchParams();
+  params.set('refresh', 'false');
+  params.set('read_only', strictRead ? 'true' : 'false');
+  params.set('max_records', String(clampInteger(request.maxRecords, 1, MAX_AREA_RISK_RECORDS, 60)));
+  const clientId = cleanOptionalText(request.clientId, 80);
+  if (authenticated && clientId) {
+    params.set('client_id', clientId);
+  }
+  params.set('scope', scope);
+  params.set('zoom', clamp(finiteNumber(request.zoom) ?? 0, 0, 24).toFixed(2));
+  if (bounds) {
+    params.set('bbox', formatBbox(bounds));
+  }
+  const countries = normalizeCountryHints(request.countries);
+  if (countries.length) {
+    params.set('countries', countries.join(','));
+  }
+  const normalizedPageSize = clampInteger(
+    pageSize,
+    1,
+    DEFAULT_AREA_RISK_PAGE_SIZE,
+    Math.min(DEFAULT_AREA_RISK_PAGE_SIZE, request.maxRecords)
+  );
+  params.set('page_size', String(normalizedPageSize));
+  const normalizedCursor = cleanOptionalText(cursor, 160);
+  if (normalizedCursor) {
+    params.set('cursor', normalizedCursor);
+  }
+  const nonce = cleanOptionalText(bypassCacheNonce, 120);
+  if (nonce) {
+    params.set('_read_nonce', nonce);
+  }
+  return `${AREA_RISK_ENDPOINT_PATH}?${params.toString()}`;
+}
+
+export function canRequestAreaRiskResearch(
+  request: AreaRiskViewportRequest,
+  accessToken?: string | null
+): boolean {
+  const clientId = cleanOptionalText(request.clientId, 80);
+  if (!String(accessToken ?? '').trim() || !clientId || request.scope === 'global') {
+    return false;
+  }
   const bounds = normalizeNonCrossingBounds({
     south: request.minLat,
     west: request.minLon,
@@ -243,24 +349,47 @@ export function buildAreaRiskViewportPath(
     east: request.maxLon
   });
   if (!bounds) {
-    throw new Error('A valid, non-crossing viewport bbox is required for area risk.');
+    return false;
   }
 
-  const params = new URLSearchParams();
-  params.set('refresh', authenticated && request.refresh === true ? 'true' : 'false');
-  params.set('max_records', String(clampInteger(request.maxRecords, 1, MAX_AREA_RISK_RECORDS, 60)));
+  const latitudeSpanKm = (bounds.north - bounds.south) * 111.32;
+  const midpointLatitudeRadians = ((bounds.south + bounds.north) / 2) * (Math.PI / 180);
+  const longitudeSpanKm = (bounds.east - bounds.west)
+    * 111.32
+    * Math.max(0.01, Math.abs(Math.cos(midpointLatitudeRadians)));
+  return latitudeSpanKm <= MAX_AREA_RISK_RESEARCH_SPAN_KM
+    && longitudeSpanKm <= MAX_AREA_RISK_RESEARCH_SPAN_KM;
+}
+
+export function buildAreaRiskResearchPayload(
+  request: AreaRiskViewportRequest
+): AreaRiskResearchPayload {
+  if (request.scope === 'global') {
+    throw new Error('Global area-risk research is not supported.');
+  }
+  const bounds = normalizeNonCrossingBounds({
+    south: request.minLat,
+    west: request.minLon,
+    north: request.maxLat,
+    east: request.maxLon
+  });
   const clientId = cleanOptionalText(request.clientId, 80);
-  if (authenticated && clientId) {
-    params.set('client_id', clientId);
+  if (!bounds || !clientId) {
+    throw new Error('A tenant and valid, non-crossing viewport are required for area-risk research.');
   }
-  params.set('scope', normalizeScope(request.scope, request.zoom));
-  params.set('zoom', clamp(finiteNumber(request.zoom) ?? 0, 0, 24).toFixed(2));
-  params.set('bbox', formatBbox(bounds));
-  const countries = normalizeCountryHints(request.countries);
-  if (countries.length) {
-    params.set('countries', countries.join(','));
-  }
-  return `${AREA_RISK_ENDPOINT_PATH}?${params.toString()}`;
+
+  return {
+    client_id: clientId,
+    scope: request.scope,
+    bounds: {
+      min_lat: bounds.south,
+      max_lat: bounds.north,
+      min_lon: bounds.west,
+      max_lon: bounds.east
+    },
+    zoom: clamp(finiteNumber(request.zoom) ?? 0, 0, 24),
+    country_hints: normalizeCountryHints(request.countries)
+  };
 }
 
 export function buildAreaRiskRequestHeaders(accessToken?: string | null): Record<string, string> {
@@ -300,6 +429,10 @@ export function areaRiskViewportRequestKey(
 }
 
 export function normalizeAreaRiskFeed(payload: unknown): AreaRiskFeed {
+  return normalizeAreaRiskFeedPage(payload);
+}
+
+export function normalizeAreaRiskFeedPage(payload: unknown): AreaRiskFeedPage {
   const body = unwrapDataEnvelope(payload);
   const record = asRecord(body);
   const source = cleanOptionalText(record?.source, 160) ?? 'LunarChain area-risk intelligence';
@@ -317,13 +450,80 @@ export function normalizeAreaRiskFeed(payload: unknown): AreaRiskFeed {
     .filter((value): value is string => Boolean(value));
 
   return {
+    coverageStatus: cleanOptionalText(
+      record?.coverageStatus ?? record?.coverage_status,
+      80
+    ),
     fetchedAt: cleanOptionalText(record?.fetchedAt ?? record?.fetched_at, 80),
+    legacyFallback: false,
     message: zones.length
       ? `${zones.length} SafeRoute area-risk signal${zones.length === 1 ? '' : 's'} prepared.`
       : (providerErrors[0] ?? 'No SafeRoute area-risk signals are available for this map view yet.'),
+    pagesLoaded: 1,
+    partial: false,
     providerStatus: cleanOptionalText(record?.providerStatus ?? record?.provider_status, 80),
+    readError: null,
+    research: null,
+    researchError: null,
+    seedStatus: cleanOptionalText(record?.seedStatus ?? record?.seed_status, 80),
+    hasMore: record?.hasMore === true || record?.has_more === true,
+    nextCursor: cleanOptionalText(record?.nextCursor ?? record?.next_cursor, 160),
     zones
   };
+}
+
+export function normalizeAreaRiskResearchState(payload: unknown): AreaRiskResearchState {
+  const body = unwrapDataEnvelope(payload);
+  const record = asRecord(body);
+  const status = cleanOptionalText(record?.status, 80)?.toLowerCase() ?? null;
+  return {
+    accepted: record?.accepted === true,
+    coalesced: record?.coalesced === true,
+    coverageStatus: cleanOptionalText(
+      record?.coverageStatus ?? record?.coverage_status,
+      80
+    ),
+    pending: record?.pending === true || status === 'queued' || status === 'scheduled'
+      || status === 'researching',
+    queued: record?.queued === true,
+    retryAfterSeconds: nonNegativeIntegerOrNull(
+      record?.retryAfterSeconds ?? record?.retry_after_seconds
+    ),
+    seedId: cleanOptionalText(record?.seedId ?? record?.seed_id, 160),
+    seedStatus: cleanOptionalText(record?.seedStatus ?? record?.seed_status, 80),
+    status
+  };
+}
+
+export function areaRiskResponseBoundsMatchRequest(
+  payload: unknown,
+  request: AreaRiskViewportRequest
+): boolean {
+  if (request.scope === 'global') {
+    return true;
+  }
+  const body = unwrapDataEnvelope(payload);
+  const record = asRecord(body);
+  const responseBounds = asRecord(record?.bounds);
+  if (!responseBounds) {
+    return false;
+  }
+  const expected = [
+    request.minLat,
+    request.maxLat,
+    request.minLon,
+    request.maxLon
+  ];
+  const actual = [
+    responseBounds.minLat ?? responseBounds.min_lat,
+    responseBounds.maxLat ?? responseBounds.max_lat,
+    responseBounds.minLon ?? responseBounds.min_lon,
+    responseBounds.maxLon ?? responseBounds.max_lon
+  ].map(finiteNumber);
+  return actual.every((value) => value !== null)
+    && expected.every((value, index) =>
+      Math.abs(value - (actual[index] as number)) <= 0.00001
+    );
 }
 
 export function mergeRiskZonesById(...zoneSets: ReadonlyArray<readonly RiskZone[]>): RiskZone[] {
@@ -858,6 +1058,11 @@ function positiveFiniteNumber(value: unknown): number | null {
 function clampInteger(value: unknown, minimum: number, maximum: number, fallback: number): number {
   const numeric = finiteNumber(value);
   return Math.max(minimum, Math.min(maximum, Math.trunc(numeric ?? fallback)));
+}
+
+function nonNegativeIntegerOrNull(value: unknown): number | null {
+  const numeric = finiteNumber(value);
+  return numeric === null || numeric < 0 ? null : Math.trunc(numeric);
 }
 
 function clamp(value: number, minimum: number, maximum: number): number {

@@ -1637,11 +1637,14 @@ function assertPostEndRetryTraffic(entries) {
     (entry) => entry.sequence > catalogCompletion.sequence
   );
   for (const request of postCatalog) {
-    const clientId = new URLSearchParams(request.search).get('client_id');
+    const searchParameters = new URLSearchParams(request.search);
+    const clientId = searchParameters.get('client_id');
     const completion = completionFor(entries, request);
     assertCondition(
       request.path === '/api/v1/intel/map/area-risk' &&
         clientId === GUIDANCE_CONTRACT_WORKSPACES.denied.id &&
+        searchParameters.get('refresh') === 'false' &&
+        searchParameters.get('read_only') === 'true' &&
         request.authorized === true &&
         request.authorizationClass === 'expected-bearer' &&
         completion.completed === true &&
@@ -1770,9 +1773,12 @@ function assertEndedJourneyReloadTraffic(
     );
   }
   for (const request of viewportRiskRequests) {
+    const searchParameters = new URLSearchParams(request.search);
     const completion = completionFor(entries, request);
     assertCondition(
-      request.authorized === true &&
+      searchParameters.get('refresh') === 'false' &&
+        searchParameters.get('read_only') === 'true' &&
+        request.authorized === true &&
         request.authorizationClass === 'expected-bearer' &&
         completion.completed === true &&
         completion.statusCode === 200 &&

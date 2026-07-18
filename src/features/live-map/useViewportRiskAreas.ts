@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import type { Region } from 'react-native-maps';
 
 import { getRequestSessionExpiry } from '../api/sessionExpiry';
@@ -6,6 +6,7 @@ import { getRequestUnavailableWorkspaceId } from '../workspaces/workspaceAccessR
 import { fetchAreaRiskViewport } from './areaRiskApi';
 import {
   areaRiskViewportRequestKey,
+  canRequestAreaRiskResearch,
   mergeRiskZonesById,
   regionToAreaRiskViewportRequests,
   type AreaRiskViewportRequest
@@ -13,13 +14,23 @@ import {
 import type { RiskZone } from './liveMapTypes';
 import {
   cacheViewportRiskZones,
+  canCacheViewportRiskFeed,
   getCachedViewportRiskZones,
+  isAreaRiskFeedFailed,
+  isAreaRiskFeedMissing,
+  isAreaRiskFeedPending,
+  resolveViewportRiskCoverageOutcome,
   resolveViewportRiskDisplayZones,
-  type ViewportRiskCache
+  type ViewportRiskCache,
+  type ViewportRiskCoverageState
 } from './viewportRiskState';
 
 export const VIEWPORT_RISK_DEBOUNCE_MS = 450;
 export const VIEWPORT_RISK_TIMEOUT_MS = 6000;
+export const VIEWPORT_RISK_MAX_POLL_ATTEMPTS = 4;
+export const VIEWPORT_RISK_MIN_POLL_MS = 1500;
+export const VIEWPORT_RISK_MAX_POLL_MS = 10000;
+const VIEWPORT_RISK_DEFAULT_COOLDOWN_SECONDS = 30;
 
 export function useViewportRiskAreas({
   accessToken,
@@ -37,23 +48,49 @@ export function useViewportRiskAreas({
   region: Region;
 }) {
   const cacheRef = useRef<ViewportRiskCache>(new Map());
+  const accessSessionIdentityRef = useRef({
+    identity: 0,
+    token: String(accessToken || '').trim()
+  });
+  const cacheScopeContextRef = useRef('');
   const clientIdRef = useRef(clientId);
+  const displayContextRef = useRef('');
+  const handledPollRevisionRef = useRef(0);
+  const handledResearchRevisionRef = useRef(0);
+  const handledRetryRevisionRef = useRef(0);
+  const legacyCompatibilityScopeRef = useRef('');
   const onSessionExpiredRef = useRef(onSessionExpired);
   const onWorkspaceUnavailableRef = useRef(onWorkspaceUnavailable);
+  const pollStateRef = useRef({ attempts: 0, context: '' });
   const requestRevisionRef = useRef(0);
   const requestsRef = useRef<AreaRiskViewportRequest[]>([]);
   const zonesRef = useRef<RiskZone[]>([]);
+  const [coverageState, setCoverageState] = useState<ViewportRiskCoverageState>('idle');
   const [zones, setZones] = useState<RiskZone[]>([]);
   const [loading, setLoading] = useState(false);
   const [errorMessage, setErrorMessage] = useState('');
   const [statusMessage, setStatusMessage] = useState('');
   const [retryRevision, setRetryRevision] = useState(0);
+  const [researchRevision, setResearchRevision] = useState(0);
+  const [pollRevision, setPollRevision] = useState(0);
+  const [researchBlockedUntilMs, setResearchBlockedUntilMs] = useState(0);
+  const normalizedAccessToken = String(accessToken || '').trim();
+  const normalizedClientId = String(clientId || '').trim();
+  if (accessSessionIdentityRef.current.token !== normalizedAccessToken) {
+    accessSessionIdentityRef.current = {
+      identity: accessSessionIdentityRef.current.identity + 1,
+      token: normalizedAccessToken
+    };
+  }
   const requests = useMemo(
     () => regionToAreaRiskViewportRequests(region, {
-      clientId: clientId || undefined
+      clientId: normalizedAccessToken && normalizedClientId
+        ? normalizedClientId
+        : undefined
     }),
     [
-      clientId,
+      normalizedAccessToken,
+      normalizedClientId,
       region.latitude,
       region.longitude,
       region.latitudeDelta,
@@ -64,26 +101,37 @@ export function useViewportRiskAreas({
     () => requests.map((request) => areaRiskViewportRequestKey(request)).join('|'),
     [requests]
   );
+  const accessContext = normalizedAccessToken && normalizedClientId
+    ? `tenant:${normalizedClientId}:session-${accessSessionIdentityRef.current.identity}`
+    : 'public';
+  const cacheScopeContext = `${enabled ? 'enabled' : 'disabled'}|${accessContext}`;
+  const displayContext = `${cacheScopeContext}|${requestSignature}`;
+  const researchAvailable = enabled
+    && researchBlockedUntilMs <= Date.now()
+    && requests.length > 0
+    && requests.every((request) =>
+      canRequestAreaRiskResearch(request, normalizedAccessToken)
+    );
   const requestEligibilityEpochRef = useRef(0);
   const requestEligibilityRef = useRef({
     accessToken,
     clientId,
     enabled,
-    requestSignature,
+    requestSignature
   });
   const previousEligibility = requestEligibilityRef.current;
   if (
-    previousEligibility.accessToken !== accessToken ||
-    previousEligibility.clientId !== clientId ||
-    previousEligibility.enabled !== enabled ||
-    previousEligibility.requestSignature !== requestSignature
+    previousEligibility.accessToken !== accessToken
+    || previousEligibility.clientId !== clientId
+    || previousEligibility.enabled !== enabled
+    || previousEligibility.requestSignature !== requestSignature
   ) {
     requestEligibilityEpochRef.current += 1;
     requestEligibilityRef.current = {
       accessToken,
       clientId,
       enabled,
-      requestSignature,
+      requestSignature
     };
   }
   requestsRef.current = requests;
@@ -93,61 +141,105 @@ export function useViewportRiskAreas({
   onWorkspaceUnavailableRef.current = onWorkspaceUnavailable;
 
   useEffect(() => {
+    const remainingMs = researchBlockedUntilMs - Date.now();
+    if (remainingMs <= 0) {
+      return;
+    }
+    const timer = setTimeout(
+      () => setResearchBlockedUntilMs(0),
+      remainingMs
+    );
+    return () => clearTimeout(timer);
+  }, [researchBlockedUntilMs]);
+
+  useEffect(() => {
     const revision = requestRevisionRef.current + 1;
     requestRevisionRef.current = revision;
     const requestEligibilityEpoch = requestEligibilityEpochRef.current;
     const controller = new AbortController();
     const activeRequests = requestsRef.current;
+    const researchRequested = handledResearchRevisionRef.current !== researchRevision;
+    const retryRequested = handledRetryRevisionRef.current !== retryRevision;
+    const pollRequested = handledPollRevisionRef.current !== pollRevision;
+    handledResearchRevisionRef.current = researchRevision;
+    handledRetryRevisionRef.current = retryRevision;
+    handledPollRevisionRef.current = pollRevision;
+    const bypassCache = researchRequested || retryRequested || pollRequested;
     const requestIsCurrent = () =>
-      !controller.signal.aborted &&
-      requestRevisionRef.current === revision &&
-      requestEligibilityRef.current.enabled &&
-      requestEligibilityEpochRef.current === requestEligibilityEpoch;
+      !controller.signal.aborted
+      && requestRevisionRef.current === revision
+      && requestEligibilityRef.current.enabled
+      && requestEligibilityEpochRef.current === requestEligibilityEpoch;
+    let followupTimer: ReturnType<typeof setTimeout> | null = null;
+
+    const contextChanged = displayContextRef.current !== displayContext;
+    const cacheScopeChanged = cacheScopeContextRef.current !== cacheScopeContext;
+    if (contextChanged) {
+      displayContextRef.current = displayContext;
+      if (cacheScopeChanged) {
+        cacheScopeContextRef.current = cacheScopeContext;
+        cacheRef.current.clear();
+        zonesRef.current = [];
+        setZones([]);
+        legacyCompatibilityScopeRef.current = '';
+      }
+      setResearchBlockedUntilMs(0);
+      pollStateRef.current = { attempts: 0, context: displayContext };
+    } else if (pollStateRef.current.context !== displayContext) {
+      pollStateRef.current = { attempts: 0, context: displayContext };
+    }
+    if (researchRequested || retryRequested) {
+      pollStateRef.current = { attempts: 0, context: displayContext };
+    }
 
     if (!enabled) {
       setLoading(false);
       setZones([]);
       setErrorMessage('');
       setStatusMessage('');
+      setCoverageState('idle');
       return () => controller.abort();
     }
 
     if (!activeRequests.length) {
       setLoading(false);
       setErrorMessage('');
-      setStatusMessage(
-        zonesRef.current.length ? '' : 'Risk areas are waiting for a valid map view.'
-      );
+      setStatusMessage('Risk areas are waiting for a valid map view.');
+      setCoverageState('idle');
       return () => controller.abort();
     }
 
     const cachedZones: RiskZone[][] = [];
-    const missingRequests: AreaRiskViewportRequest[] = [];
+    const requestsToLoad: AreaRiskViewportRequest[] = [];
     for (const request of activeRequests) {
       const cached = getCachedViewportRiskZones(cacheRef.current, request);
       if (cached) {
         cachedZones.push(cached);
-      } else {
-        missingRequests.push(request);
+      }
+      if (bypassCache || !cached) {
+        requestsToLoad.push(request);
       }
     }
 
-    if (!missingRequests.length) {
-      setZones(mergeRiskZonesById(...cachedZones));
+    if (!requestsToLoad.length) {
+      const nextZones = mergeRiskZonesById(...cachedZones);
+      setZones(nextZones);
       setLoading(false);
       setErrorMessage('');
-      setStatusMessage('');
+      setStatusMessage(nextZones.length ? 'Cached risk coverage.' : 'No cached risks in this map view.');
+      setCoverageState('cached');
       return () => controller.abort();
     }
 
     const cachedResult = mergeRiskZonesById(...cachedZones);
-    const retainedZones = zonesRef.current;
-    // Keep already-rendered overlays in place until the stable replacement
-    // partition arrives. Minor map adjustments therefore never flash empty.
+    const retainedZones = cacheScopeChanged ? [] : zonesRef.current;
     setZones(resolveViewportRiskDisplayZones(retainedZones, cachedResult, false));
     setLoading(true);
     setErrorMessage('');
-    setStatusMessage('Loading risk areas…');
+    setStatusMessage(
+      researchRequested ? 'Requesting risk research…' : 'Loading risk areas…'
+    );
+    setCoverageState('loading');
     const timer = setTimeout(() => {
       if (!requestIsCurrent()) {
         return;
@@ -155,23 +247,92 @@ export function useViewportRiskAreas({
       const receivedZones: RiskZone[][] = [];
       let failedRequestCount = 0;
       let successfulRequestCount = 0;
+      let pendingRequestCount = 0;
+      let partialRequestCount = 0;
+      let readFailureCount = 0;
+      let researchFailureCount = 0;
+      let statusFailureCount = 0;
+      let missingRequestCount = 0;
+      let cooldownRequestCount = 0;
+      let cooldownRetryAfterSeconds = 0;
+      let legacyFallbackCount = 0;
+      let retryAfterSeconds = 0;
+      let currentEmptyResearchCount = 0;
       let sessionExpiryHandled = false;
       let workspaceUnavailableHandled = false;
-      const downloads = missingRequests.map(async (request) => {
+      const downloads = requestsToLoad.map(async (request) => {
         try {
           const feed = await fetchAreaRiskViewport(request, {
             accessToken,
+            bypassCache,
+            intent: researchRequested ? 'research' : 'read',
             signal: controller.signal,
             timeoutMs: VIEWPORT_RISK_TIMEOUT_MS
           });
           if (!requestIsCurrent()) {
             return;
           }
-          cacheViewportRiskZones(cacheRef.current, request, feed.zones);
-          successfulRequestCount += 1;
-          receivedZones.push(feed.zones);
-          // Antimeridian views have two chunks. Reveal the first successful
-          // chunk as soon as it lands instead of waiting for the slower one.
+          const cooldown = feed.research?.status === 'cooldown';
+          const pending = !cooldown && isAreaRiskFeedPending(feed);
+          if (pending) {
+            pendingRequestCount += 1;
+          }
+          if (cooldown) {
+            cooldownRequestCount += 1;
+            const retryAfterSeconds = Math.max(
+              VIEWPORT_RISK_DEFAULT_COOLDOWN_SECONDS,
+              feed.research?.retryAfterSeconds ?? 0
+            );
+            cooldownRetryAfterSeconds = Math.max(
+              cooldownRetryAfterSeconds,
+              retryAfterSeconds
+            );
+            setResearchBlockedUntilMs((current) => Math.max(
+              current,
+              Date.now() + retryAfterSeconds * 1000
+            ));
+          }
+          if (feed.partial) {
+            partialRequestCount += 1;
+          }
+          if (feed.readError) {
+            readFailureCount += 1;
+          } else {
+            successfulRequestCount += 1;
+          }
+          if (feed.researchError) {
+            researchFailureCount += 1;
+          }
+          if (feed.legacyFallback) {
+            legacyFallbackCount += 1;
+            legacyCompatibilityScopeRef.current = cacheScopeContext;
+          }
+          if (isAreaRiskFeedFailed(feed)) {
+            statusFailureCount += 1;
+          }
+          if (isAreaRiskFeedMissing(feed, {
+            requireTenantResearch: Boolean(request.clientId)
+          })) {
+            missingRequestCount += 1;
+          }
+          if (feed.research?.status === 'current-empty') {
+            currentEmptyResearchCount += 1;
+          }
+          retryAfterSeconds = Math.max(
+            retryAfterSeconds,
+            feed.research?.retryAfterSeconds ?? 0
+          );
+          if (feed.zones.length) {
+            receivedZones.push(feed.zones);
+          }
+          if (canCacheViewportRiskFeed(feed, {
+            requireTenantResearch: Boolean(request.clientId)
+          })) {
+            cacheViewportRiskZones(cacheRef.current, request, feed.zones);
+          }
+          if (feed.readError && !feed.zones.length) {
+            failedRequestCount += 1;
+          }
           setZones(resolveViewportRiskDisplayZones(
             retainedZones,
             mergeRiskZonesById(...cachedZones, ...receivedZones),
@@ -186,8 +347,8 @@ export function useViewportRiskAreas({
             error,
             handled: sessionExpiryHandled,
             requestActive:
-              requestIsCurrent() &&
-              clientIdRef.current === clientId
+              requestIsCurrent()
+              && clientIdRef.current === clientId
           });
           if (sessionExpiry) {
             sessionExpiryHandled = true;
@@ -195,6 +356,7 @@ export function useViewportRiskAreas({
             setZones([]);
             setLoading(false);
             setStatusMessage('');
+            setCoverageState('failed');
             onSessionExpiredRef.current?.(sessionExpiry.message);
             return;
           }
@@ -203,9 +365,9 @@ export function useViewportRiskAreas({
             error,
             handled: workspaceUnavailableHandled,
             requestActive:
-              requestIsCurrent() &&
-              clientIdRef.current === clientId &&
-              Boolean(onWorkspaceUnavailableRef.current),
+              requestIsCurrent()
+              && clientIdRef.current === clientId
+              && Boolean(onWorkspaceUnavailableRef.current),
             workspaceId: clientId
           });
           if (unavailableWorkspaceId) {
@@ -217,6 +379,7 @@ export function useViewportRiskAreas({
             setLoading(false);
             setErrorMessage('');
             setStatusMessage('');
+            setCoverageState('failed');
             onWorkspaceUnavailableRef.current?.(unavailableWorkspaceId);
             return;
           }
@@ -229,39 +392,126 @@ export function useViewportRiskAreas({
           return;
         }
         const nextZones = mergeRiskZonesById(...cachedZones, ...receivedZones);
-        const allMissingRequestsFailed =
-          failedRequestCount === missingRequests.length && successfulRequestCount === 0;
-        const replacementReady = failedRequestCount === 0;
-        setZones(resolveViewportRiskDisplayZones(
+        const allRequestsFailed =
+          failedRequestCount === requestsToLoad.length
+          && successfulRequestCount === 0;
+        const replacementReady = failedRequestCount === 0
+          && partialRequestCount === 0
+          && pendingRequestCount === 0
+          && readFailureCount === 0
+          && statusFailureCount === 0
+          && missingRequestCount === 0
+          && cooldownRequestCount === 0;
+        const visibleZones = resolveViewportRiskDisplayZones(
           retainedZones,
-          allMissingRequestsFailed ? cachedResult : nextZones,
+          allRequestsFailed ? cachedResult : nextZones,
           replacementReady
-        ));
-        if (allMissingRequestsFailed) {
-          setErrorMessage('Risk areas could not be updated. Move the map or retry.');
-          setStatusMessage('');
-        } else if (!replacementReady) {
-          setErrorMessage('Some risk areas could not be updated. Retry when convenient.');
-          setStatusMessage('');
-        } else {
-          setErrorMessage('');
-          setStatusMessage(nextZones.length ? '' : 'No risk areas in this map view.');
-        }
+        );
+        setZones(visibleZones);
+
+        const outcome = resolveViewportRiskCoverageOutcome({
+          allRequestsFailed,
+          cooldownRequestCount,
+          cooldownRetryAfterSeconds,
+          currentEmptyResearchCount,
+          failedRequestCount,
+          missingRequestCount,
+          partialRequestCount,
+          pendingRequestCount,
+          readFailureCount,
+          researchAvailable,
+          researchFailureCount,
+          researchRequested,
+          statusFailureCount,
+          visibleZoneCount: visibleZones.length
+        });
+        setErrorMessage(outcome.errorMessage);
+        setStatusMessage(outcome.statusMessage);
+        setCoverageState(outcome.coverageState);
         setLoading(false);
+
+        if (pendingRequestCount > 0) {
+          if (
+            legacyFallbackCount > 0
+            || legacyCompatibilityScopeRef.current === cacheScopeContext
+          ) {
+            setErrorMessage(
+              'Compatibility research is in progress. Check again later.'
+            );
+            setStatusMessage(
+              visibleZones.length
+                ? 'Existing risks remain visible while compatibility research runs.'
+                : 'Compatibility research is still in progress.'
+            );
+            setCoverageState('pending-timeout');
+            return;
+          }
+          const pollState = pollStateRef.current;
+          if (
+            pollState.context === displayContext
+            && pollState.attempts < VIEWPORT_RISK_MAX_POLL_ATTEMPTS
+          ) {
+            pollState.attempts += 1;
+            const delayMs = Math.max(
+              VIEWPORT_RISK_MIN_POLL_MS,
+              Math.min(
+                VIEWPORT_RISK_MAX_POLL_MS,
+                (retryAfterSeconds || 2) * 1000
+              )
+            );
+            followupTimer = setTimeout(() => {
+              if (requestIsCurrent()) {
+                setPollRevision((value) => value + 1);
+              }
+            }, delayMs);
+          } else {
+            setErrorMessage('Risk research is still in progress. Check again.');
+            setStatusMessage(
+              visibleZones.length
+                ? 'Risk research is still in progress. Existing risks remain visible.'
+                : 'Risk research is still in progress. Check again shortly.'
+            );
+            setCoverageState('pending-timeout');
+          }
+        }
       });
     }, VIEWPORT_RISK_DEBOUNCE_MS);
 
     return () => {
       clearTimeout(timer);
+      if (followupTimer) {
+        clearTimeout(followupTimer);
+      }
       controller.abort();
     };
-  }, [accessToken, enabled, requestSignature, retryRevision]);
+  }, [
+    accessToken,
+    cacheScopeContext,
+    displayContext,
+    enabled,
+    pollRevision,
+    researchRevision,
+    requestSignature,
+    retryRevision
+  ]);
+
+  const retry = useCallback(() => {
+    setRetryRevision((revision) => revision + 1);
+  }, []);
+  const research = useCallback(() => {
+    if (researchAvailable && researchBlockedUntilMs <= Date.now()) {
+      setResearchRevision((revision) => revision + 1);
+    }
+  }, [researchAvailable, researchBlockedUntilMs]);
 
   return {
+    coverageState,
     errorMessage,
     loading,
-    retry: () => setRetryRevision((revision) => revision + 1),
+    research,
+    researchAvailable,
+    retry,
     statusMessage,
-    zones
+    zones: cacheScopeContextRef.current === cacheScopeContext ? zones : []
   };
 }

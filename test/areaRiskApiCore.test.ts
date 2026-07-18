@@ -2,12 +2,16 @@ import assert from 'node:assert/strict';
 import { describe, it } from 'node:test';
 
 import {
+  AREA_RISK_RESEARCH_ENDPOINT_PATH,
   approximateMapZoom,
   buildAreaRiskRequestHeaders,
+  buildAreaRiskResearchPayload,
   buildAreaRiskViewportPath,
+  canRequestAreaRiskResearch,
   canonicalAreaRiskZoneId,
   deriveRiskZoneAvoidRectangles,
   normalizeAreaRiskFeed,
+  normalizeAreaRiskResearchState,
   regionToAreaRiskViewportRequests,
   type AreaRiskViewportRequest
 } from '../src/features/live-map/areaRiskApiCore';
@@ -60,6 +64,10 @@ describe('area risk API core', () => {
     assert.equal(requests[0].scope, 'global');
     assert.equal(requests[0].maxRecords, 120);
     assert.equal(requests[0].bbox, '-85.00000,-180.00000,85.00000,180.00000');
+    const url = new URL(buildAreaRiskViewportPath(requests[0]), 'https://example.test');
+    assert.equal(url.searchParams.has('bbox'), false);
+    assert.equal(url.searchParams.get('scope'), 'global');
+    assert.equal(url.searchParams.get('read_only'), 'true');
   });
 
   it('mirrors bbox, zoom, scope and max_records while protecting tenant-only query data', () => {
@@ -71,7 +79,6 @@ describe('area risk API core', () => {
       maxRecords: 12,
       minLat: -34.1,
       minLon: 18.3,
-      refresh: true,
       scope: 'detail',
       zoom: 12
     };
@@ -83,14 +90,110 @@ describe('area risk API core', () => {
     assert.equal(publicUrl.searchParams.get('scope'), 'detail');
     assert.equal(publicUrl.searchParams.get('max_records'), '12');
     assert.equal(publicUrl.searchParams.get('refresh'), 'false');
+    assert.equal(publicUrl.searchParams.get('read_only'), 'true');
+    assert.equal(publicUrl.searchParams.get('page_size'), '12');
     assert.equal(publicUrl.searchParams.has('client_id'), false);
 
     const protectedUrl = new URL(
       buildAreaRiskViewportPath(request, { authenticated: true }),
       'https://example.test'
     );
-    assert.equal(protectedUrl.searchParams.get('refresh'), 'true');
+    assert.equal(protectedUrl.searchParams.get('refresh'), 'false');
+    assert.equal(protectedUrl.searchParams.get('read_only'), 'true');
     assert.equal(protectedUrl.searchParams.get('client_id'), 'tenant-1');
+
+    const cursorUrl = new URL(
+      buildAreaRiskViewportPath(request, {
+        authenticated: true,
+        bypassCacheNonce: 'read-1',
+        cursor: 'opaque-cursor',
+        pageSize: 10
+      }),
+      'https://example.test'
+    );
+    assert.equal(cursorUrl.searchParams.get('cursor'), 'opaque-cursor');
+    assert.equal(cursorUrl.searchParams.get('page_size'), '10');
+    assert.equal(cursorUrl.searchParams.get('_read_nonce'), 'read-1');
+    assert.equal(cursorUrl.searchParams.get('refresh'), 'false');
+    assert.equal(cursorUrl.searchParams.get('read_only'), 'true');
+  });
+
+  it('builds only bounded authenticated research commands with the exact backend body', () => {
+    const request: AreaRiskViewportRequest = {
+      bbox: '-34.10000,18.30000,-33.80000,18.80000',
+      clientId: ' tenant-1 ',
+      countries: ['ZA', 'za', ' South Africa '],
+      maxLat: -33.8,
+      maxLon: 18.8,
+      maxRecords: 100,
+      minLat: -34.1,
+      minLon: 18.3,
+      scope: 'detail',
+      zoom: 12
+    };
+
+    assert.equal(AREA_RISK_RESEARCH_ENDPOINT_PATH, '/intel/map/area-risk/research');
+    assert.equal(canRequestAreaRiskResearch(request, ' token '), true);
+    assert.equal(canRequestAreaRiskResearch(request, ''), false);
+    assert.equal(canRequestAreaRiskResearch({ ...request, scope: 'global' }, 'token'), false);
+    assert.equal(
+      canRequestAreaRiskResearch({ ...request, minLon: -20, maxLon: 20 }, 'token'),
+      false
+    );
+    assert.deepEqual(buildAreaRiskResearchPayload(request), {
+      client_id: 'tenant-1',
+      scope: 'detail',
+      bounds: {
+        min_lat: -34.1,
+        max_lat: -33.8,
+        min_lon: 18.3,
+        max_lon: 18.8
+      },
+      zoom: 12,
+      country_hints: ['za', 'South Africa']
+    });
+  });
+
+  it('normalizes queued, current-empty, and cooldown research truth', () => {
+    assert.deepEqual(normalizeAreaRiskResearchState({
+      data: {
+        accepted: true,
+        coalesced: true,
+        coverageStatus: 'pending',
+        pending: true,
+        queued: false,
+        retryAfterSeconds: 10,
+        seedId: 'seed-1',
+        seedStatus: 'researching',
+        status: 'researching'
+      }
+    }), {
+      accepted: true,
+      coalesced: true,
+      coverageStatus: 'pending',
+      pending: true,
+      queued: false,
+      retryAfterSeconds: 10,
+      seedId: 'seed-1',
+      seedStatus: 'researching',
+      status: 'researching'
+    });
+    const cooldown = normalizeAreaRiskResearchState({
+      data: {
+        accepted: true,
+        pending: false,
+        retryAfterSeconds: 3600,
+        status: 'cooldown'
+      }
+    });
+    assert.equal(cooldown.pending, false);
+    assert.equal(cooldown.retryAfterSeconds, 3600);
+    assert.equal(
+      normalizeAreaRiskResearchState({
+        data: { status: 'current-empty', accepted: true }
+      }).pending,
+      false
+    );
   });
 
   it('splits a dateline-crossing viewport into two bounded API bboxes', () => {

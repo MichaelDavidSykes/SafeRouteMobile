@@ -581,7 +581,10 @@ export function createGuidanceContractHandler({
     }
 
     if (
-      url.pathname === '/api/v1/intel/map/area-risk' &&
+      (
+        url.pathname === '/api/v1/intel/map/area-risk' ||
+        url.pathname === '/api/v1/intel/map/area-risk/research'
+      ) &&
       request.headers.authorization &&
       !hasExpectedBearerAuthorization(request.headers.authorization)
     ) {
@@ -870,6 +873,17 @@ export function createGuidanceContractHandler({
     }
 
     if (request.method === 'GET' && url.pathname === '/api/v1/intel/map/area-risk') {
+      if (
+        url.searchParams.get('refresh') !== 'false' ||
+        url.searchParams.get('read_only') !== 'true'
+      ) {
+        sendApiError(
+          response,
+          400,
+          'Area-risk coverage reads must be strict and non-mutating.'
+        );
+        return;
+      }
       const requestedWorkspaceId = String(url.searchParams.get('client_id') || '').trim();
       const authenticated = hasExpectedBearerAuthorization(request.headers.authorization);
       if (
@@ -889,14 +903,82 @@ export function createGuidanceContractHandler({
         sendApiError(response, 403, 'Workspace membership is unavailable.');
         return;
       }
+      const bbox = String(url.searchParams.get('bbox') || '').split(',').map(Number);
+      const bounds = bbox.length === 4 && bbox.every(Number.isFinite)
+        ? {
+            minLat: bbox[0],
+            minLon: bbox[1],
+            maxLat: bbox[2],
+            maxLon: bbox[3]
+          }
+        : undefined;
       sendApiSuccess(response, {
         data: {
-          fetched_at: new Date(0).toISOString(),
+          bounds,
+          fetchedAt: new Date(0).toISOString(),
+          hasMore: false,
+          items: [],
           message: 'No deterministic risk signals in this viewport.',
-          provider_status: 'ready',
-          zones: []
+          nextCursor: null,
+          providerStatus: 'empty',
+          seedStatus: requestedWorkspaceId ? 'completed' : 'not-requested'
         },
         message: 'Risk viewport loaded.'
+      });
+      return;
+    }
+
+    if (request.method === 'POST' && url.pathname === '/api/v1/intel/map/area-risk/research') {
+      const body = await readJsonBody(request);
+      const requestedWorkspaceId = String(body?.client_id || '').trim();
+      const authenticated = hasExpectedBearerAuthorization(request.headers.authorization);
+      if (!authenticated) {
+        sendApiError(response, 401, 'A contract Bearer token is required.', {
+          'WWW-Authenticate': 'Bearer'
+        });
+        return;
+      }
+      if (!requestedWorkspaceId) {
+        sendApiError(response, 422, 'client_id is required.');
+        return;
+      }
+      if (!isValidAreaRiskResearchPayload(body)) {
+        sendApiError(response, 422, 'Area-risk research payload is invalid.');
+        return;
+      }
+      if (
+        !Object.values(GUIDANCE_CONTRACT_WORKSPACES)
+          .some((workspace) => workspace.id === requestedWorkspaceId)
+      ) {
+        sendApiError(response, 404, 'Workspace was not found.');
+        return;
+      }
+      if (
+        requestedWorkspaceId === GUIDANCE_CONTRACT_WORKSPACES.denied.id &&
+        mode === GUIDANCE_CONTRACT_MODES.denied
+      ) {
+        sendApiError(response, 403, 'Workspace membership is unavailable.');
+        return;
+      }
+      sendApiSuccess(response, {
+        data: {
+          accepted: true,
+          bounds: {
+            minLat: body.bounds.min_lat,
+            maxLat: body.bounds.max_lat,
+            minLon: body.bounds.min_lon,
+            maxLon: body.bounds.max_lon
+          },
+          coalesced: false,
+          coverageStatus: 'current-empty',
+          pending: false,
+          queued: false,
+          retryAfterSeconds: null,
+          seedId: 'guidance-contract-area-risk-seed',
+          seedStatus: 'completed',
+          status: 'current-empty'
+        },
+        message: 'Area-risk research request evaluated successfully.'
       });
       return;
     }
@@ -1478,8 +1560,48 @@ function isProtectedPath(pathname) {
     pathname === '/api/v1/mobile/safe-route/routes' ||
     pathname.startsWith('/api/v1/mobile/safe-route/routes/') ||
     pathname.startsWith('/api/v1/mobile/safe-route/operations/client/') ||
-    pathname === '/api/v1/convoy-routes/route-preview'
+    pathname === '/api/v1/convoy-routes/route-preview' ||
+    pathname === '/api/v1/intel/map/area-risk/research'
   );
+}
+
+function isValidAreaRiskResearchPayload(body) {
+  if (!body || typeof body !== 'object' || Array.isArray(body)) {
+    return false;
+  }
+  const expectedKeys = [
+    'bounds',
+    'client_id',
+    'country_hints',
+    'scope',
+    'zoom'
+  ];
+  if (
+    Object.keys(body).sort().join('|') !== expectedKeys.sort().join('|') ||
+    !['detail', 'regional'].includes(body.scope) ||
+    !Number.isFinite(body.zoom) ||
+    body.zoom < 0 ||
+    body.zoom > 24 ||
+    !Array.isArray(body.country_hints) ||
+    body.country_hints.some((value) => typeof value !== 'string')
+  ) {
+    return false;
+  }
+  const bounds = body.bounds;
+  if (!bounds || typeof bounds !== 'object' || Array.isArray(bounds)) {
+    return false;
+  }
+  const expectedBoundKeys = ['max_lat', 'max_lon', 'min_lat', 'min_lon'];
+  if (Object.keys(bounds).sort().join('|') !== expectedBoundKeys.sort().join('|')) {
+    return false;
+  }
+  return expectedBoundKeys.every((key) => Number.isFinite(bounds[key]))
+    && bounds.max_lat > bounds.min_lat
+    && bounds.max_lon > bounds.min_lon
+    && bounds.min_lat >= -90
+    && bounds.max_lat <= 90
+    && bounds.min_lon >= -180
+    && bounds.max_lon <= 180;
 }
 
 function hasExpectedBearerAuthorization(value) {
@@ -2182,7 +2304,14 @@ export function assertGuidanceStartTrafficBoundary(entries, {
   const postAuthorizationEntries = protectedEntries.slice(expected.length);
   postAuthorizationEntries.forEach((entry, index) => {
     const expectedRequest = expectedPostAuthorization[index];
-    const clientIds = new URLSearchParams(entry.search).getAll('client_id');
+    const searchParameters = new URLSearchParams(entry.search);
+    const clientIds = searchParameters.getAll('client_id');
+    const hasStrictAreaRiskReadContract =
+      expectedRequest?.path !== '/api/v1/intel/map/area-risk' ||
+      (
+        searchParameters.get('refresh') === 'false' &&
+        searchParameters.get('read_only') === 'true'
+      );
     const finalAuthorizationCompletion = authorizationCompletions.at(-1);
     assertJournalCondition(
       expectedRequest &&
@@ -2193,6 +2322,7 @@ export function assertGuidanceStartTrafficBoundary(entries, {
         entry.path === expectedRequest.path &&
         clientIds.length === 1 &&
         clientIds[0] === expectedRequest.clientId &&
+        hasStrictAreaRiskReadContract &&
         entry.authorized === true &&
         entry.authorizationClass === 'expected-bearer',
       `Guidance Start boundary ${normalizedBoundary} post-authorization request ${

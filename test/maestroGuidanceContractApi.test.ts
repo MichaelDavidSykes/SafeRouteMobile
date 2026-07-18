@@ -1354,15 +1354,75 @@ describe('Maestro guidance contract API', () => {
         method: 'POST'
       })).status, 403);
       assert.equal((await fetch(
-        `${base}/intel/map/area-risk?client_id=${GUIDANCE_CONTRACT_WORKSPACES.denied.id}`,
+        `${base}/intel/map/area-risk?refresh=false&read_only=true&client_id=${GUIDANCE_CONTRACT_WORKSPACES.denied.id}`,
         { headers: { Authorization: authorization } }
       )).status, 403);
       assert.equal((await fetch(
-        `${base}/intel/map/area-risk?client_id=${GUIDANCE_CONTRACT_WORKSPACES.denied.id}`
+        `${base}/intel/map/area-risk?refresh=false&read_only=true&client_id=${GUIDANCE_CONTRACT_WORKSPACES.denied.id}`
       )).status, 200);
-      assert.equal((await fetch(`${base}/intel/map/area-risk`, {
+      assert.equal((await fetch(`${base}/intel/map/area-risk?refresh=false&read_only=true`, {
         headers: { Authorization: 'Bearer invalid' }
       })).status, 401);
+      const researchPayload = {
+        bounds: {
+          max_lat: 51.55,
+          max_lon: 0.1,
+          min_lat: 51.45,
+          min_lon: -0.2
+        },
+        client_id: GUIDANCE_CONTRACT_WORKSPACES.survivor.id,
+        country_hints: ['gb'],
+        scope: 'detail',
+        zoom: 12
+      };
+      assert.equal((await fetch(`${base}/intel/map/area-risk/research`, {
+        body: JSON.stringify(researchPayload),
+        headers: { 'Content-Type': 'application/json' },
+        method: 'POST'
+      })).status, 401);
+      const acceptedResearch = await fetch(`${base}/intel/map/area-risk/research`, {
+        body: JSON.stringify(researchPayload),
+        headers: {
+          Authorization: authorization,
+          'Content-Type': 'application/json'
+        },
+        method: 'POST'
+      });
+      assert.equal(acceptedResearch.status, 200);
+      assert.deepEqual((await acceptedResearch.json()).data.bounds, {
+        maxLat: 51.55,
+        maxLon: 0.1,
+        minLat: 51.45,
+        minLon: -0.2
+      });
+      assert.equal((await fetch(
+        `${base}/intel/map/area-risk?refresh=false&read_only=true` +
+        `&client_id=${GUIDANCE_CONTRACT_WORKSPACES.survivor.id}` +
+        '&scope=detail&zoom=12&bbox=51.45%2C-0.2%2C51.55%2C0.1',
+        { headers: { Authorization: authorization } }
+      )).status, 200);
+      assert.equal((await fetch(`${base}/intel/map/area-risk/research`, {
+        body: JSON.stringify({
+          ...researchPayload,
+          unexpected: true
+        }),
+        headers: {
+          Authorization: authorization,
+          'Content-Type': 'application/json'
+        },
+        method: 'POST'
+      })).status, 422);
+      assert.equal((await fetch(`${base}/intel/map/area-risk/research`, {
+        body: JSON.stringify({
+          ...researchPayload,
+          client_id: GUIDANCE_CONTRACT_WORKSPACES.denied.id
+        }),
+        headers: {
+          Authorization: authorization,
+          'Content-Type': 'application/json'
+        },
+        method: 'POST'
+      })).status, 403);
       assert.equal((await fetch(`${base}/users/me`, {
         headers: { Authorization: createGuidanceContractAccessToken() }
       })).status, 401);
@@ -2082,7 +2142,9 @@ describe('Maestro guidance contract API', () => {
 
     const survivorRiskRequest = {
       ...request(7, 'request-survivor-risk', '/api/v1/intel/map/area-risk'),
-      search: `?refresh=false&client_id=${GUIDANCE_CONTRACT_WORKSPACES.survivor.id}`
+      search:
+        `?refresh=false&read_only=true&client_id=` +
+        GUIDANCE_CONTRACT_WORKSPACES.survivor.id
     };
     const survivorRiskCompletion = completion(
       8,
@@ -2120,17 +2182,36 @@ describe('Maestro guidance contract API', () => {
       }),
       true
     );
+    assert.equal(
+      isGuidanceStartProtectedTraffic({
+        ...survivorRiskRequest,
+        authorizationClass: 'none',
+        authorized: false,
+        method: 'POST',
+        path: '/api/v1/intel/map/area-risk/research',
+        search: ''
+      }),
+      true
+    );
     for (const invalidRiskRequest of [
       { ...survivorRiskRequest, search: '' },
       {
         ...survivorRiskRequest,
-        search: `?client_id=${GUIDANCE_CONTRACT_WORKSPACES.denied.id}`
+        search:
+          `?refresh=false&read_only=true&client_id=` +
+          GUIDANCE_CONTRACT_WORKSPACES.denied.id
       },
       {
         ...survivorRiskRequest,
         search:
-          `?client_id=${GUIDANCE_CONTRACT_WORKSPACES.survivor.id}` +
+          `?refresh=false&read_only=true&client_id=${GUIDANCE_CONTRACT_WORKSPACES.survivor.id}` +
           `&client_id=${GUIDANCE_CONTRACT_WORKSPACES.denied.id}`
+      },
+      {
+        ...survivorRiskRequest,
+        search:
+          `?refresh=false&read_only=false&client_id=` +
+          GUIDANCE_CONTRACT_WORKSPACES.survivor.id
       },
       {
         ...survivorRiskRequest,

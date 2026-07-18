@@ -1,28 +1,20 @@
 import type { LatLng } from 'react-native-maps';
 
-import { fetchAreaRiskForRegion, type AreaRiskRegionFetchOptions } from './areaRiskApi';
-import type { RiskZone } from './liveMapTypes';
+import { LUNARCHAIN_API_BASE } from '../../config/env';
 import {
-  buildRouteRiskCorridorRegions,
-  loadRouteRiskCorridor
-} from './routeRiskCorridorCore';
+  fetchAreaRiskAlongRoute as fetchAreaRiskAlongRouteTransport
+} from './routeRiskCorridorApiCore';
+import type { AreaRiskRegionFetchOptions } from './areaRiskApi';
+import type { RiskZone } from './liveMapTypes';
 
 export { buildRouteRiskCorridorRegions } from './routeRiskCorridorCore';
 
-export async function fetchAreaRiskAlongRoute(
+export function fetchAreaRiskAlongRoute(
   coordinates: LatLng[],
   options: AreaRiskRegionFetchOptions & { maxChunks?: number } = {}
 ): Promise<RiskZone[]> {
-  const { maxChunks, ...fetchOptions } = options;
-  const regions = buildRouteRiskCorridorRegions(coordinates, maxChunks);
-  if (!regions.length) {
-    return [];
-  }
-  return loadRouteRiskCorridor(regions, (region) =>
-    fetchAreaRiskForRegion(region, {
-      ...fetchOptions,
-      detailMaxRecords: Math.min(80, fetchOptions.detailMaxRecords ?? 80),
-      regionalMaxRecords: Math.min(60, fetchOptions.regionalMaxRecords ?? 60)
-    }).then((feed) => feed.zones)
-  );
+  return fetchAreaRiskAlongRouteTransport(coordinates, {
+    ...options,
+    apiBase: LUNARCHAIN_API_BASE
+  });
 }

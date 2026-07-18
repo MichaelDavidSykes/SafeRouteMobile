@@ -6,10 +6,14 @@ import type { RiskZone } from '../src/features/live-map/liveMapTypes';
 import {
   VIEWPORT_RISK_CACHE_TTL_MS,
   cacheViewportRiskZones,
+  canCacheViewportRiskFeed,
   collectFreshViewportRiskZones,
   getCachedViewportRiskZones,
+  isAreaRiskFeedMissing,
+  isAreaRiskFeedPending,
   isViewportRiskCacheEntryFresh,
   pruneViewportRiskCache,
+  resolveViewportRiskCoverageOutcome,
   resolveViewportRiskDisplayZones,
   viewportRiskCacheKey,
   type ViewportRiskCache
@@ -34,7 +38,7 @@ describe('viewport risk state', () => {
     );
   });
 
-  it('quantizes nearby viewport requests to the same partitioned cache key', () => {
+  it('keeps an identical stable partition in the same zoom-quantized cache key', () => {
     const first = createRequest({
       minLat: 51.501,
       maxLat: 51.549,
@@ -43,10 +47,10 @@ describe('viewport risk state', () => {
       zoom: 10.11
     });
     const nearby = createRequest({
-      minLat: 51.509,
-      maxLat: 51.551,
-      minLon: -0.151,
-      maxLon: -0.049,
+      minLat: 51.501,
+      maxLat: 51.549,
+      minLon: -0.149,
+      maxLon: -0.051,
       zoom: 10.2
     });
 
@@ -59,6 +63,133 @@ describe('viewport risk state', () => {
       viewportRiskCacheKey(first),
       viewportRiskCacheKey({ ...first, minLon: 0.2, maxLon: 0.3 })
     );
+  });
+
+  it('keeps distinct stabilized detail bboxes in distinct exact cache buckets', () => {
+    const first = createRequest({
+      minLat: 51.4,
+      maxLat: 51.6,
+      minLon: -0.2,
+      maxLon: 0
+    });
+    const adjacent = createRequest({
+      minLat: 51.42,
+      maxLat: 51.62,
+      minLon: -0.18,
+      maxLon: 0.02
+    });
+
+    assert.notEqual(viewportRiskCacheKey(first), viewportRiskCacheKey(adjacent));
+  });
+
+  it('never caches pending, partial, or read-failed coverage as complete', () => {
+    const complete = {
+      coverageStatus: 'current',
+      partial: false,
+      providerStatus: 'primary',
+      readError: null,
+      research: null,
+      seedStatus: 'covered',
+      zones: []
+    };
+    assert.equal(canCacheViewportRiskFeed(complete), true);
+    assert.equal(canCacheViewportRiskFeed({ ...complete, partial: true }), false);
+    assert.equal(
+      canCacheViewportRiskFeed({ ...complete, readError: 'later page failed' }),
+      false
+    );
+    assert.equal(
+      canCacheViewportRiskFeed({ ...complete, providerStatus: 'queued' }),
+      false
+    );
+    assert.equal(
+      canCacheViewportRiskFeed({ ...complete, coverageStatus: 'pending' }),
+      false
+    );
+    assert.equal(
+      canCacheViewportRiskFeed({ ...complete, seedStatus: 'failed' }),
+      false
+    );
+    assert.equal(
+      canCacheViewportRiskFeed(
+        {
+          ...complete,
+          seedStatus: 'not-requested',
+          zones: [createZone('shared-only', 'medium')]
+        },
+        { requireTenantResearch: true }
+      ),
+      false
+    );
+    assert.equal(
+      isAreaRiskFeedMissing({
+        coverageStatus: null,
+        providerStatus: 'empty',
+        seedStatus: 'not-requested',
+        zones: []
+      }, { requireTenantResearch: true }),
+      true
+    );
+    assert.equal(
+      isAreaRiskFeedPending({
+        coverageStatus: 'pending',
+        providerStatus: 'primary',
+        research: {
+          accepted: true,
+          coalesced: true,
+          coverageStatus: 'pending',
+          pending: true,
+          queued: false,
+          retryAfterSeconds: 10,
+          seedId: 'seed-1',
+          seedStatus: 'researching',
+          status: 'researching'
+        },
+        seedStatus: 'researching'
+      }),
+      true
+    );
+  });
+
+  it('keeps accepted pending research truthful when its strict read fails', () => {
+    const pending = resolveViewportRiskCoverageOutcome({
+      allRequestsFailed: true,
+      cooldownRequestCount: 0,
+      cooldownRetryAfterSeconds: 0,
+      currentEmptyResearchCount: 0,
+      failedRequestCount: 1,
+      missingRequestCount: 0,
+      partialRequestCount: 0,
+      pendingRequestCount: 1,
+      readFailureCount: 1,
+      researchAvailable: false,
+      researchFailureCount: 0,
+      researchRequested: true,
+      statusFailureCount: 0,
+      visibleZoneCount: 0
+    });
+    assert.equal(pending.coverageState, 'partial');
+    assert.match(pending.errorMessage, /research is active/i);
+    assert.match(pending.statusMessage, /Researching risk coverage/);
+
+    const cooldown = resolveViewportRiskCoverageOutcome({
+      allRequestsFailed: true,
+      cooldownRequestCount: 1,
+      cooldownRetryAfterSeconds: 90,
+      currentEmptyResearchCount: 0,
+      failedRequestCount: 1,
+      missingRequestCount: 0,
+      partialRequestCount: 0,
+      pendingRequestCount: 0,
+      readFailureCount: 1,
+      researchAvailable: false,
+      researchFailureCount: 0,
+      researchRequested: true,
+      statusFailureCount: 0,
+      visibleZoneCount: 0
+    });
+    assert.equal(cooldown.coverageState, 'cooldown');
+    assert.match(cooldown.statusMessage, /2 min/);
   });
 
   it('treats TTL expiry inclusively and rejects future timestamps', () => {

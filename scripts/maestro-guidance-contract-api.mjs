@@ -20,6 +20,9 @@ export const CONNECTIVITY_CONTRACT_STATUSES = Object.freeze({
 });
 export const CONNECTIVITY_CONTRACT_PHASES = Object.freeze({
   coldChecking: 'connectivityColdChecking',
+  inactiveRelaunch: 'connectivityInactiveRelaunch',
+  inactiveSeed: 'connectivityInactiveSeed',
+  inactiveSession: 'connectivityInactiveSession',
   offline: 'connectivityOffline',
   offlineRelaunch: 'connectivityOfflineRelaunch',
   online: 'connectivityOnline',
@@ -73,6 +76,7 @@ export const GUIDANCE_CONTRACT_EVIDENCE_TYPES = Object.freeze([
 ]);
 const GUIDANCE_CONTRACT_EVIDENCE_PHASES = Object.freeze({
   'navigation.persisted': new Set([
+    'connectivityInactiveSeed',
     'connectivitySeed',
     'catalogJourneyStart',
     'catalogJourneyRestart',
@@ -105,6 +109,7 @@ const GUIDANCE_CONTRACT_EVIDENCE_PHASES = Object.freeze({
     'readbackEvidence',
   ]),
   'navigation.cleanup.settled': new Set([
+    'connectivityInactiveSession',
     'connectivityOffline',
     'catalogForegroundLoss',
     'catalogJourneyForegroundFailureEnd',
@@ -115,6 +120,7 @@ const GUIDANCE_CONTRACT_EVIDENCE_PHASES = Object.freeze({
     'denied'
   ]),
   'tracking.stop.settled': new Set([
+    'connectivityInactiveSession',
     'connectivityOffline',
     'catalogForegroundLoss',
     'catalogJourneyForegroundFailureEnd',
@@ -126,6 +132,7 @@ const GUIDANCE_CONTRACT_EVIDENCE_PHASES = Object.freeze({
   ]),
   'navigation.absence.readback': new Set([
     'catalogJourneyEndedRelaunch',
+    'connectivityInactiveRelaunch',
     'connectivityOfflineRelaunch',
   ]),
   'navigation.prestart.readback': new Set(['catalogJourneyEndedRouteReload'])
@@ -539,6 +546,10 @@ export function createGuidanceContractHandler({
     }
 
     if (request.method === 'GET' && url.pathname === '/api/v1/users/me') {
+      if (phase === CONNECTIVITY_CONTRACT_PHASES.inactiveSession) {
+        sendInactiveAccountError(response);
+        return;
+      }
       sendApiSuccess(
         response,
         {
@@ -1490,6 +1501,20 @@ function sendApiError(
   response.end(serialized);
 }
 
+function sendInactiveAccountError(response) {
+  sendJson(
+    response,
+    400,
+    {
+      detail: {
+        details: 'This account has been deactivated',
+        message: 'Inactive user'
+      }
+    },
+    'principal-inactive'
+  );
+}
+
 function readRequestBody(request) {
   return new Promise((resolve, reject) => {
     const chunks = [];
@@ -1619,6 +1644,113 @@ export function assertConnectivityContractReconnectAuthorization(entries, {
     principalCompletion,
     settlement
   };
+}
+
+export function assertConnectivityContractInactiveSessionRevocation(entries, {
+  inactivePhase = CONNECTIVITY_CONTRACT_PHASES.inactiveSession,
+  relaunchPhase = CONNECTIVITY_CONTRACT_PHASES.inactiveRelaunch
+} = {}) {
+  const inactiveRequests = entries.filter((entry) =>
+    entry.event === 'request' &&
+    entry.phase === inactivePhase &&
+    entry.path.startsWith('/api/')
+  );
+  const principal = inactiveRequests.filter(
+    (entry) => entry.path === '/api/v1/users/me'
+  );
+  const principalCompletion = entries.find((entry) =>
+    entry.event === 'completion' &&
+    entry.requestId === principal[0]?.requestId
+  );
+  assertJournalCondition(
+    inactiveRequests.length === 1 &&
+      principal.length === 1 &&
+      principal[0].authorized === true &&
+      principalCompletion?.completed === true &&
+      principalCompletion.statusCode === 400 &&
+      principalCompletion.semanticOutcome === 'principal-inactive',
+    'Inactive-session phase did not stop after one exact authorized principal rejection.'
+  );
+
+  const relaunchProtectedRequests = entries.filter((entry) =>
+    entry.event === 'request' &&
+    entry.phase === relaunchPhase &&
+    isProtectedPath(entry.path)
+  );
+  assertJournalCondition(
+    relaunchProtectedRequests.length === 0,
+    'Inactive-session relaunch issued protected requests after durable sign-out.'
+  );
+
+  return { principal: principal[0], principalCompletion };
+}
+
+export function assertConnectivityContractInactiveGuidanceRevocation(entries, {
+  expectedSourceRevision,
+  minimumOccurredAtMs
+}) {
+  const persistedIndex = entries.findIndex((entry) =>
+    entry.type === 'navigation.persisted' &&
+    entry.serverPhase === CONNECTIVITY_CONTRACT_PHASES.inactiveSeed &&
+    entry.sourceRevision === expectedSourceRevision &&
+    entry.occurredAtMs >= minimumOccurredAtMs &&
+    isSuccessfulGuidanceContractEvidence(entry, entry)
+  );
+  assertJournalCondition(
+    persistedIndex >= 0,
+    'Inactive-account contract seeded navigation persistence was absent.'
+  );
+  const persisted = entries[persistedIndex];
+  const cleanupIndex = entries.findIndex((entry, index) =>
+    index > persistedIndex &&
+    entry.type === 'navigation.cleanup.settled' &&
+    entry.serverPhase === CONNECTIVITY_CONTRACT_PHASES.inactiveSession &&
+    entry.sourceRevision === expectedSourceRevision &&
+    entry.navigationInstanceId === persisted.navigationInstanceId &&
+    entry.routeId === persisted.routeId &&
+    entry.workspaceId === persisted.workspaceId &&
+    isSuccessfulGuidanceContractEvidence(entry, entry)
+  );
+  assertJournalCondition(
+    cleanupIndex >= 0,
+    'Inactive-account cleanup was not durably correlated to the seeded navigation.'
+  );
+  const cleanup = entries[cleanupIndex];
+  const trackingIndex = entries.findIndex((entry, index) =>
+    index > cleanupIndex &&
+    entry.type === 'tracking.stop.settled' &&
+    entry.serverPhase === CONNECTIVITY_CONTRACT_PHASES.inactiveSession &&
+    entry.sourceRevision === expectedSourceRevision &&
+    entry.appLaunchId === cleanup.appLaunchId &&
+    entry.navigationInstanceId === cleanup.navigationInstanceId &&
+    entry.routeId === cleanup.routeId &&
+    entry.workspaceId === cleanup.workspaceId &&
+    isSuccessfulGuidanceContractEvidence(entry, entry)
+  );
+  assertJournalCondition(
+    trackingIndex >= 0,
+    'Inactive-account cleanup did not prove a correlated tracking stop.'
+  );
+  const tracking = entries[trackingIndex];
+  const absence = entries.find((entry, index) =>
+    index > trackingIndex &&
+    entry.type === 'navigation.absence.readback' &&
+    entry.serverPhase === CONNECTIVITY_CONTRACT_PHASES.inactiveRelaunch &&
+    entry.sourceRevision === expectedSourceRevision &&
+    entry.occurredAtMs > tracking.occurredAtMs &&
+    entry.appLaunchId !== cleanup.appLaunchId &&
+    isSuccessfulGuidanceContractEvidence(entry, entry)
+  );
+  const reopened = entries.find((entry, index) =>
+    index > cleanupIndex &&
+    entry.type === 'restore.ready' &&
+    entry.navigationInstanceId === cleanup.navigationInstanceId
+  );
+  assertJournalCondition(
+    absence && !reopened,
+    'Inactive-account navigation was not absent after process relaunch or reopened after revocation.'
+  );
+  return { absence, cleanup, persisted, tracking };
 }
 
 export function assertConnectivityContractEndedJourneyStayedClosed(entries, {

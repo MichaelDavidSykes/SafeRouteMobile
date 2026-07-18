@@ -17,6 +17,8 @@ import {
   WORKSPACE_CATALOG_RETRY_DELAY_MS,
   WORKSPACE_CATALOG_SUCCESS_DELAY_MS,
   assertConnectivityContractEndedJourneyStayedClosed,
+  assertConnectivityContractInactiveGuidanceRevocation,
+  assertConnectivityContractInactiveSessionRevocation,
   assertConnectivityContractReconnectAuthorization,
   assertGuidanceContractEvidenceJournal,
   assertGuidanceContractRequestJournal,
@@ -232,6 +234,158 @@ describe('Maestro guidance contract API', () => {
           { settlementSequence: 2 },
         ),
       /product traffic before online settlement/,
+    );
+  });
+
+  it('requires one exact inactive principal rejection and no protected relaunch traffic', () => {
+    const entries = [
+      {
+        authorized: true,
+        event: 'request',
+        path: '/api/v1/users/me',
+        phase: 'connectivityInactiveSession',
+        requestId: 'inactive-principal-request',
+        search: '',
+        sequence: 1,
+      },
+      {
+        completed: true,
+        event: 'completion',
+        requestId: 'inactive-principal-request',
+        semanticOutcome: 'principal-inactive',
+        sequence: 2,
+        statusCode: 400,
+      },
+    ];
+
+    assert.doesNotThrow(() =>
+      assertConnectivityContractInactiveSessionRevocation(entries),
+    );
+    assert.throws(
+      () =>
+        assertConnectivityContractInactiveSessionRevocation([
+          ...entries,
+          {
+            authorized: true,
+            event: 'request',
+            path: '/api/v1/mobile/safe-route/routes',
+            phase: 'connectivityInactiveSession',
+            requestId: 'escaped-catalog-request',
+            search: '',
+            sequence: 3,
+          },
+        ]),
+      /stop after one exact authorized principal rejection/,
+    );
+    assert.throws(
+      () =>
+        assertConnectivityContractInactiveSessionRevocation([
+          ...entries,
+          {
+            authorized: true,
+            event: 'request',
+            path: '/api/v1/users/me',
+            phase: 'connectivityInactiveRelaunch',
+            requestId: 'relaunch-principal-request',
+            search: '',
+            sequence: 3,
+          },
+        ]),
+      /relaunch issued protected requests/,
+    );
+  });
+
+  it('correlates inactive-account cleanup with the seeded journey and a later absence', () => {
+    const sourceRevision = 'f'.repeat(40);
+    const identity = {
+      appLaunchId: 'launch-inactive-seed',
+      navigationInstanceId: 'navigation-inactive',
+      occurredAtMs: 200,
+      routeId: 'route-inactive',
+      sourceRevision,
+      workspaceId: 'workspace-inactive',
+    };
+    const entries = [
+      {
+        ...identity,
+        authorization: { catalog: 'fresh-authorized', principal: 'matching' },
+        durability: { activeNavigation: 'present' },
+        outcome: 'persisted',
+        serverPhase: 'connectivityInactiveSeed',
+        type: 'navigation.persisted',
+      },
+      {
+        ...identity,
+        appLaunchId: 'launch-inactive-rejection',
+        authorization: { catalog: 'not-checked', principal: 'matching' },
+        durability: {
+          activeNavigation: 'revoked',
+          persistedPermit: 'revoked',
+        },
+        occurredAtMs: 201,
+        outcome: 'cleared',
+        serverPhase: 'connectivityInactiveSession',
+        type: 'navigation.cleanup.settled',
+      },
+      {
+        ...identity,
+        appLaunchId: 'launch-inactive-rejection',
+        authorization: { catalog: 'not-checked', principal: 'matching' },
+        durability: {
+          nativeTracking: 'stopped',
+          persistedPermit: 'revoked',
+          runtimePermit: 'none',
+        },
+        occurredAtMs: 202,
+        outcome: 'off',
+        serverPhase: 'connectivityInactiveSession',
+        type: 'tracking.stop.settled',
+      },
+      {
+        ...identity,
+        appLaunchId: 'launch-inactive-relaunch',
+        authorization: { catalog: 'not-checked', principal: 'unknown' },
+        durability: {
+          activeNavigation: 'absent',
+          nativeTracking: 'unsupported',
+          runtimePermit: 'none',
+        },
+        navigationInstanceId: null,
+        occurredAtMs: 203,
+        outcome: 'absent',
+        routeId: null,
+        serverPhase: 'connectivityInactiveRelaunch',
+        type: 'navigation.absence.readback',
+        workspaceId: null,
+      },
+    ];
+    const options = {
+      expectedSourceRevision: sourceRevision,
+      minimumOccurredAtMs: 100,
+    };
+
+    assert.doesNotThrow(() =>
+      assertConnectivityContractInactiveGuidanceRevocation(entries, options),
+    );
+    assert.throws(
+      () =>
+        assertConnectivityContractInactiveGuidanceRevocation(
+          entries.map((entry) =>
+            entry.type === 'navigation.cleanup.settled'
+              ? { ...entry, navigationInstanceId: null }
+              : entry,
+          ),
+          options,
+        ),
+      /cleanup was not durably correlated/,
+    );
+    assert.throws(
+      () =>
+        assertConnectivityContractInactiveGuidanceRevocation(
+          entries.filter((entry) => entry.type !== 'navigation.absence.readback'),
+          options,
+        ),
+      /not absent after process relaunch/,
     );
   });
 
@@ -1186,6 +1340,19 @@ describe('Maestro guidance contract API', () => {
       })).status, 401);
 
       mode = GUIDANCE_CONTRACT_MODES.active;
+      phase = 'connectivityInactiveSession';
+      const inactiveUser = await fetch(`${base}/users/me`, {
+        headers: { Authorization: authorization }
+      });
+      assert.equal(inactiveUser.status, 400);
+      assert.deepEqual(await inactiveUser.json(), {
+        detail: {
+          details: 'This account has been deactivated',
+          message: 'Inactive user'
+        }
+      });
+
+      phase = 'unassigned';
       const restoredCatalog = await fetch(`${base}/mobile/safe-route/routes`, {
         headers: { Authorization: authorization }
       });

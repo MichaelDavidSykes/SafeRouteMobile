@@ -107,6 +107,22 @@ describe('saved LunarChain session restore', () => {
     assert.equal(result.message, 'Saved token is no longer valid.');
   });
 
+  it('expires rather than offline-restoring an authoritatively inactive account', async () => {
+    const result = await restoreSavedSession(storedSession, async () => {
+      throw new ApiSessionExpiredError(
+        'This LunarChain account is inactive. Contact an administrator or sign in with another account.',
+        'inactive-account',
+      );
+    });
+
+    assert.equal(result.status, 'expired');
+    assert.equal(
+      result.message,
+      'This LunarChain account is inactive. Contact an administrator or sign in with another account.',
+    );
+    assert.equal(result.reason, 'inactive-account');
+  });
+
   it('normalizes generic hosted auth rejections to calm session recovery copy', async () => {
     const result = await restoreSavedSession(storedSession, async () => {
       throw new ApiSessionExpiredError('  Could not validate credentials  ');

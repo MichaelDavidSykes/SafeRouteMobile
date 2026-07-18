@@ -1,5 +1,7 @@
 export const LUNARCHAIN_NETWORK_ERROR_MESSAGE = 'Unable to reach LunarChain. Check your connection and retry.';
 export const LUNARCHAIN_SESSION_EXPIRED_MESSAGE = 'Your LunarChain session expired. Sign in again.';
+export const LUNARCHAIN_INACTIVE_ACCOUNT_MESSAGE =
+  'This LunarChain account is inactive. Contact an administrator or sign in with another account.';
 export const LUNARCHAIN_AUTHORIZATION_ERROR_MESSAGE = 'You do not have permission to perform this action.';
 export const LUNARCHAIN_REQUEST_TIMEOUT_MS = 15000;
 
@@ -7,10 +9,18 @@ export type SafeRouteRequestOptions = RequestInit & {
   timeoutMs?: number;
 };
 
+export type ApiSessionExpiryReason = 'inactive-account' | 'session-expired';
+
 export class ApiSessionExpiredError extends Error {
-  constructor(message = LUNARCHAIN_SESSION_EXPIRED_MESSAGE) {
+  reason: ApiSessionExpiryReason;
+
+  constructor(
+    message = LUNARCHAIN_SESSION_EXPIRED_MESSAGE,
+    reason: ApiSessionExpiryReason = 'session-expired',
+  ) {
     super(message);
     this.name = 'ApiSessionExpiredError';
+    this.reason = reason;
   }
 }
 
@@ -53,6 +63,13 @@ export function createApiResponseError(
   responseBody: unknown,
   fallback = 'Unable to reach LunarChain.'
 ): ApiSessionExpiredError | ApiRequestError {
+  if (isInactiveAccountResponse(statusCode, responseBody)) {
+    return new ApiSessionExpiredError(
+      LUNARCHAIN_INACTIVE_ACCOUNT_MESSAGE,
+      'inactive-account',
+    );
+  }
+
   if (statusCode === 401) {
     return new ApiSessionExpiredError(getApiSessionExpiredMessage(responseBody));
   }
@@ -62,6 +79,29 @@ export function createApiResponseError(
   }
 
   return new ApiRequestError(getApiErrorMessage(responseBody, fallback), statusCode);
+}
+
+export function isInactiveAccountResponse(
+  statusCode: number,
+  responseBody: unknown,
+): boolean {
+  if (statusCode !== 400 || !responseBody || typeof responseBody !== 'object') {
+    return false;
+  }
+  const body = responseBody as {
+    detail?: unknown;
+  };
+  if (!body.detail || typeof body.detail !== 'object' || Array.isArray(body.detail)) {
+    return false;
+  }
+  const detail = body.detail as {
+    details?: unknown;
+    message?: unknown;
+  };
+  return (
+    normalizeContractMarker(detail.message) === 'inactive user' &&
+    normalizeContractMarker(detail.details) === 'this account has been deactivated'
+  );
 }
 
 export async function fetchWithTimeout(
@@ -181,6 +221,10 @@ function firstNonEmptyMessage(...candidates: Array<string | undefined>): string 
   }
 
   return candidates[candidates.length - 1];
+}
+
+function normalizeContractMarker(value: unknown): string {
+  return typeof value === 'string' ? value.trim().toLowerCase() : '';
 }
 
 function extractErrorMessage(value: unknown): string | undefined {

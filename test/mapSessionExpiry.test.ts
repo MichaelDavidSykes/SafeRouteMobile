@@ -34,6 +34,10 @@ describe('authenticated map session expiry integration', () => {
     assert.match(guestMap, /!acceptedRoadPreview && !sessionExpiryHandled/);
     assert.match(guestMap, /activeRiskAreaRequestRef\.current\?\.abort\(\)/);
     assert.match(guestMap, /createGuestRiskArea\(\{[\s\S]*signal: controller\.signal/);
+    assert.match(
+      source('src/features/live-map/areaRiskApi.ts'),
+      /throw createApiResponseError\([\s\S]*response\.status[\s\S]*body[\s\S]*Unable to load risk areas for this map view/,
+    );
   });
 
   it('routes only the current live reroute expiry to the app session boundary', () => {

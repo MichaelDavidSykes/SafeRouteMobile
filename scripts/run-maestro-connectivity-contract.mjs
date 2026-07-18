@@ -21,6 +21,8 @@ import {
   GUIDANCE_CONTRACT_API_PORT,
   GUIDANCE_CONTRACT_MODES,
   assertConnectivityContractEndedJourneyStayedClosed,
+  assertConnectivityContractInactiveGuidanceRevocation,
+  assertConnectivityContractInactiveSessionRevocation,
   assertConnectivityContractReconnectAuthorization,
   assertGuidanceContractEvidenceJournal,
   assertGuidanceContractRequestJournal,
@@ -61,6 +63,8 @@ let maestroBinary = '';
 
 const flows = Object.freeze({
   coldChecking: 'maestro/ios-connectivity-contract-cold-checking.yaml',
+  inactiveRelaunch: 'maestro/ios-connectivity-contract-inactive-relaunch.yaml',
+  inactiveSession: 'maestro/ios-connectivity-contract-inactive-session.yaml',
   offlineEnd: 'maestro/ios-connectivity-contract-offline-end.yaml',
   offlineObserve: 'maestro/ios-connectivity-contract-offline-observe.yaml',
   offlineRelaunch: 'maestro/ios-connectivity-contract-offline-relaunch.yaml',
@@ -280,6 +284,56 @@ async function main() {
     flows.online,
   );
   await waitForReconnectAuthorization(onlineSettlement.sequence);
+
+  setControl(
+    CONNECTIVITY_CONTRACT_PHASES.inactiveSeed,
+    CONNECTIVITY_CONTRACT_STATUSES.online,
+  );
+  await runFlow(
+    CONNECTIVITY_CONTRACT_PHASES.inactiveSeed,
+    'persist one workspace journey before authoritative account deactivation',
+    flows.seedJourney,
+  );
+  await waitForEvidenceType(
+    'navigation.persisted',
+    CONNECTIVITY_CONTRACT_PHASES.inactiveSeed,
+  );
+
+  setControl(
+    CONNECTIVITY_CONTRACT_PHASES.inactiveSession,
+    CONNECTIVITY_CONTRACT_STATUSES.online,
+  );
+  await runFlow(
+    CONNECTIVITY_CONTRACT_PHASES.inactiveSession,
+    'cold launch an authoritatively inactive account into safe sign-in recovery',
+    flows.inactiveSession,
+  );
+  await waitForEvidenceType(
+    'navigation.cleanup.settled',
+    CONNECTIVITY_CONTRACT_PHASES.inactiveSession,
+  );
+  await waitForEvidenceType(
+    'tracking.stop.settled',
+    CONNECTIVITY_CONTRACT_PHASES.inactiveSession,
+  );
+  terminateExpoGo(deviceId);
+
+  setControl(
+    CONNECTIVITY_CONTRACT_PHASES.inactiveRelaunch,
+    CONNECTIVITY_CONTRACT_STATUSES.offline,
+  );
+  await runFlow(
+    CONNECTIVITY_CONTRACT_PHASES.inactiveRelaunch,
+    'relaunch offline after durable inactive-account sign-out',
+    flows.inactiveRelaunch,
+  );
+  await waitForEvidenceType(
+    'navigation.absence.readback',
+    CONNECTIVITY_CONTRACT_PHASES.inactiveRelaunch,
+  );
+  await assertProductTrafficQuiet([
+    CONNECTIVITY_CONTRACT_PHASES.inactiveRelaunch,
+  ], 1_000);
   await new Promise((resolve) => setTimeout(resolve, 1_500));
   terminateExpoGo(deviceId);
   await waitForAllRequestsTerminal();
@@ -294,12 +348,20 @@ async function main() {
       [CONNECTIVITY_CONTRACT_PHASES.offlineRelaunch]: GUIDANCE_CONTRACT_MODES.active,
       [CONNECTIVITY_CONTRACT_PHASES.reconnectChecking]: GUIDANCE_CONTRACT_MODES.active,
       [CONNECTIVITY_CONTRACT_PHASES.online]: GUIDANCE_CONTRACT_MODES.active,
+      [CONNECTIVITY_CONTRACT_PHASES.inactiveSeed]: GUIDANCE_CONTRACT_MODES.active,
+      [CONNECTIVITY_CONTRACT_PHASES.inactiveSession]: GUIDANCE_CONTRACT_MODES.active,
+      [CONNECTIVITY_CONTRACT_PHASES.inactiveRelaunch]: GUIDANCE_CONTRACT_MODES.active,
     },
     requiredPhases: Object.values(CONNECTIVITY_CONTRACT_PHASES),
   });
   assertNoProductTrafficBeforeOnline(requests);
   assertConnectivityContractReconnectAuthorization(requests, {
     settlementSequence: onlineSettlement.sequence,
+  });
+  assertConnectivityContractInactiveSessionRevocation(requests);
+  assertConnectivityContractInactiveGuidanceRevocation(evidence, {
+    expectedSourceRevision: sourceRevision,
+    minimumOccurredAtMs: startedAtMs,
   });
   assertGuidanceContractEvidenceJournal(evidence, {
     expectedSourceRevision: sourceRevision,

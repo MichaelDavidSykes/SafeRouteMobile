@@ -92,6 +92,19 @@ describe("cold-start connectivity integration", () => {
     );
   });
 
+  it("fails a cold inactive account into Login after clearing protected guidance", () => {
+    const app = source("App.tsx");
+
+    assert.match(
+      app,
+      /restoreResult\.status === 'expired'[\s\S]*restoreResult\.reason === 'inactive-account'/,
+    );
+    assert.match(
+      app,
+      /restoreResult\.reason === 'inactive-account'[\s\S]*discardPersistedNavigation\(undefined, \{[\s\S]*evidenceSession: persistedNavigation[\s\S]*setSession\(null\)[\s\S]*setAvailableWorkspaces\(\[\]\)[\s\S]*setAuthPrompt\(inactiveMessage\)[\s\S]*setScreen\('login'\)/,
+    );
+  });
+
   it("keeps map tiles and automatic risk work off until native reachability is online", () => {
     const guest = source("src/features/guest-map/GuestMapScreen.tsx");
     const live = source("src/features/live-map/LiveMapScreen.tsx");

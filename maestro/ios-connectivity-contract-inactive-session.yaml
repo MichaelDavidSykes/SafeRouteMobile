@@ -1,0 +1,17 @@
+appId: host.exp.Exponent
+---
+- runFlow: subflows/ios-open-expo-project.yaml
+- extendedWaitUntil:
+    visible:
+      id: "safe-route-login"
+    timeout: 30000
+- assertVisible: "This LunarChain account is inactive. Contact an administrator or sign in with another account."
+- assertNotVisible:
+    id: "safe-route-suspended-navigation"
+- assertNotVisible:
+    id: "safe-route-resume-action"
+- assertNotVisible:
+    id: "safe-route-picker"
+- assertNotVisible:
+    id: "safe-route-navigation-cleanup"
+- takeScreenshot: "connectivity-contract-inactive-session"

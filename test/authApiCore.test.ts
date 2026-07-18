@@ -47,6 +47,39 @@ describe('LunarChain auth API core', () => {
     );
   });
 
+  it('maps the exact inactive-account contract to calm session revocation', async () => {
+    await assert.rejects(
+      () =>
+        assertAuthResponseOk(
+          jsonResponse(400, {
+            detail: {
+              details: 'This account has been deactivated',
+              message: 'Inactive user',
+            },
+          }),
+          'Unable to validate the saved session.',
+        ),
+      (error) =>
+        error instanceof ApiSessionExpiredError &&
+        error.message ===
+          'This LunarChain account is inactive. Contact an administrator or sign in with another account.',
+    );
+
+    await assert.rejects(
+      () =>
+        assertAuthResponseOk(
+          jsonResponse(400, {
+            detail: {
+              details: 'Account setup is incomplete',
+              message: 'Inactive user',
+            },
+          }),
+          'Unable to validate the saved session.',
+        ),
+      (error) => error instanceof ApiRequestError && error.statusCode === 400,
+    );
+  });
+
   it('ignores malformed JSON and returns an empty body for successful empty responses', async () => {
     const malformed = new Response('not-json', { status: 200 });
     assert.deepEqual(await assertAuthResponseOk(malformed, 'fallback'), {});

@@ -26,6 +26,7 @@ export const ROUTE_CARD_RISK_MAX_LENGTH = 28;
 export function createRouteCardPresentation(
   route: SavedSafeRoutePlan,
   loading: boolean,
+  cachedReviewAccessibilityLabel?: string | null,
 ): RouteCardPresentation {
   const statusLabel = createRouteStatusLabel(route.status);
   const routeName = normalizeRouteCardMetaValue(route.name) || "Saved route";
@@ -41,7 +42,9 @@ export function createRouteCardPresentation(
   return {
     accessibilityHint: loading
       ? "Live map is opening"
-      : "Opens live map guidance for this route",
+      : cachedReviewAccessibilityLabel
+        ? "Opens this saved route on the map for review"
+        : "Opens live map guidance for this route",
     accessibilityLabel: createRouteCardAccessibilityLabel([
       routeName,
       `${statusLabel} route`,
@@ -51,7 +54,7 @@ export function createRouteCardPresentation(
       ),
       createRouteCardEndpointAccessibilityLabel(route.origin, route.destination),
       routeSummary,
-      updatedAccessibilityLabel,
+      cachedReviewAccessibilityLabel || updatedAccessibilityLabel,
     ]),
     actionLabel: loading ? "Opening" : "Map",
     endpointLabel: createRouteCardEndpointLabel(route.origin, route.destination),

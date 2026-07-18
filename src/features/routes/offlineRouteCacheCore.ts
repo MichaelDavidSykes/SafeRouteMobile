@@ -12,6 +12,11 @@ export interface OfflineRouteCacheRecord {
   value: SavedRouteSyncResult;
 }
 
+export interface OfflineRouteCacheSnapshot {
+  storedAtMs: number;
+  value: SavedRouteSyncResult;
+}
+
 export interface OfflineRouteCacheStorage {
   getAllKeys(): Promise<readonly string[]>;
   getItem(key: string): Promise<string | null>;
@@ -52,6 +57,18 @@ export function parseOfflineRouteCacheRecord(
   expectedPrincipalIdValue: string,
   nowMs = Date.now(),
 ): SavedRouteSyncResult | null {
+  return parseOfflineRouteCacheSnapshot(
+    value,
+    expectedPrincipalIdValue,
+    nowMs,
+  )?.value || null;
+}
+
+export function parseOfflineRouteCacheSnapshot(
+  value: unknown,
+  expectedPrincipalIdValue: string,
+  nowMs = Date.now(),
+): OfflineRouteCacheSnapshot | null {
   if (!value || typeof value !== "object") {
     return null;
   }
@@ -71,12 +88,17 @@ export function parseOfflineRouteCacheRecord(
     return null;
   }
   return {
-    clients: record.value.clients.slice(0, OFFLINE_ROUTE_CACHE_MAX_ROUTES),
-    routes: record.value.routes.filter(hasUsableRoutePlan).slice(0, OFFLINE_ROUTE_CACHE_MAX_ROUTES),
-    selectedClientId:
-      typeof record.value.selectedClientId === "string"
-        ? record.value.selectedClientId
-        : null,
+    storedAtMs: record.storedAtMs as number,
+    value: {
+      clients: record.value.clients.slice(0, OFFLINE_ROUTE_CACHE_MAX_ROUTES),
+      routes: record.value.routes
+        .filter(hasUsableRoutePlan)
+        .slice(0, OFFLINE_ROUTE_CACHE_MAX_ROUTES),
+      selectedClientId:
+        typeof record.value.selectedClientId === "string"
+          ? record.value.selectedClientId
+          : null,
+    },
   };
 }
 
@@ -251,13 +273,17 @@ function parseStoredOfflineRouteCacheRecord(
     const storedAtMs = typeof record.storedAtMs === "number" && Number.isFinite(record.storedAtMs)
       ? record.storedAtMs
       : Date.now();
-    const value = parseOfflineRouteCacheRecord(record, principalId, storedAtMs);
-    return value
+    const snapshot = parseOfflineRouteCacheSnapshot(
+      record,
+      principalId,
+      storedAtMs,
+    );
+    return snapshot
       ? {
           schema: Number(record.schema),
           principalId,
-          storedAtMs,
-          value,
+          storedAtMs: snapshot.storedAtMs,
+          value: snapshot.value,
         }
       : null;
   } catch {

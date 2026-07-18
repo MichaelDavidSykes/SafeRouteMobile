@@ -94,7 +94,7 @@ describe("App active workspace integration", () => {
     );
     assert.match(
       routes,
-      /accessibilityLabel=\{offlineReviewMessage\}[\s\S]*accessibilityRole="alert"[\s\S]*testID=\{uiTestIds\.routeListOfflineNotice\}/,
+      /accessibilityLabel=\{offlineReviewPresentation\.accessibilityLabel\}[\s\S]*accessibilityRole="alert"[\s\S]*testID=\{uiTestIds\.routeListOfflineNotice\}/,
     );
   });
 
@@ -347,7 +347,7 @@ describe("App active workspace integration", () => {
     assert.match(routes, /routesForWorkspace\(result\.routes, requestWorkspaceId\)/);
     assert.match(
       routes,
-      /!cached && reviewOnly[\s\S]*loadOfflineRoutes\(cacheIdentity, null\)/,
+      /!cachedSnapshot && reviewOnly[\s\S]*loadOfflineRoutesSnapshot\(cacheIdentity, null\)/,
     );
     assert.match(routes, /routeDetail\.clientId !== selectedClientId/);
     assert.match(routes, /activeWorkspaceIdRef\.current === selectedClientId/);
@@ -357,7 +357,8 @@ describe("App active workspace integration", () => {
     assert.match(routes, /workspaceCatalogLoading/);
     assert.match(routes, /Workspaces unavailable/);
     assert.match(routes, /Choose workspace/);
-    assert.match(routes, /Offline saved copy · reconnect before starting guidance/);
+    assert.match(routes, /createRouteListOfflineReviewPresentation/);
+    assert.match(routes, /offlineCopyStoredAtMs/);
     assert.match(routes, /No workspace access/);
     assert.doesNotMatch(routes, /setClients\(result\.clients\)/);
     assert.doesNotMatch(operationsSource(), /clients\[0\]|resolveOperationsClientId/);

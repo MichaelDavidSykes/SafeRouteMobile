@@ -6,6 +6,7 @@ import {
   OFFLINE_ROUTE_CACHE_MAX_AGE_MS,
   createOfflineRouteCacheRecord,
   parseOfflineRouteCacheRecord,
+  parseOfflineRouteCacheSnapshot,
   purgeOfflineRouteWorkspaceStorage,
   removeWorkspaceFromOfflineRouteCache,
   removeWorkspaceFromOfflineRouteCacheRecord,
@@ -31,6 +32,27 @@ describe("offline saved route cache", () => {
     assert.equal(parseOfflineRouteCacheRecord(record, "user-b", 2_000), null);
   });
 
+  it("returns the validated write time without changing the value-only API", () => {
+    const route = SAVED_ROUTE_PLANS[0];
+    assert.ok(route);
+    const record = createOfflineRouteCacheRecord({
+      clients: [{ id: "client-a", name: "Client A" }],
+      routes: [route],
+      selectedClientId: "client-a",
+    }, "user-a", 1_000);
+
+    const snapshot = parseOfflineRouteCacheSnapshot(record, "user-a", 2_000);
+    assert.equal(snapshot?.storedAtMs, 1_000);
+    assert.deepEqual(
+      snapshot?.value,
+      parseOfflineRouteCacheRecord(record, "user-a", 2_000),
+    );
+    assert.equal(
+      parseOfflineRouteCacheSnapshot(record, "user-b", 2_000),
+      null,
+    );
+  });
+
   it("fails closed for expired, future, malformed, or incomplete records", () => {
     const route = SAVED_ROUTE_PLANS[0];
     assert.ok(route);
@@ -46,6 +68,15 @@ describe("offline saved route cache", () => {
       null,
     );
     assert.equal(parseOfflineRouteCacheRecord(record, "user-a", 999), null);
+    assert.equal(
+      parseOfflineRouteCacheSnapshot(
+        record,
+        "user-a",
+        1_000 + OFFLINE_ROUTE_CACHE_MAX_AGE_MS + 1,
+      ),
+      null,
+    );
+    assert.equal(parseOfflineRouteCacheSnapshot(record, "user-a", 999), null);
     assert.equal(parseOfflineRouteCacheRecord({}, "user-a"), null);
     assert.equal(parseOfflineRouteCacheRecord({ ...record, schema: 1 }, "user-a", 2_000), null);
     assert.deepEqual(

@@ -24,11 +24,14 @@ import {
 import {
   createRouteListClientFilterOptions,
   createRouteListEmptyState,
+  createRouteListExpiredCacheMessage,
   createRouteListLoadingState,
+  createRouteListOfflineReviewPresentation,
   createRouteListSearchQueryValue,
   createRouteListSummaryState,
   filterSavedRoutes,
   findSelectedClient,
+  getRouteListOfflineReviewRefreshDelayMs,
   shouldShowRouteSearch,
   shouldShowClientFilters,
   shouldShowRouteEmptyState,
@@ -39,7 +42,7 @@ import { uiTestIds } from "../../testing/uiTestIds";
 import { recordGuidanceContractEvidence } from "../../testing/guidanceContractEvidence";
 import {
   loadOfflineRouteDetail,
-  loadOfflineRoutes,
+  loadOfflineRoutesSnapshot,
   saveOfflineRouteDetail,
   saveOfflineRoutes,
 } from "./offlineRouteCache";
@@ -131,6 +134,10 @@ export function RouteListScreen({
   );
   const [detailLoadingId, setDetailLoadingId] = useState<string | null>(null);
   const [showingOfflineCopy, setShowingOfflineCopy] = useState(false);
+  const [offlineCopyStoredAtMs, setOfflineCopyStoredAtMs] = useState<
+    number | null
+  >(null);
+  const [offlineCopyNowMs, setOfflineCopyNowMs] = useState(() => Date.now());
   const loadRevisionRef = useRef(0);
   const detailRevisionRef = useRef(0);
   const protectedRequestsAvailableRef = useRef(protectedRequestsAvailable);
@@ -149,6 +156,7 @@ export function RouteListScreen({
       activeWorkspaceIdRef.current = null;
       setRoutes([]);
       setShowingOfflineCopy(false);
+      setOfflineCopyStoredAtMs(null);
       setDetailLoadingId(null);
       setErrorState(null);
       setLoading(false);
@@ -173,6 +181,7 @@ export function RouteListScreen({
       if (!selectedClientId) {
         setRoutes([]);
         setShowingOfflineCopy(false);
+        setOfflineCopyStoredAtMs(null);
         setLoading(false);
         setRefreshing(false);
         return;
@@ -188,19 +197,20 @@ export function RouteListScreen({
           protectedRequestsAvailableRef.current
         );
 
-      let cached = refresh && protectedRequestsAvailable
+      let cachedSnapshot = refresh && protectedRequestsAvailable
         ? null
-        : await loadOfflineRoutes(cacheIdentity, requestWorkspaceId);
+        : await loadOfflineRoutesSnapshot(cacheIdentity, requestWorkspaceId);
       if (!requestOwnsWorkspace()) {
         return;
       }
-      if (!cached && reviewOnly) {
-        cached = await loadOfflineRoutes(cacheIdentity, null);
+      if (!cachedSnapshot && reviewOnly) {
+        cachedSnapshot = await loadOfflineRoutesSnapshot(cacheIdentity, null);
         if (!requestOwnsWorkspace()) {
           return;
         }
       }
-      if (cached) {
+      if (cachedSnapshot) {
+        const cached = cachedSnapshot.value;
         const cachedRoutes = routesForWorkspace(cached.routes, requestWorkspaceId);
         if (reviewOnly) {
           if (!(await recordOwnedRouteCacheReadback(
@@ -216,13 +226,19 @@ export function RouteListScreen({
           setRoutes(cachedRoutes);
           setLoading(false);
           setShowingOfflineCopy(true);
+          setOfflineCopyStoredAtMs(cachedSnapshot.storedAtMs);
+          setOfflineCopyNowMs(Date.now());
           setRefreshing(false);
           return;
         }
         setRoutes(cachedRoutes);
+        setOfflineCopyStoredAtMs(null);
         setLoading(false);
         setRefreshing(true);
       } else if (reviewOnly) {
+        setRoutes([]);
+        setShowingOfflineCopy(false);
+        setOfflineCopyStoredAtMs(null);
         if (networkChecking || online) {
           setRefreshing(false);
           return;
@@ -249,6 +265,7 @@ export function RouteListScreen({
         };
         setRoutes(scopedResult.routes);
         setShowingOfflineCopy(false);
+        setOfflineCopyStoredAtMs(null);
         void saveOfflineRoutes(cacheIdentity, requestWorkspaceId, scopedResult).catch(() => undefined);
       } catch (error) {
         if (!requestOwnsWorkspace()) {
@@ -262,18 +279,20 @@ export function RouteListScreen({
           recoverUnavailableWorkspace(requestWorkspaceId);
           return;
         }
-        let offlineCopy =
-          cached || (await loadOfflineRoutes(cacheIdentity, requestWorkspaceId));
+        let offlineSnapshot =
+          cachedSnapshot ||
+          (await loadOfflineRoutesSnapshot(cacheIdentity, requestWorkspaceId));
         if (!requestOwnsWorkspace()) {
           return;
         }
-        if (!offlineCopy) {
-          offlineCopy = await loadOfflineRoutes(cacheIdentity, null);
+        if (!offlineSnapshot) {
+          offlineSnapshot = await loadOfflineRoutesSnapshot(cacheIdentity, null);
           if (!requestOwnsWorkspace()) {
             return;
           }
         }
-        if (offlineCopy) {
+        if (offlineSnapshot) {
+          const offlineCopy = offlineSnapshot.value;
           const offlineRoutes = routesForWorkspace(
             offlineCopy.routes,
             requestWorkspaceId,
@@ -290,7 +309,12 @@ export function RouteListScreen({
           }
           setRoutes(offlineRoutes);
           setShowingOfflineCopy(true);
+          setOfflineCopyStoredAtMs(offlineSnapshot.storedAtMs);
+          setOfflineCopyNowMs(Date.now());
         } else {
+          setRoutes([]);
+          setShowingOfflineCopy(false);
+          setOfflineCopyStoredAtMs(null);
           setErrorState(createRouteSyncErrorState(error));
         }
       } finally {
@@ -440,11 +464,57 @@ export function RouteListScreen({
               title: "No workspace access",
             }
     : null;
-  const offlineReviewMessage = networkChecking
-    ? "Checking connection · saved copy is review only"
+  const offlineReviewStatus = networkChecking
+    ? "checking-connection"
     : offline
-      ? "Offline saved copy · reconnect before starting guidance"
-      : "Checking workspace access · saved copy is review only";
+      ? "offline"
+      : "checking-access";
+  const offlineReviewPresentation = useMemo(
+    () =>
+      offlineCopyStoredAtMs === null
+        ? null
+        : createRouteListOfflineReviewPresentation({
+            nowMs: offlineCopyNowMs,
+            status: offlineReviewStatus,
+            storedAtMs: offlineCopyStoredAtMs,
+          }),
+    [offlineCopyNowMs, offlineCopyStoredAtMs, offlineReviewStatus],
+  );
+
+  useEffect(() => {
+    if (!showingOfflineCopy || offlineCopyStoredAtMs === null) {
+      return;
+    }
+
+    const refreshDelayMs = getRouteListOfflineReviewRefreshDelayMs({
+      nowMs: offlineCopyNowMs,
+      storedAtMs: offlineCopyStoredAtMs,
+    });
+    if (refreshDelayMs === null) {
+      loadRevisionRef.current += 1;
+      detailRevisionRef.current += 1;
+      setRoutes([]);
+      setShowingOfflineCopy(false);
+      setOfflineCopyStoredAtMs(null);
+      setDetailLoadingId(null);
+      setErrorState(
+        createRouteSyncErrorState(
+          new Error(createRouteListExpiredCacheMessage(offlineReviewStatus)),
+        ),
+      );
+      return;
+    }
+
+    const refreshTimer = setTimeout(() => {
+      setOfflineCopyNowMs(Date.now());
+    }, refreshDelayMs);
+    return () => clearTimeout(refreshTimer);
+  }, [
+    offlineCopyNowMs,
+    offlineCopyStoredAtMs,
+    offlineReviewStatus,
+    showingOfflineCopy,
+  ]);
 
   const handleSelectRoute = async (route: SavedSafeRoutePlan) => {
     if (!selectedClientId) {
@@ -629,6 +699,7 @@ export function RouteListScreen({
             setErrorState(null);
             setRoutes([]);
             setShowingOfflineCopy(false);
+            setOfflineCopyStoredAtMs(null);
             setLoading(true);
             setQuery("");
             onWorkspaceChange(workspace);
@@ -646,15 +717,17 @@ export function RouteListScreen({
         />
       ) : null}
 
-      {showingOfflineCopy ? (
+      {showingOfflineCopy && offlineReviewPresentation ? (
         <View
           accessible
-          accessibilityLabel={offlineReviewMessage}
+          accessibilityLabel={offlineReviewPresentation.accessibilityLabel}
           accessibilityRole="alert"
           style={styles.offlineNotice}
           testID={uiTestIds.routeListOfflineNotice}
         >
-          <Text style={styles.offlineNoticeText}>{offlineReviewMessage}</Text>
+          <Text numberOfLines={2} style={styles.offlineNoticeText}>
+            {offlineReviewPresentation.visibleLabel}
+          </Text>
         </View>
       ) : null}
 
@@ -743,6 +816,11 @@ export function RouteListScreen({
         >
           {filteredRoutes.map((route) => (
             <RouteCard
+              cachedReviewAccessibilityLabel={
+                showingOfflineCopy
+                  ? offlineReviewPresentation?.cardAccessibilityLabel
+                  : null
+              }
               key={route.id}
               loading={detailLoadingId === route.id}
               route={route}

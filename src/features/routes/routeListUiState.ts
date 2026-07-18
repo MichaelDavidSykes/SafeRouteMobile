@@ -1,4 +1,5 @@
 import type { SavedSafeRoutePlan } from "../live-map/liveMapTypes";
+import { OFFLINE_ROUTE_CACHE_MAX_AGE_MS } from "./offlineRouteCacheCore";
 import type { MobileSafeRouteClient } from "./routeMapper";
 
 export type RouteListEmptyState = {
@@ -55,6 +56,19 @@ export type RouteListEmptyVisibilityInput = {
   totalRouteCount: number;
 };
 
+export type RouteListOfflineReviewPresentation = {
+  accessibilityLabel: string;
+  cardAccessibilityLabel: string;
+  visibleLabel: string;
+};
+
+export type RouteListOfflineReviewStatus =
+  | "checking-access"
+  | "checking-connection"
+  | "offline";
+
+const ROUTE_LIST_CACHE_AGE_TIMER_MAX_DELAY_MS = 2_147_483_647;
+
 // Keep the saved-route picker lightweight for tiny route sets; the cards are
 // quicker to scan than an always-visible search field.
 const ROUTE_SEARCH_MINIMUM_COUNT = 4;
@@ -109,6 +123,133 @@ export function createRouteListLoadingState(): RouteListLoadingState {
     accessibilityLabel:
       "Syncing saved SafeRoute plans. The map remains available.",
     title: "Syncing routes",
+  };
+}
+
+export function createRouteListOfflineReviewPresentation({
+  nowMs = Date.now(),
+  status,
+  storedAtMs,
+}: {
+  nowMs?: number;
+  status: RouteListOfflineReviewStatus;
+  storedAtMs: number;
+}): RouteListOfflineReviewPresentation | null {
+  if (
+    !Number.isFinite(nowMs) ||
+    !Number.isFinite(storedAtMs) ||
+    storedAtMs > nowMs ||
+    nowMs - storedAtMs > OFFLINE_ROUTE_CACHE_MAX_AGE_MS
+  ) {
+    return null;
+  }
+
+  const age = createRouteListCacheAge(nowMs - storedAtMs);
+  const safetySentence =
+    status === "offline"
+      ? "Reconnect and verify workspace access before starting guidance."
+      : status === "checking-connection"
+        ? "Wait for the connection check and workspace access verification before starting guidance."
+        : "Wait for workspace access verification before starting guidance.";
+  const accessibilityPrefix =
+    status === "offline"
+      ? "Offline saved routes."
+      : status === "checking-connection"
+        ? "Checking connection for saved routes."
+        : "Checking workspace access for saved routes.";
+  const visibleLabel =
+    status === "offline"
+      ? `Offline · ${age.visibleOld} · reconnect to start`
+      : status === "checking-connection"
+        ? `Checking connection · cached ${age.visibleAgo}`
+        : `Checking access · cached ${age.visibleAgo}`;
+
+  return {
+    accessibilityLabel:
+      `${accessibilityPrefix} This copy was cached ${age.spokenAgo} and is review only. ${safetySentence}`,
+    cardAccessibilityLabel:
+      `Saved copy is review only. ${safetySentence}`,
+    visibleLabel,
+  };
+}
+
+export function createRouteListExpiredCacheMessage(
+  status: RouteListOfflineReviewStatus,
+): string {
+  if (status === "offline") {
+    return "Saved route copy expired. Reconnect to refresh.";
+  }
+  if (status === "checking-connection") {
+    return "Saved route copy expired. Wait for the connection check before refreshing.";
+  }
+  return "Saved route copy expired. Wait for workspace access verification before refreshing.";
+}
+
+export function getRouteListOfflineReviewRefreshDelayMs({
+  nowMs = Date.now(),
+  storedAtMs,
+}: {
+  nowMs?: number;
+  storedAtMs: number;
+}): number | null {
+  if (
+    !Number.isFinite(nowMs) ||
+    !Number.isFinite(storedAtMs) ||
+    storedAtMs > nowMs ||
+    nowMs - storedAtMs > OFFLINE_ROUTE_CACHE_MAX_AGE_MS
+  ) {
+    return null;
+  }
+
+  const hourMs = 60 * 60 * 1000;
+  const dayMs = 24 * hourMs;
+  const ageMs = nowMs - storedAtMs;
+  const bucketMs = ageMs < dayMs ? hourMs : dayMs;
+  const nextAgeBoundaryMs =
+    storedAtMs + (Math.floor(ageMs / bucketMs) + 1) * bucketMs;
+  const expiryBoundaryMs =
+    storedAtMs + OFFLINE_ROUTE_CACHE_MAX_AGE_MS + 1;
+
+  return Math.max(
+    1,
+    Math.min(
+      ROUTE_LIST_CACHE_AGE_TIMER_MAX_DELAY_MS,
+      nextAgeBoundaryMs - nowMs,
+      expiryBoundaryMs - nowMs,
+    ),
+  );
+}
+
+function createRouteListCacheAge(ageMs: number): {
+  spokenAgo: string;
+  visibleAgo: string;
+  visibleOld: string;
+} {
+  const hourMs = 60 * 60 * 1000;
+  const dayMs = 24 * hourMs;
+
+  if (ageMs < hourMs) {
+    return {
+      spokenAgo: "less than one hour ago",
+      visibleAgo: "<1h ago",
+      visibleOld: "<1h old",
+    };
+  }
+
+  if (ageMs < dayMs) {
+    const hours = Math.floor(ageMs / hourMs);
+    return {
+      spokenAgo: `${hours} ${hours === 1 ? "hour" : "hours"} ago`,
+      visibleAgo: `${hours}h ago`,
+      visibleOld: `${hours}h old`,
+    };
+  }
+
+  const days = Math.floor(ageMs / dayMs);
+  return {
+    spokenAgo: `${days} ${days === 1 ? "day" : "days"} ago`,
+    visibleAgo: `${days}d ago`,
+    visibleOld: `${days}d old`,
   };
 }
 

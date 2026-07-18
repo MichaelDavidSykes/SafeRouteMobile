@@ -440,6 +440,11 @@ export function RouteListScreen({
               title: "No workspace access",
             }
     : null;
+  const offlineReviewMessage = networkChecking
+    ? "Checking connection · saved copy is review only"
+    : offline
+      ? "Offline saved copy · reconnect before starting guidance"
+      : "Checking workspace access · saved copy is review only";
 
   const handleSelectRoute = async (route: SavedSafeRoutePlan) => {
     if (!selectedClientId) {
@@ -642,14 +647,14 @@ export function RouteListScreen({
       ) : null}
 
       {showingOfflineCopy ? (
-        <View accessibilityRole="alert" style={styles.offlineNotice}>
-          <Text style={styles.offlineNoticeText}>
-            {networkChecking
-              ? "Checking connection · saved copy is review only"
-              : offline
-                ? "Offline saved copy · reconnect before starting guidance"
-                : "Checking workspace access · saved copy is review only"}
-          </Text>
+        <View
+          accessible
+          accessibilityLabel={offlineReviewMessage}
+          accessibilityRole="alert"
+          style={styles.offlineNotice}
+          testID={uiTestIds.routeListOfflineNotice}
+        >
+          <Text style={styles.offlineNoticeText}>{offlineReviewMessage}</Text>
         </View>
       ) : null}
 

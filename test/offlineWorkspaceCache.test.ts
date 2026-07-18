@@ -10,6 +10,7 @@ import {
   createOfflineWorkspaceCacheRecord,
   parseOfflineWorkspaceCacheRecord,
   parseWorkspaceRecoveryRevocationRecord,
+  persistLatestOfflineWorkspaceSelection,
   persistWorkspaceRecoveryWithFallback,
 } from "../src/features/workspaces/offlineWorkspaceCacheCore";
 
@@ -281,6 +282,84 @@ describe("offline active workspace cache", () => {
     assert.deepEqual(calls, ["recovery-start", "recovery-end", "save", "load"]);
   });
 
+  it("selects review from the latest serialized recovery without replacing its catalog or tombstones", async () => {
+    const executeWorkspaceOperation = createSerializedWorkspaceRecoveryExecutor();
+    let releaseRecovery: (() => void) | null = null;
+    let markRecoveryStarted: (() => void) | null = null;
+    const recoveryGate = new Promise<void>((resolve) => {
+      releaseRecovery = resolve;
+    });
+    const recoveryStarted = new Promise<void>((resolve) => {
+      markRecoveryStarted = resolve;
+    });
+    let snapshot = {
+      activeWorkspaceId: "workspace-a",
+      principalId: "user-a",
+      unavailableWorkspaceIds: [] as string[],
+      workspaces: CONTEXT.workspaces,
+    };
+
+    const recovery = executeWorkspaceOperation("user-a", async () => {
+      markRecoveryStarted?.();
+      await recoveryGate;
+      snapshot = {
+        activeWorkspaceId: "workspace-a",
+        principalId: "user-a",
+        unavailableWorkspaceIds: ["workspace-c"],
+        workspaces: [
+          ...CONTEXT.workspaces,
+          { id: "workspace-d", name: "Delta Operations" },
+        ],
+      };
+    });
+    await recoveryStarted;
+    const selection = executeWorkspaceOperation("user-a", () =>
+      persistLatestOfflineWorkspaceSelection({
+        loadCurrent: async () => snapshot,
+        persistContext: async (context) => {
+          snapshot = {
+            ...context,
+            principalId: "user-a",
+            unavailableWorkspaceIds: context.unavailableWorkspaceIds || [],
+          };
+        },
+        principalId: "user-a",
+        workspaceId: "workspace-b",
+      })
+    );
+
+    releaseRecovery?.();
+    await recovery;
+    assert.equal((await selection)?.activeWorkspaceId, "workspace-b");
+    assert.deepEqual(snapshot, {
+      activeWorkspaceId: "workspace-b",
+      principalId: "user-a",
+      unavailableWorkspaceIds: ["workspace-c"],
+      workspaces: [
+        ...CONTEXT.workspaces,
+        { id: "workspace-d", name: "Delta Operations" },
+      ],
+    });
+
+    snapshot = {
+      activeWorkspaceId: "workspace-a",
+      principalId: "user-a",
+      unavailableWorkspaceIds: ["workspace-b"],
+      workspaces: [CONTEXT.workspaces[0]],
+    };
+    assert.equal(
+      await persistLatestOfflineWorkspaceSelection({
+        loadCurrent: async () => snapshot,
+        persistContext: async () => {
+          throw new Error("denied selection must not persist");
+        },
+        principalId: "user-a",
+        workspaceId: "workspace-b",
+      }),
+      null,
+    );
+  });
+
   it("retains a revocation until a previously failed purge is retried", async () => {
     const executeRecovery = createSerializedWorkspaceRecoveryExecutor();
     let fallback: string | null = null;
@@ -359,7 +438,7 @@ describe("offline active workspace cache", () => {
     );
     assert.match(
       source,
-      /loadOfflineWorkspaceContext[\s\S]*executeWorkspaceRecovery\(recoveryRevocationKey\(principalId\)/,
+      /loadOfflineWorkspaceContext[\s\S]*executeWorkspaceRecovery\([\s\S]*recoveryRevocationKey\(principalId\)/,
     );
     assert.match(
       source,
@@ -368,6 +447,10 @@ describe("offline active workspace cache", () => {
     assert.match(
       source,
       /persistOfflineWorkspaceRecovery\([\s\S]*executeWorkspaceRecovery\([\s\S]*persistPrimary: \[[\s\S]*saveOfflineWorkspaceContextInternal/,
+    );
+    assert.match(
+      source,
+      /persistOfflineReviewWorkspaceSelection\([\s\S]*executeWorkspaceRecovery\([\s\S]*persistLatestOfflineWorkspaceSelection\([\s\S]*loadOfflineWorkspaceContextInternal/,
     );
   });
 });

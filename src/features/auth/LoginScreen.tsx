@@ -15,8 +15,13 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { getUserFacingErrorMessage } from '../api/userFacingErrors';
 import { colors } from '../../theme';
 import { SafeRouteLogo } from '../../brand/SafeRouteLogo';
+import { SAFEROUTE_CONNECTIVITY_CONTRACT_ENABLED } from '../../config/env';
 import { uiTestIds } from '../../testing/uiTestIds';
 import { loginWithPassword, verifyLoginCode } from './authApi';
+import {
+  resolveLoginCredentialDefaults,
+  resolveLoginPasswordAutofillHints
+} from './loginAutofillHints';
 import { createLoginErrorState } from './loginErrorState';
 import { createLoginHeaderState } from './loginHeaderState';
 import { createLoginNoticeState } from './loginNoticeState';
@@ -35,6 +40,13 @@ import {
   sanitizeLoginCode
 } from './twoFactorChallenge';
 
+const passwordAutofillHints = resolveLoginPasswordAutofillHints(
+  SAFEROUTE_CONNECTIVITY_CONTRACT_ENABLED
+);
+const loginCredentialDefaults = resolveLoginCredentialDefaults(
+  SAFEROUTE_CONNECTIVITY_CONTRACT_ENABLED
+);
+
 interface LoginScreenProps {
   initialChallenge?: TwoFactorChallenge | null;
   sessionMessage?: string;
@@ -52,8 +64,10 @@ export function LoginScreen({
   onAuthenticated,
   sessionMessage
 }: LoginScreenProps) {
-  const [email, setEmail] = useState(initialChallenge?.email ?? '');
-  const [password, setPassword] = useState('');
+  const [email, setEmail] = useState(
+    initialChallenge?.email ?? loginCredentialDefaults.email
+  );
+  const [password, setPassword] = useState(loginCredentialDefaults.password);
   const [code, setCode] = useState('');
   const [challenge, setChallenge] = useState<TwoFactorChallenge | null>(initialChallenge);
   const [passwordVisible, setPasswordVisible] = useState(false);
@@ -271,15 +285,16 @@ export function LoginScreen({
 
               <View style={[styles.inputShell, loading ? styles.inputShellDisabled : null]}>
                 <TextInput
+                  {...passwordAutofillHints}
                   autoCapitalize="none"
-                  autoComplete="current-password"
                   editable={!loading}
                   placeholder="Password"
                   placeholderTextColor={colors.muted}
                   returnKeyType="go"
-                  secureTextEntry={!passwordVisible}
+                  secureTextEntry={
+                    !passwordVisible && !SAFEROUTE_CONNECTIVITY_CONTRACT_ENABLED
+                  }
                   style={styles.input}
-                  textContentType="password"
                   value={password}
                   testID={uiTestIds.loginPassword}
                   accessibilityLabel="LunarChain password"

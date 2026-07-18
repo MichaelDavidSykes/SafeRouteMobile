@@ -5,6 +5,7 @@ import {
   completeWorkspaceCatalogRetry,
   createWorkspaceAccessRefreshState,
   resolveWorkspaceAccessAnnouncement,
+  shouldArmAutomaticReconnectAnnouncement,
   shouldStackWorkspaceAccessControl,
   shouldOfferWorkspaceAccessRefresh,
 } from "../src/features/workspaces/workspaceAccessRefreshState";
@@ -384,6 +385,123 @@ describe("workspace access refresh state", () => {
     assert.equal(duplicateChecking.announcement, null);
     assert.match(offline.announcement || "", /Reconnect/i);
     assert.equal(duplicateOffline.announcement, null);
+  });
+
+  it("corrects a checking announcement when cached workspace review becomes available", () => {
+    const emptyChecking = resolveWorkspaceAccessAnnouncement({
+      accessRecoveryPending: false,
+      availableWorkspaceCount: 0,
+      issue: "none",
+      loading: false,
+      networkStatus: "checking",
+      previousPhase: "idle",
+      retrying: false,
+    });
+    const cachedChecking = resolveWorkspaceAccessAnnouncement({
+      accessRecoveryPending: false,
+      availableWorkspaceCount: 1,
+      issue: "none",
+      loading: true,
+      networkStatus: "checking",
+      previousPhase: emptyChecking.phase,
+      retrying: false,
+    });
+    const duplicateCachedChecking = resolveWorkspaceAccessAnnouncement({
+      accessRecoveryPending: false,
+      availableWorkspaceCount: 1,
+      issue: "none",
+      loading: true,
+      networkStatus: "checking",
+      previousPhase: cachedChecking.phase,
+      retrying: false,
+    });
+
+    assert.match(emptyChecking.announcement || "", /No workspace is currently available/i);
+    assert.equal(emptyChecking.phase, "connection-checking-empty");
+    assert.match(cachedChecking.announcement || "", /Cached workspace remains available/i);
+    assert.equal(cachedChecking.phase, "connection-checking-cached");
+    assert.equal(duplicateCachedChecking.announcement, null);
+  });
+
+  it("announces generic cold checking once before workspace context resolves", () => {
+    const checking = resolveWorkspaceAccessAnnouncement({
+      accessRecoveryPending: false,
+      availableWorkspaceCount: 0,
+      issue: "none",
+      loading: true,
+      networkStatus: "checking",
+      previousPhase: "idle",
+      retrying: false,
+      workspaceContextResolved: false,
+    });
+    const duplicate = resolveWorkspaceAccessAnnouncement({
+      accessRecoveryPending: false,
+      availableWorkspaceCount: 0,
+      issue: "none",
+      loading: true,
+      networkStatus: "checking",
+      previousPhase: checking.phase,
+      retrying: false,
+      workspaceContextResolved: false,
+    });
+
+    assert.deepEqual(checking, {
+      announcement: "Checking connection. Map downloads are paused.",
+      phase: "connection-checking-generic",
+    });
+    assert.equal(duplicate.announcement, null);
+  });
+
+  it("arms restored copy only after an authenticated offline observation", () => {
+    assert.equal(shouldArmAutomaticReconnectAnnouncement({
+      authenticated: true,
+      networkStatus: "checking",
+      offlineObserved: true,
+    }), true);
+    assert.equal(shouldArmAutomaticReconnectAnnouncement({
+      authenticated: true,
+      networkStatus: "checking",
+      offlineObserved: false,
+    }), false);
+    assert.equal(shouldArmAutomaticReconnectAnnouncement({
+      authenticated: true,
+      networkStatus: "online",
+      offlineObserved: true,
+    }), false);
+    assert.equal(shouldArmAutomaticReconnectAnnouncement({
+      authenticated: false,
+      networkStatus: "checking",
+      offlineObserved: true,
+    }), false);
+  });
+
+  it("preserves automatic reconnect identity while its online catalog is loading", () => {
+    const stillLoading = resolveWorkspaceAccessAnnouncement({
+      accessRecoveryPending: false,
+      availableWorkspaceCount: 1,
+      issue: "none",
+      loading: true,
+      networkStatus: "online",
+      previousPhase: "connection-checking-cached",
+      retrying: false,
+    });
+    const restored = resolveWorkspaceAccessAnnouncement({
+      accessRecoveryPending: false,
+      availableWorkspaceCount: 1,
+      issue: "none",
+      loading: false,
+      networkStatus: "online",
+      previousPhase: stillLoading.phase,
+      retrying: false,
+    });
+    assert.deepEqual(stillLoading, {
+      announcement: null,
+      phase: "connection-checking-cached",
+    });
+    assert.deepEqual(restored, {
+      announcement: null,
+      phase: "idle",
+    });
   });
 
   it("leaves successful retries to the single explicit confirmation announcement", () => {

@@ -60,6 +60,11 @@ describe("UI test identifiers", () => {
     );
     assert.equal(uiTestIds.routeListWorkspaceSelector, "safe-route-workspace-selector");
     assert.equal(uiTestIds.routeListWorkspaceState, "safe-route-workspace-state");
+    assert.equal(uiTestIds.routeListOfflineNotice, "safe-route-offline-notice");
+    assert.equal(
+      uiTestIds.suspendedNavigationStatus,
+      "safe-route-suspended-navigation-status",
+    );
     assert.equal(
       uiTestIds.routeListWorkspaceOption(" West Corridor "),
       "safe-route-workspace-west-corridor",

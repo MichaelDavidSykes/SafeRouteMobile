@@ -8,6 +8,8 @@ const operationsSource = () => readFileSync("src/features/operations/OperationsS
 const routesSource = () => readFileSync("src/features/routes/RouteListScreen.tsx", "utf8");
 const routeFiltersSource = () => readFileSync("src/features/routes/RouteListFilters.tsx", "utf8");
 const workspaceRefreshSource = () => readFileSync("src/features/workspaces/WorkspaceAccessRefreshControl.tsx", "utf8");
+const suspendedNavigationSource = () =>
+  readFileSync("src/features/live-map/SuspendedNavigationNotice.tsx", "utf8");
 
 describe("App active workspace integration", () => {
   it("owns one authoritative catalog and shares the active workspace with Map, Saved, and Operations", () => {
@@ -47,6 +49,53 @@ describe("App active workspace integration", () => {
     assert.match(app, /<RouteListScreen[\s\S]*onWorkspaceUnavailable=\{handleWorkspaceUnavailable\}/);
     assert.match(operations, /onWorkspaceChange\(nextWorkspace\)/);
     assert.match(operations, /activeWorkspaceIdRef\.current = nextWorkspace\.id/);
+  });
+
+  it("returns local offline End to the same cached review workspace without fresh authorization", () => {
+    const app = appSource();
+    const suspended = suspendedNavigationSource();
+    const routes = routesSource();
+
+    assert.match(
+      app,
+      /handleEndSuspendedNavigation[\s\S]*endedWorkspaceId[\s\S]*endedPrincipalId[\s\S]*endedSessionEpoch[\s\S]*endRequestIsCurrent[\s\S]*await discardPersistedNavigation\(undefined, \{[\s\S]*publishCleanupFailure: false/,
+    );
+    assert.match(
+      app,
+      /await persistOfflineReviewWorkspaceSelection\([\s\S]*endedPrincipalId[\s\S]*endedWorkspaceId[\s\S]*reviewWorkspaceRequestIsCurrent\(\)[\s\S]*persistedReviewWorkspace[\s\S]*setActiveWorkspace\(persistedReviewWorkspace\)[\s\S]*setSessionMessage\('Suspended route ended\.'\)/,
+    );
+    assert.match(
+      app,
+      /isSuspendedNavigationEndRequestCurrent\(\{[\s\S]*currentPrincipalId: activeSessionPrincipalIdRef\.current[\s\S]*currentSessionEpoch: sessionEpochRef\.current/,
+    );
+    assert.match(
+      app,
+      /catch \{[\s\S]*reviewWorkspaceRequestIsCurrent\(\)[\s\S]*Choose a cached workspace/,
+    );
+    assert.doesNotMatch(
+      app,
+      /discardPersistedNavigation\('Suspended route ended\.'\)/,
+    );
+    assert.match(
+      app,
+      /if \(!ended\) \{[\s\S]*endRequestIsCurrent\(\)[\s\S]*Saved guidance could not be removed/,
+    );
+    assert.match(
+      app,
+      /<SuspendedNavigationNotice[\s\S]*onEnd=\{\(\) => \{[\s\S]*handleEndSuspendedNavigation\(\)/,
+    );
+    assert.match(
+      suspended,
+      /testID=\{uiTestIds\.suspendedNavigationStatus\}[\s\S]*testID=\{uiTestIds\.suspendedNavigationRetry\}[\s\S]*testID=\{uiTestIds\.suspendedNavigationEnd\}/,
+    );
+    assert.doesNotMatch(
+      suspended,
+      /testID=\{uiTestIds\.suspendedNavigationNotice\}[\s\S]{0,160}accessibilityRole="alert"/,
+    );
+    assert.match(
+      routes,
+      /accessibilityLabel=\{offlineReviewMessage\}[\s\S]*accessibilityRole="alert"[\s\S]*testID=\{uiTestIds\.routeListOfflineNotice\}/,
+    );
   });
 
   it("owns fail-closed Operations workspace recovery and rejects stale denied-workspace catalogs", () => {
@@ -112,6 +161,22 @@ describe("App active workspace integration", () => {
     assert.match(
       app,
       /Platform\.OS === 'ios' && transition\.announcement[\s\S]*AccessibilityInfo\.announceForAccessibilityWithOptions\([\s\S]*transition\.announcement/,
+    );
+    assert.match(
+      app,
+      /workspaceContextResolved:[\s\S]*authenticated[\s\S]*workspaceCatalogLoading && availableWorkspaces\.length === 0/,
+    );
+    assert.match(
+      app,
+      /automaticReconnectAnnouncementPendingRef\.current[\s\S]*networkStatus === 'online'[\s\S]*!workspaceCatalogLoading[\s\S]*return;/,
+    );
+    assert.match(
+      app,
+      /!catalogRetryWasRequested[\s\S]*automaticReconnectCompleted[\s\S]*Connection restored\. Workspace access verified\./,
+    );
+    assert.match(
+      app,
+      /shouldArmAutomaticReconnectAnnouncement\(\{[\s\S]*authenticated[\s\S]*networkStatus[\s\S]*offlineObserved: reconnect\.offlineObserved/,
     );
     assert.match(app, /beginWorkspaceCatalogRetry[\s\S]*restoreUnavailableWorkspacesFromFreshCatalogRef\.current = true[\s\S]*setWorkspaceDiscoveryRevision/);
     assert.match(
@@ -538,7 +603,10 @@ describe("App active workspace integration", () => {
     assert.match(app, /stagePendingNavigationRestore\(persistedNavigation\)/);
     assert.match(app, /pendingNavigationRestoreRef\.current[\s\S]*setPendingNavigationRestoreStatus\('paused'\)/);
     assert.match(app, /SuspendedNavigationNotice[\s\S]*onRetry=\{handleRetryWorkspaceCatalog\}/);
-    assert.match(app, /discardPersistedNavigation\('Suspended route ended\.'\)/);
+    assert.match(
+      app,
+      /handleEndSuspendedNavigation[\s\S]*await discardPersistedNavigation\(undefined, \{[\s\S]*publishCleanupFailure: false[\s\S]*setSessionMessage\('Suspended route ended\.'\)/,
+    );
     assert.match(
       app,
       /const pendingNavigationForAuthorization = pendingNavigationRestoreRef\.current[\s\S]*resolvePendingNavigationRestore\(\{[\s\S]*candidate: pendingNavigationForAuthorization,[\s\S]*current: pendingNavigationRestoreRef\.current,[\s\S]*pendingNavigationWorkspace &&[\s\S]*pendingNavigationResolution === 'resume'/,

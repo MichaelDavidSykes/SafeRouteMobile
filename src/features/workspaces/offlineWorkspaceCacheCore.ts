@@ -108,6 +108,43 @@ export function parseOfflineWorkspaceCacheRecord(
   };
 }
 
+export async function persistLatestOfflineWorkspaceSelection({
+  loadCurrent,
+  persistContext,
+  principalId: principalIdValue,
+  workspaceId: workspaceIdValue,
+}: {
+  loadCurrent: () => Promise<OfflineWorkspaceSnapshot | null>;
+  persistContext: (context: OfflineWorkspaceContext) => Promise<void>;
+  principalId: string;
+  workspaceId: string;
+}): Promise<OfflineWorkspaceSnapshot | null> {
+  const principalId = normalizePrincipalId(principalIdValue);
+  const workspaceId = workspaceIdValue.trim();
+  const current = await loadCurrent();
+  if (
+    !principalId ||
+    !workspaceId ||
+    current?.principalId !== principalId ||
+    current.unavailableWorkspaceIds.includes(workspaceId) ||
+    !current.workspaces.some((workspace) => workspace.id === workspaceId)
+  ) {
+    return null;
+  }
+
+  const nextContext: OfflineWorkspaceContext = {
+    activeWorkspaceId: workspaceId,
+    unavailableWorkspaceIds: current.unavailableWorkspaceIds,
+    workspaces: current.workspaces,
+  };
+  await persistContext(nextContext);
+  return {
+    ...nextContext,
+    principalId,
+    unavailableWorkspaceIds: current.unavailableWorkspaceIds,
+  };
+}
+
 function normalizePrincipalId(value: unknown): string {
   return typeof value === "string" ? value.trim() : "";
 }

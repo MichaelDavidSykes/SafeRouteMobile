@@ -72,6 +72,28 @@ export function findWorkspace(
   ) || null;
 }
 
+export function resolveReviewWorkspaceAfterNavigationEnd({
+  endedWorkspaceId,
+  unavailableWorkspaceIds,
+  workspaces,
+}: {
+  endedWorkspaceId?: string | null;
+  unavailableWorkspaceIds: Iterable<string>;
+  workspaces: SafeRouteWorkspace[];
+}): SafeRouteWorkspace | null {
+  const normalizedEndedWorkspaceId = normalizeWorkspaceId(endedWorkspaceId);
+  if (!normalizedEndedWorkspaceId) {
+    return null;
+  }
+  const unavailableIds = new Set(
+    Array.from(unavailableWorkspaceIds, normalizeWorkspaceId).filter(Boolean),
+  );
+  if (unavailableIds.has(normalizedEndedWorkspaceId)) {
+    return null;
+  }
+  return findWorkspace(workspaces, normalizedEndedWorkspaceId);
+}
+
 export function canRetainRouteWorkspace(
   workspaces: SafeRouteWorkspace[],
   routeContext: "guest" | "saved",

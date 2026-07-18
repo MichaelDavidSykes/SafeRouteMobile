@@ -40,6 +40,7 @@ export const uiTestIds = {
   routeListEmptyState: "safe-route-empty-state",
   routeListWorkspaceSelector: "safe-route-workspace-selector",
   routeListWorkspaceState: "safe-route-workspace-state",
+  routeListOfflineNotice: "safe-route-offline-notice",
   routeListWorkspaceOption: (workspaceId: string) =>
     `safe-route-workspace-${normalizeTestIdSegment(workspaceId)}`,
   operationsScreen: "safe-route-operations",
@@ -67,6 +68,7 @@ export const uiTestIds = {
   liveMapBackgroundNavigationAction: "safe-route-background-navigation-action",
   liveMapResumeAction: "safe-route-resume-action",
   suspendedNavigationNotice: "safe-route-suspended-navigation",
+  suspendedNavigationStatus: "safe-route-suspended-navigation-status",
   suspendedNavigationRetry: "safe-route-suspended-navigation-retry",
   suspendedNavigationEnd: "safe-route-suspended-navigation-end",
   navigationCleanupNotice: "safe-route-navigation-cleanup",

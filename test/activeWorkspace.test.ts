@@ -6,6 +6,7 @@ import {
   findWorkspace,
   normalizeWorkspaceCatalog,
   resolveActiveWorkspace,
+  resolveReviewWorkspaceAfterNavigationEnd,
 } from "../src/features/workspaces/activeWorkspace";
 
 const WORKSPACES = [
@@ -42,6 +43,41 @@ describe("active SafeRoute workspace", () => {
     assert.deepEqual(resolveActiveWorkspace([WORKSPACES[0]]), WORKSPACES[0]);
     assert.equal(resolveActiveWorkspace([]), null);
     assert.equal(findWorkspace(WORKSPACES, "missing"), null);
+  });
+
+  it("restores only the ended navigation workspace for review after local End", () => {
+    assert.deepEqual(
+      resolveReviewWorkspaceAfterNavigationEnd({
+        endedWorkspaceId: " workspace-b ",
+        unavailableWorkspaceIds: [],
+        workspaces: WORKSPACES,
+      }),
+      WORKSPACES[1],
+    );
+    assert.equal(
+      resolveReviewWorkspaceAfterNavigationEnd({
+        endedWorkspaceId: "workspace-b",
+        unavailableWorkspaceIds: ["workspace-b"],
+        workspaces: WORKSPACES,
+      }),
+      null,
+    );
+    assert.equal(
+      resolveReviewWorkspaceAfterNavigationEnd({
+        endedWorkspaceId: "missing",
+        unavailableWorkspaceIds: [],
+        workspaces: WORKSPACES,
+      }),
+      null,
+    );
+    assert.equal(
+      resolveReviewWorkspaceAfterNavigationEnd({
+        endedWorkspaceId: null,
+        unavailableWorkspaceIds: [],
+        workspaces: WORKSPACES,
+      }),
+      null,
+    );
   });
 
   it("retains only public guest routes or routes in an authorized workspace", () => {

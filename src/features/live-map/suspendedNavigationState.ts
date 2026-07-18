@@ -10,6 +10,36 @@ export interface SuspendedNavigationPresentation {
   title: string;
 }
 
+export function createSuspendedNavigationAccessibilityLabel(
+  presentation: SuspendedNavigationPresentation,
+  routeName: string,
+): string {
+  return `${presentation.title}. ${routeName.trim() || "Active route"}. ${presentation.message}`;
+}
+
+export function isSuspendedNavigationEndRequestCurrent({
+  currentPrincipalId,
+  currentSessionEpoch,
+  endedPrincipalId,
+  endedSessionEpoch,
+  hasActiveNavigation,
+  hasPendingNavigation,
+}: {
+  currentPrincipalId: string;
+  currentSessionEpoch: number;
+  endedPrincipalId: string;
+  endedSessionEpoch: number;
+  hasActiveNavigation: boolean;
+  hasPendingNavigation: boolean;
+}): boolean {
+  return (
+    endedPrincipalId === currentPrincipalId &&
+    endedSessionEpoch === currentSessionEpoch &&
+    !hasActiveNavigation &&
+    !hasPendingNavigation
+  );
+}
+
 export function createSuspendedNavigationPresentation({
   networkStatus,
   status,

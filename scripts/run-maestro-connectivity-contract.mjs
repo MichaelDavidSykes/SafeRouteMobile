@@ -29,8 +29,13 @@ import {
   assertGuidanceSourceCheckoutClean,
   verifyGuidanceContractMetroIdentity,
 } from './maestro-guidance-metro-identity.mjs';
+import { assertAccessibilityHierarchyElements } from './maestro-accessibility-hierarchy.mjs';
 import { waitForBoundedMaestroPhase } from './maestro-phase-lifecycle.mjs';
-import { resolveHeldMaestroPhaseTimeoutMs } from './run-maestro.mjs';
+import {
+  createMaestroProcessEnv,
+  resolveHeldMaestroPhaseTimeoutMs,
+  resolveMaestroBinary,
+} from './run-maestro.mjs';
 
 const METRO_PORT = 8081;
 const EXPO_GO_BUNDLE_ID = 'host.exp.Exponent';
@@ -45,16 +50,20 @@ const requestLogFile = join(tempDirectory, 'requests.jsonl');
 const evidenceLogFile = join(tempDirectory, 'evidence.jsonl');
 const serverLogFile = join(tempDirectory, 'server.log');
 const screenshotDirectory = join(tempDirectory, 'screenshots');
+const accessibilityDirectory = join(tempDirectory, 'accessibility');
 const serverLogFd = openSync(serverLogFile, 'a');
 const startedAtMs = Date.now();
 let apiProcess = null;
 let activeFlow = null;
 let connectivitySequence = 0;
 let currentSourceRevision = '';
+let maestroBinary = '';
 
 const flows = Object.freeze({
   coldChecking: 'maestro/ios-connectivity-contract-cold-checking.yaml',
   offlineEnd: 'maestro/ios-connectivity-contract-offline-end.yaml',
+  offlineObserve: 'maestro/ios-connectivity-contract-offline-observe.yaml',
+  offlineRelaunch: 'maestro/ios-connectivity-contract-offline-relaunch.yaml',
   online: 'maestro/ios-connectivity-contract-online.yaml',
   reconnectChecking: 'maestro/ios-connectivity-contract-reconnect-checking.yaml',
   reset: 'maestro/ios-guidance-contract-reset.yaml',
@@ -103,6 +112,11 @@ async function main() {
     !(await isPortListening(GUIDANCE_CONTRACT_API_PORT)),
     `Port ${GUIDANCE_CONTRACT_API_PORT} is already in use.`,
   );
+  maestroBinary = resolveMaestroBinary() || '';
+  assertCondition(
+    maestroBinary,
+    'Connectivity contract could not resolve the Maestro CLI.',
+  );
   assertGuidanceSourceCheckoutClean(readCurrentSourceStatus());
   const sourceRevision = readCurrentSourceRevision();
   currentSourceRevision = sourceRevision;
@@ -121,6 +135,7 @@ async function main() {
 
   grantRuntimeLocationPermission(deviceId);
   mkdirSync(screenshotDirectory, { recursive: true });
+  mkdirSync(accessibilityDirectory, { recursive: true });
   setControl(
     CONNECTIVITY_CONTRACT_PHASES.seed,
     CONNECTIVITY_CONTRACT_STATUSES.online,
@@ -163,6 +178,28 @@ async function main() {
   );
   await runFlow(
     CONNECTIVITY_CONTRACT_PHASES.offline,
+    'expose distinct suspended status and local actions offline',
+    flows.offlineObserve,
+  );
+  captureAccessibilityHierarchy('offline-suspended', [
+    {
+      id: 'safe-route-suspended-navigation-status',
+      label: 'Guidance paused. Cold restart verification v1. Reconnect to verify access before guidance can resume.',
+      enabled: true,
+    },
+    {
+      id: 'safe-route-suspended-navigation-retry',
+      label: 'Reconnect before retrying workspace access',
+      enabled: false,
+    },
+    {
+      id: 'safe-route-suspended-navigation-end',
+      label: 'End suspended route',
+      enabled: true,
+    },
+  ]);
+  await runFlow(
+    CONNECTIVITY_CONTRACT_PHASES.offline,
     'restore review-only data and End suspended guidance offline',
     flows.offlineEnd,
   );
@@ -174,9 +211,43 @@ async function main() {
     'tracking.stop.settled',
     CONNECTIVITY_CONTRACT_PHASES.offline,
   );
+  captureAccessibilityHierarchy('offline-saved-review', [
+    {
+      id: 'safe-route-offline-notice',
+      label: 'Offline saved copy · reconnect before starting guidance',
+      enabled: true,
+    },
+    {
+      id: 'safe-route-card-66b1b2c3d4e5f60718293b40',
+      labelStartsWith: 'Cold restart verification v1. ',
+      enabled: true,
+    },
+  ]);
   await assertProductTrafficQuiet([
     CONNECTIVITY_CONTRACT_PHASES.coldChecking,
     CONNECTIVITY_CONTRACT_PHASES.offline,
+  ], 1_000);
+
+  terminateExpoGo(deviceId);
+  setControl(
+    CONNECTIVITY_CONTRACT_PHASES.offlineRelaunch,
+    CONNECTIVITY_CONTRACT_STATUSES.offline,
+  );
+  await runFlow(
+    CONNECTIVITY_CONTRACT_PHASES.offlineRelaunch,
+    'cold relaunch the ended journey into its cached review workspace',
+    flows.offlineRelaunch,
+  );
+  await waitForEvidenceType(
+    'navigation.absence.readback',
+    CONNECTIVITY_CONTRACT_PHASES.offlineRelaunch,
+  );
+  await waitForEvidenceType(
+    'route.cache.readback',
+    CONNECTIVITY_CONTRACT_PHASES.offlineRelaunch,
+  );
+  await assertProductTrafficQuiet([
+    CONNECTIVITY_CONTRACT_PHASES.offlineRelaunch,
   ], 1_000);
 
   setControl(
@@ -219,6 +290,7 @@ async function main() {
       [CONNECTIVITY_CONTRACT_PHASES.seed]: GUIDANCE_CONTRACT_MODES.active,
       [CONNECTIVITY_CONTRACT_PHASES.coldChecking]: GUIDANCE_CONTRACT_MODES.active,
       [CONNECTIVITY_CONTRACT_PHASES.offline]: GUIDANCE_CONTRACT_MODES.active,
+      [CONNECTIVITY_CONTRACT_PHASES.offlineRelaunch]: GUIDANCE_CONTRACT_MODES.active,
       [CONNECTIVITY_CONTRACT_PHASES.reconnectChecking]: GUIDANCE_CONTRACT_MODES.active,
       [CONNECTIVITY_CONTRACT_PHASES.online]: GUIDANCE_CONTRACT_MODES.active,
     },
@@ -235,6 +307,8 @@ async function main() {
       'navigation.persisted',
       'restore.suspended',
       'navigation.cleanup.settled',
+      'navigation.absence.readback',
+      'route.cache.readback',
       'tracking.stop.settled',
     ],
   });
@@ -245,7 +319,8 @@ async function main() {
 
   process.stdout.write(
     `Connectivity contract runtime passed. Request journal: ${requestLogFile}. ` +
-      `Evidence journal: ${evidenceLogFile}. Screenshots: ${screenshotDirectory}\n`,
+      `Evidence journal: ${evidenceLogFile}. Screenshots: ${screenshotDirectory}. ` +
+      `Accessibility hierarchies: ${accessibilityDirectory}\n`,
   );
 }
 
@@ -464,8 +539,40 @@ function assertNoProductTrafficBeforeOnline(entries) {
   assertNoProductTraffic(entries, [
     CONNECTIVITY_CONTRACT_PHASES.coldChecking,
     CONNECTIVITY_CONTRACT_PHASES.offline,
+    CONNECTIVITY_CONTRACT_PHASES.offlineRelaunch,
     CONNECTIVITY_CONTRACT_PHASES.reconnectChecking,
   ]);
+}
+
+function captureAccessibilityHierarchy(name, expectations) {
+  const result = spawnSync(
+    maestroBinary,
+    [
+      `--udid=${deviceId}`,
+      'hierarchy',
+      '--compact',
+      '--no-ansi',
+      '--no-reinstall-driver',
+    ],
+    {
+      encoding: 'utf8',
+      env: createMaestroProcessEnv(process.env),
+      timeout: MAESTRO_PHASE_TIMEOUT_MS,
+    },
+  );
+  assertCondition(
+    !result.error && result.status === 0,
+    `Accessibility hierarchy capture failed for ${name}: ${result.stderr || result.error || result.status}.`,
+  );
+  const hierarchy = String(result.stdout || '');
+  writeFileSync(join(accessibilityDirectory, `${name}.csv`), hierarchy);
+  try {
+    assertAccessibilityHierarchyElements(hierarchy, expectations);
+  } catch (error) {
+    throw new Error(
+      `Accessibility hierarchy assertion failed for ${name}: ${String(error)}`,
+    );
+  }
 }
 
 function assertNoProductTraffic(entries, phases) {

@@ -82,10 +82,12 @@ import {
   findWorkspace,
   normalizeWorkspaceCatalog,
   resolveActiveWorkspace,
+  resolveReviewWorkspaceAfterNavigationEnd,
   type SafeRouteWorkspace
 } from './src/features/workspaces/activeWorkspace';
 import {
   loadOfflineWorkspaceContext,
+  persistOfflineReviewWorkspaceSelection,
   persistOfflineWorkspaceRecovery,
   saveOfflineWorkspaceContext
 } from './src/features/workspaces/offlineWorkspaceCache';
@@ -109,6 +111,7 @@ import { authorizeWorkspaceNavigationStart } from './src/features/workspaces/wor
 import {
   completeWorkspaceCatalogRetry,
   resolveWorkspaceAccessAnnouncement,
+  shouldArmAutomaticReconnectAnnouncement,
   shouldOfferWorkspaceAccessRefresh,
   type WorkspaceAccessAnnouncementPhase,
   type WorkspaceAccessIssue,
@@ -118,6 +121,7 @@ import {
   type WorkspaceAccessFocusHandoff,
 } from './src/features/workspaces/workspaceAccessFocusHandoff';
 import { SuspendedNavigationNotice } from './src/features/live-map/SuspendedNavigationNotice';
+import { isSuspendedNavigationEndRequestCurrent } from './src/features/live-map/suspendedNavigationState';
 import { NavigationCleanupNotice } from './src/features/live-map/NavigationCleanupNotice';
 import { isNavigationStartRequestCurrent } from './src/features/live-map/navigationStartRequestIdentity';
 import {
@@ -220,6 +224,7 @@ function SafeRouteApp() {
   const offlineNetworkObservedRef = useRef(networkStatus === 'offline');
   const workspaceAccessAnnouncementPhaseRef =
     useRef<WorkspaceAccessAnnouncementPhase>('idle');
+  const automaticReconnectAnnouncementPendingRef = useRef(false);
   const workspaceAccessFocusTargetRef = useRef<View | null>(null);
   const workspaceAccessFocusHandoffRef =
     useRef<WorkspaceAccessFocusHandoff<View> | null>(null);
@@ -313,6 +318,13 @@ function SafeRouteApp() {
   routePreviewSourceRef.current = routePreviewSource;
 
   useEffect(() => {
+    if (
+      automaticReconnectAnnouncementPendingRef.current &&
+      networkStatus === 'online' &&
+      !workspaceCatalogLoading
+    ) {
+      return;
+    }
     const transition = resolveWorkspaceAccessAnnouncement({
       accessRecoveryPending: workspaceAccessRecoveryPending,
       availableWorkspaceCount: availableWorkspaces.length,
@@ -321,6 +333,9 @@ function SafeRouteApp() {
       networkStatus,
       previousPhase: workspaceAccessAnnouncementPhaseRef.current,
       retrying: workspaceCatalogRetrying,
+      workspaceContextResolved:
+        authenticated &&
+        !(workspaceCatalogLoading && availableWorkspaces.length === 0),
     });
     workspaceAccessAnnouncementPhaseRef.current = transition.phase;
     if (Platform.OS === 'ios' && transition.announcement) {
@@ -331,6 +346,7 @@ function SafeRouteApp() {
       );
     }
   }, [
+    authenticated,
     availableWorkspaces.length,
     networkStatus,
     workspaceAccessIssue,
@@ -606,7 +622,14 @@ function SafeRouteApp() {
     return cleanupPromise;
   };
 
-  const discardPersistedNavigation = async (message?: string) => {
+  const discardPersistedNavigation = async (
+    message?: string,
+    {
+      publishCleanupFailure = true,
+    }: {
+      publishCleanupFailure?: boolean;
+    } = {},
+  ) => {
     const evidenceSession =
       pendingNavigationRestoreRef.current || activeNavigationSessionRef.current;
     pendingNavigationRestoreRef.current = null;
@@ -617,9 +640,11 @@ function SafeRouteApp() {
     setSelectedRoute(null);
     const durableClearSucceeded = await performPersistedNavigationCleanup(evidenceSession);
     if (!durableClearSucceeded) {
-      setSessionMessage(
-        'Saved guidance could not be removed. Retry cleanup before starting another route.',
-      );
+      if (publishCleanupFailure) {
+        setSessionMessage(
+          'Saved guidance could not be removed. Retry cleanup before starting another route.',
+        );
+      }
       return false;
     }
     if (message) {
@@ -635,6 +660,84 @@ function SafeRouteApp() {
         ? 'Saved guidance removed. You can start another route.'
         : 'Saved guidance could not be removed. Keep SafeRoute open and retry cleanup.',
     );
+  };
+
+  const handleEndSuspendedNavigation = async () => {
+    const endedNavigation = pendingNavigationRestoreRef.current;
+    const endedWorkspaceId =
+      endedNavigation?.accessScope.kind === 'workspace'
+        ? endedNavigation.accessScope.clientId
+        : null;
+    const endedPrincipalId =
+      endedNavigation?.accessScope.kind === 'workspace'
+        ? endedNavigation.accessScope.principalId
+        : '';
+    const endedSessionEpoch = sessionEpochRef.current;
+    const endRequestIsCurrent = () =>
+      isSuspendedNavigationEndRequestCurrent({
+        currentPrincipalId: activeSessionPrincipalIdRef.current,
+        currentSessionEpoch: sessionEpochRef.current,
+        endedPrincipalId,
+        endedSessionEpoch,
+        hasActiveNavigation: Boolean(activeNavigationSessionRef.current),
+        hasPendingNavigation: Boolean(pendingNavigationRestoreRef.current),
+      });
+    const reviewWorkspaceRequestIsCurrent = () =>
+      endRequestIsCurrent() && !activeWorkspaceRef.current;
+    const ended = await discardPersistedNavigation(undefined, {
+      publishCleanupFailure: false,
+    });
+    if (!ended) {
+      if (endRequestIsCurrent()) {
+        setSessionMessage(
+          'Saved guidance could not be removed. Retry cleanup before starting another route.',
+        );
+      }
+      return;
+    }
+    if (!endRequestIsCurrent()) {
+      return;
+    }
+    if (!endedWorkspaceId) {
+      setSessionMessage('Suspended route ended.');
+      return;
+    }
+    let persistedReviewContext: Awaited<
+      ReturnType<typeof persistOfflineReviewWorkspaceSelection>
+    >;
+    try {
+      persistedReviewContext = await persistOfflineReviewWorkspaceSelection(
+        endedPrincipalId,
+        endedWorkspaceId,
+      );
+    } catch {
+      if (reviewWorkspaceRequestIsCurrent()) {
+        setSessionMessage(
+          'Suspended route ended. Choose a cached workspace to keep reviewing saved routes.',
+        );
+      }
+      return;
+    }
+    if (!reviewWorkspaceRequestIsCurrent()) {
+      return;
+    }
+    const persistedReviewWorkspace = resolveReviewWorkspaceAfterNavigationEnd({
+      endedWorkspaceId,
+      unavailableWorkspaceIds: unavailableWorkspaceIdsRef.current,
+      workspaces: availableWorkspacesRef.current,
+    });
+    if (
+      persistedReviewContext?.activeWorkspaceId !== endedWorkspaceId ||
+      persistedReviewWorkspace?.id !== endedWorkspaceId
+    ) {
+      setSessionMessage(
+        'Suspended route ended. Choose a cached workspace to keep reviewing saved routes.',
+      );
+      return;
+    }
+    activeWorkspaceRef.current = persistedReviewWorkspace;
+    setActiveWorkspace(persistedReviewWorkspace);
+    setSessionMessage('Suspended route ended.');
   };
 
   useEffect(() => {
@@ -1372,6 +1475,7 @@ function SafeRouteApp() {
           return;
         }
         if (workspaceAccessRestored && recoveryPersistence !== 'persisted') {
+          automaticReconnectAnnouncementPendingRef.current = false;
           restoreUnavailableWorkspacesFromFreshCatalogRef.current = false;
           if (recoveryPersistence === 'failed') {
             freshWorkspaceAuthorizationRef.current = {
@@ -1401,6 +1505,7 @@ function SafeRouteApp() {
           };
         }
         if (recoveryPersistence === 'failed') {
+          automaticReconnectAnnouncementPendingRef.current = false;
           freshWorkspaceAuthorizationRef.current = {
             principalId,
             workspaceIds: new Set<string>(),
@@ -1493,6 +1598,20 @@ function SafeRouteApp() {
             });
           }
         }
+        if (!catalogRetryWasRequested) {
+          const automaticReconnectCompleted =
+            automaticReconnectAnnouncementPendingRef.current &&
+            recoveryPersistence === 'persisted' &&
+            !navigationRestoreRejected &&
+            catalog.length > 0;
+          automaticReconnectAnnouncementPendingRef.current = false;
+          if (automaticReconnectCompleted) {
+            AccessibilityInfo.announceForAccessibilityWithOptions(
+              'Connection restored. Workspace access verified.',
+              { queue: true },
+            );
+          }
+        }
       } catch (error) {
         if (!onlineRequestIsCurrent()) {
           return;
@@ -1504,6 +1623,7 @@ function SafeRouteApp() {
           };
         }
         setNetworkAuthorizationReady(false);
+        automaticReconnectAnnouncementPendingRef.current = false;
         restoreUnavailableWorkspacesFromFreshCatalogRef.current = false;
         if (error instanceof ApiSessionExpiredError) {
           void handleSessionExpired(error.message);
@@ -1546,6 +1666,7 @@ function SafeRouteApp() {
       return false;
     }
     workspaceAccessFocusHandoffRef.current?.cancel();
+    automaticReconnectAnnouncementPendingRef.current = false;
     workspaceCatalogRetryingRef.current = true;
     if (pendingNavigationRestoreRef.current) {
       setPendingNavigationRestoreStatus('checking');
@@ -1569,15 +1690,23 @@ function SafeRouteApp() {
   useEffect(() => {
     const previous = previousNetworkStatusRef.current;
     previousNetworkStatusRef.current = networkStatus;
-    if (previous === networkStatus) {
-      return;
-    }
     const reconnect = resolveNetworkReconnectTransition({
       current: networkStatus,
       offlineObserved: offlineNetworkObservedRef.current,
       previous,
     });
     offlineNetworkObservedRef.current = reconnect.offlineObserved;
+    if (!authenticated || networkStatus === 'checking') {
+      automaticReconnectAnnouncementPendingRef.current =
+        shouldArmAutomaticReconnectAnnouncement({
+          authenticated,
+          networkStatus,
+          offlineObserved: reconnect.offlineObserved,
+        });
+    }
+    if (previous === networkStatus) {
+      return;
+    }
     if (networkStatus === 'checking') {
       return;
     }
@@ -1599,6 +1728,7 @@ function SafeRouteApp() {
     setWorkspaceDiscoveryRevision((revision) => revision + 1);
   }, [
     handleNetworkReconnectWorkspaceCatalog,
+    authenticated,
     networkStatus,
     pendingNavigationRestore?.status,
     requestWorkspaceForegroundRevalidation,
@@ -2279,7 +2409,7 @@ function SafeRouteApp() {
             routeName={pendingNavigationRestore.session.routePlan.name}
             status={pendingNavigationRestore.status}
             onEnd={() => {
-              discardPersistedNavigation('Suspended route ended.');
+              void handleEndSuspendedNavigation();
             }}
             onRetry={handleRetryWorkspaceCatalog}
           />

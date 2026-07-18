@@ -1,0 +1,17 @@
+appId: host.exp.Exponent
+---
+- extendedWaitUntil:
+    visible:
+      id: "safe-route-suspended-navigation"
+    timeout: 30000
+- assertVisible:
+    id: "safe-route-suspended-navigation-status"
+- assertVisible: "Guidance paused. Cold restart verification v1. Reconnect to verify access before guidance can resume."
+- assertVisible:
+    id: "safe-route-suspended-navigation-retry"
+    enabled: false
+- assertVisible:
+    id: "safe-route-suspended-navigation-end"
+    enabled: true
+- assertVisible: "Offline map. Saved route information remains available."
+- takeScreenshot: "connectivity-contract-offline-guidance"

@@ -14,7 +14,9 @@ export type WorkspaceAccessIssue =
 export type WorkspaceAccessAnnouncementPhase =
   | "idle"
   | "checking"
-  | "connection-checking"
+  | "connection-checking-cached"
+  | "connection-checking-empty"
+  | "connection-checking-generic"
   | "offline-safety"
   | "verification-unavailable";
 
@@ -41,6 +43,7 @@ export function resolveWorkspaceAccessAnnouncement({
   networkStatus,
   previousPhase,
   retrying,
+  workspaceContextResolved = true,
 }: {
   accessRecoveryPending: boolean;
   availableWorkspaceCount: number;
@@ -49,11 +52,30 @@ export function resolveWorkspaceAccessAnnouncement({
   networkStatus: NetworkAvailabilityStatus;
   previousPhase: WorkspaceAccessAnnouncementPhase;
   retrying: boolean;
+  workspaceContextResolved?: boolean;
 }): WorkspaceAccessAnnouncementTransition {
-  if (networkStatus === "checking") {
+  if (!workspaceContextResolved) {
+    if (networkStatus !== "checking") {
+      return {
+        announcement: null,
+        phase: "idle",
+      };
+    }
     return {
       announcement:
-        previousPhase === "connection-checking"
+        previousPhase === "connection-checking-generic"
+          ? null
+          : "Checking connection. Map downloads are paused.",
+      phase: "connection-checking-generic",
+    };
+  }
+  if (networkStatus === "checking") {
+    const phase = availableWorkspaceCount > 0
+      ? "connection-checking-cached"
+      : "connection-checking-empty";
+    return {
+      announcement:
+        previousPhase === phase
           ? null
           : createWorkspaceAccessRefreshState({
               accessRecoveryPending,
@@ -62,7 +84,7 @@ export function resolveWorkspaceAccessAnnouncement({
               loading,
               networkStatus,
             }).accessibilityLabel,
-      phase: "connection-checking",
+      phase,
     };
   }
 
@@ -83,6 +105,15 @@ export function resolveWorkspaceAccessAnnouncement({
   }
 
   if (loading) {
+    if (
+      previousPhase === "connection-checking-cached" ||
+      previousPhase === "connection-checking-empty"
+    ) {
+      return {
+        announcement: null,
+        phase: previousPhase,
+      };
+    }
     return {
       announcement: null,
       phase: "checking",
@@ -119,6 +150,18 @@ export function resolveWorkspaceAccessAnnouncement({
     announcement: null,
     phase: issue === "none" ? "idle" : issue,
   };
+}
+
+export function shouldArmAutomaticReconnectAnnouncement({
+  authenticated,
+  networkStatus,
+  offlineObserved,
+}: {
+  authenticated: boolean;
+  networkStatus: NetworkAvailabilityStatus;
+  offlineObserved: boolean;
+}): boolean {
+  return authenticated && networkStatus === "checking" && offlineObserved;
 }
 
 export function createWorkspaceAccessRefreshState({

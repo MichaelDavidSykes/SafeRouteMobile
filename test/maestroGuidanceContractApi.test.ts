@@ -235,7 +235,7 @@ describe('Maestro guidance contract API', () => {
     );
   });
 
-  it('correlates offline suspension, End cleanup, and tracking stop to one launch', () => {
+  it('correlates offline End with an absent, cached-review process relaunch', () => {
     const sourceRevision = 'e'.repeat(40);
     const identity = {
       appLaunchId: 'launch-connectivity',
@@ -281,6 +281,36 @@ describe('Maestro guidance contract API', () => {
         outcome: 'off',
         type: 'tracking.stop.settled',
       },
+      {
+        ...identity,
+        appLaunchId: 'launch-connectivity-relaunch',
+        authorization: { catalog: 'not-checked', principal: 'unknown' },
+        durability: {
+          activeNavigation: 'absent',
+          nativeTracking: 'unsupported',
+          runtimePermit: 'none',
+        },
+        navigationInstanceId: null,
+        occurredAtMs: 203,
+        outcome: 'absent',
+        routeId: null,
+        serverPhase: 'connectivityOfflineRelaunch',
+        type: 'navigation.absence.readback',
+        workspaceId: null,
+      },
+      {
+        ...identity,
+        appLaunchId: 'launch-connectivity-relaunch',
+        authorization: { catalog: 'unavailable', principal: 'matching' },
+        durability: {
+          routeCache: 'present',
+        },
+        navigationInstanceId: null,
+        occurredAtMs: 204,
+        outcome: 'readable',
+        serverPhase: 'connectivityOfflineRelaunch',
+        type: 'route.cache.readback',
+      },
     ];
 
     assert.doesNotThrow(() =>
@@ -303,6 +333,21 @@ describe('Maestro guidance contract API', () => {
           },
         ),
       /cleanup was not correlated/,
+    );
+    assert.throws(
+      () =>
+        assertConnectivityContractEndedJourneyStayedClosed(
+          entries.map((entry) =>
+            entry.type === 'navigation.absence.readback'
+              ? { ...entry, appLaunchId: identity.appLaunchId }
+              : entry,
+          ),
+          {
+            expectedSourceRevision: sourceRevision,
+            minimumOccurredAtMs: 100,
+          },
+        ),
+      /absent after process relaunch/,
     );
   });
 

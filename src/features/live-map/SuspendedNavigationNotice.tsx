@@ -4,6 +4,7 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { colors, radius, spacing, typeScale } from "../../theme";
 import { uiTestIds } from "../../testing/uiTestIds";
 import {
+  createSuspendedNavigationAccessibilityLabel,
   createSuspendedNavigationPresentation,
   type SuspendedNavigationStatus,
 } from "./suspendedNavigationState";
@@ -31,14 +32,22 @@ export function SuspendedNavigationNotice({
 
   return (
     <View
-      accessibilityLabel={`${presentation.title}. ${routeName.trim() || "Active route"}. ${presentation.message}`}
-      accessibilityRole="alert"
       style={[styles.notice, { top: insets.top + spacing.xs }]}
       testID={uiTestIds.suspendedNavigationNotice}
     >
-      <Text numberOfLines={1} style={styles.eyebrow}>{presentation.title}</Text>
-      <Text numberOfLines={1} style={styles.routeName}>{routeName.trim() || "Active route"}</Text>
-      <Text numberOfLines={2} style={styles.message}>{presentation.message}</Text>
+      <View
+        accessible
+        accessibilityLabel={createSuspendedNavigationAccessibilityLabel(
+          presentation,
+          routeName,
+        )}
+        accessibilityRole="alert"
+        testID={uiTestIds.suspendedNavigationStatus}
+      >
+        <Text numberOfLines={1} style={styles.eyebrow}>{presentation.title}</Text>
+        <Text numberOfLines={1} style={styles.routeName}>{routeName.trim() || "Active route"}</Text>
+        <Text numberOfLines={2} style={styles.message}>{presentation.message}</Text>
+      </View>
       <View style={styles.actions}>
         <Pressable
           accessibilityLabel={presentation.retryAccessibilityLabel}

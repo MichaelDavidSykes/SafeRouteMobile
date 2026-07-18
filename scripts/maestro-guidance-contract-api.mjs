@@ -21,6 +21,7 @@ export const CONNECTIVITY_CONTRACT_STATUSES = Object.freeze({
 export const CONNECTIVITY_CONTRACT_PHASES = Object.freeze({
   coldChecking: 'connectivityColdChecking',
   offline: 'connectivityOffline',
+  offlineRelaunch: 'connectivityOfflineRelaunch',
   online: 'connectivityOnline',
   reconnectChecking: 'connectivityReconnectChecking',
   seed: 'connectivitySeed'
@@ -97,7 +98,12 @@ const GUIDANCE_CONTRACT_EVIDENCE_PHASES = Object.freeze({
     'denied',
     'regained'
   ]),
-  'route.cache.readback': new Set(['regained', 'readbackEvidence']),
+  'route.cache.readback': new Set([
+    'connectivityOffline',
+    'connectivityOfflineRelaunch',
+    'regained',
+    'readbackEvidence',
+  ]),
   'navigation.cleanup.settled': new Set([
     'connectivityOffline',
     'catalogForegroundLoss',
@@ -118,7 +124,10 @@ const GUIDANCE_CONTRACT_EVIDENCE_PHASES = Object.freeze({
     'wrongPrincipal',
     'denied'
   ]),
-  'navigation.absence.readback': new Set(['catalogJourneyEndedRelaunch']),
+  'navigation.absence.readback': new Set([
+    'catalogJourneyEndedRelaunch',
+    'connectivityOfflineRelaunch',
+  ]),
   'navigation.prestart.readback': new Set(['catalogJourneyEndedRouteReload'])
 });
 
@@ -1658,11 +1667,31 @@ export function assertConnectivityContractEndedJourneyStayedClosed(entries, {
     entry.type === 'restore.ready' &&
     entry.navigationInstanceId === cleanup.navigationInstanceId
   );
-  assertJournalCondition(
-    tracking && !reopened,
-    'Connectivity contract ended offline journey was not durably stopped or was reopened after reconnect.'
+  const absenceIndex = entries.findIndex((entry, index) =>
+    index > cleanupIndex &&
+    entry.type === 'navigation.absence.readback' &&
+    entry.serverPhase === CONNECTIVITY_CONTRACT_PHASES.offlineRelaunch &&
+    entry.sourceRevision === expectedSourceRevision &&
+    entry.occurredAtMs > tracking?.occurredAtMs &&
+    entry.appLaunchId !== cleanup.appLaunchId &&
+    isSuccessfulGuidanceContractEvidence(entry, entry)
   );
-  return { cleanup, suspended, tracking };
+  const absence = entries[absenceIndex];
+  const cacheReadback = entries.find((entry, index) =>
+    index > absenceIndex &&
+    entry.type === 'route.cache.readback' &&
+    entry.serverPhase === CONNECTIVITY_CONTRACT_PHASES.offlineRelaunch &&
+    entry.sourceRevision === expectedSourceRevision &&
+    entry.appLaunchId === absence?.appLaunchId &&
+    entry.routeId === cleanup.routeId &&
+    entry.workspaceId === cleanup.workspaceId &&
+    isSuccessfulGuidanceContractEvidence(entry, entry)
+  );
+  assertJournalCondition(
+    tracking && absence && cacheReadback && !reopened,
+    'Connectivity contract ended offline journey was not durably stopped, absent after process relaunch, reviewable from cache, or stayed closed.'
+  );
+  return { absence, cacheReadback, cleanup, suspended, tracking };
 }
 
 export function assertGuidanceContractRequestJournal(entries, {

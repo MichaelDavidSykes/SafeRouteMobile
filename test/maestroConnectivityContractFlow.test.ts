@@ -88,6 +88,12 @@ describe("Maestro connectivity contract runtime", () => {
       "maestro/ios-connectivity-contract-seed-journey.yaml",
     );
     const offline = read("maestro/ios-connectivity-contract-offline-end.yaml");
+    const offlineObserve = read(
+      "maestro/ios-connectivity-contract-offline-observe.yaml",
+    );
+    const offlineRelaunch = read(
+      "maestro/ios-connectivity-contract-offline-relaunch.yaml",
+    );
     const reconnect = read(
       "maestro/ios-connectivity-contract-reconnect-checking.yaml",
     );
@@ -97,6 +103,7 @@ describe("Maestro connectivity contract runtime", () => {
       "connectivitySeed",
       "connectivityColdChecking",
       "connectivityOffline",
+      "connectivityOfflineRelaunch",
       "connectivityReconnectChecking",
       "connectivityOnline",
     ]) {
@@ -116,9 +123,25 @@ describe("Maestro connectivity contract runtime", () => {
     );
     assert.match(runner, /waitForAllRequestsTerminal\(\)/);
     assert.match(runner, /waitForBoundedMaestroPhase/);
+    assert.match(runner, /resolveMaestroBinary\(\)/);
+    assert.match(runner, /createMaestroProcessEnv\(process\.env\)/);
+    assert.match(runner, /--no-reinstall-driver/);
+    assert.match(runner, /assertAccessibilityHierarchyElements/);
     assert.match(
       runner,
       /navigation\.cleanup\.settled[\s\S]*tracking\.stop\.settled/,
+    );
+    assert.match(
+      runner,
+      /terminateExpoGo\(deviceId\)[\s\S]*CONNECTIVITY_CONTRACT_PHASES\.offlineRelaunch[\s\S]*navigation\.absence\.readback[\s\S]*route\.cache\.readback/,
+    );
+    assert.match(
+      runner,
+      /captureAccessibilityHierarchy\('offline-suspended'[\s\S]*safe-route-suspended-navigation-status[\s\S]*safe-route-suspended-navigation-retry[\s\S]*safe-route-suspended-navigation-end/,
+    );
+    assert.match(
+      runner,
+      /captureAccessibilityHierarchy\('offline-saved-review'[\s\S]*safe-route-offline-notice[\s\S]*safe-route-card-66b1b2c3d4e5f60718293b40/,
     );
     assert.match(
       seedJourney,
@@ -126,10 +149,17 @@ describe("Maestro connectivity contract runtime", () => {
     );
     assert.match(checking, /Checking connection\. Map downloads are paused\./);
     assert.match(checking, /id: "guest-map-canvas"/);
-    assert.match(offline, /Reconnect to verify access before guidance can resume\./);
     assert.match(
-      offline,
+      offlineObserve,
+      /Guidance paused\. Cold restart verification v1\. Reconnect to verify access before guidance can resume\./,
+    );
+    assert.match(
+      offlineObserve,
       /safe-route-suspended-navigation-end"[\s\S]*enabled: true/,
+    );
+    assert.match(
+      offlineObserve,
+      /safe-route-suspended-navigation-retry"[\s\S]*enabled: false/,
     );
     assert.match(
       offline,
@@ -137,7 +167,13 @@ describe("Maestro connectivity contract runtime", () => {
     );
     assert.match(
       offline,
-      /Workspace, Choose workspace[\s\S]*safe-route-workspace-66a1b2c3d4e5f60718293a40/,
+      /Workspace, Guidance Operations[\s\S]*Workspace, Choose workspace/,
+    );
+    assert.doesNotMatch(offline, /safe-route-workspace-66a1b2c3d4e5f60718293a40/);
+    assert.match(offlineRelaunch, /subflows\/ios-open-expo-project\.yaml/);
+    assert.match(
+      offlineRelaunch,
+      /Workspace, Guidance Operations[\s\S]*Workspace, Choose workspace[\s\S]*safe-route-offline-notice/,
     );
     assert.match(reconnect, /pressKey: HOME/);
     assert.match(reconnect, /Checking connection\. Map downloads are paused\./);

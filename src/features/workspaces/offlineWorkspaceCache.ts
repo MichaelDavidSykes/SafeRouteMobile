@@ -8,6 +8,7 @@ import {
   createOfflineWorkspaceCacheRecord,
   parseOfflineWorkspaceCacheRecord,
   parseWorkspaceRecoveryRevocationRecord,
+  persistLatestOfflineWorkspaceSelection,
   persistWorkspaceRecoveryWithFallback,
   type OfflineWorkspaceContext,
   type OfflineWorkspaceSnapshot,
@@ -59,6 +60,24 @@ async function saveOfflineWorkspaceContextInternal(
   );
 }
 
+export async function persistOfflineReviewWorkspaceSelection(
+  principalId: string,
+  workspaceId: string,
+): Promise<OfflineWorkspaceSnapshot | null> {
+  if (!principalId.trim() || !workspaceId.trim()) {
+    return null;
+  }
+  return executeWorkspaceRecovery(recoveryRevocationKey(principalId), () =>
+    persistLatestOfflineWorkspaceSelection({
+      loadCurrent: () => loadOfflineWorkspaceContextInternal(principalId),
+      persistContext: (context) =>
+        saveOfflineWorkspaceContextInternal(principalId, context),
+      principalId,
+      workspaceId,
+    }),
+  );
+}
+
 export async function persistOfflineWorkspaceRecovery(
   principalId: string,
   context: OfflineWorkspaceContext,
@@ -101,36 +120,43 @@ export async function loadOfflineWorkspaceContext(
   if (!principalId.trim()) {
     return null;
   }
-  return executeWorkspaceRecovery(recoveryRevocationKey(principalId), async () => {
-    let recoveryRevocation: string | null;
-    try {
-      recoveryRevocation = await SecureStore.getItemAsync(
-        recoveryRevocationKey(principalId),
-      );
-    } catch {
-      return createRevokedWorkspaceSnapshot(principalId, []);
-    }
-    if (recoveryRevocation !== null) {
-      return createRevokedWorkspaceSnapshot(
-        principalId,
-        parseWorkspaceRecoveryRevocationRecord(
-          recoveryRevocation,
-          principalId,
-        ) || [],
-      );
-    }
+  return executeWorkspaceRecovery(
+    recoveryRevocationKey(principalId),
+    () => loadOfflineWorkspaceContextInternal(principalId),
+  );
+}
 
-    try {
-      const raw = await AsyncStorage.getItem(
-        `${WORKSPACE_CONTEXT_KEY_PREFIX}.${identityKey(principalId)}`,
-      );
-      return raw
-        ? parseOfflineWorkspaceCacheRecord(JSON.parse(raw), principalId)
-        : null;
-    } catch {
-      return null;
-    }
-  });
+async function loadOfflineWorkspaceContextInternal(
+  principalId: string,
+): Promise<OfflineWorkspaceSnapshot | null> {
+  let recoveryRevocation: string | null;
+  try {
+    recoveryRevocation = await SecureStore.getItemAsync(
+      recoveryRevocationKey(principalId),
+    );
+  } catch {
+    return createRevokedWorkspaceSnapshot(principalId, []);
+  }
+  if (recoveryRevocation !== null) {
+    return createRevokedWorkspaceSnapshot(
+      principalId,
+      parseWorkspaceRecoveryRevocationRecord(
+        recoveryRevocation,
+        principalId,
+      ) || [],
+    );
+  }
+
+  try {
+    const raw = await AsyncStorage.getItem(
+      `${WORKSPACE_CONTEXT_KEY_PREFIX}.${identityKey(principalId)}`,
+    );
+    return raw
+      ? parseOfflineWorkspaceCacheRecord(JSON.parse(raw), principalId)
+      : null;
+  } catch {
+    return null;
+  }
 }
 
 function createRevokedWorkspaceSnapshot(

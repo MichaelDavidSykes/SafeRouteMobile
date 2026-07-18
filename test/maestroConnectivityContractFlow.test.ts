@@ -135,6 +135,10 @@ describe("Maestro connectivity contract runtime", () => {
       offline,
       /Offline saved copy · reconnect before starting guidance/,
     );
+    assert.match(
+      offline,
+      /Workspace, Choose workspace[\s\S]*safe-route-workspace-66a1b2c3d4e5f60718293a40/,
+    );
     assert.match(reconnect, /pressKey: HOME/);
     assert.match(reconnect, /Checking connection\. Map downloads are paused\./);
     assert.match(online, /id: "guest-map-workspace-selector"[\s\S]*enabled: true/);

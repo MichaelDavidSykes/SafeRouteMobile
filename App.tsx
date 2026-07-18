@@ -75,7 +75,7 @@ import {
 import { fetchSavedRoutes } from './src/features/routes/routeApi';
 import {
   clearOfflineRouteWorkspace,
-  loadOfflineRoutes
+  loadOfflineRoutesSnapshot
 } from './src/features/routes/offlineRouteCache';
 import {
   canRetainRouteWorkspace,
@@ -87,9 +87,9 @@ import {
 } from './src/features/workspaces/activeWorkspace';
 import {
   loadOfflineWorkspaceContext,
+  migrateOfflineWorkspaceCatalogFromRouteCache,
   persistOfflineReviewWorkspaceSelection,
-  persistOfflineWorkspaceRecovery,
-  saveOfflineWorkspaceContext
+  persistOfflineWorkspaceRecovery
 } from './src/features/workspaces/offlineWorkspaceCache';
 import {
   excludeUnavailableWorkspaces,
@@ -110,6 +110,7 @@ import {
 import { authorizeWorkspaceNavigationStart } from './src/features/workspaces/workspaceNavigationAuthorization';
 import {
   completeWorkspaceCatalogRetry,
+  getWorkspaceCatalogExpiryDelayMs,
   resolveWorkspaceAccessAnnouncement,
   shouldArmAutomaticReconnectAnnouncement,
   shouldOfferWorkspaceAccessRefresh,
@@ -181,6 +182,10 @@ function SafeRouteApp() {
   const [activeWorkspace, setActiveWorkspace] = useState<SafeRouteWorkspace | null>(null);
   const [workspaceCatalogLoading, setWorkspaceCatalogLoading] = useState(false);
   const [workspaceCatalogError, setWorkspaceCatalogError] = useState('');
+  const [workspaceCatalogStoredAtMs, setWorkspaceCatalogStoredAtMs] =
+    useState<number | null>(null);
+  const [workspaceCatalogRetentionStoredAtMs, setWorkspaceCatalogRetentionStoredAtMs] =
+    useState<number | null>(null);
   const [workspaceAccessIssue, setWorkspaceAccessIssue] =
     useState<WorkspaceAccessIssue>('none');
   const [workspaceCatalogRetrying, setWorkspaceCatalogRetrying] = useState(false);
@@ -328,6 +333,9 @@ function SafeRouteApp() {
     const transition = resolveWorkspaceAccessAnnouncement({
       accessRecoveryPending: workspaceAccessRecoveryPending,
       availableWorkspaceCount: availableWorkspaces.length,
+      catalogStoredAtMs: activeWorkspaceAuthorizationFresh
+        ? null
+        : workspaceCatalogStoredAtMs,
       issue: workspaceAccessIssue,
       loading: workspaceCatalogLoading,
       networkStatus,
@@ -347,12 +355,14 @@ function SafeRouteApp() {
     }
   }, [
     authenticated,
+    activeWorkspaceAuthorizationFresh,
     availableWorkspaces.length,
     networkStatus,
     workspaceAccessIssue,
     workspaceAccessRecoveryPending,
     workspaceCatalogLoading,
     workspaceCatalogRetrying,
+    workspaceCatalogStoredAtMs,
   ]);
 
   useEffect(() => () => {
@@ -364,6 +374,63 @@ function SafeRouteApp() {
       setNetworkAuthorizationReady(false);
     }
   }, [online]);
+
+  useEffect(() => {
+    if (
+      !authenticated ||
+      activeWorkspaceAuthorizationFresh ||
+      workspaceCatalogRetentionStoredAtMs === null ||
+      availableWorkspaces.length === 0
+    ) {
+      return;
+    }
+
+    const expireCachedCatalog = () => {
+      freshWorkspaceAuthorizationRef.current = {
+        principalId: sessionPrincipalId,
+        workspaceIds: new Set<string>(),
+      };
+      availableWorkspacesRef.current = [];
+      setAvailableWorkspaces([]);
+      activeWorkspaceRef.current = null;
+      setActiveWorkspace(null);
+      setWorkspaceCatalogStoredAtMs(null);
+      setWorkspaceCatalogRetentionStoredAtMs(null);
+      setNetworkAuthorizationReady(false);
+      setWorkspaceCatalogError(
+        networkStatus === 'offline'
+          ? 'Saved workspace list expired. Reconnect to refresh.'
+          : networkStatus === 'checking'
+            ? 'Saved workspace list expired. Wait for the connection check.'
+            : 'Saved workspace list expired. Retry workspace access.',
+      );
+      setWorkspaceAccessIssue('verification-unavailable');
+    };
+    let expiryTimer: ReturnType<typeof setTimeout> | null = null;
+    const scheduleExpiryCheck = () => {
+      const expiryDelayMs = getWorkspaceCatalogExpiryDelayMs({
+        retentionStoredAtMs: workspaceCatalogRetentionStoredAtMs,
+      });
+      if (expiryDelayMs === null) {
+        expireCachedCatalog();
+        return;
+      }
+      expiryTimer = setTimeout(scheduleExpiryCheck, expiryDelayMs);
+    };
+    scheduleExpiryCheck();
+    return () => {
+      if (expiryTimer !== null) {
+        clearTimeout(expiryTimer);
+      }
+    };
+  }, [
+    activeWorkspaceAuthorizationFresh,
+    authenticated,
+    availableWorkspaces.length,
+    networkStatus,
+    sessionPrincipalId,
+    workspaceCatalogRetentionStoredAtMs,
+  ]);
 
   useEffect(() => {
     if (
@@ -806,6 +873,8 @@ function SafeRouteApp() {
       setActiveWorkspace(null);
       setWorkspaceCatalogLoading(true);
       setWorkspaceCatalogError('');
+      setWorkspaceCatalogStoredAtMs(null);
+      setWorkspaceCatalogRetentionStoredAtMs(null);
       setWorkspaceAccessIssue('none');
       setNetworkAuthorizationReady(false);
       workspaceCatalogRetryingRef.current = false;
@@ -885,6 +954,8 @@ function SafeRouteApp() {
             setActiveWorkspace(null);
             setWorkspaceCatalogLoading(false);
             setWorkspaceCatalogError('');
+            setWorkspaceCatalogStoredAtMs(null);
+            setWorkspaceCatalogRetentionStoredAtMs(null);
             setWorkspaceAccessIssue('none');
             setSessionMessage(inactiveMessage);
             setAuthPrompt(inactiveMessage);
@@ -973,6 +1044,8 @@ function SafeRouteApp() {
     setActiveWorkspace(null);
     setWorkspaceCatalogLoading(true);
     setWorkspaceCatalogError('');
+    setWorkspaceCatalogStoredAtMs(null);
+    setWorkspaceCatalogRetentionStoredAtMs(null);
     setWorkspaceAccessIssue('none');
     workspaceCatalogRetryingRef.current = false;
     setWorkspaceCatalogRetrying(false);
@@ -993,6 +1066,8 @@ function SafeRouteApp() {
     activeWorkspaceRef.current = null;
     setActiveWorkspace(null);
     setWorkspaceCatalogError('');
+    setWorkspaceCatalogStoredAtMs(null);
+    setWorkspaceCatalogRetentionStoredAtMs(null);
     setWorkspaceAccessIssue('none');
     sessionEpochRef.current += 1;
     activeSessionTokenRef.current = persistedSession.accessToken;
@@ -1054,6 +1129,8 @@ function SafeRouteApp() {
     workspaceForegroundAuthorizationPausedRef.current = false;
     setWorkspaceForegroundAuthorizationPaused(false);
     setWorkspaceCatalogError('');
+    setWorkspaceCatalogStoredAtMs(null);
+    setWorkspaceCatalogRetentionStoredAtMs(null);
     setWorkspaceAccessIssue('none');
     workspaceCatalogRetryingRef.current = false;
     setWorkspaceCatalogRetrying(false);
@@ -1114,6 +1191,8 @@ function SafeRouteApp() {
     setActiveWorkspace(null);
     setWorkspaceCatalogLoading(false);
     setWorkspaceCatalogError('');
+    setWorkspaceCatalogStoredAtMs(null);
+    setWorkspaceCatalogRetentionStoredAtMs(null);
     setWorkspaceAccessIssue('none');
     workspaceCatalogRetryingRef.current = false;
     setWorkspaceCatalogRetrying(false);
@@ -1181,6 +1260,8 @@ function SafeRouteApp() {
       workspaceForegroundAuthorizationPausedRef.current = false;
       setWorkspaceForegroundAuthorizationPaused(false);
       setWorkspaceCatalogError('');
+      setWorkspaceCatalogStoredAtMs(null);
+      setWorkspaceCatalogRetentionStoredAtMs(null);
       setWorkspaceAccessIssue('none');
       workspaceCatalogRetryingRef.current = false;
       setWorkspaceCatalogRetrying(false);
@@ -1232,16 +1313,45 @@ function SafeRouteApp() {
         }
       }
 
-      const legacyRouteCache = cachedContext || forceExplicitPreviewWorkspaceChoice
+      const legacyRouteCacheSnapshot = cachedContext || forceExplicitPreviewWorkspaceChoice
         ? null
-        : await loadOfflineRoutes(principalId, null);
+        : await loadOfflineRoutesSnapshot(principalId, null);
       if (!requestIsCurrent()) {
         return;
       }
+      const legacyRouteCache = legacyRouteCacheSnapshot?.value || null;
+      const migratedCachedContext =
+        !cachedContext && legacyRouteCacheSnapshot?.value.clients.length
+          ? await migrateOfflineWorkspaceCatalogFromRouteCache(
+              principalId,
+              {
+                activeWorkspaceId: legacyRouteCacheSnapshot.value.selectedClientId,
+                unavailableWorkspaceIds: Array.from(
+                  unavailableWorkspaceIdsRef.current,
+                ),
+                workspaces: legacyRouteCacheSnapshot.value.clients,
+              },
+              legacyRouteCacheSnapshot.storedAtMs,
+            )
+          : null;
+      if (!requestIsCurrent()) {
+        return;
+      }
+      const cachedWorkspaceContext = cachedContext || migratedCachedContext;
+      setWorkspaceCatalogStoredAtMs(
+        cachedWorkspaceContext?.catalogStoredAtMs ??
+          legacyRouteCacheSnapshot?.storedAtMs ??
+          null,
+      );
+      setWorkspaceCatalogRetentionStoredAtMs(
+        cachedWorkspaceContext?.retentionStoredAtMs ??
+          legacyRouteCacheSnapshot?.storedAtMs ??
+          null,
+      );
 
       const cachedCatalog = excludeUnavailableWorkspaces(
         normalizeWorkspaceCatalog(
-          cachedContext?.workspaces || legacyRouteCache?.clients || [],
+          cachedWorkspaceContext?.workspaces || legacyRouteCache?.clients || [],
         ),
         unavailableWorkspaceIdsRef.current,
       );
@@ -1259,7 +1369,8 @@ function SafeRouteApp() {
           pendingNavigation?.accessScope.kind === 'workspace'
             ? pendingNavigation.accessScope.clientId
             : activeNavigationSession?.routePlan.clientId || activeWorkspaceRef.current?.id,
-          cachedContext?.activeWorkspaceId || legacyRouteCache?.selectedClientId,
+          cachedWorkspaceContext?.activeWorkspaceId ||
+            legacyRouteCache?.selectedClientId,
         );
         setAvailableWorkspaces(cachedCatalog);
         activeWorkspaceRef.current = pendingNavigation ? null : cachedWorkspace;
@@ -1334,6 +1445,7 @@ function SafeRouteApp() {
           return;
         }
 
+        const authoritativeCatalogStoredAtMs = Date.now();
         const normalizedCatalog = normalizeWorkspaceCatalog(result.clients);
         const previousUnavailableWorkspaceIds = new Set(
           unavailableWorkspaceIdsRef.current,
@@ -1436,6 +1548,10 @@ function SafeRouteApp() {
         setAvailableWorkspaces(stagedCatalog);
         activeWorkspaceRef.current = stagedResolvedWorkspace;
         setActiveWorkspace(stagedResolvedWorkspace);
+        // Replace any retained-cache deadline as soon as the owned full
+        // catalog is published. Persistence failures below clear it again.
+        setWorkspaceCatalogStoredAtMs(authoritativeCatalogStoredAtMs);
+        setWorkspaceCatalogRetentionStoredAtMs(authoritativeCatalogStoredAtMs);
         if (previewWorkspaceRevoked && !navigationWorkspaceRevoked) {
           selectedRouteRef.current = null;
           setSelectedRoute(null);
@@ -1473,6 +1589,7 @@ function SafeRouteApp() {
               },
               purgeStagedWorkspaceCaches(),
               {
+                authoritativeCatalogStoredAtMs,
                 fallbackUnavailableWorkspaceIds: stagedUnavailableWorkspaceIds,
               },
               'catalog-restoration-staged',
@@ -1491,6 +1608,7 @@ function SafeRouteApp() {
             },
             purgeStagedWorkspaceCaches(),
             {
+              authoritativeCatalogStoredAtMs,
               fallbackUnavailableWorkspaceIds: stagedUnavailableWorkspaceIds,
               requireFallback: workspaceAccessRestored,
             },
@@ -1508,6 +1626,8 @@ function SafeRouteApp() {
           return;
         }
         if (workspaceAccessRestored && recoveryPersistence !== 'persisted') {
+          setWorkspaceCatalogStoredAtMs(null);
+          setWorkspaceCatalogRetentionStoredAtMs(null);
           automaticReconnectAnnouncementPendingRef.current = false;
           restoreUnavailableWorkspacesFromFreshCatalogRef.current = false;
           if (recoveryPersistence === 'failed') {
@@ -1538,6 +1658,8 @@ function SafeRouteApp() {
           };
         }
         if (recoveryPersistence === 'failed') {
+          setWorkspaceCatalogStoredAtMs(null);
+          setWorkspaceCatalogRetentionStoredAtMs(null);
           automaticReconnectAnnouncementPendingRef.current = false;
           freshWorkspaceAuthorizationRef.current = {
             principalId,
@@ -1551,10 +1673,14 @@ function SafeRouteApp() {
           return;
         }
         if (recoveryPersistence === 'revoked') {
+          setWorkspaceCatalogStoredAtMs(null);
+          setWorkspaceCatalogRetentionStoredAtMs(null);
           setNetworkAuthorizationReady(false);
           setWorkspaceCatalogError('Offline workspace access stays locked until retry.');
           setWorkspaceAccessIssue('offline-safety');
         } else {
+          setWorkspaceCatalogStoredAtMs(authoritativeCatalogStoredAtMs);
+          setWorkspaceCatalogRetentionStoredAtMs(authoritativeCatalogStoredAtMs);
           setNetworkAuthorizationReady(true);
           if (!workspaceWasBackgroundedRef.current) {
             workspaceForegroundAuthorizationPausedRef.current = false;
@@ -1780,11 +1906,12 @@ function SafeRouteApp() {
     activeWorkspaceRef.current = nextWorkspace;
     setActiveWorkspace(nextWorkspace);
     const principalId = getAuthSessionPrincipalId(session);
-    void saveOfflineWorkspaceContext(principalId, {
-      activeWorkspaceId: nextWorkspace?.id || null,
-      unavailableWorkspaceIds: Array.from(unavailableWorkspaceIdsRef.current),
-      workspaces: availableWorkspaces,
-    }).catch(() => undefined);
+    if (nextWorkspace) {
+      void persistOfflineReviewWorkspaceSelection(
+        principalId,
+        nextWorkspace.id,
+      ).catch(() => undefined);
+    }
   }, [activeNavigationSession, activeWorkspace?.id, availableWorkspaces, session]);
 
   const handleWorkspaceUnavailable = useCallback(async (
@@ -1802,6 +1929,7 @@ function SafeRouteApp() {
     const freshCatalog = freshWorkspaces
       ? normalizeWorkspaceCatalog(freshWorkspaces)
       : null;
+    const authoritativeCatalogStoredAtMs = freshCatalog ? Date.now() : undefined;
     const currentNavigation = activeNavigationSessionRef.current;
     const currentPreview = selectedRouteRef.current;
     const freshRecovery = freshCatalog
@@ -1905,12 +2033,23 @@ function SafeRouteApp() {
         Array.from(unavailableWorkspaceIdsRef.current).map((workspaceId) =>
           () => clearOfflineRouteWorkspace(principalId, workspaceId)
         ),
-        undefined,
+        { authoritativeCatalogStoredAtMs },
         'workspace-access-loss',
       ),
     ]);
     if (!recoveryIsCurrent()) {
       return;
+    }
+    if (freshCatalog) {
+      if (workspaceRecoveryPersistence === 'persisted') {
+        setWorkspaceCatalogStoredAtMs(authoritativeCatalogStoredAtMs || null);
+        setWorkspaceCatalogRetentionStoredAtMs(
+          authoritativeCatalogStoredAtMs || null,
+        );
+      } else {
+        setWorkspaceCatalogStoredAtMs(null);
+        setWorkspaceCatalogRetentionStoredAtMs(null);
+      }
     }
     if (workspaceRecoveryPersistence === 'failed') {
       freshWorkspaceAuthorizationRef.current = {
@@ -2064,6 +2203,7 @@ function SafeRouteApp() {
         await handleWorkspaceUnavailable(workspaceId, authorization.workspaces);
         return 'This route closed because its workspace is no longer available.';
       }
+      const authoritativeCatalogStoredAtMs = Date.now();
 
       const { navigationUnavailable, previewUnavailable } =
         resolveWorkspaceSurfaceClosure({
@@ -2086,7 +2226,7 @@ function SafeRouteApp() {
         Array.from(reconciliation.unavailableWorkspaceIds).map((unavailableWorkspaceId) =>
           () => clearOfflineRouteWorkspace(principalId, unavailableWorkspaceId)
         ),
-        undefined,
+        { authoritativeCatalogStoredAtMs },
         'navigation-start-revalidation',
       );
       const [, persistenceResult] = await Promise.all([
@@ -2097,6 +2237,8 @@ function SafeRouteApp() {
         return 'The route or signed-in account changed. Plot the route again.';
       }
       if (persistenceResult === 'failed') {
+        setWorkspaceCatalogStoredAtMs(null);
+        setWorkspaceCatalogRetentionStoredAtMs(null);
         freshWorkspaceAuthorizationRef.current = {
           principalId,
           workspaceIds: new Set<string>(),
@@ -2120,6 +2262,16 @@ function SafeRouteApp() {
       activeWorkspaceRef.current = reconciliation.activeWorkspace;
       setActiveWorkspace(reconciliation.activeWorkspace);
       setWorkspaceCatalogLoading(false);
+      setWorkspaceCatalogStoredAtMs(
+        persistenceResult === 'persisted'
+          ? authoritativeCatalogStoredAtMs
+          : null,
+      );
+      setWorkspaceCatalogRetentionStoredAtMs(
+        persistenceResult === 'persisted'
+          ? authoritativeCatalogStoredAtMs
+          : null,
+      );
       setWorkspaceCatalogError(
         persistenceResult === 'revoked'
           ? 'Offline workspace access stays locked until retry.'
@@ -2171,11 +2323,10 @@ function SafeRouteApp() {
       activeWorkspaceRef.current = navigationWorkspace;
       setActiveWorkspace(navigationWorkspace);
       const principalId = getAuthSessionPrincipalId(session);
-      void saveOfflineWorkspaceContext(principalId, {
-        activeWorkspaceId: navigationWorkspace.id,
-        unavailableWorkspaceIds: Array.from(unavailableWorkspaceIdsRef.current),
-        workspaces: availableWorkspaces,
-      }).catch(() => undefined);
+      void persistOfflineReviewWorkspaceSelection(
+        principalId,
+        navigationWorkspace.id,
+      ).catch(() => undefined);
     }
   }, [
     activeNavigationSession?.routePlan.clientId,
@@ -2369,6 +2520,7 @@ function SafeRouteApp() {
             onWorkspaceChange={handleActiveWorkspaceChange}
             workspaceCatalogError={workspaceCatalogError}
             workspaceCatalogLoading={workspaceCatalogBusy}
+            workspaceCatalogStoredAtMs={workspaceCatalogStoredAtMs}
             workspaceAuthorizationFresh={activeWorkspaceAuthorizationFresh}
             workspaceAccessRecoveryPending={workspaceAccessRecoveryPending}
             workspaceAccessRefreshAvailable={workspaceAccessRefreshAvailable}
@@ -2392,6 +2544,7 @@ function SafeRouteApp() {
             onWorkspaceChange={handleActiveWorkspaceChange}
             workspaceCatalogError={workspaceCatalogError}
             workspaceCatalogLoading={workspaceCatalogBusy}
+            workspaceCatalogStoredAtMs={workspaceCatalogStoredAtMs}
             workspaceAuthorizationFresh={activeWorkspaceAuthorizationFresh}
             workspaceAccessRecoveryPending={workspaceAccessRecoveryPending}
             workspaceAccessRefreshAvailable={workspaceAccessRefreshAvailable}
@@ -2420,6 +2573,7 @@ function SafeRouteApp() {
             onWorkspaceChange={handleActiveWorkspaceChange}
             workspaceCatalogError={workspaceCatalogError}
             workspaceCatalogLoading={workspaceCatalogBusy}
+            workspaceCatalogStoredAtMs={workspaceCatalogStoredAtMs}
             workspaceAuthorizationFresh={activeWorkspaceAuthorizationFresh}
             workspaceAccessRecoveryPending={workspaceAccessRecoveryPending}
             workspaceAccessRefreshAvailable={workspaceAccessRefreshAvailable}
@@ -2535,9 +2689,16 @@ async function persistWorkspaceRecoveryWithEvidence(
     options,
   );
   const unavailableWorkspaceIds = Array.from(context.unavailableWorkspaceIds || []);
+  const authoritativeCatalogObserved = Number.isFinite(
+    options?.authoritativeCatalogStoredAtMs,
+  );
   await recordGuidanceContractEvidence({
     authorization: {
-      catalog: unavailableWorkspaceIds.length ? 'fresh-denied' : 'fresh-authorized',
+      catalog: authoritativeCatalogObserved
+        ? unavailableWorkspaceIds.length
+          ? 'fresh-denied'
+          : 'fresh-authorized'
+        : 'not-checked',
       principal: 'matching',
     },
     cause,

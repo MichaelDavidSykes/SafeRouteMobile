@@ -5,8 +5,8 @@ import {
 } from "./activeWorkspace";
 
 export const OFFLINE_WORKSPACE_CACHE_MAX_AGE_MS = 30 * 24 * 60 * 60 * 1000;
-const OFFLINE_WORKSPACE_CACHE_SCHEMA = 3;
-const LEGACY_OFFLINE_WORKSPACE_CACHE_SCHEMA = 2;
+const OFFLINE_WORKSPACE_CACHE_SCHEMA = 4;
+const LEGACY_OFFLINE_WORKSPACE_CACHE_SCHEMAS = new Set([2, 3]);
 
 export type OfflineWorkspaceContext = {
   activeWorkspaceId: string | null;
@@ -15,9 +15,16 @@ export type OfflineWorkspaceContext = {
 };
 
 export type OfflineWorkspaceSnapshot = Omit<OfflineWorkspaceContext, "unavailableWorkspaceIds"> & {
+  catalogStoredAtMs: number | null;
   principalId: string;
+  retentionStoredAtMs: number | null;
   unavailableWorkspaceIds: string[];
 };
+
+export type OfflineWorkspaceCacheFreshness = Pick<
+  OfflineWorkspaceSnapshot,
+  "catalogStoredAtMs" | "retentionStoredAtMs"
+>;
 
 export type OfflineWorkspaceRecordWriter = (
   key: string,
@@ -27,7 +34,9 @@ export type OfflineWorkspaceRecordWriter = (
 export type WorkspaceRecoveryPersistenceResult = "failed" | "persisted" | "revoked";
 
 type OfflineWorkspaceCacheRecord = {
+  catalogStoredAtMs: number | null;
   principalId: string;
+  retentionStoredAtMs: number;
   schema: number;
   storedAtMs: number;
   value: OfflineWorkspaceContext & { unavailableWorkspaceIds: string[] };
@@ -37,6 +46,10 @@ export function createOfflineWorkspaceCacheRecord(
   value: OfflineWorkspaceContext,
   principalIdValue: string,
   nowMs = Date.now(),
+  freshness: OfflineWorkspaceCacheFreshness = {
+    catalogStoredAtMs: nowMs,
+    retentionStoredAtMs: nowMs,
+  },
 ): OfflineWorkspaceCacheRecord {
   const principalId = normalizePrincipalId(principalIdValue);
   const unavailableWorkspaceIds = normalizeWorkspaceIds(
@@ -53,7 +66,12 @@ export function createOfflineWorkspaceCacheRecord(
   );
 
   return {
+    catalogStoredAtMs: freshness.catalogStoredAtMs,
     principalId,
+    retentionStoredAtMs:
+      freshness.retentionStoredAtMs === null
+        ? nowMs
+        : freshness.retentionStoredAtMs,
     schema: OFFLINE_WORKSPACE_CACHE_SCHEMA,
     storedAtMs: nowMs,
     value: {
@@ -73,38 +91,56 @@ export function parseOfflineWorkspaceCacheRecord(
     return null;
   }
   const record = value as Partial<OfflineWorkspaceCacheRecord>;
+  const schema = record.schema;
   const expectedPrincipalId = normalizePrincipalId(expectedPrincipalIdValue);
   const principalId = normalizePrincipalId(record.principalId);
+  const currentSchema = schema === OFFLINE_WORKSPACE_CACHE_SCHEMA;
+  const legacySchema =
+    typeof schema === "number" &&
+    LEGACY_OFFLINE_WORKSPACE_CACHE_SCHEMAS.has(schema);
+  const retentionStoredAtMs = currentSchema
+    ? record.retentionStoredAtMs
+    : record.storedAtMs;
+  const catalogStoredAtMs = currentSchema
+    ? record.catalogStoredAtMs
+    : null;
   if (
     !expectedPrincipalId ||
     principalId !== expectedPrincipalId ||
-    (record.schema !== OFFLINE_WORKSPACE_CACHE_SCHEMA &&
-      record.schema !== LEGACY_OFFLINE_WORKSPACE_CACHE_SCHEMA) ||
+    (!currentSchema && !legacySchema) ||
     !Number.isFinite(record.storedAtMs) ||
     (record.storedAtMs as number) > nowMs ||
-    nowMs - (record.storedAtMs as number) > OFFLINE_WORKSPACE_CACHE_MAX_AGE_MS ||
+    !Number.isFinite(retentionStoredAtMs) ||
+    (retentionStoredAtMs as number) > nowMs ||
+    nowMs - (retentionStoredAtMs as number) > OFFLINE_WORKSPACE_CACHE_MAX_AGE_MS ||
+    (currentSchema &&
+      catalogStoredAtMs !== null &&
+      (
+        !Number.isFinite(catalogStoredAtMs) ||
+        catalogStoredAtMs !== retentionStoredAtMs
+      )) ||
     !record.value ||
     !Array.isArray(record.value.workspaces) ||
-    (record.schema === OFFLINE_WORKSPACE_CACHE_SCHEMA &&
+    ((currentSchema || schema === 3) &&
       !Array.isArray(record.value.unavailableWorkspaceIds))
   ) {
     return null;
   }
 
-  const normalized = createOfflineWorkspaceCacheRecord(
-    {
-      ...record.value,
-      unavailableWorkspaceIds:
-        record.schema === OFFLINE_WORKSPACE_CACHE_SCHEMA
-          ? record.value.unavailableWorkspaceIds
-          : [],
-    },
-    principalId,
-    record.storedAtMs,
-  ).value;
+  const unavailableWorkspaceIds =
+    currentSchema || schema === 3
+      ? record.value.unavailableWorkspaceIds
+      : [];
+  const normalized = normalizeOfflineWorkspaceContext({
+    ...record.value,
+    unavailableWorkspaceIds,
+  });
   return {
     ...normalized,
+    catalogStoredAtMs:
+      typeof catalogStoredAtMs === "number" ? catalogStoredAtMs : null,
     principalId,
+    retentionStoredAtMs: retentionStoredAtMs as number,
   };
 }
 
@@ -115,7 +151,10 @@ export async function persistLatestOfflineWorkspaceSelection({
   workspaceId: workspaceIdValue,
 }: {
   loadCurrent: () => Promise<OfflineWorkspaceSnapshot | null>;
-  persistContext: (context: OfflineWorkspaceContext) => Promise<void>;
+  persistContext: (
+    context: OfflineWorkspaceContext,
+    freshness: OfflineWorkspaceCacheFreshness,
+  ) => Promise<void>;
   principalId: string;
   workspaceId: string;
 }): Promise<OfflineWorkspaceSnapshot | null> {
@@ -126,6 +165,7 @@ export async function persistLatestOfflineWorkspaceSelection({
     !principalId ||
     !workspaceId ||
     current?.principalId !== principalId ||
+    !Number.isFinite(current.retentionStoredAtMs) ||
     current.unavailableWorkspaceIds.includes(workspaceId) ||
     !current.workspaces.some((workspace) => workspace.id === workspaceId)
   ) {
@@ -137,11 +177,39 @@ export async function persistLatestOfflineWorkspaceSelection({
     unavailableWorkspaceIds: current.unavailableWorkspaceIds,
     workspaces: current.workspaces,
   };
-  await persistContext(nextContext);
+  const freshness: OfflineWorkspaceCacheFreshness = {
+    catalogStoredAtMs: current.catalogStoredAtMs ?? null,
+    retentionStoredAtMs: current.retentionStoredAtMs,
+  };
+  await persistContext(nextContext, freshness);
   return {
     ...nextContext,
+    ...freshness,
     principalId,
     unavailableWorkspaceIds: current.unavailableWorkspaceIds,
+  };
+}
+
+function normalizeOfflineWorkspaceContext(
+  value: OfflineWorkspaceContext,
+): OfflineWorkspaceContext & { unavailableWorkspaceIds: string[] } {
+  const unavailableWorkspaceIds = normalizeWorkspaceIds(
+    value.unavailableWorkspaceIds || [],
+  );
+  const unavailableIds = new Set(unavailableWorkspaceIds);
+  const workspaces = normalizeWorkspaceCatalog(value.workspaces).filter(
+    (workspace) => !unavailableIds.has(workspace.id),
+  );
+  const activeWorkspace = resolveActiveWorkspace(
+    workspaces,
+    value.activeWorkspaceId,
+    null,
+  );
+
+  return {
+    activeWorkspaceId: activeWorkspace?.id || null,
+    unavailableWorkspaceIds,
+    workspaces,
   };
 }
 

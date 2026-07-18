@@ -64,6 +64,7 @@ interface OperationsScreenProps {
   onWorkspaceChange: (workspace: SafeRouteWorkspace) => void;
   workspaceCatalogError: string;
   workspaceCatalogLoading: boolean;
+  workspaceCatalogStoredAtMs: number | null;
   workspaceAuthorizationFresh: boolean;
   workspaceAccessRecoveryPending: boolean;
   workspaceAccessRefreshAvailable: boolean;
@@ -87,6 +88,7 @@ export function OperationsScreen({
   userEmail,
   workspaceCatalogError,
   workspaceCatalogLoading,
+  workspaceCatalogStoredAtMs,
   workspaceAuthorizationFresh,
   workspaceAccessRecoveryPending,
   workspaceAccessRefreshAvailable,
@@ -159,10 +161,10 @@ export function OperationsScreen({
         if (loadedWorkspaceId === requestWorkspaceId) {
           setOperationsWarning(
             networkChecking
-              ? "Checking connection. Current operations remain available for review only."
+              ? "Checking connection. Previously loaded operations remain available for review only; their freshness is not verified."
               : online
-                ? "Checking workspace access. Current operations remain available for review only."
-                : "Offline. Current operations remain available for review only.",
+                ? "Checking workspace access. Previously loaded operations remain available for review only; their freshness is not verified."
+                : "Offline. Previously loaded operations remain available for review only; their freshness is not verified.",
           );
           setLoading(false);
         } else if (networkChecking || online) {
@@ -481,6 +483,9 @@ export function OperationsScreen({
         <WorkspaceAccessRefreshControl
           accessRecoveryPending={workspaceAccessRecoveryPending}
           availableWorkspaceCount={availableWorkspaces.length}
+          catalogStoredAtMs={
+            workspaceAuthorizationFresh ? null : workspaceCatalogStoredAtMs
+          }
           issue={workspaceAccessIssue}
           loading={workspaceCatalogLoading}
           onRefresh={() => {

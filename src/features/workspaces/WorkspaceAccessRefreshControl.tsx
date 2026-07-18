@@ -1,3 +1,4 @@
+import { useEffect, useState } from "react";
 import {
   ActivityIndicator,
   Pressable,
@@ -12,6 +13,7 @@ import { colors, controlSizes, radius, spacing, typeScale } from "../../theme";
 import { useNetworkAvailability } from "../api/useNetworkAvailability";
 import {
   createWorkspaceAccessRefreshState,
+  getWorkspaceCatalogAgeRefreshDelayMs,
   shouldStackWorkspaceAccessControl,
   type WorkspaceAccessIssue,
 } from "./workspaceAccessRefreshState";
@@ -19,16 +21,19 @@ import {
 export function WorkspaceAccessRefreshControl({
   accessRecoveryPending,
   availableWorkspaceCount,
+  catalogStoredAtMs,
   issue,
   loading,
   onRefresh,
 }: {
   accessRecoveryPending: boolean;
   availableWorkspaceCount: number;
+  catalogStoredAtMs: number | null;
   issue: WorkspaceAccessIssue;
   loading: boolean;
   onRefresh: () => void;
 }) {
+  const [catalogAgeNowMs, setCatalogAgeNowMs] = useState(() => Date.now());
   const { fontScale, width } = useWindowDimensions();
   const {
     checking: networkChecking,
@@ -38,12 +43,35 @@ export function WorkspaceAccessRefreshControl({
   const state = createWorkspaceAccessRefreshState({
     accessRecoveryPending,
     availableWorkspaceCount,
+    catalogStoredAtMs,
     issue,
     loading,
     networkStatus,
+    nowMs: catalogAgeNowMs,
   });
   const stacked = shouldStackWorkspaceAccessControl({ fontScale, width });
   const disabled = loading || !online;
+
+  useEffect(() => {
+    setCatalogAgeNowMs(Date.now());
+  }, [catalogStoredAtMs]);
+
+  useEffect(() => {
+    if (catalogStoredAtMs === null) {
+      return;
+    }
+    const refreshDelayMs = getWorkspaceCatalogAgeRefreshDelayMs({
+      catalogStoredAtMs,
+      nowMs: catalogAgeNowMs,
+    });
+    if (refreshDelayMs === null) {
+      return;
+    }
+    const refreshTimer = setTimeout(() => {
+      setCatalogAgeNowMs(Date.now());
+    }, refreshDelayMs);
+    return () => clearTimeout(refreshTimer);
+  }, [catalogAgeNowMs, catalogStoredAtMs]);
 
   return (
     <Pressable

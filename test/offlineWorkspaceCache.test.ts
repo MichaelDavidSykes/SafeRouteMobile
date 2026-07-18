@@ -21,14 +21,31 @@ const CONTEXT = {
     { id: "workspace-b", name: "Bravo Operations" },
   ],
 };
+const offlineWorkspaceCacheSource = () =>
+  readFileSync("src/features/workspaces/offlineWorkspaceCache.ts", "utf8");
 
 describe("offline active workspace cache", () => {
+  it("keeps storage failures inside fail-closed recovery and opportunistic migration boundaries", () => {
+    const source = offlineWorkspaceCacheSource();
+
+    assert.match(
+      source,
+      /migrateOfflineWorkspaceCatalogFromRouteCache[\s\S]*try \{[\s\S]*executeWorkspaceRecovery[\s\S]*catch \{[\s\S]*Legacy migration is opportunistic[\s\S]*return null/,
+    );
+    assert.match(
+      source,
+      /if \(Number\.isFinite\(authoritativeCatalogStoredAtMs\)\) \{[\s\S]*catalogStoredAtMs: authoritativeCatalogStoredAtMs[\s\S]*\} else \{[\s\S]*loadOfflineWorkspaceRecordInternal[\s\S]*Continue into fallback-first recovery[\s\S]*persistWorkspaceRecoveryWithFallback/,
+    );
+  });
+
   it("round-trips a principal-scoped validated catalog and active workspace", () => {
     const record = createOfflineWorkspaceCacheRecord(CONTEXT, "user-a", 1_000);
 
     assert.deepEqual(parseOfflineWorkspaceCacheRecord(record, "user-a", 2_000), {
       ...CONTEXT,
+      catalogStoredAtMs: 1_000,
       principalId: "user-a",
+      retentionStoredAtMs: 1_000,
       unavailableWorkspaceIds: [],
     });
     assert.equal(parseOfflineWorkspaceCacheRecord(record, "user-b", 2_000), null);
@@ -54,6 +71,93 @@ describe("offline active workspace cache", () => {
     assert.equal(parseOfflineWorkspaceCacheRecord({}, "user-a"), null);
     assert.equal(
       parseOfflineWorkspaceCacheRecord({ ...record, schema: 1 }, "user-a", 2_000),
+      null,
+    );
+    assert.equal(
+      parseOfflineWorkspaceCacheRecord(
+        { ...record, catalogStoredAtMs: 999 },
+        "user-a",
+        2_000,
+      ),
+      null,
+    );
+  });
+
+  it("keeps legacy schema age unknown without moving its original expiry basis", () => {
+    const current = createOfflineWorkspaceCacheRecord(CONTEXT, "user-a", 1_000);
+    const legacyValue = {
+      principalId: current.principalId,
+      schema: 3,
+      storedAtMs: 1_000,
+      value: current.value,
+    };
+
+    assert.deepEqual(
+      parseOfflineWorkspaceCacheRecord(legacyValue, "user-a", 2_000),
+      {
+        ...CONTEXT,
+        catalogStoredAtMs: null,
+        principalId: "user-a",
+        retentionStoredAtMs: 1_000,
+        unavailableWorkspaceIds: [],
+      },
+    );
+    assert.equal(
+      parseOfflineWorkspaceCacheRecord(
+        legacyValue,
+        "user-a",
+        1_000 + OFFLINE_WORKSPACE_CACHE_MAX_AGE_MS + 1,
+      ),
+      null,
+    );
+  });
+
+  it("preserves authoritative catalog age across selection-only persistence", async () => {
+    const current = parseOfflineWorkspaceCacheRecord(
+      createOfflineWorkspaceCacheRecord(CONTEXT, "user-a", 1_000),
+      "user-a",
+      2_000,
+    );
+    assert.ok(current);
+    let persistedFreshness: {
+      catalogStoredAtMs: number | null;
+      retentionStoredAtMs: number | null;
+    } | null = null;
+
+    const selected = await persistLatestOfflineWorkspaceSelection({
+      loadCurrent: async () => current,
+      persistContext: async (_context, freshness) => {
+        persistedFreshness = freshness;
+      },
+      principalId: "user-a",
+      workspaceId: "workspace-a",
+    });
+
+    assert.deepEqual(persistedFreshness, {
+      catalogStoredAtMs: 1_000,
+      retentionStoredAtMs: 1_000,
+    });
+    assert.equal(selected?.activeWorkspaceId, "workspace-a");
+    assert.equal(selected?.catalogStoredAtMs, 1_000);
+    assert.equal(selected?.retentionStoredAtMs, 1_000);
+  });
+
+  it("refuses to persist a selection without an immutable retention basis", async () => {
+    assert.equal(
+      await persistLatestOfflineWorkspaceSelection({
+        loadCurrent: async () => ({
+          ...CONTEXT,
+          catalogStoredAtMs: null,
+          principalId: "user-a",
+          retentionStoredAtMs: null,
+          unavailableWorkspaceIds: [],
+        }),
+        persistContext: async () => {
+          throw new Error("unsafe selection must not persist");
+        },
+        principalId: "user-a",
+        workspaceId: "workspace-a",
+      }),
       null,
     );
   });
@@ -89,7 +193,9 @@ describe("offline active workspace cache", () => {
 
     assert.deepEqual(parseOfflineWorkspaceCacheRecord(record, "user-a", 2_000), {
       activeWorkspaceId: "workspace-a",
+      catalogStoredAtMs: 1_000,
       principalId: "user-a",
+      retentionStoredAtMs: 1_000,
       unavailableWorkspaceIds: ["workspace-b"],
       workspaces: [CONTEXT.workspaces[0]],
     });
@@ -294,7 +400,9 @@ describe("offline active workspace cache", () => {
     });
     let snapshot = {
       activeWorkspaceId: "workspace-a",
+      catalogStoredAtMs: 1_000,
       principalId: "user-a",
+      retentionStoredAtMs: 1_000,
       unavailableWorkspaceIds: [] as string[],
       workspaces: CONTEXT.workspaces,
     };
@@ -304,7 +412,9 @@ describe("offline active workspace cache", () => {
       await recoveryGate;
       snapshot = {
         activeWorkspaceId: "workspace-a",
+        catalogStoredAtMs: 1_000,
         principalId: "user-a",
+        retentionStoredAtMs: 1_000,
         unavailableWorkspaceIds: ["workspace-c"],
         workspaces: [
           ...CONTEXT.workspaces,
@@ -316,9 +426,10 @@ describe("offline active workspace cache", () => {
     const selection = executeWorkspaceOperation("user-a", () =>
       persistLatestOfflineWorkspaceSelection({
         loadCurrent: async () => snapshot,
-        persistContext: async (context) => {
+        persistContext: async (context, freshness) => {
           snapshot = {
             ...context,
+            ...freshness,
             principalId: "user-a",
             unavailableWorkspaceIds: context.unavailableWorkspaceIds || [],
           };
@@ -333,7 +444,9 @@ describe("offline active workspace cache", () => {
     assert.equal((await selection)?.activeWorkspaceId, "workspace-b");
     assert.deepEqual(snapshot, {
       activeWorkspaceId: "workspace-b",
+      catalogStoredAtMs: 1_000,
       principalId: "user-a",
+      retentionStoredAtMs: 1_000,
       unavailableWorkspaceIds: ["workspace-c"],
       workspaces: [
         ...CONTEXT.workspaces,
@@ -343,7 +456,9 @@ describe("offline active workspace cache", () => {
 
     snapshot = {
       activeWorkspaceId: "workspace-a",
+      catalogStoredAtMs: 1_000,
       principalId: "user-a",
+      retentionStoredAtMs: 1_000,
       unavailableWorkspaceIds: ["workspace-b"],
       workspaces: [CONTEXT.workspaces[0]],
     };

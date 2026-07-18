@@ -100,4 +100,22 @@ describe("operations screen behavior", () => {
     assert.match(text, /SafeRoute · View only/);
     assert.doesNotMatch(text, /onEdit|Edit route|Save changes|Delete route|Create convoy|saveSelected|upsert|deleteTrip/);
   });
+
+  it("keeps workspace-list age separate from retained Operations freshness", () => {
+    const source = readFileSync(
+      "src/features/operations/OperationsScreen.tsx",
+      "utf8",
+    );
+
+    assert.match(
+      source,
+      /Previously loaded operations remain available for review only; their freshness is not verified/,
+    );
+    assert.match(
+      source,
+      /catalogStoredAtMs=\{[\s\S]*workspaceAuthorizationFresh[\s\S]*workspaceCatalogStoredAtMs/,
+    );
+    assert.doesNotMatch(source, /Current operations remain available/);
+    assert.doesNotMatch(source, /operations cached/);
+  });
 });

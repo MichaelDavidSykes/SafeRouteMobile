@@ -60,11 +60,19 @@ describe("cold-start connectivity integration", () => {
     );
     assert.match(
       app,
-      /restoreSavedSession\([\s\S]*\{ validateOnline: sessionRestoreNetworkStatus === 'online' \}/,
+      /restoreSavedSession\([\s\S]*\{ validateOnline: restoreNetworkStatus === 'online' \}/,
     );
     assert.match(
       restore,
       /options\.validateOnline === false[\s\S]*restoreStrictOfflineSession/,
+    );
+    assert.match(
+      restore,
+      /catch \(error\)[\s\S]*ApiSessionExpiredError[\s\S]*status: 'validation-unavailable'/,
+    );
+    assert.match(
+      restore,
+      /const strictOfflineResult = restoreStrictOfflineSession[\s\S]*strictOfflineResult\.status === 'expired'[\s\S]*return strictOfflineResult[\s\S]*status: 'validation-unavailable'/,
     );
     assert.match(
       app,
@@ -89,6 +97,47 @@ describe("cold-start connectivity integration", () => {
     assert.match(
       app,
       /networkStatusRef\.current === 'online'[\s\S]*request\.networkRequestEpoch === networkRequestEpochRef\.current/,
+    );
+  });
+
+  it("keeps saved principal data closed while an online identity check is unavailable", () => {
+    const app = source("App.tsx");
+    const restore = source("src/features/auth/sessionRestore.ts");
+    const unavailableBranch = app.slice(
+      app.indexOf("if (restoreResult.status === 'validation-unavailable')"),
+      app.indexOf("if (restoreResult.status === 'expired')"),
+    );
+
+    assert.match(
+      unavailableBranch,
+      /!storedSession\.onlineValidationRequired[\s\S]*requireOnlineAuthSessionValidation\(storedSession\)[\s\S]*quarantineResult === 'stale'[\s\S]*storedSessionAvailableForRetry = false[\s\S]*clearAuthSessionIfCurrent\(storedSession\)[\s\S]*clearResult === 'stale'[\s\S]*setSavedSessionValidationRetryAvailable\(true\)[\s\S]*setSession\(null\)[\s\S]*setSelectedRoute\(null\)[\s\S]*setAvailableWorkspaces\(\[\]\)[\s\S]*setActiveWorkspace\(null\)[\s\S]*setNetworkAuthorizationReady\(false\)[\s\S]*setScreen\('login'\)/,
+    );
+    assert.doesNotMatch(
+      unavailableBranch,
+      /tryActivateOfflineOperationsPrincipal|loadOfflineWorkspaceContext|loadOfflineRoutesSnapshot|setSession\(restoreResult\.session\)|openActiveNavigationSession/,
+    );
+    assert.match(
+      app,
+      /handleRetrySavedSessionValidation[\s\S]*setSavedSessionValidationRetrying\(true\)[\s\S]*setSessionRestoreRevision/,
+    );
+    assert.match(
+      app,
+      /onRetrySavedSession=\{[\s\S]*savedSessionValidationRetryAvailable[\s\S]*handleRetrySavedSessionValidation/,
+    );
+    assert.match(
+      restore,
+      /options\.validateOnline === false[\s\S]*normalizedStoredSession\.onlineValidationRequired[\s\S]*status: 'validation-unavailable'[\s\S]*restoreStrictOfflineSession/,
+    );
+    const restoreCatch = app.slice(
+      app.indexOf(
+        "} catch {\n        if (!restoreIsCurrent())",
+        app.indexOf("const restoreSession = async"),
+      ),
+      app.indexOf("} finally {", app.indexOf("const restoreSession = async")),
+    );
+    assert.doesNotMatch(
+      restoreCatch,
+      /openActiveNavigationSession|tryActivateOfflineOperationsPrincipal/,
     );
   });
 

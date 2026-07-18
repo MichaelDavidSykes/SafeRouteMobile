@@ -11,6 +11,7 @@ type StoredAuthSessionEnvelope = {
   session: {
     accessToken: string;
     email: string;
+    onlineValidationRequired?: true;
     principalId: string;
   };
 };
@@ -25,6 +26,19 @@ export type StoredAuthSessionContractState =
   | 'signed-out'
   | 'unknown';
 
+export function hasSameAuthSessionSnapshot(
+  current: AuthSession | null,
+  expected: AuthSession,
+): boolean {
+  return Boolean(
+    current &&
+      current.accessToken.trim() === expected.accessToken.trim() &&
+      String(current.principalId || '').trim() ===
+        String(expected.principalId || '').trim() &&
+      current.email.trim().toLowerCase() === expected.email.trim().toLowerCase(),
+  );
+}
+
 export function createDeviceOnlySecureStoreOptions(
   deviceOnlyAccessibility: unknown
 ): AuthSecureStoreOptions {
@@ -36,7 +50,8 @@ export function createDeviceOnlySecureStoreOptions(
 export function createStoredAuthSession(
   accessTokenValue: string | null,
   emailValue: string | null,
-  principalIdValue?: string | null
+  principalIdValue?: string | null,
+  onlineValidationRequired = false,
 ): AuthSession | null {
   const accessToken = String(accessTokenValue || '').trim();
 
@@ -47,6 +62,7 @@ export function createStoredAuthSession(
   return {
     accessToken,
     email: String(emailValue || '').trim(),
+    ...(onlineValidationRequired ? { onlineValidationRequired: true as const } : {}),
     ...(String(principalIdValue || '').trim()
       ? { principalId: String(principalIdValue || '').trim() }
       : {})
@@ -54,10 +70,24 @@ export function createStoredAuthSession(
 }
 
 export function serializeStoredAuthSession(session: AuthSession): string | null {
+  return serializeStoredAuthSessionEnvelope(session, false);
+}
+
+export function serializeStoredAuthSessionRequiringOnlineValidation(
+  session: AuthSession
+): string | null {
+  return serializeStoredAuthSessionEnvelope(session, true);
+}
+
+function serializeStoredAuthSessionEnvelope(
+  session: AuthSession,
+  onlineValidationRequired: boolean,
+): string | null {
   const normalized = createStoredAuthSession(
     session.accessToken,
     session.user?.email || session.email,
-    session.user?.id || session.principalId
+    session.user?.id || session.principalId,
+    onlineValidationRequired,
   );
   if (!normalized?.principalId) {
     return null;
@@ -68,6 +98,9 @@ export function serializeStoredAuthSession(session: AuthSession): string | null 
     session: {
       accessToken: normalized.accessToken,
       email: normalized.email,
+      ...(normalized.onlineValidationRequired
+        ? { onlineValidationRequired: true as const }
+        : {}),
       principalId: normalized.principalId
     }
   };
@@ -92,7 +125,11 @@ export function parseStoredAuthSession(value: unknown): AuthSession | null {
     if (
       envelope.schema !== STORED_AUTH_SESSION_SCHEMA ||
       !envelope.session ||
-      typeof envelope.session !== 'object'
+      typeof envelope.session !== 'object' ||
+      (
+        envelope.session.onlineValidationRequired !== undefined &&
+        envelope.session.onlineValidationRequired !== true
+      )
     ) {
       return null;
     }
@@ -100,7 +137,8 @@ export function parseStoredAuthSession(value: unknown): AuthSession | null {
     const session = createStoredAuthSession(
       envelope.session.accessToken,
       envelope.session.email,
-      envelope.session.principalId
+      envelope.session.principalId,
+      envelope.session.onlineValidationRequired === true,
     );
     return session?.principalId ? session : null;
   } catch {

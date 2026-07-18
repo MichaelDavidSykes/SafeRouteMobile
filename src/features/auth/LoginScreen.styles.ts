@@ -206,6 +206,30 @@ export const styles = StyleSheet.create({
     maxWidth: 220,
     textAlign: 'center'
   },
+  savedSessionRetryButton: {
+    minHeight: controlSizes.secondary,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: spacing.sm,
+    paddingHorizontal: spacing.lg,
+    borderWidth: 0.5,
+    borderColor: colors.appleBlue,
+    borderRadius: radius.pill,
+    backgroundColor: colors.appleBlueSoft
+  },
+  savedSessionRetryButtonPressed: {
+    backgroundColor: colors.surfaceGlass,
+    transform: [{ scale: 0.985 }]
+  },
+  savedSessionRetryButtonText: {
+    flexShrink: 1,
+    maxWidth: 210,
+    color: colors.appleBlue,
+    fontSize: typeScale.sm,
+    fontWeight: '800',
+    textAlign: 'center'
+  },
   secondaryButton: {
     minHeight: controlSizes.secondary,
     alignSelf: 'center',

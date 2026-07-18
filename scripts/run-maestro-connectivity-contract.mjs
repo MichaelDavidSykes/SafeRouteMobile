@@ -95,6 +95,10 @@ const flows = Object.freeze({
     'maestro/ios-connectivity-contract-calendar-principal-change.yaml',
   calendarPrincipalChangeRelaunch:
     'maestro/ios-connectivity-contract-calendar-principal-change-relaunch.yaml',
+  calendarPrincipalValidationUnavailable:
+    'maestro/ios-connectivity-contract-calendar-principal-validation-unavailable.yaml',
+  calendarPrincipalValidationOfflineRelaunch:
+    'maestro/ios-connectivity-contract-calendar-principal-validation-offline-relaunch.yaml',
   calendarWorkspaceDenial:
     'maestro/ios-connectivity-contract-calendar-workspace-denial.yaml',
   calendarWorkspaceDenialPrepare:
@@ -961,6 +965,68 @@ async function runCalendarPrincipalChangeSlice(sourceRevision) {
   assertOperationsCalendarAuthCleanupSeed(readRequestJournal());
   terminateExpoGo(deviceId);
   setControl(
+    OFFLINE_CALENDAR_PRINCIPAL_CONTRACT_PHASES.validationUnavailable,
+    CONNECTIVITY_CONTRACT_STATUSES.online,
+    [],
+    GUIDANCE_CONTRACT_MODES.principalValidationUnavailable,
+  );
+  await runFlow(
+    OFFLINE_CALENDAR_PRINCIPAL_CONTRACT_PHASES.validationUnavailable,
+    'keep saved principal-A data dormant when online validation is unavailable',
+    flows.calendarPrincipalValidationUnavailable,
+  );
+  captureAccessibilityHierarchy('calendar-principal-validation-unavailable', [
+    {
+      id: 'safe-route-login-notice',
+      label: 'SafeRoute could not verify this saved session. Retry or sign in again.',
+      enabled: true,
+    },
+    {
+      id: 'safe-route-login-saved-session-retry',
+      label: 'Retry saved session verification',
+      enabled: true,
+    },
+    {
+      id: 'safe-route-login-email',
+      label: 'LunarChain email',
+      enabled: true,
+    },
+  ]);
+
+  terminateExpoGo(deviceId);
+  setControl(
+    OFFLINE_CALENDAR_PRINCIPAL_CONTRACT_PHASES.validationOfflineRelaunch,
+    CONNECTIVITY_CONTRACT_STATUSES.offline,
+    [],
+    GUIDANCE_CONTRACT_MODES.principalValidationUnavailable,
+  );
+  await runFlow(
+    OFFLINE_CALENDAR_PRINCIPAL_CONTRACT_PHASES.validationOfflineRelaunch,
+    'cold relaunch with saved principal-A data still quarantined offline',
+    flows.calendarPrincipalValidationOfflineRelaunch,
+  );
+  captureAccessibilityHierarchy(
+    'calendar-principal-validation-offline-relaunch',
+    [
+      {
+        id: 'safe-route-login-notice',
+        label:
+          'SafeRoute could not verify this saved session. Retry or sign in again.',
+        enabled: true,
+      },
+      {
+        id: 'safe-route-login-saved-session-retry',
+        label: 'Retry saved session verification',
+        enabled: true,
+      },
+    ],
+  );
+  await assertProductTrafficQuiet([
+    OFFLINE_CALENDAR_PRINCIPAL_CONTRACT_PHASES.validationOfflineRelaunch,
+  ], 1_000);
+  terminateExpoGo(deviceId);
+
+  setControl(
     OFFLINE_CALENDAR_PRINCIPAL_CONTRACT_PHASES.change,
     CONNECTIVITY_CONTRACT_STATUSES.online,
     [],
@@ -1029,6 +1095,10 @@ async function runCalendarPrincipalChangeSlice(sourceRevision) {
   assertGuidanceContractRequestJournal(requests, {
     expectedModeByPhase: {
       [CONNECTIVITY_CONTRACT_PHASES.seed]: GUIDANCE_CONTRACT_MODES.active,
+      [OFFLINE_CALENDAR_PRINCIPAL_CONTRACT_PHASES.validationUnavailable]:
+        GUIDANCE_CONTRACT_MODES.principalValidationUnavailable,
+      [OFFLINE_CALENDAR_PRINCIPAL_CONTRACT_PHASES.validationOfflineRelaunch]:
+        GUIDANCE_CONTRACT_MODES.principalValidationUnavailable,
       [OFFLINE_CALENDAR_PRINCIPAL_CONTRACT_PHASES.change]:
         GUIDANCE_CONTRACT_MODES.wrongPrincipal,
       [OFFLINE_CALENDAR_PRINCIPAL_CONTRACT_PHASES.relaunch]:
@@ -1036,6 +1106,8 @@ async function runCalendarPrincipalChangeSlice(sourceRevision) {
     },
     requiredPhases: [
       CONNECTIVITY_CONTRACT_PHASES.seed,
+      OFFLINE_CALENDAR_PRINCIPAL_CONTRACT_PHASES.validationUnavailable,
+      OFFLINE_CALENDAR_PRINCIPAL_CONTRACT_PHASES.validationOfflineRelaunch,
       OFFLINE_CALENDAR_PRINCIPAL_CONTRACT_PHASES.change,
       OFFLINE_CALENDAR_PRINCIPAL_CONTRACT_PHASES.relaunch,
     ],

@@ -3,13 +3,16 @@ appId: host.exp.Exponent
 - runFlow: subflows/ios-open-expo-project.yaml
 - extendedWaitUntil:
     visible:
-      id: "safe-route-login"
+      id: "safe-route-login-saved-session-retry"
     timeout: 30000
-- assertVisible: "This saved session belongs to another account. Sign in again."
-- assertNotVisible:
-    id: "safe-route-login-saved-session-retry"
+- assertVisible: "SafeRoute could not verify this saved session. Retry or sign in again."
+- assertVisible:
+    id: "safe-route-login"
 - assertVisible:
     id: "safe-route-login-email"
+    enabled: true
+- assertVisible:
+    id: "safe-route-login-saved-session-retry"
     enabled: true
 - assertNotVisible:
     id: "guest-map-workspace-selector"
@@ -21,4 +24,4 @@ appId: host.exp.Exponent
     id: "safe-route-suspended-navigation"
 - assertNotVisible:
     id: "safe-route-resume-action"
-- takeScreenshot: "connectivity-contract-calendar-principal-change"
+- takeScreenshot: "connectivity-contract-calendar-principal-validation-offline-relaunch"

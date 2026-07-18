@@ -7,9 +7,11 @@ import {
   createDeviceOnlySecureStoreOptions,
   createStoredAuthSession,
   classifyStoredAuthSessionForContract,
+  hasSameAuthSessionSnapshot,
   parseStoredAuthSession,
   serializeSignedOutAuthSession,
-  serializeStoredAuthSession
+  serializeStoredAuthSession,
+  serializeStoredAuthSessionRequiringOnlineValidation
 } from '../src/features/auth/authStorageCore';
 import { restoreSavedSession } from '../src/features/auth/sessionRestore';
 
@@ -75,6 +77,107 @@ describe('stored auth session normalization', () => {
     assert.equal(serializeStoredAuthSession({ accessToken: 'token', email: 'driver@example.com' }), null);
     assert.equal(parseStoredAuthSession('{"schema":2,"session":{"accessToken":"token"}}'), null);
     assert.equal(parseStoredAuthSession('{bad-json'), null);
+  });
+
+  it('persists an exact-session online-validation quarantine without changing the token', () => {
+    const serialized = serializeStoredAuthSessionRequiringOnlineValidation({
+      accessToken: ' token-123 ',
+      email: 'driver@example.com',
+      principalId: ' user-123 ',
+    });
+
+    assert.ok(serialized);
+    assert.deepEqual(JSON.parse(serialized), {
+      schema: 2,
+      session: {
+        accessToken: 'token-123',
+        email: 'driver@example.com',
+        onlineValidationRequired: true,
+        principalId: 'user-123',
+      },
+    });
+    assert.deepEqual(parseStoredAuthSession(serialized), {
+      accessToken: 'token-123',
+      email: 'driver@example.com',
+      onlineValidationRequired: true,
+      principalId: 'user-123',
+    });
+    assert.deepEqual(
+      parseStoredAuthSession(
+        serializeStoredAuthSession({
+          accessToken: 'token-123',
+          email: 'driver@example.com',
+          onlineValidationRequired: true,
+          principalId: 'user-123',
+        }),
+      ),
+      {
+        accessToken: 'token-123',
+        email: 'driver@example.com',
+        principalId: 'user-123',
+      },
+    );
+    assert.equal(
+      parseStoredAuthSession(
+        '{"schema":2,"session":{"accessToken":"token","email":"driver@example.com","onlineValidationRequired":false,"principalId":"user-123"}}',
+      ),
+      null,
+    );
+  });
+
+  it('matches conditional auth mutations only to the exact saved principal snapshot', () => {
+    const principalA = {
+      accessToken: ' token-a ',
+      email: 'Driver.A@Example.com',
+      principalId: ' principal-a ',
+    };
+
+    assert.equal(
+      hasSameAuthSessionSnapshot(
+        {
+          accessToken: 'token-a',
+          email: 'driver.a@example.com',
+          onlineValidationRequired: true,
+          principalId: 'principal-a',
+        },
+        principalA,
+      ),
+      true,
+    );
+    assert.equal(
+      hasSameAuthSessionSnapshot(
+        {
+          accessToken: 'token-b',
+          email: 'driver.a@example.com',
+          principalId: 'principal-a',
+        },
+        principalA,
+      ),
+      false,
+    );
+    assert.equal(
+      hasSameAuthSessionSnapshot(
+        {
+          accessToken: 'token-a',
+          email: 'driver.b@example.com',
+          principalId: 'principal-a',
+        },
+        principalA,
+      ),
+      false,
+    );
+    assert.equal(
+      hasSameAuthSessionSnapshot(
+        {
+          accessToken: 'token-a',
+          email: 'driver.a@example.com',
+          principalId: 'principal-b',
+        },
+        principalA,
+      ),
+      false,
+    );
+    assert.equal(hasSameAuthSessionSnapshot(null, principalA), false);
   });
 
   it('uses an authoritative signed-out envelope that cannot fall back to legacy credentials', () => {
@@ -155,7 +258,23 @@ describe('stored auth session normalization', () => {
     assert.match(authStorageSource, /SecureStore\.WHEN_UNLOCKED_THIS_DEVICE_ONLY/);
     assert.match(
       authStorageSource,
-      /setItemAsync\(AUTH_SESSION_KEY, serialized, DEVICE_ONLY_SECURE_STORE_OPTIONS\)/
+      /persistAuthSessionEnvelope\(serialized[\s\S]*SecureStore\.setItemAsync\([\s\S]*AUTH_SESSION_KEY,[\s\S]*serialized,[\s\S]*DEVICE_ONLY_SECURE_STORE_OPTIONS/,
+    );
+    assert.match(
+      authStorageSource,
+      /requireOnlineAuthSessionValidation[\s\S]*serializeStoredAuthSessionRequiringOnlineValidation[\s\S]*runAuthStorageMutation[\s\S]*hasSameAuthSessionSnapshot\(currentSession, session\)[\s\S]*persistAuthSessionEnvelope\(serialized\)/,
+    );
+    assert.match(
+      authStorageSource,
+      /saveAuthSessionIfCurrent[\s\S]*hasSameAuthSessionSnapshot\(currentSession, expectedSession\)[\s\S]*persistAuthSessionEnvelope\(serialized\)/,
+    );
+    assert.match(
+      authStorageSource,
+      /clearAuthSessionIfCurrent[\s\S]*hasSameAuthSessionSnapshot\(currentSession, session\)[\s\S]*writeSignedOutAuthSession\(\)/,
+    );
+    assert.match(
+      authStorageSource,
+      /authStorageMutationTail\.then\(operation, operation\)[\s\S]*authStorageMutationTail = result\.then/,
     );
     assert.doesNotMatch(authStorageSource, /setItemAsync\(ACCESS_TOKEN_KEY/);
     assert.doesNotMatch(authStorageSource, /setItemAsync\(EMAIL_KEY/);

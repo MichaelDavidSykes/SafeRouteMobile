@@ -7,6 +7,7 @@ export interface AuthenticatedUser {
 export interface AuthSession {
   accessToken: string;
   email: string;
+  onlineValidationRequired?: true;
   principalId?: string;
   user?: AuthenticatedUser;
 }

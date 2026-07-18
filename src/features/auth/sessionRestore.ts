@@ -8,6 +8,10 @@ export type SessionRestoreResult =
       status: 'empty';
     }
   | {
+      status: 'validation-unavailable';
+      message: string;
+    }
+  | {
       status: 'expired';
       message: string;
       reason: 'inactive-account' | 'principal-changed' | 'session-expired';
@@ -26,6 +30,8 @@ const OFFLINE_RESTORE_MESSAGE = 'Using your saved LunarChain session. Some SafeR
 const ONLINE_VALIDATION_REQUIRED_MESSAGE = 'Your saved LunarChain session needs online validation. Sign in again to unlock saved routes.';
 const PRINCIPAL_CHANGED_MESSAGE =
   'This saved session belongs to another account. Sign in again.';
+const ONLINE_VALIDATION_UNAVAILABLE_MESSAGE =
+  'SafeRoute could not verify this saved session. Retry or sign in again.';
 
 const GENERIC_SESSION_REJECTION_PATTERNS = [
   /^not authenticated$/i,
@@ -77,6 +83,12 @@ export async function restoreSavedSession(
   }
 
   if (options.validateOnline === false) {
+    if (normalizedStoredSession.onlineValidationRequired) {
+      return {
+        status: 'validation-unavailable',
+        message: ONLINE_VALIDATION_UNAVAILABLE_MESSAGE,
+      };
+    }
     return restoreStrictOfflineSession(
       normalizedStoredSession,
       offlineAccessClaims,
@@ -104,7 +116,7 @@ export async function restoreSavedSession(
       status: 'restored',
       validatedOnline: true,
       session: {
-        ...normalizedStoredSession,
+        accessToken,
         email: user.email || normalizedStoredSession.email,
         principalId: currentPrincipalId || storedPrincipalId,
         user
@@ -119,10 +131,17 @@ export async function restoreSavedSession(
       };
     }
 
-    return restoreStrictOfflineSession(
+    const strictOfflineResult = restoreStrictOfflineSession(
       normalizedStoredSession,
       offlineAccessClaims,
     );
+    if (strictOfflineResult.status === 'expired') {
+      return strictOfflineResult;
+    }
+    return {
+      status: 'validation-unavailable',
+      message: ONLINE_VALIDATION_UNAVAILABLE_MESSAGE,
+    };
   }
 }
 

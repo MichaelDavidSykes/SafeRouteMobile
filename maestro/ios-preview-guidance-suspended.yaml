@@ -40,9 +40,30 @@ appId: host.exp.Exponent
     visible: "Guidance paused"
     timeout: 10000
 - tapOn:
-    id: "safe-route-suspended-navigation-end"
+    id: "guest-map-workspace-selector"
     waitToSettleTimeoutMs: 1000
+- assertVisible:
+    id: "guest-map-workspace-preview-west"
+- tapOn:
+    id: "guest-map-workspace-preview-west"
+    waitToSettleTimeoutMs: 1000
+- assertVisible: "End route and change workspace?"
+- assertVisible: "West Corridor"
+- tapOn: "Keep route"
+- assertVisible:
+    id: "safe-route-suspended-navigation"
+- assertVisible: "Workspace, Central Operations"
+- tapOn:
+    id: "guest-map-workspace-selector"
+    waitToSettleTimeoutMs: 1000
+- tapOn:
+    id: "guest-map-workspace-preview-west"
+    waitToSettleTimeoutMs: 1000
+- tapOn: "End route and change workspace"
+- extendedWaitUntil:
+    notVisible:
+      id: "safe-route-suspended-navigation"
+    timeout: 15000
 - assertNotVisible:
     id: "safe-route-suspended-navigation"
-- assertVisible:
-    id: "guest-map-workspace-selector"
+- assertVisible: "Workspace, West Corridor"

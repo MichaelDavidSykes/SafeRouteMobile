@@ -150,21 +150,9 @@ describe("Maestro connectivity contract runtime", () => {
     );
     assert.match(
       seed,
-      /visible: "Autofill Password"[\s\S]*tapOn: "Cancel"[\s\S]*visible: "Continue"[\s\S]*tapOn: "Continue"/,
+      /inputText: "guidance-contract-password"\n- tapOn:\n    id: "safe-route-login-primary-action"/,
     );
-    assert.ok(
-      seed.indexOf('visible: "Autofill Password"') <
-        seed.indexOf('inputText: "guidance-contract-password"'),
-      'the iOS Autofill sheet must be dismissed before entering the fixture password',
-    );
-    assert.match(
-      seed,
-      /id: "safe-route-login-password"\n- waitForAnimationToEnd:[\s\S]*visible: "Autofill Password"[\s\S]*tapOn: "Continue"\n- eraseText\n- inputText: "guidance-contract-password"/,
-    );
-    assert.match(
-      seed,
-      /inputText: "guidance-contract-password"\n- pressKey: ENTER\n- waitForAnimationToEnd:[\s\S]*visible: "Autofill Password"[\s\S]*tapOn: "Cancel"[\s\S]*visible: "Continue"[\s\S]*tapOn: "Continue"\n- pressKey: ENTER\n- runFlow:\n    when:\n      visible: "Not Now"/,
-    );
+    assert.doesNotMatch(seed, /pressKey: ENTER|Autofill Password/);
     assert.match(checking, /Checking connection\. Map downloads are paused\./);
     assert.match(checking, /id: "guest-map-canvas"/);
     assert.match(

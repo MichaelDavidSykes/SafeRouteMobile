@@ -1,13 +1,8 @@
 import { LUNARCHAIN_API_BASE } from '../../config/env';
 import {
-  ApiAuthorizationError,
-  ApiRequestError,
-  ApiSessionExpiredError,
+  createApiResponseError,
   createNetworkRequestError,
   fetchWithTimeout,
-  getApiAuthorizationMessage,
-  getApiErrorMessage,
-  getApiSessionExpiredMessage,
   parseJsonResponse,
   type SafeRouteRequestOptions
 } from '../api/apiClientCore';
@@ -66,16 +61,11 @@ export async function fetchAreaRiskViewport(
   }
 
   const body = await parseJsonResponse(response);
-  if (response.status === 401) {
-    throw new ApiSessionExpiredError(getApiSessionExpiredMessage(body));
-  }
-  if (response.status === 403) {
-    throw new ApiAuthorizationError(getApiAuthorizationMessage(body));
-  }
   if (!response.ok) {
-    throw new ApiRequestError(
-      getApiErrorMessage(body, 'Unable to load risk areas for this map view.'),
-      response.status
+    throw createApiResponseError(
+      response.status,
+      body,
+      'Unable to load risk areas for this map view.',
     );
   }
   return normalizeAreaRiskFeed(body);

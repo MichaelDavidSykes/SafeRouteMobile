@@ -10,6 +10,7 @@ export type SessionRestoreResult =
   | {
       status: 'expired';
       message: string;
+      reason: 'inactive-account' | 'session-expired';
     }
   | {
       status: 'restored';
@@ -57,7 +58,8 @@ export async function restoreSavedSession(
   if (!accessToken) {
     return {
       status: 'expired',
-      message: DEFAULT_EXPIRED_MESSAGE
+      message: DEFAULT_EXPIRED_MESSAGE,
+      reason: 'session-expired',
     };
   }
 
@@ -67,7 +69,8 @@ export async function restoreSavedSession(
   if (offlineAccessClaims && isJwtExpired(accessToken, nowSeconds)) {
     return {
       status: 'expired',
-      message: DEFAULT_EXPIRED_MESSAGE
+      message: DEFAULT_EXPIRED_MESSAGE,
+      reason: 'session-expired',
     };
   }
 
@@ -94,7 +97,8 @@ export async function restoreSavedSession(
     if (error instanceof ApiSessionExpiredError) {
       return {
         status: 'expired',
-        message: getSessionRestoreExpiredMessage(error.message)
+        message: getSessionRestoreExpiredMessage(error.message),
+        reason: error.reason,
       };
     }
 
@@ -119,7 +123,8 @@ function restoreStrictOfflineSession(
   ) {
     return {
       status: 'expired',
-      message: ONLINE_VALIDATION_REQUIRED_MESSAGE
+      message: ONLINE_VALIDATION_REQUIRED_MESSAGE,
+      reason: 'session-expired',
     };
   }
 

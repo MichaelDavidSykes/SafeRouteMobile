@@ -80,7 +80,7 @@ describe("Maestro connectivity contract runtime", () => {
     assert.match(runner, /MAESTRO_RETRIES: '0'/);
   });
 
-  it("proves checking/offline silence, local End, and one reconnect authorization", () => {
+  it("proves offline continuity, reconnect authorization, and inactive-session revocation", () => {
     const runner = read("scripts/run-maestro-connectivity-contract.mjs");
     const fixture = read("scripts/maestro-guidance-contract-api.mjs");
     const checking = read("maestro/ios-connectivity-contract-cold-checking.yaml");
@@ -99,6 +99,12 @@ describe("Maestro connectivity contract runtime", () => {
       "maestro/ios-connectivity-contract-reconnect-checking.yaml",
     );
     const online = read("maestro/ios-connectivity-contract-online.yaml");
+    const inactiveSession = read(
+      "maestro/ios-connectivity-contract-inactive-session.yaml",
+    );
+    const inactiveRelaunch = read(
+      "maestro/ios-connectivity-contract-inactive-relaunch.yaml",
+    );
 
     for (const phase of [
       "connectivitySeed",
@@ -107,6 +113,9 @@ describe("Maestro connectivity contract runtime", () => {
       "connectivityOfflineRelaunch",
       "connectivityReconnectChecking",
       "connectivityOnline",
+      "connectivityInactiveSeed",
+      "connectivityInactiveSession",
+      "connectivityInactiveRelaunch",
     ]) {
       assert.match(fixture, new RegExp(phase));
     }
@@ -121,6 +130,18 @@ describe("Maestro connectivity contract runtime", () => {
     assert.match(
       runner,
       /assertConnectivityContractReconnectAuthorization\(requests,[\s\S]*settlementSequence/,
+    );
+    assert.match(
+      runner,
+      /CONNECTIVITY_CONTRACT_PHASES\.inactiveSeed[\s\S]*navigation\.persisted[\s\S]*CONNECTIVITY_CONTRACT_PHASES\.inactiveSession[\s\S]*navigation\.cleanup\.settled[\s\S]*tracking\.stop\.settled[\s\S]*CONNECTIVITY_CONTRACT_PHASES\.inactiveRelaunch[\s\S]*navigation\.absence\.readback/,
+    );
+    assert.match(
+      runner,
+      /assertConnectivityContractInactiveSessionRevocation\(requests\)/,
+    );
+    assert.match(
+      runner,
+      /assertConnectivityContractInactiveGuidanceRevocation\(evidence,[\s\S]*expectedSourceRevision: sourceRevision[\s\S]*minimumOccurredAtMs: startedAtMs/,
     );
     assert.match(runner, /waitForAllRequestsTerminal\(\)/);
     assert.match(runner, /waitForBoundedMaestroPhase/);
@@ -194,6 +215,14 @@ describe("Maestro connectivity contract runtime", () => {
     assert.match(
       online,
       /assertNotVisible:[\s\S]*safe-route-suspended-navigation/,
+    );
+    assert.match(
+      inactiveSession,
+      /safe-route-login[\s\S]*This LunarChain account is inactive[\s\S]*safe-route-suspended-navigation[\s\S]*safe-route-picker[\s\S]*safe-route-navigation-cleanup/,
+    );
+    assert.match(
+      inactiveRelaunch,
+      /guest-map-primary-action[\s\S]*guest-map-workspace-selector[\s\S]*safe-route-login/,
     );
   });
 });

@@ -625,13 +625,17 @@ function SafeRouteApp() {
   const discardPersistedNavigation = async (
     message?: string,
     {
+      evidenceSession: evidenceSessionOverride = null,
       publishCleanupFailure = true,
     }: {
+      evidenceSession?: ActiveNavigationSession | null;
       publishCleanupFailure?: boolean;
     } = {},
   ) => {
     const evidenceSession =
-      pendingNavigationRestoreRef.current || activeNavigationSessionRef.current;
+      evidenceSessionOverride ||
+      pendingNavigationRestoreRef.current ||
+      activeNavigationSessionRef.current;
     pendingNavigationRestoreRef.current = null;
     setPendingNavigationRestore(null);
     activeNavigationSessionRef.current = null;
@@ -858,6 +862,35 @@ function SafeRouteApp() {
 
         if (restoreResult.status === 'expired') {
           await clearAuthSession();
+          if (
+            restoreResult.reason === 'inactive-account' &&
+            !enablePreviewSession() &&
+            mounted
+          ) {
+            const guidanceCleared = persistedNavigation
+              ? await discardPersistedNavigation(undefined, {
+                  evidenceSession: persistedNavigation,
+                })
+              : true;
+            if (!mounted) {
+              return;
+            }
+            const inactiveMessage = guidanceCleared
+              ? restoreResult.message
+              : `${restoreResult.message} Saved guidance cleanup needs retry before signing in again.`;
+            setSession(null);
+            setSelectedRoute(null);
+            setAvailableWorkspaces([]);
+            activeWorkspaceRef.current = null;
+            setActiveWorkspace(null);
+            setWorkspaceCatalogLoading(false);
+            setWorkspaceCatalogError('');
+            setWorkspaceAccessIssue('none');
+            setSessionMessage(inactiveMessage);
+            setAuthPrompt(inactiveMessage);
+            setScreen('login');
+            return;
+          }
           if (
             !enablePreviewSession() &&
             mounted &&

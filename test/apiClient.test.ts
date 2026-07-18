@@ -8,6 +8,7 @@ import {
   ApiRequestError,
   ApiSessionExpiredError,
   LUNARCHAIN_AUTHORIZATION_ERROR_MESSAGE,
+  LUNARCHAIN_INACTIVE_ACCOUNT_MESSAGE,
   LUNARCHAIN_NETWORK_ERROR_MESSAGE,
   LUNARCHAIN_REQUEST_TIMEOUT_MS,
   LUNARCHAIN_SESSION_EXPIRED_MESSAGE,
@@ -17,6 +18,7 @@ import {
   getApiAuthorizationMessage,
   getApiErrorMessage,
   getApiSessionExpiredMessage,
+  isInactiveAccountResponse,
   unwrapApiEnvelope
 } from '../src/features/api/apiClientCore';
 import {
@@ -97,12 +99,39 @@ describe('mobile API helpers', () => {
     assert.doesNotMatch(apiClientSource, /response\.status === 401 \|\| response\.status === 403/);
   });
 
-  it('treats only 401 responses as session expiry', () => {
+  it('treats 401 responses as session expiry', () => {
     const error = createApiResponseError(401, { detail: 'Not authenticated' });
 
     assert.equal(error instanceof ApiSessionExpiredError, true);
     assert.equal(error instanceof ApiAuthorizationError, false);
     assert.equal(error.message, LUNARCHAIN_SESSION_EXPIRED_MESSAGE);
+  });
+
+  it('fails closed only for the exact backend-shaped inactive-account response', () => {
+    const responseBody = {
+      detail: {
+        details: 'This account has been deactivated',
+        message: 'Inactive user',
+      },
+    };
+    const error = createApiResponseError(400, responseBody);
+
+    assert.equal(isInactiveAccountResponse(400, responseBody), true);
+    assert.equal(error instanceof ApiSessionExpiredError, true);
+    assert.equal(error.message, LUNARCHAIN_INACTIVE_ACCOUNT_MESSAGE);
+    assert.equal(error.reason, 'inactive-account');
+
+    for (const nearMiss of [
+      { detail: { details: 'This account has been deactivated', message: 'Inactive users' } },
+      { detail: { details: 'Account setup is incomplete', message: 'Inactive user' } },
+      { detail: 'Inactive user' },
+      { message: 'Inactive user' },
+    ]) {
+      assert.equal(isInactiveAccountResponse(400, nearMiss), false);
+      assert.equal(createApiResponseError(400, nearMiss) instanceof ApiRequestError, true);
+    }
+    assert.equal(isInactiveAccountResponse(403, responseBody), false);
+    assert.equal(createApiResponseError(403, responseBody) instanceof ApiAuthorizationError, true);
   });
 
   it('exposes a typed authorization error for 403 responses', () => {
@@ -179,6 +208,7 @@ describe('mobile API helpers', () => {
     const error = new ApiSessionExpiredError();
 
     assert.equal(error.name, 'ApiSessionExpiredError');
+    assert.equal(error.reason, 'session-expired');
     assert.match(error.message, /session expired/i);
   });
 

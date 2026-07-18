@@ -162,6 +162,10 @@ export const GUIDANCE_CONTRACT_ROUTE_VARIANT_IDS = Object.freeze({
   deniedV2: '66c1b2c3d4e5f60718293c41',
   survivor: '66c1b2c3d4e5f60718293c42'
 });
+export const GUIDANCE_CONTRACT_TRIP_IDS = Object.freeze({
+  denied: '66e1b2c3d4e5f60718293e40',
+  survivor: '66e1b2c3d4e5f60718293e41'
+});
 const RESPONSE_SEMANTIC_OUTCOME = Symbol('guidanceContractSemanticOutcome');
 const ROUTE_COORDINATES = Object.freeze([
   { latitude: 51.5074, longitude: -0.1278 },
@@ -301,6 +305,62 @@ export function createGuidanceContractRoute({
         }
       ]
     } : {})
+  };
+}
+
+export function createGuidanceContractOperations(
+  workspace = 'denied',
+  nowMs = Date.now()
+) {
+  const survivor = workspace === 'survivor';
+  const routeWorkspace = survivor
+    ? GUIDANCE_CONTRACT_WORKSPACES.survivor
+    : GUIDANCE_CONTRACT_WORKSPACES.denied;
+  const routeId = survivor
+    ? GUIDANCE_CONTRACT_ROUTE_IDS.survivor
+    : GUIDANCE_CONTRACT_ROUTE_IDS.denied;
+  const tripId = survivor
+    ? GUIDANCE_CONTRACT_TRIP_IDS.survivor
+    : GUIDANCE_CONTRACT_TRIP_IDS.denied;
+  const movementDate = new Date(
+    nowMs + (survivor ? 3 : 2) * 24 * 60 * 60 * 1000
+  ).toISOString();
+  return {
+    client_id: routeWorkspace.id,
+    people: [],
+    trips: [
+      {
+        client_id: routeWorkspace.id,
+        created_at: new Date(nowMs).toISOString(),
+        destination: survivor ? 'Canary Wharf' : 'London City Airport',
+        duration_minutes: survivor ? 60 : 45,
+        id: tripId,
+        is_active: true,
+        lead_vehicle_id: null,
+        movement_date: movementDate,
+        name: survivor
+          ? 'Support continuity movement'
+          : 'Guidance airport movement',
+        origin: survivor ? 'Paddington' : 'Mayfair',
+        person_ids: [],
+        route_assignments: [
+          {
+            duration_minutes: survivor ? 60 : 45,
+            movement_date: movementDate,
+            person_ids: [],
+            route_id: routeId,
+            status: 'ready',
+            vehicle_ids: []
+          }
+        ],
+        route_ids: [routeId],
+        status: 'ready',
+        updated_at: '2026-07-18T08:30:00.000Z',
+        vehicle_ids: []
+      }
+    ],
+    updated_at: '2026-07-18T08:30:00.000Z',
+    vehicles: []
   };
 }
 
@@ -718,13 +778,11 @@ export function createGuidanceContractHandler({
         return;
       }
       sendApiSuccess(response, {
-        data: {
-          client_id: requestedWorkspaceId,
-          people: [],
-          trips: [],
-          updated_at: '2026-07-15T12:00:00.000Z',
-          vehicles: []
-        },
+        data: createGuidanceContractOperations(
+          requestedWorkspaceId === GUIDANCE_CONTRACT_WORKSPACES.survivor.id
+            ? 'survivor'
+            : 'denied'
+        ),
         message: 'SafeRoute operations loaded.'
       }, 'operations-active');
       return;

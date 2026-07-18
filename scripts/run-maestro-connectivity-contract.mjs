@@ -68,6 +68,7 @@ const flows = Object.freeze({
   offlineEnd: 'maestro/ios-connectivity-contract-offline-end.yaml',
   offlineObserve: 'maestro/ios-connectivity-contract-offline-observe.yaml',
   offlineRelaunch: 'maestro/ios-connectivity-contract-offline-relaunch.yaml',
+  operationsReturnMap: 'maestro/ios-connectivity-contract-operations-return-map.yaml',
   online: 'maestro/ios-connectivity-contract-online.yaml',
   reconnectChecking: 'maestro/ios-connectivity-contract-reconnect-checking.yaml',
   reset: 'maestro/ios-guidance-contract-reset.yaml',
@@ -242,6 +243,23 @@ async function main() {
     'cold relaunch the ended journey into its cached review workspace',
     flows.offlineRelaunch,
   );
+  captureAccessibilityHierarchy('offline-operations-calendar', [
+    {
+      id: 'safe-route-operations-offline-notice',
+      label: 'Offline Operations. This calendar was saved less than one hour ago and is review only. Reconnect and verify workspace access before relying on this calendar. Saved calendar labels and endpoints are stored. Full route plans, live risk and ETA, and convoy manifests are not stored offline.',
+      enabled: true,
+    },
+    {
+      id: 'safe-route-operations-route-movement-1-1',
+      labelStartsWith: 'Cold restart verification v1. ',
+      enabled: true,
+    },
+  ]);
+  await runFlow(
+    CONNECTIVITY_CONTRACT_PHASES.offlineRelaunch,
+    'return to the offline map after Operations cache evidence',
+    flows.operationsReturnMap,
+  );
   await waitForEvidenceType(
     'navigation.absence.readback',
     CONNECTIVITY_CONTRACT_PHASES.offlineRelaunch,
@@ -339,6 +357,7 @@ async function main() {
 
   const requests = readRequestJournal();
   const evidence = readEvidenceJournal();
+  assertOperationsCalendarSeed(requests);
   assertGuidanceContractRequestJournal(requests, {
     expectedModeByPhase: {
       [CONNECTIVITY_CONTRACT_PHASES.seed]: GUIDANCE_CONTRACT_MODES.active,
@@ -383,6 +402,34 @@ async function main() {
     `Connectivity contract runtime passed. Request journal: ${requestLogFile}. ` +
       `Evidence journal: ${evidenceLogFile}. Screenshots: ${screenshotDirectory}. ` +
       `Accessibility hierarchies: ${accessibilityDirectory}\n`,
+  );
+}
+
+function assertOperationsCalendarSeed(entries) {
+  const path =
+    '/api/v1/mobile/safe-route/operations/client/66a1b2c3d4e5f60718293a40';
+  const requests = entries.filter(
+    (entry) =>
+      entry.event === 'request' &&
+      entry.phase === CONNECTIVITY_CONTRACT_PHASES.seed &&
+      entry.method === 'GET' &&
+      entry.path === path,
+  );
+  assertCondition(
+    requests.length === 1,
+    `Connectivity seed expected one Guidance Operations request, received ${requests.length}.`,
+  );
+  const completions = entries.filter(
+    (entry) =>
+      entry.event === 'completion' &&
+      entry.requestId === requests[0].requestId,
+  );
+  assertCondition(
+    completions.length === 1 &&
+      completions[0].completed === true &&
+      completions[0].semanticOutcome === 'operations-active' &&
+      completions[0].statusCode === 200,
+    'Connectivity seed Operations request did not complete as operations-active.',
   );
 }
 

@@ -67,6 +67,10 @@ describe('authenticated map session expiry integration', () => {
     assert.match(app, /sessionExpiryHandledRef\.current = true;[\s\S]*activeSessionTokenRef\.current = null/);
     assert.match(app, /Promise\.allSettled\(\[[\s\S]*stopBackgroundNavigation\(\)[\s\S]*clearActiveNavigationSession\(\)[\s\S]*clearAuthSession\(\)/);
     assert.match(app, /handleAuthenticated[\s\S]*await waitForSessionCleanup\(sessionCleanupRef\.current\);[\s\S]*prepareAuthenticatedSession/);
+    assert.match(
+      app,
+      /handleSignOut[\s\S]*const cleanup = Promise\.allSettled\([\s\S]*sessionCleanupRef\.current = cleanup[\s\S]*await cleanup[\s\S]*sessionCleanupRef\.current === cleanup/,
+    );
     assert.match(app, /activeSessionTokenRef\.current = persistedSession\.accessToken;[\s\S]*sessionExpiryHandledRef\.current = false;[\s\S]*setSession\(persistedSession\)/);
     assert.match(app, /<LiveMapScreen[\s\S]*onSessionExpired=\{handleSessionExpired\}/);
     assert.match(app, /screen === 'route-preview' && routePreviewSource === 'saved'[\s\S]*'saved-routes'/);

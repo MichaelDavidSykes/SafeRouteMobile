@@ -202,11 +202,11 @@ describe("cold-start connectivity integration", () => {
     );
     assert.match(
       operations,
-      /!protectedRequestsAvailable && networkChecking[\s\S]*Checking connection\. No cached operations are available\./,
+      /!protectedRequestsAvailable && networkChecking[\s\S]*Checking connection and securely saved Operations data\./,
     );
     assert.match(
       operations,
-      /Checking connection\. Previously loaded operations remain available for review only; their freshness is not verified\./,
+      /Checking connection\. No saved calendar is available yet\./,
     );
   });
 });

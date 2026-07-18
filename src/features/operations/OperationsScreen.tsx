@@ -24,6 +24,16 @@ import { uiTestIds } from "../../testing/uiTestIds";
 import { operationsStyles as styles } from "./OperationsScreen.styles";
 import { fetchOperationsState } from "./operationsApi";
 import type { SafeRouteOperationsState } from "./operationsTypes";
+import {
+  clearOfflineOperationsWorkspace,
+  loadOfflineOperationsSnapshot,
+  saveOfflineOperationsSnapshot,
+  tryActivateOfflineOperationsWorkspace,
+} from "./offlineOperationsCache";
+import type {
+  OfflineOperationsCalendarEntry,
+  OfflineOperationsSnapshot,
+} from "./offlineOperationsCacheCore";
 import type { SafeRouteWorkspace } from "../workspaces/activeWorkspace";
 import { WorkspaceAccessRefreshControl } from "../workspaces/WorkspaceAccessRefreshControl";
 import type { WorkspaceAccessIssue } from "../workspaces/workspaceAccessRefreshState";
@@ -32,7 +42,10 @@ import {
   createCalendarRows,
   createConvoyRows,
   createOperationsEmptyState,
+  createOperationsExpiredCacheMessage,
   createOperationsLoadingLabel,
+  createOperationsOfflineEmptyState,
+  createOperationsOfflineReviewPresentation,
   createOperationsSubtitle,
   createOperationsSummaryState,
   createOperationsSyncWarningState,
@@ -40,6 +53,8 @@ import {
   createOperationsTitle,
   createOperationsWorkspaceOptions,
   createOperationsWorkspaceState,
+  getOperationsOfflineReviewRefreshDelayMs,
+  createOfflineCalendarRows,
   createPlannedRouteRows,
   shouldShowOperationsWorkspaceSelector,
   type OperationsConvoyRow,
@@ -53,6 +68,7 @@ interface OperationsScreenProps {
   accessToken: string;
   activeWorkspace: SafeRouteWorkspace | null;
   availableWorkspaces: SafeRouteWorkspace[];
+  cacheIdentity: string;
   initialTab: OperationsTab;
   sessionNotice?: string;
   userEmail: string;
@@ -77,6 +93,7 @@ export function OperationsScreen({
   accessToken,
   activeWorkspace,
   availableWorkspaces,
+  cacheIdentity,
   initialTab,
   onBackToMap,
   onRetryWorkspaceCatalog,
@@ -105,8 +122,14 @@ export function OperationsScreen({
   const [activeTab, setActiveTab] = useState<OperationsTab>(initialTab);
   const [routes, setRoutes] = useState<SavedSafeRoutePlan[]>([]);
   const [operationsState, setOperationsState] = useState<SafeRouteOperationsState | null>(null);
+  const [offlineCalendarEntries, setOfflineCalendarEntries] =
+    useState<OfflineOperationsCalendarEntry[]>([]);
   const [operationsWarning, setOperationsWarning] = useState<string | null>(null);
   const [loadedWorkspaceId, setLoadedWorkspaceId] = useState<string | null>(null);
+  const [showingOfflineCopy, setShowingOfflineCopy] = useState(false);
+  const [offlineCopyStoredAtMs, setOfflineCopyStoredAtMs] =
+    useState<number | null>(null);
+  const [offlineCopyNowMs, setOfflineCopyNowMs] = useState(() => Date.now());
   const [clientMenuOpen, setClientMenuOpen] = useState(false);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
@@ -120,6 +143,8 @@ export function OperationsScreen({
   const selectedWorkspaceId = activeWorkspace?.id || null;
   const activeWorkspaceIdRef = useRef<string | null>(selectedWorkspaceId);
   activeWorkspaceIdRef.current = selectedWorkspaceId;
+  const loadedWorkspaceIdRef = useRef<string | null>(loadedWorkspaceId);
+  loadedWorkspaceIdRef.current = loadedWorkspaceId;
 
   useEffect(() => {
     setActiveTab(initialTab);
@@ -148,41 +173,80 @@ export function OperationsScreen({
       setErrorState(null);
 
       if (!requestWorkspaceId) {
+        loadedWorkspaceIdRef.current = null;
         setLoadedWorkspaceId(null);
         setRoutes([]);
         setOperationsState(null);
+        setOfflineCalendarEntries([]);
         setOperationsWarning(null);
+        setShowingOfflineCopy(false);
+        setOfflineCopyStoredAtMs(null);
         setLoading(false);
         setRefreshing(false);
         return;
       }
 
+      const publishOfflineSnapshot = (
+        snapshot: OfflineOperationsSnapshot,
+        warning: string | null = null,
+      ) => {
+        loadedWorkspaceIdRef.current = requestWorkspaceId;
+        setLoadedWorkspaceId(requestWorkspaceId);
+        setRoutes([]);
+        setOperationsState(null);
+        setOfflineCalendarEntries(snapshot.entries);
+        setOperationsWarning(
+          warning ||
+            (snapshot.truncated
+              ? `Showing ${snapshot.entries.length} saved calendar movements. Calendar labels and endpoints are stored; full route plans, live risk and ETA, and convoy manifests are not.`
+              : "Showing a saved calendar. Calendar labels and endpoints are stored; full route plans, live risk and ETA, and convoy manifests are not."),
+        );
+        setShowingOfflineCopy(true);
+        setOfflineCopyStoredAtMs(snapshot.storedAtMs);
+        setOfflineCopyNowMs(Date.now());
+        setLoading(false);
+        setRefreshing(false);
+      };
+
       if (!protectedRequestsAvailable) {
-        if (loadedWorkspaceId === requestWorkspaceId) {
+        const cachedSnapshot = await loadOfflineOperationsSnapshot(
+          cacheIdentity,
+          requestWorkspaceId,
+        );
+        if (!requestOwnsWorkspace()) {
+          return;
+        }
+        if (cachedSnapshot) {
+          publishOfflineSnapshot(cachedSnapshot);
+        } else {
+          loadedWorkspaceIdRef.current = requestWorkspaceId;
+          setLoadedWorkspaceId(requestWorkspaceId);
+          setRoutes([]);
+          setOperationsState(null);
+          setOfflineCalendarEntries([]);
           setOperationsWarning(
             networkChecking
-              ? "Checking connection. Previously loaded operations remain available for review only; their freshness is not verified."
+              ? "Checking connection. No saved calendar is available yet."
               : online
-                ? "Checking workspace access. Previously loaded operations remain available for review only; their freshness is not verified."
-                : "Offline. Previously loaded operations remain available for review only; their freshness is not verified.",
+                ? "Checking workspace access. No saved calendar is available yet."
+                : "Offline calendar unavailable. Reconnect to load it.",
           );
-          setLoading(false);
-        } else if (networkChecking || online) {
-          setLoading(true);
-        } else {
-          setErrorState(
-            createRouteSyncErrorState(new TypeError("Network request failed")),
-          );
+          setShowingOfflineCopy(false);
+          setOfflineCopyStoredAtMs(null);
           setLoading(false);
         }
         setRefreshing(false);
         return;
       }
 
+      loadedWorkspaceIdRef.current = null;
       setLoadedWorkspaceId(null);
       setRoutes([]);
       setOperationsState(null);
+      setOfflineCalendarEntries([]);
       setOperationsWarning(null);
+      setShowingOfflineCopy(false);
+      setOfflineCopyStoredAtMs(null);
 
       try {
         const result = await loadOperationsWorkspaceData({
@@ -197,31 +261,83 @@ export function OperationsScreen({
         if (result.status === "workspace-unavailable") {
           loadRevisionRef.current += 1;
           activeWorkspaceIdRef.current = null;
+          loadedWorkspaceIdRef.current = null;
           setLoadedWorkspaceId(null);
           setRoutes([]);
           setOperationsState(null);
+          setOfflineCalendarEntries([]);
           setOperationsWarning(null);
+          setShowingOfflineCopy(false);
+          setOfflineCopyStoredAtMs(null);
           setErrorState(null);
           setClientMenuOpen(false);
           onWorkspaceUnavailable(requestWorkspaceId);
           return;
         }
         if (result.status === "loaded") {
+          const cacheWorkspaceActivated =
+            await tryActivateOfflineOperationsWorkspace(
+              cacheIdentity,
+              requestWorkspaceId,
+            );
+          if (!requestOwnsWorkspace()) {
+            return;
+          }
+          const cachedSnapshot = cacheWorkspaceActivated
+            ? await saveOfflineOperationsSnapshot(
+                cacheIdentity,
+                requestWorkspaceId,
+                {
+                  operationsState: result.operationsState,
+                  routes: result.routes,
+                },
+              )
+            : null;
+          if (!requestOwnsWorkspace()) {
+            return;
+          }
           setRoutes(result.routes);
+          loadedWorkspaceIdRef.current = requestWorkspaceId;
           setLoadedWorkspaceId(requestWorkspaceId);
           setOperationsState(result.operationsState);
+          setOfflineCalendarEntries([]);
+          setShowingOfflineCopy(false);
+          setOfflineCopyStoredAtMs(cachedSnapshot?.storedAtMs || null);
           return;
         }
 
+        const cachedSnapshot = await loadOfflineOperationsSnapshot(
+          cacheIdentity,
+          requestWorkspaceId,
+        );
+        if (!requestOwnsWorkspace()) {
+          return;
+        }
+        if (cachedSnapshot) {
+          loadedWorkspaceIdRef.current = requestWorkspaceId;
+          setLoadedWorkspaceId(requestWorkspaceId);
+          setRoutes(result.routes);
+          setOperationsState(null);
+          setOfflineCalendarEntries(cachedSnapshot.entries);
+          setOperationsWarning(
+            cachedSnapshot.truncated
+              ? `Trip and convoy manifests could not sync. Showing ${cachedSnapshot.entries.length} saved calendar movements; convoy manifests are not stored offline.`
+              : "Trip and convoy manifests could not sync. Showing a saved calendar; convoy manifests are not stored offline.",
+          );
+          setShowingOfflineCopy(true);
+          setOfflineCopyStoredAtMs(cachedSnapshot.storedAtMs);
+          setOfflineCopyNowMs(Date.now());
+          return;
+        }
         setRoutes(result.routes);
+        loadedWorkspaceIdRef.current = requestWorkspaceId;
         setLoadedWorkspaceId(requestWorkspaceId);
         const warning = createOperationsSyncWarningState(
-          result.error instanceof ApiSessionExpiredError
-            ? new Error("Trip and convoy manifests could not sync")
-            : result.error
+          result.error
         );
         setOperationsWarning(warning.message);
         setOperationsState(null);
+        setOfflineCalendarEntries([]);
       } catch (error) {
         if (!requestOwnsWorkspace()) {
           return;
@@ -230,7 +346,23 @@ export function OperationsScreen({
           onSessionExpired(error.message);
           return;
         }
-        setErrorState(createRouteSyncErrorState(error));
+        const cachedSnapshot = await loadOfflineOperationsSnapshot(
+          cacheIdentity,
+          requestWorkspaceId,
+        );
+        if (!requestOwnsWorkspace()) {
+          return;
+        }
+        if (cachedSnapshot) {
+          publishOfflineSnapshot(
+            cachedSnapshot,
+            cachedSnapshot.truncated
+              ? `Operations could not sync. Showing ${cachedSnapshot.entries.length} saved calendar movements.`
+              : "Operations could not sync. Showing a saved calendar.",
+          );
+        } else {
+          setErrorState(createRouteSyncErrorState(error));
+        }
       } finally {
         if (requestOwnsWorkspace()) {
           setLoading(false);
@@ -240,6 +372,7 @@ export function OperationsScreen({
     },
     [
       accessToken,
+      cacheIdentity,
       networkChecking,
       networkStatus,
       online,
@@ -270,22 +403,49 @@ export function OperationsScreen({
   const visibleRoutes = workspaceOwnsResults ? routes : [];
   const visibleOperationsState = workspaceOwnsResults ? operationsState : null;
   const plannedRows = useMemo(
-    () => createPlannedRouteRows(visibleRoutes, visibleOperationsState),
-    [visibleOperationsState, visibleRoutes]
+    () =>
+      showingOfflineCopy && visibleRoutes.length === 0
+        ? []
+        : createPlannedRouteRows(visibleRoutes, visibleOperationsState),
+    [showingOfflineCopy, visibleOperationsState, visibleRoutes]
   );
   const calendarRows = useMemo(
-    () => createCalendarRows(visibleRoutes, visibleOperationsState),
-    [visibleOperationsState, visibleRoutes]
+    () =>
+      showingOfflineCopy
+        ? createOfflineCalendarRows(offlineCalendarEntries)
+        : createCalendarRows(visibleRoutes, visibleOperationsState),
+    [
+      offlineCalendarEntries,
+      showingOfflineCopy,
+      visibleOperationsState,
+      visibleRoutes,
+    ]
   );
   const convoyRows = useMemo(
-    () => createConvoyRows(visibleRoutes, visibleOperationsState),
-    [visibleOperationsState, visibleRoutes]
+    () =>
+      showingOfflineCopy
+        ? []
+        : createConvoyRows(visibleRoutes, visibleOperationsState),
+    [showingOfflineCopy, visibleOperationsState, visibleRoutes]
   );
   const summaryState = useMemo(
     () => createOperationsSummaryState(visibleRoutes, visibleOperationsState),
     [visibleOperationsState, visibleRoutes]
   );
-  const emptyState = createOperationsEmptyState(activeTab);
+  const offlineReviewStatus = networkChecking
+    ? "checking-connection"
+    : !online
+      ? "offline"
+      : protectedRequestsAvailable
+        ? "sync-unavailable"
+        : "checking-access";
+  const emptyState = showingOfflineCopy || !protectedRequestsAvailable
+    ? createOperationsOfflineEmptyState(
+        activeTab,
+        showingOfflineCopy,
+        offlineReviewStatus,
+      )
+    : createOperationsEmptyState(activeTab);
   const mapReturnState = createRouteListMapReturnState();
   const signOutState = createRouteListSignOutState(userEmail);
   const sessionNoticeState = createSessionNoticeState(sessionNotice);
@@ -293,9 +453,9 @@ export function OperationsScreen({
   const subtitle = createOperationsSubtitle(activeTab);
   const loadingLabel =
     !protectedRequestsAvailable && networkChecking
-      ? "Checking connection. No cached operations are available."
+      ? "Checking connection and securely saved Operations data."
       : !protectedRequestsAvailable && online
-        ? "Checking workspace access. No cached operations are available."
+        ? "Checking workspace access."
         : createOperationsLoadingLabel(activeTab);
   const workspaceState = createOperationsWorkspaceState({
     activeWorkspaceId: selectedWorkspaceId,
@@ -303,6 +463,82 @@ export function OperationsScreen({
     errorMessage: workspaceCatalogError,
     loading: workspaceCatalogLoading
   });
+  const offlineReviewPresentation = useMemo(
+    () =>
+      offlineCopyStoredAtMs === null
+        ? null
+        : createOperationsOfflineReviewPresentation({
+            nowMs: offlineCopyNowMs,
+            status: offlineReviewStatus,
+            storedAtMs: offlineCopyStoredAtMs,
+          }),
+    [offlineCopyNowMs, offlineCopyStoredAtMs, offlineReviewStatus],
+  );
+
+  useEffect(() => {
+    if (!showingOfflineCopy || offlineCopyStoredAtMs === null) {
+      return;
+    }
+    const refreshDelayMs = getOperationsOfflineReviewRefreshDelayMs({
+      nowMs: offlineCopyNowMs,
+      storedAtMs: offlineCopyStoredAtMs,
+    });
+    if (refreshDelayMs === null) {
+      loadRevisionRef.current += 1;
+      const expiringWorkspaceId = selectedWorkspaceId;
+      let cancelled = false;
+      void (async () => {
+        let cleanupFailed = false;
+        if (expiringWorkspaceId) {
+          await clearOfflineOperationsWorkspace(
+            cacheIdentity,
+            expiringWorkspaceId,
+          ).catch(() => {
+            cleanupFailed = true;
+          });
+        }
+        if (
+          cancelled ||
+          activeWorkspaceIdRef.current !== expiringWorkspaceId
+        ) {
+          return;
+        }
+        loadedWorkspaceIdRef.current = null;
+        setLoadedWorkspaceId(null);
+        setRoutes([]);
+        setOperationsState(null);
+        setOfflineCalendarEntries([]);
+        setOperationsWarning(null);
+        setShowingOfflineCopy(false);
+        setOfflineCopyStoredAtMs(null);
+        setErrorState(
+          createRouteSyncErrorState(
+            new Error(
+              `${createOperationsExpiredCacheMessage(offlineReviewStatus)}${
+                cleanupFailed
+                  ? " Saved calendar cleanup needs retry."
+                  : ""
+              }`,
+            ),
+          ),
+        );
+      })();
+      return () => {
+        cancelled = true;
+      };
+    }
+    const refreshTimer = setTimeout(() => {
+      setOfflineCopyNowMs(Date.now());
+    }, refreshDelayMs);
+    return () => clearTimeout(refreshTimer);
+  }, [
+    offlineCopyNowMs,
+    offlineCopyStoredAtMs,
+    offlineReviewStatus,
+    cacheIdentity,
+    selectedWorkspaceId,
+    showingOfflineCopy,
+  ]);
 
   const handleRetry = () => {
     void loadOperations();
@@ -452,10 +688,14 @@ export function OperationsScreen({
                       setClientMenuOpen(false);
                       loadRevisionRef.current += 1;
                       activeWorkspaceIdRef.current = nextWorkspace.id;
+                      loadedWorkspaceIdRef.current = null;
                       setLoadedWorkspaceId(null);
                       setRoutes([]);
                       setOperationsState(null);
+                      setOfflineCalendarEntries([]);
                       setOperationsWarning(null);
+                      setShowingOfflineCopy(false);
+                      setOfflineCopyStoredAtMs(null);
                       setErrorState(null);
                       setLoading(true);
                       setRefreshing(false);
@@ -495,7 +735,25 @@ export function OperationsScreen({
         />
       ) : null}
 
-      {!workspaceState && !loading && !errorState && workspaceOwnsResults ? (
+      {showingOfflineCopy && offlineReviewPresentation ? (
+        <View
+          accessible
+          accessibilityLabel={offlineReviewPresentation.accessibilityLabel}
+          accessibilityRole="alert"
+          style={styles.offlineNotice}
+          testID={uiTestIds.operationsOfflineNotice}
+        >
+          <Text style={styles.offlineNoticeText}>
+            {offlineReviewPresentation.visibleLabel}
+          </Text>
+        </View>
+      ) : null}
+
+      {!workspaceState &&
+      !loading &&
+      !errorState &&
+      workspaceOwnsResults &&
+      !showingOfflineCopy ? (
         <View
           accessible
           accessibilityLabel={summaryState.accessibilityLabel}
@@ -518,7 +776,6 @@ export function OperationsScreen({
         >
           <Text
             accessibilityLabel={operationsWarning}
-            numberOfLines={2}
             style={styles.warningText}
           >
             {operationsWarning}

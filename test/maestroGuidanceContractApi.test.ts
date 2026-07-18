@@ -11,6 +11,7 @@ import {
   GUIDANCE_CONTRACT_MODES,
   GUIDANCE_CONTRACT_ROUTE_IDS,
   GUIDANCE_CONTRACT_ROUTE_VARIANT_IDS,
+  GUIDANCE_CONTRACT_TRIP_IDS,
   GUIDANCE_CONTRACT_WORKSPACES,
   GUIDANCE_START_BOUNDARY_PATH,
   WORKSPACE_CATALOG_RECOVERY_PHASES,
@@ -25,6 +26,7 @@ import {
   assertGuidanceContractRouteCacheReadbackEvidence,
   assertGuidanceStartTrafficBoundary,
   createGuidanceContractAccessToken,
+  createGuidanceContractOperations,
   createGuidanceContractEvidenceJournal,
   createGuidanceContractRequestJournal,
   isGuidanceStartProtectedTraffic,
@@ -32,6 +34,32 @@ import {
 } from '../scripts/maestro-guidance-contract-api.mjs';
 
 describe('Maestro guidance contract API', () => {
+  it('serves distinct backend-shaped Operations calendar fixtures per workspace', () => {
+    const fixtureNowMs = new Date('2030-01-01T08:00:00.000Z').getTime();
+    const guidance = createGuidanceContractOperations('denied', fixtureNowMs);
+    const support = createGuidanceContractOperations('survivor', fixtureNowMs);
+
+    assert.equal(guidance.client_id, GUIDANCE_CONTRACT_WORKSPACES.denied.id);
+    assert.equal(support.client_id, GUIDANCE_CONTRACT_WORKSPACES.survivor.id);
+    assert.equal(guidance.trips[0].id, GUIDANCE_CONTRACT_TRIP_IDS.denied);
+    assert.equal(support.trips[0].id, GUIDANCE_CONTRACT_TRIP_IDS.survivor);
+    assert.equal(
+      guidance.trips[0].route_assignments[0].route_id,
+      GUIDANCE_CONTRACT_ROUTE_IDS.denied,
+    );
+    assert.notEqual(guidance.trips[0].name, support.trips[0].name);
+    assert.equal(
+      guidance.trips[0].movement_date,
+      '2030-01-03T08:00:00.000Z',
+    );
+    assert.equal(
+      support.trips[0].movement_date,
+      '2030-01-04T08:00:00.000Z',
+    );
+    assert.deepEqual(guidance.people, []);
+    assert.deepEqual(guidance.vehicles, []);
+  });
+
   it('issues offline-restore-shaped claims without treating the fixture signature as verification', () => {
     const token = createGuidanceContractAccessToken(10_000);
     const [headerSegment, payloadSegment, signature] = token.split('.');

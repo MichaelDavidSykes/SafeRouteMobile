@@ -1,0 +1,8 @@
+appId: host.exp.Exponent
+---
+- tapOn:
+    id: "safe-route-operations-map-return"
+- extendedWaitUntil:
+    visible:
+      id: "guest-map-network-status"
+    timeout: 15000

@@ -133,6 +133,10 @@ describe("Maestro connectivity contract runtime", () => {
     );
     assert.match(
       runner,
+      /assertOperationsCalendarSeed\(requests\)[\s\S]*operations\/client\/66a1b2c3d4e5f60718293a40[\s\S]*operations-active/,
+    );
+    assert.match(
+      runner,
       /CONNECTIVITY_CONTRACT_PHASES\.inactiveSeed[\s\S]*navigation\.persisted[\s\S]*CONNECTIVITY_CONTRACT_PHASES\.inactiveSession[\s\S]*navigation\.cleanup\.settled[\s\S]*tracking\.stop\.settled[\s\S]*CONNECTIVITY_CONTRACT_PHASES\.inactiveRelaunch[\s\S]*navigation\.absence\.readback/,
     );
     assert.match(
@@ -167,11 +171,23 @@ describe("Maestro connectivity contract runtime", () => {
     );
     assert.match(
       runner,
+      /captureAccessibilityHierarchy\('offline-operations-calendar'[\s\S]*safe-route-operations-offline-notice[\s\S]*safe-route-operations-route-movement-1-1/,
+    );
+    assert.match(
+      runner,
+      /captureAccessibilityHierarchy\('offline-operations-calendar'[\s\S]*flows\.operationsReturnMap[\s\S]*CONNECTIVITY_CONTRACT_PHASES\.reconnectChecking/,
+    );
+    assert.match(
+      runner,
       /label: 'Offline saved routes\. This copy was cached less than one hour ago and is review only\. Reconnect and verify workspace access before starting guidance\.'/,
     );
     assert.match(
       seedJourney,
       /setLocation:[\s\S]*safe-route-primary-action"[\s\S]*enabled: true/,
+    );
+    assert.match(
+      seedJourney,
+      /guest-map-gate-calendar[\s\S]*safe-route-operations-route-66e1b2c3d4e5f60718293e40-66b1b2c3d4e5f60718293b40-0[\s\S]*safe-route-operations-map-return/,
     );
     assert.match(
       seed,
@@ -209,6 +225,20 @@ describe("Maestro connectivity contract runtime", () => {
       offlineRelaunch,
       /Workspace, Guidance Operations[\s\S]*Workspace, Choose workspace[\s\S]*safe-route-offline-notice/,
     );
+    assert.match(
+      offlineRelaunch,
+      /safe-route-operations-offline-notice[\s\S]*calendar was saved less than one hour ago[\s\S]*safe-route-operations-route-movement-1-1/,
+    );
+    assert.match(
+      offlineRelaunch,
+      /safe-route-operations-tab-convoy-management[\s\S]*Convoys unavailable offline[\s\S]*assertNotVisible/,
+    );
+    assert.match(
+      fixture,
+      /createGuidanceContractOperations/,
+    );
+    assert.match(fixture, /Guidance airport movement/);
+    assert.match(fixture, /Support continuity movement/);
     assert.match(reconnect, /pressKey: HOME/);
     assert.match(reconnect, /Checking connection\. Map downloads are paused\./);
     assert.match(online, /id: "guest-map-workspace-selector"[\s\S]*enabled: true/);

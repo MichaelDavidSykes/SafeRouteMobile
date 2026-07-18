@@ -128,21 +128,19 @@ describe("operations workspace load ownership", () => {
     );
   });
 
-  it("preserves manifest-request 401s for an authenticated saved-route fallback", async () => {
+  it("preserves manifest-request 401s for the central session-expiry handler", async () => {
     const error = new ApiSessionExpiredError();
-    const result = await loadOperationsWorkspaceData({
-      loadOperations: async () => {
-        throw error;
-      },
-      loadRoutes: async () => routeResult(),
-      ownsRequest: () => true,
-      workspaceId: "workspace-a",
-    });
-
-    assert.equal(result.status, "operations-error");
-    if (result.status === "operations-error") {
-      assert.equal(result.error, error);
-    }
+    await assert.rejects(
+      loadOperationsWorkspaceData({
+        loadOperations: async () => {
+          throw error;
+        },
+        loadRoutes: async () => routeResult(),
+        ownsRequest: () => true,
+        workspaceId: "workspace-a",
+      }),
+      (caught) => caught === error,
+    );
   });
 
   it("suppresses a late manifest success after switching workspaces", async () => {

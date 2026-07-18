@@ -6,7 +6,10 @@ import { loadPreviewOperationsState } from "../src/features/operations/previewOp
 import {
   createCalendarRows,
   createConvoyRows,
+  createOfflineCalendarRows,
   createOperationsEmptyState,
+  createOperationsOfflineEmptyState,
+  createOperationsOfflineReviewPresentation,
   createOperationsLoadingLabel,
   createOperationsSubtitle,
   createOperationsSummaryState,
@@ -188,5 +191,76 @@ describe("view-only operations UI state", () => {
       message: "Operations offline. Showing saved routes only.",
       accessibilityLabel: "Operations offline. Showing saved routes only."
     });
+  });
+
+  it("renders redacted saved calendar rows without implying a cached manifest", () => {
+    const rows = createOfflineCalendarRows([
+      {
+        destination: "London City Airport",
+        durationMinutes: 45,
+        id: "movement-1",
+        movementIso: "2026-07-18T10:30:00.000Z",
+        origin: "Mayfair",
+        status: "ready",
+        title: "Airport transfer",
+      },
+    ]);
+
+    assert.equal(rows.length, 1);
+    assert.match(rows[0].endpointLabel, /Mayfair → London City Airport/);
+    assert.match(rows[0].metaLabel, /45 min window/);
+    assert.equal(rows[0].manifestLabel, "Manifest not stored offline");
+    assert.match(rows[0].accessibilityLabel, /review only/i);
+  });
+
+  it("discloses independent calendar age and honest offline tab availability", () => {
+    const storedAtMs = new Date("2026-07-18T09:00:00.000Z").getTime();
+    const presentation = createOperationsOfflineReviewPresentation({
+      nowMs: storedAtMs + 61 * 60 * 1000,
+      status: "offline",
+      storedAtMs,
+    });
+
+    assert.equal(
+      presentation?.visibleLabel,
+      "Offline · calendar saved 1h · review only",
+    );
+    assert.match(presentation?.accessibilityLabel || "", /convoy manifests are not stored offline/i);
+    assert.equal(
+      createOperationsOfflineReviewPresentation({
+        nowMs: storedAtMs + 24 * 60 * 60 * 1000,
+        status: "offline",
+        storedAtMs,
+      }),
+      null,
+    );
+    assert.match(
+      createOperationsOfflineEmptyState("convoy-management", true).copy,
+      /aren't stored offline/,
+    );
+    assert.match(
+      createOperationsOfflineEmptyState("calendar", false).copy,
+      /securely save/,
+    );
+    assert.equal(
+      createOperationsOfflineEmptyState(
+        "calendar",
+        false,
+        "checking-connection",
+      ).title,
+      "Checking connection",
+    );
+    assert.equal(
+      createOperationsOfflineEmptyState(
+        "convoy-management",
+        false,
+        "checking-access",
+      ).title,
+      "Checking workspace access",
+    );
+    assert.match(
+      createOperationsOfflineEmptyState("planned-routes", true).copy,
+      /Full planned-route details/,
+    );
   });
 });

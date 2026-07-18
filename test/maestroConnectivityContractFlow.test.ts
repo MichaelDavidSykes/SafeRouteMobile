@@ -101,6 +101,21 @@ describe("Maestro connectivity contract runtime", () => {
     const operationsRemovalRelaunch = read(
       "maestro/ios-connectivity-contract-operations-removal-relaunch.yaml",
     );
+    const operationsStopSaving = read(
+      "maestro/ios-connectivity-contract-operations-stop-saving.yaml",
+    );
+    const operationsSavingOffRelaunch = read(
+      "maestro/ios-connectivity-contract-operations-saving-off-relaunch.yaml",
+    );
+    const operationsAllowSaving = read(
+      "maestro/ios-connectivity-contract-operations-allow-saving.yaml",
+    );
+    const operationsDisabledOnline = read(
+      "maestro/ios-connectivity-contract-operations-disabled-online.yaml",
+    );
+    const operationsResavedRelaunch = read(
+      "maestro/ios-connectivity-contract-operations-resaved-relaunch.yaml",
+    );
     const reconnect = read(
       "maestro/ios-connectivity-contract-reconnect-checking.yaml",
     );
@@ -119,6 +134,13 @@ describe("Maestro connectivity contract runtime", () => {
       "connectivityOfflineRelaunch",
       "connectivityReconnectChecking",
       "connectivityOnline",
+      "connectivityDisabledSyncOffline",
+      "connectivityAllowReconnectChecking",
+      "connectivityAllowOnline",
+      "connectivityResaveOffline",
+      "connectivityRemovalRelaunch",
+      "connectivityResaveReconnectChecking",
+      "connectivityResaveOnline",
       "connectivityInactiveSeed",
       "connectivityInactiveSession",
       "connectivityInactiveRelaunch",
@@ -177,11 +199,11 @@ describe("Maestro connectivity contract runtime", () => {
     );
     assert.match(
       runner,
-      /captureAccessibilityHierarchy\('offline-operations-calendar'[\s\S]*safe-route-operations-offline-notice[\s\S]*safe-route-operations-route-movement-1-1[\s\S]*safe-route-operations-remove-calendar[\s\S]*Remove saved calendar from this device/,
+      /captureAccessibilityHierarchy\('offline-operations-calendar'[\s\S]*safe-route-operations-offline-notice[\s\S]*safe-route-operations-route-movement-1-1[\s\S]*safe-route-operations-remove-calendar[\s\S]*safe-route-operations-calendar-saving-control/,
     );
     assert.match(
       runner,
-      /captureAccessibilityHierarchy\('offline-operations-calendar'[\s\S]*flows\.operationsRemoveCalendar[\s\S]*offline-operations-calendar-removed[\s\S]*terminateExpoGo\(deviceId\)[\s\S]*flows\.operationsRemovalRelaunch[\s\S]*offline-operations-calendar-removal-relaunch[\s\S]*flows\.operationsReturnMap[\s\S]*CONNECTIVITY_CONTRACT_PHASES\.reconnectChecking/,
+      /captureAccessibilityHierarchy\('offline-operations-calendar'[\s\S]*flows\.operationsStopCalendarSaving[\s\S]*offline-operations-calendar-saving-off[\s\S]*terminateExpoGo\(deviceId\)[\s\S]*flows\.operationsSavingOffRelaunch[\s\S]*offline-operations-calendar-saving-off-relaunch[\s\S]*flows\.operationsReturnMap[\s\S]*CONNECTIVITY_CONTRACT_PHASES\.reconnectChecking/,
     );
     assert.match(
       operationsRemoveCalendar,
@@ -189,7 +211,31 @@ describe("Maestro connectivity contract runtime", () => {
     );
     assert.match(
       operationsRemovalRelaunch,
-      /safe-route-card-66b1b2c3d4e5f60718293b40[\s\S]*guest-map-gate-calendar[\s\S]*Calendar unavailable offline[\s\S]*assertNotVisible:[\s\S]*safe-route-operations-route-movement-1-1/,
+      /safe-route-card-66b1b2c3d4e5f60718293b40[\s\S]*guest-map-gate-calendar[\s\S]*Calendar unavailable offline[\s\S]*Offline saving is on[\s\S]*assertNotVisible:[\s\S]*safe-route-operations-route-movement-1-1/,
+    );
+    assert.match(
+      operationsStopSaving,
+      /safe-route-operations-calendar-saving-control[\s\S]*Stop offline Calendar saves[\s\S]*Cancel[\s\S]*safe-route-operations-route-movement-1-1[\s\S]*\^Stop saving\$[\s\S]*Offline Calendar saving is off[\s\S]*No offline Calendar saved/,
+    );
+    assert.match(
+      operationsSavingOffRelaunch,
+      /safe-route-card-66b1b2c3d4e5f60718293b40[\s\S]*guest-map-gate-calendar[\s\S]*No offline Calendar saved[\s\S]*Offline Calendar saving is off[\s\S]*safe-route-operations-calendar-saving-control[\s\S]*assertNotVisible:[\s\S]*safe-route-operations-route-movement-1-1/,
+    );
+    assert.match(
+      operationsAllowSaving,
+      /guest-map-gate-calendar[\s\S]*Offline Calendar saving is off[\s\S]*safe-route-operations-route-66e1b2c3d4e5f60718293e40-66b1b2c3d4e5f60718293b40-0[\s\S]*safe-route-operations-calendar-saving-control[\s\S]*Offline Calendar saved[\s\S]*safe-route-operations-map-return/,
+    );
+    assert.match(
+      runner,
+      /waitForReconnectAuthorization\(onlineSettlement\.sequence\)[\s\S]*flows\.operationsDisabledOnline[\s\S]*CONNECTIVITY_CONTRACT_PHASES\.disabledSyncOffline[\s\S]*flows\.operationsSavingOffRelaunch[\s\S]*CONNECTIVITY_CONTRACT_PHASES\.allowReconnectChecking[\s\S]*CONNECTIVITY_CONTRACT_PHASES\.allowOnline[\s\S]*flows\.operationsAllowCalendarSaving[\s\S]*online-operations-calendar-saving-allowed[\s\S]*CONNECTIVITY_CONTRACT_PHASES\.resaveOffline[\s\S]*flows\.operationsResavedCalendarRelaunch[\s\S]*offline-operations-calendar-resaved[\s\S]*flows\.operationsRemoveCalendar[\s\S]*offline-operations-calendar-removed[\s\S]*CONNECTIVITY_CONTRACT_PHASES\.removalRelaunch[\s\S]*flows\.operationsRemovalRelaunch[\s\S]*offline-operations-calendar-removal-relaunch[\s\S]*CONNECTIVITY_CONTRACT_PHASES\.resaveReconnectChecking[\s\S]*CONNECTIVITY_CONTRACT_PHASES\.resaveOnline[\s\S]*CONNECTIVITY_CONTRACT_PHASES\.inactiveSeed/,
+    );
+    assert.match(
+      operationsDisabledOnline,
+      /Offline Calendar saving is off[\s\S]*safe-route-operations-route-66e1b2c3d4e5f60718293e40-66b1b2c3d4e5f60718293b40-0[\s\S]*assertNotVisible:[\s\S]*safe-route-operations-offline-notice[\s\S]*safe-route-operations-map-return/,
+    );
+    assert.match(
+      operationsResavedRelaunch,
+      /Offline map\. Saved route information remains available\.[\s\S]*guest-map-gate-calendar[\s\S]*safe-route-operations-route-movement-1-1[\s\S]*Offline saving is on[\s\S]*safe-route-operations-calendar-saving-control[\s\S]*assertNotVisible:[\s\S]*safe-route-operations-empty-state/,
     );
     assert.match(
       runner,

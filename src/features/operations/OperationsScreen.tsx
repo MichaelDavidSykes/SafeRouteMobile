@@ -27,10 +27,12 @@ import { fetchOperationsState } from "./operationsApi";
 import type { SafeRouteOperationsState } from "./operationsTypes";
 import {
   clearOfflineOperationsWorkspace,
-  loadOfflineOperationsSnapshot,
+  disableOfflineOperationsCalendarSaving,
+  enableOfflineOperationsCalendarSaving,
+  getOfflineOperationsCalendarSavingPreference,
+  loadOfflineOperationsSnapshotIfAllowed,
   removeOfflineOperationsWorkspaceCalendar,
-  saveOfflineOperationsSnapshot,
-  tryActivateOfflineOperationsWorkspace,
+  saveOfflineOperationsSnapshotIfAllowed,
 } from "./offlineOperationsCache";
 import type {
   OfflineOperationsCalendarEntry,
@@ -47,7 +49,9 @@ import {
   createOperationsExpiredCacheMessage,
   createOperationsLoadingLabel,
   createOperationsOfflineEmptyState,
+  createOperationsOfflineSavingEmptyState,
   createOperationsOfflineReviewPresentation,
+  createOperationsOfflineCalendarSavingPresentation,
   createOperationsSubtitle,
   createOperationsSummaryState,
   createOperationsSyncWarningState,
@@ -62,12 +66,38 @@ import {
   shouldShowOperationsWorkspaceSelector,
   type OperationsConvoyRow,
   type OperationsOfflineCalendarRemovalState,
+  type OperationsOfflineCalendarSavingState,
   type OperationsRouteRow,
   type OperationsTab
 } from "./operationsUiState";
 
 const OPERATIONS_ERROR_ACTION_HIT_SLOP = 6;
 const OFFLINE_CALENDAR_REMOVAL_RETRY_SCOPES = new Set<string>();
+
+function resolveOfflineCalendarSavingState(
+  status:
+    | "allowed"
+    | "cleanup-pending"
+    | "cleanup-retry"
+    | "disabled"
+    | "enabled"
+    | "unavailable"
+    | "unverified",
+): OperationsOfflineCalendarSavingState {
+  if (status === "cleanup-pending" || status === "cleanup-retry") {
+    return "cleanup-retry";
+  }
+  if (status === "unverified") {
+    return "stop-retry";
+  }
+  if (status === "disabled") {
+    return "disabled";
+  }
+  if (status === "unavailable") {
+    return "unavailable";
+  }
+  return "enabled";
+}
 
 interface OperationsScreenProps {
   accessToken: string;
@@ -142,12 +172,21 @@ export function OperationsScreen({
   const [offlineCopyNowMs, setOfflineCopyNowMs] = useState(() => Date.now());
   const [storedOfflineCalendarRemovalState, setStoredOfflineCalendarRemovalState] =
     useState<OperationsOfflineCalendarRemovalState>("idle");
+  const [storedOfflineCalendarSavingState, setStoredOfflineCalendarSavingState] =
+    useState<OperationsOfflineCalendarSavingState>("checking");
   const [clientMenuOpen, setClientMenuOpen] = useState(false);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [errorState, setErrorState] = useState<RouteListErrorState | null>(null);
   const loadRevisionRef = useRef(0);
   const offlineCalendarRemovalRevisionRef = useRef(0);
+  const offlineCalendarSavingRevisionRef = useRef(0);
+  const offlineCalendarSavingPendingRef = useRef<{
+    revision: number;
+    scopeKey: string;
+  } | null>(null);
+  const offlineCalendarSavingAwaitingSaveScopeRef =
+    useRef<string | null>(null);
   const offlineCalendarRemovalPendingRef = useRef<{
     revision: number;
     scopeKey: string;
@@ -164,12 +203,38 @@ export function OperationsScreen({
     offlineCalendarRemovalScopeKey
       ? storedOfflineCalendarRemovalState
       : "idle";
+  const offlineCalendarSavingStateScopeRef = useRef(
+    offlineCalendarRemovalScopeKey,
+  );
+  const offlineCalendarSavingState =
+    offlineCalendarSavingStateScopeRef.current ===
+    offlineCalendarRemovalScopeKey
+      ? storedOfflineCalendarSavingState
+      : "checking";
   const setOfflineCalendarRemovalState = (
     state: OperationsOfflineCalendarRemovalState,
   ) => {
     offlineCalendarRemovalStateScopeRef.current =
       offlineCalendarRemovalScopeKey;
     setStoredOfflineCalendarRemovalState(state);
+  };
+  const setOfflineCalendarSavingState = (
+    state: OperationsOfflineCalendarSavingState,
+  ) => {
+    offlineCalendarSavingStateScopeRef.current =
+      offlineCalendarRemovalScopeKey;
+    setStoredOfflineCalendarSavingState(state);
+  };
+  const setOfflineCalendarSavingStateFromLoad = (
+    state: OperationsOfflineCalendarSavingState,
+  ) => {
+    if (
+      offlineCalendarSavingPendingRef.current?.scopeKey ===
+      offlineCalendarRemovalScopeKey
+    ) {
+      return;
+    }
+    setOfflineCalendarSavingState(state);
   };
   const protectedRequestsAvailableRef = useRef(protectedRequestsAvailable);
   if (protectedRequestsAvailableRef.current !== protectedRequestsAvailable) {
@@ -230,6 +295,7 @@ export function OperationsScreen({
         setShowingOfflineCopy(false);
         setOfflineCopyStoredAtMs(null);
         setOfflineCalendarRemovalState("idle");
+        setOfflineCalendarSavingState("checking");
         setLoading(false);
         setRefreshing(false);
         return;
@@ -259,13 +325,17 @@ export function OperationsScreen({
       };
 
       if (!protectedRequestsAvailable) {
-        const cachedSnapshot = await loadOfflineOperationsSnapshot(
+        const cacheResult = await loadOfflineOperationsSnapshotIfAllowed(
           cacheIdentity,
           requestWorkspaceId,
         );
         if (!requestOwnsWorkspace()) {
           return;
         }
+        setOfflineCalendarSavingStateFromLoad(
+          resolveOfflineCalendarSavingState(cacheResult.status),
+        );
+        const cachedSnapshot = cacheResult.snapshot;
         if (cachedSnapshot) {
           publishOfflineSnapshot(cachedSnapshot);
         } else {
@@ -326,27 +396,36 @@ export function OperationsScreen({
           return;
         }
         if (result.status === "loaded") {
-          const cacheWorkspaceActivated =
-            await tryActivateOfflineOperationsWorkspace(
+          const cacheResult =
+            await saveOfflineOperationsSnapshotIfAllowed(
               cacheIdentity,
               requestWorkspaceId,
+              {
+                operationsState: result.operationsState,
+                routes: result.routes,
+              },
             );
           if (!requestOwnsWorkspace()) {
             return;
           }
-          const cachedSnapshot = cacheWorkspaceActivated
-            ? await saveOfflineOperationsSnapshot(
-                cacheIdentity,
-                requestWorkspaceId,
-                {
-                  operationsState: result.operationsState,
-                  routes: result.routes,
-                },
-              )
-            : null;
-          if (!requestOwnsWorkspace()) {
-            return;
+          const cachedSnapshot = cacheResult.snapshot;
+          const awaitingVerifiedSave =
+            offlineCalendarSavingAwaitingSaveScopeRef.current ===
+            requestRemovalScopeKey;
+          if (
+            awaitingVerifiedSave &&
+            cacheResult.status === "allowed" &&
+            cachedSnapshot
+          ) {
+            offlineCalendarSavingAwaitingSaveScopeRef.current = null;
           }
+          setOfflineCalendarSavingStateFromLoad(
+            awaitingVerifiedSave &&
+              cacheResult.status === "allowed" &&
+              cachedSnapshot
+              ? "saved"
+              : resolveOfflineCalendarSavingState(cacheResult.status),
+          );
           setRoutes(result.routes);
           loadedWorkspaceIdRef.current = requestWorkspaceId;
           setLoadedWorkspaceId(requestWorkspaceId);
@@ -354,7 +433,7 @@ export function OperationsScreen({
           setOfflineCalendarEntries([]);
           setShowingOfflineCopy(false);
           setOfflineCopyStoredAtMs(cachedSnapshot?.storedAtMs || null);
-          if (cacheWorkspaceActivated) {
+          if (cacheResult.status === "allowed") {
             offlineCalendarRemovalRetryScopesRef.current.delete(
               requestRemovalScopeKey,
             );
@@ -363,13 +442,17 @@ export function OperationsScreen({
           return;
         }
 
-        const cachedSnapshot = await loadOfflineOperationsSnapshot(
+        const cacheResult = await loadOfflineOperationsSnapshotIfAllowed(
           cacheIdentity,
           requestWorkspaceId,
         );
         if (!requestOwnsWorkspace()) {
           return;
         }
+        setOfflineCalendarSavingStateFromLoad(
+          resolveOfflineCalendarSavingState(cacheResult.status),
+        );
+        const cachedSnapshot = cacheResult.snapshot;
         if (cachedSnapshot) {
           loadedWorkspaceIdRef.current = requestWorkspaceId;
           setLoadedWorkspaceId(requestWorkspaceId);
@@ -404,13 +487,17 @@ export function OperationsScreen({
           onSessionExpired(error.message);
           return;
         }
-        const cachedSnapshot = await loadOfflineOperationsSnapshot(
+        const cacheResult = await loadOfflineOperationsSnapshotIfAllowed(
           cacheIdentity,
           requestWorkspaceId,
         );
         if (!requestOwnsWorkspace()) {
           return;
         }
+        setOfflineCalendarSavingStateFromLoad(
+          resolveOfflineCalendarSavingState(cacheResult.status),
+        );
+        const cachedSnapshot = cacheResult.snapshot;
         if (cachedSnapshot) {
           publishOfflineSnapshot(
             cachedSnapshot,
@@ -453,9 +540,14 @@ export function OperationsScreen({
 
   useEffect(() => {
     offlineCalendarRemovalRevisionRef.current += 1;
+    offlineCalendarSavingRevisionRef.current += 1;
     offlineCalendarRemovalPendingRef.current = null;
     offlineCalendarRemovalReloadPendingRef.current = false;
+    offlineCalendarSavingPendingRef.current = null;
+    offlineCalendarSavingAwaitingSaveScopeRef.current = null;
     offlineCalendarRemovalStateScopeRef.current =
+      offlineCalendarRemovalScopeKey;
+    offlineCalendarSavingStateScopeRef.current =
       offlineCalendarRemovalScopeKey;
     setStoredOfflineCalendarRemovalState(
       offlineCalendarRemovalRetryScopesRef.current.has(
@@ -464,13 +556,36 @@ export function OperationsScreen({
         ? "retry"
         : "idle",
     );
+    setStoredOfflineCalendarSavingState("checking");
+    const preferenceWorkspaceId = selectedWorkspaceId;
+    if (!preferenceWorkspaceId) {
+      return;
+    }
+    const preferenceRevision = offlineCalendarSavingRevisionRef.current;
+    void getOfflineOperationsCalendarSavingPreference(
+      cacheIdentity,
+      preferenceWorkspaceId,
+    ).then((preference) => {
+      if (
+        offlineCalendarSavingRevisionRef.current !== preferenceRevision ||
+        activeWorkspaceIdRef.current !== preferenceWorkspaceId
+      ) {
+        return;
+      }
+      setOfflineCalendarSavingState(
+        resolveOfflineCalendarSavingState(preference),
+      );
+    });
   }, [offlineCalendarRemovalScopeKey]);
 
   useEffect(
     () => () => {
       offlineCalendarRemovalRevisionRef.current += 1;
+      offlineCalendarSavingRevisionRef.current += 1;
       offlineCalendarRemovalPendingRef.current = null;
       offlineCalendarRemovalReloadPendingRef.current = false;
+      offlineCalendarSavingPendingRef.current = null;
+      offlineCalendarSavingAwaitingSaveScopeRef.current = null;
     },
     [],
   );
@@ -523,13 +638,21 @@ export function OperationsScreen({
       : protectedRequestsAvailable
         ? "sync-unavailable"
         : "checking-access";
-  const emptyState = showingOfflineCopy || !protectedRequestsAvailable
-    ? createOperationsOfflineEmptyState(
-        activeTab,
-        showingOfflineCopy,
-        offlineReviewStatus,
-      )
-    : createOperationsEmptyState(activeTab);
+  const offlineSavingEmptyState =
+    activeTab === "calendar" && !protectedRequestsAvailable
+      ? createOperationsOfflineSavingEmptyState(
+          offlineCalendarSavingState,
+        )
+      : null;
+  const emptyState =
+    offlineSavingEmptyState ||
+    (showingOfflineCopy || !protectedRequestsAvailable
+      ? createOperationsOfflineEmptyState(
+          activeTab,
+          showingOfflineCopy,
+          offlineReviewStatus,
+        )
+      : createOperationsEmptyState(activeTab));
   const mapReturnState = createRouteListMapReturnState();
   const signOutState = createRouteListSignOutState(userEmail);
   const sessionNoticeState = createSessionNoticeState(sessionNotice);
@@ -564,6 +687,14 @@ export function OperationsScreen({
         offlineCalendarRemovalState,
       ),
     [offlineCalendarRemovalState],
+  );
+  const offlineCalendarSavingPresentation = useMemo(
+    () =>
+      createOperationsOfflineCalendarSavingPresentation(
+        offlineCalendarSavingState,
+        selectedWorkspaceOption?.label,
+      ),
+    [offlineCalendarSavingState, selectedWorkspaceOption?.label],
   );
 
   useEffect(() => {
@@ -641,6 +772,9 @@ export function OperationsScreen({
     if (
       !removalWorkspaceId ||
       offlineCalendarRemovalState === "removing" ||
+      offlineCalendarSavingPresentation.busy ||
+      offlineCalendarSavingPendingRef.current?.scopeKey ===
+        offlineCalendarRemovalScopeKey ||
       offlineCalendarRemovalPendingRef.current?.scopeKey ===
         offlineCalendarRemovalScopeKey ||
       activeWorkspaceIdRef.current !== removalWorkspaceId
@@ -721,7 +855,10 @@ export function OperationsScreen({
     if (
       !showingOfflineCopy ||
       !selectedWorkspaceId ||
-      offlineCalendarRemovalState === "removing"
+      offlineCalendarRemovalState === "removing" ||
+      offlineCalendarSavingPresentation.busy ||
+      offlineCalendarSavingPendingRef.current?.scopeKey ===
+        offlineCalendarRemovalScopeKey
     ) {
       return;
     }
@@ -742,6 +879,229 @@ export function OperationsScreen({
         text: "Remove",
       },
     ]);
+  };
+
+  const stopOfflineCalendarSaving = async () => {
+    const preferenceWorkspaceId = selectedWorkspaceId;
+    const preferenceCacheIdentity = cacheIdentity;
+    if (
+      !preferenceWorkspaceId ||
+      offlineCalendarSavingPresentation.busy ||
+      offlineCalendarRemovalState === "removing" ||
+      offlineCalendarRemovalPendingRef.current?.scopeKey ===
+        offlineCalendarRemovalScopeKey ||
+      offlineCalendarSavingPendingRef.current?.scopeKey ===
+        offlineCalendarRemovalScopeKey ||
+      activeWorkspaceIdRef.current !== preferenceWorkspaceId
+    ) {
+      return;
+    }
+    const preferenceRevision =
+      offlineCalendarSavingRevisionRef.current + 1;
+    offlineCalendarSavingRevisionRef.current = preferenceRevision;
+    offlineCalendarSavingPendingRef.current = {
+      revision: preferenceRevision,
+      scopeKey: offlineCalendarRemovalScopeKey,
+    };
+    offlineCalendarSavingAwaitingSaveScopeRef.current = null;
+    loadRevisionRef.current += 1;
+    setOfflineCalendarSavingState("stopping");
+    if (showingOfflineCopy) {
+      loadedWorkspaceIdRef.current = preferenceWorkspaceId;
+      setLoadedWorkspaceId(preferenceWorkspaceId);
+      setRoutes([]);
+      setOperationsState(null);
+      setOfflineCalendarEntries([]);
+      setOperationsWarning(null);
+      setShowingOfflineCopy(false);
+      setOfflineCopyStoredAtMs(null);
+      setErrorState(null);
+    }
+    if (loadedWorkspaceIdRef.current !== preferenceWorkspaceId) {
+      loadedWorkspaceIdRef.current = preferenceWorkspaceId;
+      setLoadedWorkspaceId(preferenceWorkspaceId);
+      setRoutes([]);
+      setOperationsState(null);
+      setOfflineCalendarEntries([]);
+    }
+    setLoading(false);
+    setRefreshing(false);
+
+    let nextState: OperationsOfflineCalendarSavingState;
+    try {
+      const result = await disableOfflineOperationsCalendarSaving(
+        preferenceCacheIdentity,
+        preferenceWorkspaceId,
+      );
+      nextState =
+        result === "capacity"
+          ? "capacity"
+          : result === "cleanup-retry"
+            ? "cleanup-retry"
+            : "disabled";
+    } catch {
+      nextState = "stop-retry";
+    }
+    if (
+      offlineCalendarSavingRevisionRef.current !== preferenceRevision ||
+      activeWorkspaceIdRef.current !== preferenceWorkspaceId
+    ) {
+      return;
+    }
+    const pendingPreference = offlineCalendarSavingPendingRef.current;
+    if (
+      pendingPreference?.revision !== preferenceRevision ||
+      pendingPreference.scopeKey !== offlineCalendarRemovalScopeKey
+    ) {
+      return;
+    }
+    if (protectedRequestsAvailableRef.current) {
+      await loadOperationsRef.current();
+    }
+    if (
+      offlineCalendarSavingRevisionRef.current !== preferenceRevision ||
+      activeWorkspaceIdRef.current !== preferenceWorkspaceId ||
+      offlineCalendarSavingPendingRef.current?.revision !==
+        preferenceRevision ||
+      offlineCalendarSavingPendingRef.current.scopeKey !==
+        offlineCalendarRemovalScopeKey
+    ) {
+      return;
+    }
+    offlineCalendarSavingPendingRef.current = null;
+    setOfflineCalendarSavingState(nextState);
+  };
+
+  const confirmStopOfflineCalendarSaving = () => {
+    const confirmation = offlineCalendarSavingPresentation.confirmation;
+    if (
+      !confirmation ||
+      offlineCalendarSavingPresentation.busy ||
+      offlineCalendarRemovalState === "removing" ||
+      offlineCalendarRemovalPendingRef.current?.scopeKey ===
+        offlineCalendarRemovalScopeKey
+    ) {
+      return;
+    }
+    Alert.alert(confirmation.title, confirmation.copy, [
+      { style: "cancel", text: "Cancel" },
+      {
+        onPress: () => {
+          void stopOfflineCalendarSaving();
+        },
+        style: "destructive",
+        text: "Stop saving",
+      },
+    ]);
+  };
+
+  const allowOfflineCalendarSaving = async () => {
+    const preferenceWorkspaceId = selectedWorkspaceId;
+    const preferenceCacheIdentity = cacheIdentity;
+    if (
+      !preferenceWorkspaceId ||
+      offlineCalendarSavingPresentation.busy ||
+      offlineCalendarRemovalState === "removing" ||
+      offlineCalendarRemovalPendingRef.current?.scopeKey ===
+        offlineCalendarRemovalScopeKey ||
+      offlineCalendarSavingPendingRef.current?.scopeKey ===
+        offlineCalendarRemovalScopeKey ||
+      activeWorkspaceIdRef.current !== preferenceWorkspaceId
+    ) {
+      return;
+    }
+    const preferenceRevision =
+      offlineCalendarSavingRevisionRef.current + 1;
+    offlineCalendarSavingRevisionRef.current = preferenceRevision;
+    offlineCalendarSavingPendingRef.current = {
+      revision: preferenceRevision,
+      scopeKey: offlineCalendarRemovalScopeKey,
+    };
+    setOfflineCalendarSavingState("allowing");
+    try {
+      await enableOfflineOperationsCalendarSaving(
+        preferenceCacheIdentity,
+        preferenceWorkspaceId,
+      );
+    } catch {
+      if (
+        offlineCalendarSavingRevisionRef.current === preferenceRevision &&
+        activeWorkspaceIdRef.current === preferenceWorkspaceId
+      ) {
+        offlineCalendarSavingPendingRef.current = null;
+        setOfflineCalendarSavingState("allow-retry");
+      }
+      return;
+    }
+    if (
+      offlineCalendarSavingRevisionRef.current !== preferenceRevision ||
+      activeWorkspaceIdRef.current !== preferenceWorkspaceId
+    ) {
+      return;
+    }
+    const pendingPreference = offlineCalendarSavingPendingRef.current;
+    if (
+      pendingPreference?.revision !== preferenceRevision ||
+      pendingPreference.scopeKey !== offlineCalendarRemovalScopeKey
+    ) {
+      return;
+    }
+    offlineCalendarSavingPendingRef.current = null;
+    offlineCalendarSavingAwaitingSaveScopeRef.current =
+      offlineCalendarRemovalScopeKey;
+    setOfflineCalendarSavingState("allowed");
+    if (protectedRequestsAvailableRef.current) {
+      void loadOperationsRef.current();
+    }
+  };
+
+  const retryOfflineCalendarSavingCheck = async () => {
+    const preferenceWorkspaceId = selectedWorkspaceId;
+    if (!preferenceWorkspaceId) {
+      return;
+    }
+    const preferenceRevision =
+      offlineCalendarSavingRevisionRef.current + 1;
+    offlineCalendarSavingRevisionRef.current = preferenceRevision;
+    setOfflineCalendarSavingState("checking");
+    const preference = await getOfflineOperationsCalendarSavingPreference(
+      cacheIdentity,
+      preferenceWorkspaceId,
+    );
+    if (
+      offlineCalendarSavingRevisionRef.current !== preferenceRevision ||
+      activeWorkspaceIdRef.current !== preferenceWorkspaceId
+    ) {
+      return;
+    }
+    setOfflineCalendarSavingState(
+      resolveOfflineCalendarSavingState(preference),
+    );
+  };
+
+  const handleOfflineCalendarSavingAction = () => {
+    if (
+      offlineCalendarRemovalState === "removing" ||
+      offlineCalendarRemovalPendingRef.current?.scopeKey ===
+        offlineCalendarRemovalScopeKey
+    ) {
+      return;
+    }
+    if (offlineCalendarSavingPresentation.actionKind === "stop") {
+      if (offlineCalendarSavingPresentation.confirmation) {
+        confirmStopOfflineCalendarSaving();
+      } else {
+        void stopOfflineCalendarSaving();
+      }
+      return;
+    }
+    if (offlineCalendarSavingPresentation.actionKind === "allow") {
+      void allowOfflineCalendarSaving();
+      return;
+    }
+    if (offlineCalendarSavingPresentation.actionKind === "check") {
+      void retryOfflineCalendarSavingCheck();
+    }
   };
 
   return (
@@ -897,9 +1257,13 @@ export function OperationsScreen({
                       setShowingOfflineCopy(false);
                       setOfflineCopyStoredAtMs(null);
                       offlineCalendarRemovalRevisionRef.current += 1;
+                      offlineCalendarSavingRevisionRef.current += 1;
                       offlineCalendarRemovalPendingRef.current = null;
                       offlineCalendarRemovalReloadPendingRef.current = false;
+                      offlineCalendarSavingPendingRef.current = null;
+                      offlineCalendarSavingAwaitingSaveScopeRef.current = null;
                       setOfflineCalendarRemovalState("idle");
+                      setOfflineCalendarSavingState("checking");
                       setErrorState(null);
                       setLoading(true);
                       setRefreshing(false);
@@ -939,6 +1303,87 @@ export function OperationsScreen({
         />
       ) : null}
 
+      {activeTab === "calendar" &&
+      selectedWorkspaceId &&
+      !workspaceState ? (
+        <View style={styles.offlineSavingControl}>
+          <View
+            accessible
+            accessibilityLabel={`${selectedWorkspaceOption?.label || "Current workspace"}. ${offlineCalendarSavingPresentation.title}. ${offlineCalendarSavingPresentation.message}`}
+            accessibilityRole={
+              offlineCalendarSavingPresentation.busy
+                ? "progressbar"
+                : offlineCalendarSavingPresentation.tone === "failure" ||
+                    offlineCalendarSavingPresentation.tone === "success"
+                  ? "alert"
+                  : "summary"
+            }
+            accessibilityState={{
+              busy: offlineCalendarSavingPresentation.busy,
+            }}
+            style={styles.offlineSavingCopy}
+            testID={uiTestIds.operationsCalendarSavingStatus}
+          >
+            <View style={styles.offlineSavingTitleRow}>
+              {offlineCalendarSavingPresentation.busy ? (
+                <ActivityIndicator
+                  color={colors.appleBlue}
+                  size="small"
+                />
+              ) : null}
+              <Text style={styles.offlineSavingTitle}>
+                {offlineCalendarSavingPresentation.title}
+              </Text>
+            </View>
+            <Text style={styles.offlineSavingMessage}>
+              {offlineCalendarSavingPresentation.message}
+            </Text>
+          </View>
+          {offlineCalendarSavingPresentation.actionLabel ? (
+            <Pressable
+              accessibilityHint={
+                offlineCalendarSavingPresentation.actionAccessibilityHint ||
+                undefined
+              }
+              accessibilityLabel={
+                offlineCalendarSavingPresentation.actionAccessibilityLabel ||
+                undefined
+              }
+              accessibilityRole="button"
+              accessibilityState={{
+                disabled:
+                  offlineCalendarSavingPresentation.busy ||
+                  offlineCalendarRemovalState === "removing",
+              }}
+              disabled={
+                offlineCalendarSavingPresentation.busy ||
+                offlineCalendarRemovalState === "removing"
+              }
+              testID={uiTestIds.operationsCalendarSavingControl}
+              style={({ pressed }) => [
+                styles.offlineSavingAction,
+                offlineCalendarSavingPresentation.actionKind === "stop"
+                  ? styles.offlineSavingActionDanger
+                  : null,
+                pressed ? styles.offlineSavingActionPressed : null,
+              ]}
+              onPress={handleOfflineCalendarSavingAction}
+            >
+              <Text
+                style={[
+                  styles.offlineSavingActionText,
+                  offlineCalendarSavingPresentation.actionKind === "stop"
+                    ? styles.offlineSavingActionDangerText
+                    : null,
+                ]}
+              >
+                {offlineCalendarSavingPresentation.actionLabel}
+              </Text>
+            </Pressable>
+          ) : null}
+        </View>
+      ) : null}
+
       {showingOfflineCopy && offlineReviewPresentation ? (
         <View style={styles.offlineReviewControls}>
           <View
@@ -964,9 +1409,14 @@ export function OperationsScreen({
             accessibilityRole="button"
             accessibilityState={{
               busy: offlineCalendarRemovalPresentation.busy,
-              disabled: offlineCalendarRemovalPresentation.busy,
+              disabled:
+                offlineCalendarRemovalPresentation.busy ||
+                offlineCalendarSavingPresentation.busy,
             }}
-            disabled={offlineCalendarRemovalPresentation.busy}
+            disabled={
+              offlineCalendarRemovalPresentation.busy ||
+              offlineCalendarSavingPresentation.busy
+            }
             testID={uiTestIds.operationsRemoveSavedCalendar}
             style={({ pressed }) => [
               styles.offlineRemoveButton,
@@ -1025,12 +1475,16 @@ export function OperationsScreen({
             offlineCalendarRemovalPresentation.actionAccessibilityHint ||
             undefined
           }
-          accessibilityLabel={
-            offlineCalendarRemovalPresentation.actionAccessibilityLabel ||
-            undefined
-          }
-          accessibilityRole="button"
-          testID={uiTestIds.operationsCalendarRemovalRetry}
+              accessibilityLabel={
+                offlineCalendarRemovalPresentation.actionAccessibilityLabel ||
+                undefined
+              }
+              accessibilityRole="button"
+              accessibilityState={{
+                disabled: offlineCalendarSavingPresentation.busy,
+              }}
+              disabled={offlineCalendarSavingPresentation.busy}
+              testID={uiTestIds.operationsCalendarRemovalRetry}
           style={({ pressed }) => [
             styles.offlineRemovalRetry,
             pressed ? styles.offlineRemoveButtonPressed : null,

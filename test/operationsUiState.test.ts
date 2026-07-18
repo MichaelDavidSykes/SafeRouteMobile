@@ -9,6 +9,8 @@ import {
   createOfflineCalendarRows,
   createOperationsEmptyState,
   createOperationsOfflineCalendarRemovalPresentation,
+  createOperationsOfflineCalendarSavingPresentation,
+  createOperationsOfflineSavingEmptyState,
   createOperationsOfflineEmptyState,
   createOperationsOfflineReviewPresentation,
   createOperationsLoadingLabel,
@@ -304,5 +306,77 @@ describe("view-only operations UI state", () => {
     assert.equal(retry.status?.title, "Removal needs retry");
     assert.match(retry.status?.message || "", /hidden/);
     assert.match(retry.status?.message || "", /could not confirm removal/);
+  });
+
+  it("distinguishes durable offline saving consent from one-shot removal", () => {
+    const enabled =
+      createOperationsOfflineCalendarSavingPresentation("enabled");
+    assert.equal(enabled.actionKind, "stop");
+    assert.equal(enabled.actionLabel, "Stop future offline saves");
+    assert.match(enabled.confirmation?.copy || "", /won't save it again/i);
+    assert.match(enabled.confirmation?.copy || "", /other workspaces are unchanged/i);
+
+    const disabled =
+      createOperationsOfflineCalendarSavingPresentation(
+        "disabled",
+        "Guidance Operations",
+      );
+    assert.equal(disabled.actionKind, "allow");
+    assert.equal(disabled.actionLabel, "Allow offline saving");
+    assert.match(disabled.message, /Nothing will be saved/i);
+    assert.match(
+      disabled.actionAccessibilityLabel || "",
+      /Guidance Operations/,
+    );
+
+    const cleanup =
+      createOperationsOfflineCalendarSavingPresentation("cleanup-retry");
+    assert.equal(cleanup.tone, "failure");
+    assert.equal(cleanup.actionLabel, "Retry cleanup");
+    assert.match(cleanup.message, /Future saves are off/i);
+
+    const unavailable =
+      createOperationsOfflineCalendarSavingPresentation("unavailable");
+    assert.equal(unavailable.actionKind, "check");
+    assert.match(unavailable.message, /reads and saves are blocked/i);
+
+    assert.equal(
+      createOperationsOfflineCalendarSavingPresentation("stopping").busy,
+      true,
+    );
+    assert.equal(
+      createOperationsOfflineCalendarSavingPresentation("allow-retry")
+        .actionLabel,
+      "Retry allowing saves",
+    );
+    assert.equal(
+      createOperationsOfflineCalendarSavingPresentation("stopping")
+        .actionLabel,
+      "Stopping…",
+    );
+    assert.match(
+      createOperationsOfflineSavingEmptyState("disabled")?.copy || "",
+      /Allow offline saving, then reconnect/,
+    );
+    assert.match(
+      createOperationsOfflineSavingEmptyState("cleanup-retry")?.copy || "",
+      /Retry cleanup/,
+    );
+    assert.match(
+      createOperationsOfflineSavingEmptyState("unavailable")?.copy || "",
+      /no saved Calendar is shown/,
+    );
+    assert.match(
+      createOperationsOfflineCalendarSavingPresentation("capacity").message,
+      /setting is unchanged[\s\S]*may remain on this device/i,
+    );
+    assert.match(
+      createOperationsOfflineSavingEmptyState("capacity")?.copy || "",
+      /may still be saved/i,
+    );
+    assert.equal(
+      createOperationsOfflineCalendarSavingPresentation("saved").tone,
+      "success",
+    );
   });
 });

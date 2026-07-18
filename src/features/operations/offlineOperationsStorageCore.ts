@@ -289,7 +289,13 @@ export function createOfflineOperationsStorage(
           ) {
             return;
           }
-          await adapter.set(JSON.stringify(record));
+          const serialized = JSON.stringify(record);
+          await adapter.set(serialized);
+          if ((await adapter.get()) !== serialized) {
+            throw new Error(
+              "Offline Operations calendar save could not be verified",
+            );
+          }
           persisted = true;
         });
         return persisted ? snapshot : null;

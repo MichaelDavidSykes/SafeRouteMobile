@@ -251,6 +251,24 @@ describe('Maestro guidance contract API', () => {
         settlementSequence: 2,
       }),
     );
+    assert.doesNotThrow(() =>
+      assertConnectivityContractReconnectAuthorization(
+        entries.map((entry) => ({
+          ...entry,
+          phase:
+            entry.phase === "connectivityReconnectChecking"
+              ? "connectivityResaveReconnectChecking"
+              : entry.phase === "connectivityOnline"
+                ? "connectivityResaveOnline"
+                : entry.phase,
+        })),
+        {
+          onlinePhase: "connectivityResaveOnline",
+          reconnectPhase: "connectivityResaveReconnectChecking",
+          settlementSequence: 2,
+        },
+      ),
+    );
     assert.throws(
       () =>
         assertConnectivityContractReconnectAuthorization(

@@ -2481,9 +2481,16 @@ function SafeRouteApp() {
         const failure =
           'Workspace storage could not be verified. Refresh workspace access before continuing.';
         setSessionMessage(failure);
-        AccessibilityInfo.announceForAccessibilityWithOptions(failure, {
-          queue: true,
-        });
+        if (Platform.OS === 'ios') {
+          void workspaceAccessFocusHandoffRef.current?.request(
+            failure,
+            () => workspaceAccessFocusTargetRef.current,
+          );
+        } else {
+          AccessibilityInfo.announceForAccessibilityWithOptions(failure, {
+            queue: true,
+          });
+        }
       };
       const publishSelectionFailure = () => {
         outcomePublished = true;
@@ -2557,18 +2564,31 @@ function SafeRouteApp() {
         }
       } finally {
         if (requestRevision === workspaceSelectionRequestRevisionRef.current) {
+          const uiRequestOwnerIsCurrent =
+            requestOwnerIsCurrent() &&
+            requestedSourceWorkspaceId ===
+              (activeWorkspaceRef.current?.id || null);
           workspaceSelectionPendingRef.current = false;
           workspaceSelectionSavingMessageRef.current = null;
           setWorkspaceSelectionStatus(selectionStatus);
-          if (!outcomePublished) {
-            const stoppedMessage = requestedSourceWorkspaceName
-              ? `Workspace change stopped. Still using ${requestedSourceWorkspaceName}.`
+          if (!outcomePublished && uiRequestOwnerIsCurrent) {
+            const visibleWorkspaceName =
+              activeWorkspaceRef.current?.name || '';
+            const stoppedMessage = visibleWorkspaceName
+              ? `Workspace change stopped. Still using ${visibleWorkspaceName}.`
               : 'Workspace change stopped. Choose a workspace again.';
             setSessionMessage((currentMessage) =>
               currentMessage === savingMessage ? stoppedMessage : currentMessage,
             );
+          } else if (!outcomePublished) {
+            setSessionMessage((currentMessage) =>
+              currentMessage === savingMessage ? '' : currentMessage,
+            );
           }
-          if (workspaceCatalogRefreshDeferredRef.current) {
+          if (
+            uiRequestOwnerIsCurrent &&
+            workspaceCatalogRefreshDeferredRef.current
+          ) {
             const foregroundRefresh =
               workspaceForegroundRefreshDeferredRef.current;
             workspaceCatalogRefreshDeferredRef.current = false;
@@ -2581,6 +2601,9 @@ function SafeRouteApp() {
             }
             setWorkspaceCatalogLoading(true);
             setWorkspaceDiscoveryRevision((revision) => revision + 1);
+          } else if (!uiRequestOwnerIsCurrent) {
+            workspaceCatalogRefreshDeferredRef.current = false;
+            workspaceForegroundRefreshDeferredRef.current = false;
           }
         }
       }

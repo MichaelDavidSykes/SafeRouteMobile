@@ -130,6 +130,14 @@ describe("App active workspace integration", () => {
     );
     assert.match(
       selection,
+      /uiRequestOwnerIsCurrent =[\s\S]*requestOwnerIsCurrent\(\)[\s\S]*requestedSourceWorkspaceId ===[\s\S]*activeWorkspaceRef\.current\?\.id/,
+    );
+    assert.match(
+      selection,
+      /publishStorageFailure[\s\S]*Platform\.OS === 'ios'[\s\S]*workspaceAccessFocusHandoffRef\.current\?\.request/,
+    );
+    assert.match(
+      selection,
       /const publishSelectionFailure =[\s\S]*Workspace unchanged\.[\s\S]*Choose a workspace again\.[\s\S]*workspaceAccessFocusHandoffRef\.current\?\.request/,
     );
     assert.match(

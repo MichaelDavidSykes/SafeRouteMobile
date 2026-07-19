@@ -54,6 +54,7 @@ import {
   createGuestRoadSnappedRoutePlan,
   createGuestRouteActionState,
   createGuestRouteInputCopy,
+  createGuestRoutePlanId,
   createGuestRoutePlan,
   createGuestRoutePreviewState,
   getGuestFullAccessCopy,
@@ -746,6 +747,7 @@ export function GuestMapScreen({
     }
     const resolvedOriginCoordinate = stopCoordinates[0];
     const resolvedDestinationCoordinate = stopCoordinates.at(-1) as LatLng;
+    const routePlanId = createGuestRoutePlanId();
 
     const localRoutePlan = createGuestRoutePlan({
       authenticated,
@@ -754,6 +756,7 @@ export function GuestMapScreen({
       origin: plottingDraft.origin.label,
       originCoordinate: resolvedOriginCoordinate,
       destination: plottingDraft.destination.label,
+      planId: routePlanId,
       riskZones: viewportRisk.zones
     });
     // A straight checkpoint connector is useful as an internal request
@@ -950,6 +953,7 @@ export function GuestMapScreen({
           destinationCoordinate: destinationCoordinateSnapshot,
           origin: originSnapshot,
           originCoordinate: originCoordinateSnapshot,
+          planId: localRoutePlan.id,
           riskZones: finalRiskZones,
           roadSnappedCoordinates: finalRoadPreview.coordinates,
           routeDistanceMeters: finalRoadPreview.distanceMeters,

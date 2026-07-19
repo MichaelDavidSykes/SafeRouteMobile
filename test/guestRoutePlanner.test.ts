@@ -3,6 +3,7 @@ import { describe, it } from 'node:test';
 
 import {
   GUEST_ROUTE_LABEL_MAX_LENGTH,
+  GUEST_ROUTE_PLAN_ID_MAX_LENGTH,
   GUEST_ROUTE_PREVIEW_METRIC_MAX_LENGTH,
   GUEST_ROUTE_PREVIEW_SUMMARY_FALLBACK,
   createGuestMapHomeCopy,
@@ -10,6 +11,7 @@ import {
   createGuestRouteActionState,
   createGuestRouteInputCopy,
   createGuestRouteMetrics,
+  createGuestRoutePlanId,
   createGuestRoutePlan,
   createGuestRoutePreviewMetricPresentation,
   createGuestRoutePreviewState,
@@ -167,6 +169,37 @@ describe('guest route planner helpers', () => {
       () => createGuestRoutePlan({ origin: 'HQ', destination: '   ' }),
       /destination is required/i
     );
+  });
+
+  it('creates a bounded opaque identity for every explicit plot', () => {
+    const first = createGuestRoutePlanId(1_800_000_000_000, 0.1);
+    const second = createGuestRoutePlanId(1_800_000_000_000, 0.2);
+
+    assert.match(first, /^guest-plot-/);
+    assert.ok(first.length <= GUEST_ROUTE_PLAN_ID_MAX_LENGTH);
+    assert.notEqual(first, second);
+  });
+
+  it('preserves one plot identity from local scaffold to road preview', () => {
+    const planId = createGuestRoutePlanId(1_800_000_000_000, 0.3);
+    const local = createGuestRoutePlan({
+      destination: 'Airport Terminal',
+      origin: 'HQ',
+      planId,
+    });
+    const road = createGuestRoadSnappedRoutePlan({
+      destination: local.destination,
+      origin: local.origin,
+      planId: local.id,
+      riskZones: [],
+      roadSnappedCoordinates: local.route.coordinates,
+    });
+
+    assert.ok(road);
+    assert.equal(local.id, planId);
+    assert.equal(local.route.id, `${planId}-path`);
+    assert.equal(road.id, local.id);
+    assert.equal(road.route.id, local.route.id);
   });
 
   it('creates a local unsaved route preview without authentication data', () => {

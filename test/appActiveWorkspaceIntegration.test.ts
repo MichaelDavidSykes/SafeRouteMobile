@@ -640,13 +640,46 @@ describe("App active workspace integration", () => {
       );
       assert.match(
         routeOpen,
-        /activeNavigationSession[\s\S]*route\.id !== routePlan\.route\.id[\s\S]*discardPersistedNavigation\([\s\S]*return;/,
+        /activeNavigationSession[\s\S]*!isNavigationSessionForRoutePreview\(\{[\s\S]*navigationSession: activeNavigationSession[\s\S]*routePlan[\s\S]*discardPersistedNavigation\([\s\S]*return;/,
+      );
+      assert.doesNotMatch(
+        routeOpen,
+        /activeNavigationSession\.routePlan\.route\.id\s*[!=]==?\s*routePlan\.route\.id/,
       );
       const cleanupIndex = routeOpen.indexOf("void discardPersistedNavigation(");
       const publishIndex = routeOpen.indexOf("setSelectedRoute(routePlan)");
       assert.ok(cleanupIndex >= 0);
       assert.ok(publishIndex > cleanupIndex);
     }
+  });
+
+  it("uses immutable plan identity for App and LiveMap route resume decisions", () => {
+    const app = appSource();
+    const liveMap = readFileSync("src/features/live-map/LiveMapScreen.tsx", "utf8");
+    const guestMap = guestSource();
+
+    assert.match(
+      guestMap,
+      /const routePlanId = createGuestRoutePlanId\(\);[\s\S]*createGuestRoutePlan\(\{[\s\S]*planId: routePlanId/,
+    );
+    assert.match(
+      guestMap,
+      /createGuestRoadSnappedRoutePlan\(\{[\s\S]*planId: localRoutePlan\.id/,
+    );
+    assert.match(
+      app,
+      /initialNavigationSession=\{[\s\S]*isNavigationSessionForRoutePreview\(\{[\s\S]*routeContext: routePreviewSource[\s\S]*routePlan: selectedRoute/,
+    );
+    assert.equal(
+      (
+        liveMap.match(/isNavigationSessionForRoutePreview\(\{/g) || []
+      ).length,
+      2,
+    );
+    assert.doesNotMatch(
+      liveMap,
+      /initialNavigationSession\?\.routePlan\.route\.id\s*===\s*routePlan\.route\.id/,
+    );
   });
 
   it("keeps cached workspaces browse-only until a fresh catalog authorizes guidance", () => {

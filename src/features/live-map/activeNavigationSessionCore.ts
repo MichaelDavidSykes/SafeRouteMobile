@@ -323,6 +323,49 @@ export function canResumeActiveNavigationSession(
   );
 }
 
+export function isNavigationSessionForRoutePreview({
+  navigationSession,
+  principalId,
+  routeContext,
+  routePlan,
+}: {
+  navigationSession: ActiveNavigationSession | null | undefined;
+  principalId?: string | null;
+  routeContext: "guest" | "saved";
+  routePlan: SavedSafeRoutePlan;
+}): boolean {
+  if (!navigationSession || navigationSession.routeContext !== routeContext) {
+    return false;
+  }
+
+  const navigationPlanId = normalizeRoutePlanId(
+    navigationSession.routePlan.id,
+  );
+  const previewPlanId = normalizeRoutePlanId(routePlan.id);
+  if (!navigationPlanId || navigationPlanId !== previewPlanId) {
+    return false;
+  }
+
+  const navigationClientId = normalizeClientId(
+    navigationSession.routePlan.clientId,
+  );
+  const previewClientId = normalizeClientId(routePlan.clientId);
+  if (navigationClientId !== previewClientId) {
+    return false;
+  }
+
+  if (navigationSession.accessScope.kind === "public") {
+    return routeContext === "guest" && !previewClientId;
+  }
+
+  return Boolean(
+    previewClientId &&
+    navigationSession.accessScope.clientId === previewClientId &&
+    navigationSession.accessScope.principalId ===
+      normalizePrincipalId(principalId),
+  );
+}
+
 export function mergeActiveNavigationLocation(
   session: ActiveNavigationSession,
   location: ReliableLocationSample | null,
@@ -472,6 +515,10 @@ function normalizeActiveNavigationAccessScope(
 }
 
 function normalizeClientId(value: unknown): string {
+  return typeof value === "string" ? value.trim() : "";
+}
+
+function normalizeRoutePlanId(value: unknown): string {
   return typeof value === "string" ? value.trim() : "";
 }
 

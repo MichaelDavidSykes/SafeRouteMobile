@@ -11,6 +11,7 @@ import {
   canResumeActiveNavigationSession,
   createActiveNavigationInstanceId,
   createActiveNavigationSession,
+  isNavigationSessionForRoutePreview,
   mergeActiveNavigationLocation,
   normalizeActiveNavigationSession,
   serializeActiveNavigationSession,
@@ -151,6 +152,96 @@ describe("active navigation session", () => {
     );
     assert.ok(saved && !canResumeActiveNavigationSession(saved, false));
     assert.ok(saved && canResumeActiveNavigationSession(saved, true, "workspace-a", "user-a"));
+  });
+
+  it("matches route previews by immutable plan identity, context, and access scope", () => {
+    const publicGuest = session();
+    const reroutedPublicPlan = {
+      ...publicGuest.routePlan,
+      route: {
+        ...publicGuest.routePlan.route,
+        id: `${publicGuest.routePlan.route.id}-reroute-2`,
+      },
+    };
+    const workspaceGuest = createActiveNavigationSession({
+      followModeEnabled: true,
+      navigationState: "paused",
+      principalId: "user-a",
+      progressFloorMeters: 80,
+      routeContext: "guest",
+      routePlan: {
+        ...SAVED_ROUTE_PLANS[0],
+        clientId: "workspace-a",
+      },
+      savedAtMs: nowMs,
+    });
+
+    assert.equal(
+      isNavigationSessionForRoutePreview({
+        navigationSession: publicGuest,
+        routeContext: "guest",
+        routePlan: reroutedPublicPlan,
+      }),
+      true,
+    );
+    assert.equal(
+      isNavigationSessionForRoutePreview({
+        navigationSession: publicGuest,
+        routeContext: "saved",
+        routePlan: reroutedPublicPlan,
+      }),
+      false,
+    );
+    assert.equal(
+      isNavigationSessionForRoutePreview({
+        navigationSession: publicGuest,
+        routeContext: "guest",
+        routePlan: { ...reroutedPublicPlan, id: "another-plot" },
+      }),
+      false,
+    );
+    assert.equal(
+      isNavigationSessionForRoutePreview({
+        navigationSession: publicGuest,
+        routeContext: "guest",
+        routePlan: { ...reroutedPublicPlan, id: "   " },
+      }),
+      false,
+    );
+    assert.equal(
+      isNavigationSessionForRoutePreview({
+        navigationSession: workspaceGuest,
+        principalId: " user-a ",
+        routeContext: "guest",
+        routePlan: {
+          ...workspaceGuest.routePlan,
+          clientId: " workspace-a ",
+          route: {
+            ...workspaceGuest.routePlan.route,
+            id: `${workspaceGuest.routePlan.route.id}-reroute-3`,
+          },
+        },
+      }),
+      true,
+    );
+    assert.equal(
+      isNavigationSessionForRoutePreview({
+        navigationSession: workspaceGuest,
+        principalId: "user-b",
+        routeContext: "guest",
+        routePlan: workspaceGuest.routePlan,
+      }),
+      false,
+    );
+    assert.equal(
+      isNavigationSessionForRoutePreview({
+        navigationSession: workspaceGuest,
+        principalId: "user-a",
+        routeContext: "guest",
+        routePlan: { ...workspaceGuest.routePlan, clientId: "workspace-b" },
+      }),
+      false,
+    );
   });
 
   it("rejects saved guidance without an authorized workspace identity", () => {

@@ -48,6 +48,14 @@ const suspendedGuidanceFlowSource = () =>
     join(process.cwd(), "maestro/ios-preview-guidance-suspended.yaml"),
     "utf8",
   );
+const suspendedGuidanceWorkspaceFlowSource = () =>
+  readFileSync(
+    join(
+      process.cwd(),
+      "maestro/ios-preview-guidance-suspended-workspaces.yaml",
+    ),
+    "utf8",
+  );
 const riskAreasFlowSource = () =>
   readFileSync(
     join(process.cwd(), "maestro/ios-preview-risk-areas.yaml"),
@@ -267,6 +275,33 @@ describe("Maestro iOS preview smoke flow", () => {
     assert.match(flow, /assertVisible: "Workspace, West Corridor"/);
   });
 
+  it("keeps Saved and Operations workspace handoff reachable under suspended guidance", () => {
+    const flow = suspendedGuidanceWorkspaceFlowSource();
+    const scripts = packageJson().scripts;
+    const savedSelectorIndex = flow.indexOf(
+      'id: "safe-route-workspace-selector"',
+    );
+    const cancelIndex = flow.indexOf('tapOn: "Keep route"');
+    const operationsSelectorIndex = flow.indexOf(
+      'id: "safe-route-operations-workspace-selector"',
+    );
+    const confirmIndex = flow.indexOf(
+      'tapOn: "End route and change workspace"',
+    );
+
+    assert.equal(
+      scripts["test:maestro:ios:guidance-suspended-workspaces"],
+      "node scripts/run-maestro.mjs test maestro/ios-preview-guidance-suspended-workspaces.yaml",
+    );
+    assert.ok(savedSelectorIndex >= 0);
+    assert.ok(cancelIndex > savedSelectorIndex);
+    assert.ok(operationsSelectorIndex > cancelIndex);
+    assert.ok(confirmIndex > operationsSelectorIndex);
+    assert.match(flow, /id: "safe-route-suspended-navigation"/);
+    assert.match(flow, /assertVisible: "Workspace, Central Operations"/);
+    assert.match(flow, /assertVisible: "Workspace, West Corridor"/);
+  });
+
   it("plots a guest route before opening the live map", () => {
     const flow = previewFlowSource();
     const guestGateIndex = flow.indexOf('id: "guest-map-primary-action"');
@@ -332,6 +367,7 @@ describe("Maestro iOS preview smoke flow", () => {
       previewFlowSource(),
       mapInteractionsFlowSource(),
       operationsFlowSource(),
+      suspendedGuidanceWorkspaceFlowSource(),
     ]) {
       assert.match(flow, /setLocation:\s*\n\s+latitude:\s*51\.5074\s*\n\s+longitude:\s*-0\.1278/);
     }

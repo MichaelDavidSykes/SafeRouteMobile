@@ -1,0 +1,79 @@
+appId: host.exp.Exponent
+---
+- stopApp
+- setLocation:
+    latitude: 51.5074
+    longitude: -0.1278
+- openLink: exp://localhost:8081
+- runFlow:
+    when:
+      visible: "Open"
+    commands:
+      - tapOn: "Open"
+- waitForAnimationToEnd:
+    timeout: 3000
+- openLink: exp://localhost:8081
+- runFlow:
+    when:
+      visible: "Open"
+    commands:
+      - tapOn: "Open"
+- extendedWaitUntil:
+    visible:
+      id: "saferoute-app-root"
+    timeout: 45000
+- extendedWaitUntil:
+    visible:
+      id: "safe-route-suspended-navigation"
+    timeout: 15000
+- tapOn:
+    id: "guest-map-primary-action"
+    waitToSettleTimeoutMs: 1000
+- extendedWaitUntil:
+    visible:
+      id: "safe-route-picker"
+    timeout: 20000
+- assertVisible:
+    id: "safe-route-suspended-navigation"
+- tapOn:
+    id: "safe-route-workspace-selector"
+    waitToSettleTimeoutMs: 1000
+- tapOn:
+    id: "safe-route-workspace-preview-west"
+    waitToSettleTimeoutMs: 1000
+- assertVisible: "End route and change workspace?"
+- tapOn: "Keep route"
+- assertVisible:
+    id: "safe-route-suspended-navigation"
+- assertVisible: "Workspace, Central Operations"
+- tapOn:
+    id: "route-list-map-return"
+    waitToSettleTimeoutMs: 1000
+- extendedWaitUntil:
+    visible:
+      id: "guest-map-gate-planned-trips"
+    timeout: 12000
+- tapOn:
+    id: "guest-map-gate-planned-trips"
+    waitToSettleTimeoutMs: 1000
+- extendedWaitUntil:
+    visible:
+      id: "safe-route-operations"
+    timeout: 20000
+- assertVisible:
+    id: "safe-route-suspended-navigation"
+- tapOn:
+    id: "safe-route-operations-workspace-selector"
+    waitToSettleTimeoutMs: 1000
+- tapOn:
+    id: "safe-route-operations-workspace-preview-west"
+    waitToSettleTimeoutMs: 1000
+- assertVisible: "End route and change workspace?"
+- tapOn: "End route and change workspace"
+- extendedWaitUntil:
+    notVisible:
+      id: "safe-route-suspended-navigation"
+    timeout: 15000
+- assertNotVisible:
+    id: "safe-route-suspended-navigation"
+- assertVisible: "Workspace, West Corridor"

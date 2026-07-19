@@ -89,7 +89,11 @@ describe("route list screen behavior", () => {
     );
     assert.match(
       source,
-      /onSelectClient[\s\S]*?setRoutes\(\[\]\)[\s\S]*?setShowingOfflineCopy\(false\)[\s\S]*?setOfflineCopyStoredAtMs\(null\)[\s\S]*?onWorkspaceChange\(workspace\)/,
+      /previousSelectedClientIdRef[\s\S]*?setRoutes\(\[\]\)[\s\S]*?setShowingOfflineCopy\(false\)[\s\S]*?setOfflineCopyStoredAtMs\(null\)[\s\S]*?setQuery\(""\)/,
+    );
+    assert.match(
+      source,
+      /onSelectClient[\s\S]*?workspace\.id === selectedClientId[\s\S]*?onWorkspaceChange\(workspace\)/,
     );
     assert.match(
       source,
@@ -218,12 +222,16 @@ describe("route list screen behavior", () => {
     );
   });
 
-  it("invalidates a pending route detail before switching workspaces", () => {
+  it("invalidates a pending route detail only after App publishes the workspace", () => {
     const source = screenSource();
 
     assert.match(
       source,
-      /const workspace = availableWorkspaces\.find[\s\S]*?loadRevisionRef\.current \+= 1;[\s\S]*?detailRevisionRef\.current \+= 1;[\s\S]*?setDetailLoadingId\(null\);[\s\S]*?onWorkspaceChange\(workspace\)/,
+      /previousSelectedClientIdRef[\s\S]*?detailRevisionRef\.current \+= 1;[\s\S]*?setDetailLoadingId\(null\)/,
+    );
+    assert.doesNotMatch(
+      /onSelectClient=\{\(clientId\) => \{[\s\S]*?onWorkspaceChange\(workspace\);[\s\S]*?\}\}/.exec(source)?.[0] || "",
+      /detailRevisionRef|setRoutes|setQuery/,
     );
   });
 });

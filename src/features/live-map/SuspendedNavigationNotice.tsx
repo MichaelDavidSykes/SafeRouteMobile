@@ -13,12 +13,14 @@ import type { NetworkAvailabilityStatus } from "../api/networkAvailabilityState"
 export function SuspendedNavigationNotice({
   networkStatus,
   onEnd,
+  onLayoutHeight,
   onRetry,
   routeName,
   status,
 }: {
   networkStatus: NetworkAvailabilityStatus;
   onEnd: () => void;
+  onLayoutHeight?: (height: number) => void;
   onRetry: () => void;
   routeName: string;
   status: SuspendedNavigationStatus;
@@ -32,6 +34,7 @@ export function SuspendedNavigationNotice({
 
   return (
     <View
+      onLayout={(event) => onLayoutHeight?.(event.nativeEvent.layout.height)}
       style={[styles.notice, { top: insets.top + spacing.xs }]}
       testID={uiTestIds.suspendedNavigationNotice}
     >

@@ -122,6 +122,9 @@ interface OperationsScreenProps {
   workspaceAccessRefreshAvailable: boolean;
   workspaceAccessFocusTargetRef?: (target: View | null) => void;
   workspaceAccessIssue: WorkspaceAccessIssue;
+  workspaceChangeEndsNavigation: boolean;
+  workspaceNavigationNoticeInset: number;
+  workspaceSwitchFailure: boolean;
   workspaceSwitchDisabled: boolean;
 }
 
@@ -147,6 +150,9 @@ export function OperationsScreen({
   workspaceAccessRefreshAvailable,
   workspaceAccessFocusTargetRef,
   workspaceAccessIssue,
+  workspaceChangeEndsNavigation,
+  workspaceNavigationNoticeInset,
+  workspaceSwitchFailure,
   workspaceSwitchDisabled
 }: OperationsScreenProps) {
   const {
@@ -250,6 +256,12 @@ export function OperationsScreen({
   useEffect(() => {
     setActiveTab(initialTab);
   }, [initialTab]);
+
+  useEffect(() => {
+    if (workspaceSwitchDisabled) {
+      setClientMenuOpen(false);
+    }
+  }, [workspaceSwitchDisabled]);
 
   const loadOperations = useCallback(
     async ({
@@ -516,6 +528,8 @@ export function OperationsScreen({
               : "Operations could not sync. Showing a saved calendar.",
           );
         } else {
+          loadedWorkspaceIdRef.current = requestWorkspaceId;
+          setLoadedWorkspaceId(requestWorkspaceId);
           setErrorState(createRouteSyncErrorState(error));
         }
       } finally {
@@ -540,6 +554,26 @@ export function OperationsScreen({
   );
   const loadOperationsRef = useRef(loadOperations);
   loadOperationsRef.current = loadOperations;
+
+  const previousSelectedWorkspaceIdRef = useRef(selectedWorkspaceId);
+  useEffect(() => {
+    if (previousSelectedWorkspaceIdRef.current === selectedWorkspaceId) {
+      return;
+    }
+    previousSelectedWorkspaceIdRef.current = selectedWorkspaceId;
+    loadRevisionRef.current += 1;
+    loadedWorkspaceIdRef.current = null;
+    setLoadedWorkspaceId(null);
+    setRoutes([]);
+    setOperationsState(null);
+    setOfflineCalendarEntries([]);
+    setOperationsWarning(null);
+    setShowingOfflineCopy(false);
+    setOfflineCopyStoredAtMs(null);
+    setErrorState(null);
+    setLoading(true);
+    setRefreshing(false);
+  }, [selectedWorkspaceId]);
 
   useEffect(() => {
     void loadOperations();
@@ -609,33 +643,43 @@ export function OperationsScreen({
   const workspaceOwnsResults = Boolean(
     selectedWorkspaceId && loadedWorkspaceId === selectedWorkspaceId
   );
+  const ownedShowingOfflineCopy = workspaceOwnsResults && showingOfflineCopy;
+  const ownedErrorState = workspaceOwnsResults ? errorState : null;
+  const ownedOfflineCalendarEntries = workspaceOwnsResults
+    ? offlineCalendarEntries
+    : [];
+  const ownedOfflineCopyStoredAtMs = ownedShowingOfflineCopy
+    ? offlineCopyStoredAtMs
+    : null;
+  const contentLoading =
+    loading || Boolean(selectedWorkspaceId && !workspaceOwnsResults);
   const visibleRoutes = workspaceOwnsResults ? routes : [];
   const visibleOperationsState = workspaceOwnsResults ? operationsState : null;
   const plannedRows = useMemo(
     () =>
-      showingOfflineCopy && visibleRoutes.length === 0
+      ownedShowingOfflineCopy && visibleRoutes.length === 0
         ? []
         : createPlannedRouteRows(visibleRoutes, visibleOperationsState),
-    [showingOfflineCopy, visibleOperationsState, visibleRoutes]
+    [ownedShowingOfflineCopy, visibleOperationsState, visibleRoutes]
   );
   const calendarRows = useMemo(
     () =>
-      showingOfflineCopy
-        ? createOfflineCalendarRows(offlineCalendarEntries)
+      ownedShowingOfflineCopy
+        ? createOfflineCalendarRows(ownedOfflineCalendarEntries)
         : createCalendarRows(visibleRoutes, visibleOperationsState),
     [
-      offlineCalendarEntries,
-      showingOfflineCopy,
+      ownedOfflineCalendarEntries,
+      ownedShowingOfflineCopy,
       visibleOperationsState,
       visibleRoutes,
     ]
   );
   const convoyRows = useMemo(
     () =>
-      showingOfflineCopy
+      ownedShowingOfflineCopy
         ? []
         : createConvoyRows(visibleRoutes, visibleOperationsState),
-    [showingOfflineCopy, visibleOperationsState, visibleRoutes]
+    [ownedShowingOfflineCopy, visibleOperationsState, visibleRoutes]
   );
   const summaryState = useMemo(
     () => createOperationsSummaryState(visibleRoutes, visibleOperationsState),
@@ -656,10 +700,10 @@ export function OperationsScreen({
       : null;
   const emptyState =
     offlineSavingEmptyState ||
-    (showingOfflineCopy || !protectedRequestsAvailable
+    (ownedShowingOfflineCopy || !protectedRequestsAvailable
       ? createOperationsOfflineEmptyState(
           activeTab,
-          showingOfflineCopy,
+          ownedShowingOfflineCopy,
           offlineReviewStatus,
         )
       : createOperationsEmptyState(activeTab));
@@ -682,14 +726,14 @@ export function OperationsScreen({
   });
   const offlineReviewPresentation = useMemo(
     () =>
-      offlineCopyStoredAtMs === null
+      ownedOfflineCopyStoredAtMs === null
         ? null
         : createOperationsOfflineReviewPresentation({
             nowMs: offlineCopyNowMs,
             status: offlineReviewStatus,
-            storedAtMs: offlineCopyStoredAtMs,
+            storedAtMs: ownedOfflineCopyStoredAtMs,
           }),
-    [offlineCopyNowMs, offlineCopyStoredAtMs, offlineReviewStatus],
+    [offlineCopyNowMs, offlineReviewStatus, ownedOfflineCopyStoredAtMs],
   );
   const offlineCalendarRemovalPresentation = useMemo(
     () =>
@@ -708,12 +752,12 @@ export function OperationsScreen({
   );
 
   useEffect(() => {
-    if (!showingOfflineCopy || offlineCopyStoredAtMs === null) {
+    if (!ownedShowingOfflineCopy || ownedOfflineCopyStoredAtMs === null) {
       return;
     }
     const refreshDelayMs = getOperationsOfflineReviewRefreshDelayMs({
       nowMs: offlineCopyNowMs,
-      storedAtMs: offlineCopyStoredAtMs,
+      storedAtMs: ownedOfflineCopyStoredAtMs,
     });
     if (refreshDelayMs === null) {
       loadRevisionRef.current += 1;
@@ -735,8 +779,8 @@ export function OperationsScreen({
         ) {
           return;
         }
-        loadedWorkspaceIdRef.current = null;
-        setLoadedWorkspaceId(null);
+        loadedWorkspaceIdRef.current = expiringWorkspaceId;
+        setLoadedWorkspaceId(expiringWorkspaceId);
         setRoutes([]);
         setOperationsState(null);
         setOfflineCalendarEntries([]);
@@ -765,11 +809,11 @@ export function OperationsScreen({
     return () => clearTimeout(refreshTimer);
   }, [
     offlineCopyNowMs,
-    offlineCopyStoredAtMs,
     offlineReviewStatus,
+    ownedOfflineCopyStoredAtMs,
+    ownedShowingOfflineCopy,
     cacheIdentity,
     selectedWorkspaceId,
-    showingOfflineCopy,
   ]);
 
   const handleRetry = () => {
@@ -863,7 +907,7 @@ export function OperationsScreen({
 
   const confirmRemoveSavedCalendar = () => {
     if (
-      !showingOfflineCopy ||
+      !ownedShowingOfflineCopy ||
       !selectedWorkspaceId ||
       offlineCalendarRemovalState === "removing" ||
       offlineCalendarSavingPresentation.busy ||
@@ -916,7 +960,7 @@ export function OperationsScreen({
     offlineCalendarSavingAwaitingSaveScopeRef.current = null;
     loadRevisionRef.current += 1;
     setOfflineCalendarSavingState("stopping");
-    if (showingOfflineCopy) {
+    if (ownedShowingOfflineCopy) {
       loadedWorkspaceIdRef.current = preferenceWorkspaceId;
       setLoadedWorkspaceId(preferenceWorkspaceId);
       setRoutes([]);
@@ -1115,7 +1159,15 @@ export function OperationsScreen({
   };
 
   return (
-    <SafeAreaView testID={uiTestIds.operationsScreen} style={styles.screen}>
+    <SafeAreaView
+      testID={uiTestIds.operationsScreen}
+      style={[
+        styles.screen,
+        workspaceNavigationNoticeInset > 0
+          ? { paddingTop: workspaceNavigationNoticeInset }
+          : null,
+      ]}
+    >
       <View style={styles.header}>
         <View style={styles.headerTopRow}>
           <View style={styles.headerCopy}>
@@ -1195,12 +1247,17 @@ export function OperationsScreen({
         <View style={styles.clientFilter}>
           <Pressable
             ref={workspaceAccessFocusTargetRef}
-            accessibilityHint={workspaceSwitchDisabled
-              ? "End active guidance before changing workspace."
-              : "Opens the active workspace menu."}
+            accessibilityHint={workspaceSwitchFailure
+              ? "Retry guidance cleanup before changing workspace."
+              : workspaceSwitchDisabled
+                ? "Finish guidance cleanup before changing workspace."
+                : workspaceChangeEndsNavigation
+                  ? "Opens the workspace menu. Choosing another workspace asks before ending active guidance."
+                  : "Opens the active workspace menu."}
             accessibilityLabel={`Workspace, ${selectedWorkspaceOption?.label || "Choose workspace"}`}
             accessibilityRole="button"
             accessibilityState={{
+              busy: workspaceSwitchDisabled && !workspaceSwitchFailure,
               disabled: workspaceSwitchDisabled,
               expanded: clientMenuOpen
             }}
@@ -1224,7 +1281,13 @@ export function OperationsScreen({
               </Text>
             </View>
             <Text style={styles.clientSelectorAction}>
-              {clientMenuOpen ? "Close" : "Change"}
+              {workspaceSwitchFailure
+                ? "Cleanup needed"
+                : workspaceSwitchDisabled
+                  ? "Finishing…"
+                  : clientMenuOpen
+                    ? "Close"
+                    : "Change"}
             </Text>
           </Pressable>
           {clientMenuOpen && !workspaceSwitchDisabled ? (
@@ -1237,7 +1300,11 @@ export function OperationsScreen({
                 {workspaceOptions.map((workspace) => (
                   <Pressable
                     key={workspace.id}
-                    accessibilityHint={workspace.accessibilityHint}
+                    accessibilityHint={
+                      workspaceChangeEndsNavigation && !workspace.selected
+                        ? `Asks to end active guidance before changing to ${workspace.label}.`
+                        : workspace.accessibilityHint
+                    }
                     accessibilityLabel={workspace.accessibilityLabel}
                     accessibilityRole="button"
                     accessibilityState={{ selected: workspace.selected }}
@@ -1256,27 +1323,6 @@ export function OperationsScreen({
                         return;
                       }
                       setClientMenuOpen(false);
-                      loadRevisionRef.current += 1;
-                      activeWorkspaceIdRef.current = nextWorkspace.id;
-                      loadedWorkspaceIdRef.current = null;
-                      setLoadedWorkspaceId(null);
-                      setRoutes([]);
-                      setOperationsState(null);
-                      setOfflineCalendarEntries([]);
-                      setOperationsWarning(null);
-                      setShowingOfflineCopy(false);
-                      setOfflineCopyStoredAtMs(null);
-                      offlineCalendarRemovalRevisionRef.current += 1;
-                      offlineCalendarSavingRevisionRef.current += 1;
-                      offlineCalendarRemovalPendingRef.current = null;
-                      offlineCalendarRemovalReloadPendingRef.current = false;
-                      offlineCalendarSavingPendingRef.current = null;
-                      offlineCalendarSavingAwaitingSaveScopeRef.current = null;
-                      setOfflineCalendarRemovalState("idle");
-                      setOfflineCalendarSavingState("checking");
-                      setErrorState(null);
-                      setLoading(true);
-                      setRefreshing(false);
                       onWorkspaceChange(nextWorkspace);
                     }}
                   >
@@ -1394,7 +1440,7 @@ export function OperationsScreen({
         </View>
       ) : null}
 
-      {showingOfflineCopy && offlineReviewPresentation ? (
+      {ownedShowingOfflineCopy && offlineReviewPresentation ? (
         <View style={styles.offlineReviewControls}>
           <View
             accessible
@@ -1510,12 +1556,12 @@ export function OperationsScreen({
       ) : null}
 
       {!workspaceState &&
-      !loading &&
-      !errorState &&
+      !contentLoading &&
+      !ownedErrorState &&
       protectedRequestsAvailable &&
       workspaceOwnsResults &&
       (visibleOperationsState !== null || visibleRoutes.length > 0) &&
-      !showingOfflineCopy ? (
+      !ownedShowingOfflineCopy ? (
         <View
           accessible
           accessibilityLabel={summaryState.accessibilityLabel}
@@ -1574,24 +1620,24 @@ export function OperationsScreen({
             </Pressable>
           ) : null}
         </View>
-      ) : errorState ? (
+      ) : ownedErrorState ? (
         <View
           accessibilityRole="alert"
           testID={uiTestIds.operationsErrorState}
           style={styles.errorBox}
         >
           <View style={styles.errorCopy}>
-            <Text style={styles.errorTitle}>{errorState.title}</Text>
+            <Text style={styles.errorTitle}>{ownedErrorState.title}</Text>
             <Text
-              accessibilityLabel={errorState.messageAccessibilityLabel}
+              accessibilityLabel={ownedErrorState.messageAccessibilityLabel}
               numberOfLines={2}
               style={styles.errorText}
             >
-              {errorState.message}
+              {ownedErrorState.message}
             </Text>
           </View>
           <Pressable
-            accessibilityLabel={errorState.retryAccessibilityLabel}
+            accessibilityLabel={ownedErrorState.retryAccessibilityLabel}
             accessibilityRole="button"
             hitSlop={OPERATIONS_ERROR_ACTION_HIT_SLOP}
             testID={uiTestIds.operationsRetry}
@@ -1601,13 +1647,13 @@ export function OperationsScreen({
             ]}
             onPress={handleRetry}
           >
-            <Text style={styles.retryText}>{errorState.retryLabel}</Text>
+            <Text style={styles.retryText}>{ownedErrorState.retryLabel}</Text>
           </Pressable>
         </View>
       ) : null}
 
-      {!workspaceState && !errorState ? (
-        loading ? (
+      {!workspaceState && !ownedErrorState ? (
+        contentLoading ? (
           <View style={styles.loadingState}>
             <View
               accessible

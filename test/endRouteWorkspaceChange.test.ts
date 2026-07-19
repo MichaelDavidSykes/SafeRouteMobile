@@ -61,5 +61,12 @@ describe("end-route workspace change", () => {
       resolveTarget({ requestedTargetWorkspaceId: "workspace-a" }),
       null,
     );
+    assert.equal(
+      resolveTarget({
+        allowSameSourceTarget: true,
+        requestedTargetWorkspaceId: "workspace-a",
+      })?.id,
+      "workspace-a",
+    );
   });
 });

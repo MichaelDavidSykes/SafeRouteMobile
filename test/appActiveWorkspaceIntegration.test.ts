@@ -61,7 +61,7 @@ describe("App active workspace integration", () => {
     );
     assert.match(
       app,
-      /handleActiveWorkspaceChange[\s\S]*persistOfflineReviewWorkspaceSelection\([\s\S]*nextWorkspace\.id/,
+      /handleActiveWorkspaceChange[\s\S]*await persistOfflineReviewWorkspaceSelection\([\s\S]*requestedTargetWorkspaceId/,
     );
     assert.match(
       app,
@@ -78,6 +78,89 @@ describe("App active workspace integration", () => {
     assert.match(
       app,
       /resolveWorkspaceAccessAnnouncement\(\{[\s\S]*catalogStoredAtMs: activeWorkspaceAuthorizationFresh[\s\S]*workspaceCatalogStoredAtMs/,
+    );
+  });
+
+  it("persists and verifies ordinary workspace selection before publishing it", () => {
+    const app = appSource();
+    const selection = app.slice(
+      app.indexOf("const handleActiveWorkspaceChange ="),
+      app.indexOf("const handleGuardedWorkspaceChange ="),
+    );
+    const persistenceIndex = selection.indexOf(
+      "await persistOfflineReviewWorkspaceSelection(",
+    );
+    const readbackIndex = selection.indexOf(
+      "persistedSelection?.activeWorkspaceId === requestedTargetWorkspaceId",
+    );
+    const refPublishIndex = selection.indexOf(
+      "activeWorkspaceRef.current = persistedTarget",
+    );
+    const statePublishIndex = selection.indexOf(
+      "setActiveWorkspace(persistedTarget)",
+    );
+
+    assert.ok(persistenceIndex >= 0);
+    assert.ok(readbackIndex > persistenceIndex);
+    assert.ok(refPublishIndex > readbackIndex);
+    assert.ok(statePublishIndex > refPublishIndex);
+    assert.match(
+      selection,
+      /requestedPrincipalId = activeSessionPrincipalIdRef\.current[\s\S]*requestedSessionEpoch = sessionEpochRef\.current[\s\S]*requestedWorkspaceRequestRevision = workspaceRequestRevisionRef\.current[\s\S]*requestedSourceWorkspaceId = activeWorkspaceRef\.current\?\.id \|\| null/,
+    );
+    assert.match(
+      selection,
+      /workspaceSelectionPendingRef\.current = true[\s\S]*resolveEndRouteWorkspaceChangeTarget\(\{[\s\S]*hasActiveNavigation: Boolean\(activeNavigationSessionRef\.current\)[\s\S]*hasPendingNavigation: Boolean\(pendingNavigationRestoreRef\.current\)/,
+    );
+    assert.match(
+      selection,
+      /retryingVisibleWorkspace[\s\S]*allowSameSourceTarget: retryingVisibleWorkspace/,
+    );
+    assert.match(
+      selection,
+      /reconcileOfflineReviewWorkspaceSelection\([\s\S]*activeWorkspaceId: visibleWorkspace\?\.id \|\| null/,
+    );
+    assert.match(
+      selection,
+      /workspaceCatalogBusyRef\.current[\s\S]*workspaceCatalogRetryingRef\.current[\s\S]*workspaceForegroundRefreshPendingRef\.current/,
+    );
+    assert.match(
+      selection,
+      /currentMessage === savingMessage \? stoppedMessage : currentMessage/,
+    );
+    assert.match(
+      selection,
+      /const publishSelectionFailure =[\s\S]*Workspace unchanged\.[\s\S]*Choose a workspace again\.[\s\S]*workspaceAccessFocusHandoffRef\.current\?\.request/,
+    );
+    assert.match(
+      selection,
+      /if \(!persistedTarget\)[\s\S]*publishSelectionFailure\(\)[\s\S]*catch \{[\s\S]*publishSelectionFailure\(\)[\s\S]*finally \{[\s\S]*workspaceSelectionPendingRef\.current = false/,
+    );
+    assert.match(
+      selection,
+      /Workspace changed to \$\{persistedTarget\.name\}\.[\s\S]*workspaceAccessFocusHandoffRef\.current\?\.request/,
+    );
+    assert.doesNotMatch(
+      selection,
+      /void persistOfflineReviewWorkspaceSelection\(|catch\(\(\) => undefined\)/,
+    );
+    assert.match(
+      app,
+      /openRoutePreview[\s\S]*workspaceSelectionPendingRef\.current[\s\S]*Wait for the workspace change before opening another route/,
+    );
+    assert.match(
+      app,
+      /handleSelectSavedRoute[\s\S]*workspaceSelectionPendingRef\.current[\s\S]*Wait for the workspace change before opening another route/,
+    );
+    assert.equal(
+      (app.match(/workspaceSelectionPending=\{workspaceSelectionPending\}/g) || [])
+        .length,
+      3,
+    );
+    assert.equal(
+      (app.match(/workspaceSelectionFailed=\{workspaceSelectionFailed\}/g) || [])
+        .length,
+      3,
     );
   });
 
@@ -426,7 +509,10 @@ describe("App active workspace integration", () => {
     assert.match(guest, /Verify workspace access before plotting this route/);
     assert.match(guest, /Checking workspace access before plotting this route/);
     assert.match(guest, /busy: workspaceAuthorizationRequired && workspaceCatalogLoading/);
-    assert.match(guest, /riskAreaAuthorizationRequired =[\s\S]*workspaceSelectionRequired \|\| workspaceAuthorizationRequired/);
+    assert.match(
+      guest,
+      /riskAreaAuthorizationRequired =[\s\S]*workspaceSelectionPending[\s\S]*workspaceSelectionRequired \|\|[\s\S]*workspaceAuthorizationRequired/,
+    );
     assert.match(
       guest,
       /!action \|\|[\s\S]*!onlineRef\.current \|\|[\s\S]*!routingClientId \|\|[\s\S]*!routingAccessToken/,
@@ -440,7 +526,7 @@ describe("App active workspace integration", () => {
     assert.match(guest, /sessionNoticeState\.accessibilityRole/);
     assert.match(
       guest,
-      /enabled:[\s\S]*online &&[\s\S]*!workspaceSelectionRequired &&[\s\S]*!workspaceAuthorizationRequired/,
+      /enabled:[\s\S]*online &&[\s\S]*!workspaceSelectionPending &&[\s\S]*!workspaceSelectionRequired &&[\s\S]*!workspaceAuthorizationRequired/,
     );
     assert.match(
       guest,
@@ -461,7 +547,7 @@ describe("App active workspace integration", () => {
     assert.match(routes, /isWorkspaceForbiddenError\(error\)[\s\S]*recoverUnavailableWorkspace\(selectedClientId\)/);
     assert.match(
       routes,
-      /if \(!workspace \|\| workspace\.id === selectedClientId\)[\s\S]*onWorkspaceChange\(workspace\)/,
+      /!workspace \|\|[\s\S]*workspace\.id === selectedClientId && !workspaceSelectionFailed[\s\S]*onWorkspaceChange\(workspace\)/,
     );
     assert.match(routes, /workspaceCatalogLoading/);
     assert.match(routes, /Workspaces unavailable/);
@@ -479,7 +565,10 @@ describe("App active workspace integration", () => {
     const operations = operationsSource();
     const routes = routesSource();
 
-    assert.match(app, /handleActiveWorkspaceChange[\s\S]*activeNavigationSession[\s\S]*workspace\?\.id !== activeWorkspace\?\.id[\s\S]*return/);
+    assert.match(
+      app,
+      /handleActiveWorkspaceChange[\s\S]*pendingNavigationRestoreRef\.current \|\|[\s\S]*activeNavigationSessionRef\.current[\s\S]*return/,
+    );
     assert.match(app, /navigationWorkspaceLocked = Boolean\([\s\S]*activeNavigationSession \|\| pendingNavigationRestore/);
     assert.match(
       app,

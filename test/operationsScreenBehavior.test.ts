@@ -54,19 +54,27 @@ describe("operations screen behavior", () => {
     assert.doesNotMatch(text, />Tenant</);
   });
 
-  it("keeps guarded workspace switching operable and locks only during cleanup", () => {
+  it("keeps guarded switching operable with distinct saving and cleanup states", () => {
     const text = screenSource();
 
     assert.match(text, /createOperationsWorkspaceOptions\(availableWorkspaces, selectedWorkspaceId\)/);
-    assert.match(text, /disabled=\{workspaceSwitchDisabled\}/);
+    assert.match(
+      text,
+      /disabled=\{[\s\S]*workspaceCatalogLoading \|\|[\s\S]*workspaceSwitchDisabled \|\|[\s\S]*workspaceSelectionPending/,
+    );
     assert.match(text, /Choosing another workspace asks before ending active guidance/);
     assert.match(text, /Finish guidance cleanup before changing workspace/);
     assert.match(text, /Retry guidance cleanup before changing workspace/);
     assert.match(text, /Finishing…/);
     assert.match(text, /Cleanup needed/);
+    assert.match(text, /Saving…/);
+    assert.match(text, /Try again/);
+    assert.match(text, /Wait while the workspace choice is saved/);
+    assert.match(text, /Wait while SafeRoute verifies workspace access/);
+    assert.match(text, /Checking…/);
     assert.match(
       text,
-      /busy: workspaceSwitchDisabled && !workspaceSwitchFailure/,
+      /workspaceCatalogLoading \|\|[\s\S]*workspaceSelectionPending \|\|[\s\S]*workspaceSwitchDisabled && !workspaceSwitchFailure/,
     );
     assert.match(text, /testID=\{uiTestIds\.operationsWorkspaceSelector\}/);
     assert.match(text, /testID=\{uiTestIds\.operationsWorkspaceOption\(workspace\.id\)\}/);

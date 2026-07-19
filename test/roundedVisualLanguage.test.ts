@@ -1590,11 +1590,11 @@ describe("rounded visual language", () => {
     assert.match(routeListFiltersSource, /Workspace, \$\{workspaceLabel\}/);
     assert.match(
       routeListFiltersSource,
-      /accessibilityState=\{\{[\s\S]*busy: workspaceSwitchDisabled && !workspaceSwitchFailure,[\s\S]*disabled: workspaceSwitchDisabled,[\s\S]*expanded: clientMenuOpen/,
+      /accessibilityState=\{\{[\s\S]*busy:[\s\S]*workspaceSelectionPending \|\|[\s\S]*workspaceSwitchDisabled && !workspaceSwitchFailure[\s\S]*disabled: switchingDisabled,[\s\S]*expanded: clientMenuOpen/,
     );
     assert.match(
       routeListFiltersSource,
-      /workspaceSwitchFailure[\s\S]*"Cleanup needed"[\s\S]*workspaceSwitchDisabled[\s\S]*"Finishing…"[\s\S]*clientMenuOpen[\s\S]*"Close"[\s\S]*"Change"/,
+      /workspaceSwitchFailure[\s\S]*"Cleanup needed"[\s\S]*workspaceSelectionFailed[\s\S]*"Try again"[\s\S]*workspaceSelectionPending[\s\S]*"Saving…"[\s\S]*workspaceSwitchDisabled[\s\S]*"Finishing…"[\s\S]*clientMenuOpen[\s\S]*"Close"[\s\S]*"Change"/,
     );
     assert.match(routeListFiltersSource, /nestedScrollEnabled/);
     assert.match(clientSelectorBlock, /minHeight:\s*controlSizes\.secondary/);

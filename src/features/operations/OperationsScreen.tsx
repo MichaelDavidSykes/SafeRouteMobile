@@ -124,6 +124,8 @@ interface OperationsScreenProps {
   workspaceAccessIssue: WorkspaceAccessIssue;
   workspaceChangeEndsNavigation: boolean;
   workspaceNavigationNoticeInset: number;
+  workspaceSelectionFailed: boolean;
+  workspaceSelectionPending: boolean;
   workspaceSwitchFailure: boolean;
   workspaceSwitchDisabled: boolean;
 }
@@ -152,6 +154,8 @@ export function OperationsScreen({
   workspaceAccessIssue,
   workspaceChangeEndsNavigation,
   workspaceNavigationNoticeInset,
+  workspaceSelectionFailed,
+  workspaceSelectionPending,
   workspaceSwitchFailure,
   workspaceSwitchDisabled
 }: OperationsScreenProps) {
@@ -258,10 +262,18 @@ export function OperationsScreen({
   }, [initialTab]);
 
   useEffect(() => {
-    if (workspaceSwitchDisabled) {
+    if (
+      workspaceCatalogLoading ||
+      workspaceSwitchDisabled ||
+      workspaceSelectionPending
+    ) {
       setClientMenuOpen(false);
     }
-  }, [workspaceSwitchDisabled]);
+  }, [
+    workspaceCatalogLoading,
+    workspaceSelectionPending,
+    workspaceSwitchDisabled,
+  ]);
 
   const loadOperations = useCallback(
     async ({
@@ -1249,6 +1261,12 @@ export function OperationsScreen({
             ref={workspaceAccessFocusTargetRef}
             accessibilityHint={workspaceSwitchFailure
               ? "Retry guidance cleanup before changing workspace."
+              : workspaceCatalogLoading
+                ? "Wait while SafeRoute verifies workspace access."
+              : workspaceSelectionFailed
+                ? "Opens the workspace menu to choose the workspace again."
+              : workspaceSelectionPending
+                ? "Wait while the workspace choice is saved."
               : workspaceSwitchDisabled
                 ? "Finish guidance cleanup before changing workspace."
                 : workspaceChangeEndsNavigation
@@ -1257,19 +1275,38 @@ export function OperationsScreen({
             accessibilityLabel={`Workspace, ${selectedWorkspaceOption?.label || "Choose workspace"}`}
             accessibilityRole="button"
             accessibilityState={{
-              busy: workspaceSwitchDisabled && !workspaceSwitchFailure,
-              disabled: workspaceSwitchDisabled,
+              busy:
+                workspaceCatalogLoading ||
+                workspaceSelectionPending ||
+                (workspaceSwitchDisabled && !workspaceSwitchFailure),
+              disabled:
+                workspaceCatalogLoading ||
+                workspaceSwitchDisabled ||
+                workspaceSelectionPending,
               expanded: clientMenuOpen
             }}
-            disabled={workspaceSwitchDisabled}
+            disabled={
+              workspaceCatalogLoading ||
+              workspaceSwitchDisabled ||
+              workspaceSelectionPending
+            }
             testID={uiTestIds.operationsWorkspaceSelector}
             style={({ pressed }) => [
               styles.clientSelector,
               clientMenuOpen ? styles.clientSelectorOpen : null,
-              pressed && !workspaceSwitchDisabled ? styles.tabPressed : null
+              pressed &&
+              !workspaceCatalogLoading &&
+              !workspaceSwitchDisabled &&
+              !workspaceSelectionPending
+                ? styles.tabPressed
+                : null
             ]}
             onPress={() => {
-              if (!workspaceSwitchDisabled) {
+              if (
+                !workspaceCatalogLoading &&
+                !workspaceSwitchDisabled &&
+                !workspaceSelectionPending
+              ) {
                 setClientMenuOpen((open) => !open);
               }
             }}
@@ -1283,6 +1320,12 @@ export function OperationsScreen({
             <Text style={styles.clientSelectorAction}>
               {workspaceSwitchFailure
                 ? "Cleanup needed"
+                : workspaceCatalogLoading
+                  ? "Checking…"
+                : workspaceSelectionFailed
+                  ? "Try again"
+                : workspaceSelectionPending
+                  ? "Saving…"
                 : workspaceSwitchDisabled
                   ? "Finishing…"
                   : clientMenuOpen
@@ -1290,7 +1333,10 @@ export function OperationsScreen({
                     : "Change"}
             </Text>
           </Pressable>
-          {clientMenuOpen && !workspaceSwitchDisabled ? (
+          {clientMenuOpen &&
+          !workspaceCatalogLoading &&
+          !workspaceSwitchDisabled &&
+          !workspaceSelectionPending ? (
             <View style={styles.clientMenu}>
               <ScrollView
                 nestedScrollEnabled
@@ -1318,7 +1364,13 @@ export function OperationsScreen({
                       const nextWorkspace = availableWorkspaces.find(
                         (candidate) => candidate.id === workspace.id
                       );
-                      if (!nextWorkspace || nextWorkspace.id === selectedWorkspaceId) {
+                      if (
+                        !nextWorkspace ||
+                        (
+                          nextWorkspace.id === selectedWorkspaceId &&
+                          !workspaceSelectionFailed
+                        )
+                      ) {
                         setClientMenuOpen(false);
                         return;
                       }

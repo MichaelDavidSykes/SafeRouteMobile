@@ -94,6 +94,8 @@ interface RouteListScreenProps {
   workspaceAccessIssue: WorkspaceAccessIssue;
   workspaceChangeEndsNavigation: boolean;
   workspaceNavigationNoticeInset: number;
+  workspaceSelectionFailed: boolean;
+  workspaceSelectionPending: boolean;
   workspaceSwitchFailure: boolean;
   workspaceSwitchDisabled: boolean;
 }
@@ -122,6 +124,8 @@ export function RouteListScreen({
   workspaceAccessIssue,
   workspaceChangeEndsNavigation,
   workspaceNavigationNoticeInset,
+  workspaceSelectionFailed,
+  workspaceSelectionPending,
   workspaceSwitchFailure,
   workspaceSwitchDisabled,
 }: RouteListScreenProps) {
@@ -744,13 +748,19 @@ export function RouteListScreen({
         showSearch={showRouteSearch}
         showSummary={!contentLoading && showRouteSummary}
         workspaceChangeEndsNavigation={workspaceChangeEndsNavigation}
+        workspaceCatalogLoading={workspaceCatalogLoading}
+        workspaceSelectionFailed={workspaceSelectionFailed}
+        workspaceSelectionPending={workspaceSelectionPending}
         workspaceSwitchFailure={workspaceSwitchFailure}
         workspaceAccessFocusTargetRef={workspaceAccessFocusTargetRef}
         onChangeQuery={handleChangeQuery}
         workspaceSwitchDisabled={workspaceSwitchDisabled}
         onSelectClient={(clientId) => {
           const workspace = availableWorkspaces.find((client) => client.id === clientId);
-          if (!workspace || workspace.id === selectedClientId) {
+          if (
+            !workspace ||
+            (workspace.id === selectedClientId && !workspaceSelectionFailed)
+          ) {
             return;
           }
           onWorkspaceChange(workspace);

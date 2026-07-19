@@ -4,6 +4,8 @@ import { describe, it } from "node:test";
 
 const screenSource = () =>
   readFileSync("src/features/routes/RouteListScreen.tsx", "utf8");
+const filtersSource = () =>
+  readFileSync("src/features/routes/RouteListFilters.tsx", "utf8");
 
 function sourceBetween(source: string, start: string, end: string): string {
   const startIndex = source.indexOf(start);
@@ -106,6 +108,29 @@ describe("route list screen behavior", () => {
     assert.match(
       source,
       /if \(refreshDelayMs === null\) \{[\s\S]*?setRoutes\(\[\]\)[\s\S]*?setShowingOfflineCopy\(false\)[\s\S]*?setOfflineCopyStoredAtMs\(null\)[\s\S]*?createRouteListExpiredCacheMessage\(offlineReviewStatus\)/,
+    );
+  });
+
+  it("keeps source routes visible with distinct durable-selection states", () => {
+    const screen = screenSource();
+    const filters = filtersSource();
+
+    assert.match(
+      screen,
+      /workspaceSelectionFailed=\{workspaceSelectionFailed\}[\s\S]*workspaceSelectionPending=\{workspaceSelectionPending\}/,
+    );
+    assert.match(
+      filters,
+      /switchingDisabled =[\s\S]*workspaceCatalogLoading \|\|[\s\S]*workspaceSwitchDisabled \|\|[\s\S]*workspaceSelectionPending/,
+    );
+    assert.match(filters, /workspaceSelectionPending[\s\S]*"Saving…"/);
+    assert.match(filters, /workspaceSelectionFailed[\s\S]*"Try again"/);
+    assert.match(filters, /Wait while the workspace choice is saved/);
+    assert.match(filters, /Wait while SafeRoute verifies workspace access/);
+    assert.match(filters, /Checking…/);
+    assert.match(
+      filters,
+      /busy:[\s\S]*workspaceCatalogLoading \|\|[\s\S]*workspaceSelectionPending \|\|[\s\S]*workspaceSwitchDisabled && !workspaceSwitchFailure/,
     );
   });
 

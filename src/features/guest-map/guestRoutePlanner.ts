@@ -64,6 +64,7 @@ export type GuestRoutePlanOptions = {
   destinationCoordinate?: LatLng | null;
   origin: string;
   originCoordinate?: LatLng | null;
+  planId?: string;
   riskZones?: RiskZone[];
   roadSnappedCoordinates?: LatLng[] | null;
   routeDistanceMeters?: number | null;
@@ -91,6 +92,7 @@ export const GUEST_MAP_REGION: Region = {
 };
 
 export const GUEST_ROUTE_LABEL_MAX_LENGTH = 80;
+export const GUEST_ROUTE_PLAN_ID_MAX_LENGTH = 120;
 export const GUEST_ROUTE_PREVIEW_SUMMARY_FALLBACK = 'Preview ready';
 export const GUEST_ROUTE_PREVIEW_METRIC_MAX_LENGTH = 24;
 
@@ -306,6 +308,21 @@ export function createGuestRouteMetrics(
   };
 }
 
+export function createGuestRoutePlanId(
+  nowMs = Date.now(),
+  randomValue = Math.random(),
+): string {
+  const timestamp = Math.max(1, Math.floor(nowMs)).toString(36);
+  const entropy = Math.floor(
+    Math.max(0, Math.min(0.9999999999999999, randomValue)) *
+      Number.MAX_SAFE_INTEGER,
+  ).toString(36);
+  return `guest-plot-${timestamp}-${entropy}`.slice(
+    0,
+    GUEST_ROUTE_PLAN_ID_MAX_LENGTH,
+  );
+}
+
 export function createGuestRoutePlan({
   authenticated = false,
   checkpoints,
@@ -313,6 +330,7 @@ export function createGuestRoutePlan({
   destinationCoordinate,
   origin,
   originCoordinate,
+  planId,
   riskZones,
   roadSnappedCoordinates,
   routeDistanceMeters,
@@ -354,9 +372,15 @@ export function createGuestRoutePlan({
         }
       : {}
   );
+  const normalizedPlanId =
+    typeof planId === 'string' &&
+    planId.trim().length > 0 &&
+    planId.trim().length <= GUEST_ROUTE_PLAN_ID_MAX_LENGTH
+      ? planId.trim()
+      : createGuestRoutePlanId();
 
   return {
-    id: 'guest-plotted-route',
+    id: normalizedPlanId,
     name: 'Route preview',
     operation: authenticated ? 'Local route' : 'Unsaved route',
     status: 'ready',
@@ -366,7 +390,7 @@ export function createGuestRoutePlan({
     destination: destinationLabel,
     region: buildGuestRouteRegion(routeCoordinates),
     route: {
-      id: 'guest-route-preview',
+      id: `${normalizedPlanId}-path`,
       label: 'Preview route',
       eta: routeMetrics.eta,
       distance: routeMetrics.distance,

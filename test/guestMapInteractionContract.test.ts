@@ -24,6 +24,21 @@ describe('guest map interaction contract', () => {
     assert.match(screen, /onPanDrag=\{\(\) =>/);
   });
 
+  it('allocates one immutable identity per plot and preserves it through road snapping', () => {
+    assert.match(
+      screen,
+      /const routePlanId = createGuestRoutePlanId\(\);[\s\S]*createGuestRoutePlan\(\{[\s\S]*planId: routePlanId/,
+    );
+    assert.match(
+      screen,
+      /createGuestRoadSnappedRoutePlan\(\{[\s\S]*planId: localRoutePlan\.id/,
+    );
+    assert.equal(
+      (screen.match(/createGuestRoutePlanId\(\)/g) || []).length,
+      1,
+    );
+  });
+
   it('supports a smooth collapsible route sheet and deliberate map long-press actions', () => {
     assert.match(screen, /Animated\.spring\(sheetProgress/);
     assert.match(screen, /PanResponder\.create/);

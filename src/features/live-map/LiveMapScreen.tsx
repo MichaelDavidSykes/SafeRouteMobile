@@ -88,6 +88,7 @@ import { createBackgroundNavigationPresentation } from "./backgroundNavigationSt
 import {
   createActiveNavigationInstanceId,
   createActiveNavigationSession,
+  isNavigationSessionForRoutePreview,
   isPersistedNavigationLifecycle,
   type ActiveNavigationSession,
 } from "./activeNavigationSessionCore";
@@ -156,8 +157,13 @@ export function LiveMapScreen({
     networkRequestEpochRef.current += 1;
   }
   const resumedNavigationSession =
-    initialNavigationSession?.routePlan.route.id === routePlan.route.id
-      ? initialNavigationSession
+    isNavigationSessionForRoutePreview({
+      navigationSession: initialNavigationSession,
+      principalId,
+      routeContext,
+      routePlan,
+    })
+      ? initialNavigationSession || null
       : null;
   const mapRef = useRef<MapView | null>(null);
   const activeRerouteRequestRef = useRef<AbortController | null>(null);
@@ -927,8 +933,13 @@ export function LiveMapScreen({
 
   useEffect(() => {
     const nextResumeSession =
-      initialNavigationSession?.routePlan.route.id === routePlan.route.id
-        ? initialNavigationSession
+      isNavigationSessionForRoutePreview({
+        navigationSession: initialNavigationSession,
+        principalId,
+        routeContext,
+        routePlan,
+      })
+        ? initialNavigationSession || null
         : null;
     const nextRoutePlan = nextResumeSession?.routePlan || routePlan;
     activeRerouteRequestRef.current?.abort();
@@ -973,7 +984,13 @@ export function LiveMapScreen({
       clearTimeout(timer);
       cancelNavigationStartAuthorization(navigationAuthorizationGateRef.current);
     };
-  }, [routePlan.id]);
+  }, [
+    initialNavigationSession?.navigationInstanceId,
+    principalId,
+    routeContext,
+    routePlan.clientId,
+    routePlan.id,
+  ]);
 
   useEffect(() => {
     const workspaceId = activeRoutePlan.clientId?.trim() || "";

@@ -52,6 +52,7 @@ import { LiveMapScreen } from './src/features/live-map/LiveMapScreen';
 import type { SavedSafeRoutePlan } from './src/features/live-map/liveMapTypes';
 import {
   canResumeActiveNavigationSession,
+  isNavigationSessionForRoutePreview,
   type ActiveNavigationSession
 } from './src/features/live-map/activeNavigationSessionCore';
 import {
@@ -3014,7 +3015,12 @@ function SafeRouteApp() {
     }
     if (
       activeNavigationSession &&
-      activeNavigationSession.routePlan.route.id !== routePlan.route.id
+      !isNavigationSessionForRoutePreview({
+        navigationSession: activeNavigationSession,
+        principalId: sessionPrincipalId,
+        routeContext: 'guest',
+        routePlan,
+      })
     ) {
       void discardPersistedNavigation(
         'Current guidance ended. Select the new route again.',
@@ -3047,7 +3053,12 @@ function SafeRouteApp() {
     }
     if (
       activeNavigationSession &&
-      activeNavigationSession.routePlan.route.id !== routePlan.route.id
+      !isNavigationSessionForRoutePreview({
+        navigationSession: activeNavigationSession,
+        principalId: sessionPrincipalId,
+        routeContext: 'saved',
+        routePlan,
+      })
     ) {
       void discardPersistedNavigation(
         'Current guidance ended. Choose the new route again.',
@@ -3124,7 +3135,12 @@ function SafeRouteApp() {
           <LiveMapScreen
             accessToken={session?.accessToken || null}
             initialNavigationSession={
-              activeNavigationSession?.routePlan.route.id === selectedRoute.route.id
+              isNavigationSessionForRoutePreview({
+                navigationSession: activeNavigationSession,
+                principalId: sessionPrincipalId,
+                routeContext: routePreviewSource,
+                routePlan: selectedRoute,
+              })
                 ? activeNavigationSession
                 : null
             }

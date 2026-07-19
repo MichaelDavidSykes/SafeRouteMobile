@@ -94,6 +94,14 @@ describe("production navigation reliability integration", () => {
     assert.match(liveMapSource, /initialNavigationSession/);
     assert.match(
       liveMapSource,
+      /isNavigationSessionForRoutePreview\(\{[\s\S]*navigationSession: initialNavigationSession[\s\S]*routeContext[\s\S]*routePlan/,
+    );
+    assert.doesNotMatch(
+      liveMapSource,
+      /initialNavigationSession\?\.routePlan\.route\.id\s*===\s*routePlan\.route\.id/,
+    );
+    assert.match(
+      liveMapSource,
       /resumedNavigationSession\?\.navigationInstanceId[\s\S]*createActiveNavigationInstanceId/,
     );
     assert.match(

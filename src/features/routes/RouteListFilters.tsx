@@ -20,6 +20,9 @@ interface RouteListFiltersProps {
   showClientFilters: boolean;
   showSearch: boolean;
   workspaceChangeEndsNavigation: boolean;
+  workspaceCatalogLoading: boolean;
+  workspaceSelectionFailed: boolean;
+  workspaceSelectionPending: boolean;
   workspaceSwitchFailure: boolean;
   workspaceSwitchDisabled: boolean;
   workspaceAccessFocusTargetRef?: (target: View | null) => void;
@@ -37,6 +40,9 @@ export function RouteListFilters({
   routeSummary,
   showSummary,
   workspaceChangeEndsNavigation,
+  workspaceCatalogLoading,
+  workspaceSelectionFailed,
+  workspaceSelectionPending,
   workspaceSwitchFailure,
   workspaceSwitchDisabled,
   workspaceAccessFocusTargetRef,
@@ -48,10 +54,23 @@ export function RouteListFilters({
   const workspaceLabel = selectedClientOption?.label || "Choose workspace";
 
   useEffect(() => {
-    if (workspaceSwitchDisabled) {
+    if (
+      workspaceCatalogLoading ||
+      workspaceSwitchDisabled ||
+      workspaceSelectionPending
+    ) {
       setClientMenuOpen(false);
     }
-  }, [workspaceSwitchDisabled]);
+  }, [
+    workspaceCatalogLoading,
+    workspaceSelectionPending,
+    workspaceSwitchDisabled,
+  ]);
+
+  const switchingDisabled =
+    workspaceCatalogLoading ||
+    workspaceSwitchDisabled ||
+    workspaceSelectionPending;
 
   return (
     <>
@@ -61,6 +80,12 @@ export function RouteListFilters({
             ref={workspaceAccessFocusTargetRef}
             accessibilityHint={workspaceSwitchFailure
               ? "Retry guidance cleanup before changing workspace."
+              : workspaceCatalogLoading
+                ? "Wait while SafeRoute verifies workspace access."
+              : workspaceSelectionFailed
+                ? "Opens the workspace menu to choose the workspace again."
+              : workspaceSelectionPending
+                ? "Wait while the workspace choice is saved."
               : workspaceSwitchDisabled
                 ? "Finish guidance cleanup before changing workspace."
                 : workspaceChangeEndsNavigation
@@ -69,11 +94,14 @@ export function RouteListFilters({
             accessibilityLabel={`Workspace, ${workspaceLabel}`}
             accessibilityRole="button"
             accessibilityState={{
-              busy: workspaceSwitchDisabled && !workspaceSwitchFailure,
-              disabled: workspaceSwitchDisabled,
+              busy:
+                workspaceCatalogLoading ||
+                workspaceSelectionPending ||
+                (workspaceSwitchDisabled && !workspaceSwitchFailure),
+              disabled: switchingDisabled,
               expanded: clientMenuOpen,
             }}
-            disabled={workspaceSwitchDisabled}
+            disabled={switchingDisabled}
             hitSlop={ROUTE_FILTER_HIT_SLOP}
             testID={uiTestIds.routeListWorkspaceSelector}
             style={({ pressed }) => [
@@ -94,6 +122,12 @@ export function RouteListFilters({
             <Text numberOfLines={1} style={styles.clientSelectorAction}>
               {workspaceSwitchFailure
                 ? "Cleanup needed"
+                : workspaceCatalogLoading
+                  ? "Checking…"
+                : workspaceSelectionFailed
+                  ? "Try again"
+                : workspaceSelectionPending
+                  ? "Saving…"
                 : workspaceSwitchDisabled
                   ? "Finishing…"
                   : clientMenuOpen
@@ -102,7 +136,7 @@ export function RouteListFilters({
             </Text>
           </Pressable>
 
-          {clientMenuOpen && !workspaceSwitchDisabled ? (
+          {clientMenuOpen && !switchingDisabled ? (
             <View style={styles.clientMenu}>
               <ScrollView
                 nestedScrollEnabled

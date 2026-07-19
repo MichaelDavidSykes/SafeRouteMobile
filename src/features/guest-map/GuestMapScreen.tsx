@@ -130,6 +130,8 @@ interface GuestMapScreenProps {
   workspaceAccessIssue?: WorkspaceAccessIssue;
   workspaceChangeEndsNavigation?: boolean;
   workspaceNavigationNoticeInset?: number;
+  workspaceSelectionFailed?: boolean;
+  workspaceSelectionPending?: boolean;
   workspaceSwitchFailure?: boolean;
   workspaceSwitchDisabled?: boolean;
 }
@@ -158,6 +160,8 @@ export function GuestMapScreen({
   workspaceAccessIssue = 'none',
   workspaceChangeEndsNavigation = false,
   workspaceNavigationNoticeInset = 0,
+  workspaceSelectionFailed = false,
+  workspaceSelectionPending = false,
   workspaceSwitchFailure = false,
   workspaceSwitchDisabled = false
 }: GuestMapScreenProps) {
@@ -243,8 +247,12 @@ export function GuestMapScreen({
   const workspaceAuthorizationRequired =
     authenticated && Boolean(routingClientId) && !workspaceAuthorizationFresh;
   const riskAreaAuthorizationRequired =
-    !online || workspaceSelectionRequired || workspaceAuthorizationRequired;
+    !online ||
+    workspaceSelectionPending ||
+    workspaceSelectionRequired ||
+    workspaceAuthorizationRequired;
   const routingAccessToken =
+    !workspaceSelectionPending &&
     !workspaceSelectionRequired &&
     !workspaceAuthorizationRequired &&
     accessToken &&
@@ -272,6 +280,7 @@ export function GuestMapScreen({
     routeAction.disabled ||
     routeResolutionPending ||
     roadPreviewPending ||
+    workspaceSelectionPending ||
     workspaceSelectionRequired ||
     workspaceAuthorizationRequired;
   const workspaceBlockingActionLabel = workspaceCatalogLoading
@@ -285,6 +294,8 @@ export function GuestMapScreen({
     ? 'Resolving route points…'
     : roadPreviewPending
       ? 'Finding safest route…'
+    : workspaceSelectionPending
+      ? 'Saving workspace…'
     : networkChecking
       ? 'Checking connection…'
     : offline
@@ -300,6 +311,8 @@ export function GuestMapScreen({
     ? 'Checking connection before plotting this route'
     : offline
       ? 'Reconnect before plotting this route'
+    : workspaceSelectionPending
+      ? 'Saving the workspace before plotting this route'
     : workspaceSelectionRequired
     ? workspaceBlockingActionLabel
     : workspaceAuthorizationRequired
@@ -309,6 +322,8 @@ export function GuestMapScreen({
     : routeAction.accessibilityLabel;
   const routeActionAccessibilityHint = !online
     ? 'Wait for a connection before requesting a road-snapped route.'
+    : workspaceSelectionPending
+      ? 'Wait for the workspace change to finish before plotting this route.'
     : workspaceSelectionRequired
     ? availableWorkspaces.length
       ? 'Choose the SafeRoute workspace above before plotting this route.'
@@ -338,6 +353,7 @@ export function GuestMapScreen({
     clientId: routingClientId,
     enabled:
       online &&
+      !workspaceSelectionPending &&
       !workspaceSelectionRequired &&
       !workspaceAuthorizationRequired,
     onSessionExpired,
@@ -631,9 +647,15 @@ export function GuestMapScreen({
     clearWorkspaceScopedMapState();
   }, [routingClientId]);
 
+  useEffect(() => {
+    if (workspaceCatalogLoading || workspaceSelectionPending) {
+      setWorkspaceMenuOpen(false);
+    }
+  }, [workspaceCatalogLoading, workspaceSelectionPending]);
+
   const handleWorkspaceChange = (workspace: SafeRouteWorkspace) => {
     setWorkspaceMenuOpen(false);
-    if (workspace.id === routingClientId) {
+    if (workspace.id === routingClientId && !workspaceSelectionFailed) {
       return;
     }
 
@@ -1716,6 +1738,8 @@ export function GuestMapScreen({
                     changeEndsNavigation={workspaceChangeEndsNavigation}
                     switchDisabled={workspaceSwitchDisabled}
                     switchFailure={workspaceSwitchFailure}
+                    selectionFailed={workspaceSelectionFailed}
+                    selectionPending={workspaceSelectionPending}
                     focusTargetRef={handleWorkspaceAccessFocusTarget}
                   />
                   {workspaceAccessRefreshAvailable ? (
@@ -1935,6 +1959,8 @@ function GuestWorkspaceSelector({
   onSelect,
   onToggle,
   sharedRetryAvailable,
+  selectionFailed,
+  selectionPending,
   switchDisabled,
   switchFailure,
   workspaces
@@ -1949,6 +1975,8 @@ function GuestWorkspaceSelector({
   onSelect: (workspace: SafeRouteWorkspace) => void;
   onToggle: () => void;
   sharedRetryAvailable: boolean;
+  selectionFailed: boolean;
+  selectionPending: boolean;
   switchDisabled: boolean;
   switchFailure: boolean;
   workspaces: SafeRouteWorkspace[];
@@ -1959,9 +1987,10 @@ function GuestWorkspaceSelector({
     !switchFailure &&
     !sharedRetryAvailable &&
     !loading && Boolean(onRetry && errorMessage) && (catalogUnavailable || switchDisabled);
+  const switchingDisabled = switchDisabled || selectionPending || loading;
   const disabled = retryAvailable
     ? false
-    : switchDisabled ||
+    : switchingDisabled ||
       waitingForCatalog ||
       (sharedRetryAvailable && catalogUnavailable) ||
       (!errorMessage && !workspaces.length);
@@ -1974,6 +2003,12 @@ function GuestWorkspaceSelector({
     ? 'Retry'
     : switchFailure
       ? 'Cleanup needed'
+      : loading
+        ? 'Checking…'
+      : selectionFailed
+        ? 'Try again'
+      : selectionPending
+        ? 'Saving…'
       : switchDisabled
         ? 'Finishing…'
         : catalogUnavailable
@@ -1990,6 +2025,12 @@ function GuestWorkspaceSelector({
             ? 'Use the workspace access control below to check current access.'
             : switchFailure
               ? 'Retry guidance cleanup before changing workspace.'
+              : loading
+                ? 'Wait while SafeRoute verifies workspace access.'
+              : selectionFailed
+                ? 'Opens the workspace menu to choose the workspace again.'
+              : selectionPending
+                ? 'Wait while the workspace choice is saved.'
               : switchDisabled
                 ? 'Finish guidance cleanup before changing workspace.'
                 : changeEndsNavigation
@@ -1998,7 +2039,7 @@ function GuestWorkspaceSelector({
         accessibilityLabel={`Workspace, ${value}`}
         accessibilityRole={waitingForCatalog ? "progressbar" : "button"}
         accessibilityState={{
-          busy: switchDisabled && !switchFailure,
+          busy: loading || selectionPending || (switchDisabled && !switchFailure),
           disabled,
           expanded: menuOpen,
         }}
@@ -2015,12 +2056,12 @@ function GuestWorkspaceSelector({
           <Text numberOfLines={1} style={styles.workspaceSelectorLabel}>Workspace</Text>
           <Text numberOfLines={1} style={styles.workspaceSelectorValue}>{value}</Text>
         </View>
-        {!loading && (errorMessage || workspaces.length) ? (
+        {(loading || errorMessage || workspaces.length) ? (
           <Text numberOfLines={1} style={styles.workspaceSelectorAction}>{action}</Text>
         ) : null}
       </Pressable>
 
-      {menuOpen && workspaces.length > 0 && !switchDisabled ? (
+      {menuOpen && workspaces.length > 0 && !switchingDisabled ? (
         <ScrollView
           nestedScrollEnabled
           contentContainerStyle={styles.workspaceMenuContent}

@@ -14,6 +14,7 @@ import {
   parseOfflineWorkspaceCacheRecord,
   parseWorkspaceRecoveryRevocationRecord,
   persistLatestOfflineWorkspaceSelection,
+  reconcileLatestOfflineWorkspaceSelection,
   persistTerminalWorkspacePrincipalRevocation,
   persistWorkspaceRecoveryWithFallback,
 } from "../src/features/workspaces/offlineWorkspaceCacheCore";
@@ -160,11 +161,18 @@ describe("offline active workspace cache", () => {
       catalogStoredAtMs: number | null;
       retentionStoredAtMs: number | null;
     } | null = null;
+    let persisted = current;
 
     const selected = await persistLatestOfflineWorkspaceSelection({
-      loadCurrent: async () => current,
-      persistContext: async (_context, freshness) => {
+      loadCurrent: async () => persisted,
+      persistContext: async (context, freshness) => {
         persistedFreshness = freshness;
+        persisted = {
+          ...context,
+          ...freshness,
+          principalId: "user-a",
+          unavailableWorkspaceIds: context.unavailableWorkspaceIds || [],
+        };
       },
       principalId: "user-a",
       workspaceId: "workspace-a",
@@ -177,6 +185,150 @@ describe("offline active workspace cache", () => {
     assert.equal(selected?.activeWorkspaceId, "workspace-a");
     assert.equal(selected?.catalogStoredAtMs, 1_000);
     assert.equal(selected?.retentionStoredAtMs, 1_000);
+  });
+
+  it("returns no selection when physical readback does not confirm the target", async () => {
+    const current = parseOfflineWorkspaceCacheRecord(
+      createOfflineWorkspaceCacheRecord(CONTEXT, "user-a", 1_000),
+      "user-a",
+      2_000,
+    );
+    assert.ok(current);
+
+    assert.equal(
+      await persistLatestOfflineWorkspaceSelection({
+        loadCurrent: async () => current,
+        persistContext: async () => undefined,
+        principalId: "user-a",
+        workspaceId: "workspace-a",
+      }),
+      null,
+    );
+  });
+
+  it("restores and verifies the visible workspace after a target write has an unconfirmed readback", async () => {
+    const source = parseOfflineWorkspaceCacheRecord(
+      createOfflineWorkspaceCacheRecord(
+        { ...CONTEXT, activeWorkspaceId: "workspace-a" },
+        "user-a",
+        1_000,
+      ),
+      "user-a",
+      2_000,
+    );
+    assert.ok(source);
+    let persisted = source;
+    let failTargetReadback = true;
+    let fallbackPersisted = false;
+
+    const attempted = await persistLatestOfflineWorkspaceSelection({
+      loadCurrent: async () => {
+        if (failTargetReadback && persisted.activeWorkspaceId === "workspace-b") {
+          failTargetReadback = false;
+          return null;
+        }
+        return persisted;
+      },
+      persistContext: async (context, freshness) => {
+        persisted = {
+          ...context,
+          ...freshness,
+          principalId: "user-a",
+          unavailableWorkspaceIds: context.unavailableWorkspaceIds || [],
+        };
+      },
+      principalId: "user-a",
+      workspaceId: "workspace-b",
+    });
+
+    assert.equal(attempted, null);
+    assert.equal(persisted.activeWorkspaceId, "workspace-b");
+
+    const reconciliation = await reconcileLatestOfflineWorkspaceSelection({
+      clearFallback: async () => {
+        fallbackPersisted = false;
+      },
+      context: {
+        activeWorkspaceId: "workspace-a",
+        unavailableWorkspaceIds: [],
+        workspaces: CONTEXT.workspaces,
+      },
+      loadCurrent: async () => persisted,
+      persistContext: async (context, freshness) => {
+        persisted = {
+          ...context,
+          ...freshness,
+          principalId: "user-a",
+          unavailableWorkspaceIds: context.unavailableWorkspaceIds || [],
+        };
+      },
+      persistFallback: async () => {
+        fallbackPersisted = true;
+      },
+      principalId: "user-a",
+    });
+
+    assert.equal(reconciliation, "persisted");
+    assert.equal(persisted.activeWorkspaceId, "workspace-a");
+    assert.equal(fallbackPersisted, false);
+  });
+
+  it("reconciles a verified target when a later catalog fence prevents its visible commit", async () => {
+    const source = parseOfflineWorkspaceCacheRecord(
+      createOfflineWorkspaceCacheRecord(
+        { ...CONTEXT, activeWorkspaceId: "workspace-a" },
+        "user-a",
+        1_000,
+      ),
+      "user-a",
+      2_000,
+    );
+    assert.ok(source);
+    let persisted = source;
+    const persistContext = async (
+      context: typeof CONTEXT & { unavailableWorkspaceIds?: string[] },
+      freshness: {
+        catalogStoredAtMs: number | null;
+        retentionStoredAtMs: number | null;
+      },
+    ) => {
+      persisted = {
+        ...context,
+        ...freshness,
+        principalId: "user-a",
+        unavailableWorkspaceIds: context.unavailableWorkspaceIds || [],
+      };
+    };
+
+    const verifiedTarget = await persistLatestOfflineWorkspaceSelection({
+      loadCurrent: async () => persisted,
+      persistContext,
+      principalId: "user-a",
+      workspaceId: "workspace-b",
+    });
+    assert.equal(verifiedTarget?.activeWorkspaceId, "workspace-b");
+
+    let fallbackPersisted = false;
+    const reconciliation = await reconcileLatestOfflineWorkspaceSelection({
+      clearFallback: async () => {
+        fallbackPersisted = false;
+      },
+      context: {
+        activeWorkspaceId: "workspace-a",
+        unavailableWorkspaceIds: [],
+        workspaces: CONTEXT.workspaces,
+      },
+      loadCurrent: async () => persisted,
+      persistContext,
+      persistFallback: async () => {
+        fallbackPersisted = true;
+      },
+      principalId: "user-a",
+    });
+
+    assert.equal(reconciliation, "persisted");
+    assert.equal(persisted.activeWorkspaceId, "workspace-a");
+    assert.equal(fallbackPersisted, false);
   });
 
   it("refuses to persist a selection without an immutable retention basis", async () => {

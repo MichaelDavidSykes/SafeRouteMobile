@@ -11,6 +11,7 @@ export function resolveEndRouteWorkspaceChangeTarget({
   currentWorkspaceRequestRevision,
   hasActiveNavigation,
   hasPendingNavigation,
+  allowSameSourceTarget = false,
   requestedPrincipalId,
   requestedSessionEpoch,
   requestedSourceWorkspaceId,
@@ -24,6 +25,7 @@ export function resolveEndRouteWorkspaceChangeTarget({
   currentWorkspaceRequestRevision: number;
   hasActiveNavigation: boolean;
   hasPendingNavigation: boolean;
+  allowSameSourceTarget?: boolean;
   requestedPrincipalId: string;
   requestedSessionEpoch: number;
   requestedSourceWorkspaceId: string | null;
@@ -38,6 +40,7 @@ export function resolveEndRouteWorkspaceChangeTarget({
     requestedSourceWorkspaceId !== currentSourceWorkspaceId ||
     requestedWorkspaceRequestRevision !== currentWorkspaceRequestRevision ||
     (
+      !allowSameSourceTarget &&
       requestedSourceWorkspaceId !== null &&
       requestedSourceWorkspaceId === requestedTargetWorkspaceId
     )

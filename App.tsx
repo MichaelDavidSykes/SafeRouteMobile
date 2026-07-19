@@ -118,7 +118,8 @@ import {
   loadOfflineWorkspaceContext,
   migrateOfflineWorkspaceCatalogFromRouteCache,
   persistOfflineReviewWorkspaceSelection,
-  persistOfflineWorkspaceRecovery
+  persistOfflineWorkspaceRecovery,
+  reconcileOfflineReviewWorkspaceSelection,
 } from './src/features/workspaces/offlineWorkspaceCache';
 import {
   excludeUnavailableWorkspaces,
@@ -176,6 +177,7 @@ type PendingNavigationRestore = {
 
 type NavigationCleanupStatus = 'idle' | 'checking' | 'failed';
 type OfflineCalendarCleanupStatus = 'idle' | 'checking' | 'failed';
+type WorkspaceSelectionStatus = 'idle' | 'saving' | 'failed';
 
 export default function App() {
   return (
@@ -239,6 +241,8 @@ function SafeRouteApp() {
   const [navigationCleanupStatus, setNavigationCleanupStatus] =
     useState<NavigationCleanupStatus>('idle');
   const [workspaceHandoffPending, setWorkspaceHandoffPending] = useState(false);
+  const [workspaceSelectionStatus, setWorkspaceSelectionStatus] =
+    useState<WorkspaceSelectionStatus>('idle');
   const [
     suspendedNavigationNoticeHeight,
     setSuspendedNavigationNoticeHeight,
@@ -328,6 +332,11 @@ function SafeRouteApp() {
   const navigationCleanupRequiredRef = useRef(false);
   const navigationCleanupPromiseRef = useRef<Promise<boolean> | null>(null);
   const workspaceHandoffPendingRef = useRef(false);
+  const workspaceSelectionRequestRevisionRef = useRef(0);
+  const workspaceSelectionPendingRef = useRef(false);
+  const workspaceSelectionSavingMessageRef = useRef<string | null>(null);
+  const workspaceCatalogRefreshDeferredRef = useRef(false);
+  const workspaceForegroundRefreshDeferredRef = useRef(false);
   const authenticated = hasAuthenticatedSession(session);
   const sessionPrincipalId = getAuthSessionPrincipalId(session);
   if (freshWorkspaceAuthorizationRef.current.principalId !== sessionPrincipalId) {
@@ -361,6 +370,8 @@ function SafeRouteApp() {
   const workspaceCleanupFailed = navigationCleanupStatus === 'failed';
   const workspaceCleanupLocked =
     navigationCleanupStatus !== 'idle' || workspaceHandoffPending;
+  const workspaceSelectionPending = workspaceSelectionStatus === 'saving';
+  const workspaceSelectionFailed = workspaceSelectionStatus === 'failed';
   const sessionEpoch = sessionEpochRef.current;
   activeSessionTokenRef.current = session?.accessToken || null;
   activeSessionPrincipalIdRef.current = getAuthSessionPrincipalId(session);
@@ -420,6 +431,22 @@ function SafeRouteApp() {
   useEffect(() => () => {
     workspaceAccessFocusHandoffRef.current?.cancel();
   }, []);
+
+  useEffect(() => {
+    workspaceSelectionRequestRevisionRef.current += 1;
+    workspaceSelectionPendingRef.current = false;
+    workspaceCatalogRefreshDeferredRef.current = false;
+    workspaceForegroundRefreshDeferredRef.current = false;
+    restoreUnavailableWorkspacesFromFreshCatalogRef.current = false;
+    const savingMessage = workspaceSelectionSavingMessageRef.current;
+    workspaceSelectionSavingMessageRef.current = null;
+    if (savingMessage) {
+      setSessionMessage((currentMessage) =>
+        currentMessage === savingMessage ? '' : currentMessage,
+      );
+    }
+    setWorkspaceSelectionStatus('idle');
+  }, [sessionPrincipalId]);
 
   useEffect(() => {
     if (!online) {
@@ -535,6 +562,13 @@ function SafeRouteApp() {
         setWorkspaceForegroundAuthorizationPaused(true);
       }
       if (!decision.revalidate) {
+        return;
+      }
+      if (workspaceSelectionPendingRef.current) {
+        workspaceCatalogRefreshDeferredRef.current = true;
+        workspaceForegroundRefreshDeferredRef.current = true;
+        workspaceForegroundAuthorizationPausedRef.current = true;
+        setWorkspaceForegroundAuthorizationPaused(true);
         return;
       }
 
@@ -2243,6 +2277,11 @@ function SafeRouteApp() {
   }, [authenticated, session?.accessToken, workspaceDiscoveryRevision]);
 
   const beginWorkspaceCatalogRetry = useCallback((replaceInFlight: boolean) => {
+    if (workspaceSelectionPendingRef.current) {
+      workspaceCatalogRefreshDeferredRef.current = true;
+      restoreUnavailableWorkspacesFromFreshCatalogRef.current = true;
+      return false;
+    }
     if (
       !replaceInFlight &&
       (
@@ -2255,6 +2294,7 @@ function SafeRouteApp() {
     workspaceAccessFocusHandoffRef.current?.cancel();
     automaticReconnectAnnouncementPendingRef.current = false;
     workspaceCatalogRetryingRef.current = true;
+    workspaceCatalogBusyRef.current = true;
     if (pendingNavigationRestoreRef.current) {
       setPendingNavigationRestoreStatus('checking');
       setSessionMessage('Restoring your saved route…');
@@ -2312,6 +2352,12 @@ function SafeRouteApp() {
       handleNetworkReconnectWorkspaceCatalog();
       return;
     }
+    if (workspaceSelectionPendingRef.current) {
+      workspaceCatalogRefreshDeferredRef.current = true;
+      return;
+    }
+    workspaceCatalogBusyRef.current = true;
+    setWorkspaceCatalogLoading(true);
     setWorkspaceDiscoveryRevision((revision) => revision + 1);
   }, [
     handleNetworkReconnectWorkspaceCatalog,
@@ -2321,27 +2367,225 @@ function SafeRouteApp() {
     requestWorkspaceForegroundRevalidation,
   ]);
 
-  const handleActiveWorkspaceChange = useCallback((workspace: SafeRouteWorkspace | null) => {
+  const handleActiveWorkspaceChange = useCallback((
+    workspace: SafeRouteWorkspace | null,
+  ) => {
+    const requestedTarget = workspace
+      ? findWorkspace(availableWorkspacesRef.current, workspace.id)
+      : null;
+    const retryingVisibleWorkspace =
+      Boolean(requestedTarget) &&
+      requestedTarget?.id === activeWorkspaceRef.current?.id &&
+      workspaceSelectionStatus === 'failed';
     if (
-      workspaceHandoffPendingRef.current ||
-      pendingNavigationRestoreRef.current ||
-      (activeNavigationSession && workspace?.id !== activeWorkspace?.id)
+      requestedTarget &&
+      requestedTarget.id === activeWorkspaceRef.current?.id &&
+      !retryingVisibleWorkspace
     ) {
       return;
     }
-    const nextWorkspace = workspace
-      ? findWorkspace(availableWorkspaces, workspace.id)
-      : null;
-    activeWorkspaceRef.current = nextWorkspace;
-    setActiveWorkspace(nextWorkspace);
-    const principalId = getAuthSessionPrincipalId(session);
-    if (nextWorkspace) {
-      void persistOfflineReviewWorkspaceSelection(
-        principalId,
-        nextWorkspace.id,
-      ).catch(() => undefined);
+    if (
+      !requestedTarget ||
+      workspaceCatalogBusyRef.current ||
+      workspaceCatalogRetryingRef.current ||
+      workspaceForegroundRefreshPendingRef.current ||
+      unavailableWorkspaceIdsRef.current.has(requestedTarget.id) ||
+      workspaceHandoffPendingRef.current ||
+      workspaceSelectionPendingRef.current ||
+      pendingNavigationRestoreRef.current ||
+      activeNavigationSessionRef.current ||
+      navigationCleanupRequiredRef.current ||
+      navigationCleanupPromiseRef.current
+    ) {
+      return;
     }
-  }, [activeNavigationSession, activeWorkspace?.id, availableWorkspaces, session]);
+
+    const requestRevision = workspaceSelectionRequestRevisionRef.current + 1;
+    workspaceSelectionRequestRevisionRef.current = requestRevision;
+    workspaceSelectionPendingRef.current = true;
+    const requestedPrincipalId = activeSessionPrincipalIdRef.current;
+    const requestedSessionEpoch = sessionEpochRef.current;
+    const requestedWorkspaceRequestRevision = workspaceRequestRevisionRef.current;
+    const requestedSourceWorkspaceId = activeWorkspaceRef.current?.id || null;
+    const requestedSourceWorkspaceName = activeWorkspaceRef.current?.name || '';
+    const requestedTargetWorkspaceId = requestedTarget.id;
+    const requestedCatalog = [...availableWorkspacesRef.current];
+    const requestedUnavailableWorkspaceIds = Array.from(
+      unavailableWorkspaceIdsRef.current,
+    );
+    const savingMessage = `Saving workspace ${requestedTarget.name}…`;
+    const requestOwnerIsCurrent = () =>
+      requestRevision === workspaceSelectionRequestRevisionRef.current &&
+      requestedPrincipalId === activeSessionPrincipalIdRef.current &&
+      requestedSessionEpoch === sessionEpochRef.current;
+    const resolveCurrentTarget = () => {
+      if (
+        workspaceHandoffPendingRef.current ||
+        workspaceCatalogBusyRef.current ||
+        workspaceCatalogRetryingRef.current ||
+        workspaceForegroundRefreshPendingRef.current ||
+        navigationCleanupRequiredRef.current ||
+        navigationCleanupPromiseRef.current ||
+        unavailableWorkspaceIdsRef.current.has(requestedTargetWorkspaceId)
+      ) {
+        return null;
+      }
+      return resolveEndRouteWorkspaceChangeTarget({
+        availableWorkspaces: availableWorkspacesRef.current,
+        currentPrincipalId: activeSessionPrincipalIdRef.current,
+        currentSessionEpoch: sessionEpochRef.current,
+        currentSourceWorkspaceId: activeWorkspaceRef.current?.id || null,
+        currentWorkspaceRequestRevision: workspaceRequestRevisionRef.current,
+        hasActiveNavigation: Boolean(activeNavigationSessionRef.current),
+        hasPendingNavigation: Boolean(pendingNavigationRestoreRef.current),
+        allowSameSourceTarget: retryingVisibleWorkspace,
+        requestedPrincipalId,
+        requestedSessionEpoch,
+        requestedSourceWorkspaceId,
+        requestedTargetWorkspaceId,
+        requestedWorkspaceRequestRevision,
+      });
+    };
+    setWorkspaceSelectionStatus('saving');
+    workspaceSelectionSavingMessageRef.current = savingMessage;
+    setSessionMessage(savingMessage);
+    void (async () => {
+      let selectionStatus: WorkspaceSelectionStatus = 'idle';
+      let outcomePublished = false;
+      const reconcileVisibleSelection = async () => {
+        const requestStillOwnsPrincipal = requestOwnerIsCurrent();
+        const visibleWorkspace = requestStillOwnsPrincipal
+          ? activeWorkspaceRef.current
+          : findWorkspace(requestedCatalog, requestedSourceWorkspaceId);
+        const reconciliationCatalog = requestStillOwnsPrincipal
+          ? availableWorkspacesRef.current
+          : requestedCatalog;
+        const unavailableWorkspaceIds = requestStillOwnsPrincipal
+          ? Array.from(unavailableWorkspaceIdsRef.current)
+          : requestedUnavailableWorkspaceIds;
+        return reconcileOfflineReviewWorkspaceSelection(
+          requestedPrincipalId,
+          {
+            activeWorkspaceId: visibleWorkspace?.id || null,
+            unavailableWorkspaceIds,
+            workspaces: reconciliationCatalog,
+          },
+        );
+      };
+      const publishStorageFailure = () => {
+        outcomePublished = true;
+        selectionStatus = 'failed';
+        setNetworkAuthorizationReady(false);
+        setWorkspaceCatalogError('Offline workspace storage needs retry.');
+        setWorkspaceAccessIssue('offline-safety');
+        const failure =
+          'Workspace storage could not be verified. Refresh workspace access before continuing.';
+        setSessionMessage(failure);
+        AccessibilityInfo.announceForAccessibilityWithOptions(failure, {
+          queue: true,
+        });
+      };
+      const publishSelectionFailure = () => {
+        outcomePublished = true;
+        selectionStatus = 'failed';
+        const failure = requestedSourceWorkspaceName
+          ? `Workspace unchanged. Still using ${requestedSourceWorkspaceName} because ${requestedTarget.name} could not be saved. Choose a workspace again.`
+          : `Workspace not selected. ${requestedTarget.name} could not be saved. Choose a workspace again.`;
+        setSessionMessage(failure);
+        if (Platform.OS === 'ios') {
+          void workspaceAccessFocusHandoffRef.current?.request(
+            failure,
+            () => workspaceAccessFocusTargetRef.current,
+          );
+        } else {
+          AccessibilityInfo.announceForAccessibilityWithOptions(
+            failure,
+            { queue: true },
+          );
+        }
+      };
+      try {
+        const persistedSelection = await persistOfflineReviewWorkspaceSelection(
+          requestedPrincipalId,
+          requestedTargetWorkspaceId,
+        );
+        const persistedTarget =
+          persistedSelection?.activeWorkspaceId === requestedTargetWorkspaceId
+            ? resolveCurrentTarget()
+            : null;
+        if (!persistedTarget) {
+          const reconciliation = await reconcileVisibleSelection();
+          if (requestOwnerIsCurrent()) {
+            if (reconciliation !== 'persisted') {
+              publishStorageFailure();
+            } else if (
+              persistedSelection?.activeWorkspaceId !== requestedTargetWorkspaceId &&
+              resolveCurrentTarget()
+            ) {
+              publishSelectionFailure();
+            }
+          }
+          return;
+        }
+
+        activeWorkspaceRef.current = persistedTarget;
+        setActiveWorkspace(persistedTarget);
+        outcomePublished = true;
+        const confirmation = retryingVisibleWorkspace
+          ? `Workspace remains ${persistedTarget.name}.`
+          : `Workspace changed to ${persistedTarget.name}.`;
+        setSessionMessage(confirmation);
+        if (Platform.OS === 'ios') {
+          void workspaceAccessFocusHandoffRef.current?.request(
+            confirmation,
+            () => workspaceAccessFocusTargetRef.current,
+          );
+        } else {
+          AccessibilityInfo.announceForAccessibilityWithOptions(
+            confirmation,
+            { queue: true },
+          );
+        }
+      } catch {
+        const reconciliation = await reconcileVisibleSelection();
+        if (requestOwnerIsCurrent()) {
+          if (reconciliation === 'persisted' && resolveCurrentTarget()) {
+            publishSelectionFailure();
+          } else if (reconciliation !== 'persisted') {
+            publishStorageFailure();
+          }
+        }
+      } finally {
+        if (requestRevision === workspaceSelectionRequestRevisionRef.current) {
+          workspaceSelectionPendingRef.current = false;
+          workspaceSelectionSavingMessageRef.current = null;
+          setWorkspaceSelectionStatus(selectionStatus);
+          if (!outcomePublished) {
+            const stoppedMessage = requestedSourceWorkspaceName
+              ? `Workspace change stopped. Still using ${requestedSourceWorkspaceName}.`
+              : 'Workspace change stopped. Choose a workspace again.';
+            setSessionMessage((currentMessage) =>
+              currentMessage === savingMessage ? stoppedMessage : currentMessage,
+            );
+          }
+          if (workspaceCatalogRefreshDeferredRef.current) {
+            const foregroundRefresh =
+              workspaceForegroundRefreshDeferredRef.current;
+            workspaceCatalogRefreshDeferredRef.current = false;
+            workspaceForegroundRefreshDeferredRef.current = false;
+            workspaceCatalogBusyRef.current = true;
+            if (foregroundRefresh) {
+              workspaceForegroundRefreshPendingRef.current = true;
+              workspaceForegroundAuthorizationPausedRef.current = true;
+              setWorkspaceForegroundAuthorizationPaused(true);
+            }
+            setWorkspaceCatalogLoading(true);
+            setWorkspaceDiscoveryRevision((revision) => revision + 1);
+          }
+        }
+      }
+    })();
+  }, [workspaceSelectionStatus]);
 
   const handleGuardedWorkspaceChange = useCallback((workspace: SafeRouteWorkspace) => {
     if (workspaceHandoffPendingRef.current) {
@@ -2713,6 +2957,7 @@ function SafeRouteApp() {
     if (
       navigationCleanupRequiredRef.current ||
       Boolean(pendingNavigationRestoreRef.current) ||
+      workspaceSelectionPendingRef.current ||
       !canResumeActiveNavigationSession(
         nextSession,
         sessionAuthenticated,
@@ -2727,6 +2972,9 @@ function SafeRouteApp() {
       return false;
     }
 
+    workspaceSelectionRequestRevisionRef.current += 1;
+    workspaceSelectionPendingRef.current = false;
+    setWorkspaceSelectionStatus('idle');
     activeNavigationSessionRef.current = nextSession;
     setActiveNavigationSession(nextSession);
     return true;
@@ -2736,6 +2984,9 @@ function SafeRouteApp() {
     const workspaceId = routePlan.clientId?.trim() || '';
     if (!workspaceId) {
       return null;
+    }
+    if (workspaceSelectionPendingRef.current) {
+      return 'Wait for the workspace change before starting guidance.';
     }
     if (networkStatusRef.current !== 'online') {
       return networkStatusRef.current === 'checking'
@@ -2991,9 +3242,14 @@ function SafeRouteApp() {
     const routeWorkspaceId = routePlan.clientId?.trim() || '';
     if (
       navigationCleanupRequiredRef.current ||
-      workspaceHandoffPendingRef.current
+      workspaceHandoffPendingRef.current ||
+      workspaceSelectionPendingRef.current
     ) {
-      setSessionMessage('Finish saved-guidance cleanup before starting another route.');
+      setSessionMessage(
+        workspaceSelectionPendingRef.current
+          ? 'Wait for the workspace change before opening another route.'
+          : 'Finish saved-guidance cleanup before starting another route.',
+      );
       return;
     }
     if (
@@ -3036,9 +3292,14 @@ function SafeRouteApp() {
   const handleSelectSavedRoute = (routePlan: SavedSafeRoutePlan) => {
     if (
       navigationCleanupRequiredRef.current ||
-      workspaceHandoffPendingRef.current
+      workspaceHandoffPendingRef.current ||
+      workspaceSelectionPendingRef.current
     ) {
-      setSessionMessage('Finish saved-guidance cleanup before starting another route.');
+      setSessionMessage(
+        workspaceSelectionPendingRef.current
+          ? 'Wait for the workspace change before opening another route.'
+          : 'Finish saved-guidance cleanup before starting another route.',
+      );
       return;
     }
     if (!activeWorkspace || routePlan.clientId !== activeWorkspace.id) {
@@ -3193,6 +3454,8 @@ function SafeRouteApp() {
             }
             workspaceSwitchFailure={workspaceCleanupFailed}
             workspaceSwitchDisabled={workspaceCleanupLocked}
+            workspaceSelectionFailed={workspaceSelectionFailed}
+            workspaceSelectionPending={workspaceSelectionPending}
           />
         ) : screen === 'operations' && session && authenticated ? (
           <OperationsScreen
@@ -3225,6 +3488,8 @@ function SafeRouteApp() {
             }
             workspaceSwitchFailure={workspaceCleanupFailed}
             workspaceSwitchDisabled={workspaceCleanupLocked}
+            workspaceSelectionFailed={workspaceSelectionFailed}
+            workspaceSelectionPending={workspaceSelectionPending}
           />
         ) : (
           <GuestMapScreen
@@ -3261,6 +3526,8 @@ function SafeRouteApp() {
             }
             workspaceSwitchFailure={workspaceCleanupFailed}
             workspaceSwitchDisabled={workspaceCleanupLocked}
+            workspaceSelectionFailed={workspaceSelectionFailed}
+            workspaceSelectionPending={workspaceSelectionPending}
           />
         )}
         {activeNavigationSession && screen !== 'route-preview' && screen !== 'login' ? (

@@ -39,6 +39,32 @@ describe('guest map interaction contract', () => {
     );
   });
 
+  it('keeps the source map intact and blocks protected work while workspace selection saves', () => {
+    assert.match(
+      screen,
+      /routeActionDisabled =[\s\S]*workspaceSelectionPending[\s\S]*workspaceSelectionRequired/,
+    );
+    assert.match(
+      screen,
+      /riskAreaAuthorizationRequired =[\s\S]*workspaceSelectionPending/,
+    );
+    assert.match(
+      screen,
+      /enabled:[\s\S]*online &&[\s\S]*!workspaceSelectionPending/,
+    );
+    assert.match(screen, /Saving workspace…/);
+    assert.match(screen, /Wait while the workspace choice is saved/);
+    assert.match(screen, /Wait while SafeRoute verifies workspace access/);
+    assert.match(screen, /switchingDisabled = switchDisabled \|\| selectionPending \|\| loading/);
+    assert.match(screen, /busy: loading \|\| selectionPending/);
+    assert.match(screen, /Checking…/);
+    assert.match(screen, /Try again/);
+    assert.match(
+      screen,
+      /useEffect\(\(\) => \{[\s\S]*workspaceSelectionPending[\s\S]*setWorkspaceMenuOpen\(false\)/,
+    );
+  });
+
   it('supports a smooth collapsible route sheet and deliberate map long-press actions', () => {
     assert.match(screen, /Animated\.spring\(sheetProgress/);
     assert.match(screen, /PanResponder\.create/);

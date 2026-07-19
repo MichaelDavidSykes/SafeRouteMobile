@@ -182,12 +182,78 @@ export async function persistLatestOfflineWorkspaceSelection({
     retentionStoredAtMs: current.retentionStoredAtMs,
   };
   await persistContext(nextContext, freshness);
-  return {
-    ...nextContext,
-    ...freshness,
-    principalId,
-    unavailableWorkspaceIds: current.unavailableWorkspaceIds,
-  };
+  const persisted = await loadCurrent();
+  if (
+    persisted?.principalId !== principalId ||
+    persisted.activeWorkspaceId !== workspaceId ||
+    persisted.unavailableWorkspaceIds.includes(workspaceId) ||
+    !persisted.workspaces.some((workspace) => workspace.id === workspaceId)
+  ) {
+    return null;
+  }
+  return persisted;
+}
+
+export async function reconcileLatestOfflineWorkspaceSelection({
+  clearFallback,
+  context,
+  loadCurrent,
+  persistContext,
+  persistFallback,
+  principalId: principalIdValue,
+}: {
+  clearFallback: () => Promise<void>;
+  context: OfflineWorkspaceContext;
+  loadCurrent: () => Promise<OfflineWorkspaceSnapshot | null>;
+  persistContext: (
+    context: OfflineWorkspaceContext,
+    freshness: OfflineWorkspaceCacheFreshness,
+  ) => Promise<void>;
+  persistFallback: () => Promise<void>;
+  principalId: string;
+}): Promise<WorkspaceRecoveryPersistenceResult> {
+  const principalId = normalizePrincipalId(principalIdValue);
+  const normalizedContext = normalizeOfflineWorkspaceContext(context);
+  let current: OfflineWorkspaceSnapshot | null = null;
+  try {
+    current = await loadCurrent();
+  } catch {
+    // The independent fallback below suppresses a possibly half-written
+    // selection when the primary record cannot be read safely.
+  }
+  const freshness =
+    current?.principalId === principalId &&
+    Number.isFinite(current.retentionStoredAtMs)
+      ? {
+          catalogStoredAtMs: current.catalogStoredAtMs,
+          retentionStoredAtMs: current.retentionStoredAtMs,
+        }
+      : null;
+
+  return persistWorkspaceRecoveryWithFallback({
+    clearFallback,
+    persistFallback,
+    persistPrimary: [
+      async () => {
+        if (!principalId || !freshness) {
+          throw new Error("Workspace selection freshness is unavailable");
+        }
+        await persistContext(normalizedContext, freshness);
+        const persisted = await loadCurrent();
+        if (
+          persisted?.principalId !== principalId ||
+          persisted.activeWorkspaceId !== normalizedContext.activeWorkspaceId ||
+          persisted.unavailableWorkspaceIds.join(",") !==
+            normalizedContext.unavailableWorkspaceIds.join(",") ||
+          JSON.stringify(persisted.workspaces) !==
+            JSON.stringify(normalizedContext.workspaces)
+        ) {
+          throw new Error("Workspace selection reconciliation readback failed");
+        }
+      },
+    ],
+    requireFallback: true,
+  });
 }
 
 function normalizeOfflineWorkspaceContext(

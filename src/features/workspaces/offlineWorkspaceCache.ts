@@ -11,6 +11,7 @@ import {
   parseOfflineWorkspaceCacheRecord,
   parseWorkspaceRecoveryRevocationRecord,
   persistLatestOfflineWorkspaceSelection,
+  reconcileLatestOfflineWorkspaceSelection,
   persistTerminalWorkspacePrincipalRevocation,
   persistWorkspaceRecoveryWithFallback,
   type OfflineWorkspaceCacheFreshness,
@@ -107,6 +108,41 @@ export async function persistOfflineReviewWorkspaceSelection(
         saveOfflineWorkspaceContextInternal(principalId, context, freshness),
       principalId,
       workspaceId,
+    });
+  });
+}
+
+export async function reconcileOfflineReviewWorkspaceSelection(
+  principalId: string,
+  context: OfflineWorkspaceContext,
+): Promise<WorkspaceRecoveryPersistenceResult> {
+  if (!principalId.trim()) {
+    return "failed";
+  }
+  const revocationKey = recoveryRevocationKey(principalId);
+  return executeWorkspaceRecovery(revocationKey, async () => {
+    if (await hasBlockingWorkspaceRevocation(principalId)) {
+      return "revoked";
+    }
+    return reconcileLatestOfflineWorkspaceSelection({
+      clearFallback: () => SecureStore.deleteItemAsync(revocationKey),
+      context,
+      loadCurrent: () => loadOfflineWorkspaceRecordInternal(principalId),
+      persistContext: (nextContext, freshness) =>
+        saveOfflineWorkspaceContextInternal(
+          principalId,
+          nextContext,
+          freshness,
+        ),
+      persistFallback: () => SecureStore.setItemAsync(
+        revocationKey,
+        createWorkspaceRecoveryRevocationRecord(
+          principalId,
+          context.unavailableWorkspaceIds || [],
+        ),
+        DEVICE_ONLY_SECURE_STORE_OPTIONS,
+      ),
+      principalId,
     });
   });
 }

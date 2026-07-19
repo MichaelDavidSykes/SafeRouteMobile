@@ -88,7 +88,7 @@ import { OfflineCalendarCleanupNotice } from './src/features/operations/OfflineC
 import type { OperationsTab } from './src/features/operations/operationsUiState';
 import { RouteListScreen } from './src/features/routes/RouteListScreen';
 import { uiTestIds } from './src/testing/uiTestIds';
-import { colors } from './src/theme';
+import { colors, spacing } from './src/theme';
 import {
   shouldHandleActiveSessionExpiry,
   waitForSessionCleanup
@@ -238,6 +238,10 @@ function SafeRouteApp() {
   const [navigationCleanupStatus, setNavigationCleanupStatus] =
     useState<NavigationCleanupStatus>('idle');
   const [workspaceHandoffPending, setWorkspaceHandoffPending] = useState(false);
+  const [
+    suspendedNavigationNoticeHeight,
+    setSuspendedNavigationNoticeHeight,
+  ] = useState(0);
   const [offlineCalendarCleanupStatus, setOfflineCalendarCleanupStatus] =
     useState<OfflineCalendarCleanupStatus>('idle');
   const pendingFullAccessFeatureRef = useRef<GuestFullAccessFeature | null>(null);
@@ -353,6 +357,7 @@ function SafeRouteApp() {
   const navigationWorkspaceLocked = Boolean(
     activeNavigationSession || pendingNavigationRestore,
   );
+  const workspaceCleanupFailed = navigationCleanupStatus === 'failed';
   const workspaceCleanupLocked =
     navigationCleanupStatus !== 'idle' || workspaceHandoffPending;
   const sessionEpoch = sessionEpochRef.current;
@@ -2337,7 +2342,7 @@ function SafeRouteApp() {
     }
   }, [activeNavigationSession, activeWorkspace?.id, availableWorkspaces, session]);
 
-  const handleMapWorkspaceChange = useCallback((workspace: SafeRouteWorkspace) => {
+  const handleGuardedWorkspaceChange = useCallback((workspace: SafeRouteWorkspace) => {
     if (workspaceHandoffPendingRef.current) {
       return;
     }
@@ -2421,6 +2426,24 @@ function SafeRouteApp() {
       `End ${routeName} in ${requestedSourceName}, then change to ${requestedTarget.name}. Guidance and background tracking will stop.`,
       [
         {
+          onPress: () => {
+            if (!requestIsCurrentBeforeCleanup()) {
+              return;
+            }
+            const confirmation =
+              `Keeping ${routeName}. Workspace remains ${requestedSourceName}.`;
+            if (Platform.OS === 'ios') {
+              void workspaceAccessFocusHandoffRef.current?.request(
+                confirmation,
+                () => workspaceAccessFocusTargetRef.current,
+              );
+            } else {
+              AccessibilityInfo.announceForAccessibilityWithOptions(
+                confirmation,
+                { queue: true },
+              );
+            }
+          },
           style: 'cancel',
           text: 'Keep route',
         },
@@ -2965,7 +2988,10 @@ function SafeRouteApp() {
 
   const openRoutePreview = (routePlan: SavedSafeRoutePlan) => {
     const routeWorkspaceId = routePlan.clientId?.trim() || '';
-    if (navigationCleanupRequiredRef.current) {
+    if (
+      navigationCleanupRequiredRef.current ||
+      workspaceHandoffPendingRef.current
+    ) {
       setSessionMessage('Finish saved-guidance cleanup before starting another route.');
       return;
     }
@@ -3002,7 +3028,10 @@ function SafeRouteApp() {
   };
 
   const handleSelectSavedRoute = (routePlan: SavedSafeRoutePlan) => {
-    if (navigationCleanupRequiredRef.current) {
+    if (
+      navigationCleanupRequiredRef.current ||
+      workspaceHandoffPendingRef.current
+    ) {
       setSessionMessage('Finish saved-guidance cleanup before starting another route.');
       return;
     }
@@ -3131,7 +3160,7 @@ function SafeRouteApp() {
             onSessionExpired={handleSessionExpired}
             onWorkspaceUnavailable={handleWorkspaceUnavailable}
             onSignOut={handleSignOut}
-            onWorkspaceChange={handleActiveWorkspaceChange}
+            onWorkspaceChange={handleGuardedWorkspaceChange}
             workspaceCatalogError={workspaceCatalogError}
             workspaceCatalogLoading={workspaceCatalogBusy}
             workspaceCatalogStoredAtMs={workspaceCatalogStoredAtMs}
@@ -3140,7 +3169,14 @@ function SafeRouteApp() {
             workspaceAccessRefreshAvailable={workspaceAccessRefreshAvailable}
             workspaceAccessIssue={workspaceAccessIssue}
             workspaceAccessFocusTargetRef={updateWorkspaceAccessFocusTarget}
-            workspaceSwitchDisabled={navigationWorkspaceLocked || workspaceCleanupLocked}
+            workspaceChangeEndsNavigation={navigationWorkspaceLocked}
+            workspaceNavigationNoticeInset={
+              pendingNavigationRestore
+                ? suspendedNavigationNoticeHeight + spacing.sm
+                : 0
+            }
+            workspaceSwitchFailure={workspaceCleanupFailed}
+            workspaceSwitchDisabled={workspaceCleanupLocked}
           />
         ) : screen === 'operations' && session && authenticated ? (
           <OperationsScreen
@@ -3156,7 +3192,7 @@ function SafeRouteApp() {
             onSessionExpired={handleSessionExpired}
             onSignOut={handleSignOut}
             onWorkspaceUnavailable={handleWorkspaceUnavailable}
-            onWorkspaceChange={handleActiveWorkspaceChange}
+            onWorkspaceChange={handleGuardedWorkspaceChange}
             workspaceCatalogError={workspaceCatalogError}
             workspaceCatalogLoading={workspaceCatalogBusy}
             workspaceCatalogStoredAtMs={workspaceCatalogStoredAtMs}
@@ -3165,7 +3201,14 @@ function SafeRouteApp() {
             workspaceAccessRefreshAvailable={workspaceAccessRefreshAvailable}
             workspaceAccessIssue={workspaceAccessIssue}
             workspaceAccessFocusTargetRef={updateWorkspaceAccessFocusTarget}
-            workspaceSwitchDisabled={navigationWorkspaceLocked || workspaceCleanupLocked}
+            workspaceChangeEndsNavigation={navigationWorkspaceLocked}
+            workspaceNavigationNoticeInset={
+              pendingNavigationRestore
+                ? suspendedNavigationNoticeHeight + spacing.sm
+                : 0
+            }
+            workspaceSwitchFailure={workspaceCleanupFailed}
+            workspaceSwitchDisabled={workspaceCleanupLocked}
           />
         ) : (
           <GuestMapScreen
@@ -3185,7 +3228,7 @@ function SafeRouteApp() {
               pendingFullAccessFeatureRef.current = null;
               openSignIn();
             }}
-            onWorkspaceChange={handleMapWorkspaceChange}
+            onWorkspaceChange={handleGuardedWorkspaceChange}
             workspaceCatalogError={workspaceCatalogError}
             workspaceCatalogLoading={workspaceCatalogBusy}
             workspaceCatalogStoredAtMs={workspaceCatalogStoredAtMs}
@@ -3195,6 +3238,12 @@ function SafeRouteApp() {
             workspaceAccessIssue={workspaceAccessIssue}
             workspaceAccessFocusTargetRef={updateWorkspaceAccessFocusTarget}
             workspaceChangeEndsNavigation={navigationWorkspaceLocked}
+            workspaceNavigationNoticeInset={
+              pendingNavigationRestore
+                ? suspendedNavigationNoticeHeight + spacing.sm
+                : 0
+            }
+            workspaceSwitchFailure={workspaceCleanupFailed}
             workspaceSwitchDisabled={workspaceCleanupLocked}
           />
         )}
@@ -3209,6 +3258,7 @@ function SafeRouteApp() {
         {pendingNavigationRestore && screen !== 'login' ? (
           <SuspendedNavigationNotice
             networkStatus={networkStatus}
+            onLayoutHeight={setSuspendedNavigationNoticeHeight}
             routeName={pendingNavigationRestore.session.routePlan.name}
             status={pendingNavigationRestore.status}
             onEnd={() => {

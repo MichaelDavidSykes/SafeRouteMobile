@@ -81,22 +81,22 @@ describe("App active workspace integration", () => {
     );
   });
 
-  it("lets Operations update App's workspace and preserves catalog recovery plus guidance locks", () => {
+  it("lets Operations request App's guarded workspace handoff and preserves catalog recovery", () => {
     const app = appSource();
     const operations = operationsSource();
 
-    assert.match(app, /<OperationsScreen[\s\S]*onWorkspaceChange=\{handleActiveWorkspaceChange\}/);
+    assert.match(app, /<OperationsScreen[\s\S]*onWorkspaceChange=\{handleGuardedWorkspaceChange\}/);
     assert.match(app, /<OperationsScreen[\s\S]*onRetryWorkspaceCatalog=/);
     assert.match(app, /<OperationsScreen[\s\S]*workspaceCatalogError=\{workspaceCatalogError\}/);
     assert.match(app, /<OperationsScreen[\s\S]*workspaceCatalogLoading=\{workspaceCatalogBusy\}/);
     assert.match(
       app,
-      /<OperationsScreen[\s\S]*workspaceSwitchDisabled=\{navigationWorkspaceLocked \|\| workspaceCleanupLocked\}/,
+      /<OperationsScreen[\s\S]*workspaceChangeEndsNavigation=\{navigationWorkspaceLocked\}[\s\S]*workspaceSwitchDisabled=\{workspaceCleanupLocked\}/,
     );
     assert.match(app, /<OperationsScreen[\s\S]*onWorkspaceUnavailable=\{handleWorkspaceUnavailable\}/);
     assert.match(app, /<RouteListScreen[\s\S]*onWorkspaceUnavailable=\{handleWorkspaceUnavailable\}/);
     assert.match(operations, /onWorkspaceChange\(nextWorkspace\)/);
-    assert.match(operations, /activeWorkspaceIdRef\.current = nextWorkspace\.id/);
+    assert.doesNotMatch(operations, /activeWorkspaceIdRef\.current = nextWorkspace\.id/);
   });
 
   it("returns local offline End to the same cached review workspace without fresh authorization", () => {
@@ -459,7 +459,10 @@ describe("App active workspace integration", () => {
     assert.match(routes, /activeWorkspaceIdRef\.current === selectedClientId/);
     assert.match(routes, /isWorkspaceUnavailableError\(error\)[\s\S]*recoverUnavailableWorkspace\(requestWorkspaceId\)/);
     assert.match(routes, /isWorkspaceForbiddenError\(error\)[\s\S]*recoverUnavailableWorkspace\(selectedClientId\)/);
-    assert.match(routes, /setRoutes\(\[\]\)[\s\S]*onWorkspaceChange\(workspace\)/);
+    assert.match(
+      routes,
+      /if \(!workspace \|\| workspace\.id === selectedClientId\)[\s\S]*onWorkspaceChange\(workspace\)/,
+    );
     assert.match(routes, /workspaceCatalogLoading/);
     assert.match(routes, /Workspaces unavailable/);
     assert.match(routes, /Choose workspace/);
@@ -470,19 +473,21 @@ describe("App active workspace integration", () => {
     assert.doesNotMatch(operationsSource(), /clients\[0\]|resolveOperationsClientId/);
   });
 
-  it("guards a Map workspace change with confirmed durable guidance cleanup", () => {
+  it("shares one guarded workspace change with confirmed durable guidance cleanup", () => {
     const app = appSource();
     const guest = guestSource();
+    const operations = operationsSource();
+    const routes = routesSource();
 
     assert.match(app, /handleActiveWorkspaceChange[\s\S]*activeNavigationSession[\s\S]*workspace\?\.id !== activeWorkspace\?\.id[\s\S]*return/);
     assert.match(app, /navigationWorkspaceLocked = Boolean\([\s\S]*activeNavigationSession \|\| pendingNavigationRestore/);
     assert.match(
       app,
-      /handleMapWorkspaceChange[\s\S]*Alert\.alert\([\s\S]*End route and change workspace\?[\s\S]*Keep route[\s\S]*End route and change workspace/,
+      /handleGuardedWorkspaceChange[\s\S]*Alert\.alert\([\s\S]*End route and change workspace\?[\s\S]*Keep route[\s\S]*End route and change workspace/,
     );
     assert.match(
       app,
-      /handleMapWorkspaceChange[\s\S]*requestIsCurrentBeforeCleanup\(\)[\s\S]*await discardPersistedNavigation\([\s\S]*await persistOfflineReviewWorkspaceSelection\([\s\S]*setActiveWorkspace\(persistedTarget\)/,
+      /handleGuardedWorkspaceChange[\s\S]*requestIsCurrentBeforeCleanup\(\)[\s\S]*await discardPersistedNavigation\([\s\S]*await persistOfflineReviewWorkspaceSelection\([\s\S]*setActiveWorkspace\(persistedTarget\)/,
     );
     assert.match(
       app,
@@ -510,6 +515,10 @@ describe("App active workspace integration", () => {
     );
     assert.match(
       app,
+      /Keeping \$\{routeName\}\. Workspace remains \$\{requestedSourceName\}\.[\s\S]*workspaceAccessFocusHandoffRef\.current\?\.request/,
+    );
+    assert.match(
+      app,
       /if \(!currentTarget\) \{[\s\S]*requestOwnerIsCurrent\(\)[\s\S]*Route ended, but workspace access changed/,
     );
     assert.match(
@@ -518,22 +527,62 @@ describe("App active workspace integration", () => {
     );
     assert.match(
       app,
-      /<GuestMapScreen[\s\S]*onWorkspaceChange=\{handleMapWorkspaceChange\}[\s\S]*workspaceChangeEndsNavigation=\{navigationWorkspaceLocked\}[\s\S]*workspaceSwitchDisabled=\{workspaceCleanupLocked\}/,
+      /<GuestMapScreen[\s\S]*onWorkspaceChange=\{handleGuardedWorkspaceChange\}[\s\S]*workspaceChangeEndsNavigation=\{navigationWorkspaceLocked\}[\s\S]*workspaceSwitchDisabled=\{workspaceCleanupLocked\}/,
     );
     assert.equal(
       (
         app.match(
-          /workspaceSwitchDisabled=\{navigationWorkspaceLocked \|\| workspaceCleanupLocked\}/g,
+          /onWorkspaceChange=\{handleGuardedWorkspaceChange\}/g,
         ) || []
       ).length,
-      2,
+      3,
+    );
+    assert.equal(
+      (
+        app.match(
+          /workspaceChangeEndsNavigation=\{navigationWorkspaceLocked\}/g,
+        ) || []
+      ).length,
+      3,
+    );
+    assert.equal(
+      (
+        app.match(/workspaceSwitchDisabled=\{workspaceCleanupLocked\}/g) || []
+      ).length,
+      3,
+    );
+    assert.equal(
+      (app.match(/workspaceSwitchFailure=\{workspaceCleanupFailed\}/g) || [])
+        .length,
+      3,
     );
     assert.match(
       guest,
       /Choosing another workspace asks before ending active guidance/,
     );
     assert.match(guest, /Finishing…/);
+    assert.match(guest, /Cleanup needed/);
     assert.match(guest, /Finish guidance cleanup before changing workspace/);
+    assert.match(
+      guest,
+      /Retry guidance cleanup before changing workspace/,
+    );
+    for (const surface of [routeFiltersSource(), operations]) {
+      assert.match(
+        surface,
+        /Choosing another workspace asks before ending active guidance/,
+      );
+      assert.match(surface, /Finishing…/);
+      assert.match(surface, /Cleanup needed/);
+      assert.match(
+        surface,
+        /Finish guidance cleanup before changing workspace/,
+      );
+      assert.match(
+        surface,
+        /Retry guidance cleanup before changing workspace/,
+      );
+    }
     assert.match(
       guest,
       /handleWorkspaceChange[\s\S]*setWorkspaceMenuOpen\(false\)[\s\S]*onWorkspaceChange\?\.\(workspace\)/,
@@ -544,6 +593,32 @@ describe("App active workspace integration", () => {
         guest.indexOf("const handlePlotRoute ="),
       ),
       /clearWorkspaceScopedMapState/,
+    );
+    assert.match(
+      routes,
+      /previousSelectedClientIdRef[\s\S]*detailRevisionRef\.current \+= 1[\s\S]*setRoutes\(\[\]\)[\s\S]*setQuery\(""\)/,
+    );
+    assert.match(
+      operations,
+      /previousSelectedWorkspaceIdRef[\s\S]*setLoadedWorkspaceId\(null\)[\s\S]*setOfflineCalendarEntries\(\[\]\)/,
+    );
+    assert.match(
+      app,
+      /workspaceHandoffPendingRef\.current[\s\S]*Finish saved-guidance cleanup before starting another route/,
+    );
+    assert.match(
+      app,
+      /onLayoutHeight=\{setSuspendedNavigationNoticeHeight\}/,
+    );
+    assert.equal(
+      (
+        app.match(/suspendedNavigationNoticeHeight \+ spacing\.sm/g) || []
+      ).length,
+      3,
+    );
+    assert.match(
+      guest,
+      /workspaceNavigationNoticeInset > 0[\s\S]*marginTop: workspaceNavigationNoticeInset/,
     );
   });
 

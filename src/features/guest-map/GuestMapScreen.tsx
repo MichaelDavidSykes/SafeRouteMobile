@@ -128,6 +128,8 @@ interface GuestMapScreenProps {
   workspaceAccessFocusTargetRef?: (target: View | null) => void;
   workspaceAccessIssue?: WorkspaceAccessIssue;
   workspaceChangeEndsNavigation?: boolean;
+  workspaceNavigationNoticeInset?: number;
+  workspaceSwitchFailure?: boolean;
   workspaceSwitchDisabled?: boolean;
 }
 
@@ -154,6 +156,8 @@ export function GuestMapScreen({
   workspaceAccessFocusTargetRef,
   workspaceAccessIssue = 'none',
   workspaceChangeEndsNavigation = false,
+  workspaceNavigationNoticeInset = 0,
+  workspaceSwitchFailure = false,
   workspaceSwitchDisabled = false
 }: GuestMapScreenProps) {
   const viewport = useWindowDimensions();
@@ -1439,7 +1443,14 @@ export function GuestMapScreen({
         style={styles.overlay}
       >
       <SafeAreaView pointerEvents="box-none" style={styles.overlay}>
-        <View style={styles.topBar}>
+        <View
+          style={[
+            styles.topBar,
+            workspaceNavigationNoticeInset > 0
+              ? { marginTop: workspaceNavigationNoticeInset }
+              : null,
+          ]}
+        >
           {networkChecking || offline ? (
             <View
               accessible
@@ -1700,6 +1711,7 @@ export function GuestMapScreen({
                     sharedRetryAvailable={workspaceAccessRefreshAvailable}
                     changeEndsNavigation={workspaceChangeEndsNavigation}
                     switchDisabled={workspaceSwitchDisabled}
+                    switchFailure={workspaceSwitchFailure}
                     focusTargetRef={handleWorkspaceAccessFocusTarget}
                   />
                   {workspaceAccessRefreshAvailable ? (
@@ -1920,6 +1932,7 @@ function GuestWorkspaceSelector({
   onToggle,
   sharedRetryAvailable,
   switchDisabled,
+  switchFailure,
   workspaces
 }: {
   activeWorkspace: SafeRouteWorkspace | null;
@@ -1933,11 +1946,13 @@ function GuestWorkspaceSelector({
   onToggle: () => void;
   sharedRetryAvailable: boolean;
   switchDisabled: boolean;
+  switchFailure: boolean;
   workspaces: SafeRouteWorkspace[];
 }) {
   const waitingForCatalog = loading && !workspaces.length;
   const catalogUnavailable = Boolean(errorMessage) && !workspaces.length;
   const retryAvailable =
+    !switchFailure &&
     !sharedRetryAvailable &&
     !loading && Boolean(onRetry && errorMessage) && (catalogUnavailable || switchDisabled);
   const disabled = retryAvailable
@@ -1953,11 +1968,13 @@ function GuestWorkspaceSelector({
       : errorMessage ? 'Unavailable' : 'No workspace');
   const action = retryAvailable
     ? 'Retry'
-    : switchDisabled
-      ? 'Finishing…'
-      : catalogUnavailable
-        ? (sharedRetryAvailable ? 'Check below' : 'Retry')
-        : menuOpen ? 'Close' : errorMessage ? 'Verify' : 'Change';
+    : switchFailure
+      ? 'Cleanup needed'
+      : switchDisabled
+        ? 'Finishing…'
+        : catalogUnavailable
+          ? (sharedRetryAvailable ? 'Check below' : 'Retry')
+          : menuOpen ? 'Close' : errorMessage ? 'Verify' : 'Change';
 
   return (
     <View style={styles.workspacePicker}>
@@ -1967,14 +1984,20 @@ function GuestWorkspaceSelector({
           ? 'Retries loading your SafeRoute workspaces.'
           : sharedRetryAvailable && catalogUnavailable
             ? 'Use the workspace access control below to check current access.'
-          : switchDisabled
-            ? 'Finish guidance cleanup before changing workspace.'
-            : changeEndsNavigation
-              ? 'Opens the workspace menu. Choosing another workspace asks before ending active guidance.'
-            : 'Opens the active workspace menu.'}
+            : switchFailure
+              ? 'Retry guidance cleanup before changing workspace.'
+              : switchDisabled
+                ? 'Finish guidance cleanup before changing workspace.'
+                : changeEndsNavigation
+                  ? 'Opens the workspace menu. Choosing another workspace asks before ending active guidance.'
+                  : 'Opens the active workspace menu.'}
         accessibilityLabel={`Workspace, ${value}`}
         accessibilityRole={waitingForCatalog ? "progressbar" : "button"}
-        accessibilityState={{ disabled, expanded: menuOpen }}
+        accessibilityState={{
+          busy: switchDisabled && !switchFailure,
+          disabled,
+          expanded: menuOpen,
+        }}
         disabled={disabled}
         testID={uiTestIds.guestMapWorkspaceSelector}
         style={({ pressed }) => [

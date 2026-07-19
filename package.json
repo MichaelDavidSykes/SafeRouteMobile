@@ -62,6 +62,7 @@
     "test:maestro:ios:active-workspace": "node scripts/run-maestro.mjs test maestro/ios-preview-active-workspace.yaml",
     "test:maestro:ios:workspace-choice": "node scripts/run-maestro.mjs test maestro/ios-preview-workspace-choice.yaml",
     "test:maestro:ios:guidance-suspended": "node scripts/run-maestro.mjs test maestro/ios-preview-guidance-suspended.yaml",
+    "test:maestro:ios:guidance-suspended-workspaces": "node scripts/run-maestro.mjs test maestro/ios-preview-guidance-suspended-workspaces.yaml",
     "test:maestro:ios:guidance-contract": "node scripts/run-maestro-guidance-contract.mjs",
     "test:maestro:ios:connectivity-contract": "node scripts/run-maestro-connectivity-contract.mjs",
     "test:maestro:ios:connectivity-contract:calendar-auth-cleanup": "SAFEROUTE_CONNECTIVITY_CONTRACT_SLICE=calendar-auth-cleanup node scripts/run-maestro-connectivity-contract.mjs",

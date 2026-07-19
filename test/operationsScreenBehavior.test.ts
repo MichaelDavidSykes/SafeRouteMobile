@@ -24,18 +24,21 @@ describe("operations screen behavior", () => {
     assert.doesNotMatch(text, /clients\[0\]|resolveOperationsClientId|setClients\(/);
   });
 
-  it("invalidates prior-workspace cards before notifying App of a switch", () => {
+  it("preserves prior-workspace cards until App publishes an accepted switch", () => {
     const text = screenSource();
     const switchBlock = /onPress=\{\(\) => \{[\s\S]*?nextWorkspace\.id === selectedWorkspaceId[\s\S]*?onWorkspaceChange\(nextWorkspace\);[\s\S]*?\}\}/.exec(text)?.[0] || "";
 
-    assert.match(switchBlock, /loadRevisionRef\.current \+= 1/);
-    assert.match(switchBlock, /activeWorkspaceIdRef\.current = nextWorkspace\.id/);
-    assert.match(switchBlock, /setLoadedWorkspaceId\(null\)/);
-    assert.match(switchBlock, /setRoutes\(\[\]\)/);
-    assert.match(switchBlock, /setOperationsState\(null\)/);
-    assert.match(switchBlock, /setOperationsWarning\(null\)/);
-    assert.match(switchBlock, /setErrorState\(null\)/);
-    assert.ok(switchBlock.indexOf("setRoutes([])") < switchBlock.indexOf("onWorkspaceChange(nextWorkspace)"));
+    assert.match(switchBlock, /nextWorkspace\.id === selectedWorkspaceId/);
+    assert.match(switchBlock, /setClientMenuOpen\(false\)[\s\S]*onWorkspaceChange\(nextWorkspace\)/);
+    assert.doesNotMatch(switchBlock, /setRoutes|setOperationsState|loadRevisionRef|activeWorkspaceIdRef/);
+    assert.match(
+      text,
+      /previousSelectedWorkspaceIdRef[\s\S]*setLoadedWorkspaceId\(null\)[\s\S]*setRoutes\(\[\]\)[\s\S]*setOfflineCalendarEntries\(\[\]\)/,
+    );
+    assert.match(
+      text,
+      /workspaceOwnsResults[\s\S]*ownedShowingOfflineCopy[\s\S]*ownedOfflineCalendarEntries/,
+    );
   });
 
   it("fails closed without a workspace and exposes honest accessible catalog states", () => {
@@ -51,12 +54,20 @@ describe("operations screen behavior", () => {
     assert.doesNotMatch(text, />Tenant</);
   });
 
-  it("locks workspace switching during guidance and keeps the full App catalog", () => {
+  it("keeps guarded workspace switching operable and locks only during cleanup", () => {
     const text = screenSource();
 
     assert.match(text, /createOperationsWorkspaceOptions\(availableWorkspaces, selectedWorkspaceId\)/);
     assert.match(text, /disabled=\{workspaceSwitchDisabled\}/);
-    assert.match(text, /End active guidance before changing workspace/);
+    assert.match(text, /Choosing another workspace asks before ending active guidance/);
+    assert.match(text, /Finish guidance cleanup before changing workspace/);
+    assert.match(text, /Retry guidance cleanup before changing workspace/);
+    assert.match(text, /Finishing…/);
+    assert.match(text, /Cleanup needed/);
+    assert.match(
+      text,
+      /busy: workspaceSwitchDisabled && !workspaceSwitchFailure/,
+    );
     assert.match(text, /testID=\{uiTestIds\.operationsWorkspaceSelector\}/);
     assert.match(text, /testID=\{uiTestIds\.operationsWorkspaceOption\(workspace\.id\)\}/);
     assert.doesNotMatch(text, /setClients\(result\.clients\)/);
@@ -114,7 +125,11 @@ describe("operations screen behavior", () => {
     );
     assert.doesNotMatch(source, /Current operations remain available/);
     assert.match(source, /createOperationsOfflineReviewPresentation/);
-    assert.match(source, /createOfflineCalendarRows\(offlineCalendarEntries\)/);
+    assert.match(source, /createOfflineCalendarRows\(ownedOfflineCalendarEntries\)/);
+    assert.match(
+      source,
+      /ownedShowingOfflineCopy = workspaceOwnsResults && showingOfflineCopy/,
+    );
     assert.match(source, /convoy manifests are not stored offline/i);
     assert.match(
       source,
@@ -126,6 +141,10 @@ describe("operations screen behavior", () => {
     );
     assert.doesNotMatch(source, /No cached operations are available/);
     assert.doesNotMatch(source, /snapshot\.operationsState|snapshot\.routes/);
+    assert.match(
+      source,
+      /if \(refreshDelayMs === null\)[\s\S]*loadedWorkspaceIdRef\.current = expiringWorkspaceId[\s\S]*setLoadedWorkspaceId\(expiringWorkspaceId\)[\s\S]*setErrorState\(/,
+    );
   });
 
   it("removes only the owned saved calendar with honest race-safe states", () => {
@@ -211,7 +230,7 @@ describe("operations screen behavior", () => {
     );
     assert.match(
       source,
-      /offlineCalendarRemovalRevisionRef\.current \+= 1;[\s\S]*setOfflineCalendarRemovalState\("idle"\);[\s\S]*onWorkspaceChange\(nextWorkspace\)/,
+      /previousSelectedWorkspaceIdRef[\s\S]*loadRevisionRef\.current \+= 1[\s\S]*setOfflineCalendarEntries\(\[\]\)/,
     );
     assert.match(
       source,
@@ -255,7 +274,7 @@ describe("operations screen behavior", () => {
     );
     assert.match(
       source,
-      /!errorState &&[\s\S]*protectedRequestsAvailable &&[\s\S]*workspaceOwnsResults &&[\s\S]*visibleOperationsState !== null \|\| visibleRoutes\.length > 0[\s\S]*!showingOfflineCopy[\s\S]*styles\.summaryStrip/,
+      /!ownedErrorState &&[\s\S]*protectedRequestsAvailable &&[\s\S]*workspaceOwnsResults &&[\s\S]*visibleOperationsState !== null \|\| visibleRoutes\.length > 0[\s\S]*!ownedShowingOfflineCopy[\s\S]*styles\.summaryStrip/,
     );
   });
 

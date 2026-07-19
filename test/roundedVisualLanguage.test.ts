@@ -1588,8 +1588,14 @@ describe("rounded visual language", () => {
       3,
     );
     assert.match(routeListFiltersSource, /Workspace, \$\{workspaceLabel\}/);
-    assert.match(routeListFiltersSource, /accessibilityState=\{\{ disabled: workspaceSwitchDisabled, expanded: clientMenuOpen \}\}/);
-    assert.match(routeListFiltersSource, /clientMenuOpen \? "Close" : "Change"/);
+    assert.match(
+      routeListFiltersSource,
+      /accessibilityState=\{\{[\s\S]*busy: workspaceSwitchDisabled && !workspaceSwitchFailure,[\s\S]*disabled: workspaceSwitchDisabled,[\s\S]*expanded: clientMenuOpen/,
+    );
+    assert.match(
+      routeListFiltersSource,
+      /workspaceSwitchFailure[\s\S]*"Cleanup needed"[\s\S]*workspaceSwitchDisabled[\s\S]*"Finishing…"[\s\S]*clientMenuOpen[\s\S]*"Close"[\s\S]*"Change"/,
+    );
     assert.match(routeListFiltersSource, /nestedScrollEnabled/);
     assert.match(clientSelectorBlock, /minHeight:\s*controlSizes\.secondary/);
     assert.match(clientSelectorBlock, /alignItems:\s*["']center["']/);
@@ -1719,7 +1725,7 @@ describe("rounded visual language", () => {
       /style=\{\(\{ pressed \}\) => \[\s*styles\.retryButton,\s*pressed \? styles\.retryButtonPressed : null,/,
     );
     assert.match(routeListScreenSource, /styles\.errorTitle/);
-    assert.match(routeListScreenSource, /accessibilityLabel=\{errorState\.messageAccessibilityLabel\}/);
+    assert.match(routeListScreenSource, /accessibilityLabel=\{ownedErrorState\.messageAccessibilityLabel\}/);
     assert.match(routeListScreenSource, /numberOfLines=\{2\}/);
     assert.match(
       routeListScreenSource,

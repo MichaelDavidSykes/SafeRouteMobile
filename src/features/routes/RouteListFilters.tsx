@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Pressable, ScrollView, Text, TextInput, View } from "react-native";
 
 import { colors } from "../../theme";
@@ -19,6 +19,8 @@ interface RouteListFiltersProps {
   showSummary: boolean;
   showClientFilters: boolean;
   showSearch: boolean;
+  workspaceChangeEndsNavigation: boolean;
+  workspaceSwitchFailure: boolean;
   workspaceSwitchDisabled: boolean;
   workspaceAccessFocusTargetRef?: (target: View | null) => void;
   onChangeQuery: (query: string) => void;
@@ -34,6 +36,8 @@ export function RouteListFilters({
   showSearch,
   routeSummary,
   showSummary,
+  workspaceChangeEndsNavigation,
+  workspaceSwitchFailure,
   workspaceSwitchDisabled,
   workspaceAccessFocusTargetRef,
 }: RouteListFiltersProps) {
@@ -43,18 +47,32 @@ export function RouteListFilters({
     clientFilterOptions.find((option) => option.selected) || null;
   const workspaceLabel = selectedClientOption?.label || "Choose workspace";
 
+  useEffect(() => {
+    if (workspaceSwitchDisabled) {
+      setClientMenuOpen(false);
+    }
+  }, [workspaceSwitchDisabled]);
+
   return (
     <>
       {showClientFilters ? (
         <View style={styles.clientFilter}>
           <Pressable
             ref={workspaceAccessFocusTargetRef}
-            accessibilityHint={workspaceSwitchDisabled
-              ? "End active guidance before changing workspace."
-              : "Opens the active workspace menu."}
+            accessibilityHint={workspaceSwitchFailure
+              ? "Retry guidance cleanup before changing workspace."
+              : workspaceSwitchDisabled
+                ? "Finish guidance cleanup before changing workspace."
+                : workspaceChangeEndsNavigation
+                  ? "Opens the workspace menu. Choosing another workspace asks before ending active guidance."
+                  : "Opens the active workspace menu."}
             accessibilityLabel={`Workspace, ${workspaceLabel}`}
             accessibilityRole="button"
-            accessibilityState={{ disabled: workspaceSwitchDisabled, expanded: clientMenuOpen }}
+            accessibilityState={{
+              busy: workspaceSwitchDisabled && !workspaceSwitchFailure,
+              disabled: workspaceSwitchDisabled,
+              expanded: clientMenuOpen,
+            }}
             disabled={workspaceSwitchDisabled}
             hitSlop={ROUTE_FILTER_HIT_SLOP}
             testID={uiTestIds.routeListWorkspaceSelector}
@@ -74,7 +92,13 @@ export function RouteListFilters({
               </Text>
             </View>
             <Text numberOfLines={1} style={styles.clientSelectorAction}>
-              {workspaceSwitchDisabled ? "Route active" : clientMenuOpen ? "Close" : "Change"}
+              {workspaceSwitchFailure
+                ? "Cleanup needed"
+                : workspaceSwitchDisabled
+                  ? "Finishing…"
+                  : clientMenuOpen
+                    ? "Close"
+                    : "Change"}
             </Text>
           </Pressable>
 
@@ -88,7 +112,11 @@ export function RouteListFilters({
                 {clientFilterOptions.map((option) => (
                   <ClientMenuItem
                     key={option.id || "all-clients"}
-                    accessibilityHint={option.accessibilityHint}
+                    accessibilityHint={
+                      workspaceChangeEndsNavigation && !option.selected
+                        ? `Asks to end active guidance before changing to ${option.label}.`
+                        : option.accessibilityHint
+                    }
                     accessibilityLabel={option.accessibilityLabel}
                     active={option.selected}
                     label={option.label}

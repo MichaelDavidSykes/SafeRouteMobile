@@ -1,0 +1,92 @@
+import {
+  findWorkspace,
+  type SafeRouteWorkspace,
+} from "./activeWorkspace";
+
+export type WorkspaceHandoffContinuationRequest = {
+  principalId: string;
+  sessionEpoch: number;
+  sourceWorkspaceId: string | null;
+  targetWorkspaceId: string;
+};
+
+type WorkspaceHandoffContinuationContext = {
+  availableWorkspaces: SafeRouteWorkspace[];
+  catalogBusy: boolean;
+  cleanupPending: boolean;
+  cleanupRequired: boolean;
+  currentPrincipalId: string;
+  currentSessionEpoch: number;
+  currentSourceWorkspaceId: string | null;
+  hasActiveNavigation: boolean;
+  hasPendingNavigation: boolean;
+  selectionPending: boolean;
+  unavailableWorkspaceIds: ReadonlySet<string>;
+};
+
+export type WorkspaceHandoffContinuationDecision =
+  | {
+      status: "deferred" | "ready";
+      target: SafeRouteWorkspace;
+    }
+  | {
+      status: "stale";
+      target: null;
+    };
+
+export function resolveDeferredWorkspaceRefreshAfterSelection({
+  refreshDeferred,
+  requestOwnerIsCurrent,
+}: {
+  refreshDeferred: boolean;
+  requestOwnerIsCurrent: boolean;
+}): "discard" | "none" | "resume" {
+  if (!refreshDeferred) {
+    return "none";
+  }
+  return requestOwnerIsCurrent ? "resume" : "discard";
+}
+
+export function resolveWorkspaceHandoffContinuation({
+  context,
+  request,
+}: {
+  context: WorkspaceHandoffContinuationContext;
+  request: WorkspaceHandoffContinuationRequest;
+}): WorkspaceHandoffContinuationDecision {
+  if (
+    request.principalId !== context.currentPrincipalId ||
+    request.sessionEpoch !== context.currentSessionEpoch ||
+    request.sourceWorkspaceId !== context.currentSourceWorkspaceId ||
+    context.hasActiveNavigation ||
+    context.hasPendingNavigation ||
+    context.unavailableWorkspaceIds.has(request.targetWorkspaceId)
+  ) {
+    return { status: "stale", target: null };
+  }
+
+  const target = findWorkspace(
+    context.availableWorkspaces,
+    request.targetWorkspaceId,
+  );
+  if (
+    !target ||
+    (
+      request.sourceWorkspaceId !== null &&
+      request.sourceWorkspaceId === target.id
+    )
+  ) {
+    return { status: "stale", target: null };
+  }
+
+  if (
+    context.catalogBusy ||
+    context.cleanupPending ||
+    context.cleanupRequired ||
+    context.selectionPending
+  ) {
+    return { status: "deferred", target };
+  }
+
+  return { status: "ready", target };
+}

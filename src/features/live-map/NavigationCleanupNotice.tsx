@@ -3,30 +3,36 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { colors, radius, spacing, typeScale } from "../../theme";
 import { uiTestIds } from "../../testing/uiTestIds";
+import { createNavigationCleanupNoticeCopy } from "./navigationCleanupNoticeCopy";
 
 export function NavigationCleanupNotice({
   checking,
   onRetry,
+  workspaceName,
 }: {
   checking: boolean;
   onRetry: () => void;
+  workspaceName?: string | null;
 }) {
   const insets = useSafeAreaInsets();
-  const message = checking
-    ? "Removing saved guidance before another route can start."
-    : "SafeRoute could not remove saved guidance. Retry before starting another route.";
+  const { accessibilityMessage, actionAccessibilityLabel, message } =
+    createNavigationCleanupNoticeCopy({ checking, workspaceName });
 
   return (
     <View
-      accessibilityLabel={`Guidance cleanup needed. ${message}`}
+      accessibilityLabel={`Guidance cleanup needed. ${accessibilityMessage}`}
       accessibilityRole="alert"
       style={[styles.notice, { top: insets.top + spacing.xs }]}
       testID={uiTestIds.navigationCleanupNotice}
     >
-      <Text style={styles.title}>Guidance cleanup needed</Text>
-      <Text style={styles.message}>{message}</Text>
+      <Text numberOfLines={1} style={styles.title}>
+        Guidance cleanup needed
+      </Text>
+      <Text ellipsizeMode="tail" numberOfLines={3} style={styles.message}>
+        {message}
+      </Text>
       <Pressable
-        accessibilityLabel={checking ? "Removing saved guidance" : "Retry guidance cleanup"}
+        accessibilityLabel={actionAccessibilityLabel}
         accessibilityRole="button"
         accessibilityState={{ busy: checking, disabled: checking }}
         disabled={checking}

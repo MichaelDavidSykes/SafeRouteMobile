@@ -130,7 +130,7 @@ describe("App active workspace integration", () => {
     );
     assert.match(
       selection,
-      /uiRequestOwnerIsCurrent =[\s\S]*requestOwnerIsCurrent\(\)[\s\S]*requestedSourceWorkspaceId ===[\s\S]*activeWorkspaceRef\.current\?\.id/,
+      /requestStillOwnsSelection = requestOwnerIsCurrent\(\)[\s\S]*uiRequestOwnerIsCurrent =[\s\S]*requestStillOwnsSelection[\s\S]*requestedSourceWorkspaceId ===[\s\S]*activeWorkspaceRef\.current\?\.id/,
     );
     assert.match(
       selection,
@@ -572,6 +572,14 @@ describe("App active workspace integration", () => {
     const guest = guestSource();
     const operations = operationsSource();
     const routes = routesSource();
+    const guardedChange = app.slice(
+      app.indexOf("const handleGuardedWorkspaceChange ="),
+      app.indexOf("const handleWorkspaceUnavailable ="),
+    );
+    const keepRouteAction = guardedChange.slice(
+      guardedChange.indexOf("Keeping ${routeName}"),
+      guardedChange.indexOf("style: 'cancel'"),
+    );
 
     assert.match(
       app,
@@ -584,7 +592,11 @@ describe("App active workspace integration", () => {
     );
     assert.match(
       app,
-      /handleGuardedWorkspaceChange[\s\S]*requestIsCurrentBeforeCleanup\(\)[\s\S]*await discardPersistedNavigation\([\s\S]*await persistOfflineReviewWorkspaceSelection\([\s\S]*setActiveWorkspace\(persistedTarget\)/,
+      /handleGuardedWorkspaceChange[\s\S]*requestIsCurrentBeforeCleanup\(\)[\s\S]*pendingWorkspaceHandoffRef\.current = handoffRequest[\s\S]*await discardPersistedNavigation\([\s\S]*continuePendingWorkspaceHandoff\(handoffRequest\)/,
+    );
+    assert.doesNotMatch(
+      keepRouteAction,
+      /pendingWorkspaceHandoffRef|setPendingWorkspaceHandoffTargetName/,
     );
     assert.match(
       app,
@@ -592,7 +604,7 @@ describe("App active workspace integration", () => {
     );
     assert.match(
       app,
-      /workspaceHandoffPendingRef\.current = true[\s\S]*setWorkspaceHandoffPending\(true\)[\s\S]*finally \{[\s\S]*workspaceHandoffPendingRef\.current = false[\s\S]*setWorkspaceHandoffPending\(false\)/,
+      /workspaceHandoffPendingRef\.current = true[\s\S]*setWorkspaceHandoffPending\(true\)[\s\S]*finally \{[\s\S]*continuationStillPending[\s\S]*workspaceHandoffPendingRef\.current = continuationStillPending[\s\S]*setWorkspaceHandoffPending\(continuationStillPending\)/,
     );
     assert.match(
       app,
@@ -600,7 +612,7 @@ describe("App active workspace integration", () => {
     );
     assert.match(
       app,
-      /resolveEndRouteWorkspaceChangeTarget\(\{[\s\S]*currentWorkspaceRequestRevision: workspaceRequestRevisionRef\.current[\s\S]*hasActiveNavigation:[\s\S]*hasPendingNavigation:/,
+      /resolvePendingWorkspaceHandoffDecision[\s\S]*resolveWorkspaceHandoffContinuation\(\{[\s\S]*cleanupRequired: navigationCleanupRequiredRef\.current[\s\S]*hasActiveNavigation:[\s\S]*hasPendingNavigation:/,
     );
     assert.match(
       app,
@@ -608,7 +620,7 @@ describe("App active workspace integration", () => {
     );
     assert.match(
       app,
-      /Route ended\. Workspace changed to \$\{persistedTarget\.name\}\.[\s\S]*workspaceAccessFocusHandoffRef\.current\?\.request/,
+      /handleActiveWorkspaceChange[\s\S]*persistOfflineReviewWorkspaceSelection\([\s\S]*persistedSelection\?\.activeWorkspaceId === requestedTargetWorkspaceId[\s\S]*completedRouteHandoff[\s\S]*Route ended\. Workspace changed to \$\{persistedTarget\.name\}\.[\s\S]*workspaceAccessFocusHandoffRef\.current\?\.request/,
     );
     assert.match(
       app,
@@ -616,11 +628,37 @@ describe("App active workspace integration", () => {
     );
     assert.match(
       app,
-      /if \(!currentTarget\) \{[\s\S]*requestOwnerIsCurrent\(\)[\s\S]*Route ended, but workspace access changed/,
+      /continuePendingWorkspaceHandoff[\s\S]*resolvePendingWorkspaceHandoffDecision\(request\)[\s\S]*decision\.status === 'deferred'[\s\S]*clearPendingWorkspaceHandoff\(request\)[\s\S]*Route ended, but the change to \$\{request\.requestedTargetName\} stopped because workspace access changed/,
     );
     assert.match(
       app,
-      /persistedSelection\?\.activeWorkspaceId !== persistedTarget\.id[\s\S]*requestOwnerIsCurrent\(\)[\s\S]*Route ended, but the workspace could not be changed/,
+      /continuePendingWorkspaceHandoff[\s\S]*workspaceHandoffPendingRef\.current = false[\s\S]*handleActiveWorkspaceChange\(decision\.target, \{[\s\S]*completedRouteHandoff: true/,
+    );
+    assert.match(
+      app,
+      /handleRetryNavigationCleanup[\s\S]*retainedHandoff\?\.evidenceSession \|\| null[\s\S]*Retry cleanup to finish changing to \$\{retainedDecision\.target\.name\}[\s\S]*continuePendingWorkspaceHandoff\(retainedHandoff\)/,
+    );
+    assert.match(
+      app,
+      /pendingWorkspaceHandoffRef\.current[\s\S]*workspaceCatalogRefreshDeferredRef\.current = true/,
+    );
+    assert.match(
+      app,
+      /resolveDeferredWorkspaceRefreshAfterSelection\(\{[\s\S]*requestOwnerIsCurrent: requestStillOwnsSelection[\s\S]*deferredRefreshResolution === 'resume'[\s\S]*resumeDeferredWorkspaceCatalogRefresh\(\)/,
+    );
+    assert.match(
+      app,
+      /useEffect\(\(\) => \{[\s\S]*pendingWorkspaceHandoffRef\.current[\s\S]*continuePendingWorkspaceHandoff\(pendingHandoff\)/,
+    );
+    assert.match(
+      app,
+      /pendingWorkspaceHandoffRef = useRef<PendingWorkspaceHandoff \| null>\(null\)/,
+    );
+    assert.ok(
+      (
+        app.match(/clearPendingWorkspaceHandoff\(undefined, \{[\s\S]{0,100}discardDeferredCatalogRefresh: true[\s\S]{0,120}workspaceHandoffPendingRef\.current = false/g) ||
+        []
+      ).length >= 3,
     );
     assert.match(
       app,
@@ -702,6 +740,10 @@ describe("App active workspace integration", () => {
     assert.match(
       app,
       /workspaceHandoffPendingRef\.current[\s\S]*Finish saved-guidance cleanup before starting another route/,
+    );
+    assert.match(
+      app,
+      /<NavigationCleanupNotice[\s\S]*workspaceName=\{workspaceHandoffNoticeTargetName\}/,
     );
     assert.match(
       app,

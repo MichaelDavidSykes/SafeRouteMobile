@@ -115,6 +115,10 @@ import {
 } from './src/features/workspaces/activeWorkspace';
 import { resolveEndRouteWorkspaceChangeTarget } from './src/features/workspaces/endRouteWorkspaceChange';
 import {
+  resolveDeferredWorkspaceRefreshAfterSelection,
+  resolveWorkspaceHandoffContinuation,
+} from './src/features/workspaces/workspaceHandoffContinuation';
+import {
   loadOfflineWorkspaceContext,
   migrateOfflineWorkspaceCatalogFromRouteCache,
   persistOfflineReviewWorkspaceSelection,
@@ -178,6 +182,15 @@ type PendingNavigationRestore = {
 type NavigationCleanupStatus = 'idle' | 'checking' | 'failed';
 type OfflineCalendarCleanupStatus = 'idle' | 'checking' | 'failed';
 type WorkspaceSelectionStatus = 'idle' | 'saving' | 'failed';
+type PendingWorkspaceHandoff = {
+  evidenceSession: ActiveNavigationSession;
+  requestedPrincipalId: string;
+  requestedSessionEpoch: number;
+  requestedSourceWorkspaceId: string | null;
+  requestedTargetName: string;
+  requestedTargetWorkspaceId: string;
+  requestedWorkspaceRequestRevision: number;
+};
 
 export default function App() {
   return (
@@ -241,6 +254,10 @@ function SafeRouteApp() {
   const [navigationCleanupStatus, setNavigationCleanupStatus] =
     useState<NavigationCleanupStatus>('idle');
   const [workspaceHandoffPending, setWorkspaceHandoffPending] = useState(false);
+  const [
+    pendingWorkspaceHandoffTargetName,
+    setPendingWorkspaceHandoffTargetName,
+  ] = useState('');
   const [workspaceSelectionStatus, setWorkspaceSelectionStatus] =
     useState<WorkspaceSelectionStatus>('idle');
   const [
@@ -332,6 +349,7 @@ function SafeRouteApp() {
   const navigationCleanupRequiredRef = useRef(false);
   const navigationCleanupPromiseRef = useRef<Promise<boolean> | null>(null);
   const workspaceHandoffPendingRef = useRef(false);
+  const pendingWorkspaceHandoffRef = useRef<PendingWorkspaceHandoff | null>(null);
   const workspaceSelectionRequestRevisionRef = useRef(0);
   const workspaceSelectionPendingRef = useRef(false);
   const workspaceSelectionSavingMessageRef = useRef<string | null>(null);
@@ -372,6 +390,42 @@ function SafeRouteApp() {
     navigationCleanupStatus !== 'idle' || workspaceHandoffPending;
   const workspaceSelectionPending = workspaceSelectionStatus === 'saving';
   const workspaceSelectionFailed = workspaceSelectionStatus === 'failed';
+  const pendingWorkspaceHandoffForNotice =
+    pendingWorkspaceHandoffTargetName
+      ? pendingWorkspaceHandoffRef.current
+      : null;
+  const pendingWorkspaceHandoffNoticeDecision =
+    pendingWorkspaceHandoffForNotice
+      ? resolveWorkspaceHandoffContinuation({
+          context: {
+            availableWorkspaces,
+            catalogBusy:
+              workspaceCatalogBusy ||
+              workspaceForegroundRefreshPendingRef.current,
+            cleanupPending: Boolean(navigationCleanupPromiseRef.current),
+            cleanupRequired: navigationCleanupRequiredRef.current,
+            currentPrincipalId: getAuthSessionPrincipalId(session),
+            currentSessionEpoch: sessionEpochRef.current,
+            currentSourceWorkspaceId: activeWorkspace?.id || null,
+            hasActiveNavigation: Boolean(activeNavigationSession),
+            hasPendingNavigation: Boolean(pendingNavigationRestore),
+            selectionPending: workspaceSelectionPending,
+            unavailableWorkspaceIds: unavailableWorkspaceIdsRef.current,
+          },
+          request: {
+            principalId:
+              pendingWorkspaceHandoffForNotice.requestedPrincipalId,
+            sessionEpoch:
+              pendingWorkspaceHandoffForNotice.requestedSessionEpoch,
+            sourceWorkspaceId:
+              pendingWorkspaceHandoffForNotice.requestedSourceWorkspaceId,
+            targetWorkspaceId:
+              pendingWorkspaceHandoffForNotice.requestedTargetWorkspaceId,
+          },
+        })
+      : null;
+  const workspaceHandoffNoticeTargetName =
+    pendingWorkspaceHandoffNoticeDecision?.target?.name || '';
   const sessionEpoch = sessionEpochRef.current;
   activeSessionTokenRef.current = session?.accessToken || null;
   activeSessionPrincipalIdRef.current = getAuthSessionPrincipalId(session);
@@ -564,7 +618,10 @@ function SafeRouteApp() {
       if (!decision.revalidate) {
         return;
       }
-      if (workspaceSelectionPendingRef.current) {
+      if (
+        workspaceSelectionPendingRef.current ||
+        pendingWorkspaceHandoffRef.current
+      ) {
         workspaceCatalogRefreshDeferredRef.current = true;
         workspaceForegroundRefreshDeferredRef.current = true;
         workspaceForegroundAuthorizationPausedRef.current = true;
@@ -810,13 +867,125 @@ function SafeRouteApp() {
     return true;
   };
 
+  const clearPendingWorkspaceHandoff = (
+    request?: PendingWorkspaceHandoff,
+    {
+      discardDeferredCatalogRefresh = false,
+    }: {
+      discardDeferredCatalogRefresh?: boolean;
+    } = {},
+  ) => {
+    if (request && pendingWorkspaceHandoffRef.current !== request) {
+      return;
+    }
+    pendingWorkspaceHandoffRef.current = null;
+    setPendingWorkspaceHandoffTargetName('');
+    if (discardDeferredCatalogRefresh) {
+      workspaceCatalogRefreshDeferredRef.current = false;
+      workspaceForegroundRefreshDeferredRef.current = false;
+    }
+  };
+
+  const resumeDeferredWorkspaceCatalogRefresh = () => {
+    if (!workspaceCatalogRefreshDeferredRef.current) {
+      return;
+    }
+    const foregroundRefresh =
+      workspaceForegroundRefreshDeferredRef.current;
+    workspaceCatalogRefreshDeferredRef.current = false;
+    workspaceForegroundRefreshDeferredRef.current = false;
+    workspaceCatalogBusyRef.current = true;
+    if (foregroundRefresh) {
+      workspaceForegroundRefreshPendingRef.current = true;
+      workspaceForegroundAuthorizationPausedRef.current = true;
+      setWorkspaceForegroundAuthorizationPaused(true);
+    }
+    setWorkspaceCatalogLoading(true);
+    setWorkspaceDiscoveryRevision((revision) => revision + 1);
+  };
+
+  const resolvePendingWorkspaceHandoffDecision = (
+    request: PendingWorkspaceHandoff,
+  ) =>
+    resolveWorkspaceHandoffContinuation({
+      context: {
+        availableWorkspaces: availableWorkspacesRef.current,
+        catalogBusy:
+          workspaceCatalogBusyRef.current ||
+          workspaceCatalogRetryingRef.current ||
+          workspaceForegroundRefreshPendingRef.current,
+        cleanupPending: Boolean(navigationCleanupPromiseRef.current),
+        cleanupRequired: navigationCleanupRequiredRef.current,
+        currentPrincipalId: activeSessionPrincipalIdRef.current,
+        currentSessionEpoch: sessionEpochRef.current,
+        currentSourceWorkspaceId: activeWorkspaceRef.current?.id || null,
+        hasActiveNavigation: Boolean(activeNavigationSessionRef.current),
+        hasPendingNavigation: Boolean(pendingNavigationRestoreRef.current),
+        selectionPending: workspaceSelectionPendingRef.current,
+        unavailableWorkspaceIds: unavailableWorkspaceIdsRef.current,
+      },
+      request: {
+        principalId: request.requestedPrincipalId,
+        sessionEpoch: request.requestedSessionEpoch,
+        sourceWorkspaceId: request.requestedSourceWorkspaceId,
+        targetWorkspaceId: request.requestedTargetWorkspaceId,
+      },
+    });
+
   const handleRetryNavigationCleanup = async () => {
-    const durableClearSucceeded = await performPersistedNavigationCleanup(null);
-    setSessionMessage(
-      durableClearSucceeded
-        ? 'Saved guidance removed. You can start another route.'
-        : 'Saved guidance could not be removed. Keep SafeRoute open and retry cleanup.',
-    );
+    const retainedHandoff = pendingWorkspaceHandoffRef.current;
+    if (retainedHandoff) {
+      if (workspaceHandoffPendingRef.current) {
+        return;
+      }
+      workspaceHandoffPendingRef.current = true;
+      setWorkspaceHandoffPending(true);
+    }
+    try {
+      const durableClearSucceeded = await performPersistedNavigationCleanup(
+        retainedHandoff?.evidenceSession || null,
+      );
+      if (!retainedHandoff) {
+        setSessionMessage(
+          durableClearSucceeded
+            ? 'Saved guidance removed. You can start another route.'
+            : 'Saved guidance could not be removed. Keep SafeRoute open and retry cleanup.',
+        );
+        return;
+      }
+      if (!durableClearSucceeded) {
+        const retainedRequestOwnsCurrentSession =
+          pendingWorkspaceHandoffRef.current === retainedHandoff &&
+          retainedHandoff.requestedPrincipalId ===
+            activeSessionPrincipalIdRef.current &&
+          retainedHandoff.requestedSessionEpoch === sessionEpochRef.current;
+        if (!retainedRequestOwnsCurrentSession) {
+          return;
+        }
+        const retainedDecision =
+          resolvePendingWorkspaceHandoffDecision(retainedHandoff);
+        if (retainedDecision?.target) {
+          setSessionMessage(
+            `Saved guidance could not be removed. Retry cleanup to finish changing to ${retainedDecision.target.name}.`,
+          );
+        } else {
+          clearPendingWorkspaceHandoff(retainedHandoff);
+          setSessionMessage(
+            'Saved guidance could not be removed. Keep SafeRoute open and retry cleanup.',
+          );
+        }
+        return;
+      }
+      await continuePendingWorkspaceHandoff(retainedHandoff);
+    } finally {
+      const continuationStillPending = Boolean(
+        retainedHandoff &&
+        pendingWorkspaceHandoffRef.current === retainedHandoff &&
+        !navigationCleanupRequiredRef.current,
+      );
+      workspaceHandoffPendingRef.current = continuationStillPending;
+      setWorkspaceHandoffPending(continuationStillPending);
+    }
   };
 
   const handleRetryOfflineCalendarCleanup = async () => {
@@ -1424,6 +1593,11 @@ function SafeRouteApp() {
 
   const handleAuthenticated = async (nextSession: AuthSession) => {
     sessionRestoreGenerationRef.current += 1;
+    clearPendingWorkspaceHandoff(undefined, {
+      discardDeferredCatalogRefresh: true,
+    });
+    workspaceHandoffPendingRef.current = false;
+    setWorkspaceHandoffPending(false);
     setSavedSessionValidationRetryAvailable(false);
     setSavedSessionValidationRetrying(false);
     workspaceRequestRevisionRef.current += 1;
@@ -1536,6 +1710,11 @@ function SafeRouteApp() {
 
   const handleSignOut = async () => {
     const signingOutPrincipalId = activeSessionPrincipalIdRef.current;
+    clearPendingWorkspaceHandoff(undefined, {
+      discardDeferredCatalogRefresh: true,
+    });
+    workspaceHandoffPendingRef.current = false;
+    setWorkspaceHandoffPending(false);
     workspaceRequestRevisionRef.current += 1;
     unavailableWorkspaceIdsRef.current.clear();
     sessionEpochRef.current += 1;
@@ -1605,6 +1784,11 @@ function SafeRouteApp() {
     })) {
       return;
     }
+    clearPendingWorkspaceHandoff(undefined, {
+      discardDeferredCatalogRefresh: true,
+    });
+    workspaceHandoffPendingRef.current = false;
+    setWorkspaceHandoffPending(false);
     workspaceRequestRevisionRef.current += 1;
     unavailableWorkspaceIdsRef.current.clear();
     sessionExpiryHandledRef.current = true;
@@ -2277,7 +2461,10 @@ function SafeRouteApp() {
   }, [authenticated, session?.accessToken, workspaceDiscoveryRevision]);
 
   const beginWorkspaceCatalogRetry = useCallback((replaceInFlight: boolean) => {
-    if (workspaceSelectionPendingRef.current) {
+    if (
+      workspaceSelectionPendingRef.current ||
+      pendingWorkspaceHandoffRef.current
+    ) {
       workspaceCatalogRefreshDeferredRef.current = true;
       restoreUnavailableWorkspacesFromFreshCatalogRef.current = true;
       return false;
@@ -2352,7 +2539,10 @@ function SafeRouteApp() {
       handleNetworkReconnectWorkspaceCatalog();
       return;
     }
-    if (workspaceSelectionPendingRef.current) {
+    if (
+      workspaceSelectionPendingRef.current ||
+      pendingWorkspaceHandoffRef.current
+    ) {
       workspaceCatalogRefreshDeferredRef.current = true;
       return;
     }
@@ -2369,6 +2559,11 @@ function SafeRouteApp() {
 
   const handleActiveWorkspaceChange = useCallback((
     workspace: SafeRouteWorkspace | null,
+    {
+      completedRouteHandoff = false,
+    }: {
+      completedRouteHandoff?: boolean;
+    } = {},
   ) => {
     const requestedTarget = workspace
       ? findWorkspace(availableWorkspacesRef.current, workspace.id)
@@ -2538,9 +2733,11 @@ function SafeRouteApp() {
         activeWorkspaceRef.current = persistedTarget;
         setActiveWorkspace(persistedTarget);
         outcomePublished = true;
-        const confirmation = retryingVisibleWorkspace
-          ? `Workspace remains ${persistedTarget.name}.`
-          : `Workspace changed to ${persistedTarget.name}.`;
+        const confirmation = completedRouteHandoff
+          ? `Route ended. Workspace changed to ${persistedTarget.name}.`
+          : retryingVisibleWorkspace
+            ? `Workspace remains ${persistedTarget.name}.`
+            : `Workspace changed to ${persistedTarget.name}.`;
         setSessionMessage(confirmation);
         if (Platform.OS === 'ios') {
           void workspaceAccessFocusHandoffRef.current?.request(
@@ -2564,8 +2761,9 @@ function SafeRouteApp() {
         }
       } finally {
         if (requestRevision === workspaceSelectionRequestRevisionRef.current) {
+          const requestStillOwnsSelection = requestOwnerIsCurrent();
           const uiRequestOwnerIsCurrent =
-            requestOwnerIsCurrent() &&
+            requestStillOwnsSelection &&
             requestedSourceWorkspaceId ===
               (activeWorkspaceRef.current?.id || null);
           workspaceSelectionPendingRef.current = false;
@@ -2585,23 +2783,15 @@ function SafeRouteApp() {
               currentMessage === savingMessage ? '' : currentMessage,
             );
           }
-          if (
-            uiRequestOwnerIsCurrent &&
-            workspaceCatalogRefreshDeferredRef.current
-          ) {
-            const foregroundRefresh =
-              workspaceForegroundRefreshDeferredRef.current;
-            workspaceCatalogRefreshDeferredRef.current = false;
-            workspaceForegroundRefreshDeferredRef.current = false;
-            workspaceCatalogBusyRef.current = true;
-            if (foregroundRefresh) {
-              workspaceForegroundRefreshPendingRef.current = true;
-              workspaceForegroundAuthorizationPausedRef.current = true;
-              setWorkspaceForegroundAuthorizationPaused(true);
-            }
-            setWorkspaceCatalogLoading(true);
-            setWorkspaceDiscoveryRevision((revision) => revision + 1);
-          } else if (!uiRequestOwnerIsCurrent) {
+          const deferredRefreshResolution =
+            resolveDeferredWorkspaceRefreshAfterSelection({
+              refreshDeferred:
+                workspaceCatalogRefreshDeferredRef.current,
+              requestOwnerIsCurrent: requestStillOwnsSelection,
+            });
+          if (deferredRefreshResolution === 'resume') {
+            resumeDeferredWorkspaceCatalogRefresh();
+          } else if (deferredRefreshResolution === 'discard') {
             workspaceCatalogRefreshDeferredRef.current = false;
             workspaceForegroundRefreshDeferredRef.current = false;
           }
@@ -2610,8 +2800,82 @@ function SafeRouteApp() {
     })();
   }, [workspaceSelectionStatus]);
 
+  const continuePendingWorkspaceHandoff = useCallback((
+    request: PendingWorkspaceHandoff,
+  ) => {
+    if (pendingWorkspaceHandoffRef.current !== request) {
+      return;
+    }
+    const requestOwnerIsCurrent =
+      request.requestedPrincipalId === activeSessionPrincipalIdRef.current &&
+      request.requestedSessionEpoch === sessionEpochRef.current;
+    const decision = resolvePendingWorkspaceHandoffDecision(request);
+    if (decision.status === 'deferred') {
+      workspaceHandoffPendingRef.current = true;
+      setWorkspaceHandoffPending(true);
+      setPendingWorkspaceHandoffTargetName(decision.target.name);
+      setSessionMessage(
+        `Route ended. Waiting for workspace access before changing to ${decision.target.name}.`,
+      );
+      return;
+    }
+
+    clearPendingWorkspaceHandoff(request);
+    if (decision.status === 'stale') {
+      if (requestOwnerIsCurrent) {
+        const stoppedMessage =
+          `Route ended, but the change to ${request.requestedTargetName} stopped because workspace access changed. Choose a workspace again.`;
+        setSessionMessage(stoppedMessage);
+        if (Platform.OS === 'ios') {
+          void workspaceAccessFocusHandoffRef.current?.request(
+            stoppedMessage,
+            () => workspaceAccessFocusTargetRef.current,
+          );
+        } else {
+          AccessibilityInfo.announceForAccessibilityWithOptions(
+            stoppedMessage,
+            { queue: true },
+          );
+        }
+        resumeDeferredWorkspaceCatalogRefresh();
+      }
+      return;
+    }
+
+    workspaceHandoffPendingRef.current = false;
+    setWorkspaceHandoffPending(false);
+    handleActiveWorkspaceChange(decision.target, {
+      completedRouteHandoff: true,
+    });
+  }, [handleActiveWorkspaceChange]);
+
+  useEffect(() => {
+    const pendingHandoff = pendingWorkspaceHandoffRef.current;
+    if (
+      !pendingHandoff ||
+      navigationCleanupStatus !== 'idle' ||
+      workspaceCatalogLoading ||
+      workspaceCatalogRetrying ||
+      workspaceSelectionStatus === 'saving'
+    ) {
+      return;
+    }
+    continuePendingWorkspaceHandoff(pendingHandoff);
+  }, [
+    continuePendingWorkspaceHandoff,
+    navigationCleanupStatus,
+    workspaceCatalogLoading,
+    workspaceCatalogRetrying,
+    workspaceSelectionStatus,
+  ]);
+
   const handleGuardedWorkspaceChange = useCallback((workspace: SafeRouteWorkspace) => {
-    if (workspaceHandoffPendingRef.current) {
+    if (
+      workspaceHandoffPendingRef.current ||
+      workspaceCatalogBusyRef.current ||
+      workspaceCatalogRetryingRef.current ||
+      workspaceForegroundRefreshPendingRef.current
+    ) {
       return;
     }
     const requestedNavigation =
@@ -2673,21 +2937,15 @@ function SafeRouteApp() {
           activeNavigationSessionRef.current,
         requestedNavigation,
       );
-    const requestTargetIsCurrent = () =>
-      resolveEndRouteWorkspaceChangeTarget({
-        availableWorkspaces: availableWorkspacesRef.current,
-        currentPrincipalId: activeSessionPrincipalIdRef.current,
-        currentSessionEpoch: sessionEpochRef.current,
-        currentSourceWorkspaceId: activeWorkspaceRef.current?.id || null,
-        currentWorkspaceRequestRevision: workspaceRequestRevisionRef.current,
-        hasActiveNavigation: Boolean(activeNavigationSessionRef.current),
-        hasPendingNavigation: Boolean(pendingNavigationRestoreRef.current),
-        requestedPrincipalId,
-        requestedSessionEpoch,
-        requestedSourceWorkspaceId,
-        requestedTargetWorkspaceId,
-        requestedWorkspaceRequestRevision,
-      });
+    const handoffRequest: PendingWorkspaceHandoff = {
+      evidenceSession: requestedNavigation,
+      requestedPrincipalId,
+      requestedSessionEpoch,
+      requestedSourceWorkspaceId,
+      requestedTargetName: requestedTarget.name,
+      requestedTargetWorkspaceId,
+      requestedWorkspaceRequestRevision,
+    };
 
     Alert.alert(
       'End route and change workspace?',
@@ -2726,76 +2984,39 @@ function SafeRouteApp() {
               }
               workspaceHandoffPendingRef.current = true;
               setWorkspaceHandoffPending(true);
+              pendingWorkspaceHandoffRef.current = handoffRequest;
+              setPendingWorkspaceHandoffTargetName(requestedTarget.name);
               try {
                 const cleanupSucceeded = await discardPersistedNavigation(undefined, {
                   evidenceSession: requestedNavigation,
                   publishCleanupFailure: false,
                 });
-                const currentTarget = requestTargetIsCurrent();
                 if (!cleanupSucceeded) {
-                  if (currentTarget) {
+                  const retainedDecision =
+                    pendingWorkspaceHandoffRef.current === handoffRequest
+                      ? resolvePendingWorkspaceHandoffDecision(handoffRequest)
+                      : null;
+                  if (retainedDecision?.target) {
                     setSessionMessage(
-                      'Saved guidance could not be removed. Retry cleanup before changing workspace.',
+                      `Saved guidance could not be removed. Retry cleanup to finish changing to ${retainedDecision.target.name}.`,
                     );
+                  } else {
+                    clearPendingWorkspaceHandoff(handoffRequest);
+                    if (requestOwnerIsCurrent()) {
+                      setSessionMessage(
+                        'Saved guidance could not be removed. Workspace access changed; finish cleanup, then choose a workspace again.',
+                      );
+                    }
                   }
                   return;
                 }
-                if (!currentTarget) {
-                  if (requestOwnerIsCurrent()) {
-                    setSessionMessage(
-                      'Route ended, but workspace access changed. Choose a workspace again.',
-                    );
-                  }
-                  return;
-                }
-
-                let persistedSelection: Awaited<
-                  ReturnType<typeof persistOfflineReviewWorkspaceSelection>
-                >;
-                try {
-                  persistedSelection = await persistOfflineReviewWorkspaceSelection(
-                    requestedPrincipalId,
-                    currentTarget.id,
-                  );
-                } catch {
-                  if (requestOwnerIsCurrent()) {
-                    setSessionMessage(
-                      'Route ended, but the workspace could not be changed. Choose it again.',
-                    );
-                  }
-                  return;
-                }
-                const persistedTarget = requestTargetIsCurrent();
-                if (
-                  !persistedTarget ||
-                  persistedSelection?.activeWorkspaceId !== persistedTarget.id
-                ) {
-                  if (requestOwnerIsCurrent()) {
-                    setSessionMessage(
-                      'Route ended, but the workspace could not be changed. Choose it again.',
-                    );
-                  }
-                  return;
-                }
-                activeWorkspaceRef.current = persistedTarget;
-                setActiveWorkspace(persistedTarget);
-                const confirmation =
-                  `Route ended. Workspace changed to ${persistedTarget.name}.`;
-                setSessionMessage(confirmation);
-                if (Platform.OS === 'ios') {
-                  void workspaceAccessFocusHandoffRef.current?.request(
-                    confirmation,
-                    () => workspaceAccessFocusTargetRef.current,
-                  );
-                } else {
-                  AccessibilityInfo.announceForAccessibilityWithOptions(
-                    confirmation,
-                    { queue: true },
-                  );
-                }
+                continuePendingWorkspaceHandoff(handoffRequest);
               } finally {
-                workspaceHandoffPendingRef.current = false;
-                setWorkspaceHandoffPending(false);
+                const continuationStillPending =
+                  pendingWorkspaceHandoffRef.current === handoffRequest &&
+                  !navigationCleanupRequiredRef.current;
+                workspaceHandoffPendingRef.current = continuationStillPending;
+                setWorkspaceHandoffPending(continuationStillPending);
               }
             })();
           },
@@ -2804,7 +3025,7 @@ function SafeRouteApp() {
         },
       ],
     );
-  }, [handleActiveWorkspaceChange]);
+  }, [continuePendingWorkspaceHandoff, handleActiveWorkspaceChange]);
 
   const handleWorkspaceUnavailable = useCallback(async (
     workspaceId: string,
@@ -3579,6 +3800,7 @@ function SafeRouteApp() {
             onRetry={() => {
               void handleRetryNavigationCleanup();
             }}
+            workspaceName={workspaceHandoffNoticeTargetName}
           />
         ) : null}
         {offlineCalendarCleanupStatus !== 'idle' &&

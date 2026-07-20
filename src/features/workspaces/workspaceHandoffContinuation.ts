@@ -34,10 +34,49 @@ export type WorkspaceHandoffContinuationDecision =
       target: null;
     };
 
+export type WorkspaceHandoffRetargetDecision =
+  | {
+      status: "ready";
+      target: SafeRouteWorkspace;
+    }
+  | {
+      status: "deferred" | "keep-current" | "stale";
+      target: null;
+    };
+
+export type WorkspaceHandoffRetargetOwnershipDecision =
+  | "deferred"
+  | "ready"
+  | "stale";
+
 export type WorkspaceHandoffSelectionFailureResolution =
   | "clear-stale"
   | "storage-blocked"
   | "retain-retry";
+
+export function replaceWorkspaceHandoffTarget<
+  Request extends {
+    requestedSourceWorkspaceName: string;
+    requestedTargetName: string;
+    requestedTargetWorkspaceId: string;
+  },
+>({
+  request,
+  sourceWorkspaceName,
+  target,
+}: {
+  request: Request;
+  sourceWorkspaceName: string;
+  target: SafeRouteWorkspace;
+}): Request {
+  return {
+    ...request,
+    requestedSourceWorkspaceName:
+      sourceWorkspaceName || request.requestedSourceWorkspaceName,
+    requestedTargetName: target.name,
+    requestedTargetWorkspaceId: target.id,
+  };
+}
 
 export function canRequestWorkspaceHandoffNavigationCleanupFault({
   evidenceSessionIsCurrent,
@@ -205,4 +244,71 @@ export function resolveWorkspaceHandoffContinuation({
   }
 
   return { status: "ready", target };
+}
+
+export function resolveWorkspaceHandoffRetarget({
+  context,
+  request,
+  selectedWorkspaceId,
+}: {
+  context: WorkspaceHandoffContinuationContext;
+  request: WorkspaceHandoffContinuationRequest;
+  selectedWorkspaceId: string;
+}): WorkspaceHandoffRetargetDecision {
+  const ownership = resolveWorkspaceHandoffRetargetOwnership({
+    context,
+    request,
+  });
+  if (ownership !== "ready") {
+    return { status: ownership, target: null };
+  }
+
+  if (
+    request.sourceWorkspaceId !== null &&
+    selectedWorkspaceId === request.sourceWorkspaceId
+  ) {
+    return { status: "keep-current", target: null };
+  }
+
+  const target = findWorkspace(
+    context.availableWorkspaces,
+    selectedWorkspaceId,
+  );
+  if (
+    !target ||
+    context.unavailableWorkspaceIds.has(selectedWorkspaceId)
+  ) {
+    return { status: "stale", target: null };
+  }
+
+  return { status: "ready", target };
+}
+
+export function resolveWorkspaceHandoffRetargetOwnership({
+  context,
+  request,
+}: {
+  context: WorkspaceHandoffContinuationContext;
+  request: WorkspaceHandoffContinuationRequest;
+}): WorkspaceHandoffRetargetOwnershipDecision {
+  if (
+    request.principalId !== context.currentPrincipalId ||
+    request.sessionEpoch !== context.currentSessionEpoch ||
+    request.sourceWorkspaceId !== context.currentSourceWorkspaceId ||
+    context.hasActiveNavigation ||
+    context.hasPendingNavigation
+  ) {
+    return "stale";
+  }
+
+  if (
+    context.catalogBusy ||
+    context.cleanupPending ||
+    context.cleanupRequired ||
+    context.selectionPending
+  ) {
+    return "deferred";
+  }
+
+  return "ready";
 }

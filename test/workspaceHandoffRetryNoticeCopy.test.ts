@@ -13,9 +13,14 @@ describe("workspace handoff retry notice copy", () => {
 
     assert.equal(copy.title, "Workspace change needed");
     assert.equal(copy.retryLabel, "Retry West Corridor");
+    assert.equal(copy.chooseAnotherLabel, "Choose another workspace");
     assert.equal(copy.keepLabel, "Keep Central Operations");
     assert.match(copy.message, /Still using Central Operations/);
     assert.match(copy.accessibilityMessage, /without choosing it again/);
+    assert.match(
+      copy.chooseAnotherAccessibilityLabel,
+      /Central Operations remains active/,
+    );
   });
 
   it("describes durability-first saving without claiming the target is active", () => {
@@ -57,6 +62,11 @@ describe("workspace handoff retry notice copy", () => {
     assert.match(copy.retryLabel, /…$/);
     assert.ok(copy.retryLabel.length <= "Retry ".length + 40);
     assert.match(copy.retryAccessibilityLabel, new RegExp(targetWorkspaceName));
-    assert.equal(copy.keepLabel, "Choose another");
+    assert.equal(copy.chooseAnotherLabel, "Choose another workspace");
+    assert.equal(copy.keepLabel, "Discard change");
+    assert.equal(
+      copy.keepAccessibilityLabel,
+      `Discard the change to ${targetWorkspaceName}`,
+    );
   });
 });

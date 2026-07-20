@@ -61,6 +61,10 @@ describe("UI test identifiers", () => {
       "safe-route-workspace-handoff-retry-action",
     );
     assert.equal(
+      uiTestIds.workspaceHandoffChooseAnotherAction,
+      "safe-route-workspace-handoff-choose-another",
+    );
+    assert.equal(
       uiTestIds.workspaceHandoffKeepCurrentAction,
       "safe-route-workspace-handoff-keep-current",
     );

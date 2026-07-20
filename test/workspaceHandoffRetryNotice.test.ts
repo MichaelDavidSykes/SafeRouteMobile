@@ -9,7 +9,7 @@ const noticeSource = () =>
   );
 
 describe("workspace handoff retry notice", () => {
-  it("keeps alert copy separate from two independently accessible actions", () => {
+  it("keeps alert copy separate from three independently accessible actions", () => {
     const source = noticeSource();
     const alertIndex = source.indexOf(
       'accessibilityRole={busy ? "alert" : "summary"}',
@@ -20,17 +20,21 @@ describe("workspace handoff retry notice", () => {
     const keepIndex = source.indexOf(
       "testID={uiTestIds.workspaceHandoffKeepCurrentAction}",
     );
+    const chooseAnotherIndex = source.indexOf(
+      "testID={uiTestIds.workspaceHandoffChooseAnotherAction}",
+    );
 
     assert.ok(alertIndex >= 0);
     assert.ok(retryIndex > alertIndex);
-    assert.ok(keepIndex > retryIndex);
+    assert.ok(chooseAnotherIndex > retryIndex);
+    assert.ok(keepIndex > chooseAnotherIndex);
     assert.match(
       source,
       /const busy = saving \|\| checkingAccess[\s\S]*<View[\s\S]*accessible[\s\S]*accessibilityLiveRegion=\{busy \? "polite" : "none"\}[\s\S]*accessibilityRole=\{busy \? "alert" : "summary"\}/,
     );
     assert.equal(
       (source.match(/accessibilityRole="button"/g) || []).length,
-      2,
+      3,
     );
   });
 
@@ -40,16 +44,19 @@ describe("workspace handoff retry notice", () => {
     assert.match(source, /left: spacing\.md[\s\S]*right: spacing\.md/);
     assert.match(source, /maxWidth: 440/);
     assert.equal((source.match(/minHeight: 44/g) || []).length, 2);
-    assert.equal((source.match(/numberOfLines=\{1\}/g) || []).length, 3);
+    assert.equal((source.match(/numberOfLines=\{1\}/g) || []).length, 4);
     assert.match(source, /numberOfLines=\{3\}/);
   });
 
-  it("disables Retry while access is being checked but keeps the safe exit", () => {
+  it("disables Retry while access is checked but keeps both safe exits", () => {
     const source = noticeSource();
 
     assert.match(source, /const busy = saving \|\| checkingAccess/);
     assert.match(source, /accessibilityState=\{\{ busy, disabled: busy \}\}/);
     assert.match(source, /disabled=\{busy\}/);
     assert.match(source, /\{!saving \? \(/);
+    assert.doesNotMatch(source, /\{!checkingAccess \? \(/);
+    assert.match(source, /onPress=\{onChooseAnother\}/);
+    assert.match(source, /onPress=\{onKeepCurrent\}/);
   });
 });

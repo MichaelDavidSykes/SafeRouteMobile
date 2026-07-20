@@ -7,6 +7,8 @@ import {
   recoverWorkspaceHandoffNavigationCleanupAfterOwnershipLoss,
   resolveDeferredWorkspaceRefreshAfterSelection,
   resolveWorkspaceHandoffContinuation,
+  resolveWorkspaceHandoffRetarget,
+  resolveWorkspaceHandoffRetargetOwnership,
   resolveWorkspaceHandoffSelectionFailure,
   shouldInjectWorkspaceHandoffNavigationCleanupFault,
 } from "../src/features/workspaces/workspaceHandoffContinuation";
@@ -14,6 +16,7 @@ import {
 const workspaces = [
   { id: "workspace-a", name: "Central Operations" },
   { id: "workspace-b", name: "West Corridor" },
+  { id: "workspace-c", name: "North Response" },
 ];
 
 function decide({
@@ -49,6 +52,45 @@ function decide({
       targetWorkspaceId: "workspace-b",
       ...requestOverrides,
     },
+  });
+}
+
+function decideRetarget({
+  context: contextOverrides = {},
+  request: requestOverrides = {},
+  selectedWorkspaceId = "workspace-c",
+}: {
+  context?: Partial<
+    Parameters<typeof resolveWorkspaceHandoffRetarget>[0]["context"]
+  >;
+  request?: Partial<
+    Parameters<typeof resolveWorkspaceHandoffRetarget>[0]["request"]
+  >;
+  selectedWorkspaceId?: string;
+} = {}) {
+  return resolveWorkspaceHandoffRetarget({
+    context: {
+      availableWorkspaces: workspaces,
+      catalogBusy: false,
+      cleanupPending: false,
+      cleanupRequired: false,
+      currentPrincipalId: "principal-a",
+      currentSessionEpoch: 7,
+      currentSourceWorkspaceId: "workspace-a",
+      hasActiveNavigation: false,
+      hasPendingNavigation: false,
+      selectionPending: false,
+      unavailableWorkspaceIds: new Set<string>(),
+      ...contextOverrides,
+    },
+    request: {
+      principalId: "principal-a",
+      sessionEpoch: 7,
+      sourceWorkspaceId: "workspace-a",
+      targetWorkspaceId: "workspace-b",
+      ...requestOverrides,
+    },
+    selectedWorkspaceId,
   });
 }
 
@@ -317,6 +359,105 @@ describe("workspace handoff continuation", () => {
         target: { id: "workspace-b", name: "West Corridor v2" },
       },
     );
+  });
+
+  it("replaces a failed handoff target with the latest authorized workspace", () => {
+    assert.deepEqual(decideRetarget(), {
+      status: "ready",
+      target: workspaces[2],
+    });
+    assert.deepEqual(
+      decideRetarget({
+        context: {
+          availableWorkspaces: [
+            workspaces[0],
+            workspaces[1],
+            { id: "workspace-c", name: "North Response Renamed" },
+          ],
+        },
+      }),
+      {
+        status: "ready",
+        target: { id: "workspace-c", name: "North Response Renamed" },
+      },
+    );
+  });
+
+  it("keeps alternate selection source-owned when the failed target disappears", () => {
+    const context = {
+      availableWorkspaces: [workspaces[0], workspaces[2]],
+      catalogBusy: false,
+      cleanupPending: false,
+      cleanupRequired: false,
+      currentPrincipalId: "principal-a",
+      currentSessionEpoch: 7,
+      currentSourceWorkspaceId: "workspace-a",
+      hasActiveNavigation: false,
+      hasPendingNavigation: false,
+      selectionPending: false,
+      unavailableWorkspaceIds: new Set(["workspace-b"]),
+    };
+    const request = {
+      principalId: "principal-a",
+      sessionEpoch: 7,
+      sourceWorkspaceId: "workspace-a",
+      targetWorkspaceId: "workspace-b",
+    };
+
+    assert.equal(
+      resolveWorkspaceHandoffRetargetOwnership({ context, request }),
+      "ready",
+    );
+    assert.deepEqual(
+      resolveWorkspaceHandoffRetarget({
+        context,
+        request,
+        selectedWorkspaceId: "workspace-c",
+      }),
+      {
+        status: "ready",
+        target: workspaces[2],
+      },
+    );
+  });
+
+  it("treats choosing the verified source as Keep current", () => {
+    assert.deepEqual(
+      decideRetarget({ selectedWorkspaceId: "workspace-a" }),
+      {
+        status: "keep-current",
+        target: null,
+      },
+    );
+  });
+
+  it("defers or rejects retargeting across every ownership and safety fence", () => {
+    for (const context of [
+      { catalogBusy: true },
+      { cleanupPending: true },
+      { cleanupRequired: true },
+      { selectionPending: true },
+    ]) {
+      assert.deepEqual(decideRetarget({ context }), {
+        status: "deferred",
+        target: null,
+      });
+    }
+
+    for (const context of [
+      { currentPrincipalId: "principal-b" },
+      { currentSessionEpoch: 8 },
+      { currentSourceWorkspaceId: "workspace-d" },
+      { hasActiveNavigation: true },
+      { hasPendingNavigation: true },
+      { availableWorkspaces: workspaces.slice(0, 2) },
+      { unavailableWorkspaceIds: new Set(["workspace-c"]) },
+    ]) {
+      assert.deepEqual(decideRetarget({ context }), {
+        status: "stale",
+        target: null,
+      });
+    }
   });
 
   it("rejects stale owners, sources, journeys, and target membership", () => {

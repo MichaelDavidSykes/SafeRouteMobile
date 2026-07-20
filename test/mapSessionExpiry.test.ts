@@ -65,7 +65,10 @@ describe('authenticated map session expiry integration', () => {
     assert.match(app, /sessionEpochRef = useRef/);
     assert.match(app, /shouldHandleActiveSessionExpiry/);
     assert.match(app, /sessionExpiryHandledRef\.current = true;[\s\S]*activeSessionTokenRef\.current = null/);
-    assert.match(app, /Promise\.allSettled\(\[[\s\S]*stopBackgroundNavigation\(\)[\s\S]*clearActiveNavigationSession\(\)[\s\S]*clearAuthSession\(\)/);
+    assert.match(
+      app,
+      /handleSessionExpired[\s\S]*Promise\.allSettled\(\[[\s\S]*discardPersistedNavigation\(\)[\s\S]*purgeOfflineOperationsPrincipalAtTerminalBoundary\([\s\S]*clearAuthSession/,
+    );
     assert.match(app, /handleAuthenticated[\s\S]*await waitForSessionCleanup\(sessionCleanupRef\.current\);[\s\S]*prepareAuthenticatedSession/);
     assert.match(
       app,

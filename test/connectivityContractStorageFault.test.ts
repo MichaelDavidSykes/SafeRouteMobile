@@ -30,6 +30,15 @@ describe("connectivity contract storage fault request", () => {
     assert.equal(
       createConnectivityContractStorageFaultRequest(
         "http://localhost:18080",
+        "workspace-handoff-navigation-cleanup-set",
+        revision,
+      )?.url,
+      "http://localhost:18080/__connectivity_contract__/storage-fault/" +
+        `workspace-handoff-navigation-cleanup-set?source_revision=${revision}`,
+    );
+    assert.equal(
+      createConnectivityContractStorageFaultRequest(
+        "http://localhost:18080",
         "workspace-handoff-target-selection-set",
         revision,
       )?.url,

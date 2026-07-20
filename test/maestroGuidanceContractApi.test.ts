@@ -264,6 +264,23 @@ describe('Maestro guidance contract API', () => {
       );
 
       control.storageFaults = [{
+        id: 'workspace-navigation-cleanup',
+        operation: 'workspace-handoff-navigation-cleanup-set',
+        remaining: 1,
+      }];
+      const workspaceCleanupEndpoint =
+        `http://127.0.0.1:${address.port}${CONNECTIVITY_CONTRACT_STORAGE_FAULT_PATH}` +
+        `/workspace-handoff-navigation-cleanup-set?source_revision=${sourceRevision}`;
+      assert.equal(
+        (await fetch(workspaceCleanupEndpoint, { headers, method: 'POST' })).status,
+        503,
+      );
+      assert.equal(
+        (await fetch(workspaceCleanupEndpoint, { headers, method: 'POST' })).status,
+        204,
+      );
+
+      control.storageFaults = [{
         id: 'workspace-target-save',
         operation: 'workspace-handoff-target-selection-set',
         remaining: 1,

@@ -39,6 +39,77 @@ export type WorkspaceHandoffSelectionFailureResolution =
   | "storage-blocked"
   | "retain-retry";
 
+export function canRequestWorkspaceHandoffNavigationCleanupFault({
+  evidenceSessionIsCurrent,
+  faultContractEnabled,
+  handoffPending,
+  navigationStateIsCurrent,
+  pendingRequestIsCurrent,
+  principalIsCurrent,
+  sessionIsCurrent,
+  sourceIsCurrent,
+  targetIsCurrent,
+}: {
+  evidenceSessionIsCurrent: boolean;
+  faultContractEnabled: boolean;
+  handoffPending: boolean;
+  navigationStateIsCurrent: boolean;
+  pendingRequestIsCurrent: boolean;
+  principalIsCurrent: boolean;
+  sessionIsCurrent: boolean;
+  sourceIsCurrent: boolean;
+  targetIsCurrent: boolean;
+}): boolean {
+  return (
+    evidenceSessionIsCurrent &&
+    faultContractEnabled &&
+    handoffPending &&
+    navigationStateIsCurrent &&
+    pendingRequestIsCurrent &&
+    principalIsCurrent &&
+    sessionIsCurrent &&
+    sourceIsCurrent &&
+    targetIsCurrent
+  );
+}
+
+export async function shouldInjectWorkspaceHandoffNavigationCleanupFault({
+  faultContractEnabled,
+  requestFault,
+  requestIsCurrent,
+}: {
+  faultContractEnabled: boolean;
+  requestFault: () => Promise<boolean>;
+  requestIsCurrent: () => boolean;
+}): Promise<boolean> {
+  if (!faultContractEnabled || !requestIsCurrent()) {
+    return false;
+  }
+  try {
+    const injectFault = await requestFault();
+    return injectFault && requestIsCurrent();
+  } catch {
+    return false;
+  }
+}
+
+export async function recoverWorkspaceHandoffNavigationCleanupAfterOwnershipLoss({
+  clearNavigation,
+  requestIsCurrent,
+}: {
+  clearNavigation: () => Promise<boolean>;
+  requestIsCurrent: () => boolean;
+}): Promise<boolean> {
+  if (requestIsCurrent()) {
+    return false;
+  }
+  try {
+    return await clearNavigation();
+  } catch {
+    return false;
+  }
+}
+
 export function canRequestWorkspaceHandoffTargetSelectionFault({
   completedRouteHandoff,
   faultContractEnabled,

@@ -203,10 +203,10 @@ describe('Maestro guidance contract API', () => {
     }
   });
 
-  it('injects an exact source-bound auth tombstone fault only once per control', async () => {
+  it('injects exact source-bound storage faults only once per control', async () => {
     const sourceRevision = 'd'.repeat(40);
     const control = {
-      calendarAuthFaults: [{
+      storageFaults: [{
         id: 'inactive-auth-clear',
         operation: 'auth-session-tombstone-set',
         remaining: 1,
@@ -261,6 +261,23 @@ describe('Maestro guidance contract API', () => {
       assert.deepEqual(
         validRequests.map((request) => request.requestSourceRevision),
         [sourceRevision, sourceRevision, sourceRevision],
+      );
+
+      control.storageFaults = [{
+        id: 'workspace-target-save',
+        operation: 'workspace-handoff-target-selection-set',
+        remaining: 1,
+      }];
+      const workspaceEndpoint =
+        `http://127.0.0.1:${address.port}${CONNECTIVITY_CONTRACT_STORAGE_FAULT_PATH}` +
+        `/workspace-handoff-target-selection-set?source_revision=${sourceRevision}`;
+      assert.equal(
+        (await fetch(workspaceEndpoint, { headers, method: 'POST' })).status,
+        503,
+      );
+      assert.equal(
+        (await fetch(workspaceEndpoint, { headers, method: 'POST' })).status,
+        204,
       );
     } finally {
       await new Promise<void>((resolve) => server.close(() => resolve()));

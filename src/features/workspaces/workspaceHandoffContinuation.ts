@@ -39,6 +39,28 @@ export type WorkspaceHandoffSelectionFailureResolution =
   | "storage-blocked"
   | "retain-retry";
 
+export function canRequestWorkspaceHandoffTargetSelectionFault({
+  completedRouteHandoff,
+  faultContractEnabled,
+  requestOwnerIsCurrent,
+  selectionRetryIsCurrent,
+  targetIsCurrent,
+}: {
+  completedRouteHandoff: boolean;
+  faultContractEnabled: boolean;
+  requestOwnerIsCurrent: boolean;
+  selectionRetryIsCurrent: boolean;
+  targetIsCurrent: boolean;
+}): boolean {
+  return (
+    completedRouteHandoff &&
+    faultContractEnabled &&
+    requestOwnerIsCurrent &&
+    selectionRetryIsCurrent &&
+    targetIsCurrent
+  );
+}
+
 export function resolveWorkspaceHandoffSelectionFailure({
   continuationStatus,
   requestOwnerIsCurrent,

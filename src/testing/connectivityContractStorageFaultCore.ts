@@ -3,6 +3,7 @@ export const CONNECTIVITY_CONTRACT_STORAGE_FAULT_PATH =
 
 export const CONNECTIVITY_CONTRACT_STORAGE_FAULT_OPERATIONS = [
   "auth-session-tombstone-set",
+  "workspace-handoff-target-selection-set",
 ] as const;
 
 export type ConnectivityContractStorageFaultOperation =

@@ -13,7 +13,8 @@ import { SafeAreaProvider, initialWindowMetrics } from 'react-native-safe-area-c
 import {
   SAFEROUTE_GUIDANCE_CONTRACT_EVIDENCE_ENABLED,
   SAFEROUTE_PREVIEW_INITIAL_SCREEN,
-  SAFEROUTE_PREVIEW_MODE_ENABLED
+  SAFEROUTE_PREVIEW_MODE_ENABLED,
+  SAFEROUTE_STORAGE_FAULT_CONTRACT_ENABLED,
 } from './src/config/env';
 import { getCurrentUser } from './src/features/auth/authApi';
 import { LoginScreen } from './src/features/auth/LoginScreen';
@@ -89,6 +90,7 @@ import { OfflineCalendarCleanupNotice } from './src/features/operations/OfflineC
 import type { OperationsTab } from './src/features/operations/operationsUiState';
 import { RouteListScreen } from './src/features/routes/RouteListScreen';
 import { uiTestIds } from './src/testing/uiTestIds';
+import { shouldInjectConnectivityContractStorageFault } from './src/testing/connectivityContractStorageFault';
 import { colors, spacing } from './src/theme';
 import {
   shouldHandleActiveSessionExpiry,
@@ -115,6 +117,7 @@ import {
 } from './src/features/workspaces/activeWorkspace';
 import { resolveEndRouteWorkspaceChangeTarget } from './src/features/workspaces/endRouteWorkspaceChange';
 import {
+  canRequestWorkspaceHandoffTargetSelectionFault,
   resolveDeferredWorkspaceRefreshAfterSelection,
   resolveWorkspaceHandoffSelectionFailure,
   resolveWorkspaceHandoffContinuation,
@@ -2893,6 +2896,15 @@ function SafeRouteApp() {
         }
         clearPendingWorkspaceSelectionRetry(selectionRetry);
       };
+      const targetSelectionFaultRequestIsCurrent = () =>
+        canRequestWorkspaceHandoffTargetSelectionFault({
+          completedRouteHandoff,
+          faultContractEnabled:
+            SAFEROUTE_STORAGE_FAULT_CONTRACT_ENABLED,
+          requestOwnerIsCurrent: requestOwnerIsCurrent(),
+          selectionRetryIsCurrent: selectionRetryIsCurrent(),
+          targetIsCurrent: Boolean(resolveCurrentTarget()),
+        });
       const settleFailedPersistence = (
         reconciliation: Awaited<ReturnType<typeof reconcileVisibleSelection>>,
       ) => {
@@ -2920,11 +2932,26 @@ function SafeRouteApp() {
       };
       try {
         const attempt = await runDurableWorkspaceSelectionAttempt({
-          persistTarget: () =>
-            persistOfflineReviewWorkspaceSelection(
+          persistTarget: async () => {
+            if (selectionRetry && targetSelectionFaultRequestIsCurrent()) {
+              const injectTargetFault =
+                await shouldInjectConnectivityContractStorageFault(
+                  'workspace-handoff-target-selection-set',
+                );
+              if (!targetSelectionFaultRequestIsCurrent()) {
+                return null;
+              }
+              if (injectTargetFault) {
+                throw new Error(
+                  'Contract-injected workspace handoff selection failure',
+                );
+              }
+            }
+            return persistOfflineReviewWorkspaceSelection(
               requestedPrincipalId,
               requestedTargetWorkspaceId,
-            ),
+            );
+          },
           reconcileSource: reconcileVisibleSelection,
           reconciliationFailure: 'failed' as const,
           resolvePersistedTarget: (persistedSelection) =>

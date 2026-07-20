@@ -9,7 +9,7 @@ import {
 const revision = "abcdef0123456789abcdef0123456789abcdef01";
 
 describe("connectivity contract storage fault request", () => {
-  it("creates only the exact loopback, source-bound auth tombstone request", () => {
+  it("creates exact loopback, source-bound requests for supported faults", () => {
     assert.deepEqual(
       createConnectivityContractStorageFaultRequest(
         "http://127.0.0.1:18080/",
@@ -26,6 +26,15 @@ describe("connectivity contract storage fault request", () => {
           "http://127.0.0.1:18080/__connectivity_contract__/storage-fault/" +
           `auth-session-tombstone-set?source_revision=${revision}`,
       },
+    );
+    assert.equal(
+      createConnectivityContractStorageFaultRequest(
+        "http://localhost:18080",
+        "workspace-handoff-target-selection-set",
+        revision,
+      )?.url,
+      "http://localhost:18080/__connectivity_contract__/storage-fault/" +
+        `workspace-handoff-target-selection-set?source_revision=${revision}`,
     );
   });
 

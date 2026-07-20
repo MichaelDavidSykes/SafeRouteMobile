@@ -1167,6 +1167,65 @@ describe("App active workspace integration", () => {
     );
   });
 
+  it("injects a source-bound handoff target fault only before the owned target write", () => {
+    const app = appSource();
+    const selectionStart = app.indexOf(
+      "const handleActiveWorkspaceChange = useCallback",
+    );
+    const durableAttempt = app.indexOf(
+      "runDurableWorkspaceSelectionAttempt({",
+      selectionStart,
+    );
+    const faultResolverStart = app.indexOf(
+      "const targetSelectionFaultRequestIsCurrent",
+      selectionStart,
+    );
+    const faultResolverEnd = app.indexOf(
+      "const settleFailedPersistence",
+      faultResolverStart,
+    );
+    const hookIndex = app.indexOf(
+      "shouldInjectConnectivityContractStorageFault(",
+      durableAttempt,
+    );
+    const targetWriteIndex = app.indexOf(
+      "return persistOfflineReviewWorkspaceSelection(",
+      hookIndex,
+    );
+    const reconcileIndex = app.indexOf(
+      "reconcileSource: reconcileVisibleSelection",
+      targetWriteIndex,
+    );
+    const faultResolverSlice = app.slice(
+      faultResolverStart,
+      faultResolverEnd,
+    );
+    const hookSlice = app.slice(durableAttempt, targetWriteIndex);
+
+    assert.ok(selectionStart >= 0);
+    assert.ok(faultResolverStart > selectionStart);
+    assert.ok(faultResolverEnd > faultResolverStart);
+    assert.ok(durableAttempt > selectionStart);
+    assert.ok(hookIndex > durableAttempt);
+    assert.ok(targetWriteIndex > hookIndex);
+    assert.ok(reconcileIndex > targetWriteIndex);
+    assert.match(
+      faultResolverSlice,
+      /canRequestWorkspaceHandoffTargetSelectionFault\(\{[\s\S]*completedRouteHandoff[\s\S]*SAFEROUTE_STORAGE_FAULT_CONTRACT_ENABLED[\s\S]*requestOwnerIsCurrent\(\)[\s\S]*selectionRetryIsCurrent\(\)[\s\S]*resolveCurrentTarget\(\)/,
+    );
+    assert.match(
+      hookSlice,
+      /selectionRetry && targetSelectionFaultRequestIsCurrent\(\)[\s\S]*await shouldInjectConnectivityContractStorageFault\([\s\S]*workspace-handoff-target-selection-set[\s\S]*!targetSelectionFaultRequestIsCurrent\(\)[\s\S]*return null/,
+    );
+    assert.doesNotMatch(
+      readFileSync(
+        "src/features/workspaces/offlineWorkspaceCache.ts",
+        "utf8",
+      ),
+      /workspace-handoff-target-selection-set/,
+    );
+  });
+
   it("records exact workspace-denial Calendar absence without mutating saving preferences", () => {
     const app = appSource();
     const evidence = readFileSync(

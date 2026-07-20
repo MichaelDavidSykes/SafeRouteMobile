@@ -44,7 +44,7 @@ export const guidanceCardStyles = StyleSheet.create({
     fontSize: typeScale.md,
     lineHeight: 19,
   },
-  guidanceTitleWarning: {
+  guidanceDangerText: {
     color: colors.dangerText,
   },
   guidanceMeta: {
@@ -53,16 +53,10 @@ export const guidanceCardStyles = StyleSheet.create({
     fontSize: typeScale.xs,
     fontWeight: "700",
   },
-  guidanceMetaWarning: {
-    color: colors.dangerText,
-  },
   guidanceRiskMeta: {
     marginTop: 1,
     fontSize: typeScale.xs,
     fontWeight: "800",
-  },
-  guidanceRiskMetaDanger: {
-    color: colors.dangerText,
   },
   guidanceRiskMetaWarning: {
     color: colors.amberText,
@@ -77,9 +71,6 @@ export const guidanceCardStyles = StyleSheet.create({
   },
   guidanceDistanceCompact: {
     fontSize: typeScale.md,
-  },
-  guidanceDistanceWarning: {
-    color: colors.dangerText,
   },
   rerouteButton: {
     minWidth: 66,

@@ -72,7 +72,7 @@ export function LiveMapGuidanceCard({
           style={[
             styles.guidanceTitle,
             layout.isCompact ? styles.guidanceTitleCompact : null,
-            warningActive ? styles.guidanceTitleWarning : null,
+            warningActive ? styles.guidanceDangerText : null,
           ]}
         >
           {rerouteTitle || presentation.instructionLabel}
@@ -81,7 +81,7 @@ export function LiveMapGuidanceCard({
           numberOfLines={1}
           style={[
             styles.guidanceMeta,
-            warningActive ? styles.guidanceMetaWarning : null,
+            warningActive ? styles.guidanceDangerText : null,
           ]}
         >
           {reroutePresentation?.message || presentation.metaLabel}
@@ -118,7 +118,7 @@ export function LiveMapGuidanceCard({
           style={[
             styles.guidanceDistance,
             layout.isCompact ? styles.guidanceDistanceCompact : null,
-            warningActive ? styles.guidanceDistanceWarning : null,
+            warningActive ? styles.guidanceDangerText : null,
           ]}
         >
           {presentation.distanceLabel}
@@ -130,7 +130,7 @@ export function LiveMapGuidanceCard({
 
 function guidanceRiskMetaStyle(tone: RouteRiskAdvisoryTone) {
   if (tone === "danger") {
-    return styles.guidanceRiskMetaDanger;
+    return styles.guidanceDangerText;
   }
 
   if (tone === "warning") {

@@ -200,8 +200,12 @@ describe("rounded visual language", () => {
       /guidanceTitle:\s*\{([\s\S]*?)\n  \},\n  guidanceTitleCompact:/.exec(
         guidanceStylesSource,
       )?.[1] || "";
+    const guidanceDangerTextBlock =
+      /guidanceDangerText:\s*\{([\s\S]*?)\n  \},\n  guidanceMeta:/.exec(
+        guidanceStylesSource,
+      )?.[1] || "";
     const guidanceMetaBlock =
-      /guidanceMeta:\s*\{([\s\S]*?)\n  \},\n  guidanceMetaWarning:/.exec(
+      /guidanceMeta:\s*\{([\s\S]*?)\n  \},\n  guidanceRiskMeta:/.exec(
         guidanceStylesSource,
       )?.[1] || "";
     const guidanceDistanceBlock =
@@ -210,9 +214,16 @@ describe("rounded visual language", () => {
       )?.[1] || "";
 
     assert.match(guidanceCardSource, /const warningActive = state === "off-route"/);
-    assert.match(guidanceCardSource, /warningActive \? styles\.guidanceTitleWarning : null/);
-    assert.match(guidanceCardSource, /warningActive \? styles\.guidanceMetaWarning : null/);
-    assert.match(guidanceCardSource, /warningActive \? styles\.guidanceDistanceWarning : null/);
+    assert.equal(
+      (guidanceCardSource.match(/warningActive \? styles\.guidanceDangerText : null/g) ?? [])
+        .length,
+      3,
+    );
+    assert.match(guidanceCardSource, /return styles\.guidanceDangerText;/);
+    assert.doesNotMatch(
+      guidanceCardSource,
+      /guidanceTitleWarning|guidanceMetaWarning|guidanceDistanceWarning|guidanceRiskMetaDanger/,
+    );
     assert.match(guidanceCardBlock, /backgroundColor:\s*colors\.surfaceTranslucent/);
     assert.match(guidanceCardBlock, /borderColor:\s*colors\.glassBorder/);
     assert.match(guidanceCardBlock, /borderRadius:\s*radius\.xl/);
@@ -221,9 +232,11 @@ describe("rounded visual language", () => {
     assert.match(guidanceTitleBlock, /color:\s*colors\.ink/);
     assert.match(guidanceMetaBlock, /color:\s*colors\.muted/);
     assert.match(guidanceDistanceBlock, /color:\s*colors\.appleBlue/);
-    assert.match(guidanceStylesSource, /guidanceTitleWarning:[\s\S]*color:\s*colors\.dangerText/);
-    assert.match(guidanceStylesSource, /guidanceDistanceWarning:[\s\S]*color:\s*colors\.dangerText/);
-    assert.match(guidanceStylesSource, /guidanceRiskMetaDanger:[\s\S]*color:\s*colors\.dangerText/);
+    assert.match(guidanceDangerTextBlock, /color:\s*colors\.dangerText/);
+    assert.doesNotMatch(guidanceStylesSource, /guidanceTitleWarning:/);
+    assert.doesNotMatch(guidanceStylesSource, /guidanceMetaWarning:/);
+    assert.doesNotMatch(guidanceStylesSource, /guidanceDistanceWarning:/);
+    assert.doesNotMatch(guidanceStylesSource, /guidanceRiskMetaDanger:/);
     assert.match(guidanceStylesSource, /guidanceRiskMetaWarning:[\s\S]*color:\s*colors\.amberText/);
     assert.match(guidanceStylesSource, /guidanceRiskMetaInfo:[\s\S]*color:\s*colors\.infoText/);
     assert.doesNotMatch(guidanceStylesSource, /rgba\(17,\s*17,\s*19/);

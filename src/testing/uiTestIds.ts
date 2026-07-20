@@ -76,6 +76,10 @@ export const uiTestIds = {
     `safe-route-operations-workspace-${normalizeTestIdSegment(workspaceId)}`,
   operationsConvoyCard: (convoyId: string) =>
     `safe-route-operations-convoy-${normalizeTestIdSegment(convoyId)}`,
+  operationsConvoyDetail: "safe-route-operations-convoy-detail",
+  operationsConvoyDetailBack: "safe-route-operations-convoy-detail-back",
+  operationsConvoyRoute: (routeId: string) =>
+    `safe-route-operations-convoy-route-${normalizeTestIdSegment(routeId)}`,
   savedRouteCard: (routeId: string) =>
     `safe-route-card-${normalizeTestIdSegment(routeId)}`,
   liveMapScreen: "safe-route-live-map",

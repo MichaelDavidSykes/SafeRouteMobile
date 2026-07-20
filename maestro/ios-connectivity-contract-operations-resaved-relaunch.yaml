@@ -25,7 +25,7 @@ appId: host.exp.Exponent
     timeout: 20000
 - assertVisible:
     id: "safe-route-operations-offline-notice"
-- assertVisible: "Offline saving is on"
+- assertVisible: "Offline options"
 - assertVisible:
     id: "safe-route-operations-calendar-saving-control"
 - assertNotVisible:

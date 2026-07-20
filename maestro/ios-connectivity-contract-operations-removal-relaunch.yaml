@@ -38,7 +38,7 @@ appId: host.exp.Exponent
       id: "safe-route-operations-empty-state"
     timeout: 20000
 - assertVisible: "Calendar unavailable offline"
-- assertVisible: "Offline saving is on"
+- assertVisible: "Offline options"
 - assertVisible:
     id: "safe-route-operations-calendar-saving-control"
 - assertNotVisible:

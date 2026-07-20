@@ -142,6 +142,14 @@ describe("UI test identifiers", () => {
       uiTestIds.operationsConvoyCard("Alpha convoy"),
       "safe-route-operations-convoy-alpha-convoy",
     );
+    assert.equal(
+      uiTestIds.operationsConvoyDetail,
+      "safe-route-operations-convoy-detail",
+    );
+    assert.equal(
+      uiTestIds.operationsConvoyRoute("Route/Alpha"),
+      "safe-route-operations-convoy-route-route-alpha",
+    );
     assert.equal(uiTestIds.liveMapRiskAlert, "safe-route-risk-alert");
     assert.equal(uiTestIds.liveMapRiskDetail, "safe-route-risk-detail");
     assert.equal(

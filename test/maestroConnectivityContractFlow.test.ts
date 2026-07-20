@@ -211,7 +211,7 @@ describe("Maestro connectivity contract runtime", () => {
     );
     assert.match(
       operationsRemovalRelaunch,
-      /safe-route-card-66b1b2c3d4e5f60718293b40[\s\S]*guest-map-gate-calendar[\s\S]*Calendar unavailable offline[\s\S]*Offline saving is on[\s\S]*assertNotVisible:[\s\S]*safe-route-operations-route-movement-1-1/,
+      /safe-route-card-66b1b2c3d4e5f60718293b40[\s\S]*guest-map-gate-calendar[\s\S]*Calendar unavailable offline[\s\S]*Offline options[\s\S]*assertNotVisible:[\s\S]*safe-route-operations-route-movement-1-1/,
     );
     assert.match(
       operationsStopSaving,
@@ -223,7 +223,7 @@ describe("Maestro connectivity contract runtime", () => {
     );
     assert.match(
       operationsAllowSaving,
-      /guest-map-gate-calendar[\s\S]*Offline Calendar saving is off[\s\S]*safe-route-operations-route-66e1b2c3d4e5f60718293e40-66b1b2c3d4e5f60718293b40-0[\s\S]*safe-route-operations-calendar-saving-control[\s\S]*Offline Calendar saved[\s\S]*safe-route-operations-map-return/,
+      /guest-map-gate-calendar[\s\S]*Offline Calendar saving is off[\s\S]*safe-route-operations-route-66e1b2c3d4e5f60718293e40-66b1b2c3d4e5f60718293b40-0[\s\S]*safe-route-operations-calendar-saving-control[\s\S]*Offline options[\s\S]*safe-route-operations-map-return/,
     );
     assert.match(
       runner,
@@ -235,7 +235,7 @@ describe("Maestro connectivity contract runtime", () => {
     );
     assert.match(
       operationsResavedRelaunch,
-      /Offline map\. Saved route information remains available\.[\s\S]*guest-map-gate-calendar[\s\S]*safe-route-operations-route-movement-1-1[\s\S]*Offline saving is on[\s\S]*safe-route-operations-calendar-saving-control[\s\S]*assertNotVisible:[\s\S]*safe-route-operations-empty-state/,
+      /Offline map\. Saved route information remains available\.[\s\S]*guest-map-gate-calendar[\s\S]*safe-route-operations-route-movement-1-1[\s\S]*Offline options[\s\S]*safe-route-operations-calendar-saving-control[\s\S]*assertNotVisible:[\s\S]*safe-route-operations-empty-state/,
     );
     assert.match(
       runner,
@@ -388,7 +388,7 @@ describe("Maestro connectivity contract runtime", () => {
     );
     assert.match(
       preferenceSeed,
-      /safe-route-operations-workspace-66a1b2c3d4e5f60718293a41[\s\S]*Workspace, Support Operations[\s\S]*Stop saving[\s\S]*Offline Calendar saving is off[\s\S]*safe-route-operations-workspace-66a1b2c3d4e5f60718293a40[\s\S]*Workspace, Guidance Operations[\s\S]*Offline saving is on/,
+      /safe-route-operations-workspace-66a1b2c3d4e5f60718293a41[\s\S]*Workspace, Support Operations[\s\S]*Stop saving[\s\S]*Offline Calendar saving is off[\s\S]*safe-route-operations-workspace-66a1b2c3d4e5f60718293a40[\s\S]*Workspace, Guidance Operations[\s\S]*Offline options/,
     );
     assert.match(
       relaunchFailure,

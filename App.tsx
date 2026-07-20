@@ -258,6 +258,10 @@ function SafeRouteApp() {
   currentScreenRef.current = screen;
   const [routePreviewSource, setRoutePreviewSource] = useState<RoutePreviewSource>('guest');
   const [operationsTab, setOperationsTab] = useState<OperationsTab>('planned-routes');
+  const [operationsRoutePreviewReturnTab, setOperationsRoutePreviewReturnTab] =
+    useState<OperationsTab | null>(null);
+  const [operationsRoutePreviewReturnConvoyId, setOperationsRoutePreviewReturnConvoyId] =
+    useState<string | null>(null);
   const [availableWorkspaces, setAvailableWorkspaces] = useState<SafeRouteWorkspace[]>([]);
   const [activeWorkspace, setActiveWorkspace] = useState<SafeRouteWorkspace | null>(null);
   const [workspaceCatalogLoading, setWorkspaceCatalogLoading] = useState(false);
@@ -2156,11 +2160,15 @@ function SafeRouteApp() {
     workspaceCatalogRetryingRef.current = false;
     setWorkspaceCatalogRetrying(false);
     setOperationsTab('planned-routes');
+    setOperationsRoutePreviewReturnTab(null);
+    setOperationsRoutePreviewReturnConvoyId(null);
     pendingFullAccessFeatureRef.current = null;
   };
 
   const returnToMapHome = () => {
     setSelectedRoute(null);
+    setOperationsRoutePreviewReturnTab(null);
+    setOperationsRoutePreviewReturnConvoyId(null);
     setSessionMessage('');
     setAuthPrompt('');
     setOperationsTab('planned-routes');
@@ -2201,8 +2209,10 @@ function SafeRouteApp() {
       ? fullAccessFeatureForOperationsTab(operationsTab)
       : screen === 'routes'
         ? 'saved-routes'
-        : screen === 'route-preview' && routePreviewSource === 'saved'
-          ? 'saved-routes'
+        : screen === 'route-preview' && operationsRoutePreviewReturnTab
+          ? fullAccessFeatureForOperationsTab(operationsRoutePreviewReturnTab)
+          : screen === 'route-preview' && routePreviewSource === 'saved'
+            ? 'saved-routes'
           : null;
     const cleanup = Promise.allSettled([
       discardPersistedNavigation(),
@@ -2597,6 +2607,10 @@ function SafeRouteApp() {
         // catalog is published. Persistence failures below clear it again.
         setWorkspaceCatalogStoredAtMs(authoritativeCatalogStoredAtMs);
         setWorkspaceCatalogRetentionStoredAtMs(authoritativeCatalogStoredAtMs);
+        if (previewWorkspaceRevoked) {
+          setOperationsRoutePreviewReturnTab(null);
+          setOperationsRoutePreviewReturnConvoyId(null);
+        }
         if (previewWorkspaceRevoked && !navigationWorkspaceRevoked) {
           selectedRouteRef.current = null;
           setSelectedRoute(null);
@@ -4046,6 +4060,8 @@ function SafeRouteApp() {
     if (previewUnavailable) {
       selectedRouteRef.current = null;
       setSelectedRoute(null);
+      setOperationsRoutePreviewReturnTab(null);
+      setOperationsRoutePreviewReturnConvoyId(null);
       setScreen((currentScreen) =>
         currentScreen === 'route-preview' ? 'guest-map' : currentScreen,
       );
@@ -4337,6 +4353,8 @@ function SafeRouteApp() {
       if (previewUnavailable) {
         selectedRouteRef.current = null;
         setSelectedRoute(null);
+        setOperationsRoutePreviewReturnTab(null);
+        setOperationsRoutePreviewReturnConvoyId(null);
       }
       if (navigationUnavailable || previewUnavailable) {
         setScreen((currentScreen) =>
@@ -4460,6 +4478,8 @@ function SafeRouteApp() {
     setWorkspaceSelectionStatus('idle');
     setSelectedRoute(routePlan);
     setRoutePreviewSource('guest');
+    setOperationsRoutePreviewReturnTab(null);
+    setOperationsRoutePreviewReturnConvoyId(null);
     setScreen('route-preview');
   };
 
@@ -4505,12 +4525,72 @@ function SafeRouteApp() {
     setWorkspaceSelectionStatus('idle');
     setSelectedRoute(routePlan);
     setRoutePreviewSource('saved');
+    setOperationsRoutePreviewReturnTab(null);
+    setOperationsRoutePreviewReturnConvoyId(null);
+    setScreen('route-preview');
+  };
+
+  const handleSelectOperationsRoute = (
+    routePlan: SavedSafeRoutePlan,
+    sourceTab: OperationsTab,
+    sourceConvoyId: string | null = null,
+  ) => {
+    if (
+      navigationCleanupRequiredRef.current ||
+      workspaceHandoffPendingRef.current ||
+      workspaceSelectionPendingRef.current
+    ) {
+      setSessionMessage(
+        workspaceSelectionPendingRef.current
+          ? 'Wait for the workspace change before opening another route.'
+          : 'Finish saved-guidance cleanup before starting another route.',
+      );
+      return;
+    }
+    if (!activeWorkspace || routePlan.clientId !== activeWorkspace.id) {
+      setSessionMessage('The active workspace changed. Choose the Operations route again.');
+      return;
+    }
+    if (pendingNavigationRestoreRef.current) {
+      void discardPersistedNavigation(
+        'Saved guidance removed. Choose the Operations route again.',
+      );
+      return;
+    }
+    if (
+      activeNavigationSession &&
+      !isNavigationSessionForRoutePreview({
+        navigationSession: activeNavigationSession,
+        principalId: sessionPrincipalId,
+        routeContext: 'saved',
+        routePlan,
+      })
+    ) {
+      void discardPersistedNavigation(
+        'Current guidance ended. Choose the Operations route again.',
+      );
+      return;
+    }
+    selectedRouteRef.current = routePlan;
+    clearPendingWorkspaceSelectionRetry();
+    setWorkspaceSelectionStatus('idle');
+    setSelectedRoute(routePlan);
+    setRoutePreviewSource('saved');
+    setOperationsTab(sourceTab);
+    setOperationsRoutePreviewReturnTab(sourceTab);
+    setOperationsRoutePreviewReturnConvoyId(sourceConvoyId);
     setScreen('route-preview');
   };
 
   const returnFromRoutePreview = () => {
     selectedRouteRef.current = null;
     setSelectedRoute(null);
+    if (operationsRoutePreviewReturnTab) {
+      setOperationsTab(operationsRoutePreviewReturnTab);
+      setOperationsRoutePreviewReturnTab(null);
+      setScreen(authenticated ? 'operations' : 'guest-map');
+      return;
+    }
     setScreen(screenAfterRoutePreview(routePreviewSource, authenticated));
   };
 
@@ -4534,7 +4614,23 @@ function SafeRouteApp() {
     }
   };
 
-  const returnCopy = routePreviewReturnCopy(routePreviewSource);
+  const returnCopy = operationsRoutePreviewReturnTab
+    ? {
+        accessibilityLabel: `Return to ${
+          operationsRoutePreviewReturnTab === 'calendar'
+            ? 'Calendar'
+            : operationsRoutePreviewReturnTab === 'convoy-management'
+              ? 'Convoys'
+              : 'Planned routes'
+        }`,
+        label:
+          operationsRoutePreviewReturnTab === 'calendar'
+            ? 'Calendar'
+            : operationsRoutePreviewReturnTab === 'convoy-management'
+              ? 'Convoys'
+              : 'Planned',
+      }
+    : routePreviewReturnCopy(routePreviewSource);
   const workspaceHandoffAlternativePrompt =
     workspaceHandoffAlternativeSelectionPending &&
     pendingWorkspaceSelectionRetry
@@ -4653,11 +4749,14 @@ function SafeRouteApp() {
             activeWorkspace={activeWorkspace}
             availableWorkspaces={availableWorkspaces}
             cacheIdentity={sessionPrincipalId}
+            initialConvoyId={operationsRoutePreviewReturnConvoyId}
             initialTab={operationsTab}
             sessionNotice={routeListSessionNotice}
             userEmail={session.user?.email || session.email}
             onBackToMap={returnToMapHome}
+            onConvoySelectionChange={setOperationsRoutePreviewReturnConvoyId}
             onRetryWorkspaceCatalog={handleRetryWorkspaceCatalog}
+            onSelectRoute={handleSelectOperationsRoute}
             onSessionExpired={handleSessionExpired}
             onSignOut={handleSignOut}
             onWorkspaceUnavailable={handleWorkspaceUnavailable}

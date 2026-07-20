@@ -114,18 +114,40 @@ export type OperationsRouteRow = {
   id: string;
   manifestLabel: string;
   metaLabel: string;
+  routeId: string | null;
   scheduleLabel: string;
   title: string;
+  tripId: string | null;
+};
+
+export type OperationsConvoyRouteOption = {
+  durationLabel: string;
+  manifestLabel: string;
+  peopleLabels: string[];
+  routeId: string | null;
+  scheduleLabel: string;
+  statusLabel: string;
+  title: string;
+  vehicleLabels: string[];
 };
 
 export type OperationsConvoyRow = {
   accessibilityLabel: string;
+  durationLabel: string;
+  endpointLabel: string;
   id: string;
+  leadVehicleLabel: string;
+  manifestAvailable: boolean;
   manifestLabel: string;
   metaLabel: string;
+  peopleLabels: string[];
   routeLabels: string[];
+  routeOptions: OperationsConvoyRouteOption[];
+  scheduleLabel: string;
   statusLabel: string;
   title: string;
+  tripId: string | null;
+  vehicleLabels: string[];
 };
 
 export type OperationsSummaryState = {
@@ -772,8 +794,10 @@ export function createOfflineCalendarRows(
       id: entry.id,
       manifestLabel,
       metaLabel,
+      routeId: null,
       scheduleLabel,
       title: entry.title,
+      tripId: null,
     };
   });
 }
@@ -858,10 +882,74 @@ export function createConvoyRows(
 
     return trips.map((trip, index) => {
       const assignments = ensureTripAssignments(trip);
-      const routeLabels = assignments
+      const optionAssignments = [...assignments];
+      const optionKeys = new Set(
+        assignments.map((assignment) => {
+          const route = routeLookup.get(
+            normalizeRouteReference(assignment.route_id),
+          );
+          return route?.id || `reference:${normalizeRouteReference(assignment.route_id)}`;
+        }),
+      );
+      trip.route_ids.forEach((routeReference) => {
+        const route = routeLookup.get(normalizeRouteReference(routeReference));
+        const optionKey =
+          route?.id || `reference:${normalizeRouteReference(routeReference)}`;
+        if (optionKeys.has(optionKey)) {
+          return;
+        }
+        optionKeys.add(optionKey);
+        optionAssignments.push({
+          route_id: routeReference,
+          vehicle_ids: trip.vehicle_ids,
+          person_ids: trip.person_ids,
+          movement_date: trip.movement_date,
+          duration_minutes: trip.duration_minutes,
+          status: trip.status,
+          notes: null,
+        });
+      });
+      const routeOptions = optionAssignments.map((assignment) => {
+        const route = routeLookup.get(normalizeRouteReference(assignment.route_id)) || null;
+        const vehicleIds = assignment.vehicle_ids.length
+          ? assignment.vehicle_ids
+          : trip.vehicle_ids;
+        const personIds = assignment.person_ids.length
+          ? assignment.person_ids
+          : trip.person_ids;
+        const vehicleLabels = unique(vehicleIds).map((vehicleId) => {
+          const vehicle = vehiclesById.get(vehicleId);
+          return vehicle
+            ? `${vehicle.callsign} · ${formatVehicleDescription(vehicle)}`
+            : "Assigned vehicle · details unavailable";
+        });
+        const peopleLabels = unique(personIds).map((personId) => {
+          const person = peopleById.get(personId);
+          return person
+            ? `${person.callsign || person.name} · ${toTitleLabel(person.role)}`
+            : "Assigned person · details unavailable";
+        });
+        return {
+          durationLabel:
+            formatDuration(assignment.duration_minutes ?? trip.duration_minutes) ||
+            "Duration pending",
+          manifestLabel: createManifestLabel({
+            personIds: unique(personIds),
+            vehicleIds: unique(vehicleIds),
+          }),
+          peopleLabels,
+          routeId: route?.id || null,
+          scheduleLabel: formatMovementDate(
+            resolveMovementDate(trip, assignment),
+          ),
+          statusLabel: toTitleLabel(assignment.status || trip.status),
+          title: normalizeLabel(route?.name || assignment.route_id, "SafeRoute route"),
+          vehicleLabels,
+        };
+      });
+      const routeLabels = routeOptions
         .slice(0, 4)
-        .map((assignment) => routeLookup.get(assignment.route_id)?.name || assignment.route_id)
-        .map((routeName) => normalizeLabel(routeName, "SafeRoute route"));
+        .map((option) => option.title);
       const uniqueVehicleIds = unique([
         ...trip.vehicle_ids,
         ...assignments.flatMap((assignment) => assignment.vehicle_ids)
@@ -871,22 +959,68 @@ export function createConvoyRows(
         ...assignments.flatMap((assignment) => assignment.person_ids)
       ]);
       const leadVehicle = trip.lead_vehicle_id ? vehiclesById.get(trip.lead_vehicle_id) : null;
+      const vehicles = uniqueVehicleIds
+        .map((vehicleId) => vehiclesById.get(vehicleId))
+        .filter(Boolean) as SafeRouteVehicleInventoryItem[];
+      const people = uniquePersonIds
+        .map((personId) => peopleById.get(personId))
+        .filter(Boolean) as SafeRoutePerson[];
       const statusLabel = toTitleLabel(trip.status);
-      const metaLabel = `${assignments.length} ${pluralize("route", assignments.length)} · ${uniqueVehicleIds.length} ${pluralize("vehicle", uniqueVehicleIds.length)} · ${uniquePersonIds.length} ${uniquePersonIds.length === 1 ? "person" : "people"}`;
+      const metaLabel = `${routeOptions.length} ${pluralize("route", routeOptions.length)} · ${uniqueVehicleIds.length} ${pluralize("vehicle", uniqueVehicleIds.length)} · ${uniquePersonIds.length} ${uniquePersonIds.length === 1 ? "person" : "people"}`;
       const manifestLabel = createConvoyManifestLabel({
         leadVehicle,
-        people: uniquePersonIds.map((personId) => peopleById.get(personId)).filter(Boolean) as SafeRoutePerson[],
-        vehicles: uniqueVehicleIds.map((vehicleId) => vehiclesById.get(vehicleId)).filter(Boolean) as SafeRouteVehicleInventoryItem[]
+        people,
+        vehicles,
       });
+      const assignmentScheduleLabels = unique(
+        optionAssignments
+          .map((assignment) => formatMovementDate(assignment.movement_date || null)),
+      );
+      const assignmentDurationLabels = unique(
+        optionAssignments
+          .map((assignment) =>
+            formatDuration(assignment.duration_minutes) || "Duration pending"
+          ),
+      );
+      const scheduleLabel = trip.movement_date
+        ? formatMovementDate(trip.movement_date)
+        : assignmentScheduleLabels.length > 1
+          ? "Schedules vary by route"
+          : assignmentScheduleLabels[0] || "Unscheduled";
+      const tripDurationLabel = formatDuration(trip.duration_minutes);
+      const durationLabel = tripDurationLabel || (
+        assignmentDurationLabels.length > 1
+          ? "Durations vary by route"
+          : assignmentDurationLabels[0] || "Duration pending"
+      );
+      const endpointLabel = `${normalizeLabel(trip.origin, "Origin pending")} → ${normalizeLabel(trip.destination, "Destination pending")}`;
+      const leadVehicleLabel = leadVehicle
+        ? `${leadVehicle.callsign} · ${formatVehicleDescription(leadVehicle)}`
+        : "No lead vehicle assigned";
+      const vehicleLabels = vehicles.map(
+        (vehicle) => `${vehicle.callsign} · ${formatVehicleDescription(vehicle)}`,
+      );
+      const peopleLabels = people.map(
+        (person) => `${person.callsign || person.name} · ${toTitleLabel(person.role)}`,
+      );
 
       return {
         id: trip.id || `trip-${index + 1}`,
+        durationLabel,
+        endpointLabel,
         title: normalizeLabel(trip.name, "SafeRoute convoy"),
         statusLabel,
         metaLabel,
         manifestLabel,
+        leadVehicleLabel,
+        manifestAvailable: true,
+        peopleLabels,
         routeLabels,
-        accessibilityLabel: `${normalizeLabel(trip.name, "SafeRoute convoy")}. ${statusLabel}. ${metaLabel}. ${manifestLabel}. ${routeLabels.join(", ")}. View only.`
+        routeOptions,
+        scheduleLabel,
+        tripId: trip.id || null,
+        vehicleLabels,
+        accessibilityLabel: `${normalizeLabel(trip.name, "SafeRoute convoy")}. ${statusLabel}. ${scheduleLabel}. ${endpointLabel}. ${durationLabel}. ${metaLabel}. ${manifestLabel}. ${routeLabels.join(", ")}. Opens convoy details.`
       };
     });
   }
@@ -929,8 +1063,10 @@ function createRouteRowFromAssignment(
     endpointLabel,
     metaLabel,
     manifestLabel: knownManifestNames ? `${manifestLabel} · ${knownManifestNames}` : manifestLabel,
+    routeId: route?.id || null,
     scheduleLabel,
-    accessibilityLabel: `${title}. ${statusLabel}. ${endpointLabel}. ${scheduleLabel}. ${metaLabel}. ${manifestLabel}. View only.`
+    tripId: trip.id || null,
+    accessibilityLabel: `${title}. ${statusLabel}. ${endpointLabel}. ${scheduleLabel}. ${metaLabel}. ${manifestLabel}. ${route ? "Opens route map and details." : "Route map unavailable until this route reference is resolved."}`
   };
 }
 
@@ -954,8 +1090,10 @@ function createRouteRowFromSavedRoute(
     endpointLabel,
     metaLabel,
     manifestLabel,
+    routeId: route.id,
     scheduleLabel,
-    accessibilityLabel: `${title}. ${badgeLabel}. ${endpointLabel}. ${metaLabel}. ${scheduleLabel}. ${manifestLabel}. View only.`
+    tripId: null,
+    accessibilityLabel: `${title}. ${badgeLabel}. ${endpointLabel}. ${metaLabel}. ${scheduleLabel}. ${manifestLabel}. Opens route map and details.`
   };
 }
 
@@ -979,17 +1117,36 @@ function createFallbackConvoyRows(routes: SavedSafeRoutePlan[]): OperationsConvo
     const routeLabels = convoyRoutes
       .slice(0, 4)
       .map((route) => normalizeLabel(route.name, "SafeRoute plan"));
+    const routeOptions = convoyRoutes.map((route) => ({
+      durationLabel: route.route.eta,
+      manifestLabel: "Manifest unavailable until Operations syncs",
+      peopleLabels: [],
+      routeId: route.id,
+      scheduleLabel: route.updatedAtLabel,
+      statusLabel: toTitleLabel(route.status),
+      title: normalizeLabel(route.name, "SafeRoute plan"),
+      vehicleLabels: [],
+    }));
     const metaLabel = `${routeCount} ${pluralize("route", routeCount)} · ${statusLabel}`;
     const manifestLabel = "Manifest pending";
 
     return {
-      id: createConvoyRowId(convoy),
+      id: createConvoyRowId(convoy, convoyRoutes[0]?.id || "route"),
+      durationLabel: "Duration varies by route",
+      endpointLabel: "See assigned routes for endpoints",
       title: convoy,
       statusLabel,
       metaLabel,
       manifestLabel,
+      leadVehicleLabel: "Lead vehicle details pending",
+      manifestAvailable: false,
+      peopleLabels: [],
       routeLabels,
-      accessibilityLabel: `${convoy}. ${metaLabel}. ${manifestLabel}. ${routeLabels.join(", ")}. View only.`
+      routeOptions,
+      scheduleLabel: "Schedule pending",
+      tripId: null,
+      vehicleLabels: [],
+      accessibilityLabel: `${convoy}. ${metaLabel}. ${manifestLabel}. ${routeLabels.join(", ")}. Opens convoy details.`
     };
   });
 }
@@ -1004,7 +1161,8 @@ function createAssignmentViews(
     ensureTripAssignments(trip).map((assignment, index) => ({
       assignment,
       index,
-      route: routeLookup.get(assignment.route_id) || null,
+      route:
+        routeLookup.get(normalizeRouteReference(assignment.route_id)) || null,
       trip
     }))
   );
@@ -1108,15 +1266,46 @@ function createConvoyManifestLabel({
 }
 
 function createRouteLookup(routes: SavedSafeRoutePlan[]): Map<string, SavedSafeRoutePlan> {
-  return new Map(routes.map((route) => [route.id, route]));
+  const lookup = new Map<string, SavedSafeRoutePlan>();
+  routes.forEach((route) => {
+    const idKey = normalizeRouteReference(route.id);
+    const nameKey = normalizeRouteReference(route.name);
+    if (idKey) {
+      lookup.set(idKey, route);
+    }
+    if (nameKey && !lookup.has(nameKey)) {
+      lookup.set(nameKey, route);
+    }
+  });
+  return lookup;
+}
+
+function normalizeRouteReference(value: string): string {
+  return value.trim().replace(/\s+/g, " ").toLowerCase();
+}
+
+function formatVehicleDescription(vehicle: SafeRouteVehicleInventoryItem): string {
+  const vehicleName = [vehicle.make, vehicle.model]
+    .map((part) => part?.trim())
+    .filter(Boolean)
+    .join(" ");
+  return `${vehicleName || toTitleLabel(vehicle.vehicle_type)} · ${toTitleLabel(vehicle.protection_profile)}`;
 }
 
 function createEntityLookup<T extends { id: string }>(items: T[]): Map<string, T> {
   return new Map(items.filter((item) => item.id).map((item) => [item.id, item]));
 }
 
-function createConvoyRowId(convoy: string): string {
-  return `convoy-${convoy.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "") || "unknown"}`;
+function createConvoyRowId(convoy: string, discriminator: string): string {
+  const convoySlug = convoy
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-+|-+$/g, "") || "unknown";
+  const discriminatorSlug = discriminator
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-+|-+$/g, "") || "route";
+  return `convoy-${convoySlug}-${discriminatorSlug}`;
 }
 
 function formatMovementDate(value: string | null): string {

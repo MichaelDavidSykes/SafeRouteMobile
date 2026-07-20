@@ -36,7 +36,7 @@ describe("Maestro iOS preview operations flow", () => {
     assert.doesNotMatch(flow, /point: "91%,49%"/);
   });
 
-  it("covers planned, calendar, and convoy operations as view-only screens", () => {
+  it("covers planned, calendar, and convoy read-only drill-downs", () => {
     const flow = operationsFlowSource();
     const plannedGateIndex = flow.indexOf('id: "guest-map-gate-planned-trips"');
     const operationsIndex = flow.indexOf('id: "safe-route-operations"');
@@ -55,6 +55,11 @@ describe("Maestro iOS preview operations flow", () => {
     assert.match(flow, /id: "safe-route-operations-route-trip-docklands-low-profile-sr-docklands-low-profile-0"/);
     assert.match(flow, /id: "safe-route-operations-convoy-trip-airport-transfer"/);
     assert.match(flow, /id: "safe-route-operations-convoy-trip-docklands-low-profile"/);
+    assert.match(flow, /id: "safe-route-operations-convoy-detail"/);
+    assert.match(flow, /id: "safe-route-operations-convoy-route-sr-city-airport-alpha-0"/);
+    assert.match(flow, /id: "safe-route-live-map"/);
+    assert.match(flow, /id: "safe-route-map-view"/);
+    assert.match(flow, /id: "safe-route-return"/);
     assert.match(flow, /assertNotVisible:\s+id: "safe-route-login"/);
     assert.doesNotMatch(flow, /Edit|Save schedule|Create convoy|Delete/);
     assert.ok(plannedGateIndex >= 0);

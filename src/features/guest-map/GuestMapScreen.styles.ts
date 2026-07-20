@@ -564,6 +564,48 @@ export const guestMapStyles = StyleSheet.create({
     fontSize: typeScale.xs,
     fontWeight: '600'
   },
+  currentLocationMarker: {
+    width: 38,
+    height: 38,
+    alignItems: 'center',
+    justifyContent: 'center'
+  },
+  currentLocationDirectionBorder: {
+    position: 'absolute',
+    top: 0,
+    width: 0,
+    height: 0,
+    borderLeftWidth: 8,
+    borderRightWidth: 8,
+    borderBottomWidth: 19,
+    borderLeftColor: 'transparent',
+    borderRightColor: 'transparent',
+    borderBottomColor: colors.surface
+  },
+  currentLocationDirectionFill: {
+    position: 'absolute',
+    top: 3,
+    width: 0,
+    height: 0,
+    borderLeftWidth: 6,
+    borderRightWidth: 6,
+    borderBottomWidth: 15,
+    borderLeftColor: 'transparent',
+    borderRightColor: 'transparent',
+    borderBottomColor: colors.appleBlue
+  },
+  currentLocationDot: {
+    width: 18,
+    height: 18,
+    borderWidth: 2,
+    borderColor: colors.surface,
+    borderRadius: radius.pill,
+    backgroundColor: colors.appleBlue,
+    shadowOpacity: 0,
+    shadowRadius: 0,
+    shadowOffset: { width: 0, height: 0 },
+    elevation: 0
+  },
   markerHitArea: {
     width: 32,
     height: 32,

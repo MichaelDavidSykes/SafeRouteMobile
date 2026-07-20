@@ -12,6 +12,10 @@ describe('guest map interaction contract', () => {
     join(process.cwd(), 'src/features/guest-map/GuestMapScreen.styles.ts'),
     'utf8'
   );
+  const deviceHeadingHook = readFileSync(
+    join(process.cwd(), 'src/features/maps/useDeviceHeading.ts'),
+    'utf8'
+  );
 
   it('keeps route drafting map-first, multi-stop, editable, and keyboard-safe', () => {
     assert.match(screen, /useReducer\(\s*guestRouteDraftReducer/);
@@ -58,6 +62,28 @@ describe('guest map interaction contract', () => {
     assert.match(styles, /currentLocationButton:[\s\S]*width: controlSizes\.icon[\s\S]*height: controlSizes\.icon/);
     assert.match(styles, /currentLocationGlyphRing:[\s\S]*borderColor: colors\.appleBlue/);
     assert.doesNotMatch(screen, /Ionicons|MaterialIcons|FontAwesome/);
+  });
+
+  it('shows a compass-backed facing direction at the live map coordinate', () => {
+    assert.match(screen, /useDeviceHeading\(permissionStatus === 'granted'\)/);
+    assert.match(deviceHeadingHook, /Location\.watchHeadingAsync\(/);
+    assert.match(deviceHeadingHook, /subscription\?\.remove\(\)/);
+    assert.match(screen, /showsUserLocation=\{false\}/);
+    assert.match(screen, /testID=\{uiTestIds\.guestMapCurrentLocationMarker\}/);
+    assert.match(
+      screen,
+      /resolveDeviceHeadingScreenRotation\([\s\S]*deviceHeadingDegrees[\s\S]*mapCameraHeadingDegrees/,
+    );
+    assert.match(screen, /onRegionChangeComplete=\{handleMapRegionChangeComplete\}/);
+    assert.match(screen, /rotate: `\$\{deviceHeadingScreenRotation\}deg`/);
+    assert.doesNotMatch(screen, /rotation=\{deviceHeadingDegrees/);
+    assert.match(
+      screen,
+      /deviceHeadingDegrees !== null[\s\S]*currentLocationDirectionBorder[\s\S]*currentLocationDirectionFill/,
+    );
+    assert.match(screen, /createDeviceHeadingAccessibilityLabel\(deviceHeadingDegrees\)/);
+    assert.match(styles, /currentLocationDot:[\s\S]*backgroundColor: colors\.appleBlue/);
+    assert.match(styles, /currentLocationDirectionFill:[\s\S]*borderBottomColor: colors\.appleBlue/);
   });
 
   it('keeps the source map intact and blocks protected work while workspace selection saves', () => {

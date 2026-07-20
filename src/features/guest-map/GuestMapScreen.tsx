@@ -36,7 +36,12 @@ import {
   SAFE_ROUTE_ROUTE_CORE_WIDTH,
   SAFE_ROUTE_ROUTE_GLOW_WIDTH
 } from '../maps/safeRouteMapTheme';
+import {
+  createDeviceHeadingAccessibilityLabel,
+  resolveDeviceHeadingScreenRotation
+} from '../maps/deviceHeading';
 import { shouldRenderRouteCheckpointMarker } from '../maps/mapMarkerPresentation';
+import { useDeviceHeading } from '../maps/useDeviceHeading';
 import { isPreviewAccessToken } from '../auth/previewSession';
 import { createSessionNoticeState } from '../auth/sessionNoticeState';
 import { resolveSafeRouteMapType } from '../api/mapTransportState';
@@ -193,6 +198,7 @@ export function GuestMapScreen({
   const pendingOpenPreviewRef = useRef(false);
   const roadRouteRequestIdRef = useRef(0);
   const riskAreaRequestIdRef = useRef(0);
+  const mapCameraRequestIdRef = useRef(0);
   const workspaceAuthorizationEpochRef = useRef(0);
   const workspaceAuthorizationFreshRef = useRef(workspaceAuthorizationFresh);
   if (workspaceAuthorizationFreshRef.current !== workspaceAuthorizationFresh) {
@@ -226,6 +232,7 @@ export function GuestMapScreen({
   } | null>(null);
   const [mapReady, setMapReady] = useState(false);
   const [mapRegion, setMapRegion] = useState<Region>(GUEST_MAP_REGION);
+  const [mapCameraHeadingDegrees, setMapCameraHeadingDegrees] = useState(0);
   const [routeSheetHeight, setRouteSheetHeight] = useState(0);
   const [routeMessage, setRouteMessage] = useState('');
   const [workspaceMenuOpen, setWorkspaceMenuOpen] = useState(false);
@@ -244,6 +251,11 @@ export function GuestMapScreen({
   const liveCoordinate = liveLocation
     ? { latitude: liveLocation.latitude, longitude: liveLocation.longitude }
     : null;
+  const deviceHeadingDegrees = useDeviceHeading(permissionStatus === 'granted');
+  const deviceHeadingScreenRotation = resolveDeviceHeadingScreenRotation(
+    deviceHeadingDegrees,
+    mapCameraHeadingDegrees
+  );
   const routingClientId = authenticated ? activeWorkspace?.id || null : null;
   const routingClientIdRef = useRef(routingClientId);
   const workspaceSelectionRequired = authenticated && !routingClientId;
@@ -465,6 +477,7 @@ export function GuestMapScreen({
     activeRiskAreaRequestRef.current?.abort();
     activeRiskAreaRequestRef.current = null;
     riskAreaRequestIdRef.current += 1;
+    mapCameraRequestIdRef.current += 1;
   }, []);
 
   useEffect(() => {
@@ -1100,6 +1113,24 @@ export function GuestMapScreen({
     );
   };
 
+  const handleMapRegionChangeComplete = (region: Region) => {
+    setMapRegion(region);
+    const requestId = mapCameraRequestIdRef.current + 1;
+    mapCameraRequestIdRef.current = requestId;
+    const cameraPromise = mapRef.current?.getCamera();
+    if (!cameraPromise) {
+      return;
+    }
+
+    void cameraPromise.then((camera) => {
+      if (mapCameraRequestIdRef.current !== requestId) {
+        return;
+      }
+      const nextHeading = Number(camera.heading);
+      setMapCameraHeadingDegrees(Number.isFinite(nextHeading) ? nextHeading : 0);
+    }).catch(() => undefined);
+  };
+
   const handleStopChange = (stopId: string, value: string) => {
     cancelRoadRouteUpgrade();
     dispatchRouteDraft({
@@ -1413,7 +1444,7 @@ export function GuestMapScreen({
         showsIndoors={false}
         showsIndoorLevelPicker={false}
         showsMyLocationButton={false}
-        showsUserLocation={permissionStatus === 'granted'}
+        showsUserLocation={false}
         showsScale={false}
         showsTraffic={false}
         pitchEnabled
@@ -1434,7 +1465,7 @@ export function GuestMapScreen({
           userMovedMapRef.current = true;
           setSelectedRiskZone(null);
         }}
-        onRegionChangeComplete={setMapRegion}
+        onRegionChangeComplete={handleMapRegionChangeComplete}
       >
         {viewportRisk.zones.map((zone) => (
           <RiskOverlay
@@ -1444,6 +1475,39 @@ export function GuestMapScreen({
             onPress={handleSelectRiskZone}
           />
         ))}
+        {permissionStatus === 'granted' && liveCoordinate ? (
+          <Marker
+            coordinate={liveCoordinate}
+            anchor={{ x: 0.5, y: 0.5 }}
+            title="Current location"
+            zIndex={30}
+          >
+            <View
+              accessible
+              accessibilityLabel={createDeviceHeadingAccessibilityLabel(deviceHeadingDegrees)}
+              accessibilityRole="image"
+              style={[
+                styles.currentLocationMarker,
+                deviceHeadingScreenRotation !== null
+                  ? {
+                      transform: [{
+                        rotate: `${deviceHeadingScreenRotation}deg`
+                      }]
+                    }
+                  : null
+              ]}
+              testID={uiTestIds.guestMapCurrentLocationMarker}
+            >
+              {deviceHeadingDegrees !== null ? (
+                <>
+                  <View style={styles.currentLocationDirectionBorder} />
+                  <View style={styles.currentLocationDirectionFill} />
+                </>
+              ) : null}
+              <View style={styles.currentLocationDot} />
+            </View>
+          </Marker>
+        ) : null}
         {routePlan ? (
           <>
             <Polyline
@@ -1471,7 +1535,8 @@ export function GuestMapScreen({
               shouldRenderRouteCheckpointMarker({
                 checkpoint,
                 liveCoordinate,
-                nativeUserLocationVisible: permissionStatus === 'granted'
+                nativeUserLocationVisible:
+                  permissionStatus === 'granted' && Boolean(liveCoordinate)
               })
             ).map((checkpoint) => (
               <Marker

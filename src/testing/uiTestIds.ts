@@ -3,6 +3,7 @@ const UNKNOWN_TEST_ID_SEGMENT = "unknown";
 export const uiTestIds = {
   appRoot: "saferoute-app-root",
   guestMapCanvas: "guest-map-canvas",
+  guestMapCurrentLocation: "guest-map-current-location",
   guestMapNetworkStatus: "guest-map-network-status",
   guestMapPrimaryAction: "guest-map-primary-action",
   guestMapPlotAction: "guest-map-plot-action",

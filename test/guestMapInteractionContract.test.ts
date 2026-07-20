@@ -8,6 +8,10 @@ describe('guest map interaction contract', () => {
     join(process.cwd(), 'src/features/guest-map/GuestMapScreen.tsx'),
     'utf8'
   );
+  const styles = readFileSync(
+    join(process.cwd(), 'src/features/guest-map/GuestMapScreen.styles.ts'),
+    'utf8'
+  );
 
   it('keeps route drafting map-first, multi-stop, editable, and keyboard-safe', () => {
     assert.match(screen, /useReducer\(\s*guestRouteDraftReducer/);
@@ -37,6 +41,23 @@ describe('guest map interaction contract', () => {
       (screen.match(/createGuestRoutePlanId\(\)/g) || []).length,
       1,
     );
+  });
+
+  it('offers an accessible current-location control above either route sheet state', () => {
+    assert.match(screen, /testID=\{uiTestIds\.guestMapCurrentLocation\}/);
+    assert.match(screen, /accessibilityLabel=\{[\s\S]*Center map on current location/);
+    assert.match(screen, /disabled=\{!mapReady \|\| !liveCoordinate\}/);
+    assert.match(
+      screen,
+      /currentLocationControlBottom = sheetProgress\.interpolate\([\s\S]*routeSheetHeight[\s\S]*64 \+ routeSheetBottomMargin/,
+    );
+    assert.match(
+      screen,
+      /handleCenterCurrentLocation[\s\S]*!mapReady \|\| !liveCoordinate[\s\S]*userMovedMapRef\.current = false[\s\S]*animateCamera\([\s\S]*center: liveCoordinate/,
+    );
+    assert.match(styles, /currentLocationButton:[\s\S]*width: controlSizes\.icon[\s\S]*height: controlSizes\.icon/);
+    assert.match(styles, /currentLocationGlyphRing:[\s\S]*borderColor: colors\.appleBlue/);
+    assert.doesNotMatch(screen, /Ionicons|MaterialIcons|FontAwesome/);
   });
 
   it('keeps the source map intact and blocks protected work while workspace selection saves', () => {

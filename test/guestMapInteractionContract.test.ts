@@ -61,6 +61,22 @@ describe('guest map interaction contract', () => {
     assert.match(screen, /Try again/);
     assert.match(
       screen,
+      /workspaceAlternativeSelectionPending &&[\s\S]*availableWorkspaces\.length > 0[\s\S]*Keyboard\.dismiss\(\)[\s\S]*sheetGestureActionRef\.current\(false\)[\s\S]*setWorkspaceMenuOpen\(true\)/,
+    );
+    assert.match(
+      screen,
+      /alternativeSelectionPending[\s\S]*menuOpen[\s\S]*'Closes the workspace menu\.'[\s\S]*'Opens the workspace menu to choose another workspace\. Selecting the current workspace keeps it\.'/,
+    );
+    assert.match(
+      screen,
+      /alternativeSelectionPending[\s\S]*menuOpen \? 'Close' : 'Choose'[\s\S]*selectionFailed[\s\S]*'Try again'/,
+    );
+    assert.match(
+      screen,
+      /workspace\.id === routingClientId[\s\S]*!workspaceSelectionFailed &&[\s\S]*!workspaceAlternativeSelectionPending[\s\S]*onWorkspaceChange\?\.\(workspace\)/,
+    );
+    assert.match(
+      screen,
       /useEffect\(\(\) => \{[\s\S]*workspaceSelectionPending[\s\S]*setWorkspaceMenuOpen\(false\)/,
     );
   });

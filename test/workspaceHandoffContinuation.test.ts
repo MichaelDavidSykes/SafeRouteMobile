@@ -10,6 +10,7 @@ import {
   resolveWorkspaceHandoffRetarget,
   resolveWorkspaceHandoffRetargetOwnership,
   resolveWorkspaceHandoffSelectionFailure,
+  resolveWorkspaceHandoffTargetRemovalRecovery,
   shouldInjectWorkspaceHandoffNavigationCleanupFault,
 } from "../src/features/workspaces/workspaceHandoffContinuation";
 
@@ -419,6 +420,92 @@ describe("workspace handoff continuation", () => {
         target: workspaces[2],
       },
     );
+  });
+
+  it("recovers a removed target into source-owned alternative selection", () => {
+    const context = {
+      availableWorkspaces: [workspaces[0], workspaces[2]],
+      catalogBusy: false,
+      cleanupPending: false,
+      cleanupRequired: false,
+      currentPrincipalId: "principal-a",
+      currentSessionEpoch: 7,
+      currentSourceWorkspaceId: "workspace-a",
+      hasActiveNavigation: false,
+      hasPendingNavigation: false,
+      selectionPending: false,
+      unavailableWorkspaceIds: new Set(["workspace-b"]),
+    };
+    const request = {
+      principalId: "principal-a",
+      sessionEpoch: 7,
+      sourceWorkspaceId: "workspace-a",
+      targetWorkspaceId: "workspace-b",
+    };
+
+    assert.equal(
+      resolveWorkspaceHandoffTargetRemovalRecovery({ context, request }),
+      "choose-alternative",
+    );
+    for (const deferredContext of [
+      { catalogBusy: true },
+      { cleanupPending: true },
+      { cleanupRequired: true },
+      { selectionPending: true },
+    ]) {
+      assert.equal(
+        resolveWorkspaceHandoffTargetRemovalRecovery({
+          context: { ...context, ...deferredContext },
+          request,
+        }),
+        "deferred",
+      );
+    }
+    assert.equal(
+      resolveWorkspaceHandoffTargetRemovalRecovery({
+        context: { ...context, selectionPending: true },
+        currentSelectionOwnsPending: true,
+        request,
+      }),
+      "choose-alternative",
+    );
+  });
+
+  it("clears removed-target recovery after source ownership becomes stale", () => {
+    const request = {
+      principalId: "principal-a",
+      sessionEpoch: 7,
+      sourceWorkspaceId: "workspace-a",
+      targetWorkspaceId: "workspace-b",
+    };
+    const context = {
+      availableWorkspaces: [workspaces[0], workspaces[2]],
+      catalogBusy: false,
+      cleanupPending: false,
+      cleanupRequired: false,
+      currentPrincipalId: "principal-a",
+      currentSessionEpoch: 7,
+      currentSourceWorkspaceId: "workspace-a",
+      hasActiveNavigation: false,
+      hasPendingNavigation: false,
+      selectionPending: false,
+      unavailableWorkspaceIds: new Set(["workspace-b"]),
+    };
+    for (const staleContext of [
+      { currentPrincipalId: "principal-b" },
+      { currentSessionEpoch: 8 },
+      { currentSourceWorkspaceId: "workspace-c" },
+      { hasActiveNavigation: true },
+      { hasPendingNavigation: true },
+    ]) {
+      assert.equal(
+        resolveWorkspaceHandoffTargetRemovalRecovery({
+          context: { ...context, ...staleContext },
+          request,
+        }),
+        "clear-stale",
+      );
+    }
   });
 
   it("treats choosing the verified source as Keep current", () => {

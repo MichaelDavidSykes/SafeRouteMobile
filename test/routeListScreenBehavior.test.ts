@@ -117,7 +117,7 @@ describe("route list screen behavior", () => {
 
     assert.match(
       screen,
-      /workspaceSelectionFailed=\{workspaceSelectionFailed\}[\s\S]*workspaceSelectionPending=\{workspaceSelectionPending\}/,
+      /workspaceAlternativeSelectionPending=\{[\s\S]*workspaceAlternativeSelectionPending[\s\S]*workspaceSelectionFailed=\{workspaceSelectionFailed\}[\s\S]*workspaceSelectionPending=\{workspaceSelectionPending\}/,
     );
     assert.match(
       filters,
@@ -125,6 +125,22 @@ describe("route list screen behavior", () => {
     );
     assert.match(filters, /workspaceSelectionPending[\s\S]*"Saving…"/);
     assert.match(filters, /workspaceSelectionFailed[\s\S]*"Try again"/);
+    assert.match(
+      filters,
+      /workspaceAlternativeSelectionPending &&[\s\S]*clientFilterOptions\.length > 0[\s\S]*setClientMenuOpen\(true\)/,
+    );
+    assert.match(
+      filters,
+      /workspaceAlternativeSelectionPending[\s\S]*clientMenuOpen[\s\S]*"Closes the workspace menu\."[\s\S]*"Opens the workspace menu to choose another workspace\. Selecting the current workspace keeps it\."/,
+    );
+    assert.match(
+      filters,
+      /workspaceAlternativeSelectionPending[\s\S]*clientMenuOpen \? "Close" : "Choose"[\s\S]*workspaceSelectionFailed[\s\S]*"Try again"/,
+    );
+    assert.match(
+      screen,
+      /workspace\.id === selectedClientId[\s\S]*!workspaceSelectionFailed &&[\s\S]*!workspaceAlternativeSelectionPending[\s\S]*onWorkspaceChange\(workspace\)/,
+    );
     assert.match(filters, /Wait while the workspace choice is saved/);
     assert.match(filters, /Wait while SafeRoute verifies workspace access/);
     assert.match(filters, /Checking…/);

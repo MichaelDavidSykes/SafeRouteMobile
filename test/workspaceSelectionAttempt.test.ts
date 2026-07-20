@@ -3,7 +3,9 @@ import { describe, it } from "node:test";
 
 import {
   replaceWorkspaceHandoffTarget,
+  resolveWorkspaceHandoffRetarget,
   resolveWorkspaceHandoffSelectionFailure,
+  resolveWorkspaceHandoffTargetRemovalRecovery,
 } from "../src/features/workspaces/workspaceHandoffContinuation";
 import { runDurableWorkspaceSelectionAttempt } from "../src/features/workspaces/workspaceSelectionAttempt";
 
@@ -146,5 +148,105 @@ describe("durable workspace selection attempt", () => {
       "retain-retry",
     );
     assert.equal(replacementRequest.requestedTargetWorkspaceId, "workspace-c");
+  });
+
+  it("keeps A safe when C disappears, then retains exact Retry D", async () => {
+    const workspaceA = { id: "workspace-a", name: "Central Operations" };
+    const workspaceC = { id: "workspace-c", name: "North Response" };
+    const workspaceD = { id: "workspace-d", name: "East Response" };
+    const requestC = {
+      requestedPrincipalId: "principal-a",
+      requestedSessionEpoch: 7,
+      requestedSourceWorkspaceId: workspaceA.id,
+      requestedSourceWorkspaceName: workspaceA.name,
+      requestedTargetName: workspaceC.name,
+      requestedTargetWorkspaceId: workspaceC.id,
+    };
+    let publishedWorkspaceId = workspaceA.id;
+    let workspaceCAvailable = true;
+
+    const removedCAttempt = await runDurableWorkspaceSelectionAttempt({
+      persistTarget: async () => {
+        workspaceCAvailable = false;
+        return { activeWorkspaceId: workspaceC.id };
+      },
+      reconcileSource: async () => "persisted" as const,
+      reconciliationFailure: "failed" as const,
+      resolvePersistedTarget: (persistedSelection) =>
+        workspaceCAvailable &&
+        persistedSelection.activeWorkspaceId === workspaceC.id
+          ? workspaceC
+          : null,
+    });
+    assert.deepEqual(removedCAttempt, {
+      reconciliation: "persisted",
+      status: "failed",
+    });
+    assert.equal(publishedWorkspaceId, workspaceA.id);
+
+    const context = {
+      availableWorkspaces: [workspaceA, workspaceD],
+      catalogBusy: false,
+      cleanupPending: false,
+      cleanupRequired: false,
+      currentPrincipalId: "principal-a",
+      currentSessionEpoch: 7,
+      currentSourceWorkspaceId: workspaceA.id,
+      hasActiveNavigation: false,
+      hasPendingNavigation: false,
+      selectionPending: false,
+      unavailableWorkspaceIds: new Set([workspaceC.id]),
+    };
+    const requestIdentity = {
+      principalId: requestC.requestedPrincipalId,
+      sessionEpoch: requestC.requestedSessionEpoch,
+      sourceWorkspaceId: requestC.requestedSourceWorkspaceId,
+      targetWorkspaceId: requestC.requestedTargetWorkspaceId,
+    };
+    assert.equal(
+      resolveWorkspaceHandoffTargetRemovalRecovery({
+        context,
+        request: requestIdentity,
+      }),
+      "choose-alternative",
+    );
+
+    const retarget = resolveWorkspaceHandoffRetarget({
+      context,
+      request: requestIdentity,
+      selectedWorkspaceId: workspaceD.id,
+    });
+    assert.equal(retarget.status, "ready");
+    assert.ok(retarget.target);
+    const requestD = replaceWorkspaceHandoffTarget({
+      request: requestC,
+      sourceWorkspaceName: workspaceA.name,
+      target: retarget.target,
+    });
+
+    const failedDAttempt = await runDurableWorkspaceSelectionAttempt({
+      persistTarget: async () => {
+        throw new Error("D write failed");
+      },
+      reconcileSource: async () => "persisted" as const,
+      reconciliationFailure: "failed" as const,
+      resolvePersistedTarget: () => workspaceD,
+    });
+    assert.deepEqual(failedDAttempt, {
+      reconciliation: "persisted",
+      status: "failed",
+    });
+    assert.equal(
+      resolveWorkspaceHandoffSelectionFailure({
+        continuationStatus: "ready",
+        requestOwnerIsCurrent: true,
+        sourceReconciliationPersisted:
+          failedDAttempt.reconciliation === "persisted",
+      }),
+      "retain-retry",
+    );
+    assert.equal(requestD.requestedTargetWorkspaceId, workspaceD.id);
+    assert.equal(requestD.requestedTargetName, workspaceD.name);
+    assert.equal(publishedWorkspaceId, workspaceA.id);
   });
 });

@@ -92,6 +92,7 @@ interface RouteListScreenProps {
   workspaceAccessRefreshAvailable: boolean;
   workspaceAccessFocusTargetRef?: (target: View | null) => void;
   workspaceAccessIssue: WorkspaceAccessIssue;
+  workspaceAlternativeSelectionPending: boolean;
   workspaceChangeEndsNavigation: boolean;
   workspaceNavigationNoticeInset: number;
   workspaceSelectionFailed: boolean;
@@ -122,6 +123,7 @@ export function RouteListScreen({
   workspaceAccessRefreshAvailable,
   workspaceAccessFocusTargetRef,
   workspaceAccessIssue,
+  workspaceAlternativeSelectionPending,
   workspaceChangeEndsNavigation,
   workspaceNavigationNoticeInset,
   workspaceSelectionFailed,
@@ -747,6 +749,9 @@ export function RouteListScreen({
         showClientFilters={shouldShowClientFilters(clientFilterOptions)}
         showSearch={showRouteSearch}
         showSummary={!contentLoading && showRouteSummary}
+        workspaceAlternativeSelectionPending={
+          workspaceAlternativeSelectionPending
+        }
         workspaceChangeEndsNavigation={workspaceChangeEndsNavigation}
         workspaceCatalogLoading={workspaceCatalogLoading}
         workspaceSelectionFailed={workspaceSelectionFailed}
@@ -759,7 +764,11 @@ export function RouteListScreen({
           const workspace = availableWorkspaces.find((client) => client.id === clientId);
           if (
             !workspace ||
-            (workspace.id === selectedClientId && !workspaceSelectionFailed)
+            (
+              workspace.id === selectedClientId &&
+              !workspaceSelectionFailed &&
+              !workspaceAlternativeSelectionPending
+            )
           ) {
             return;
           }

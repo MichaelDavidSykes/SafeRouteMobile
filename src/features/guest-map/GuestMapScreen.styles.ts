@@ -74,6 +74,65 @@ export const guestMapStyles = StyleSheet.create({
     fontSize: typeScale.xs,
     fontWeight: '700'
   },
+  currentLocationControlDock: {
+    position: 'absolute',
+    zIndex: 24,
+    elevation: 24,
+    right: spacing.md,
+    alignItems: 'flex-end'
+  },
+  currentLocationButton: {
+    width: controlSizes.icon,
+    height: controlSizes.icon,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderWidth: 0.5,
+    borderColor: colors.glassBorder,
+    borderRadius: radius.pill,
+    backgroundColor: colors.surfaceTranslucent,
+    shadowOpacity: 0,
+    shadowRadius: 0,
+    shadowOffset: { width: 0, height: 0 }
+  },
+  currentLocationButtonDisabled: {
+    opacity: 0.5
+  },
+  currentLocationButtonPressed: {
+    backgroundColor: colors.appleBlueSoft,
+    transform: [{ scale: 0.96 }]
+  },
+  currentLocationGlyph: {
+    width: 22,
+    height: 22,
+    alignItems: 'center',
+    justifyContent: 'center'
+  },
+  currentLocationGlyphRing: {
+    position: 'absolute',
+    width: 14,
+    height: 14,
+    borderWidth: 2,
+    borderColor: colors.appleBlue,
+    borderRadius: radius.pill
+  },
+  currentLocationGlyphHorizontal: {
+    position: 'absolute',
+    width: 22,
+    height: 2,
+    backgroundColor: colors.appleBlue
+  },
+  currentLocationGlyphVertical: {
+    position: 'absolute',
+    width: 2,
+    height: 22,
+    backgroundColor: colors.appleBlue
+  },
+  currentLocationGlyphDot: {
+    width: 6,
+    height: 6,
+    borderRadius: radius.pill,
+    backgroundColor: colors.surface
+  },
   sheet: {
     marginHorizontal: spacing.md,
     marginBottom: Platform.OS === 'ios' ? spacing.sm : spacing.md,

@@ -17,7 +17,7 @@ import MapView, { Marker, Polyline, type LatLng, type Region } from 'react-nativ
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { LUNARCHAIN_API_BASE, SAFEROUTE_PREVIEW_MODE_ENABLED } from '../../config/env';
-import { colors } from '../../theme';
+import { colors, spacing } from '../../theme';
 import { uiTestIds } from '../../testing/uiTestIds';
 import type { SavedSafeRoutePlan } from '../live-map/liveMapTypes';
 import type { RiskZone } from '../live-map/liveMapTypes';
@@ -226,6 +226,7 @@ export function GuestMapScreen({
   } | null>(null);
   const [mapReady, setMapReady] = useState(false);
   const [mapRegion, setMapRegion] = useState<Region>(GUEST_MAP_REGION);
+  const [routeSheetHeight, setRouteSheetHeight] = useState(0);
   const [routeMessage, setRouteMessage] = useState('');
   const [workspaceMenuOpen, setWorkspaceMenuOpen] = useState(false);
   const [selectedRiskZone, setSelectedRiskZone] = useState<RiskZone | null>(null);
@@ -267,6 +268,14 @@ export function GuestMapScreen({
     230,
     Math.min(520, viewport.height * (activeInput ? 0.43 : 0.62))
   );
+  const routeSheetBottomMargin = Platform.OS === 'ios' ? spacing.sm : spacing.md;
+  const currentLocationControlBottom = sheetProgress.interpolate({
+    inputRange: [0, 1],
+    outputRange: [
+      (routeSheetHeight || routeSheetMaxHeight) + routeSheetBottomMargin + spacing.sm,
+      64 + routeSheetBottomMargin + spacing.sm
+    ]
+  });
   const activeDraftStop = activeInput
     ? findGuestRouteDraftStop(routeDraft, activeInput)
     : null;
@@ -1071,6 +1080,26 @@ export function GuestMapScreen({
     onOpenRoutePreview?.(routePlan);
   };
 
+  const handleCenterCurrentLocation = () => {
+    if (!mapReady || !liveCoordinate) {
+      return;
+    }
+    const candidate = {
+      coordinate: liveCoordinate,
+      timestampMs: Number.isFinite(liveLocationTimestampMs)
+        ? Number(liveLocationTimestampMs)
+        : Date.now()
+    };
+    lastCenteredLocationRef.current = candidate;
+    userMovedMapRef.current = false;
+    setMapAction(null);
+    setSelectedRiskZone(null);
+    mapRef.current?.animateCamera(
+      { center: liveCoordinate },
+      { duration: 450 }
+    );
+  };
+
   const handleStopChange = (stopId: string, value: string) => {
     cancelRoadRouteUpgrade();
     dispatchRouteDraft({
@@ -1502,6 +1531,59 @@ export function GuestMapScreen({
         style={styles.overlay}
       >
       <SafeAreaView pointerEvents="box-none" style={styles.overlay}>
+        <Animated.View
+          pointerEvents="box-none"
+          style={[
+            styles.currentLocationControlDock,
+            { bottom: currentLocationControlBottom }
+          ]}
+        >
+          <Pressable
+            accessibilityHint={
+              mapReady && liveCoordinate
+                ? 'Moves the map to your live device location.'
+                : permissionStatus === 'denied'
+                  ? 'Allow location access in Settings to use this control.'
+                  : 'Wait for SafeRoute to determine your device location.'
+            }
+            accessibilityLabel={
+              mapReady && liveCoordinate
+                ? 'Center map on current location'
+                : permissionStatus === 'denied'
+                  ? 'Current location unavailable'
+                  : 'Waiting for current location'
+            }
+            accessibilityRole="button"
+            accessibilityState={{
+              busy: permissionStatus === 'checking',
+              disabled: !mapReady || !liveCoordinate
+            }}
+            disabled={!mapReady || !liveCoordinate}
+            testID={uiTestIds.guestMapCurrentLocation}
+            style={({ pressed }) => [
+              styles.currentLocationButton,
+              !mapReady || !liveCoordinate
+                ? styles.currentLocationButtonDisabled
+                : null,
+              pressed && mapReady && liveCoordinate
+                ? styles.currentLocationButtonPressed
+                : null
+            ]}
+            onPress={handleCenterCurrentLocation}
+          >
+            <View
+              accessibilityElementsHidden
+              importantForAccessibility="no-hide-descendants"
+              style={styles.currentLocationGlyph}
+            >
+              <View style={styles.currentLocationGlyphRing} />
+              <View style={styles.currentLocationGlyphHorizontal} />
+              <View style={styles.currentLocationGlyphVertical} />
+              <View style={styles.currentLocationGlyphDot} />
+            </View>
+          </Pressable>
+        </Animated.View>
+
         <View
           style={[
             styles.topBar,
@@ -1720,6 +1802,12 @@ export function GuestMapScreen({
                 }]
               }
             ]}
+            onLayout={({ nativeEvent }) => {
+              const measuredHeight = Math.ceil(nativeEvent.layout.height);
+              setRouteSheetHeight((currentHeight) =>
+                currentHeight === measuredHeight ? currentHeight : measuredHeight
+              );
+            }}
           >
             <View
               accessibilityLabel="Swipe down to minimize route planning"

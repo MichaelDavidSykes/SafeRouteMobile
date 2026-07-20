@@ -672,7 +672,7 @@ describe("App active workspace integration", () => {
     );
     assert.match(
       app,
-      /<WorkspaceHandoffRetryNotice[\s\S]*onKeepCurrent=\{handleKeepCurrentWorkspace\}[\s\S]*onRetry=\{handleRetryPendingWorkspaceSelection\}/,
+      /<WorkspaceHandoffRetryNotice[\s\S]*onChooseAnother=\{handleChooseAnotherWorkspace\}[\s\S]*onKeepCurrent=\{handleKeepCurrentWorkspace\}[\s\S]*onRetry=\{handleRetryPendingWorkspaceSelection\}/,
     );
     assert.match(
       app,
@@ -692,7 +692,53 @@ describe("App active workspace integration", () => {
     );
     assert.match(
       app,
-      /resolvePendingWorkspaceSelectionRetryDecision\(request\)\.status !== 'stale'[\s\S]*clearPendingWorkspaceSelectionRetry\(request\)[\s\S]*The change to \$\{request\.requestedTargetName\} is no longer available\.[\s\S]*workspaceAccessFocusTargetRef\.current/,
+      /\) !== 'stale'[\s\S]*clearPendingWorkspaceSelectionRetry\(request\)[\s\S]*The change to \$\{request\.requestedTargetName\} is no longer available\.[\s\S]*workspaceAccessFocusTargetRef\.current/,
+    );
+    const chooseAnotherStart = app.indexOf(
+      "const handleChooseAnotherWorkspace =",
+    );
+    const chooseAnother = app.slice(
+      chooseAnotherStart,
+      app.indexOf("useEffect(() =>", chooseAnotherStart),
+    );
+    assert.match(
+      chooseAnother,
+      /workspaceHandoffAlternativeSelectionPendingRef\.current = true[\s\S]*setWorkspaceHandoffAlternativeSelectionPending\(true\)[\s\S]*setWorkspaceSelectionStatus\('idle'\)[\s\S]*selectorReady[\s\S]*workspaceHandoffAlternativeFocusPendingRef\.current = !selectorReady[\s\S]*access check finishes[\s\S]*Platform\.OS === 'ios' && selectorReady[\s\S]*workspaceAccessFocusTargetRef\.current/,
+    );
+    assert.doesNotMatch(
+      chooseAnother,
+      /clearPendingWorkspaceSelectionRetry|discardPersistedNavigation|performPersistedNavigationCleanup/,
+    );
+    assert.match(
+      app,
+      /workspaceHandoffAlternativeFocusPendingRef\.current[\s\S]*workspaceHandoffAlternativeSelectionPending[\s\S]*workspaceCatalogBusyRef\.current[\s\S]*workspaceForegroundRefreshPendingRef\.current[\s\S]*workspaceHandoffAlternativeFocusPendingRef\.current = false[\s\S]*Choose another workspace\.[\s\S]*workspaceAccessFocusTargetRef\.current/,
+    );
+    const retargetSelection = app.slice(
+      app.indexOf("const handleGuardedWorkspaceChange ="),
+      app.indexOf("const handleWorkspaceUnavailable ="),
+    );
+    assert.match(
+      retargetSelection,
+      /pendingWorkspaceSelectionRetryRef\.current[\s\S]*resolvePendingWorkspaceSelectionRetargetDecision\([\s\S]*retargetDecision\.status === 'keep-current'[\s\S]*handleKeepCurrentWorkspace\(\)[\s\S]*replaceWorkspaceHandoffTarget\(\{[\s\S]*target: retargetDecision\.target[\s\S]*publishPendingWorkspaceSelectionRetry\(replacementRetry\)[\s\S]*completedRouteHandoff: true[\s\S]*selectionRetry: replacementRetry/,
+    );
+    assert.match(
+      app,
+      /surfaceWorkspaceSelectionFailed =[\s\S]*workspaceHandoffAlternativeSelectionPending/,
+    );
+    assert.match(
+      app,
+      /workspaceHandoffAlternativeSelectionPendingRef\.current[\s\S]*resolvePendingWorkspaceSelectionRetargetOwnershipDecision\(request\)[\s\S]*resolvePendingWorkspaceSelectionRetryDecision\(request\)\.status[\s\S]*!== 'stale'/,
+    );
+    assert.match(
+      app,
+      /publishUnavailableSelectionFailure[\s\S]*unavailableWorkspaceIdsRef\.current\.has\([\s\S]*requestedTargetWorkspaceId[\s\S]*!findWorkspace\([\s\S]*The change to \$\{requestedTarget\.name\} is no longer available\. Still using \$\{currentWorkspaceName\}\.[\s\S]*workspaceAccessFocusTargetRef\.current[\s\S]*retryResolution === 'clear-stale'[\s\S]*publishUnavailableSelectionFailure/,
+    );
+    assert.doesNotMatch(
+      retargetSelection.slice(
+        0,
+        retargetSelection.indexOf("const requestedTarget ="),
+      ),
+      /discardPersistedNavigation|performPersistedNavigationCleanup|continuePendingWorkspaceHandoff/,
     );
     assert.match(
       app,

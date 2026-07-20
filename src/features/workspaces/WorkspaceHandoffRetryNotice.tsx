@@ -8,6 +8,7 @@ import { createWorkspaceHandoffRetryNoticeCopy } from "./workspaceHandoffRetryNo
 
 export function WorkspaceHandoffRetryNotice({
   checkingAccess,
+  onChooseAnother,
   onKeepCurrent,
   onRetry,
   retryActionRef,
@@ -16,6 +17,7 @@ export function WorkspaceHandoffRetryNotice({
   targetWorkspaceName,
 }: {
   checkingAccess: boolean;
+  onChooseAnother: () => void;
   onKeepCurrent: () => void;
   onRetry: () => void;
   retryActionRef?: Ref<View>;
@@ -69,20 +71,36 @@ export function WorkspaceHandoffRetryNotice({
         </Text>
       </Pressable>
       {!saving ? (
-        <Pressable
-          accessibilityLabel={copy.keepAccessibilityLabel}
-          accessibilityRole="button"
-          onPress={onKeepCurrent}
-          style={({ pressed }) => [
-            styles.secondaryAction,
-            pressed ? styles.actionPressed : null,
-          ]}
-          testID={uiTestIds.workspaceHandoffKeepCurrentAction}
-        >
-          <Text numberOfLines={1} style={styles.secondaryActionText}>
-            {copy.keepLabel}
-          </Text>
-        </Pressable>
+        <>
+          <Pressable
+            accessibilityLabel={copy.chooseAnotherAccessibilityLabel}
+            accessibilityRole="button"
+            onPress={onChooseAnother}
+            style={({ pressed }) => [
+              styles.secondaryAction,
+              pressed ? styles.actionPressed : null,
+            ]}
+            testID={uiTestIds.workspaceHandoffChooseAnotherAction}
+          >
+            <Text numberOfLines={1} style={styles.secondaryActionText}>
+              {copy.chooseAnotherLabel}
+            </Text>
+          </Pressable>
+          <Pressable
+            accessibilityLabel={copy.keepAccessibilityLabel}
+            accessibilityRole="button"
+            onPress={onKeepCurrent}
+            style={({ pressed }) => [
+              styles.secondaryAction,
+              pressed ? styles.actionPressed : null,
+            ]}
+            testID={uiTestIds.workspaceHandoffKeepCurrentAction}
+          >
+            <Text numberOfLines={1} style={styles.secondaryActionText}>
+              {copy.keepLabel}
+            </Text>
+          </Pressable>
+        </>
       ) : null}
     </View>
   );

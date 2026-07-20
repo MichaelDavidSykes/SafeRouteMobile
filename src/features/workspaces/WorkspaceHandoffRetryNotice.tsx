@@ -14,6 +14,7 @@ export function WorkspaceHandoffRetryNotice({
   retryActionRef,
   saving,
   sourceWorkspaceName,
+  targetAccessRestored,
   targetWorkspaceName,
 }: {
   checkingAccess: boolean;
@@ -23,6 +24,7 @@ export function WorkspaceHandoffRetryNotice({
   retryActionRef?: Ref<View>;
   saving: boolean;
   sourceWorkspaceName?: string | null;
+  targetAccessRestored?: boolean;
   targetWorkspaceName: string;
 }) {
   const insets = useSafeAreaInsets();
@@ -31,6 +33,7 @@ export function WorkspaceHandoffRetryNotice({
     checkingAccess,
     saving,
     sourceWorkspaceName,
+    targetAccessRestored,
     targetWorkspaceName,
   });
 

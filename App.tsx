@@ -122,12 +122,14 @@ import {
   recoverWorkspaceHandoffNavigationCleanupAfterOwnershipLoss,
   replaceWorkspaceHandoffTarget,
   resolveDeferredWorkspaceRefreshAfterSelection,
+  resolveWorkspaceHandoffAlternativeRecovery,
   resolveWorkspaceHandoffRetarget,
   resolveWorkspaceHandoffRetargetOwnership,
   resolveWorkspaceHandoffSelectionFailure,
   resolveWorkspaceHandoffTargetRemovalRecovery,
   resolveWorkspaceHandoffContinuation,
   shouldInjectWorkspaceHandoffNavigationCleanupFault,
+  type WorkspaceHandoffAlternativeReason,
 } from './src/features/workspaces/workspaceHandoffContinuation';
 import { WorkspaceHandoffRetryNotice } from './src/features/workspaces/WorkspaceHandoffRetryNotice';
 import { runDurableWorkspaceSelectionAttempt } from './src/features/workspaces/workspaceSelectionAttempt';
@@ -292,6 +294,10 @@ function SafeRouteApp() {
     setWorkspaceHandoffAlternativeSelectionPending,
   ] = useState(false);
   const [
+    workspaceHandoffRetryTargetAccessRestored,
+    setWorkspaceHandoffRetryTargetAccessRestored,
+  ] = useState(false);
+  const [
     suspendedNavigationNoticeHeight,
     setSuspendedNavigationNoticeHeight,
   ] = useState(0);
@@ -391,6 +397,8 @@ function SafeRouteApp() {
   const pendingWorkspaceSelectionRetryRef =
     useRef<PendingWorkspaceSelectionRetry | null>(null);
   const workspaceHandoffAlternativeSelectionPendingRef = useRef(false);
+  const workspaceHandoffAlternativeReasonRef =
+    useRef<WorkspaceHandoffAlternativeReason | null>(null);
   const workspaceHandoffAlternativeFocusPendingRef = useRef(false);
   const workspaceHandoffAlternativeFocusedScreenRef =
     useRef<AppScreen | null>(null);
@@ -1118,6 +1126,7 @@ function SafeRouteApp() {
     request: PendingWorkspaceSelectionRetry,
   ) => {
     workspaceHandoffAlternativeSelectionPendingRef.current = false;
+    workspaceHandoffAlternativeReasonRef.current = null;
     workspaceHandoffAlternativeFocusPendingRef.current = false;
     workspaceHandoffAlternativeFocusedScreenRef.current = null;
     workspaceHandoffAlternativePromptRef.current = '';
@@ -1126,6 +1135,7 @@ function SafeRouteApp() {
       name: request.requestedTargetName,
     };
     setWorkspaceHandoffAlternativeSelectionPending(false);
+    setWorkspaceHandoffRetryTargetAccessRestored(false);
     pendingWorkspaceSelectionRetryRef.current = request;
     setPendingWorkspaceSelectionRetry(request);
   };
@@ -1140,11 +1150,13 @@ function SafeRouteApp() {
       return;
     }
     workspaceHandoffAlternativeSelectionPendingRef.current = false;
+    workspaceHandoffAlternativeReasonRef.current = null;
     workspaceHandoffAlternativeFocusPendingRef.current = false;
     workspaceHandoffAlternativeFocusedScreenRef.current = null;
     workspaceHandoffAlternativePromptRef.current = '';
     workspaceHandoffTargetDisplayNameRef.current = { id: '', name: '' };
     setWorkspaceHandoffAlternativeSelectionPending(false);
+    setWorkspaceHandoffRetryTargetAccessRestored(false);
     pendingWorkspaceSelectionRetryRef.current = null;
     setPendingWorkspaceSelectionRetry(null);
   };
@@ -3427,7 +3439,9 @@ function SafeRouteApp() {
     }
 
     workspaceHandoffAlternativeSelectionPendingRef.current = true;
+    workspaceHandoffAlternativeReasonRef.current = 'target-removed';
     setWorkspaceHandoffAlternativeSelectionPending(true);
+    setWorkspaceHandoffRetryTargetAccessRestored(false);
     if (!currentSelectionOwnsPending) {
       setWorkspaceSelectionStatus('idle');
     }
@@ -3498,6 +3512,7 @@ function SafeRouteApp() {
       }
       return;
     }
+    setWorkspaceHandoffRetryTargetAccessRestored(false);
     handleActiveWorkspaceChange(decision.target, {
       completedRouteHandoff: true,
       selectionRetry: request,
@@ -3535,7 +3550,9 @@ function SafeRouteApp() {
       return;
     }
     workspaceHandoffAlternativeSelectionPendingRef.current = true;
+    workspaceHandoffAlternativeReasonRef.current = 'explicit-choice';
     setWorkspaceHandoffAlternativeSelectionPending(true);
+    setWorkspaceHandoffRetryTargetAccessRestored(false);
     setWorkspaceSelectionStatus('idle');
     workspaceHandoffAlternativeFocusedScreenRef.current = null;
     workspaceHandoffAlternativePromptRef.current = '';
@@ -3633,10 +3650,65 @@ function SafeRouteApp() {
     if (!request || workspaceSelectionPendingRef.current) {
       return;
     }
-    const continuationStatus =
-      workspaceHandoffAlternativeSelectionPendingRef.current
-        ? resolvePendingWorkspaceSelectionRetargetOwnershipDecision(request)
-        : resolvePendingWorkspaceSelectionRetryDecision(request).status;
+    const directContinuation =
+      resolvePendingWorkspaceSelectionRetryDecision(request);
+    let continuationStatus = directContinuation.status;
+    if (workspaceHandoffAlternativeSelectionPendingRef.current) {
+      const alternativeRecovery =
+        resolveWorkspaceHandoffAlternativeRecovery({
+          continuationStatus: directContinuation.status,
+          ownershipStatus:
+            resolvePendingWorkspaceSelectionRetargetOwnershipDecision(request),
+          reason: workspaceHandoffAlternativeReasonRef.current,
+          targetAuthorizationFresh:
+            networkStatusRef.current === 'online' &&
+            networkAuthorizationReady &&
+            !workspaceForegroundAuthorizationPausedRef.current &&
+            freshWorkspaceAuthorizationRef.current.principalId ===
+              request.requestedPrincipalId &&
+            freshWorkspaceAuthorizationRef.current.workspaceIds.has(
+              request.requestedTargetWorkspaceId,
+            ),
+        });
+      if (
+        alternativeRecovery === 'restore-direct-retry' &&
+        directContinuation.status === 'ready'
+      ) {
+        workspaceHandoffAlternativeSelectionPendingRef.current = false;
+        workspaceHandoffAlternativeReasonRef.current = null;
+        workspaceHandoffAlternativeFocusPendingRef.current = false;
+        workspaceHandoffAlternativeFocusedScreenRef.current = null;
+        workspaceHandoffAlternativePromptRef.current = '';
+        workspaceHandoffTargetDisplayNameRef.current = {
+          id: directContinuation.target.id,
+          name: directContinuation.target.name,
+        };
+        setWorkspaceHandoffAlternativeSelectionPending(false);
+        setWorkspaceHandoffRetryTargetAccessRestored(true);
+        setWorkspaceSelectionStatus('failed');
+        const currentWorkspaceName = activeWorkspaceRef.current?.name || '';
+        const restoredMessage = currentWorkspaceName
+          ? `${directContinuation.target.name} is available again. Still using ${currentWorkspaceName}. Retry the workspace change, choose another workspace, or keep ${currentWorkspaceName}.`
+          : `${directContinuation.target.name} is available again. Retry the workspace change or choose another workspace.`;
+        setSessionMessage(restoredMessage);
+        if (Platform.OS === 'ios') {
+          void workspaceAccessFocusHandoffRef.current?.request(
+            restoredMessage,
+            () => workspaceHandoffRetryFocusTargetRef.current,
+          );
+        } else {
+          AccessibilityInfo.announceForAccessibilityWithOptions(
+            restoredMessage,
+            { queue: true },
+          );
+        }
+        return;
+      }
+      if (alternativeRecovery !== 'clear-stale') {
+        return;
+      }
+      continuationStatus = 'stale';
+    }
     if (continuationStatus !== 'stale') {
       return;
     }
@@ -3670,6 +3742,7 @@ function SafeRouteApp() {
     navigationCleanupStatus,
     pendingNavigationRestore,
     pendingWorkspaceSelectionRetry,
+    networkAuthorizationReady,
     sessionPrincipalId,
     workspaceCatalogLoading,
     workspaceCatalogRetrying,
@@ -4692,6 +4765,7 @@ function SafeRouteApp() {
             retryActionRef={updateWorkspaceHandoffRetryFocusTarget}
             saving={workspaceSelectionPending}
             sourceWorkspaceName={workspaceHandoffRetrySourceName}
+            targetAccessRestored={workspaceHandoffRetryTargetAccessRestored}
             targetWorkspaceName={workspaceHandoffRetryTargetName}
           />
         ) : null}

@@ -393,7 +393,7 @@ async function main() {
     },
     {
       id: 'safe-route-operations-calendar-saving-control',
-      label: 'Stop future offline Calendar saves for Guidance Operations on this device',
+      label: 'Offline Calendar options for Guidance Operations',
       enabled: true,
     },
   ]);
@@ -617,13 +617,8 @@ async function main() {
       enabled: true,
     },
     {
-      id: 'safe-route-operations-calendar-saving-status',
-      label: 'Guidance Operations. Offline saving is on. SafeRoute securely saves a limited Calendar after a successful sync.',
-      enabled: true,
-    },
-    {
       id: 'safe-route-operations-calendar-saving-control',
-      label: 'Stop future offline Calendar saves for Guidance Operations on this device',
+      label: 'Offline Calendar options for Guidance Operations',
       enabled: true,
     },
   ]);
@@ -639,8 +634,8 @@ async function main() {
       enabled: true,
     },
     {
-      id: 'safe-route-operations-calendar-saving-status',
-      label: 'Guidance Operations. Offline saving is on. SafeRoute securely saves a limited Calendar after a successful sync.',
+      id: 'safe-route-operations-calendar-saving-control',
+      label: 'Offline Calendar options for Guidance Operations',
       enabled: true,
     },
   ]);
@@ -660,13 +655,8 @@ async function main() {
   );
   captureAccessibilityHierarchy('offline-operations-calendar-removal-relaunch', [
     {
-      id: 'safe-route-operations-calendar-saving-status',
-      label: 'Guidance Operations. Offline saving is on. SafeRoute securely saves a limited Calendar after a successful sync.',
-      enabled: true,
-    },
-    {
       id: 'safe-route-operations-calendar-saving-control',
-      label: 'Stop future offline Calendar saves for Guidance Operations on this device',
+      label: 'Offline Calendar options for Guidance Operations',
       enabled: true,
     },
     {

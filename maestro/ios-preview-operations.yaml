@@ -79,6 +79,21 @@ appId: host.exp.Exponent
 - assertVisible:
     id: "safe-route-operations-route-trip-docklands-low-profile-sr-docklands-low-profile-0"
 - tapOn:
+    id: "safe-route-operations-route-trip-airport-transfer-sr-city-airport-alpha-0"
+    waitToSettleTimeoutMs: 1000
+- extendedWaitUntil:
+    visible:
+      id: "safe-route-live-map"
+    timeout: 12000
+- assertVisible:
+    id: "safe-route-map-view"
+- tapOn:
+    id: "safe-route-return"
+    waitToSettleTimeoutMs: 1000
+- extendedWaitUntil:
+    visible: "Planned routes"
+    timeout: 12000
+- tapOn:
     id: "safe-route-operations-tab-calendar"
     waitToSettleTimeoutMs: 1000
 - waitForAnimationToEnd:
@@ -88,6 +103,19 @@ appId: host.exp.Exponent
     id: "safe-route-login"
 - assertVisible:
     id: "safe-route-operations-route-trip-airport-transfer-sr-city-airport-alpha-0"
+- tapOn:
+    id: "safe-route-operations-route-trip-airport-transfer-sr-city-airport-alpha-0"
+    waitToSettleTimeoutMs: 1000
+- extendedWaitUntil:
+    visible:
+      id: "safe-route-live-map"
+    timeout: 12000
+- tapOn:
+    id: "safe-route-return"
+    waitToSettleTimeoutMs: 1000
+- extendedWaitUntil:
+    visible: "Calendar"
+    timeout: 12000
 - tapOn:
     id: "safe-route-operations-tab-convoy-management"
     waitToSettleTimeoutMs: 1000
@@ -100,6 +128,26 @@ appId: host.exp.Exponent
     id: "safe-route-operations-convoy-trip-airport-transfer"
 - assertVisible:
     id: "safe-route-operations-convoy-trip-docklands-low-profile"
+- tapOn:
+    id: "safe-route-operations-convoy-trip-airport-transfer"
+    waitToSettleTimeoutMs: 1000
+- assertVisible:
+    id: "safe-route-operations-convoy-detail"
+- assertVisible:
+    id: "safe-route-operations-convoy-route-sr-city-airport-alpha-0"
+- tapOn:
+    id: "safe-route-operations-convoy-route-sr-city-airport-alpha-0"
+    waitToSettleTimeoutMs: 1000
+- extendedWaitUntil:
+    visible:
+      id: "safe-route-live-map"
+    timeout: 12000
+- tapOn:
+    id: "safe-route-return"
+    waitToSettleTimeoutMs: 1000
+- extendedWaitUntil:
+    visible: "Convoys"
+    timeout: 12000
 - tapOn:
     id: "safe-route-operations-map-return"
     waitToSettleTimeoutMs: 1000

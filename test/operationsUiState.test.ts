@@ -120,7 +120,9 @@ describe("view-only operations UI state", () => {
     assert.match(plannedRows[0].metaLabel, /window/);
     assert.match(plannedRows[0].manifestLabel, /2 vehicles · 2 people/);
     assert.match(plannedRows[0].manifestLabel, /Alpha lead/);
-    assert.match(plannedRows[0].accessibilityLabel, /View only/);
+    assert.equal(plannedRows[0].routeId, SAVED_ROUTE_PLANS[0].id);
+    assert.ok(plannedRows[0].tripId);
+    assert.match(plannedRows[0].accessibilityLabel, /Opens route map and details/);
   });
 
   it("maps scheduled trip route assignments into calendar rows sorted by movement time", () => {
@@ -134,7 +136,7 @@ describe("view-only operations UI state", () => {
     assert.equal(calendarRows.every((row) => !/Unscheduled/.test(row.scheduleLabel)), true);
   });
 
-  it("maps convoy management into view-only trip manifests", () => {
+  it("maps convoy management into complete read-only trip manifests", () => {
     const operationsState = loadPreviewOperationsState("preview-routes");
     const convoyRows = createConvoyRows(SAVED_ROUTE_PLANS, operationsState);
     const alpha = convoyRows.find((row) => row.title === "Airport transfer window");
@@ -144,7 +146,149 @@ describe("view-only operations UI state", () => {
     assert.match(alpha.metaLabel, /1 route · 2 vehicles · 2 people/);
     assert.match(alpha.manifestLabel, /Lead Alpha lead/);
     assert.match(alpha.routeLabels.join(" "), /City Airport transfer/);
-    assert.match(alpha.accessibilityLabel, /View only/);
+    assert.equal(alpha.routeOptions[0].routeId, SAVED_ROUTE_PLANS[0].id);
+    assert.match(alpha.leadVehicleLabel, /Alpha lead/);
+    assert.match(alpha.endpointLabel, /Mayfair/);
+    assert.match(alpha.durationLabel, /window/);
+    assert.equal(alpha.vehicleLabels.length, 2);
+    assert.equal(alpha.peopleLabels.length, 2);
+    assert.match(alpha.accessibilityLabel, /Opens convoy details/);
+  });
+
+  it("resolves legacy route-name assignments to canonical route identifiers", () => {
+    const operationsState = loadPreviewOperationsState("preview-routes");
+    const route = SAVED_ROUTE_PLANS[0];
+    const stateWithNameReference = {
+      ...operationsState,
+      trips: operationsState.trips.map((trip, index) =>
+        index === 0
+          ? {
+              ...trip,
+              route_assignments: trip.route_assignments.map((assignment) => ({
+                ...assignment,
+                route_id: `  ${route.name.toUpperCase().replace(/ /g, "   ")}  `,
+              })),
+            }
+          : trip,
+      ),
+    };
+
+    const plannedRows = createPlannedRouteRows(
+      SAVED_ROUTE_PLANS,
+      stateWithNameReference,
+    );
+    assert.equal(plannedRows[0].routeId, route.id);
+
+    const unresolvedRows = createPlannedRouteRows(SAVED_ROUTE_PLANS, {
+      ...stateWithNameReference,
+      trips: stateWithNameReference.trips.slice(0, 1).map((trip) => ({
+        ...trip,
+        route_assignments: trip.route_assignments.map((assignment) => ({
+          ...assignment,
+          route_id: "Retired route reference",
+        })),
+      })),
+    });
+    assert.equal(unresolvedRows[0].routeId, null);
+    assert.match(unresolvedRows[0].accessibilityLabel, /map unavailable/i);
+  });
+
+  it("keeps every convoy route and its assignment-specific review data", () => {
+    const operationsState = loadPreviewOperationsState("preview-routes");
+    const firstTrip = operationsState.trips[0];
+    const additionalRoute = SAVED_ROUTE_PLANS[1];
+    const multiRouteState = {
+      ...operationsState,
+      trips: [
+        {
+          ...firstTrip,
+          route_ids: [firstTrip.route_assignments[0].route_id, additionalRoute.id],
+        },
+      ],
+    };
+
+    const [convoy] = createConvoyRows(SAVED_ROUTE_PLANS, multiRouteState);
+    assert.equal(convoy.routeOptions.length, 2);
+    assert.equal(convoy.routeOptions[1].routeId, additionalRoute.id);
+    assert.match(convoy.routeOptions[0].scheduleLabel, /·/);
+    assert.match(convoy.routeOptions[0].durationLabel, /window/);
+    assert.match(convoy.routeOptions[0].manifestLabel, /vehicles/);
+    assert.ok(convoy.routeOptions[0].vehicleLabels.length > 0);
+    assert.ok(convoy.routeOptions[0].peopleLabels.length > 0);
+  });
+
+  it("summarizes differing assignment schedules and durations without inventing a convoy-wide value", () => {
+    const operationsState = loadPreviewOperationsState("preview-routes");
+    const firstTrip = operationsState.trips[0];
+    const [firstAssignment] = firstTrip.route_assignments;
+    const secondRoute = SAVED_ROUTE_PLANS[1];
+    const [convoy] = createConvoyRows(SAVED_ROUTE_PLANS, {
+      ...operationsState,
+      trips: [{
+        ...firstTrip,
+        movement_date: null,
+        duration_minutes: null,
+        route_ids: [firstAssignment.route_id, secondRoute.id],
+        route_assignments: [
+          {
+            ...firstAssignment,
+            movement_date: "2026-08-02T09:00:00.000Z",
+            duration_minutes: 45,
+          },
+          {
+            ...firstAssignment,
+            route_id: secondRoute.id,
+            movement_date: "2026-08-03T14:00:00.000Z",
+            duration_minutes: 90,
+          },
+        ],
+      }],
+    });
+
+    assert.equal(convoy.scheduleLabel, "Schedules vary by route");
+    assert.equal(convoy.durationLabel, "Durations vary by route");
+    assert.notEqual(
+      convoy.routeOptions[0].scheduleLabel,
+      convoy.routeOptions[1].scheduleLabel,
+    );
+    assert.notEqual(
+      convoy.routeOptions[0].durationLabel,
+      convoy.routeOptions[1].durationLabel,
+    );
+  });
+
+  it("does not present one assignment's timing as convoy-wide when another route is pending", () => {
+    const operationsState = loadPreviewOperationsState("preview-routes");
+    const firstTrip = operationsState.trips[0];
+    const [firstAssignment] = firstTrip.route_assignments;
+    const secondRoute = SAVED_ROUTE_PLANS[1];
+    const [convoy] = createConvoyRows(SAVED_ROUTE_PLANS, {
+      ...operationsState,
+      trips: [{
+        ...firstTrip,
+        movement_date: null,
+        duration_minutes: null,
+        route_ids: [firstAssignment.route_id, secondRoute.id],
+        route_assignments: [
+          {
+            ...firstAssignment,
+            movement_date: "2026-08-02T09:00:00.000Z",
+            duration_minutes: 45,
+          },
+          {
+            ...firstAssignment,
+            route_id: secondRoute.id,
+            movement_date: null,
+            duration_minutes: null,
+          },
+        ],
+      }],
+    });
+
+    assert.equal(convoy.scheduleLabel, "Schedules vary by route");
+    assert.equal(convoy.durationLabel, "Durations vary by route");
+    assert.equal(convoy.routeOptions[1].scheduleLabel, "Unscheduled");
+    assert.equal(convoy.routeOptions[1].durationLabel, "Duration pending");
   });
 
   it("falls back to saved route rows when operations manifests are unavailable", () => {
@@ -157,6 +301,17 @@ describe("view-only operations UI state", () => {
     assert.equal(calendarRows.every((row) => row.scheduleLabel === "Schedule pending"), true);
     assert.match(plannedRows[0].manifestLabel, /Manifest pending/);
     assert.ok(convoyRows.some((row) => row.title === "Alpha convoy"));
+    assert.equal(convoyRows.every((row) => row.manifestAvailable === false), true);
+  });
+
+  it("keeps fallback convoy identifiers unique when callsign slugs collide", () => {
+    const rows = createConvoyRows([
+      { ...SAVED_ROUTE_PLANS[0], id: "route-one", convoyCallsign: "A/B" },
+      { ...SAVED_ROUTE_PLANS[1], id: "route-two", convoyCallsign: "A B" },
+    ], null);
+
+    assert.equal(rows.length, 2);
+    assert.notEqual(rows[0].id, rows[1].id);
   });
 
   it("does not mislabel saved routes as planned when a real workspace has no trip plans", () => {
@@ -213,6 +368,8 @@ describe("view-only operations UI state", () => {
     assert.match(rows[0].endpointLabel, /Mayfair → London City Airport/);
     assert.match(rows[0].metaLabel, /45 min window/);
     assert.equal(rows[0].manifestLabel, "Manifest not stored offline");
+    assert.equal(rows[0].routeId, null);
+    assert.equal(rows[0].tripId, null);
     assert.match(rows[0].accessibilityLabel, /review only/i);
   });
 

@@ -2,7 +2,7 @@ appId: host.exp.Exponent
 ---
 - assertVisible:
     id: "safe-route-operations-calendar-saving-control"
-- assertVisible: "Offline saving is on"
+- assertVisible: "Offline options"
 - tapOn:
     id: "safe-route-operations-calendar-saving-control"
 - extendedWaitUntil:

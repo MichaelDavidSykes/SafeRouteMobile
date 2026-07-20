@@ -1,7 +1,9 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
+  AccessibilityInfo,
   ActivityIndicator,
   Alert,
+  findNodeHandle,
   Pressable,
   RefreshControl,
   ScrollView,
@@ -14,8 +16,13 @@ import { createSessionNoticeState } from "../auth/sessionNoticeState";
 import { ApiSessionExpiredError } from "../api/apiClient";
 import { useNetworkAvailability } from "../api/useNetworkAvailability";
 import type { SavedSafeRoutePlan } from "../live-map/liveMapTypes";
-import { fetchSavedRoutes } from "../routes/routeApi";
-import { createRouteSyncErrorState, type RouteListErrorState } from "../routes/routeListErrors";
+import { fetchRouteDetail, fetchSavedRoutes } from "../routes/routeApi";
+import {
+  createRouteDetailErrorState,
+  createRouteSyncErrorState,
+  type RouteListErrorState as BaseRouteListErrorState,
+} from "../routes/routeListErrors";
+import { hasUsableRoutePlan } from "../routes/offlineRouteCacheCore";
 import {
   createRouteListMapReturnState,
   createRouteListSignOutState
@@ -42,6 +49,7 @@ import type {
 import type { SafeRouteWorkspace } from "../workspaces/activeWorkspace";
 import { WorkspaceAccessRefreshControl } from "../workspaces/WorkspaceAccessRefreshControl";
 import type { WorkspaceAccessIssue } from "../workspaces/workspaceAccessRefreshState";
+import { isWorkspaceForbiddenError } from "../workspaces/workspaceAccessRecovery";
 import { loadOperationsWorkspaceData } from "./operationsWorkspaceLoadCore";
 import {
   createCalendarRows,
@@ -74,6 +82,19 @@ import {
 
 const OPERATIONS_ERROR_ACTION_HIT_SLOP = 6;
 const OFFLINE_CALENDAR_REMOVAL_RETRY_SCOPES = new Set<string>();
+const COMPACT_OFFLINE_SAVING_STATES = new Set<OperationsOfflineCalendarSavingState>([
+  "allowed",
+  "enabled",
+  "saved",
+]);
+
+type OperationsRouteSelection = Pick<OperationsRouteRow, "id" | "routeId" | "title"> & {
+  convoyId?: string | null;
+};
+
+interface OperationsErrorState extends BaseRouteListErrorState {
+  row?: OperationsRouteSelection;
+}
 
 function resolveOfflineCalendarSavingState(
   status:
@@ -105,11 +126,18 @@ interface OperationsScreenProps {
   activeWorkspace: SafeRouteWorkspace | null;
   availableWorkspaces: SafeRouteWorkspace[];
   cacheIdentity: string;
+  initialConvoyId?: string | null;
   initialTab: OperationsTab;
   sessionNotice?: string;
   userEmail: string;
   onBackToMap: () => void;
   onRetryWorkspaceCatalog: () => void;
+  onConvoySelectionChange?: (convoyId: string | null) => void;
+  onSelectRoute: (
+    route: SavedSafeRoutePlan,
+    sourceTab: OperationsTab,
+    sourceConvoyId?: string | null,
+  ) => void;
   onSessionExpired: (message?: string) => void;
   onSignOut: () => void;
   onWorkspaceUnavailable: (workspaceId: string) => void;
@@ -136,9 +164,12 @@ export function OperationsScreen({
   activeWorkspace,
   availableWorkspaces,
   cacheIdentity,
+  initialConvoyId = null,
   initialTab,
   onBackToMap,
   onRetryWorkspaceCatalog,
+  onConvoySelectionChange,
+  onSelectRoute,
   onSessionExpired,
   onSignOut,
   onWorkspaceUnavailable,
@@ -188,10 +219,18 @@ export function OperationsScreen({
   const [storedOfflineCalendarSavingState, setStoredOfflineCalendarSavingState] =
     useState<OperationsOfflineCalendarSavingState>("checking");
   const [clientMenuOpen, setClientMenuOpen] = useState(false);
+  const [selectedConvoyId, setSelectedConvoyId] = useState<string | null>(
+    initialConvoyId,
+  );
+  const [detailLoadingId, setDetailLoadingId] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
-  const [errorState, setErrorState] = useState<RouteListErrorState | null>(null);
+  const [errorState, setErrorState] = useState<OperationsErrorState | null>(null);
   const loadRevisionRef = useRef(0);
+  const detailRevisionRef = useRef(0);
+  const detailLoadingIdRef = useRef<string | null>(null);
+  const operationsListRef = useRef<ScrollView | null>(null);
+  const convoyDetailHeadingRef = useRef<Text | null>(null);
   const offlineCalendarRemovalRevisionRef = useRef(0);
   const offlineCalendarSavingRevisionRef = useRef(0);
   const offlineCalendarSavingPendingRef = useRef<{
@@ -253,15 +292,35 @@ export function OperationsScreen({
   if (protectedRequestsAvailableRef.current !== protectedRequestsAvailable) {
     protectedRequestsAvailableRef.current = protectedRequestsAvailable;
     loadRevisionRef.current += 1;
+    detailRevisionRef.current += 1;
+    detailLoadingIdRef.current = null;
   }
   const activeWorkspaceIdRef = useRef<string | null>(selectedWorkspaceId);
   activeWorkspaceIdRef.current = selectedWorkspaceId;
   const loadedWorkspaceIdRef = useRef<string | null>(loadedWorkspaceId);
   loadedWorkspaceIdRef.current = loadedWorkspaceId;
+  const activeTabRef = useRef(activeTab);
+  activeTabRef.current = activeTab;
 
   useEffect(() => {
     setActiveTab(initialTab);
-  }, [initialTab]);
+    activeTabRef.current = initialTab;
+    setSelectedConvoyId(
+      initialTab === "convoy-management" ? initialConvoyId : null,
+    );
+    if (initialTab !== "convoy-management" && initialConvoyId) {
+      onConvoySelectionChange?.(null);
+    }
+    detailRevisionRef.current += 1;
+    detailLoadingIdRef.current = null;
+    setDetailLoadingId(null);
+  }, [initialConvoyId, initialTab]);
+
+  useEffect(() => {
+    detailRevisionRef.current += 1;
+    detailLoadingIdRef.current = null;
+    setDetailLoadingId(null);
+  }, [protectedRequestsAvailable]);
 
   useEffect(() => {
     if (
@@ -576,6 +635,8 @@ export function OperationsScreen({
     }
     previousSelectedWorkspaceIdRef.current = selectedWorkspaceId;
     loadRevisionRef.current += 1;
+    detailRevisionRef.current += 1;
+    detailLoadingIdRef.current = null;
     loadedWorkspaceIdRef.current = null;
     setLoadedWorkspaceId(null);
     setRoutes([]);
@@ -585,6 +646,9 @@ export function OperationsScreen({
     setShowingOfflineCopy(false);
     setOfflineCopyStoredAtMs(null);
     setErrorState(null);
+    setSelectedConvoyId(null);
+    onConvoySelectionChange?.(null);
+    setDetailLoadingId(null);
     setLoading(true);
     setRefreshing(false);
   }, [selectedWorkspaceId]);
@@ -593,6 +657,8 @@ export function OperationsScreen({
     void loadOperations();
     return () => {
       loadRevisionRef.current += 1;
+      detailRevisionRef.current += 1;
+      detailLoadingIdRef.current = null;
     };
   }, [loadOperations]);
 
@@ -719,6 +785,26 @@ export function OperationsScreen({
         : createConvoyRows(visibleRoutes, visibleOperationsState),
     [ownedShowingOfflineCopy, visibleOperationsState, visibleRoutes]
   );
+  const selectedConvoy = useMemo(
+    () => convoyRows.find((row) => row.id === selectedConvoyId) || null,
+    [convoyRows, selectedConvoyId],
+  );
+
+  useEffect(() => {
+    if (!selectedConvoy) {
+      return;
+    }
+
+    const frame = requestAnimationFrame(() => {
+      operationsListRef.current?.scrollTo({ animated: false, y: 0 });
+      const headingNode = findNodeHandle(convoyDetailHeadingRef.current);
+      if (headingNode) {
+        AccessibilityInfo.setAccessibilityFocus(headingNode);
+      }
+    });
+
+    return () => cancelAnimationFrame(frame);
+  }, [selectedConvoy?.id]);
   const summaryState = useMemo(
     () => createOperationsSummaryState(visibleRoutes, visibleOperationsState),
     [visibleOperationsState, visibleRoutes]
@@ -788,6 +874,8 @@ export function OperationsScreen({
       ),
     [offlineCalendarSavingState, selectedWorkspaceOption?.label],
   );
+  const showCompactOfflineSavingControl =
+    COMPACT_OFFLINE_SAVING_STATES.has(offlineCalendarSavingState);
 
   useEffect(() => {
     if (!ownedShowingOfflineCopy || ownedOfflineCopyStoredAtMs === null) {
@@ -854,7 +942,104 @@ export function OperationsScreen({
     selectedWorkspaceId,
   ]);
 
+  const handleSelectOperationsRoute = async (
+    row: OperationsRouteSelection,
+  ) => {
+    const requestWorkspaceId = selectedWorkspaceId;
+    const requestTab = activeTabRef.current;
+    if (!row.routeId) {
+      Alert.alert(
+        "Route map unavailable",
+        ownedShowingOfflineCopy
+          ? "Reconnect and verify workspace access to load this route's map and details."
+          : "This movement is not linked to an available SafeRoute route. Refresh Operations and try again.",
+      );
+      return;
+    }
+    if (
+      !requestWorkspaceId ||
+      !protectedRequestsAvailableRef.current ||
+      detailLoadingIdRef.current
+    ) {
+      if (!protectedRequestsAvailableRef.current) {
+        Alert.alert(
+          "Route map unavailable offline",
+          "Reconnect and verify workspace access to load the current route map, risks, checkpoints, and details.",
+        );
+      }
+      return;
+    }
+
+    const revision = detailRevisionRef.current + 1;
+    detailRevisionRef.current = revision;
+    detailLoadingIdRef.current = row.id;
+    setDetailLoadingId(row.id);
+    setErrorState(null);
+    const requestOwnsWorkspace = () =>
+      revision === detailRevisionRef.current &&
+      activeWorkspaceIdRef.current === requestWorkspaceId &&
+      activeTabRef.current === requestTab &&
+      protectedRequestsAvailableRef.current;
+    try {
+      const routeDetail = await fetchRouteDetail(accessToken, row.routeId);
+      if (!requestOwnsWorkspace()) {
+        return;
+      }
+      if (routeDetail.clientId !== requestWorkspaceId) {
+        setErrorState({
+          ...createRouteDetailErrorState(
+            new Error("This route belongs to another workspace."),
+            row.title,
+          ),
+          row,
+        });
+        return;
+      }
+      if (!hasUsableRoutePlan(routeDetail)) {
+        setErrorState({
+          ...createRouteDetailErrorState(
+            new Error("The route map is not available yet. Refresh and try again."),
+            row.title,
+          ),
+          row,
+        });
+        return;
+      }
+      detailLoadingIdRef.current = null;
+      setDetailLoadingId(null);
+      onSelectRoute(routeDetail, requestTab, row.convoyId || null);
+    } catch (error) {
+      if (!requestOwnsWorkspace()) {
+        return;
+      }
+      if (error instanceof ApiSessionExpiredError) {
+        onSessionExpired(error.message);
+        return;
+      }
+      if (isWorkspaceForbiddenError(error)) {
+        detailRevisionRef.current += 1;
+        detailLoadingIdRef.current = null;
+        setDetailLoadingId(null);
+        onWorkspaceUnavailable(requestWorkspaceId);
+        return;
+      }
+      setErrorState({
+        ...createRouteDetailErrorState(error, row.title),
+        row,
+      });
+    } finally {
+      if (requestOwnsWorkspace()) {
+        detailLoadingIdRef.current = null;
+        setDetailLoadingId(null);
+      }
+    }
+  };
+
   const handleRetry = () => {
+    if (ownedErrorState?.action === "detail" && ownedErrorState.row) {
+      void handleSelectOperationsRoute(ownedErrorState.row);
+      return;
+    }
     void loadOperations();
   };
 
@@ -1271,6 +1456,13 @@ export function OperationsScreen({
             ]}
             onPress={() => {
               setClientMenuOpen(false);
+              setSelectedConvoyId(null);
+              onConvoySelectionChange?.(null);
+              setErrorState(null);
+              detailRevisionRef.current += 1;
+              detailLoadingIdRef.current = null;
+              setDetailLoadingId(null);
+              activeTabRef.current = tab.id;
               setActiveTab(tab.id);
             }}
           >
@@ -1447,7 +1639,26 @@ export function OperationsScreen({
       {activeTab === "calendar" &&
       selectedWorkspaceId &&
       !workspaceState ? (
-        <View style={styles.offlineSavingControl}>
+        showCompactOfflineSavingControl ? (
+          <Pressable
+            accessibilityHint={
+              "Opens the option to stop future offline Calendar saves for this workspace on this device."
+            }
+            accessibilityLabel={`Offline Calendar options for ${selectedWorkspaceOption?.label || "current workspace"}`}
+            accessibilityRole="button"
+            testID={uiTestIds.operationsCalendarSavingControl}
+            style={({ pressed }) => [
+              styles.offlineSavingCompactAction,
+              pressed ? styles.offlineSavingActionPressed : null,
+            ]}
+            onPress={handleOfflineCalendarSavingAction}
+          >
+            <Text style={styles.offlineSavingCompactActionText}>
+              Offline options
+            </Text>
+          </Pressable>
+        ) : (
+          <View style={styles.offlineSavingControl}>
           <View
             accessible
             accessibilityLabel={`${selectedWorkspaceOption?.label || "Current workspace"}. ${offlineCalendarSavingPresentation.title}. ${offlineCalendarSavingPresentation.message}`}
@@ -1522,7 +1733,8 @@ export function OperationsScreen({
               </Text>
             </Pressable>
           ) : null}
-        </View>
+          </View>
+        )
       ) : null}
 
       {ownedShowingOfflineCopy && offlineReviewPresentation ? (
@@ -1753,6 +1965,7 @@ export function OperationsScreen({
         ) : (
           <ScrollView
             contentContainerStyle={styles.list}
+            ref={operationsListRef}
             refreshControl={
               <RefreshControl
                 refreshing={refreshing}
@@ -1763,13 +1976,65 @@ export function OperationsScreen({
             showsVerticalScrollIndicator={false}
           >
             {activeTab === "planned-routes"
-              ? plannedRows.map((row) => <OperationsRouteCard key={row.id} row={row} />)
+              ? plannedRows.map((row) => (
+                  <OperationsRouteCard
+                    key={row.id}
+                    interactionLocked={Boolean(detailLoadingId)}
+                    loading={detailLoadingId === row.id}
+                    row={row}
+                    onPress={() => void handleSelectOperationsRoute(row)}
+                  />
+                ))
               : null}
             {activeTab === "calendar"
-              ? calendarRows.map((row) => <OperationsRouteCard key={row.id} row={row} calendar />)
+              ? calendarRows.map((row) => (
+                  <OperationsRouteCard
+                    calendar
+                    key={row.id}
+                    interactionLocked={Boolean(detailLoadingId)}
+                    loading={detailLoadingId === row.id}
+                    row={row}
+                    onPress={() => void handleSelectOperationsRoute(row)}
+                  />
+                ))
               : null}
             {activeTab === "convoy-management"
-              ? convoyRows.map((row) => <OperationsConvoyCard key={row.id} row={row} />)
+              ? selectedConvoy
+                ? (
+                    <OperationsConvoyDetail
+                      detailLoadingId={detailLoadingId}
+                      headingRef={(node) => {
+                        convoyDetailHeadingRef.current = node;
+                      }}
+                      interactionLocked={Boolean(detailLoadingId)}
+                      row={selectedConvoy}
+                      onBack={() => {
+                        detailRevisionRef.current += 1;
+                        detailLoadingIdRef.current = null;
+                        setDetailLoadingId(null);
+                        setSelectedConvoyId(null);
+                        onConvoySelectionChange?.(null);
+                      }}
+                      onSelectRoute={(routeId, title, index) =>
+                        void handleSelectOperationsRoute({
+                          convoyId: selectedConvoy.id,
+                          id: `${selectedConvoy.id}-${routeId || "unavailable"}-${index}`,
+                          routeId,
+                          title,
+                        })
+                      }
+                    />
+                  )
+                : convoyRows.map((row) => (
+                    <OperationsConvoyCard
+                      key={row.id}
+                      row={row}
+                      onPress={() => {
+                        setSelectedConvoyId(row.id);
+                        onConvoySelectionChange?.(row.id);
+                      }}
+                    />
+                  ))
               : null}
 
             {shouldShowEmptyState({
@@ -1795,19 +2060,49 @@ export function OperationsScreen({
   );
 }
 
-function OperationsRouteCard({ calendar = false, row }: { calendar?: boolean; row: OperationsRouteRow }) {
+function OperationsRouteCard({
+  calendar = false,
+  interactionLocked,
+  loading,
+  onPress,
+  row,
+}: {
+  calendar?: boolean;
+  interactionLocked: boolean;
+  loading: boolean;
+  onPress: () => void;
+  row: OperationsRouteRow;
+}) {
   return (
-    <View
-      accessible
+    <Pressable
       accessibilityLabel={row.accessibilityLabel}
+      accessibilityHint={
+        row.routeId
+          ? "Opens the route map, risk information, checkpoints, and route details."
+          : "Full route map details require a current authorized route link and connection."
+      }
+      accessibilityRole="button"
+      accessibilityState={{
+        busy: loading,
+        disabled: interactionLocked || !row.routeId,
+      }}
+      disabled={interactionLocked || !row.routeId}
       testID={uiTestIds.operationsRouteCard(row.id)}
-      style={styles.routeCard}
+      style={({ pressed }) => [
+        styles.routeCard,
+        pressed ? styles.routeCardPressed : null,
+      ]}
+      onPress={onPress}
     >
       <View style={styles.routeHeader}>
         <Text numberOfLines={2} style={styles.routeTitle}>{row.title}</Text>
-        <View style={styles.badge}>
-          <Text style={styles.badgeText}>{calendar ? row.scheduleLabel : row.badgeLabel}</Text>
-        </View>
+        {loading ? (
+          <ActivityIndicator color={colors.appleBlue} size="small" />
+        ) : (
+          <View style={styles.badge}>
+            <Text style={styles.badgeText}>{calendar ? row.scheduleLabel : row.badgeLabel}</Text>
+          </View>
+        )}
       </View>
       <Text numberOfLines={1} style={styles.routeEndpoint}>{row.endpointLabel}</Text>
       <Text numberOfLines={2} style={styles.routeMeta}>{row.metaLabel}</Text>
@@ -1815,17 +2110,35 @@ function OperationsRouteCard({ calendar = false, row }: { calendar?: boolean; ro
       {!calendar ? (
         <Text numberOfLines={1} style={styles.routeMeta}>{row.scheduleLabel}</Text>
       ) : null}
-    </View>
+      <Text style={styles.openDetailText}>
+        {row.routeId ? "View map and details  ›" : "Map details unavailable"}
+      </Text>
+    </Pressable>
   );
 }
 
-function OperationsConvoyCard({ row }: { row: OperationsConvoyRow }) {
+function OperationsConvoyCard({
+  onPress,
+  row,
+}: {
+  onPress: () => void;
+  row: OperationsConvoyRow;
+}) {
   return (
-    <View
-      accessible
+    <Pressable
       accessibilityLabel={row.accessibilityLabel}
+      accessibilityHint={
+        row.manifestAvailable
+          ? "Opens the complete read-only convoy manifest and its route choices."
+          : "Opens available route choices. Convoy manifest details need an Operations sync."
+      }
+      accessibilityRole="button"
       testID={uiTestIds.operationsConvoyCard(row.id)}
-      style={styles.routeCard}
+      style={({ pressed }) => [
+        styles.routeCard,
+        pressed ? styles.routeCardPressed : null,
+      ]}
+      onPress={onPress}
     >
       <View style={styles.routeHeader}>
         <Text numberOfLines={2} style={styles.routeTitle}>{row.title}</Text>
@@ -1842,6 +2155,180 @@ function OperationsConvoyCard({ row }: { row: OperationsConvoyRow }) {
           </Text>
         ))}
       </View>
+      <Text style={styles.openDetailText}>View convoy details  ›</Text>
+    </Pressable>
+  );
+}
+
+function OperationsConvoyDetail({
+  detailLoadingId,
+  headingRef,
+  interactionLocked,
+  onBack,
+  onSelectRoute,
+  row,
+}: {
+  detailLoadingId: string | null;
+  headingRef: (node: Text | null) => void;
+  interactionLocked: boolean;
+  onBack: () => void;
+  onSelectRoute: (routeId: string | null, title: string, index: number) => void;
+  row: OperationsConvoyRow;
+}) {
+  return (
+    <View
+      testID={uiTestIds.operationsConvoyDetail}
+      style={styles.convoyDetail}
+    >
+      <Pressable
+        accessibilityLabel="Return to convoys"
+        accessibilityRole="button"
+        testID={uiTestIds.operationsConvoyDetailBack}
+        style={({ pressed }) => [
+          styles.convoyDetailBack,
+          pressed ? styles.routeCardPressed : null,
+        ]}
+        onPress={onBack}
+      >
+        <Text style={styles.convoyDetailBackText}>‹ Convoys</Text>
+      </Pressable>
+
+      <View style={styles.convoyDetailHeader}>
+        <Text
+          accessible
+          accessibilityLabel={`${row.title} convoy details`}
+          accessibilityRole="header"
+          ref={headingRef}
+          style={styles.convoyDetailTitle}
+        >
+          {row.title}
+        </Text>
+        <View style={styles.badge}>
+          <Text style={styles.badgeText}>{row.statusLabel}</Text>
+        </View>
+      </View>
+      <Text style={styles.convoyDetailMeta}>{row.scheduleLabel}</Text>
+      <Text style={styles.convoyDetailMeta}>{row.endpointLabel}</Text>
+      <Text style={styles.convoyDetailMeta}>{row.durationLabel}</Text>
+      <Text style={styles.convoyDetailMeta}>{row.metaLabel}</Text>
+
+      {row.manifestAvailable ? (
+        <>
+          <OperationsDetailSection
+            emptyLabel="No lead vehicle assigned"
+            labels={[row.leadVehicleLabel]}
+            title="Lead vehicle"
+          />
+          <OperationsDetailSection
+            emptyLabel="No vehicles assigned"
+            labels={row.vehicleLabels}
+            title="Vehicles"
+          />
+          <OperationsDetailSection
+            emptyLabel="No people assigned"
+            labels={row.peopleLabels}
+            title="People"
+          />
+        </>
+      ) : (
+        <OperationsDetailSection
+          emptyLabel="Manifest unavailable. Refresh or reconnect to load assigned people and vehicles."
+          labels={[]}
+          title="Manifest"
+        />
+      )}
+
+      <View style={styles.convoyDetailSection}>
+        <Text style={styles.convoyDetailSectionTitle}>Routes</Text>
+        {row.routeOptions.length ? row.routeOptions.map((option, index) => {
+          const optionId = `${option.routeId || "unavailable"}-${index}`;
+          const selectionId = `${row.id}-${optionId}`;
+          const loading = detailLoadingId === selectionId;
+          const disabled = interactionLocked || !option.routeId;
+          return (
+            <Pressable
+              key={selectionId}
+              accessibilityHint={
+                option.routeId
+                  ? "Opens this route on the map with risk information and route details."
+                  : "This route reference is not currently available on the map."
+              }
+              accessibilityLabel={
+                option.routeId
+                  ? `${option.title}. ${option.statusLabel}. ${option.scheduleLabel}. ${option.durationLabel}. ${option.manifestLabel}. View on map.`
+                  : `${option.title}. ${option.statusLabel}. ${option.scheduleLabel}. ${option.durationLabel}. ${option.manifestLabel}. Route map unavailable.`
+              }
+              accessibilityRole="button"
+              accessibilityState={{ busy: loading, disabled }}
+              disabled={disabled}
+              testID={uiTestIds.operationsConvoyRoute(optionId)}
+              style={({ pressed }) => [
+                styles.convoyRouteAction,
+                pressed ? styles.routeCardPressed : null,
+              ]}
+              onPress={() => onSelectRoute(option.routeId, option.title, index)}
+            >
+              <View style={styles.convoyRouteActionCopy}>
+                <Text numberOfLines={2} style={styles.convoyRouteActionText}>
+                  {option.title}
+                </Text>
+                <Text style={styles.convoyRouteActionMeta}>
+                  {option.statusLabel} · {option.scheduleLabel} · {option.durationLabel}
+                </Text>
+                <Text style={styles.convoyRouteActionManifest}>
+                  {option.manifestLabel}
+                </Text>
+                {option.vehicleLabels.map((label, labelIndex) => (
+                  <Text
+                    key={`vehicle-${label}-${labelIndex}`}
+                    style={styles.convoyRouteActionManifest}
+                  >
+                    {label}
+                  </Text>
+                ))}
+                {option.peopleLabels.map((label, labelIndex) => (
+                  <Text
+                    key={`person-${label}-${labelIndex}`}
+                    style={styles.convoyRouteActionManifest}
+                  >
+                    {label}
+                  </Text>
+                ))}
+              </View>
+              {loading ? (
+                <ActivityIndicator color={colors.appleBlue} size="small" />
+              ) : (
+                <Text style={styles.convoyRouteActionLabel}>
+                  {option.routeId ? "View map  ›" : "Unavailable"}
+                </Text>
+              )}
+            </Pressable>
+          );
+        }) : (
+          <Text style={styles.convoyDetailEmpty}>No routes assigned.</Text>
+        )}
+      </View>
+    </View>
+  );
+}
+
+function OperationsDetailSection({
+  emptyLabel,
+  labels,
+  title,
+}: {
+  emptyLabel: string;
+  labels: string[];
+  title: string;
+}) {
+  return (
+    <View style={styles.convoyDetailSection}>
+      <Text style={styles.convoyDetailSectionTitle}>{title}</Text>
+      {(labels.length ? labels : [emptyLabel]).map((label, index) => (
+        <Text key={`${label}-${index}`} style={styles.convoyDetailValue}>
+          {label}
+        </Text>
+      ))}
     </View>
   );
 }

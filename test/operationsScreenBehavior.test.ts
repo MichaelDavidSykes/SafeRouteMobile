@@ -101,7 +101,7 @@ describe("operations screen behavior", () => {
     const text = screenSource();
     const expiryCalls = text.match(/instanceof ApiSessionExpiredError\)[\s\S]{0,100}onSessionExpired/g) || [];
 
-    assert.equal(expiryCalls.length, 1);
+    assert.equal(expiryCalls.length, 2);
     assert.match(text, /error instanceof ApiSessionExpiredError/);
     assert.match(text, /createOperationsSyncWarningState\(/);
     assert.match(loaderSource(), /error instanceof ApiSessionExpiredError[\s\S]*throw error/);
@@ -122,15 +122,61 @@ describe("operations screen behavior", () => {
     );
   });
 
-  it("keeps Operations view-only while exposing stable cards and tabs", () => {
+  it("keeps Operations read-only while making route and convoy review interactive", () => {
     const text = screenSource();
 
     assert.match(text, /accessibilityRole="tab"/);
     assert.match(text, /testID=\{uiTestIds\.operationsScreen\}/);
     assert.match(text, /testID=\{uiTestIds\.operationsRouteCard\(row\.id\)\}/);
     assert.match(text, /testID=\{uiTestIds\.operationsConvoyCard\(row\.id\)\}/);
+    assert.match(text, /function OperationsRouteCard[\s\S]*accessibilityRole="button"[\s\S]*onPress=\{onPress\}/);
+    assert.match(text, /function OperationsConvoyCard[\s\S]*accessibilityRole="button"[\s\S]*onPress=\{onPress\}/);
+    assert.match(text, /testID=\{uiTestIds\.operationsConvoyDetail\}/);
+    assert.match(text, /testID=\{uiTestIds\.operationsConvoyRoute/);
     assert.match(text, /SafeRoute · View only/);
     assert.doesNotMatch(text, /onEdit|Edit route|Save changes|Delete route|Create convoy|saveSelected|upsert|deleteTrip/);
+  });
+
+  it("loads canonical owned route detail before opening the shared live map", () => {
+    const text = screenSource();
+    const detailBlock =
+      /const handleSelectOperationsRoute = async \([\s\S]*?\n  \};/.exec(text)?.[0] || "";
+
+    assert.match(detailBlock, /fetchRouteDetail\(accessToken, row\.routeId\)/);
+    assert.match(detailBlock, /routeDetail\.clientId !== requestWorkspaceId/);
+    assert.match(detailBlock, /hasUsableRoutePlan\(routeDetail\)/);
+    assert.match(detailBlock, /activeWorkspaceIdRef\.current === requestWorkspaceId/);
+    assert.match(detailBlock, /activeTabRef\.current === requestTab/);
+    assert.match(detailBlock, /detailLoadingIdRef\.current/);
+    assert.match(
+      detailBlock,
+      /onSelectRoute\(routeDetail, requestTab, row\.convoyId \|\| null\)/,
+    );
+    assert.match(detailBlock, /isWorkspaceForbiddenError\(error\)/);
+    assert.match(detailBlock, /onWorkspaceUnavailable\(requestWorkspaceId\)/);
+    assert.match(detailBlock, /Route map unavailable offline/);
+    assert.doesNotMatch(detailBlock, /onSelectRoute\(localRoute/);
+    assert.match(
+      text,
+      /useEffect\(\(\) => \{[\s\S]*detailLoadingIdRef\.current = null;[\s\S]*setDetailLoadingId\(null\);[\s\S]*\}, \[protectedRequestsAvailable\]\)/,
+    );
+    assert.match(
+      text,
+      /disabled=\{interactionLocked \|\| !row\.routeId\}/,
+    );
+    assert.match(
+      text,
+      /disabled=\{disabled\}[\s\S]*operationsConvoyRoute\(optionId\)/,
+    );
+    assert.match(
+      text,
+      /onBack=\{\(\) => \{[\s\S]*detailRevisionRef\.current \+= 1;[\s\S]*setSelectedConvoyId\(null\)/,
+    );
+    assert.match(text, /row\.manifestAvailable \? \(/);
+    assert.match(text, /Manifest unavailable\. Refresh or reconnect/);
+    assert.match(text, /operationsListRef\.current\?\.scrollTo\(\{ animated: false, y: 0 \}\)/);
+    assert.match(text, /AccessibilityInfo\.setAccessibilityFocus\(headingNode\)/);
+    assert.match(text, /accessibilityRole="header"/);
   });
 
   it("keeps workspace-list age separate from the secure saved calendar", () => {
@@ -383,6 +429,12 @@ describe("operations screen behavior", () => {
     assert.match(
       source,
       /testID=\{uiTestIds\.operationsCalendarSavingControl\}/,
+    );
+    assert.match(source, /showCompactOfflineSavingControl/);
+    assert.match(source, />\s*Offline options\s*</);
+    assert.match(
+      source,
+      /showCompactOfflineSavingControl \? \([\s\S]*operationsCalendarSavingControl[\s\S]*\) : \([\s\S]*offlineSavingControl/,
     );
     assert.match(
       source,

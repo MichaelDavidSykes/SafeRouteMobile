@@ -269,6 +269,21 @@ export const operationsStyles = StyleSheet.create({
     borderRadius: radius.lg,
     backgroundColor: colors.surfaceGlass,
   },
+  offlineSavingCompactAction: {
+    alignSelf: "flex-end",
+    minHeight: controlSizes.compact,
+    alignItems: "center",
+    justifyContent: "center",
+    marginBottom: spacing.xs,
+    paddingHorizontal: spacing.sm,
+    borderRadius: radius.pill,
+    backgroundColor: "transparent",
+  },
+  offlineSavingCompactActionText: {
+    color: colors.muted,
+    fontSize: typeScale.xs,
+    fontWeight: "800",
+  },
   offlineSavingCopy: {
     flex: 1,
     minWidth: 0,
@@ -479,10 +494,15 @@ export const operationsStyles = StyleSheet.create({
     paddingBottom: spacing.xl
   },
   routeCard: {
+    minHeight: controlSizes.secondary,
     paddingHorizontal: spacing.xs,
     paddingVertical: spacing.md,
     borderBottomWidth: StyleSheet.hairlineWidth,
     borderBottomColor: colors.borderSoft
+  },
+  routeCardPressed: {
+    backgroundColor: colors.surfaceGlass,
+    transform: [{ scale: 0.995 }],
   },
   routeHeader: {
     flexDirection: "row",
@@ -538,6 +558,105 @@ export const operationsStyles = StyleSheet.create({
     fontSize: typeScale.xs,
     fontWeight: "700",
     lineHeight: 16
+  },
+  openDetailText: {
+    marginTop: spacing.sm,
+    color: colors.appleBlue,
+    fontSize: typeScale.xs,
+    fontWeight: "900",
+  },
+  convoyDetail: {
+    gap: spacing.sm,
+    paddingBottom: spacing.lg,
+  },
+  convoyDetailBack: {
+    alignSelf: "flex-start",
+    minHeight: controlSizes.compact,
+    justifyContent: "center",
+    paddingHorizontal: spacing.xs,
+    borderRadius: radius.pill,
+  },
+  convoyDetailBackText: {
+    color: colors.appleBlue,
+    fontSize: typeScale.sm,
+    fontWeight: "900",
+  },
+  convoyDetailHeader: {
+    flexDirection: "row",
+    alignItems: "flex-start",
+    gap: spacing.sm,
+  },
+  convoyDetailTitle: {
+    flex: 1,
+    color: colors.ink,
+    fontSize: 24,
+    fontWeight: "900",
+    lineHeight: 28,
+  },
+  convoyDetailMeta: {
+    color: colors.muted,
+    fontSize: typeScale.sm,
+    fontWeight: "700",
+    lineHeight: 18,
+  },
+  convoyDetailSection: {
+    gap: spacing.xs,
+    paddingTop: spacing.sm,
+    borderTopWidth: StyleSheet.hairlineWidth,
+    borderTopColor: colors.borderSoft,
+  },
+  convoyDetailSectionTitle: {
+    color: colors.ink,
+    fontSize: typeScale.sm,
+    fontWeight: "900",
+  },
+  convoyDetailValue: {
+    color: colors.inkSoft,
+    fontSize: typeScale.sm,
+    fontWeight: "700",
+    lineHeight: 19,
+  },
+  convoyDetailEmpty: {
+    color: colors.muted,
+    fontSize: typeScale.sm,
+    fontWeight: "600",
+  },
+  convoyRouteAction: {
+    minHeight: controlSizes.secondary,
+    flexDirection: "row",
+    alignItems: "center",
+    gap: spacing.sm,
+    paddingHorizontal: spacing.sm,
+    paddingVertical: spacing.xs,
+    borderRadius: radius.lg,
+    backgroundColor: colors.surfaceGlass,
+  },
+  convoyRouteActionText: {
+    color: colors.ink,
+    fontSize: typeScale.sm,
+    fontWeight: "800",
+  },
+  convoyRouteActionCopy: {
+    flex: 1,
+    minWidth: 0,
+    gap: 2,
+  },
+  convoyRouteActionMeta: {
+    color: colors.inkSoft,
+    fontSize: typeScale.xs,
+    fontWeight: "700",
+    lineHeight: 16,
+  },
+  convoyRouteActionManifest: {
+    color: colors.muted,
+    fontSize: typeScale.xs,
+    fontWeight: "600",
+    lineHeight: 16,
+  },
+  convoyRouteActionLabel: {
+    color: colors.appleBlue,
+    fontSize: typeScale.xs,
+    fontWeight: "900",
   },
   emptyState: {
     alignSelf: "center",

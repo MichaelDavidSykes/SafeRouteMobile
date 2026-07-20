@@ -2,6 +2,7 @@ appId: host.exp.Exponent
 ---
 - tapOn:
     id: "guest-map-destination-input"
+- eraseText: 100
 - inputText: "51.5053, 0.0553"
 - extendedWaitUntil:
     visible:
@@ -15,9 +16,65 @@ appId: host.exp.Exponent
     visible:
       id: "guest-map-route-preview"
     timeout: 30000
+- extendedWaitUntil:
+    visible:
+      id: "safe-route-risk-zone-contract-road-suitability"
+    timeout: 10000
+- assertVisible:
+    id: "safe-route-risk-zone-contract-traffic"
+- assertVisible:
+    id: "safe-route-risk-zone-contract-blockage"
+- assertVisible:
+    id: "safe-route-risk-zone-contract-elevated-structure"
+- assertVisible:
+    id: "safe-route-risk-zone-contract-building-exposure"
+- assertVisible:
+    id: "safe-route-risk-zone-contract-elevation"
+- assertVisible:
+    id: "safe-route-risk-zone-contract-junction"
+- assertVisible:
+    id: "safe-route-risk-zone-contract-intersection"
+- assertVisible:
+    id: "safe-route-risk-zone-contract-support-coverage"
+- assertVisible:
+    id: "safe-route-risk-zone-contract-straight-corridor"
+- tapOn:
+    id: "safe-route-risk-zone-contract-road-suitability"
+- extendedWaitUntil:
+    visible:
+      id: "safe-route-risk-detail"
+    timeout: 5000
+- assertVisible: ".*Narrow road warning.*"
+- assertVisible: ".*Road Suitability.*"
+- tapOn:
+    id: "safe-route-risk-detail-dismiss"
+- assertNotVisible:
+    id: "safe-route-risk-detail"
+- tapOn:
+    id: "guest-map-collapsed-sheet"
 - tapOn:
     id: "guest-map-plot-action"
 - extendedWaitUntil:
     visible:
       id: "safe-route-live-map"
     timeout: 15000
+- assertVisible:
+    id: "safe-route-risk-zone-contract-road-suitability"
+- assertVisible:
+    id: "safe-route-risk-zone-contract-traffic"
+- assertVisible:
+    id: "safe-route-risk-zone-contract-blockage"
+- assertVisible:
+    id: "safe-route-risk-zone-contract-elevated-structure"
+- assertVisible:
+    id: "safe-route-risk-zone-contract-building-exposure"
+- assertVisible:
+    id: "safe-route-risk-zone-contract-elevation"
+- assertVisible:
+    id: "safe-route-risk-zone-contract-junction"
+- assertVisible:
+    id: "safe-route-risk-zone-contract-intersection"
+- assertVisible:
+    id: "safe-route-risk-zone-contract-support-coverage"
+- assertVisible:
+    id: "safe-route-risk-zone-contract-straight-corridor"

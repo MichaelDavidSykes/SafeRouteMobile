@@ -156,6 +156,19 @@ describe('guest map interaction contract', () => {
     assert.match(screen, /accessibilityLiveRegion="polite"/);
   });
 
+  it('renders route-preview alerts together with viewport risk intelligence', () => {
+    assert.match(
+      screen,
+      /const visibleRiskZones = useMemo\([\s\S]*mergeRiskZonesById\([\s\S]*viewportRisk\.zones[\s\S]*routePlan\?\.riskZones \|\| \[\]/,
+    );
+    assert.match(screen, /visibleRiskZones\.map\(\(zone\) => \(/);
+    assert.match(screen, /routeCoordinates=\{routePlan\?\.route\.coordinates\}/);
+    assert.match(
+      screen,
+      /selectedRiskZone &&[\s\S]*!visibleRiskZones\.some\(\(zone\) => zone\.id === selectedRiskZone\.id\)/,
+    );
+  });
+
   it('turns the collapsed card into a one-tap next-stop search', () => {
     assert.match(screen, /accessibilityLabel="Search for the next stop"/);
     assert.match(screen, />\s*Search for a location\s*</);

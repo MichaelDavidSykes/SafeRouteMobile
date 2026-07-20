@@ -990,6 +990,9 @@ export function createGuidanceContractHandler({
       const routeCoordinates = interpolateCoordinates(
         coordinates.length >= 2 ? coordinates : ROUTE_COORDINATES
       );
+      const routeAlerts = body?.include_route_alerts === true
+        ? createGuidanceContractRouteAlerts(routeCoordinates)
+        : [];
       sendApiSuccess(response, {
         data: {
           avoid_area_count: Array.isArray(body?.avoid_rectangles)
@@ -999,6 +1002,9 @@ export function createGuidanceContractHandler({
           distance_meters: 13500,
           duration_seconds: 1440,
           provider: 'osrm',
+          route_alert_count: routeAlerts.length,
+          route_alert_status: routeAlerts.length ? 'ready' : 'not-requested',
+          route_alerts: routeAlerts,
           snapped: true
         },
         message: 'SafeRoute preview created.'
@@ -3144,6 +3150,145 @@ function interpolateCoordinates(coordinates) {
   }
   interpolated.push(coordinates.at(-1));
   return interpolated;
+}
+
+function createGuidanceContractRouteAlerts(routeCoordinates) {
+  if (!Array.isArray(routeCoordinates) || routeCoordinates.length < 2) {
+    return [];
+  }
+  const first = routeCoordinates[0];
+  const pointAt = (ratio) => routeCoordinates[Math.min(
+    routeCoordinates.length - 1,
+    Math.max(0, Math.round((routeCoordinates.length - 1) * ratio))
+  )];
+  const firstQuarter = pointAt(0.2);
+  const trafficPoint = pointAt(0.3);
+  const blockagePoint = pointAt(0.4);
+  const midpoint = pointAt(0.5);
+  const buildingPoint = pointAt(0.6);
+  const elevationPoint = pointAt(0.7);
+  const junctionPoint = pointAt(0.78);
+  const intersectionPoint = pointAt(0.84);
+  const supportPoint = pointAt(0.9);
+  const thirdQuarter = pointAt(0.95);
+  const last = routeCoordinates.at(-1);
+  const structure = {
+    latitude: Number((midpoint.latitude + 0.0012).toFixed(6)),
+    longitude: Number((midpoint.longitude + 0.0012).toFixed(6))
+  };
+  return [
+    {
+      id: 'contract-road-suitability',
+      title: 'Narrow road warning',
+      description: 'Road width and access require additional caution.',
+      severity: 'high',
+      category: 'road-suitability',
+      shape: 'route-alert',
+      coordinate: firstQuarter,
+      route_segment_coordinates: [first, firstQuarter],
+      radius_meters: 175
+    },
+    {
+      id: 'contract-traffic',
+      title: 'Heavy traffic ahead',
+      description: 'Live traffic is moving below normal speed.',
+      severity: 'medium',
+      category: 'traffic',
+      shape: 'route-alert',
+      coordinate: trafficPoint,
+      route_segment_coordinates: [firstQuarter, trafficPoint],
+      radius_meters: 250
+    },
+    {
+      id: 'contract-blockage',
+      title: 'Road closure ahead',
+      description: 'A live blockage affects this route section.',
+      severity: 'high',
+      category: 'blockage-exposure',
+      shape: 'route-alert',
+      coordinate: blockagePoint,
+      route_segment_coordinates: [trafficPoint, blockagePoint],
+      radius_meters: 250
+    },
+    {
+      id: 'contract-elevated-structure',
+      title: 'Elevated building sightline',
+      description: 'An elevated structure has a potential sightline to this route.',
+      severity: 'high',
+      category: 'elevated-structure',
+      shape: 'sightline',
+      coordinate: structure,
+      connector_coordinates: [structure, midpoint],
+      route_segment_coordinates: [blockagePoint, midpoint],
+      radius_meters: 500
+    },
+    {
+      id: 'contract-building-exposure',
+      title: 'Building exposure candidate',
+      description: 'A building near the corridor warrants route review.',
+      severity: 'medium',
+      category: 'building-exposure',
+      shape: 'route-alert',
+      coordinate: buildingPoint,
+      route_segment_coordinates: [midpoint, buildingPoint],
+      radius_meters: 500
+    },
+    {
+      id: 'contract-elevation',
+      title: 'Steep climb ahead',
+      description: 'A significant route elevation change begins ahead.',
+      severity: 'medium',
+      category: 'elevation-profile',
+      shape: 'route-alert',
+      coordinate: elevationPoint,
+      route_segment_coordinates: [buildingPoint, elevationPoint],
+      radius_meters: 150
+    },
+    {
+      id: 'contract-junction',
+      title: 'Complex junction ahead',
+      description: 'Review lanes and approach speed before the junction.',
+      severity: 'medium',
+      category: 'junction-pressure',
+      shape: 'route-alert',
+      coordinate: junctionPoint,
+      route_segment_coordinates: [elevationPoint, junctionPoint],
+      radius_meters: 120
+    },
+    {
+      id: 'contract-intersection',
+      title: 'Complex intersection ahead',
+      description: 'Review lanes and approach speed before the intersection.',
+      severity: 'medium',
+      category: 'intersection-risk',
+      shape: 'route-alert',
+      coordinate: intersectionPoint,
+      route_segment_coordinates: [junctionPoint, intersectionPoint],
+      radius_meters: 120
+    },
+    {
+      id: 'contract-support-coverage',
+      title: 'Limited support coverage',
+      description: 'Emergency support is farther away along this route section.',
+      severity: 'high',
+      category: 'support-coverage',
+      shape: 'route-alert',
+      coordinate: supportPoint,
+      route_segment_coordinates: [intersectionPoint, supportPoint],
+      radius_meters: 4500
+    },
+    {
+      id: 'contract-straight-corridor',
+      title: 'Long visibility corridor',
+      description: 'Extended forward visibility warrants spacing and timing review.',
+      severity: 'medium',
+      category: 'straight-corridor',
+      shape: 'route-alert',
+      coordinate: thirdQuarter,
+      route_segment_coordinates: [supportPoint, last],
+      radius_meters: 250
+    }
+  ];
 }
 
 export function assertConnectivityContractReconnectAuthorization(entries, {

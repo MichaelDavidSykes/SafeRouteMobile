@@ -98,7 +98,12 @@ describe('live reroute plan integration', () => {
       distanceMeters: 5200,
       durationSeconds: 780,
       provider: 'osrm' as const,
-      snapped: true
+      snapped: true,
+      routeAlerts: [riskZone(
+        'reroute-alert',
+        { latitude: -33.975, longitude: 18.56 },
+        175
+      )]
     };
     const next = applyLiveReroutePreview({
       currentCoordinate: current,
@@ -118,6 +123,7 @@ describe('live reroute plan integration', () => {
     assert.equal(next.checkpoints[0].kind, 'origin');
     assert.equal(next.checkpoints.at(-1)?.kind, 'destination');
     assert.equal(next.clientId, 'client-1');
+    assert.deepEqual(next.riskZones.map(({ id }) => id), ['live-risk', 'reroute-alert']);
   });
 });
 

@@ -385,6 +385,13 @@ export function GuestMapScreen({
       : undefined,
     region: mapRegion
   });
+  const visibleRiskZones = useMemo(
+    () => mergeRiskZonesById(
+      viewportRisk.zones,
+      routePlan?.riskZones || []
+    ),
+    [routePlan?.riskZones, viewportRisk.zones]
+  );
   routingClientIdRef.current = routingClientId;
   onSessionExpiredRef.current = onSessionExpired;
   onWorkspaceUnavailableRef.current = onWorkspaceUnavailable;
@@ -483,11 +490,11 @@ export function GuestMapScreen({
   useEffect(() => {
     if (
       selectedRiskZone &&
-      !viewportRisk.zones.some((zone) => zone.id === selectedRiskZone.id)
+      !visibleRiskZones.some((zone) => zone.id === selectedRiskZone.id)
     ) {
       setSelectedRiskZone(null);
     }
-  }, [selectedRiskZone, viewportRisk.zones]);
+  }, [selectedRiskZone, visibleRiskZones]);
 
   useEffect(() => {
     if (!mapReady) {
@@ -1014,6 +1021,11 @@ export function GuestMapScreen({
           }
         }
 
+        finalRiskZones = mergeRiskZonesById(
+          finalRiskZones,
+          finalRoadPreview.routeAlerts || []
+        );
+
         if (
           controller.signal.aborted ||
           roadRouteRequestIdRef.current !== requestId ||
@@ -1467,9 +1479,10 @@ export function GuestMapScreen({
         }}
         onRegionChangeComplete={handleMapRegionChangeComplete}
       >
-        {viewportRisk.zones.map((zone) => (
+        {visibleRiskZones.map((zone) => (
           <RiskOverlay
             key={zone.id}
+            routeCoordinates={routePlan?.route.coordinates}
             selected={selectedRiskZone?.id === zone.id}
             zone={zone}
             onPress={handleSelectRiskZone}

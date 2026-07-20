@@ -1,7 +1,7 @@
 import type { LatLng, Region } from 'react-native-maps';
 
 import type { GuestRoadRoutePreview, GuestRouteAvoidRectangle } from '../guest-map/guestRoadRouteProvider';
-import { deriveRiskZoneAvoidRectangles } from './areaRiskApiCore';
+import { deriveRiskZoneAvoidRectangles, mergeRiskZonesById } from './areaRiskApiCore';
 import type { RiskZone, RouteCheckpoint, SavedSafeRoutePlan } from './liveMapTypes';
 import { extractRemainingCheckpoints } from './liveRerouteState';
 import { calculateRiskZoneRouteProximity } from './routeRisk';
@@ -138,7 +138,7 @@ export function applyLiveReroutePreview({
     updatedAtLabel: 'Updated now',
     region: regionForCoordinates(preview.coordinates, routePlan.region),
     checkpoints,
-    riskZones,
+    riskZones: mergeRiskZonesById(riskZones, preview.routeAlerts || []),
     route: {
       ...routePlan.route,
       id: routeId,

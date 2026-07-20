@@ -1,7 +1,7 @@
 import type { LatLng } from 'react-native-maps';
 
 import { haversineDistanceMeters } from '../live-map/routeGeometry';
-import type { RouteNavigationStep } from '../live-map/liveMapTypes';
+import type { RiskZone, RouteNavigationStep } from '../live-map/liveMapTypes';
 
 export type GuestRoadRouteProvider = 'osrm' | 'tomtom';
 
@@ -12,6 +12,7 @@ export type GuestRoadRoutePreview = {
   provider: GuestRoadRouteProvider;
   snapped: boolean;
   guidanceSteps?: RouteNavigationStep[];
+  routeAlerts?: RiskZone[];
 };
 
 export type GuestRoadRoutePreviewOptions = {
@@ -148,7 +149,8 @@ function normalizeOsrmRouteCandidate(
     distanceMeters: normalizePositiveNumber(route.distance),
     durationSeconds: normalizePositiveNumber(route.duration),
     provider: 'osrm',
-    snapped: true
+    snapped: true,
+    routeAlerts: []
   };
 }
 

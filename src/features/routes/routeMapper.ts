@@ -382,7 +382,11 @@ function mapRiskOverlays(dto: MobileSafeRouteDto): RiskZone[] {
     ...toArray<MobileRiskOverlayDto>(dto.alerts),
     ...toArray<MobileRiskOverlayDto>(dto.risk_overlays)
   ];
-  const mapped = overlays
+  return mapMobileRiskOverlays(overlays);
+}
+
+export function mapMobileRiskOverlays(value: unknown): RiskZone[] {
+  const mapped = toArray<MobileRiskOverlayDto>(value)
     .map(mapRiskOverlay)
     .filter((zone): zone is RiskZone => Boolean(zone));
   const zonesById = new Map<string, RiskZone>();

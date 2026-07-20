@@ -69,6 +69,34 @@ describe('Maestro cold guidance contract matrix', () => {
     }
   });
 
+  it('renders and opens every public route-alert family before guidance', () => {
+    const publicPreparation = read(
+      'maestro/ios-guidance-contract-public-prepare.yaml'
+    );
+
+    for (const alertId of [
+      'contract-road-suitability',
+      'contract-traffic',
+      'contract-blockage',
+      'contract-elevated-structure',
+      'contract-building-exposure',
+      'contract-elevation',
+      'contract-junction',
+      'contract-intersection',
+      'contract-support-coverage',
+      'contract-straight-corridor',
+    ]) {
+      assert.match(
+        publicPreparation,
+        new RegExp(`safe-route-risk-zone-${alertId}`),
+      );
+    }
+    assert.match(publicPreparation, /id: "safe-route-risk-detail"/);
+    assert.match(publicPreparation, /Narrow road warning/);
+    assert.match(publicPreparation, /Road Suitability/);
+    assert.match(publicPreparation, /id: "safe-route-risk-detail-dismiss"/);
+  });
+
   it('runs public, offline workspace, wrong-principal, denial, and regain phases', () => {
     const runner = read('scripts/run-maestro-guidance-contract.mjs');
 

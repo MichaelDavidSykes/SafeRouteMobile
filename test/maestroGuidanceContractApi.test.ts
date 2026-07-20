@@ -51,6 +51,61 @@ import {
 } from '../scripts/maestro-guidance-contract-api.mjs';
 
 describe('Maestro guidance contract API', () => {
+  it('returns every mobile route-alert family only when route alerts are requested', async () => {
+    const server = await startGuidanceContractApi({
+      port: 0,
+      readControl: () => ({
+        connectivity: CONNECTIVITY_CONTRACT_STATUSES.online,
+        connectivitySequence: 1,
+        mode: GUIDANCE_CONTRACT_MODES.active,
+        phase: 'routeAlertContract',
+        sourceRevision: 'a'.repeat(40),
+      }),
+    });
+    const address = server.address();
+    assert.ok(address && typeof address === 'object');
+    const endpoint = `http://127.0.0.1:${address.port}/api/v1/mobile/safe-route/route-preview`;
+    const request = (includeRouteAlerts: boolean) => fetch(endpoint, {
+      body: JSON.stringify({
+        include_road_metadata: includeRouteAlerts,
+        include_route_alerts: includeRouteAlerts,
+        waypoints: [
+          { lat: 51.5074, lon: -0.1278 },
+          { lat: 51.5053, lon: 0.0553 },
+        ],
+      }),
+      headers: { 'Content-Type': 'application/json' },
+      method: 'POST',
+    });
+
+    try {
+      const omittedBody = await (await request(false)).json();
+      assert.deepEqual(omittedBody.data.route_alerts, []);
+
+      const response = await request(true);
+      assert.equal(response.status, 200);
+      const body = await response.json();
+      assert.equal(body.data.route_alert_count, 10);
+      assert.deepEqual(
+        body.data.route_alerts.map((alert: { category: string }) => alert.category),
+        [
+          'road-suitability',
+          'traffic',
+          'blockage-exposure',
+          'elevated-structure',
+          'building-exposure',
+          'elevation-profile',
+          'junction-pressure',
+          'intersection-risk',
+          'support-coverage',
+          'straight-corridor',
+        ],
+      );
+    } finally {
+      await new Promise<void>((resolve) => server.close(() => resolve()));
+    }
+  });
+
   it('serves distinct backend-shaped Operations calendar fixtures per workspace', () => {
     const fixtureNowMs = new Date('2030-01-01T08:00:00.000Z').getTime();
     const guidance = createGuidanceContractOperations('denied', fixtureNowMs);

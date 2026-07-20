@@ -2,6 +2,7 @@ import type { LatLng } from 'react-native-maps';
 
 import { haversineDistanceMeters } from '../live-map/routeGeometry';
 import { normalizeRouteNavigationSteps } from '../live-map/routeGuidance';
+import { mapMobileRiskOverlays } from '../routes/routeMapper';
 import {
   type GuestRoadRoutePreview,
   type GuestRouteAvoidRectangle
@@ -16,6 +17,8 @@ type SafeRouteRoutePreviewPayload = {
     min_lon: number;
   }>;
   client_id: string;
+  include_road_metadata: true;
+  include_route_alerts: true;
   waypoints: Array<{
     elevation_m: null;
     lat: number;
@@ -65,6 +68,8 @@ export function buildSafeRoutePreviewPayload({
 }): SafeRouteRoutePreviewPayload {
   const payload: SafeRouteRoutePreviewPayload = {
     client_id: clientId.trim(),
+    include_road_metadata: true,
+    include_route_alerts: true,
     waypoints: stops.map((stop) => ({
       elevation_m: null,
       lat: Number(stop.latitude.toFixed(6)),
@@ -138,6 +143,9 @@ export function normalizeSafeRoutePreviewResponse(
     snapped: true,
     guidanceSteps: normalizeRouteNavigationSteps(
       record.guidance_steps ?? record.guidanceSteps
+    ),
+    routeAlerts: mapMobileRiskOverlays(
+      record.route_alerts ?? record.routeAlerts
     )
   };
 }

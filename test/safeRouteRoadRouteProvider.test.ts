@@ -44,6 +44,8 @@ describe('SafeRoute road route provider', () => {
       }]
     }), {
       client_id: 'tenant-1',
+      include_road_metadata: true,
+      include_route_alerts: true,
       waypoints: [
         { lat: -33.9249, lon: 18.4241, elevation_m: null },
         { lat: -33.9696, lon: 18.5972, elevation_m: null }
@@ -76,6 +78,34 @@ describe('SafeRoute road route provider', () => {
         duration_seconds: 90,
         coordinate: { lat: -33.94, lon: 18.5 }
       }],
+      route_alerts: [
+        {
+          id: 'road-alert-1',
+          title: 'Narrow road warning',
+          description: 'Width restriction reported.',
+          severity: 'high',
+          category: 'road-suitability',
+          shape: 'route-alert',
+          coordinate: { lat: -33.94, lon: 18.5 },
+          route_segment_coordinates: [
+            { lat: -33.9249, lon: 18.4241 },
+            { lat: -33.94, lon: 18.5 }
+          ],
+          radius_meters: 175
+        },
+        {
+          id: 'structure-alert-1',
+          title: 'Elevated building sightline',
+          severity: 'medium',
+          category: 'structure-exposure',
+          shape: 'sightline',
+          coordinate: { lat: -33.941, lon: 18.501 },
+          connector_coordinates: [
+            { lat: -33.941, lon: 18.501 },
+            { lat: -33.94, lon: 18.5 }
+          ]
+        }
+      ],
       coordinates: [
         { lat: -33.9249, lon: 18.4241 },
         { lat: -33.94, lon: 18.5 },
@@ -90,6 +120,11 @@ describe('SafeRoute road route provider', () => {
     assert.deepEqual(result?.coordinates.at(-1), stops.at(-1));
     assert.equal(result?.guidanceSteps?.[0].instruction, 'Turn right onto Airport Approach');
     assert.equal(result?.guidanceSteps?.[0].distanceAlongMeters, 1200);
+    assert.equal(result?.routeAlerts?.length, 2);
+    assert.equal(result?.routeAlerts?.[0].category, 'Road Suitability');
+    assert.equal(result?.routeAlerts?.[0].routeSegmentCoordinates?.length, 2);
+    assert.equal(result?.routeAlerts?.[1].category, 'Structure Exposure');
+    assert.equal(result?.routeAlerts?.[1].connectorCoordinates?.length, 2);
   });
 
   it('rejects manual, unsnapped, endpoint-mismatched, and unconstrained responses', () => {

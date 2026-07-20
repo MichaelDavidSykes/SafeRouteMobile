@@ -88,6 +88,12 @@ export function RouteListFilters({
     workspaceAlternativeSelectionPending,
   ]);
 
+  useEffect(() => {
+    if (!workspaceAlternativeSelectionPending) {
+      setClientMenuOpen(false);
+    }
+  }, [workspaceAlternativeSelectionPending]);
+
   return (
     <>
       {showClientFilters ? (

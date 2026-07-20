@@ -6,6 +6,7 @@ import {
   canRequestWorkspaceHandoffTargetSelectionFault,
   recoverWorkspaceHandoffNavigationCleanupAfterOwnershipLoss,
   resolveDeferredWorkspaceRefreshAfterSelection,
+  resolveWorkspaceHandoffAlternativeRecovery,
   resolveWorkspaceHandoffContinuation,
   resolveWorkspaceHandoffRetarget,
   resolveWorkspaceHandoffRetargetOwnership,
@@ -96,6 +97,69 @@ function decideRetarget({
 }
 
 describe("workspace handoff continuation", () => {
+  it("returns a removed target to direct retry only after exact fresh access is restored", () => {
+    assert.equal(
+      resolveWorkspaceHandoffAlternativeRecovery({
+        continuationStatus: "ready",
+        ownershipStatus: "ready",
+        reason: "target-removed",
+        targetAuthorizationFresh: true,
+      }),
+      "restore-direct-retry",
+    );
+
+    for (const targetAuthorizationFresh of [false, true]) {
+      assert.equal(
+        resolveWorkspaceHandoffAlternativeRecovery({
+          continuationStatus: "ready",
+          ownershipStatus: "ready",
+          reason: "explicit-choice",
+          targetAuthorizationFresh,
+        }),
+        "retain-alternative",
+      );
+    }
+    assert.equal(
+      resolveWorkspaceHandoffAlternativeRecovery({
+        continuationStatus: "ready",
+        ownershipStatus: "ready",
+        reason: "target-removed",
+        targetAuthorizationFresh: false,
+      }),
+      "retain-alternative",
+    );
+    assert.equal(
+      resolveWorkspaceHandoffAlternativeRecovery({
+        continuationStatus: "stale",
+        ownershipStatus: "ready",
+        reason: "target-removed",
+        targetAuthorizationFresh: true,
+      }),
+      "retain-alternative",
+    );
+  });
+
+  it("defers restored-target recovery while busy and clears stale ownership first", () => {
+    assert.equal(
+      resolveWorkspaceHandoffAlternativeRecovery({
+        continuationStatus: "deferred",
+        ownershipStatus: "deferred",
+        reason: "target-removed",
+        targetAuthorizationFresh: true,
+      }),
+      "deferred",
+    );
+    assert.equal(
+      resolveWorkspaceHandoffAlternativeRecovery({
+        continuationStatus: "ready",
+        ownershipStatus: "stale",
+        reason: "target-removed",
+        targetAuthorizationFresh: true,
+      }),
+      "clear-stale",
+    );
+  });
+
   it("arms the navigation cleanup fault only for one exact current handoff", () => {
     const eligible = {
       evidenceSessionIsCurrent: true,

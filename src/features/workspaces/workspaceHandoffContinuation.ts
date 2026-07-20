@@ -54,10 +54,47 @@ export type WorkspaceHandoffTargetRemovalRecoveryDecision =
   | "deferred"
   | "clear-stale";
 
+export type WorkspaceHandoffAlternativeReason =
+  | "explicit-choice"
+  | "target-removed";
+
+export type WorkspaceHandoffAlternativeRecoveryDecision =
+  | "clear-stale"
+  | "deferred"
+  | "restore-direct-retry"
+  | "retain-alternative";
+
 export type WorkspaceHandoffSelectionFailureResolution =
   | "clear-stale"
   | "storage-blocked"
   | "retain-retry";
+
+export function resolveWorkspaceHandoffAlternativeRecovery({
+  continuationStatus,
+  ownershipStatus,
+  reason,
+  targetAuthorizationFresh,
+}: {
+  continuationStatus: WorkspaceHandoffContinuationDecision["status"];
+  ownershipStatus: WorkspaceHandoffRetargetOwnershipDecision;
+  reason: WorkspaceHandoffAlternativeReason | null;
+  targetAuthorizationFresh: boolean;
+}): WorkspaceHandoffAlternativeRecoveryDecision {
+  if (ownershipStatus === "stale") {
+    return "clear-stale";
+  }
+  if (ownershipStatus === "deferred") {
+    return "deferred";
+  }
+  if (
+    reason === "target-removed" &&
+    targetAuthorizationFresh &&
+    continuationStatus === "ready"
+  ) {
+    return "restore-direct-retry";
+  }
+  return "retain-alternative";
+}
 
 export function replaceWorkspaceHandoffTarget<
   Request extends {

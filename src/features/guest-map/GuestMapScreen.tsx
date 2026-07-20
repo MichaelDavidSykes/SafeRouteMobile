@@ -439,6 +439,12 @@ export function GuestMapScreen({
   ]);
 
   useEffect(() => {
+    if (!workspaceAlternativeSelectionPending) {
+      setWorkspaceMenuOpen(false);
+    }
+  }, [workspaceAlternativeSelectionPending]);
+
+  useEffect(() => {
     dispatchRouteDraft({
       coordinate: liveCoordinate,
       type: 'current-location/set'

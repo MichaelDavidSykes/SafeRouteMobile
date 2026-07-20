@@ -12,11 +12,13 @@ export function createWorkspaceHandoffRetryNoticeCopy({
   checkingAccess,
   saving,
   sourceWorkspaceName,
+  targetAccessRestored = false,
   targetWorkspaceName,
 }: {
   checkingAccess?: boolean;
   saving: boolean;
   sourceWorkspaceName?: string | null;
+  targetAccessRestored?: boolean;
   targetWorkspaceName: string;
 }): {
   accessibilityMessage: string;
@@ -75,6 +77,28 @@ export function createWorkspaceHandoffRetryNoticeCopy({
       retryAccessibilityLabel: `Saving workspace ${targetName}`,
       retryLabel: "Saving…",
       title: "Saving workspace",
+    };
+  }
+
+  if (targetAccessRestored) {
+    return {
+      accessibilityMessage: sourceName
+        ? `Access to ${targetName} is restored. ${sourceName} remains active. Retry the workspace change, choose another workspace, or keep using ${sourceName}.`
+        : `Access to ${targetName} is restored. Retry the workspace change or choose another workspace.`,
+      chooseAnotherAccessibilityLabel: sourceName
+        ? `Choose a different workspace instead of ${targetName}. ${sourceName} remains active.`
+        : `Choose a different workspace instead of ${targetName}.`,
+      chooseAnotherLabel: "Choose another workspace",
+      keepAccessibilityLabel: sourceName
+        ? `Keep using ${sourceName} and discard the change to ${targetName}`
+        : `Discard the change to ${targetName}`,
+      keepLabel: sourceName ? `Keep ${visibleSource}` : "Discard change",
+      message: sourceName
+        ? `${visibleTarget} is available again. Still using ${visibleSource}.`
+        : `${visibleTarget} is available again.`,
+      retryAccessibilityLabel: `Retry changing workspace to ${targetName}`,
+      retryLabel: `Retry ${visibleTarget}`,
+      title: "Workspace access restored",
     };
   }
 

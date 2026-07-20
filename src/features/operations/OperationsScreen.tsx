@@ -671,6 +671,13 @@ export function OperationsScreen({
     workspaceSelectionPending,
     workspaceSwitchDisabled,
   ]);
+
+  useEffect(() => {
+    if (!workspaceAlternativeSelectionPending) {
+      setClientMenuOpen(false);
+    }
+  }, [workspaceAlternativeSelectionPending]);
+
   const workspaceOwnsResults = Boolean(
     selectedWorkspaceId && loadedWorkspaceId === selectedWorkspaceId
   );

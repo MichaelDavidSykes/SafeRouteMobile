@@ -12,6 +12,57 @@ const suspendedNavigationSource = () =>
   readFileSync("src/features/live-map/SuspendedNavigationNotice.tsx", "utf8");
 
 describe("App active workspace integration", () => {
+  it("returns a freshly restored removed target to the exact retry without switching", () => {
+    const app = appSource();
+    const restoredTargetBranch = app.slice(
+      app.indexOf("const alternativeRecovery ="),
+      app.indexOf("if (alternativeRecovery !== 'clear-stale')"),
+    );
+
+    assert.match(
+      app,
+      /workspaceHandoffAlternativeReasonRef[\s\S]*WorkspaceHandoffAlternativeReason/,
+    );
+    assert.match(
+      app,
+      /retainWorkspaceHandoffForAlternativeSelection[\s\S]*workspaceHandoffAlternativeReasonRef\.current = 'target-removed'/,
+    );
+    assert.match(
+      app,
+      /handleChooseAnotherWorkspace[\s\S]*workspaceHandoffAlternativeReasonRef\.current = 'explicit-choice'/,
+    );
+    assert.match(
+      app,
+      /resolveWorkspaceHandoffAlternativeRecovery\(\{[\s\S]*targetAuthorizationFresh:[\s\S]*networkStatusRef\.current === 'online'[\s\S]*networkAuthorizationReady[\s\S]*freshWorkspaceAuthorizationRef\.current\.workspaceIds\.has/,
+    );
+    assert.match(
+      restoredTargetBranch,
+      /setWorkspaceHandoffAlternativeSelectionPending\(false\)[\s\S]*setWorkspaceHandoffRetryTargetAccessRestored\(true\)[\s\S]*setWorkspaceSelectionStatus\('failed'\)/,
+    );
+    assert.match(
+      restoredTargetBranch,
+      /is available again\.[\s\S]*workspaceHandoffRetryFocusTargetRef\.current/,
+    );
+    assert.doesNotMatch(
+      restoredTargetBranch,
+      /handleActiveWorkspaceChange|persistOfflineReviewWorkspaceSelection|performPersistedNavigationCleanup/,
+    );
+    assert.match(
+      app,
+      /<WorkspaceHandoffRetryNotice[\s\S]*targetAccessRestored=\{workspaceHandoffRetryTargetAccessRestored\}/,
+    );
+    for (const surface of [
+      guestSource(),
+      operationsSource(),
+      routeFiltersSource(),
+    ]) {
+      assert.match(
+        surface,
+        /if \(!workspaceAlternativeSelectionPending\) \{[\s\S]*set(?:Workspace|Client)MenuOpen\(false\);[\s\S]*\}, \[workspaceAlternativeSelectionPending\]\);/,
+      );
+    }
+  });
+
   it("owns one authoritative catalog and shares the active workspace with Map, Saved, and Operations", () => {
     const app = appSource();
 
@@ -727,7 +778,7 @@ describe("App active workspace integration", () => {
     );
     assert.match(
       app,
-      /workspaceHandoffAlternativeSelectionPendingRef\.current[\s\S]*resolvePendingWorkspaceSelectionRetargetOwnershipDecision\(request\)[\s\S]*resolvePendingWorkspaceSelectionRetryDecision\(request\)\.status[\s\S]*continuationStatus !== 'stale'[\s\S]*retainWorkspaceHandoffForAlternativeSelection\(request\)[\s\S]*clearPendingWorkspaceSelectionRetry\(request\)/,
+      /directContinuation =[\s\S]*resolvePendingWorkspaceSelectionRetryDecision\(request\)[\s\S]*workspaceHandoffAlternativeSelectionPendingRef\.current[\s\S]*resolvePendingWorkspaceSelectionRetargetOwnershipDecision\(request\)[\s\S]*alternativeRecovery !== 'clear-stale'[\s\S]*continuationStatus = 'stale'[\s\S]*continuationStatus !== 'stale'[\s\S]*retainWorkspaceHandoffForAlternativeSelection\(request\)[\s\S]*clearPendingWorkspaceSelectionRetry\(request\)/,
     );
     assert.match(
       app,

@@ -36,6 +36,23 @@ describe("workspace handoff retry notice copy", () => {
     assert.match(copy.accessibilityMessage, /remains active/);
   });
 
+  it("offers the exact retry without claiming a restored target is active", () => {
+    const copy = createWorkspaceHandoffRetryNoticeCopy({
+      saving: false,
+      sourceWorkspaceName: "Central Operations",
+      targetAccessRestored: true,
+      targetWorkspaceName: "West Corridor",
+    });
+
+    assert.equal(copy.title, "Workspace access restored");
+    assert.equal(copy.retryLabel, "Retry West Corridor");
+    assert.equal(copy.keepLabel, "Keep Central Operations");
+    assert.match(copy.message, /West Corridor is available again/);
+    assert.match(copy.message, /Still using Central Operations/);
+    assert.match(copy.accessibilityMessage, /Central Operations remains active/);
+    assert.doesNotMatch(copy.accessibilityMessage, /West Corridor is active/);
+  });
+
   it("makes deferred access checking visible without claiming a retry started", () => {
     const copy = createWorkspaceHandoffRetryNoticeCopy({
       checkingAccess: true,

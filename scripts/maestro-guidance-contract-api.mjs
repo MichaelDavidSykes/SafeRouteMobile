@@ -18,6 +18,7 @@ export const CONNECTIVITY_CONTRACT_STORAGE_FAULT_PATH =
   '/__connectivity_contract__/storage-fault';
 export const CONNECTIVITY_CONTRACT_STORAGE_FAULT_OPERATIONS = Object.freeze([
   'auth-session-tombstone-set',
+  'workspace-handoff-navigation-cleanup-set',
   'workspace-handoff-target-selection-set'
 ]);
 export const CONNECTIVITY_CONTRACT_STATUSES = Object.freeze({

@@ -2,10 +2,13 @@ import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 
 import {
+  canRequestWorkspaceHandoffNavigationCleanupFault,
   canRequestWorkspaceHandoffTargetSelectionFault,
+  recoverWorkspaceHandoffNavigationCleanupAfterOwnershipLoss,
   resolveDeferredWorkspaceRefreshAfterSelection,
   resolveWorkspaceHandoffContinuation,
   resolveWorkspaceHandoffSelectionFailure,
+  shouldInjectWorkspaceHandoffNavigationCleanupFault,
 } from "../src/features/workspaces/workspaceHandoffContinuation";
 
 const workspaces = [
@@ -50,6 +53,134 @@ function decide({
 }
 
 describe("workspace handoff continuation", () => {
+  it("arms the navigation cleanup fault only for one exact current handoff", () => {
+    const eligible = {
+      evidenceSessionIsCurrent: true,
+      faultContractEnabled: true,
+      handoffPending: true,
+      navigationStateIsCurrent: true,
+      pendingRequestIsCurrent: true,
+      principalIsCurrent: true,
+      sessionIsCurrent: true,
+      sourceIsCurrent: true,
+      targetIsCurrent: true,
+    };
+    assert.equal(
+      canRequestWorkspaceHandoffNavigationCleanupFault(eligible),
+      true,
+    );
+    for (const key of Object.keys(eligible) as Array<keyof typeof eligible>) {
+      assert.equal(
+        canRequestWorkspaceHandoffNavigationCleanupFault({
+          ...eligible,
+          [key]: false,
+        }),
+        false,
+        key,
+      );
+    }
+  });
+
+  it("rechecks cleanup-fault ownership after the asynchronous probe", async () => {
+    let current = true;
+    let requestCount = 0;
+    assert.equal(
+      await shouldInjectWorkspaceHandoffNavigationCleanupFault({
+        faultContractEnabled: true,
+        requestFault: async () => {
+          requestCount += 1;
+          return true;
+        },
+        requestIsCurrent: () => current,
+      }),
+      true,
+    );
+    assert.equal(requestCount, 1);
+
+    assert.equal(
+      await shouldInjectWorkspaceHandoffNavigationCleanupFault({
+        faultContractEnabled: false,
+        requestFault: async () => {
+          requestCount += 1;
+          return true;
+        },
+        requestIsCurrent: () => current,
+      }),
+      false,
+    );
+    current = false;
+    assert.equal(
+      await shouldInjectWorkspaceHandoffNavigationCleanupFault({
+        faultContractEnabled: true,
+        requestFault: async () => {
+          requestCount += 1;
+          return true;
+        },
+        requestIsCurrent: () => current,
+      }),
+      false,
+    );
+    assert.equal(requestCount, 1);
+
+    current = true;
+    assert.equal(
+      await shouldInjectWorkspaceHandoffNavigationCleanupFault({
+        faultContractEnabled: true,
+        requestFault: async () => {
+          current = false;
+          return true;
+        },
+        requestIsCurrent: () => current,
+      }),
+      false,
+    );
+    assert.equal(
+      await shouldInjectWorkspaceHandoffNavigationCleanupFault({
+        faultContractEnabled: true,
+        requestFault: async () => {
+          throw new Error("contract unavailable");
+        },
+        requestIsCurrent: () => true,
+      }),
+      false,
+    );
+  });
+
+  it("performs the real clear if handoff ownership is lost while tracking stop settles", async () => {
+    let clearCount = 0;
+    assert.equal(
+      await recoverWorkspaceHandoffNavigationCleanupAfterOwnershipLoss({
+        clearNavigation: async () => {
+          clearCount += 1;
+          return true;
+        },
+        requestIsCurrent: () => true,
+      }),
+      false,
+    );
+    assert.equal(clearCount, 0);
+    assert.equal(
+      await recoverWorkspaceHandoffNavigationCleanupAfterOwnershipLoss({
+        clearNavigation: async () => {
+          clearCount += 1;
+          return true;
+        },
+        requestIsCurrent: () => false,
+      }),
+      true,
+    );
+    assert.equal(clearCount, 1);
+    assert.equal(
+      await recoverWorkspaceHandoffNavigationCleanupAfterOwnershipLoss({
+        clearNavigation: async () => {
+          throw new Error("storage unavailable");
+        },
+        requestIsCurrent: () => false,
+      }),
+      false,
+    );
+  });
+
   it("arms the target fault only for one current post-cleanup retry owner", () => {
     const eligible = {
       completedRouteHandoff: true,

@@ -1067,9 +1067,15 @@ describe("App active workspace integration", () => {
     assert.ok(catalogRequestIndex > principalRevalidationIndex);
     assert.match(app, /fetchSavedRoutes\(accessToken\)[\s\S]*pendingNavigationWorkspace = findWorkspace\([\s\S]*openActiveNavigationSession\([\s\S]*pendingNavigation,[\s\S]*true,[\s\S]*resolvedWorkspace\?\.id/);
     assert.match(app, /pendingNavigation && !pendingNavigationWorkspace[\s\S]*discardPersistedNavigation\([\s\S]*Plot the route again/);
-    assert.match(app, /performPersistedNavigationCleanup[\s\S]*stopBackgroundNavigation\(\)[\s\S]*clearActiveNavigationSession\(\)/);
+    assert.match(
+      app,
+      /performPersistedNavigationCleanup[\s\S]*const clearPersistedNavigation[\s\S]*clearActiveNavigationSession\(\)[\s\S]*Promise\.allSettled\(\[[\s\S]*stopBackgroundNavigation\(\),[\s\S]*clearPersistedNavigation\(\)/,
+    );
     assert.match(app, /navigationCleanupRequiredRef = useRef\(false\)/);
-    assert.match(app, /performPersistedNavigationCleanup[\s\S]*cleanup\[1\]\.value === true/);
+    assert.match(
+      app,
+      /performPersistedNavigationCleanup[\s\S]*cleanup\[1\]\.value\.cleared/,
+    );
     assert.match(app, /confirmBackgroundNavigationStopped/);
     assert.match(
       app,
@@ -1223,6 +1229,81 @@ describe("App active workspace integration", () => {
         "utf8",
       ),
       /workspace-handoff-target-selection-set/,
+    );
+  });
+
+  it("injects a source-bound cleanup fault only for the exact retained handoff", () => {
+    const app = appSource();
+    const cleanupStart = app.indexOf(
+      "const performPersistedNavigationCleanup =",
+    );
+    const cleanupEnd = app.indexOf(
+      "const discardPersistedNavigation =",
+      cleanupStart,
+    );
+    const cleanup = app.slice(cleanupStart, cleanupEnd);
+    const retryStart = app.indexOf(
+      "const handleRetryNavigationCleanup =",
+    );
+    const retryEnd = app.indexOf(
+      "const handleRetryOfflineCalendarCleanup =",
+      retryStart,
+    );
+    const retry = app.slice(retryStart, retryEnd);
+    const guardedStart = app.indexOf(
+      "const handleGuardedWorkspaceChange =",
+    );
+    const guardedEnd = app.indexOf(
+      "const handleWorkspaceUnavailable =",
+      guardedStart,
+    );
+    const guarded = app.slice(guardedStart, guardedEnd);
+
+    assert.match(
+      cleanup,
+      /canRequestWorkspaceHandoffNavigationCleanupFault\(\{[\s\S]*evidenceSessionIsCurrent:[\s\S]*SAFEROUTE_STORAGE_FAULT_CONTRACT_ENABLED[\s\S]*workspaceHandoffPendingRef\.current[\s\S]*!pendingNavigationRestoreRef\.current[\s\S]*!activeNavigationSessionRef\.current[\s\S]*pendingWorkspaceHandoffRef\.current ===[\s\S]*workspaceHandoffFaultRequest[\s\S]*requestedPrincipalId[\s\S]*requestedSessionEpoch[\s\S]*requestedSourceWorkspaceId[\s\S]*targetIsCurrent/,
+    );
+    assert.match(
+      cleanup,
+      /shouldInjectWorkspaceHandoffNavigationCleanupFault\(\{[\s\S]*workspace-handoff-navigation-cleanup-set[\s\S]*workspaceHandoffCleanupFaultRequestIsCurrent/,
+    );
+    assert.match(
+      cleanup,
+      /if \(injectWorkspaceHandoffCleanupFault\) \{[\s\S]*cleared: false[\s\S]*workspaceHandoffFaultInjected: true[\s\S]*cleared: await clearActiveNavigationSession\(\)[\s\S]*workspaceHandoffFaultInjected: false/,
+    );
+    assert.match(
+      cleanup,
+      /Promise\.allSettled\(\[[\s\S]*stopBackgroundNavigation\(\),[\s\S]*clearPersistedNavigation\(\)/,
+    );
+    assert.match(
+      cleanup,
+      /Promise\.allSettled\(\[[\s\S]*clearPersistedNavigation\(\),[\s\S]*\.then\(async \(cleanup\)[\s\S]*workspaceHandoffFaultInjected[\s\S]*recoverWorkspaceHandoffNavigationCleanupAfterOwnershipLoss\(\{[\s\S]*clearNavigation: clearActiveNavigationSession[\s\S]*workspaceHandoffCleanupFaultRequestIsCurrent/,
+    );
+    assert.match(
+      guarded,
+      /discardPersistedNavigation\(undefined, \{[\s\S]*evidenceSession: requestedNavigation[\s\S]*publishCleanupFailure: false[\s\S]*workspaceHandoffFaultRequest: handoffRequest/,
+    );
+    assert.match(
+      retry,
+      /performPersistedNavigationCleanup\([\s\S]*retainedHandoff\?\.evidenceSession \|\| null[\s\S]*workspaceHandoffFaultRequest: retainedHandoff/,
+    );
+    assert.doesNotMatch(
+      retry,
+      /workspace-handoff-navigation-cleanup-set/,
+    );
+    assert.equal(
+      (
+        app.match(/'workspace-handoff-navigation-cleanup-set'/g) ||
+        []
+      ).length,
+      1,
+    );
+    assert.doesNotMatch(
+      readFileSync(
+        "src/features/live-map/activeNavigationSession.ts",
+        "utf8",
+      ),
+      /workspace-handoff-navigation-cleanup-set|ConnectivityContractStorageFault/,
     );
   });
 

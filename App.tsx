@@ -117,10 +117,13 @@ import {
 } from './src/features/workspaces/activeWorkspace';
 import { resolveEndRouteWorkspaceChangeTarget } from './src/features/workspaces/endRouteWorkspaceChange';
 import {
+  canRequestWorkspaceHandoffNavigationCleanupFault,
   canRequestWorkspaceHandoffTargetSelectionFault,
+  recoverWorkspaceHandoffNavigationCleanupAfterOwnershipLoss,
   resolveDeferredWorkspaceRefreshAfterSelection,
   resolveWorkspaceHandoffSelectionFailure,
   resolveWorkspaceHandoffContinuation,
+  shouldInjectWorkspaceHandoffNavigationCleanupFault,
 } from './src/features/workspaces/workspaceHandoffContinuation';
 import { WorkspaceHandoffRetryNotice } from './src/features/workspaces/WorkspaceHandoffRetryNotice';
 import { runDurableWorkspaceSelectionAttempt } from './src/features/workspaces/workspaceSelectionAttempt';
@@ -848,6 +851,11 @@ function SafeRouteApp() {
 
   const performPersistedNavigationCleanup = async (
     evidenceSession: ActiveNavigationSession | null,
+    {
+      workspaceHandoffFaultRequest = null,
+    }: {
+      workspaceHandoffFaultRequest?: PendingWorkspaceHandoff | null;
+    } = {},
   ) => {
     if (navigationCleanupPromiseRef.current) {
       return navigationCleanupPromiseRef.current;
@@ -855,12 +863,94 @@ function SafeRouteApp() {
 
     navigationCleanupRequiredRef.current = true;
     setNavigationCleanupStatus('checking');
+    const workspaceHandoffCleanupFaultRequestIsCurrent = () => {
+      const targetIsCurrent = Boolean(
+        workspaceHandoffFaultRequest &&
+          !unavailableWorkspaceIdsRef.current.has(
+            workspaceHandoffFaultRequest.requestedTargetWorkspaceId,
+          ) &&
+          findWorkspace(
+            availableWorkspacesRef.current,
+            workspaceHandoffFaultRequest.requestedTargetWorkspaceId,
+          ),
+      );
+      return canRequestWorkspaceHandoffNavigationCleanupFault({
+        evidenceSessionIsCurrent: Boolean(
+          workspaceHandoffFaultRequest &&
+            isCurrentPendingNavigationRestore(
+              workspaceHandoffFaultRequest.evidenceSession,
+              evidenceSession,
+            ),
+        ),
+        faultContractEnabled:
+          SAFEROUTE_STORAGE_FAULT_CONTRACT_ENABLED,
+        handoffPending: workspaceHandoffPendingRef.current,
+        navigationStateIsCurrent:
+          !pendingNavigationRestoreRef.current &&
+          !activeNavigationSessionRef.current,
+        pendingRequestIsCurrent:
+          pendingWorkspaceHandoffRef.current ===
+          workspaceHandoffFaultRequest,
+        principalIsCurrent: Boolean(
+          workspaceHandoffFaultRequest &&
+            workspaceHandoffFaultRequest.requestedPrincipalId ===
+              activeSessionPrincipalIdRef.current,
+        ),
+        sessionIsCurrent: Boolean(
+          workspaceHandoffFaultRequest &&
+            workspaceHandoffFaultRequest.requestedSessionEpoch ===
+              sessionEpochRef.current,
+        ),
+        sourceIsCurrent: Boolean(
+          workspaceHandoffFaultRequest &&
+            workspaceHandoffFaultRequest.requestedSourceWorkspaceId ===
+              (activeWorkspaceRef.current?.id || null),
+        ),
+        targetIsCurrent,
+      });
+    };
+    const clearPersistedNavigation = async () => {
+      const injectWorkspaceHandoffCleanupFault =
+        workspaceHandoffFaultRequest
+          ? await shouldInjectWorkspaceHandoffNavigationCleanupFault({
+              faultContractEnabled:
+                SAFEROUTE_STORAGE_FAULT_CONTRACT_ENABLED,
+              requestFault: () =>
+                shouldInjectConnectivityContractStorageFault(
+                  'workspace-handoff-navigation-cleanup-set',
+                ),
+              requestIsCurrent:
+                workspaceHandoffCleanupFaultRequestIsCurrent,
+            })
+          : false;
+      if (injectWorkspaceHandoffCleanupFault) {
+        return {
+          cleared: false,
+          workspaceHandoffFaultInjected: true,
+        };
+      }
+      return {
+        cleared: await clearActiveNavigationSession(),
+        workspaceHandoffFaultInjected: false,
+      };
+    };
     const cleanupPromise = Promise.allSettled([
       stopBackgroundNavigation(),
-      clearActiveNavigationSession(),
+      clearPersistedNavigation(),
     ]).then(async (cleanup) => {
-      const durableClearSucceeded =
-        cleanup[1].status === 'fulfilled' && cleanup[1].value === true;
+      let durableClearSucceeded =
+        cleanup[1].status === 'fulfilled' && cleanup[1].value.cleared;
+      if (
+        cleanup[1].status === 'fulfilled' &&
+        cleanup[1].value.workspaceHandoffFaultInjected
+      ) {
+        durableClearSucceeded =
+          await recoverWorkspaceHandoffNavigationCleanupAfterOwnershipLoss({
+            clearNavigation: clearActiveNavigationSession,
+            requestIsCurrent:
+              workspaceHandoffCleanupFaultRequestIsCurrent,
+          });
+      }
       const trackingVerification =
         cleanup[0].status === 'fulfilled' && durableClearSucceeded
           ? await confirmBackgroundNavigationStopped()
@@ -927,9 +1017,11 @@ function SafeRouteApp() {
     {
       evidenceSession: evidenceSessionOverride = null,
       publishCleanupFailure = true,
+      workspaceHandoffFaultRequest = null,
     }: {
       evidenceSession?: ActiveNavigationSession | null;
       publishCleanupFailure?: boolean;
+      workspaceHandoffFaultRequest?: PendingWorkspaceHandoff | null;
     } = {},
   ) => {
     const evidenceSession =
@@ -942,7 +1034,10 @@ function SafeRouteApp() {
     selectedRouteRef.current = null;
     setActiveNavigationSession(null);
     setSelectedRoute(null);
-    const durableClearSucceeded = await performPersistedNavigationCleanup(evidenceSession);
+    const durableClearSucceeded = await performPersistedNavigationCleanup(
+      evidenceSession,
+      { workspaceHandoffFaultRequest },
+    );
     if (!durableClearSucceeded) {
       if (publishCleanupFailure) {
         setSessionMessage(
@@ -1082,6 +1177,7 @@ function SafeRouteApp() {
     try {
       const durableClearSucceeded = await performPersistedNavigationCleanup(
         retainedHandoff?.evidenceSession || null,
+        { workspaceHandoffFaultRequest: retainedHandoff },
       );
       if (!retainedHandoff) {
         setSessionMessage(
@@ -3291,7 +3387,6 @@ function SafeRouteApp() {
       requestedTargetWorkspaceId,
       requestedWorkspaceRequestRevision,
     };
-
     Alert.alert(
       'End route and change workspace?',
       `End ${routeName} in ${requestedSourceName}, then change to ${requestedTarget.name}. Guidance and background tracking will stop.`,
@@ -3335,6 +3430,7 @@ function SafeRouteApp() {
                 const cleanupSucceeded = await discardPersistedNavigation(undefined, {
                   evidenceSession: requestedNavigation,
                   publishCleanupFailure: false,
+                  workspaceHandoffFaultRequest: handoffRequest,
                 });
                 if (!cleanupSucceeded) {
                   const retainedDecision =

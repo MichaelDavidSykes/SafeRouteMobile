@@ -16,6 +16,10 @@ export const CONNECTIVITY_CONTRACT_REACHABILITY_PATH =
   '/__connectivity_contract__/reachability';
 export const CONNECTIVITY_CONTRACT_STORAGE_FAULT_PATH =
   '/__connectivity_contract__/storage-fault';
+export const CONNECTIVITY_CONTRACT_STORAGE_FAULT_OPERATIONS = Object.freeze([
+  'auth-session-tombstone-set',
+  'workspace-handoff-target-selection-set'
+]);
 export const CONNECTIVITY_CONTRACT_STATUSES = Object.freeze({
   checking: 'checking',
   offline: 'offline',
@@ -431,12 +435,12 @@ export function createGuidanceContractHandler({
   const claimedStorageFaults = new Set();
   return async (request, response) => {
     const {
-      calendarAuthFaults,
       connectivity,
       connectivitySequence,
       mode,
       phase,
-      sourceRevision
+      sourceRevision,
+      storageFaults
     } = normalizeControlSnapshot(
       readControl ? readControl() : { mode: readMode(), phase: readPhase() }
     );
@@ -581,12 +585,12 @@ export function createGuidanceContractHandler({
         !/^[0-9a-f]{40}$/.test(requestSourceRevision) ||
         requestSourceRevision !== sourceRevision ||
         url.search !== `?source_revision=${sourceRevision}` ||
-        operation !== 'auth-session-tombstone-set'
+        !CONNECTIVITY_CONTRACT_STORAGE_FAULT_OPERATIONS.includes(operation)
       ) {
         sendEmpty(response, 403, 'storage-fault-source-rejected');
         return;
       }
-      const armedFault = calendarAuthFaults.find(
+      const armedFault = storageFaults.find(
         (fault) => fault.operation === operation
       );
       const claimKey = armedFault
@@ -2368,20 +2372,20 @@ export function isSuccessfulGuidanceContractEvidence(event, journal) {
 
 function normalizeControlSnapshot(value) {
   return {
-    calendarAuthFaults: normalizeCalendarAuthFaults(
-      value?.calendarAuthFaults
-    ),
     connectivity: normalizeConnectivityStatus(value?.connectivity),
     connectivitySequence: normalizeConnectivitySequence(
       value?.connectivitySequence
     ),
     mode: normalizeMode(value?.mode),
     phase: normalizePhase(value?.phase),
-    sourceRevision: normalizeControlSourceRevision(value?.sourceRevision)
+    sourceRevision: normalizeControlSourceRevision(value?.sourceRevision),
+    storageFaults: normalizeStorageFaults(
+      value?.storageFaults ?? value?.calendarAuthFaults
+    )
   };
 }
 
-function normalizeCalendarAuthFaults(value) {
+function normalizeStorageFaults(value) {
   if (!Array.isArray(value)) {
     return [];
   }
@@ -2391,7 +2395,7 @@ function normalizeCalendarAuthFaults(value) {
     const operation = String(candidate?.operation || '').trim();
     if (
       !/^[a-z][a-z0-9-]{0,63}$/.test(id) ||
-      operation !== 'auth-session-tombstone-set' ||
+      !CONNECTIVITY_CONTRACT_STORAGE_FAULT_OPERATIONS.includes(operation) ||
       candidate?.remaining !== 1
     ) {
       return [];

@@ -1284,20 +1284,20 @@ function assertOperationsCalendarSeed(entries) {
 function setControl(
   phase,
   connectivity,
-  calendarAuthFaults = [],
+  storageFaults = [],
   mode = GUIDANCE_CONTRACT_MODES.active,
 ) {
   connectivitySequence += 1;
   writeFileSync(
     pendingControlFile,
     JSON.stringify({
-      calendarAuthFaults,
       catalogReleased: true,
       connectivity,
       connectivitySequence,
       mode,
       phase,
       sourceRevision: currentSourceRevision,
+      storageFaults,
     }),
     'utf8',
   );

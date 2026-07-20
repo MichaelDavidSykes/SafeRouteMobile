@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 
 import {
+  canRequestWorkspaceHandoffTargetSelectionFault,
   resolveDeferredWorkspaceRefreshAfterSelection,
   resolveWorkspaceHandoffContinuation,
   resolveWorkspaceHandoffSelectionFailure,
@@ -49,6 +50,30 @@ function decide({
 }
 
 describe("workspace handoff continuation", () => {
+  it("arms the target fault only for one current post-cleanup retry owner", () => {
+    const eligible = {
+      completedRouteHandoff: true,
+      faultContractEnabled: true,
+      requestOwnerIsCurrent: true,
+      selectionRetryIsCurrent: true,
+      targetIsCurrent: true,
+    };
+    assert.equal(
+      canRequestWorkspaceHandoffTargetSelectionFault(eligible),
+      true,
+    );
+    for (const key of Object.keys(eligible) as Array<keyof typeof eligible>) {
+      assert.equal(
+        canRequestWorkspaceHandoffTargetSelectionFault({
+          ...eligible,
+          [key]: false,
+        }),
+        false,
+        key,
+      );
+    }
+  });
+
   it("retains a direct target retry only after the visible source is restored durably", () => {
     assert.equal(
       resolveWorkspaceHandoffSelectionFailure({

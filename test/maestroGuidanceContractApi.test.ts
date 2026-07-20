@@ -19,6 +19,7 @@ import {
   OFFLINE_CALENDAR_AUTH_CONTRACT_PHASES,
   OFFLINE_CALENDAR_PRINCIPAL_CONTRACT_PHASES,
   OFFLINE_CALENDAR_WORKSPACE_CONTRACT_PHASES,
+  WORKSPACE_HANDOFF_CONTRACT_PHASES,
   WORKSPACE_CATALOG_RECOVERY_PHASES,
   WORKSPACE_CATALOG_RETRY_DELAY_MS,
   WORKSPACE_CATALOG_SUCCESS_DELAY_MS,
@@ -38,6 +39,9 @@ import {
   assertOfflineCalendarProtectedCacheSeedTraffic,
   assertOfflineCalendarWorkspaceDenialTraffic,
   assertOfflineCalendarWorkspaceRevocationEvidence,
+  assertWorkspaceHandoffEvidence,
+  assertWorkspaceHandoffStorageFaultRequests,
+  assertWorkspaceHandoffTraffic,
   createGuidanceContractAccessToken,
   createGuidanceContractOperations,
   createGuidanceContractEvidenceJournal,
@@ -299,6 +303,510 @@ describe('Maestro guidance contract API', () => {
     } finally {
       await new Promise<void>((resolve) => server.close(() => resolve()));
     }
+  });
+
+  it('proves exact cleanup, target, traffic, and evidence ordering for workspace handoff decisions', () => {
+    const sourceRevision = '8'.repeat(40);
+    const faultPath = (operation: string) =>
+      `${CONNECTIVITY_CONTRACT_STORAGE_FAULT_PATH}/${operation}`;
+    const request = (
+      operation: string,
+      phase: string,
+      requestId: string,
+      sequence: number,
+      connectivitySequence: number,
+    ) => ({
+      authorizationClass: 'none',
+      authorized: false,
+      connectivitySequence,
+      event: 'request',
+      method: 'POST',
+      path: faultPath(operation),
+      phase,
+      requestId,
+      requestSourceRevision: sourceRevision,
+      search: `?source_revision=${sourceRevision}`,
+      sequence,
+      sourceRevision,
+    });
+    const completion = (
+      requestEntry: ReturnType<typeof request>,
+      sequence: number,
+      statusCode: number,
+      semanticOutcome: string,
+    ) => ({
+      completed: true,
+      event: 'completion',
+      path: requestEntry.path,
+      phase: requestEntry.phase,
+      requestId: requestEntry.requestId,
+      semanticOutcome,
+      sequence,
+      statusCode,
+    });
+    const cleanupOperation = 'workspace-handoff-navigation-cleanup-set';
+    const targetOperation = 'workspace-handoff-target-selection-set';
+    const cleanupInjected = request(
+      cleanupOperation,
+      WORKSPACE_HANDOFF_CONTRACT_PHASES.failure,
+      'cleanup-injected',
+      1,
+      3,
+    );
+    const cleanupConsumed = request(
+      cleanupOperation,
+      WORKSPACE_HANDOFF_CONTRACT_PHASES.failure,
+      'cleanup-consumed',
+      5,
+      3,
+    );
+    const targetInjected = request(
+      targetOperation,
+      WORKSPACE_HANDOFF_CONTRACT_PHASES.failure,
+      'target-injected',
+      9,
+      3,
+    );
+    const targetConsumed = request(
+      targetOperation,
+      WORKSPACE_HANDOFF_CONTRACT_PHASES.failure,
+      'target-consumed',
+      11,
+      3,
+    );
+    const evidenceCompletion = (
+      type: 'navigation.cleanup.settled' | 'tracking.stop.settled',
+      requestId: string,
+      sequence: number,
+    ) => ({
+      completed: true,
+      event: 'completion',
+      path: GUIDANCE_CONTRACT_EVIDENCE_PATH,
+      phase: WORKSPACE_HANDOFF_CONTRACT_PHASES.failure,
+      requestId,
+      semanticOutcome: `evidence-${type}`,
+      sequence,
+      statusCode: 200,
+    });
+    const retryRequests = [
+      cleanupInjected,
+      completion(
+        cleanupInjected,
+        2,
+        503,
+        'storage-fault-injected',
+      ),
+      evidenceCompletion(
+        'navigation.cleanup.settled',
+        'cleanup-failed-evidence',
+        3,
+      ),
+      evidenceCompletion(
+        'tracking.stop.settled',
+        'tracking-unknown-evidence',
+        4,
+      ),
+      cleanupConsumed,
+      completion(
+        cleanupConsumed,
+        6,
+        204,
+        'storage-fault-not-armed',
+      ),
+      evidenceCompletion(
+        'navigation.cleanup.settled',
+        'cleanup-cleared-evidence',
+        7,
+      ),
+      evidenceCompletion(
+        'tracking.stop.settled',
+        'tracking-off-evidence',
+        8,
+      ),
+      targetInjected,
+      completion(
+        targetInjected,
+        10,
+        503,
+        'storage-fault-injected',
+      ),
+      targetConsumed,
+      completion(
+        targetConsumed,
+        12,
+        204,
+        'storage-fault-not-armed',
+      ),
+      {
+        authorizationClass: 'expected-bearer',
+        authorized: true,
+        event: 'request',
+        method: 'GET',
+        path: '/api/v1/mobile/safe-route/routes',
+        phase: WORKSPACE_HANDOFF_CONTRACT_PHASES.failure,
+        requestId: 'support-routes',
+        search:
+          `?client_id=${GUIDANCE_CONTRACT_WORKSPACES.survivor.id}`,
+        sequence: 13,
+      },
+    ];
+    const keepRequests = retryRequests.slice(0, 10);
+
+    assert.doesNotThrow(() =>
+      assertWorkspaceHandoffStorageFaultRequests(retryRequests, {
+        expectedSourceRevision: sourceRevision,
+        outcome: 'retry',
+      }),
+    );
+    assert.doesNotThrow(() =>
+      assertWorkspaceHandoffTraffic(retryRequests, { outcome: 'retry' }),
+    );
+    assert.doesNotThrow(() =>
+      assertWorkspaceHandoffStorageFaultRequests(keepRequests, {
+        expectedSourceRevision: sourceRevision,
+        outcome: 'keep',
+      }),
+    );
+    assert.doesNotThrow(() =>
+      assertWorkspaceHandoffTraffic(keepRequests, { outcome: 'keep' }),
+    );
+    assert.throws(
+      () =>
+        assertWorkspaceHandoffStorageFaultRequests(
+          retryRequests.filter(
+            (entry) => entry.requestId !== targetConsumed.requestId,
+          ),
+          {
+            expectedSourceRevision: sourceRevision,
+            outcome: 'retry',
+          },
+        ),
+      /target selection|target fault/,
+    );
+    assert.throws(
+      () =>
+        assertWorkspaceHandoffTraffic(
+          [
+            ...keepRequests,
+            {
+              authorizationClass: 'expected-bearer',
+              authorized: true,
+              event: 'request',
+              method: 'GET',
+              path: '/api/v1/mobile/safe-route/routes',
+              phase: WORKSPACE_HANDOFF_CONTRACT_PHASES.failure,
+              requestId: 'early-support-routes',
+              search:
+                `?client_id=${GUIDANCE_CONTRACT_WORKSPACES.survivor.id}`,
+              sequence: 11,
+            },
+          ],
+          { outcome: 'keep' },
+        ),
+      /Keeping the current workspace/,
+    );
+    assert.throws(
+      () =>
+        assertWorkspaceHandoffStorageFaultRequests(
+          retryRequests.map((entry) =>
+            entry.requestId === targetConsumed.requestId &&
+            entry.event === 'request'
+              ? { ...entry, connectivitySequence: 4 }
+              : entry,
+          ),
+          {
+            expectedSourceRevision: sourceRevision,
+            outcome: 'retry',
+          },
+        ),
+      /original fault-armed control sequence/,
+    );
+    assert.throws(
+      () =>
+        assertWorkspaceHandoffStorageFaultRequests(
+          retryRequests.map((entry) =>
+            entry.requestId === targetInjected.requestId &&
+            entry.event === 'request'
+              ? { ...entry, sequence: 7 }
+              : entry,
+          ),
+          {
+            expectedSourceRevision: sourceRevision,
+            outcome: 'retry',
+          },
+        ),
+      /after durable cleanup/,
+    );
+
+    const identity = {
+      navigationInstanceId: 'navigation-handoff',
+      routeId: GUIDANCE_CONTRACT_ROUTE_IDS.denied,
+      sourceRevision,
+      workspaceId: GUIDANCE_CONTRACT_WORKSPACES.denied.id,
+    };
+    const evidence = [
+      {
+        ...identity,
+        appLaunchId: 'launch-seed',
+        authorization: {
+          catalog: 'fresh-authorized',
+          principal: 'matching',
+        },
+        durability: { activeNavigation: 'present' },
+        occurredAtMs: 101,
+        outcome: 'persisted',
+        serverPhase: CONNECTIVITY_CONTRACT_PHASES.seed,
+        type: 'navigation.persisted',
+      },
+      {
+        ...identity,
+        appLaunchId: 'launch-handoff',
+        authorization: { catalog: 'unavailable', principal: 'matching' },
+        durability: {
+          activeNavigation: 'present',
+          nativeTracking: 'stopped',
+          runtimePermit: 'none',
+        },
+        occurredAtMs: 102,
+        outcome: 'suspended',
+        serverPhase: WORKSPACE_HANDOFF_CONTRACT_PHASES.prepare,
+        type: 'restore.suspended',
+      },
+      {
+        ...identity,
+        appLaunchId: 'launch-handoff',
+        authorization: {
+          catalog: 'fresh-authorized',
+          principal: 'matching',
+        },
+        durability: { activeNavigation: 'present' },
+        occurredAtMs: 103,
+        outcome: 'ready',
+        serverPhase: WORKSPACE_HANDOFF_CONTRACT_PHASES.prepare,
+        type: 'restore.ready',
+      },
+      {
+        ...identity,
+        appLaunchId: 'launch-handoff',
+        authorization: {
+          catalog: 'fresh-authorized',
+          principal: 'matching',
+        },
+        durability: { activeNavigation: 'present' },
+        occurredAtMs: 104,
+        outcome: 'persisted',
+        serverPhase: WORKSPACE_HANDOFF_CONTRACT_PHASES.prepare,
+        type: 'navigation.persisted',
+      },
+      {
+        ...identity,
+        appLaunchId: 'launch-handoff',
+        authorization: { catalog: 'not-checked', principal: 'matching' },
+        durability: {
+          activeNavigation: 'unknown',
+          persistedPermit: 'unknown',
+        },
+        occurredAtMs: 105,
+        outcome: 'failed',
+        serverPhase: WORKSPACE_HANDOFF_CONTRACT_PHASES.failure,
+        type: 'navigation.cleanup.settled',
+      },
+      {
+        ...identity,
+        appLaunchId: 'launch-handoff',
+        authorization: { catalog: 'not-checked', principal: 'matching' },
+        durability: {
+          nativeTracking: 'unknown',
+          persistedPermit: 'unknown',
+          runtimePermit: 'unknown',
+        },
+        occurredAtMs: 106,
+        outcome: 'unknown',
+        serverPhase: WORKSPACE_HANDOFF_CONTRACT_PHASES.failure,
+        type: 'tracking.stop.settled',
+      },
+      {
+        ...identity,
+        appLaunchId: 'launch-handoff',
+        authorization: { catalog: 'not-checked', principal: 'matching' },
+        durability: {
+          activeNavigation: 'revoked',
+          persistedPermit: 'revoked',
+        },
+        occurredAtMs: 107,
+        outcome: 'cleared',
+        serverPhase: WORKSPACE_HANDOFF_CONTRACT_PHASES.failure,
+        type: 'navigation.cleanup.settled',
+      },
+      {
+        ...identity,
+        appLaunchId: 'launch-handoff',
+        authorization: { catalog: 'not-checked', principal: 'matching' },
+        durability: {
+          nativeTracking: 'stopped',
+          persistedPermit: 'revoked',
+          runtimePermit: 'none',
+        },
+        occurredAtMs: 108,
+        outcome: 'off',
+        serverPhase: WORKSPACE_HANDOFF_CONTRACT_PHASES.failure,
+        type: 'tracking.stop.settled',
+      },
+    ];
+    const evidenceOptions = {
+      expectedSourceRevision: sourceRevision,
+      minimumOccurredAtMs: 100,
+    };
+    assert.doesNotThrow(() =>
+      assertWorkspaceHandoffEvidence(evidence, {
+        ...evidenceOptions,
+        outcome: 'retry',
+      }),
+    );
+    assert.throws(
+      () =>
+        assertWorkspaceHandoffEvidence(
+          evidence.filter(
+            (entry) =>
+              !(
+                entry.type === 'tracking.stop.settled' &&
+                entry.outcome === 'unknown'
+              ),
+          ),
+          {
+            ...evidenceOptions,
+            outcome: 'retry',
+          },
+        ),
+      /exact cold restore/,
+    );
+    assert.throws(
+      () =>
+        assertWorkspaceHandoffEvidence(
+          evidence.map((entry, index) =>
+            index === 0 ? { ...entry, routeId: 'wrong-route' } : entry,
+          ),
+          {
+            ...evidenceOptions,
+            outcome: 'retry',
+          },
+        ),
+      /exact persisted Guidance Operations journey/,
+    );
+    for (const duplicateType of [
+      'navigation.cleanup.settled',
+      'navigation.persisted',
+      'tracking.stop.settled',
+      'restore.suspended',
+    ]) {
+      const sourceEntry = evidence.find(
+        (entry) => entry.type === duplicateType,
+      );
+      assert.ok(sourceEntry);
+      assert.throws(
+        () =>
+          assertWorkspaceHandoffEvidence(
+            [
+              ...evidence,
+              {
+                ...sourceEntry,
+                occurredAtMs: 109,
+                serverPhase: WORKSPACE_HANDOFF_CONTRACT_PHASES.failure,
+              },
+            ],
+            {
+              ...evidenceOptions,
+              outcome: 'retry',
+            },
+          ),
+        /without repeating lifecycle work/,
+      );
+    }
+    assert.throws(
+      () =>
+        assertWorkspaceHandoffEvidence(
+          [
+            ...evidence,
+            {
+              ...evidence[0],
+              navigationInstanceId: 'replacement-navigation',
+              occurredAtMs: 109,
+            },
+          ],
+          {
+            ...evidenceOptions,
+            outcome: 'retry',
+          },
+        ),
+      /without repeating lifecycle work/,
+    );
+    const keepRelaunchEvidence = [
+      ...evidence,
+      {
+        appLaunchId: 'launch-keep-relaunch',
+        authorization: { catalog: 'not-checked', principal: 'unknown' },
+        durability: {
+          activeNavigation: 'absent',
+          nativeTracking: 'unsupported',
+          runtimePermit: 'none',
+        },
+        navigationInstanceId: null,
+        occurredAtMs: 109,
+        outcome: 'absent',
+        routeId: null,
+        serverPhase: WORKSPACE_HANDOFF_CONTRACT_PHASES.keepRelaunch,
+        sourceRevision,
+        type: 'navigation.absence.readback',
+        workspaceId: null,
+      },
+      {
+        appLaunchId: 'launch-keep-relaunch',
+        authorization: { catalog: 'unavailable', principal: 'matching' },
+        durability: { routeCache: 'present' },
+        navigationInstanceId: null,
+        occurredAtMs: 110,
+        outcome: 'readable',
+        routeId: GUIDANCE_CONTRACT_ROUTE_IDS.denied,
+        serverPhase: WORKSPACE_HANDOFF_CONTRACT_PHASES.keepRelaunch,
+        sourceRevision,
+        type: 'route.cache.readback',
+        workspaceId: GUIDANCE_CONTRACT_WORKSPACES.denied.id,
+      },
+    ];
+    assert.doesNotThrow(() =>
+      assertWorkspaceHandoffEvidence(keepRelaunchEvidence, {
+        ...evidenceOptions,
+        outcome: 'keep',
+      }),
+    );
+    assert.throws(
+      () =>
+        assertWorkspaceHandoffEvidence(
+          keepRelaunchEvidence.filter(
+            (entry) => entry.type !== 'navigation.absence.readback',
+          ),
+          {
+            ...evidenceOptions,
+            outcome: 'keep',
+          },
+        ),
+      /required closed outcome/,
+    );
+    assert.throws(
+      () =>
+        assertWorkspaceHandoffEvidence(
+          keepRelaunchEvidence.map((entry) =>
+            entry.type === 'navigation.absence.readback'
+              ? { ...entry, navigationInstanceId: 'stale-navigation' }
+              : entry,
+          ),
+          {
+            ...evidenceOptions,
+            outcome: 'keep',
+          },
+        ),
+      /required closed outcome/,
+    );
   });
 
   it('rejects reconnect authorization sequenced before online settlement', () => {

@@ -59,6 +59,11 @@ export const OFFLINE_CALENDAR_WORKSPACE_CONTRACT_PHASES = Object.freeze({
   denial: 'calendarWorkspaceDenial',
   relaunch: 'calendarWorkspaceDenialRelaunch'
 });
+export const WORKSPACE_HANDOFF_CONTRACT_PHASES = Object.freeze({
+  failure: 'workspaceHandoffFailure',
+  keepRelaunch: 'workspaceHandoffKeepRelaunch',
+  prepare: 'workspaceHandoffPrepare'
+});
 export const CONNECTIVITY_CONTRACT_HOLD_POLL_MS = 50;
 export const CONNECTIVITY_CONTRACT_HOLD_TIMEOUT_MS = 60_000;
 
@@ -115,6 +120,7 @@ const GUIDANCE_CONTRACT_EVIDENCE_PHASES = Object.freeze({
     'catalogJourneyRestart',
     'catalogJourneyEndedRestart',
     'publicStart',
+    WORKSPACE_HANDOFF_CONTRACT_PHASES.prepare,
     'workspaceStart',
     'workspaceReconnect',
     'workspaceReseedStart',
@@ -123,10 +129,15 @@ const GUIDANCE_CONTRACT_EVIDENCE_PHASES = Object.freeze({
   'restore.suspended': new Set([
     'connectivityOffline',
     'catalogJourneyRestoreFailure',
+    WORKSPACE_HANDOFF_CONTRACT_PHASES.prepare,
     'workspaceOffline',
     'workspaceReconnect'
   ]),
-  'restore.ready': new Set(['workspacePrepare', 'workspaceReconnect']),
+  'restore.ready': new Set([
+    WORKSPACE_HANDOFF_CONTRACT_PHASES.prepare,
+    'workspacePrepare',
+    'workspaceReconnect'
+  ]),
   'workspace.recovery.settled': new Set([
     OFFLINE_CALENDAR_WORKSPACE_CONTRACT_PHASES.denial,
     'catalogForegroundLoss',
@@ -142,11 +153,13 @@ const GUIDANCE_CONTRACT_EVIDENCE_PHASES = Object.freeze({
     'connectivityOfflineRelaunch',
     'connectivityRemovalRelaunch',
     'connectivityResaveOffline',
+    WORKSPACE_HANDOFF_CONTRACT_PHASES.keepRelaunch,
     'regained',
     'readbackEvidence',
   ]),
   'navigation.cleanup.settled': new Set([
     OFFLINE_CALENDAR_AUTH_CONTRACT_PHASES.inactiveFailure,
+    WORKSPACE_HANDOFF_CONTRACT_PHASES.failure,
     'connectivityInactiveSession',
     'connectivityOffline',
     'catalogForegroundLoss',
@@ -159,6 +172,7 @@ const GUIDANCE_CONTRACT_EVIDENCE_PHASES = Object.freeze({
   ]),
   'tracking.stop.settled': new Set([
     OFFLINE_CALENDAR_AUTH_CONTRACT_PHASES.inactiveFailure,
+    WORKSPACE_HANDOFF_CONTRACT_PHASES.failure,
     'connectivityInactiveSession',
     'connectivityOffline',
     'catalogForegroundLoss',
@@ -171,6 +185,7 @@ const GUIDANCE_CONTRACT_EVIDENCE_PHASES = Object.freeze({
   ]),
   'navigation.absence.readback': new Set([
     'catalogJourneyEndedRelaunch',
+    WORKSPACE_HANDOFF_CONTRACT_PHASES.keepRelaunch,
     'connectivityDisabledSyncOffline',
     'connectivityInactiveRelaunch',
     'connectivityOfflineRelaunch',
@@ -2071,6 +2086,418 @@ export function assertOfflineCalendarAuthBoundaryTraffic(entries) {
       `Offline Calendar ${phase} issued product API traffic after the terminal boundary.`
     );
   }
+}
+
+export function assertWorkspaceHandoffStorageFaultRequests(entries, {
+  expectedSourceRevision,
+  outcome
+}) {
+  const normalizedOutcome = String(outcome || '').trim();
+  assertJournalCondition(
+    ['keep', 'retry'].includes(normalizedOutcome),
+    'Workspace handoff fault assertion requires retry or keep outcome.'
+  );
+  const faultPath = (operation) =>
+    `${CONNECTIVITY_CONTRACT_STORAGE_FAULT_PATH}/${operation}`;
+  const exactRequest = (request, operation, phase) =>
+    request?.event === 'request' &&
+    request.phase === phase &&
+    request.method === 'POST' &&
+    request.path === faultPath(operation) &&
+    request.search === `?source_revision=${expectedSourceRevision}` &&
+    request.authorizationClass === 'none' &&
+    request.authorized === false &&
+    request.requestSourceRevision === expectedSourceRevision &&
+    request.sourceRevision === expectedSourceRevision;
+  const completionFor = (request) => entries.filter((entry) =>
+    entry.event === 'completion' &&
+    entry.requestId === request?.requestId
+  );
+  const exactCompletion = (
+    completion,
+    request,
+    statusCode,
+    semanticOutcome,
+  ) =>
+    completion?.completed === true &&
+    completion.statusCode === statusCode &&
+    completion.semanticOutcome === semanticOutcome &&
+    completion.phase === request.phase &&
+    completion.sequence > request.sequence;
+  const cleanupOperation = 'workspace-handoff-navigation-cleanup-set';
+  const targetOperation = 'workspace-handoff-target-selection-set';
+  const cleanupRequests = entries.filter((entry) =>
+    entry.event === 'request' &&
+    entry.path === faultPath(cleanupOperation)
+  );
+  const targetRequests = entries.filter((entry) =>
+    entry.event === 'request' &&
+    entry.path === faultPath(targetOperation)
+  );
+  const cleanupInjected = completionFor(cleanupRequests[0]);
+  const cleanupConsumed = completionFor(cleanupRequests[1]);
+  const targetInjected = completionFor(targetRequests[0]);
+  const targetConsumed = completionFor(targetRequests[1]);
+  const cleanupEvidenceCompletions = entries.filter((entry) =>
+    entry.event === 'completion' &&
+    entry.phase === WORKSPACE_HANDOFF_CONTRACT_PHASES.failure &&
+    entry.path === GUIDANCE_CONTRACT_EVIDENCE_PATH &&
+    entry.semanticOutcome === 'evidence-navigation.cleanup.settled'
+  );
+  const trackingEvidenceCompletions = entries.filter((entry) =>
+    entry.event === 'completion' &&
+    entry.phase === WORKSPACE_HANDOFF_CONTRACT_PHASES.failure &&
+    entry.path === GUIDANCE_CONTRACT_EVIDENCE_PATH &&
+    entry.semanticOutcome === 'evidence-tracking.stop.settled'
+  );
+  assertJournalCondition(
+    cleanupRequests.length === 2 &&
+      cleanupRequests.every((request) =>
+        exactRequest(
+          request,
+          cleanupOperation,
+          WORKSPACE_HANDOFF_CONTRACT_PHASES.failure,
+        )
+      ) &&
+      cleanupRequests[0].connectivitySequence ===
+        cleanupRequests[1].connectivitySequence &&
+      cleanupInjected.length === 1 &&
+      exactCompletion(
+        cleanupInjected[0],
+        cleanupRequests[0],
+        503,
+        'storage-fault-injected',
+      ) &&
+      cleanupConsumed.length === 1 &&
+      exactCompletion(
+        cleanupConsumed[0],
+        cleanupRequests[1],
+        204,
+        'storage-fault-not-armed',
+      ) &&
+      cleanupRequests[0].sequence < cleanupInjected[0].sequence &&
+      cleanupEvidenceCompletions.length === 2 &&
+      trackingEvidenceCompletions.length === 2 &&
+      cleanupInjected[0].sequence < cleanupEvidenceCompletions[0].sequence &&
+      cleanupEvidenceCompletions[0].sequence <
+        trackingEvidenceCompletions[0].sequence &&
+      trackingEvidenceCompletions[0].sequence <
+        cleanupRequests[1].sequence &&
+      cleanupRequests[1].sequence < cleanupConsumed[0].sequence &&
+      cleanupConsumed[0].sequence < cleanupEvidenceCompletions[1].sequence &&
+      cleanupEvidenceCompletions[1].sequence <
+        trackingEvidenceCompletions[1].sequence,
+    'Workspace handoff cleanup did not issue one injected fault followed by one consumed Retry in the same control sequence.'
+  );
+  assertJournalCondition(
+    targetRequests.length === (normalizedOutcome === 'retry' ? 2 : 1) &&
+      exactRequest(
+        targetRequests[0],
+        targetOperation,
+        WORKSPACE_HANDOFF_CONTRACT_PHASES.failure,
+      ) &&
+      targetRequests[0].connectivitySequence ===
+        cleanupRequests[0].connectivitySequence &&
+      targetInjected.length === 1 &&
+      exactCompletion(
+        targetInjected[0],
+        targetRequests[0],
+        503,
+        'storage-fault-injected',
+      ) &&
+      trackingEvidenceCompletions[1].sequence < targetRequests[0].sequence &&
+      targetRequests[0].sequence < targetInjected[0].sequence,
+    'Workspace handoff target selection was not injected after durable cleanup in the shared failure control.'
+  );
+  if (normalizedOutcome === 'retry') {
+    assertJournalCondition(
+      exactRequest(
+        targetRequests[1],
+        targetOperation,
+        WORKSPACE_HANDOFF_CONTRACT_PHASES.failure,
+      ) &&
+        targetRequests[1].connectivitySequence ===
+          targetRequests[0].connectivitySequence &&
+        targetConsumed.length === 1 &&
+        exactCompletion(
+          targetConsumed[0],
+          targetRequests[1],
+          204,
+          'storage-fault-not-armed',
+        ) &&
+        targetInjected[0].sequence < targetRequests[1].sequence &&
+        targetRequests[1].sequence < targetConsumed[0].sequence,
+      'Workspace handoff Retry did not consume the target fault in the original fault-armed control sequence.'
+    );
+  }
+}
+
+export function assertWorkspaceHandoffTraffic(entries, { outcome }) {
+  const normalizedOutcome = String(outcome || '').trim();
+  const productRequests = entries.filter((entry) =>
+    entry.event === 'request' &&
+    entry.path.startsWith('/api/')
+  );
+  const supportScopedTraffic = productRequests.filter((entry) => {
+    const search = new URLSearchParams(entry.search || '');
+    return (
+      search.getAll('client_id').includes(
+        GUIDANCE_CONTRACT_WORKSPACES.survivor.id
+      ) ||
+      entry.path ===
+        `/api/v1/mobile/safe-route/operations/client/${GUIDANCE_CONTRACT_WORKSPACES.survivor.id}` ||
+      entry.path ===
+        `/api/v1/mobile/safe-route/routes/${GUIDANCE_CONTRACT_ROUTE_IDS.survivor}`
+    );
+  });
+  const handoffSupportScopedTraffic = supportScopedTraffic.filter((entry) =>
+    [
+      WORKSPACE_HANDOFF_CONTRACT_PHASES.failure,
+      WORKSPACE_HANDOFF_CONTRACT_PHASES.keepRelaunch
+    ].includes(entry.phase)
+  );
+  const targetPath =
+    `${CONNECTIVITY_CONTRACT_STORAGE_FAULT_PATH}/workspace-handoff-target-selection-set`;
+  const targetRequests = entries.filter((entry) =>
+    entry.event === 'request' &&
+    entry.phase === WORKSPACE_HANDOFF_CONTRACT_PHASES.failure &&
+    entry.path === targetPath
+  );
+  const targetSuccessRequest = targetRequests[1];
+  const targetSuccessCompletion = entries.find((entry) =>
+    entry.event === 'completion' &&
+    entry.requestId === targetSuccessRequest?.requestId &&
+    entry.statusCode === 204 &&
+    entry.semanticOutcome === 'storage-fault-not-armed'
+  );
+  if (normalizedOutcome === 'keep') {
+    const keepTraffic = productRequests.filter((entry) =>
+      [
+        WORKSPACE_HANDOFF_CONTRACT_PHASES.failure,
+        WORKSPACE_HANDOFF_CONTRACT_PHASES.keepRelaunch
+      ].includes(entry.phase)
+    );
+    assertJournalCondition(
+      targetRequests.length === 1 &&
+        keepTraffic.length === 0 &&
+        handoffSupportScopedTraffic.length === 0,
+      'Keeping the current workspace issued product or Support-scoped traffic.'
+    );
+    return;
+  }
+  assertJournalCondition(
+    normalizedOutcome === 'retry',
+    'Workspace handoff traffic assertion requires retry or keep outcome.'
+  );
+  const handoffTraffic = productRequests.filter(
+    (entry) => entry.phase === WORKSPACE_HANDOFF_CONTRACT_PHASES.failure
+  );
+  const supportRouteReads = handoffTraffic.filter((entry) => {
+    const search = new URLSearchParams(entry.search || '');
+    return (
+      entry.method === 'GET' &&
+      entry.path === '/api/v1/mobile/safe-route/routes' &&
+      search.getAll('client_id').length === 1 &&
+      search.get('client_id') === GUIDANCE_CONTRACT_WORKSPACES.survivor.id
+    );
+  });
+  assertJournalCondition(
+    targetRequests.length === 2 &&
+      targetSuccessCompletion &&
+      handoffTraffic.length >= 1 &&
+      supportRouteReads.length === handoffTraffic.length &&
+      handoffSupportScopedTraffic.length === handoffTraffic.length &&
+      handoffSupportScopedTraffic.every(
+        (entry) => entry.sequence > targetSuccessCompletion.sequence
+      ) &&
+      handoffTraffic.every(
+        (entry) =>
+          entry.sequence > targetSuccessCompletion.sequence &&
+          entry.authorized === true &&
+          entry.authorizationClass === 'expected-bearer'
+      ),
+    'Workspace handoff Retry did not keep protected traffic closed until target persistence, then read only Support Operations routes.'
+  );
+}
+
+export function assertWorkspaceHandoffEvidence(entries, {
+  expectedSourceRevision,
+  minimumOccurredAtMs = 0,
+  outcome
+}) {
+  const normalizedOutcome = String(outcome || '').trim();
+  assertJournalCondition(
+    ['keep', 'retry'].includes(normalizedOutcome),
+    'Workspace handoff evidence assertion requires retry or keep outcome.'
+  );
+  const current = Array.isArray(entries) ? entries.filter((entry) =>
+    entry.sourceRevision === expectedSourceRevision &&
+    entry.occurredAtMs >= minimumOccurredAtMs
+  ) : [];
+  const persistedIndex = current.findIndex((entry) =>
+    entry.type === 'navigation.persisted' &&
+    entry.serverPhase === CONNECTIVITY_CONTRACT_PHASES.seed &&
+    entry.routeId === GUIDANCE_CONTRACT_ROUTE_IDS.denied &&
+    entry.workspaceId === GUIDANCE_CONTRACT_WORKSPACES.denied.id &&
+    isSuccessfulGuidanceContractEvidence(entry, entry)
+  );
+  assertJournalCondition(
+    persistedIndex >= 0,
+    'Workspace handoff did not seed one exact persisted Guidance Operations journey.'
+  );
+  const persisted = current[persistedIndex];
+  const sameJourney = (entry) =>
+    entry.navigationInstanceId === persisted.navigationInstanceId &&
+    entry.routeId === persisted.routeId &&
+    entry.workspaceId === persisted.workspaceId;
+  const suspendedIndex = current.findIndex((entry, index) =>
+    index > persistedIndex &&
+    entry.type === 'restore.suspended' &&
+    entry.serverPhase === WORKSPACE_HANDOFF_CONTRACT_PHASES.prepare &&
+    entry.navigationInstanceId === persisted.navigationInstanceId &&
+    entry.routeId === persisted.routeId &&
+    entry.workspaceId === persisted.workspaceId &&
+    isSuccessfulGuidanceContractEvidence(entry, entry)
+  );
+  const suspended = current[suspendedIndex];
+  const readyIndex = current.findIndex((entry, index) =>
+    index > suspendedIndex &&
+    entry.type === 'restore.ready' &&
+    entry.serverPhase === WORKSPACE_HANDOFF_CONTRACT_PHASES.prepare &&
+    entry.navigationInstanceId === persisted.navigationInstanceId &&
+    entry.routeId === persisted.routeId &&
+    entry.workspaceId === persisted.workspaceId &&
+    entry.appLaunchId === suspended?.appLaunchId &&
+    isSuccessfulGuidanceContractEvidence(entry, entry)
+  );
+  const reaffirmedPersistedIndex = current.findIndex((entry, index) =>
+    index > readyIndex &&
+    entry.type === 'navigation.persisted' &&
+    entry.serverPhase === WORKSPACE_HANDOFF_CONTRACT_PHASES.prepare &&
+    sameJourney(entry) &&
+    entry.appLaunchId === suspended?.appLaunchId &&
+    isSuccessfulGuidanceContractEvidence(entry, entry)
+  );
+  const cleanupLaunchId = current.find((entry, index) =>
+    index > reaffirmedPersistedIndex &&
+    entry.type === 'navigation.cleanup.settled' &&
+    entry.serverPhase === WORKSPACE_HANDOFF_CONTRACT_PHASES.failure &&
+    sameJourney(entry)
+  )?.appLaunchId;
+  const failedCleanupIndex = current.findIndex((entry, index) =>
+    index > reaffirmedPersistedIndex &&
+    entry.type === 'navigation.cleanup.settled' &&
+    entry.serverPhase === WORKSPACE_HANDOFF_CONTRACT_PHASES.failure &&
+    sameJourney(entry) &&
+    entry.authorization?.catalog === 'not-checked' &&
+    entry.authorization?.principal === 'matching' &&
+    entry.outcome === 'failed' &&
+    entry.durability?.activeNavigation === 'unknown' &&
+    entry.durability?.persistedPermit === 'unknown'
+  );
+  const unknownTrackingIndex = current.findIndex((entry, index) =>
+    index > failedCleanupIndex &&
+    entry.type === 'tracking.stop.settled' &&
+    entry.serverPhase === WORKSPACE_HANDOFF_CONTRACT_PHASES.failure &&
+    sameJourney(entry) &&
+    entry.appLaunchId === cleanupLaunchId &&
+    entry.outcome === 'unknown' &&
+    entry.durability?.nativeTracking === 'unknown' &&
+    entry.durability?.runtimePermit === 'unknown' &&
+    entry.durability?.persistedPermit === 'unknown'
+  );
+  const clearedCleanupIndex = current.findIndex((entry, index) =>
+    index > unknownTrackingIndex &&
+    entry.type === 'navigation.cleanup.settled' &&
+    entry.serverPhase === WORKSPACE_HANDOFF_CONTRACT_PHASES.failure &&
+    sameJourney(entry) &&
+    entry.appLaunchId === cleanupLaunchId &&
+    isSuccessfulGuidanceContractEvidence(entry, entry)
+  );
+  const stoppedTrackingIndex = current.findIndex((entry, index) =>
+    index > clearedCleanupIndex &&
+    entry.type === 'tracking.stop.settled' &&
+    entry.serverPhase === WORKSPACE_HANDOFF_CONTRACT_PHASES.failure &&
+    sameJourney(entry) &&
+    entry.appLaunchId === cleanupLaunchId &&
+    isSuccessfulGuidanceContractEvidence(entry, entry)
+  );
+  const lifecycleEvents = current.filter((entry) =>
+    [
+      'navigation.cleanup.settled',
+      'navigation.persisted',
+      'restore.ready',
+      'restore.suspended',
+      'tracking.stop.settled'
+    ].includes(entry.type)
+  );
+  const keepAbsenceIndex = current.findIndex((entry, index) =>
+    index > stoppedTrackingIndex &&
+    normalizedOutcome === 'keep' &&
+    entry.type === 'navigation.absence.readback' &&
+    entry.serverPhase === WORKSPACE_HANDOFF_CONTRACT_PHASES.keepRelaunch &&
+    entry.appLaunchId !== cleanupLaunchId &&
+    entry.navigationInstanceId === null &&
+    entry.routeId === null &&
+    entry.workspaceId === null &&
+    isSuccessfulGuidanceContractEvidence(entry, entry)
+  );
+  const keepRouteReadbackIndex = current.findIndex((entry, index) =>
+    index > keepAbsenceIndex &&
+    normalizedOutcome === 'keep' &&
+    entry.type === 'route.cache.readback' &&
+    entry.serverPhase === WORKSPACE_HANDOFF_CONTRACT_PHASES.keepRelaunch &&
+    entry.appLaunchId === current[keepAbsenceIndex]?.appLaunchId &&
+    entry.routeId === GUIDANCE_CONTRACT_ROUTE_IDS.denied &&
+    entry.workspaceId === GUIDANCE_CONTRACT_WORKSPACES.denied.id &&
+    isSuccessfulGuidanceContractEvidence(entry, entry)
+  );
+  assertJournalCondition(
+    suspendedIndex > persistedIndex &&
+      readyIndex > suspendedIndex &&
+      reaffirmedPersistedIndex > readyIndex &&
+      suspended?.appLaunchId !== persisted.appLaunchId &&
+      cleanupLaunchId === suspended?.appLaunchId &&
+      failedCleanupIndex > reaffirmedPersistedIndex &&
+      unknownTrackingIndex > failedCleanupIndex &&
+      clearedCleanupIndex > unknownTrackingIndex &&
+      stoppedTrackingIndex > clearedCleanupIndex &&
+      lifecycleEvents.filter(
+        (entry) => entry.type === 'navigation.cleanup.settled'
+      ).length === 2 &&
+      lifecycleEvents.filter(
+        (entry) => entry.type === 'tracking.stop.settled'
+      ).length === 2 &&
+      lifecycleEvents.filter(
+        (entry) => entry.type === 'navigation.persisted'
+      ).length === 2 &&
+      lifecycleEvents.filter(
+        (entry) => entry.type === 'restore.suspended'
+      ).length === 1 &&
+      lifecycleEvents.filter(
+        (entry) => entry.type === 'restore.ready'
+      ).length === 1 &&
+      !current.some(
+        (entry, index) =>
+          index > stoppedTrackingIndex &&
+          sameJourney(entry) &&
+          [
+            'navigation.cleanup.settled',
+            'navigation.persisted',
+            'restore.ready',
+            'restore.suspended',
+            'tracking.stop.settled'
+          ].includes(entry.type)
+      ) &&
+      (
+        normalizedOutcome === 'retry' ||
+        (
+          keepAbsenceIndex > stoppedTrackingIndex &&
+          keepRouteReadbackIndex > keepAbsenceIndex
+        )
+      ),
+    'Workspace handoff evidence did not record exact cold restore, failed/unknown then cleared/off, and the required closed outcome without repeating lifecycle work.'
+  );
 }
 
 export function assertGuidanceContractRouteCacheReadbackEvidence(entries, {

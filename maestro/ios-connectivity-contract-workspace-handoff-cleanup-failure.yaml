@@ -1,0 +1,25 @@
+appId: host.exp.Exponent
+---
+- assertVisible: "End route and change workspace?"
+- tapOn: "^End route and change workspace$"
+- extendedWaitUntil:
+    visible:
+      id: "safe-route-navigation-cleanup-retry"
+      enabled: true
+    timeout: 15000
+- assertVisible:
+    id: "safe-route-navigation-cleanup"
+- assertVisible: "Guidance cleanup needed"
+- assertVisible: "SafeRoute could not remove saved guidance. Retry to finish changing to Support Operations."
+- assertVisible: "Retry cleanup"
+- assertNotVisible:
+    id: "safe-route-workspace-handoff-retry"
+- assertNotVisible:
+    id: "safe-route-live-map"
+- assertNotVisible:
+    id: "safe-route-resume-action"
+- assertNotVisible:
+    id: "safe-route-suspended-navigation"
+- assertNotVisible:
+    id: "safe-route-journey-66b1b2c3d4e5f60718293b40"
+- takeScreenshot: "workspace-handoff-cleanup-failure"

@@ -61,7 +61,7 @@ describe("App active workspace integration", () => {
     );
     assert.match(
       app,
-      /handleActiveWorkspaceChange[\s\S]*await persistOfflineReviewWorkspaceSelection\([\s\S]*requestedTargetWorkspaceId/,
+      /handleActiveWorkspaceChange[\s\S]*runDurableWorkspaceSelectionAttempt\(\{[\s\S]*persistOfflineReviewWorkspaceSelection\([\s\S]*requestedTargetWorkspaceId/,
     );
     assert.match(
       app,
@@ -88,10 +88,13 @@ describe("App active workspace integration", () => {
       app.indexOf("const handleGuardedWorkspaceChange ="),
     );
     const persistenceIndex = selection.indexOf(
-      "await persistOfflineReviewWorkspaceSelection(",
+      "runDurableWorkspaceSelectionAttempt({",
+    );
+    const targetWriteIndex = selection.indexOf(
+      "persistOfflineReviewWorkspaceSelection(",
     );
     const readbackIndex = selection.indexOf(
-      "persistedSelection?.activeWorkspaceId === requestedTargetWorkspaceId",
+      "persistedSelection?.activeWorkspaceId",
     );
     const refPublishIndex = selection.indexOf(
       "activeWorkspaceRef.current = persistedTarget",
@@ -101,7 +104,8 @@ describe("App active workspace integration", () => {
     );
 
     assert.ok(persistenceIndex >= 0);
-    assert.ok(readbackIndex > persistenceIndex);
+    assert.ok(targetWriteIndex > persistenceIndex);
+    assert.ok(readbackIndex > targetWriteIndex);
     assert.ok(refPublishIndex > readbackIndex);
     assert.ok(statePublishIndex > refPublishIndex);
     assert.match(
@@ -142,7 +146,7 @@ describe("App active workspace integration", () => {
     );
     assert.match(
       selection,
-      /if \(!persistedTarget\)[\s\S]*publishSelectionFailure\(\)[\s\S]*catch \{[\s\S]*publishSelectionFailure\(\)[\s\S]*finally \{[\s\S]*workspaceSelectionPendingRef\.current = false/,
+      /runDurableWorkspaceSelectionAttempt\(\{[\s\S]*persistTarget:[\s\S]*persistOfflineReviewWorkspaceSelection\([\s\S]*reconcileSource: reconcileVisibleSelection[\s\S]*attempt\.status === 'failed'[\s\S]*settleFailedPersistence\(attempt\.reconciliation\)[\s\S]*finally \{[\s\S]*workspaceSelectionPendingRef\.current = false/,
     );
     assert.match(
       selection,
@@ -166,7 +170,11 @@ describe("App active workspace integration", () => {
       3,
     );
     assert.equal(
-      (app.match(/workspaceSelectionFailed=\{workspaceSelectionFailed\}/g) || [])
+      (
+        app.match(
+          /workspaceSelectionFailed=\{surfaceWorkspaceSelectionFailed\}/g,
+        ) || []
+      )
         .length,
       3,
     );
@@ -620,7 +628,7 @@ describe("App active workspace integration", () => {
     );
     assert.match(
       app,
-      /handleActiveWorkspaceChange[\s\S]*persistOfflineReviewWorkspaceSelection\([\s\S]*persistedSelection\?\.activeWorkspaceId === requestedTargetWorkspaceId[\s\S]*completedRouteHandoff[\s\S]*Route ended\. Workspace changed to \$\{persistedTarget\.name\}\.[\s\S]*workspaceAccessFocusHandoffRef\.current\?\.request/,
+      /handleActiveWorkspaceChange[\s\S]*persistOfflineReviewWorkspaceSelection\([\s\S]*persistedSelection\?\.activeWorkspaceId ===[\s\S]*requestedTargetWorkspaceId[\s\S]*completedRouteHandoff[\s\S]*Route ended\. Workspace changed to \$\{persistedTarget\.name\}\.[\s\S]*workspaceAccessFocusHandoffRef\.current\?\.request/,
     );
     assert.match(
       app,
@@ -633,6 +641,66 @@ describe("App active workspace integration", () => {
     assert.match(
       app,
       /continuePendingWorkspaceHandoff[\s\S]*workspaceHandoffPendingRef\.current = false[\s\S]*handleActiveWorkspaceChange\(decision\.target, \{[\s\S]*completedRouteHandoff: true/,
+    );
+    assert.match(
+      app,
+      /pendingWorkspaceSelectionRetryRef =[\s\S]*useRef<PendingWorkspaceSelectionRetry \| null>\(null\)/,
+    );
+    assert.match(
+      app,
+      /continuePendingWorkspaceHandoff[\s\S]*publishPendingWorkspaceSelectionRetry\(selectionRetry\)[\s\S]*handleActiveWorkspaceChange\(decision\.target, \{[\s\S]*selectionRetry/,
+    );
+    assert.match(
+      app,
+      /resolveSelectionRetryFailure[\s\S]*resolveWorkspaceHandoffSelectionFailure\([\s\S]*sourceReconciliationPersisted: reconciliation === 'persisted'/,
+    );
+    assert.match(
+      app,
+      /settleFailedPersistence[\s\S]*retryResolution === 'storage-blocked'[\s\S]*publishStorageFailure\(\)[\s\S]*retryResolution === 'retain-retry'[\s\S]*publishSelectionFailure\(\)[\s\S]*retryResolution === 'clear-stale'[\s\S]*clearStaleSelectionRetry\(\)/,
+    );
+    assert.match(
+      app,
+      /handleRetryPendingWorkspaceSelection[\s\S]*resolvePendingWorkspaceSelectionRetryDecision\(request\)[\s\S]*handleActiveWorkspaceChange\(decision\.target, \{[\s\S]*selectionRetry: request/,
+    );
+    const retrySelection = app.slice(
+      app.indexOf("const handleRetryPendingWorkspaceSelection ="),
+      app.indexOf("const handleKeepCurrentWorkspace ="),
+    );
+    assert.doesNotMatch(
+      retrySelection,
+      /discardPersistedNavigation|performPersistedNavigationCleanup|continuePendingWorkspaceHandoff/,
+    );
+    assert.match(
+      app,
+      /<WorkspaceHandoffRetryNotice[\s\S]*onKeepCurrent=\{handleKeepCurrentWorkspace\}[\s\S]*onRetry=\{handleRetryPendingWorkspaceSelection\}/,
+    );
+    assert.match(
+      app,
+      /pendingWorkspaceSelectionRetryNoticeDecision[\s\S]*resolveWorkspaceHandoffContinuation\([\s\S]*workspaceHandoffRetryCheckingAccess = Boolean\([\s\S]*status === 'deferred'/,
+    );
+    assert.match(
+      app,
+      /workspaceHandoffRetrySourceName =[\s\S]*activeWorkspace\.id ===[\s\S]*requestedSourceWorkspaceId[\s\S]*findWorkspace\([\s\S]*requestedSourceWorkspaceId[\s\S]*requestedSourceWorkspaceName/,
+    );
+    assert.match(
+      app,
+      /workspaceHandoffRetryTargetName =[\s\S]*pendingWorkspaceSelectionRetryNoticeDecision\?\.target\?\.name[\s\S]*findWorkspace\([\s\S]*requestedTargetWorkspaceId[\s\S]*requestedTargetName/,
+    );
+    assert.match(
+      app,
+      /<WorkspaceHandoffRetryNotice[\s\S]*checkingAccess=\{workspaceHandoffRetryCheckingAccess\}[\s\S]*sourceWorkspaceName=\{workspaceHandoffRetrySourceName\}[\s\S]*targetWorkspaceName=\{workspaceHandoffRetryTargetName\}/,
+    );
+    assert.match(
+      app,
+      /resolvePendingWorkspaceSelectionRetryDecision\(request\)\.status !== 'stale'[\s\S]*clearPendingWorkspaceSelectionRetry\(request\)[\s\S]*The change to \$\{request\.requestedTargetName\} is no longer available\.[\s\S]*workspaceAccessFocusTargetRef\.current/,
+    );
+    assert.match(
+      app,
+      /surfaceSessionMessage = workspaceHandoffSelectionNoticeVisible[\s\S]*routeListSessionNotice = workspaceHandoffSelectionNoticeVisible[\s\S]*sessionNotice=\{routeListSessionNotice\}[\s\S]*sessionNotice=\{session && isPreviewAccessToken\(session\.accessToken\)[\s\S]*surfaceSessionMessage/,
+    );
+    assert.doesNotMatch(
+      app,
+      /type PendingWorkspaceHandoff = \{[\s\S]{0,240}phase:/,
     );
     assert.match(
       app,

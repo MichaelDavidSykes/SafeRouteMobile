@@ -4,6 +4,7 @@ export const uiTestIds = {
   appRoot: "saferoute-app-root",
   guestMapCanvas: "guest-map-canvas",
   guestMapCurrentLocation: "guest-map-current-location",
+  guestMapCurrentLocationMarker: "guest-map-current-location-marker",
   guestMapNetworkStatus: "guest-map-network-status",
   guestMapPrimaryAction: "guest-map-primary-action",
   guestMapPlotAction: "guest-map-plot-action",

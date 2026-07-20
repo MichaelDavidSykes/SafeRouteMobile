@@ -86,6 +86,10 @@ export const uiTestIds = {
   suspendedNavigationEnd: "safe-route-suspended-navigation-end",
   navigationCleanupNotice: "safe-route-navigation-cleanup",
   navigationCleanupRetry: "safe-route-navigation-cleanup-retry",
+  workspaceHandoffRetryNotice: "safe-route-workspace-handoff-retry",
+  workspaceHandoffRetryAction: "safe-route-workspace-handoff-retry-action",
+  workspaceHandoffKeepCurrentAction:
+    "safe-route-workspace-handoff-keep-current",
   offlineCalendarCleanupNotice: "safe-route-calendar-cleanup",
   offlineCalendarCleanupAlert: "safe-route-calendar-cleanup-alert",
   offlineCalendarCleanupRetry: "safe-route-calendar-cleanup-retry",

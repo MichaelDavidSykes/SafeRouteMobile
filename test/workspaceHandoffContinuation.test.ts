@@ -4,6 +4,7 @@ import { describe, it } from "node:test";
 import {
   resolveDeferredWorkspaceRefreshAfterSelection,
   resolveWorkspaceHandoffContinuation,
+  resolveWorkspaceHandoffSelectionFailure,
 } from "../src/features/workspaces/workspaceHandoffContinuation";
 
 const workspaces = [
@@ -48,6 +49,61 @@ function decide({
 }
 
 describe("workspace handoff continuation", () => {
+  it("retains a direct target retry only after the visible source is restored durably", () => {
+    assert.equal(
+      resolveWorkspaceHandoffSelectionFailure({
+        continuationStatus: "ready",
+        requestOwnerIsCurrent: true,
+        sourceReconciliationPersisted: true,
+      }),
+      "retain-retry",
+    );
+    assert.equal(
+      resolveWorkspaceHandoffSelectionFailure({
+        continuationStatus: "deferred",
+        requestOwnerIsCurrent: true,
+        sourceReconciliationPersisted: true,
+      }),
+      "retain-retry",
+    );
+  });
+
+  it("fails closed instead of retaining a retry when source reconciliation is unsafe", () => {
+    for (const continuationStatus of ["ready", "deferred", "stale"] as const) {
+      for (const requestOwnerIsCurrent of [true, false]) {
+        assert.equal(
+          resolveWorkspaceHandoffSelectionFailure({
+            continuationStatus,
+            requestOwnerIsCurrent,
+            sourceReconciliationPersisted: false,
+          }),
+          "storage-blocked",
+        );
+      }
+    }
+  });
+
+  it("clears retained retry intent after its owner, source, journey, or target becomes stale", () => {
+    for (const requestOwnerIsCurrent of [true, false]) {
+      assert.equal(
+        resolveWorkspaceHandoffSelectionFailure({
+          continuationStatus: "stale",
+          requestOwnerIsCurrent,
+          sourceReconciliationPersisted: true,
+        }),
+        "clear-stale",
+      );
+    }
+    assert.equal(
+      resolveWorkspaceHandoffSelectionFailure({
+        continuationStatus: "ready",
+        requestOwnerIsCurrent: false,
+        sourceReconciliationPersisted: true,
+      }),
+      "clear-stale",
+    );
+  });
+
   it("resumes a deferred refresh for the same request owner after A publishes B", () => {
     assert.equal(
       resolveDeferredWorkspaceRefreshAfterSelection({

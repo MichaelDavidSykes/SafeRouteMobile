@@ -34,6 +34,29 @@ export type WorkspaceHandoffContinuationDecision =
       target: null;
     };
 
+export type WorkspaceHandoffSelectionFailureResolution =
+  | "clear-stale"
+  | "storage-blocked"
+  | "retain-retry";
+
+export function resolveWorkspaceHandoffSelectionFailure({
+  continuationStatus,
+  requestOwnerIsCurrent,
+  sourceReconciliationPersisted,
+}: {
+  continuationStatus: WorkspaceHandoffContinuationDecision["status"];
+  requestOwnerIsCurrent: boolean;
+  sourceReconciliationPersisted: boolean;
+}): WorkspaceHandoffSelectionFailureResolution {
+  if (!sourceReconciliationPersisted) {
+    return "storage-blocked";
+  }
+  if (!requestOwnerIsCurrent || continuationStatus === "stale") {
+    return "clear-stale";
+  }
+  return "retain-retry";
+}
+
 export function resolveDeferredWorkspaceRefreshAfterSelection({
   refreshDeferred,
   requestOwnerIsCurrent,

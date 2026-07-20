@@ -53,6 +53,18 @@ describe("UI test identifiers", () => {
     assert.equal(uiTestIds.navigationCleanupNotice, "safe-route-navigation-cleanup");
     assert.equal(uiTestIds.navigationCleanupRetry, "safe-route-navigation-cleanup-retry");
     assert.equal(
+      uiTestIds.workspaceHandoffRetryNotice,
+      "safe-route-workspace-handoff-retry",
+    );
+    assert.equal(
+      uiTestIds.workspaceHandoffRetryAction,
+      "safe-route-workspace-handoff-retry-action",
+    );
+    assert.equal(
+      uiTestIds.workspaceHandoffKeepCurrentAction,
+      "safe-route-workspace-handoff-keep-current",
+    );
+    assert.equal(
       uiTestIds.offlineCalendarCleanupNotice,
       "safe-route-calendar-cleanup",
     );

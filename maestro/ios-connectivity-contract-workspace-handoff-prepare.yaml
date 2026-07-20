@@ -1,0 +1,56 @@
+appId: host.exp.Exponent
+---
+- runFlow: subflows/ios-open-expo-project.yaml
+- extendedWaitUntil:
+    visible:
+      id: "safe-route-live-map"
+    timeout: 30000
+- assertVisible: "Resume route guidance"
+- assertVisible:
+    id: "safe-route-primary-action"
+    enabled: true
+- assertVisible:
+    id: "safe-route-stop-action"
+    enabled: true
+- extendedWaitUntil:
+    visible:
+      id: "safe-route-remaining-metrics"
+    timeout: 15000
+- assertVisible:
+    id: "safe-route-journey-66b1b2c3d4e5f60718293b40"
+- assertNotVisible:
+    id: "safe-route-suspended-navigation"
+- tapOn:
+    id: "safe-route-return"
+    waitToSettleTimeoutMs: 100
+- extendedWaitUntil:
+    visible:
+      id: "safe-route-picker"
+    timeout: 20000
+- extendedWaitUntil:
+    visible:
+      id: "safe-route-card-66b1b2c3d4e5f60718293b40"
+    timeout: 30000
+- assertVisible:
+    id: "safe-route-workspace-selector"
+    enabled: true
+- assertVisible: "Workspace, Guidance Operations"
+- assertVisible:
+    id: "safe-route-resume-action"
+- tapOn:
+    id: "safe-route-workspace-selector"
+    waitToSettleTimeoutMs: 100
+- extendedWaitUntil:
+    visible:
+      id: "safe-route-workspace-66a1b2c3d4e5f60718293a41"
+    timeout: 10000
+- tapOn:
+    id: "safe-route-workspace-66a1b2c3d4e5f60718293a41"
+    waitToSettleTimeoutMs: 100
+- extendedWaitUntil:
+    visible: "End route and change workspace?"
+    timeout: 10000
+- assertVisible: "End Cold restart verification v1 in Guidance Operations, then change to Support Operations. Guidance and background tracking will stop."
+- assertVisible: "Keep route"
+- assertVisible: "End route and change workspace"
+- takeScreenshot: "workspace-handoff-prepare"

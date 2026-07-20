@@ -1,0 +1,55 @@
+appId: host.exp.Exponent
+---
+- runFlow: subflows/ios-open-expo-project.yaml
+- extendedWaitUntil:
+    visible:
+      id: "saferoute-app-root"
+    timeout: 30000
+- extendedWaitUntil:
+    visible:
+      id: "guest-map-network-status"
+    timeout: 15000
+- assertVisible: "Offline map. Saved route information remains available."
+- assertVisible: "Workspace, Guidance Operations"
+- assertNotVisible:
+    id: "safe-route-navigation-cleanup"
+- assertNotVisible:
+    id: "safe-route-workspace-handoff-retry"
+- assertNotVisible:
+    id: "safe-route-live-map"
+- assertNotVisible:
+    id: "safe-route-resume-action"
+- assertNotVisible:
+    id: "safe-route-suspended-navigation"
+- assertNotVisible:
+    id: "safe-route-journey-66b1b2c3d4e5f60718293b40"
+- tapOn:
+    id: "guest-map-primary-action"
+- extendedWaitUntil:
+    visible:
+      id: "safe-route-picker"
+    timeout: 15000
+- assertVisible:
+    id: "safe-route-workspace-selector"
+    enabled: true
+- assertVisible: "Workspace, Guidance Operations"
+- assertVisible:
+    id: "safe-route-offline-notice"
+- assertVisible: "Offline saved routes. This copy was cached less than one hour ago and is review only. Reconnect and verify workspace access before starting guidance."
+- assertVisible:
+    id: "safe-route-card-66b1b2c3d4e5f60718293b40"
+- assertNotVisible:
+    id: "safe-route-card-66b1b2c3d4e5f60718293b41"
+- assertNotVisible:
+    id: "safe-route-navigation-cleanup"
+- assertNotVisible:
+    id: "safe-route-workspace-handoff-retry"
+- assertNotVisible:
+    id: "safe-route-live-map"
+- assertNotVisible:
+    id: "safe-route-resume-action"
+- assertNotVisible:
+    id: "safe-route-suspended-navigation"
+- assertNotVisible:
+    id: "safe-route-journey-66b1b2c3d4e5f60718293b40"
+- takeScreenshot: "workspace-handoff-keep-cold-relaunch"

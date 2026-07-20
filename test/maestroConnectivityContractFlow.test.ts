@@ -481,6 +481,169 @@ describe("Maestro connectivity contract runtime", () => {
     );
   });
 
+  it("wires retry-B and keep-A workspace handoff decisions without rearming live faults", () => {
+    const packageJson = JSON.parse(read("package.json")) as {
+      scripts: Record<string, string>;
+    };
+    const start =
+      packageJson.scripts[
+        "start:maestro:ios:connectivity-contract:workspace-handoff"
+      ];
+    const prestart =
+      packageJson.scripts[
+        "prestart:maestro:ios:connectivity-contract:workspace-handoff"
+      ];
+    const retryRun =
+      packageJson.scripts[
+        "test:maestro:ios:connectivity-contract:workspace-handoff-retry"
+      ];
+    const keepRun =
+      packageJson.scripts[
+        "test:maestro:ios:connectivity-contract:workspace-handoff-keep"
+      ];
+    const runner = read("scripts/run-maestro-connectivity-contract.mjs");
+    const fixture = read("scripts/maestro-guidance-contract-api.mjs");
+    const prepare = read(
+      "maestro/ios-connectivity-contract-workspace-handoff-prepare.yaml",
+    );
+    const cleanupFailure = read(
+      "maestro/ios-connectivity-contract-workspace-handoff-cleanup-failure.yaml",
+    );
+    const selectionFailure = read(
+      "maestro/ios-connectivity-contract-workspace-handoff-selection-failure.yaml",
+    );
+    const retrySuccess = read(
+      "maestro/ios-connectivity-contract-workspace-handoff-retry-success.yaml",
+    );
+    const keepCurrent = read(
+      "maestro/ios-connectivity-contract-workspace-handoff-keep-current.yaml",
+    );
+    const keepRelaunch = read(
+      "maestro/ios-connectivity-contract-workspace-handoff-keep-relaunch.yaml",
+    );
+    const handoffRunner = runner.slice(
+      runner.indexOf("async function runWorkspaceHandoffSlice"),
+      runner.indexOf("async function runCalendarPrincipalChangeSlice"),
+    );
+
+    assert.equal(prestart, "node scripts/maestro-ios-preflight.mjs");
+    assert.match(start, /SAFEROUTE_SOURCE_REVISION=\$\(git rev-parse HEAD\)/);
+    assert.match(start, /SAFEROUTE_ENABLE_CONNECTIVITY_CONTRACT=true/);
+    assert.match(start, /SAFEROUTE_ENABLE_STORAGE_FAULT_CONTRACT=true/);
+    assert.match(start, /SAFEROUTE_ENABLE_GUIDANCE_CONTRACT_EVIDENCE=true/);
+    assert.match(start, /SAFEROUTE_ENABLE_PREVIEW_MODE=false/);
+    assert.match(start, /SAFEROUTE_ENABLE_DEMO_DRIVE=false/);
+    assert.match(start, /SAFEROUTE_DEV_API_URL=http:\/\/127\.0\.0\.1:18080/);
+    assert.match(
+      retryRun,
+      /SAFEROUTE_CONNECTIVITY_CONTRACT_SLICE=workspace-handoff-retry/,
+    );
+    assert.match(
+      keepRun,
+      /SAFEROUTE_CONNECTIVITY_CONTRACT_SLICE=workspace-handoff-keep/,
+    );
+    assert.doesNotMatch(
+      `${start}\n${retryRun}\n${keepRun}`,
+      /npm run build|expo export|eas build|xcodebuild/i,
+    );
+    assert.match(
+      runner,
+      /expectedStorageFaultContractEnabled:[\s\S]*WORKSPACE_HANDOFF_KEEP_SLICE[\s\S]*WORKSPACE_HANDOFF_RETRY_SLICE/,
+    );
+    assert.match(
+      handoffRunner,
+      /WORKSPACE_HANDOFF_CONTRACT_PHASES\.prepare[\s\S]*flows\.workspaceHandoffPrepare[\s\S]*restore\.suspended[\s\S]*restore\.ready[\s\S]*navigation\.persisted[\s\S]*waitForProductRequestJournalQuiet/,
+    );
+    assert.match(
+      handoffRunner,
+      /WORKSPACE_HANDOFF_CONTRACT_PHASES\.failure[\s\S]*handoff-cleanup[\s\S]*workspace-handoff-navigation-cleanup-set[\s\S]*handoff-target[\s\S]*workspace-handoff-target-selection-set[\s\S]*flows\.workspaceHandoffCleanupFailure[\s\S]*'failed'[\s\S]*flows\.workspaceHandoffSelectionFailure[\s\S]*'cleared'[\s\S]*'off'[\s\S]*waitForAllRequestsTerminal\(\)[\s\S]*flows\.workspaceHandoffRetrySuccess[\s\S]*flows\.workspaceHandoffKeepCurrent/,
+    );
+    const failurePhaseStart = handoffRunner.indexOf(
+      "WORKSPACE_HANDOFF_CONTRACT_PHASES.failure",
+    );
+    const faultArmStart = handoffRunner.lastIndexOf(
+      "setControl(",
+      failurePhaseStart,
+    );
+    const keepDecisionEnd = handoffRunner.indexOf(
+      "terminateExpoGo(deviceId)",
+      handoffRunner.indexOf("flows.workspaceHandoffKeepCurrent"),
+    );
+    assert.equal(
+      (
+        handoffRunner
+          .slice(faultArmStart, keepDecisionEnd)
+          .match(/setControl\(/g) || []
+      ).length,
+      1,
+    );
+    assert.doesNotMatch(
+      handoffRunner.slice(faultArmStart, keepDecisionEnd),
+      /WORKSPACE_HANDOFF_CONTRACT_PHASES\.outcome/,
+    );
+    assert.match(
+      handoffRunner,
+      /flows\.workspaceHandoffRetrySuccess[\s\S]*flows\.workspaceHandoffKeepCurrent[\s\S]*terminateExpoGo\(deviceId\)[\s\S]*WORKSPACE_HANDOFF_CONTRACT_PHASES\.keepRelaunch[\s\S]*flows\.workspaceHandoffKeepRelaunch[\s\S]*navigation\.absence\.readback[\s\S]*route\.cache\.readback[\s\S]*assertWorkspaceHandoffStorageFaultRequests[\s\S]*assertWorkspaceHandoffTraffic[\s\S]*assertWorkspaceHandoffEvidence/,
+    );
+    assert.match(
+      handoffRunner,
+      /workspace-handoff-cleanup-failure[\s\S]*safe-route-workspace-selector[\s\S]*Workspace, Guidance Operations[\s\S]*enabled: false[\s\S]*safe-route-navigation-cleanup/,
+    );
+    assert.match(
+      handoffRunner,
+      /workspace-handoff-selection-failure[\s\S]*safe-route-workspace-selector[\s\S]*Workspace, Guidance Operations[\s\S]*enabled: true[\s\S]*safe-route-workspace-handoff-retry-action/,
+    );
+    assert.match(
+      fixture,
+      /WORKSPACE_HANDOFF_CONTRACT_PHASES\.failure[\s\S]*navigation\.cleanup\.settled[\s\S]*tracking\.stop\.settled/,
+    );
+    assert.match(
+      fixture,
+      /cleanupRequests\.length === 2[\s\S]*503[\s\S]*storage-fault-injected[\s\S]*204[\s\S]*storage-fault-not-armed[\s\S]*targetRequests\.length === \(normalizedOutcome === 'retry' \? 2 : 1\)[\s\S]*targetRequests\[1\]\.connectivitySequence ===[\s\S]*targetRequests\[0\]\.connectivitySequence/,
+    );
+    assert.match(
+      fixture,
+      /normalizedOutcome === 'keep'[\s\S]*targetRequests\.length === 1[\s\S]*keepTraffic\.length === 0[\s\S]*handoffSupportScopedTraffic\.length === 0[\s\S]*targetSuccessCompletion[\s\S]*supportRouteReads\.length === handoffTraffic\.length/,
+    );
+    assert.match(
+      fixture,
+      /suspendedIndex[\s\S]*readyIndex[\s\S]*failedCleanupIndex[\s\S]*unknownTrackingIndex[\s\S]*clearedCleanupIndex[\s\S]*stoppedTrackingIndex[\s\S]*keepAbsenceIndex[\s\S]*keepRouteReadbackIndex/,
+    );
+
+    assert.match(
+      prepare,
+      /subflows\/ios-open-expo-project\.yaml[\s\S]*safe-route-live-map[\s\S]*Resume route guidance[\s\S]*safe-route-return[\s\S]*safe-route-picker[\s\S]*safe-route-workspace-66a1b2c3d4e5f60718293a41[\s\S]*End route and change workspace\?/,
+    );
+    assert.match(
+      cleanupFailure,
+      /End route and change workspace[\s\S]*safe-route-navigation-cleanup-retry[\s\S]*enabled: true[\s\S]*SafeRoute could not remove saved guidance\.[\s\S]*safe-route-workspace-handoff-retry[\s\S]*safe-route-live-map/,
+    );
+    assert.match(
+      selectionFailure,
+      /safe-route-navigation-cleanup-retry[\s\S]*safe-route-workspace-handoff-retry-action[\s\S]*Workspace change needed[\s\S]*Route ended\. Still using Guidance Operations because Support Operations could not be saved\.[\s\S]*safe-route-workspace-handoff-keep-current/,
+    );
+    assert.match(
+      retrySuccess,
+      /safe-route-workspace-handoff-retry-action[\s\S]*safe-route-card-66b1b2c3d4e5f60718293b41[\s\S]*Workspace, Support Operations[\s\S]*Route ended\. Workspace changed to Support Operations\./,
+    );
+    assert.match(
+      keepCurrent,
+      /safe-route-workspace-handoff-keep-current[\s\S]*Workspace, Guidance Operations[\s\S]*Workspace remains Guidance Operations\.[\s\S]*safe-route-card-66b1b2c3d4e5f60718293b40/,
+    );
+    assert.match(
+      keepRelaunch,
+      /subflows\/ios-open-expo-project\.yaml[\s\S]*Offline map\. Saved route information remains available\.[\s\S]*safe-route-workspace-selector[\s\S]*Workspace, Guidance Operations[\s\S]*safe-route-offline-notice[\s\S]*safe-route-card-66b1b2c3d4e5f60718293b40/,
+    );
+    for (const liveFlow of [
+      cleanupFailure,
+      selectionFailure,
+      retrySuccess,
+      keepCurrent,
+    ]) {
+      assert.doesNotMatch(liveFlow, /stopApp|ios-open-expo-project|openLink/);
+    }
+  });
+
   it("wires saved-principal change to a signed-out Calendar revocation boundary", () => {
     const packageJson = JSON.parse(read("package.json")) as {
       scripts: Record<string, string>;

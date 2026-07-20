@@ -23,6 +23,7 @@ import {
   OFFLINE_CALENDAR_AUTH_CONTRACT_PHASES,
   OFFLINE_CALENDAR_PRINCIPAL_CONTRACT_PHASES,
   OFFLINE_CALENDAR_WORKSPACE_CONTRACT_PHASES,
+  WORKSPACE_HANDOFF_CONTRACT_PHASES,
   assertConnectivityContractEndedJourneyStayedClosed,
   assertConnectivityContractInactiveGuidanceRevocation,
   assertConnectivityContractInactiveSessionRevocation,
@@ -37,6 +38,9 @@ import {
   assertOfflineCalendarProtectedCacheSeedTraffic,
   assertOfflineCalendarWorkspaceDenialTraffic,
   assertOfflineCalendarWorkspaceRevocationEvidence,
+  assertWorkspaceHandoffEvidence,
+  assertWorkspaceHandoffStorageFaultRequests,
+  assertWorkspaceHandoffTraffic,
 } from './maestro-guidance-contract-api.mjs';
 import {
   assertGuidanceSourceCheckoutClean,
@@ -55,6 +59,8 @@ const EXPO_GO_BUNDLE_ID = 'host.exp.Exponent';
 const CALENDAR_AUTH_CLEANUP_SLICE = 'calendar-auth-cleanup';
 const CALENDAR_PRINCIPAL_CHANGE_SLICE = 'calendar-principal-change';
 const CALENDAR_WORKSPACE_DENIAL_SLICE = 'calendar-workspace-denial';
+const WORKSPACE_HANDOFF_KEEP_SLICE = 'workspace-handoff-keep';
+const WORKSPACE_HANDOFF_RETRY_SLICE = 'workspace-handoff-retry';
 const connectivityContractSlice = String(
   process.env.SAFEROUTE_CONNECTIVITY_CONTRACT_SLICE || '',
 ).trim();
@@ -129,6 +135,18 @@ const flows = Object.freeze({
   reset: 'maestro/ios-guidance-contract-reset.yaml',
   seed: 'maestro/ios-workspace-catalog-recovery-seed.yaml',
   seedJourney: 'maestro/ios-connectivity-contract-seed-journey.yaml',
+  workspaceHandoffCleanupFailure:
+    'maestro/ios-connectivity-contract-workspace-handoff-cleanup-failure.yaml',
+  workspaceHandoffKeepCurrent:
+    'maestro/ios-connectivity-contract-workspace-handoff-keep-current.yaml',
+  workspaceHandoffKeepRelaunch:
+    'maestro/ios-connectivity-contract-workspace-handoff-keep-relaunch.yaml',
+  workspaceHandoffPrepare:
+    'maestro/ios-connectivity-contract-workspace-handoff-prepare.yaml',
+  workspaceHandoffRetrySuccess:
+    'maestro/ios-connectivity-contract-workspace-handoff-retry-success.yaml',
+  workspaceHandoffSelectionFailure:
+    'maestro/ios-connectivity-contract-workspace-handoff-selection-failure.yaml',
 });
 
 try {
@@ -168,6 +186,8 @@ async function main() {
         CALENDAR_AUTH_CLEANUP_SLICE,
         CALENDAR_PRINCIPAL_CHANGE_SLICE,
         CALENDAR_WORKSPACE_DENIAL_SLICE,
+        WORKSPACE_HANDOFF_KEEP_SLICE,
+        WORKSPACE_HANDOFF_RETRY_SLICE,
       ].includes(connectivityContractSlice),
     `Unsupported connectivity contract slice: ${connectivityContractSlice}.`,
   );
@@ -196,7 +216,11 @@ async function main() {
     expectedSlug: 'saferoute-mobile',
     expectedSourceRevision: sourceRevision,
     expectedStorageFaultContractEnabled:
-      connectivityContractSlice === CALENDAR_AUTH_CLEANUP_SLICE,
+      [
+        CALENDAR_AUTH_CLEANUP_SLICE,
+        WORKSPACE_HANDOFF_KEEP_SLICE,
+        WORKSPACE_HANDOFF_RETRY_SLICE,
+      ].includes(connectivityContractSlice),
     manifestUrl: `http://127.0.0.1:${METRO_PORT}`,
   });
   process.stdout.write(
@@ -254,6 +278,15 @@ async function main() {
   );
   if (connectivityContractSlice === CALENDAR_AUTH_CLEANUP_SLICE) {
     await runCalendarAuthCleanupSlice(sourceRevision);
+    return;
+  }
+  if (
+    [
+      WORKSPACE_HANDOFF_KEEP_SLICE,
+      WORKSPACE_HANDOFF_RETRY_SLICE,
+    ].includes(connectivityContractSlice)
+  ) {
+    await runWorkspaceHandoffSlice(sourceRevision, connectivityContractSlice);
     return;
   }
 
@@ -962,6 +995,248 @@ async function runCalendarAuthCleanupSlice(sourceRevision) {
   );
 }
 
+async function runWorkspaceHandoffSlice(sourceRevision, slice) {
+  const outcome =
+    slice === WORKSPACE_HANDOFF_RETRY_SLICE ? 'retry' : 'keep';
+  setControl(
+    WORKSPACE_HANDOFF_CONTRACT_PHASES.prepare,
+    CONNECTIVITY_CONTRACT_STATUSES.online,
+  );
+  await runFlow(
+    WORKSPACE_HANDOFF_CONTRACT_PHASES.prepare,
+    'restore the paused Guidance journey and prepare a Support handoff',
+    flows.workspaceHandoffPrepare,
+  );
+  await waitForEvidenceType(
+    'restore.suspended',
+    WORKSPACE_HANDOFF_CONTRACT_PHASES.prepare,
+  );
+  await waitForEvidenceType(
+    'restore.ready',
+    WORKSPACE_HANDOFF_CONTRACT_PHASES.prepare,
+  );
+  await waitForEvidenceType(
+    'navigation.persisted',
+    WORKSPACE_HANDOFF_CONTRACT_PHASES.prepare,
+  );
+  await waitForProductRequestJournalQuiet(1_000);
+
+  setControl(
+    WORKSPACE_HANDOFF_CONTRACT_PHASES.failure,
+    CONNECTIVITY_CONTRACT_STATUSES.online,
+    [
+      {
+        id: 'handoff-cleanup',
+        operation: 'workspace-handoff-navigation-cleanup-set',
+        remaining: 1,
+      },
+      {
+        id: 'handoff-target',
+        operation: 'workspace-handoff-target-selection-set',
+        remaining: 1,
+      },
+    ],
+  );
+  await runFlow(
+    WORKSPACE_HANDOFF_CONTRACT_PHASES.failure,
+    'inject one source-bound navigation cleanup failure',
+    flows.workspaceHandoffCleanupFailure,
+  );
+  await waitForEvidenceOutcome(
+    'navigation.cleanup.settled',
+    WORKSPACE_HANDOFF_CONTRACT_PHASES.failure,
+    'failed',
+  );
+  captureAccessibilityHierarchy('workspace-handoff-cleanup-failure', [
+    {
+      id: 'safe-route-workspace-selector',
+      label: 'Workspace, Guidance Operations',
+      enabled: false,
+    },
+    {
+      id: 'safe-route-navigation-cleanup',
+      label:
+        'Guidance cleanup needed. SafeRoute could not remove saved guidance. Retry to finish changing to Support Operations.',
+      enabled: true,
+    },
+    {
+      id: 'safe-route-navigation-cleanup-retry',
+      label: 'Retry cleanup and change to Support Operations',
+      enabled: true,
+    },
+  ]);
+
+  await runFlow(
+    WORKSPACE_HANDOFF_CONTRACT_PHASES.failure,
+    'consume cleanup Retry, revoke guidance, and inject target save failure',
+    flows.workspaceHandoffSelectionFailure,
+  );
+  await waitForEvidenceOutcome(
+    'navigation.cleanup.settled',
+    WORKSPACE_HANDOFF_CONTRACT_PHASES.failure,
+    'cleared',
+  );
+  await waitForEvidenceOutcome(
+    'tracking.stop.settled',
+    WORKSPACE_HANDOFF_CONTRACT_PHASES.failure,
+    'off',
+  );
+  captureAccessibilityHierarchy('workspace-handoff-selection-failure', [
+    {
+      id: 'safe-route-workspace-selector',
+      label: 'Workspace, Guidance Operations',
+      enabled: true,
+    },
+    {
+      id: 'safe-route-workspace-handoff-retry-action',
+      label: 'Retry changing workspace to Support Operations',
+      enabled: true,
+    },
+    {
+      id: 'safe-route-workspace-handoff-keep-current',
+      label:
+        'Keep using Guidance Operations and discard the change to Support Operations',
+      enabled: true,
+    },
+  ]);
+  await waitForAllRequestsTerminal();
+
+  if (outcome === 'retry') {
+    await runFlow(
+      WORKSPACE_HANDOFF_CONTRACT_PHASES.failure,
+      'retry Support selection and publish only after durable target save',
+      flows.workspaceHandoffRetrySuccess,
+    );
+    captureAccessibilityHierarchy('workspace-handoff-retry-success', [
+      {
+        id: 'safe-route-workspace-selector',
+        label: 'Workspace, Support Operations',
+        enabled: true,
+      },
+      {
+        id: 'safe-route-card-66b1b2c3d4e5f60718293b41',
+        enabled: true,
+      },
+    ]);
+  } else {
+    await runFlow(
+      WORKSPACE_HANDOFF_CONTRACT_PHASES.failure,
+      'discard the Support change and keep Guidance selected',
+      flows.workspaceHandoffKeepCurrent,
+    );
+    captureAccessibilityHierarchy('workspace-handoff-keep-current', [
+      {
+        id: 'safe-route-workspace-selector',
+        label: 'Workspace, Guidance Operations',
+        enabled: true,
+      },
+      {
+        id: 'safe-route-card-66b1b2c3d4e5f60718293b40',
+        enabled: true,
+      },
+    ]);
+    terminateExpoGo(deviceId);
+    setControl(
+      WORKSPACE_HANDOFF_CONTRACT_PHASES.keepRelaunch,
+      CONNECTIVITY_CONTRACT_STATUSES.offline,
+    );
+    await runFlow(
+      WORKSPACE_HANDOFF_CONTRACT_PHASES.keepRelaunch,
+      'cold relaunch into verified Guidance review after discarding Support',
+      flows.workspaceHandoffKeepRelaunch,
+    );
+    await waitForEvidenceType(
+      'navigation.absence.readback',
+      WORKSPACE_HANDOFF_CONTRACT_PHASES.keepRelaunch,
+    );
+    await waitForEvidenceType(
+      'route.cache.readback',
+      WORKSPACE_HANDOFF_CONTRACT_PHASES.keepRelaunch,
+    );
+    captureAccessibilityHierarchy('workspace-handoff-keep-relaunch', [
+      {
+        id: 'safe-route-workspace-selector',
+        label: 'Workspace, Guidance Operations',
+        enabled: true,
+      },
+      {
+        id: 'safe-route-offline-notice',
+        label: 'Offline saved routes. This copy was cached less than one hour ago and is review only. Reconnect and verify workspace access before starting guidance.',
+        enabled: true,
+      },
+      {
+        id: 'safe-route-card-66b1b2c3d4e5f60718293b40',
+        enabled: true,
+      },
+    ]);
+    await assertProductTrafficQuiet(
+      [
+        WORKSPACE_HANDOFF_CONTRACT_PHASES.failure,
+        WORKSPACE_HANDOFF_CONTRACT_PHASES.keepRelaunch,
+      ],
+      1_000,
+    );
+  }
+
+  await new Promise((resolve) => setTimeout(resolve, 1_500));
+  if (outcome === 'retry') {
+    terminateExpoGo(deviceId);
+  }
+  await waitForAllRequestsTerminal();
+  const requests = readRequestJournal();
+  const evidence = readEvidenceJournal();
+  const requiredPhases = [
+    CONNECTIVITY_CONTRACT_PHASES.seed,
+    WORKSPACE_HANDOFF_CONTRACT_PHASES.prepare,
+    WORKSPACE_HANDOFF_CONTRACT_PHASES.failure,
+  ];
+  if (outcome === 'keep') {
+    requiredPhases.push(WORKSPACE_HANDOFF_CONTRACT_PHASES.keepRelaunch);
+  }
+  assertGuidanceContractRequestJournal(requests, {
+    expectedModeByPhase: {
+      [CONNECTIVITY_CONTRACT_PHASES.seed]: GUIDANCE_CONTRACT_MODES.active,
+      [WORKSPACE_HANDOFF_CONTRACT_PHASES.prepare]:
+        GUIDANCE_CONTRACT_MODES.active,
+      [WORKSPACE_HANDOFF_CONTRACT_PHASES.failure]:
+        GUIDANCE_CONTRACT_MODES.active,
+      [WORKSPACE_HANDOFF_CONTRACT_PHASES.keepRelaunch]:
+        GUIDANCE_CONTRACT_MODES.active,
+    },
+    requiredPhases,
+  });
+  assertWorkspaceHandoffStorageFaultRequests(requests, {
+    expectedSourceRevision: sourceRevision,
+    outcome,
+  });
+  assertWorkspaceHandoffTraffic(requests, { outcome });
+  assertGuidanceContractEvidenceJournal(evidence, {
+    expectedSourceRevision: sourceRevision,
+    minimumOccurredAtMs: startedAtMs,
+    requiredTypes: [
+      'navigation.persisted',
+      'restore.suspended',
+      'restore.ready',
+      'navigation.cleanup.settled',
+      'tracking.stop.settled',
+      ...(outcome === 'keep'
+        ? ['navigation.absence.readback', 'route.cache.readback']
+        : []),
+    ],
+  });
+  assertWorkspaceHandoffEvidence(evidence, {
+    expectedSourceRevision: sourceRevision,
+    minimumOccurredAtMs: startedAtMs,
+    outcome,
+  });
+
+  process.stdout.write(
+    `Workspace handoff ${outcome} runtime passed. Request journal: ${requestLogFile}. ` +
+      `Evidence journal: ${evidenceLogFile}. Screenshots: ${screenshotDirectory}. ` +
+      `Accessibility hierarchies: ${accessibilityDirectory}\n`,
+  );
+}
+
 async function runCalendarPrincipalChangeSlice(sourceRevision) {
   assertOfflineCalendarProtectedCacheSeedTraffic(readRequestJournal());
   terminateExpoGo(deviceId);
@@ -1540,6 +1815,22 @@ async function assertProductTrafficQuiet(phases, observationMs) {
   assertNoProductTraffic(readRequestJournal(), phases);
   await new Promise((resolve) => setTimeout(resolve, observationMs));
   assertNoProductTraffic(readRequestJournal(), phases);
+}
+
+async function waitForProductRequestJournalQuiet(observationMs) {
+  await waitForAllRequestsTerminal();
+  const productRequestsBefore = readRequestJournal().filter(
+    (entry) => entry.event === 'request' && entry.path.startsWith('/api/'),
+  ).length;
+  await new Promise((resolve) => setTimeout(resolve, observationMs));
+  await waitForAllRequestsTerminal();
+  const productRequestsAfter = readRequestJournal().filter(
+    (entry) => entry.event === 'request' && entry.path.startsWith('/api/'),
+  ).length;
+  assertCondition(
+    productRequestsAfter === productRequestsBefore,
+    'Connectivity contract product traffic did not settle before the fault window.',
+  );
 }
 
 function assertNoProductTrafficBeforeOnline(entries) {

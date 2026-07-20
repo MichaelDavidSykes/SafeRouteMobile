@@ -1,0 +1,32 @@
+appId: host.exp.Exponent
+---
+- assertVisible:
+    id: "safe-route-workspace-handoff-keep-current"
+    enabled: true
+- tapOn:
+    id: "safe-route-workspace-handoff-keep-current"
+    waitToSettleTimeoutMs: 100
+- extendedWaitUntil:
+    notVisible:
+      id: "safe-route-workspace-handoff-retry"
+    timeout: 10000
+- assertNotVisible:
+    id: "safe-route-navigation-cleanup"
+- assertVisible:
+    id: "safe-route-workspace-selector"
+    enabled: true
+- assertVisible: "Workspace, Guidance Operations"
+- assertVisible: "Workspace remains Guidance Operations."
+- assertVisible:
+    id: "safe-route-card-66b1b2c3d4e5f60718293b40"
+- assertNotVisible:
+    id: "safe-route-card-66b1b2c3d4e5f60718293b41"
+- assertNotVisible:
+    id: "safe-route-live-map"
+- assertNotVisible:
+    id: "safe-route-resume-action"
+- assertNotVisible:
+    id: "safe-route-suspended-navigation"
+- assertNotVisible:
+    id: "safe-route-journey-66b1b2c3d4e5f60718293b40"
+- takeScreenshot: "workspace-handoff-keep-current"

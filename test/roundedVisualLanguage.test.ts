@@ -1714,7 +1714,7 @@ describe("rounded visual language", () => {
       "utf8",
     );
     const emptyStateBlock =
-      /emptyState:\s*\{([\s\S]*?)\n  \},\n  emptyTitle:/.exec(
+      /emptyState:\s*\{([\s\S]*?)\n  \},\n  emptyCopy:/.exec(
         routeListStylesSource,
       )?.[1] || "";
     const errorBoxBlock =
@@ -1751,7 +1751,7 @@ describe("rounded visual language", () => {
     );
     assert.match(
       routeListScreenSource,
-      /<Text numberOfLines=\{1\} style=\{styles\.emptyTitle\}>/,
+      /<Text numberOfLines=\{1\} style=\{styles\.stateTitle\}>/,
     );
     assert.match(
       routeListScreenSource,
@@ -1768,6 +1768,9 @@ describe("rounded visual language", () => {
     assert.match(errorBoxBlock, /borderRadius:\s*radius\.xl/);
     assert.doesNotMatch(errorBoxBlock, /minHeight:\s*52/);
     assert.match(routeListStylesSource, /\bemptyState:[\s\S]*borderRadius:\s*radius\.xl/);
+    assert.match(routeListStylesSource, /\bstateTitle:[\s\S]*color:\s*colors\.ink[\s\S]*fontWeight:\s*"800"/);
+    assert.doesNotMatch(routeListScreenSource, /styles\.(?:emptyTitle|loadingTitle)/);
+    assert.doesNotMatch(routeListStylesSource, /\b(?:emptyTitle|loadingTitle):/);
     assert.match(emptyStateBlock, /alignSelf:\s*"center"/);
     assert.match(emptyStateBlock, /maxWidth:\s*320/);
     assert.match(emptyStateBlock, /backgroundColor:\s*colors\.surfaceGlass/);
@@ -1836,7 +1839,7 @@ describe("rounded visual language", () => {
       "utf8",
     );
     const loadingCardBlock =
-      /loadingCard:\s*\{([\s\S]*?)\n  \},\n  loadingTitle:/.exec(
+      /loadingCard:\s*\{([\s\S]*?)\n  \},\n  stateTitle:/.exec(
         routeListStylesSource,
       )?.[1] || "";
 
@@ -1845,10 +1848,12 @@ describe("rounded visual language", () => {
     assert.match(routeListScreenSource, /loadingState\.title/);
     assert.match(
       routeListScreenSource,
-      /<Text numberOfLines=\{1\} style=\{styles\.loadingTitle\}>/,
+      /<Text numberOfLines=\{1\} style=\{styles\.stateTitle\}>/,
     );
     assert.doesNotMatch(routeListScreenSource, /loadingState\.copy/);
     assert.doesNotMatch(routeListScreenSource, /styles\.loadingCopy/);
+    assert.doesNotMatch(routeListScreenSource, /styles\.loadingTitle/);
+    assert.doesNotMatch(routeListStylesSource, /\bloadingTitle:/);
     assert.doesNotMatch(routeListStylesSource, /\bloadingCopy:/);
     assert.doesNotMatch(routeListStylesSource, /\bloadingText:/);
     assert.doesNotMatch(routeListStylesSource, /width:\s*"100%"/);

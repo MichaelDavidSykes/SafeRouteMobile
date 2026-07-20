@@ -288,7 +288,7 @@ export const routeListStyles = StyleSheet.create({
     shadowOffset: { width: 0, height: 0 },
     elevation: 0,
   },
-  loadingTitle: {
+  stateTitle: {
     color: colors.ink,
     fontSize: typeScale.sm,
     fontWeight: "800",
@@ -323,11 +323,6 @@ export const routeListStyles = StyleSheet.create({
     borderWidth: 0,
     borderRadius: radius.xl,
     backgroundColor: colors.surfaceGlass,
-  },
-  emptyTitle: {
-    color: colors.ink,
-    fontSize: typeScale.sm,
-    fontWeight: "800",
   },
   emptyCopy: {
     color: colors.muted,

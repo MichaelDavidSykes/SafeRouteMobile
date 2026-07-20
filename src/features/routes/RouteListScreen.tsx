@@ -813,7 +813,7 @@ export function RouteListScreen({
             style={styles.emptyState}
           >
             {workspaceState.loading ? <ActivityIndicator color={colors.appleBlue} /> : null}
-            <Text numberOfLines={1} style={styles.emptyTitle}>{workspaceState.title}</Text>
+            <Text numberOfLines={1} style={styles.stateTitle}>{workspaceState.title}</Text>
             <Text numberOfLines={2} style={styles.emptyCopy}>{workspaceState.copy}</Text>
           </View>
           {workspaceState.retry && !workspaceAccessRefreshAvailable ? (
@@ -869,7 +869,7 @@ export function RouteListScreen({
             style={styles.loadingCard}
           >
             <ActivityIndicator color={colors.appleBlue} />
-            <Text numberOfLines={1} style={styles.loadingTitle}>
+            <Text numberOfLines={1} style={styles.stateTitle}>
               {loadingState.title}
             </Text>
           </View>
@@ -907,7 +907,7 @@ export function RouteListScreen({
               testID={uiTestIds.routeListEmptyState}
               style={styles.emptyState}
             >
-              <Text numberOfLines={1} style={styles.emptyTitle}>
+              <Text numberOfLines={1} style={styles.stateTitle}>
                 {emptyState.title}
               </Text>
               <Text numberOfLines={2} style={styles.emptyCopy}>

@@ -69,6 +69,22 @@ describe("operations screen behavior", () => {
     assert.match(text, /Cleanup needed/);
     assert.match(text, /Saving…/);
     assert.match(text, /Try again/);
+    assert.match(
+      text,
+      /workspaceAlternativeSelectionPending &&[\s\S]*workspaceOptions\.length > 0[\s\S]*setClientMenuOpen\(true\)/,
+    );
+    assert.match(
+      text,
+      /workspaceAlternativeSelectionPending[\s\S]*clientMenuOpen[\s\S]*"Closes the workspace menu\."[\s\S]*"Opens the workspace menu to choose another workspace\. Selecting the current workspace keeps it\."/,
+    );
+    assert.match(
+      text,
+      /workspaceAlternativeSelectionPending[\s\S]*clientMenuOpen \? "Close" : "Choose"[\s\S]*workspaceSelectionFailed[\s\S]*"Try again"/,
+    );
+    assert.match(
+      text,
+      /nextWorkspace\.id === selectedWorkspaceId[\s\S]*!workspaceSelectionFailed &&[\s\S]*!workspaceAlternativeSelectionPending[\s\S]*onWorkspaceChange\(nextWorkspace\)/,
+    );
     assert.match(text, /Wait while the workspace choice is saved/);
     assert.match(text, /Wait while SafeRoute verifies workspace access/);
     assert.match(text, /Checking…/);

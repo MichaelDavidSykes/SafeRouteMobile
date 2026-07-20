@@ -49,6 +49,11 @@ export type WorkspaceHandoffRetargetOwnershipDecision =
   | "ready"
   | "stale";
 
+export type WorkspaceHandoffTargetRemovalRecoveryDecision =
+  | "choose-alternative"
+  | "deferred"
+  | "clear-stale";
+
 export type WorkspaceHandoffSelectionFailureResolution =
   | "clear-stale"
   | "storage-blocked"
@@ -311,4 +316,29 @@ export function resolveWorkspaceHandoffRetargetOwnership({
   }
 
   return "ready";
+}
+
+export function resolveWorkspaceHandoffTargetRemovalRecovery({
+  context,
+  currentSelectionOwnsPending = false,
+  request,
+}: {
+  context: WorkspaceHandoffContinuationContext;
+  currentSelectionOwnsPending?: boolean;
+  request: WorkspaceHandoffContinuationRequest;
+}): WorkspaceHandoffTargetRemovalRecoveryDecision {
+  const ownership = resolveWorkspaceHandoffRetargetOwnership({
+    context: currentSelectionOwnsPending
+      ? { ...context, selectionPending: false }
+      : context,
+    request,
+  });
+
+  if (ownership === "ready") {
+    return "choose-alternative";
+  }
+  if (ownership === "deferred") {
+    return "deferred";
+  }
+  return "clear-stale";
 }

@@ -128,6 +128,7 @@ interface GuestMapScreenProps {
   workspaceAccessRefreshAvailable?: boolean;
   workspaceAccessFocusTargetRef?: (target: View | null) => void;
   workspaceAccessIssue?: WorkspaceAccessIssue;
+  workspaceAlternativeSelectionPending?: boolean;
   workspaceChangeEndsNavigation?: boolean;
   workspaceNavigationNoticeInset?: number;
   workspaceSelectionFailed?: boolean;
@@ -158,6 +159,7 @@ export function GuestMapScreen({
   workspaceAccessRefreshAvailable = false,
   workspaceAccessFocusTargetRef,
   workspaceAccessIssue = 'none',
+  workspaceAlternativeSelectionPending = false,
   workspaceChangeEndsNavigation = false,
   workspaceNavigationNoticeInset = 0,
   workspaceSelectionFailed = false,
@@ -416,6 +418,27 @@ export function GuestMapScreen({
   );
 
   useEffect(() => {
+    if (
+      workspaceAlternativeSelectionPending &&
+      !workspaceCatalogLoading &&
+      !workspaceSelectionPending &&
+      !workspaceSwitchDisabled &&
+      availableWorkspaces.length > 0
+    ) {
+      Keyboard.dismiss();
+      setActiveInput(null);
+      sheetGestureActionRef.current(false);
+      setWorkspaceMenuOpen(true);
+    }
+  }, [
+    availableWorkspaces.length,
+    workspaceAlternativeSelectionPending,
+    workspaceCatalogLoading,
+    workspaceSelectionPending,
+    workspaceSwitchDisabled,
+  ]);
+
+  useEffect(() => {
     dispatchRouteDraft({
       coordinate: liveCoordinate,
       type: 'current-location/set'
@@ -655,7 +678,11 @@ export function GuestMapScreen({
 
   const handleWorkspaceChange = (workspace: SafeRouteWorkspace) => {
     setWorkspaceMenuOpen(false);
-    if (workspace.id === routingClientId && !workspaceSelectionFailed) {
+    if (
+      workspace.id === routingClientId &&
+      !workspaceSelectionFailed &&
+      !workspaceAlternativeSelectionPending
+    ) {
       return;
     }
 
@@ -1732,6 +1759,9 @@ export function GuestMapScreen({
                       setWorkspaceMenuOpen((open) => !open);
                     }}
                     sharedRetryAvailable={workspaceAccessRefreshAvailable}
+                    alternativeSelectionPending={
+                      workspaceAlternativeSelectionPending
+                    }
                     changeEndsNavigation={workspaceChangeEndsNavigation}
                     switchDisabled={workspaceSwitchDisabled}
                     switchFailure={workspaceSwitchFailure}
@@ -1947,6 +1977,7 @@ export function GuestMapScreen({
 
 function GuestWorkspaceSelector({
   activeWorkspace,
+  alternativeSelectionPending,
   changeEndsNavigation,
   errorMessage,
   focusTargetRef,
@@ -1963,6 +1994,7 @@ function GuestWorkspaceSelector({
   workspaces
 }: {
   activeWorkspace: SafeRouteWorkspace | null;
+  alternativeSelectionPending: boolean;
   changeEndsNavigation: boolean;
   errorMessage: string;
   focusTargetRef?: (target: View | null) => void;
@@ -2002,6 +2034,8 @@ function GuestWorkspaceSelector({
       ? 'Cleanup needed'
       : loading
         ? 'Checking…'
+      : alternativeSelectionPending
+        ? menuOpen ? 'Close' : 'Choose'
       : selectionFailed
         ? 'Try again'
       : selectionPending
@@ -2024,6 +2058,10 @@ function GuestWorkspaceSelector({
               ? 'Retry guidance cleanup before changing workspace.'
               : loading
                 ? 'Wait while SafeRoute verifies workspace access.'
+              : alternativeSelectionPending
+                ? menuOpen
+                  ? 'Closes the workspace menu.'
+                  : 'Opens the workspace menu to choose another workspace. Selecting the current workspace keeps it.'
               : selectionFailed
                 ? 'Opens the workspace menu to choose the workspace again.'
               : selectionPending

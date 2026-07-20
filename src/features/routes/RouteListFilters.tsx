@@ -19,6 +19,7 @@ interface RouteListFiltersProps {
   showSummary: boolean;
   showClientFilters: boolean;
   showSearch: boolean;
+  workspaceAlternativeSelectionPending: boolean;
   workspaceChangeEndsNavigation: boolean;
   workspaceCatalogLoading: boolean;
   workspaceSelectionFailed: boolean;
@@ -39,6 +40,7 @@ export function RouteListFilters({
   showSearch,
   routeSummary,
   showSummary,
+  workspaceAlternativeSelectionPending,
   workspaceChangeEndsNavigation,
   workspaceCatalogLoading,
   workspaceSelectionFailed,
@@ -72,6 +74,20 @@ export function RouteListFilters({
     workspaceSwitchDisabled ||
     workspaceSelectionPending;
 
+  useEffect(() => {
+    if (
+      workspaceAlternativeSelectionPending &&
+      !switchingDisabled &&
+      clientFilterOptions.length > 0
+    ) {
+      setClientMenuOpen(true);
+    }
+  }, [
+    clientFilterOptions.length,
+    switchingDisabled,
+    workspaceAlternativeSelectionPending,
+  ]);
+
   return (
     <>
       {showClientFilters ? (
@@ -82,6 +98,10 @@ export function RouteListFilters({
               ? "Retry guidance cleanup before changing workspace."
               : workspaceCatalogLoading
                 ? "Wait while SafeRoute verifies workspace access."
+              : workspaceAlternativeSelectionPending
+                ? clientMenuOpen
+                  ? "Closes the workspace menu."
+                  : "Opens the workspace menu to choose another workspace. Selecting the current workspace keeps it."
               : workspaceSelectionFailed
                 ? "Opens the workspace menu to choose the workspace again."
               : workspaceSelectionPending
@@ -124,6 +144,8 @@ export function RouteListFilters({
                 ? "Cleanup needed"
                 : workspaceCatalogLoading
                   ? "Checking…"
+                : workspaceAlternativeSelectionPending
+                  ? clientMenuOpen ? "Close" : "Choose"
                 : workspaceSelectionFailed
                   ? "Try again"
                 : workspaceSelectionPending

@@ -122,6 +122,7 @@ interface OperationsScreenProps {
   workspaceAccessRefreshAvailable: boolean;
   workspaceAccessFocusTargetRef?: (target: View | null) => void;
   workspaceAccessIssue: WorkspaceAccessIssue;
+  workspaceAlternativeSelectionPending: boolean;
   workspaceChangeEndsNavigation: boolean;
   workspaceNavigationNoticeInset: number;
   workspaceSelectionFailed: boolean;
@@ -152,6 +153,7 @@ export function OperationsScreen({
   workspaceAccessRefreshAvailable,
   workspaceAccessFocusTargetRef,
   workspaceAccessIssue,
+  workspaceAlternativeSelectionPending,
   workspaceChangeEndsNavigation,
   workspaceNavigationNoticeInset,
   workspaceSelectionFailed,
@@ -652,6 +654,23 @@ export function OperationsScreen({
     [availableWorkspaces, selectedWorkspaceId]
   );
   const selectedWorkspaceOption = workspaceOptions.find((workspace) => workspace.selected);
+  useEffect(() => {
+    if (
+      workspaceAlternativeSelectionPending &&
+      !workspaceCatalogLoading &&
+      !workspaceSwitchDisabled &&
+      !workspaceSelectionPending &&
+      workspaceOptions.length > 0
+    ) {
+      setClientMenuOpen(true);
+    }
+  }, [
+    workspaceAlternativeSelectionPending,
+    workspaceCatalogLoading,
+    workspaceOptions.length,
+    workspaceSelectionPending,
+    workspaceSwitchDisabled,
+  ]);
   const workspaceOwnsResults = Boolean(
     selectedWorkspaceId && loadedWorkspaceId === selectedWorkspaceId
   );
@@ -1263,6 +1282,10 @@ export function OperationsScreen({
               ? "Retry guidance cleanup before changing workspace."
               : workspaceCatalogLoading
                 ? "Wait while SafeRoute verifies workspace access."
+              : workspaceAlternativeSelectionPending
+                ? clientMenuOpen
+                  ? "Closes the workspace menu."
+                  : "Opens the workspace menu to choose another workspace. Selecting the current workspace keeps it."
               : workspaceSelectionFailed
                 ? "Opens the workspace menu to choose the workspace again."
               : workspaceSelectionPending
@@ -1322,6 +1345,8 @@ export function OperationsScreen({
                 ? "Cleanup needed"
                 : workspaceCatalogLoading
                   ? "Checking…"
+                : workspaceAlternativeSelectionPending
+                  ? clientMenuOpen ? "Close" : "Choose"
                 : workspaceSelectionFailed
                   ? "Try again"
                 : workspaceSelectionPending
@@ -1368,7 +1393,8 @@ export function OperationsScreen({
                         !nextWorkspace ||
                         (
                           nextWorkspace.id === selectedWorkspaceId &&
-                          !workspaceSelectionFailed
+                          !workspaceSelectionFailed &&
+                          !workspaceAlternativeSelectionPending
                         )
                       ) {
                         setClientMenuOpen(false);

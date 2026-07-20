@@ -125,6 +125,7 @@ import {
   resolveWorkspaceHandoffRetarget,
   resolveWorkspaceHandoffRetargetOwnership,
   resolveWorkspaceHandoffSelectionFailure,
+  resolveWorkspaceHandoffTargetRemovalRecovery,
   resolveWorkspaceHandoffContinuation,
   shouldInjectWorkspaceHandoffNavigationCleanupFault,
 } from './src/features/workspaces/workspaceHandoffContinuation';
@@ -251,6 +252,8 @@ function SafeRouteApp() {
   const [sessionMessage, setSessionMessage] = useState('');
   const [authPrompt, setAuthPrompt] = useState('');
   const [screen, setScreen] = useState<AppScreen>('guest-map');
+  const currentScreenRef = useRef<AppScreen>(screen);
+  currentScreenRef.current = screen;
   const [routePreviewSource, setRoutePreviewSource] = useState<RoutePreviewSource>('guest');
   const [operationsTab, setOperationsTab] = useState<OperationsTab>('planned-routes');
   const [availableWorkspaces, setAvailableWorkspaces] = useState<SafeRouteWorkspace[]>([]);
@@ -389,6 +392,13 @@ function SafeRouteApp() {
     useRef<PendingWorkspaceSelectionRetry | null>(null);
   const workspaceHandoffAlternativeSelectionPendingRef = useRef(false);
   const workspaceHandoffAlternativeFocusPendingRef = useRef(false);
+  const workspaceHandoffAlternativeFocusedScreenRef =
+    useRef<AppScreen | null>(null);
+  const workspaceHandoffAlternativePromptRef = useRef('');
+  const workspaceHandoffTargetDisplayNameRef = useRef({
+    id: '',
+    name: '',
+  });
   const workspaceSelectionRequestRevisionRef = useRef(0);
   const workspaceSelectionPendingRef = useRef(false);
   const workspaceSelectionSavingMessageRef = useRef<string | null>(null);
@@ -507,26 +517,49 @@ function SafeRouteApp() {
     ) ||
     pendingWorkspaceSelectionRetry?.requestedSourceWorkspaceName ||
     '';
-  const workspaceHandoffRetryTargetName =
-    pendingWorkspaceSelectionRetryNoticeDecision?.target?.name ||
+  const liveWorkspaceHandoffRetryTarget =
+    pendingWorkspaceSelectionRetryNoticeDecision?.target ||
     findWorkspace(
       availableWorkspaces,
       pendingWorkspaceSelectionRetry?.requestedTargetWorkspaceId,
-    )?.name ||
-    pendingWorkspaceSelectionRetry?.requestedTargetName ||
+    );
+  if (pendingWorkspaceSelectionRetry && liveWorkspaceHandoffRetryTarget) {
+    workspaceHandoffTargetDisplayNameRef.current = {
+      id: pendingWorkspaceSelectionRetry.requestedTargetWorkspaceId,
+      name: liveWorkspaceHandoffRetryTarget.name,
+    };
+  }
+  const workspaceHandoffRetryTargetName =
+    liveWorkspaceHandoffRetryTarget?.name ||
+    (
+      workspaceHandoffTargetDisplayNameRef.current.id ===
+      pendingWorkspaceSelectionRetry?.requestedTargetWorkspaceId
+        ? workspaceHandoffTargetDisplayNameRef.current.name
+        : pendingWorkspaceSelectionRetry?.requestedTargetName
+    ) ||
     '';
   const workspaceHandoffRetryCheckingAccess = Boolean(
     workspaceSelectionFailed &&
-    pendingWorkspaceSelectionRetryNoticeDecision?.status === 'deferred',
+    (
+      pendingWorkspaceSelectionRetryNoticeDecision?.status === 'deferred' ||
+      (
+        pendingWorkspaceSelectionRetryNoticeDecision?.status === 'stale' &&
+        (
+          workspaceCatalogLoading ||
+          workspaceCatalogRetrying ||
+          workspaceForegroundAuthorizationPaused
+        )
+      )
+    ),
   );
   const workspaceHandoffSelectionNoticeVisible = Boolean(
     pendingWorkspaceSelectionRetry &&
     navigationCleanupStatus === 'idle' &&
-    (workspaceSelectionPending || workspaceSelectionFailed),
+    (workspaceSelectionPending || workspaceSelectionFailed) &&
+    !workspaceHandoffAlternativeSelectionPending,
   );
   const surfaceWorkspaceSelectionFailed =
-    (workspaceSelectionFailed && !workspaceHandoffSelectionNoticeVisible) ||
-    workspaceHandoffAlternativeSelectionPending;
+    workspaceSelectionFailed && !workspaceHandoffSelectionNoticeVisible;
   const sessionEpoch = sessionEpochRef.current;
   activeSessionTokenRef.current = session?.accessToken || null;
   activeSessionPrincipalIdRef.current = getAuthSessionPrincipalId(session);
@@ -1086,6 +1119,12 @@ function SafeRouteApp() {
   ) => {
     workspaceHandoffAlternativeSelectionPendingRef.current = false;
     workspaceHandoffAlternativeFocusPendingRef.current = false;
+    workspaceHandoffAlternativeFocusedScreenRef.current = null;
+    workspaceHandoffAlternativePromptRef.current = '';
+    workspaceHandoffTargetDisplayNameRef.current = {
+      id: request.requestedTargetWorkspaceId,
+      name: request.requestedTargetName,
+    };
     setWorkspaceHandoffAlternativeSelectionPending(false);
     pendingWorkspaceSelectionRetryRef.current = request;
     setPendingWorkspaceSelectionRetry(request);
@@ -1102,6 +1141,9 @@ function SafeRouteApp() {
     }
     workspaceHandoffAlternativeSelectionPendingRef.current = false;
     workspaceHandoffAlternativeFocusPendingRef.current = false;
+    workspaceHandoffAlternativeFocusedScreenRef.current = null;
+    workspaceHandoffAlternativePromptRef.current = '';
+    workspaceHandoffTargetDisplayNameRef.current = { id: '', name: '' };
     setWorkspaceHandoffAlternativeSelectionPending(false);
     pendingWorkspaceSelectionRetryRef.current = null;
     setPendingWorkspaceSelectionRetry(null);
@@ -1231,6 +1273,40 @@ function SafeRouteApp() {
         selectionPending: workspaceSelectionPendingRef.current,
         unavailableWorkspaceIds: unavailableWorkspaceIdsRef.current,
       },
+      request: {
+        principalId: request.requestedPrincipalId,
+        sessionEpoch: request.requestedSessionEpoch,
+        sourceWorkspaceId: request.requestedSourceWorkspaceId,
+        targetWorkspaceId: request.requestedTargetWorkspaceId,
+      },
+    });
+
+  const resolvePendingWorkspaceSelectionTargetRemovalRecovery = (
+    request: PendingWorkspaceSelectionRetry,
+    {
+      currentSelectionOwnsPending = false,
+    }: {
+      currentSelectionOwnsPending?: boolean;
+    } = {},
+  ) =>
+    resolveWorkspaceHandoffTargetRemovalRecovery({
+      context: {
+        availableWorkspaces: availableWorkspacesRef.current,
+        catalogBusy:
+          workspaceCatalogBusyRef.current ||
+          workspaceCatalogRetryingRef.current ||
+          workspaceForegroundRefreshPendingRef.current,
+        cleanupPending: Boolean(navigationCleanupPromiseRef.current),
+        cleanupRequired: navigationCleanupRequiredRef.current,
+        currentPrincipalId: activeSessionPrincipalIdRef.current,
+        currentSessionEpoch: sessionEpochRef.current,
+        currentSourceWorkspaceId: activeWorkspaceRef.current?.id || null,
+        hasActiveNavigation: Boolean(activeNavigationSessionRef.current),
+        hasPendingNavigation: Boolean(pendingNavigationRestoreRef.current),
+        selectionPending: workspaceSelectionPendingRef.current,
+        unavailableWorkspaceIds: unavailableWorkspaceIdsRef.current,
+      },
+      currentSelectionOwnsPending,
       request: {
         principalId: request.requestedPrincipalId,
         sessionEpoch: request.requestedSessionEpoch,
@@ -3081,15 +3157,25 @@ function SafeRouteApp() {
         if (!targetUnavailable) {
           return false;
         }
-        clearStaleSelectionRetry();
+        const targetRemovalRecovery =
+          retainWorkspaceHandoffForAlternativeSelection(selectionRetry, {
+            currentSelectionOwnsPending: true,
+          });
+        if (targetRemovalRecovery === 'choose-alternative') {
+          outcomePublished = true;
+          selectionStatus = 'idle';
+          return true;
+        }
+        if (targetRemovalRecovery === 'deferred') {
+          outcomePublished = true;
+          selectionStatus = 'failed';
+          return true;
+        }
         outcomePublished = true;
         selectionStatus = 'idle';
-        const currentWorkspaceName =
-          activeWorkspaceRef.current?.name ||
-          requestedSourceWorkspaceName;
-        const failure = currentWorkspaceName
-          ? `The change to ${requestedTarget.name} is no longer available. Still using ${currentWorkspaceName}.`
-          : `The change to ${requestedTarget.name} is no longer available. Choose a workspace.`;
+        clearStaleSelectionRetry();
+        const failure =
+          'Workspace context changed before the change completed. Choose a workspace again.';
         setSessionMessage(failure);
         if (Platform.OS === 'ios') {
           void workspaceAccessFocusHandoffRef.current?.request(
@@ -3321,6 +3407,60 @@ function SafeRouteApp() {
     workspaceSelectionStatus,
   ]);
 
+  const retainWorkspaceHandoffForAlternativeSelection = (
+    request: PendingWorkspaceSelectionRetry,
+    {
+      currentSelectionOwnsPending = false,
+    }: {
+      currentSelectionOwnsPending?: boolean;
+    } = {},
+  ) => {
+    if (pendingWorkspaceSelectionRetryRef.current !== request) {
+      return 'clear-stale' as const;
+    }
+    const recovery =
+      resolvePendingWorkspaceSelectionTargetRemovalRecovery(request, {
+        currentSelectionOwnsPending,
+      });
+    if (recovery !== 'choose-alternative') {
+      return recovery;
+    }
+
+    workspaceHandoffAlternativeSelectionPendingRef.current = true;
+    setWorkspaceHandoffAlternativeSelectionPending(true);
+    if (!currentSelectionOwnsPending) {
+      setWorkspaceSelectionStatus('idle');
+    }
+    const selectorReady =
+      recovery === 'choose-alternative' &&
+      !workspaceSelectionPendingRef.current;
+    workspaceHandoffAlternativeFocusPendingRef.current = !selectorReady;
+    const currentWorkspaceName = activeWorkspaceRef.current?.name || '';
+    const removedTargetName =
+      workspaceHandoffTargetDisplayNameRef.current.id ===
+      request.requestedTargetWorkspaceId
+        ? workspaceHandoffTargetDisplayNameRef.current.name
+        : request.requestedTargetName;
+    const prompt = currentWorkspaceName
+      ? `${removedTargetName} is no longer available. Still using ${currentWorkspaceName}. Choose another workspace.`
+      : `${removedTargetName} is no longer available. Choose a workspace.`;
+    workspaceHandoffAlternativePromptRef.current = prompt;
+    setSessionMessage(prompt);
+    if (Platform.OS === 'ios' && selectorReady) {
+      workspaceHandoffAlternativeFocusedScreenRef.current =
+        currentScreenRef.current;
+      void workspaceAccessFocusHandoffRef.current?.request(
+        prompt,
+        () => workspaceAccessFocusTargetRef.current,
+      );
+    } else if (!currentSelectionOwnsPending) {
+      AccessibilityInfo.announceForAccessibilityWithOptions(prompt, {
+        queue: true,
+      });
+    }
+    return recovery;
+  };
+
   const handleRetryPendingWorkspaceSelection = useCallback(() => {
     const request = pendingWorkspaceSelectionRetryRef.current;
     if (!request || workspaceSelectionPendingRef.current) {
@@ -3334,12 +3474,16 @@ function SafeRouteApp() {
       return;
     }
     if (decision.status === 'stale') {
+      if (
+        retainWorkspaceHandoffForAlternativeSelection(request) !==
+        'clear-stale'
+      ) {
+        return;
+      }
       clearPendingWorkspaceSelectionRetry(request);
       setWorkspaceSelectionStatus('idle');
-      const currentWorkspaceName = activeWorkspaceRef.current?.name || '';
-      const stoppedMessage = currentWorkspaceName
-        ? `The change to ${request.requestedTargetName} is no longer available. Still using ${currentWorkspaceName}.`
-        : `The change to ${request.requestedTargetName} is no longer available. Choose a workspace.`;
+      const stoppedMessage =
+        'Workspace context changed before the retry. Choose a workspace again.';
       setSessionMessage(stoppedMessage);
       if (Platform.OS === 'ios') {
         void workspaceAccessFocusHandoffRef.current?.request(
@@ -3393,6 +3537,8 @@ function SafeRouteApp() {
     workspaceHandoffAlternativeSelectionPendingRef.current = true;
     setWorkspaceHandoffAlternativeSelectionPending(true);
     setWorkspaceSelectionStatus('idle');
+    workspaceHandoffAlternativeFocusedScreenRef.current = null;
+    workspaceHandoffAlternativePromptRef.current = '';
     const currentWorkspaceName = activeWorkspaceRef.current?.name || '';
     const selectorReady = !(
       workspaceCatalogBusyRef.current ||
@@ -3412,6 +3558,8 @@ function SafeRouteApp() {
         : 'You can choose another workspace when the access check finishes.';
     setSessionMessage(prompt);
     if (Platform.OS === 'ios' && selectorReady) {
+      workspaceHandoffAlternativeFocusedScreenRef.current =
+        currentScreenRef.current;
       void workspaceAccessFocusHandoffRef.current?.request(
         prompt,
         () => workspaceAccessFocusTargetRef.current,
@@ -3424,9 +3572,22 @@ function SafeRouteApp() {
   }, []);
 
   useEffect(() => {
+    const selectorIsVisible =
+      screen === 'guest-map' ||
+      screen === 'routes' ||
+      screen === 'operations';
+    if (
+      workspaceHandoffAlternativeSelectionPending &&
+      pendingWorkspaceSelectionRetryRef.current &&
+      selectorIsVisible &&
+      workspaceHandoffAlternativeFocusedScreenRef.current !== screen
+    ) {
+      workspaceHandoffAlternativeFocusPendingRef.current = true;
+    }
     if (
       !workspaceHandoffAlternativeSelectionPending ||
       !workspaceHandoffAlternativeFocusPendingRef.current ||
+      !selectorIsVisible ||
       workspaceCatalogBusyRef.current ||
       workspaceCatalogRetryingRef.current ||
       workspaceForegroundRefreshPendingRef.current ||
@@ -3438,10 +3599,14 @@ function SafeRouteApp() {
       return;
     }
     workspaceHandoffAlternativeFocusPendingRef.current = false;
+    workspaceHandoffAlternativeFocusedScreenRef.current = screen;
     const currentWorkspaceName = activeWorkspaceRef.current?.name || '';
-    const prompt = currentWorkspaceName
-      ? `Still using ${currentWorkspaceName}. Choose another workspace.`
-      : 'Choose another workspace.';
+    const prompt =
+      workspaceHandoffAlternativePromptRef.current ||
+      (currentWorkspaceName
+        ? `Still using ${currentWorkspaceName}. Choose another workspace.`
+        : 'Choose another workspace.');
+    workspaceHandoffAlternativePromptRef.current = prompt;
     setSessionMessage(prompt);
     if (Platform.OS === 'ios') {
       void workspaceAccessFocusHandoffRef.current?.request(
@@ -3455,6 +3620,7 @@ function SafeRouteApp() {
     }
   }, [
     navigationCleanupStatus,
+    screen,
     workspaceCatalogLoading,
     workspaceCatalogRetrying,
     workspaceForegroundAuthorizationPaused,
@@ -3464,14 +3630,18 @@ function SafeRouteApp() {
 
   useEffect(() => {
     const request = pendingWorkspaceSelectionRetryRef.current;
+    if (!request || workspaceSelectionPendingRef.current) {
+      return;
+    }
+    const continuationStatus =
+      workspaceHandoffAlternativeSelectionPendingRef.current
+        ? resolvePendingWorkspaceSelectionRetargetOwnershipDecision(request)
+        : resolvePendingWorkspaceSelectionRetryDecision(request).status;
+    if (continuationStatus !== 'stale') {
+      return;
+    }
     if (
-      !request ||
-      workspaceSelectionPendingRef.current ||
-      (
-        workspaceHandoffAlternativeSelectionPendingRef.current
-          ? resolvePendingWorkspaceSelectionRetargetOwnershipDecision(request)
-          : resolvePendingWorkspaceSelectionRetryDecision(request).status
-      ) !== 'stale'
+      retainWorkspaceHandoffForAlternativeSelection(request) !== 'clear-stale'
     ) {
       return;
     }
@@ -3484,10 +3654,8 @@ function SafeRouteApp() {
     if (!requestOwnerIsCurrent) {
       return;
     }
-    const currentWorkspaceName = activeWorkspaceRef.current?.name || '';
-    const stoppedMessage = currentWorkspaceName
-      ? `The change to ${request.requestedTargetName} is no longer available. Still using ${currentWorkspaceName}.`
-      : `The change to ${request.requestedTargetName} is no longer available. Choose a workspace.`;
+    const stoppedMessage =
+      'Workspace context changed before the retry. Choose a workspace again.';
     setSessionMessage(stoppedMessage);
     if (Platform.OS === 'ios') {
       void workspaceAccessFocusHandoffRef.current?.request(
@@ -3499,9 +3667,13 @@ function SafeRouteApp() {
     activeNavigationSession,
     activeWorkspace?.id,
     availableWorkspaces,
+    navigationCleanupStatus,
     pendingNavigationRestore,
     pendingWorkspaceSelectionRetry,
     sessionPrincipalId,
+    workspaceCatalogLoading,
+    workspaceCatalogRetrying,
+    workspaceForegroundAuthorizationPaused,
     workspaceHandoffAlternativeSelectionPending,
     workspaceSelectionPending,
   ]);
@@ -4290,14 +4462,21 @@ function SafeRouteApp() {
   };
 
   const returnCopy = routePreviewReturnCopy(routePreviewSource);
+  const workspaceHandoffAlternativePrompt =
+    workspaceHandoffAlternativeSelectionPending &&
+    pendingWorkspaceSelectionRetry
+      ? workspaceHandoffAlternativePromptRef.current
+      : '';
   const surfaceSessionMessage = workspaceHandoffSelectionNoticeVisible
     ? ''
-    : sessionMessage;
+    : workspaceHandoffAlternativePrompt || sessionMessage;
   const routeListSessionNotice = workspaceHandoffSelectionNoticeVisible
     ? ''
-    : session && isPreviewAccessToken(session.accessToken)
-      ? PREVIEW_SESSION_NOTICE
-      : sessionMessage;
+    : workspaceHandoffAlternativePrompt
+      ? workspaceHandoffAlternativePrompt
+      : session && isPreviewAccessToken(session.accessToken)
+        ? PREVIEW_SESSION_NOTICE
+        : sessionMessage;
   const statusBarStyle = screen === 'guest-map' || screen === 'route-preview'
     ? 'light'
     : 'dark';
@@ -4387,6 +4566,9 @@ function SafeRouteApp() {
                 ? suspendedNavigationNoticeHeight + spacing.sm
                 : 0
             }
+            workspaceAlternativeSelectionPending={
+              workspaceHandoffAlternativeSelectionPending
+            }
             workspaceSwitchFailure={workspaceCleanupFailed}
             workspaceSwitchDisabled={workspaceCleanupLocked}
             workspaceSelectionFailed={surfaceWorkspaceSelectionFailed}
@@ -4420,6 +4602,9 @@ function SafeRouteApp() {
               pendingNavigationRestore
                 ? suspendedNavigationNoticeHeight + spacing.sm
                 : 0
+            }
+            workspaceAlternativeSelectionPending={
+              workspaceHandoffAlternativeSelectionPending
             }
             workspaceSwitchFailure={workspaceCleanupFailed}
             workspaceSwitchDisabled={workspaceCleanupLocked}
@@ -4458,6 +4643,9 @@ function SafeRouteApp() {
               pendingNavigationRestore
                 ? suspendedNavigationNoticeHeight + spacing.sm
                 : 0
+            }
+            workspaceAlternativeSelectionPending={
+              workspaceHandoffAlternativeSelectionPending
             }
             workspaceSwitchFailure={workspaceCleanupFailed}
             workspaceSwitchDisabled={workspaceCleanupLocked}

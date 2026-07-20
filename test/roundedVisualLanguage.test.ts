@@ -405,7 +405,7 @@ describe("rounded visual language", () => {
         guestMapStylesSource,
       )?.[1] || "";
     const signInButtonTextBlock =
-      /signInButtonText:\s*\{([\s\S]*?)\n  \},\n  signInButtonTextAuthenticated:/.exec(
+      /signInButtonText:\s*\{([\s\S]*?)\n  \},\n  riskLoadStatus:/.exec(
         guestMapStylesSource,
       )?.[1] || "";
 
@@ -415,7 +415,7 @@ describe("rounded visual language", () => {
     assert.match(guestMapSource, /testID=\{uiTestIds\.guestMapPrimaryAction\}/);
     assert.match(guestMapSource, /<Text[\s\S]*numberOfLines=\{1\}[\s\S]*styles\.signInButtonText/);
     assert.match(guestMapSource, /authenticated \? styles\.signInButtonAuthenticated : null/);
-    assert.match(guestMapSource, /authenticated \? styles\.signInButtonTextAuthenticated : null/);
+    assert.doesNotMatch(guestMapSource, /signInButtonTextAuthenticated/);
     assert.doesNotMatch(guestMapSource, /modeBadgeLabel/);
     assert.doesNotMatch(guestMapSource, /styles\.modeBadge/);
     assert.doesNotMatch(guestMapSource, /styles\.eyebrow/);
@@ -433,11 +433,12 @@ describe("rounded visual language", () => {
     assert.match(signInButtonBlock, /elevation:\s*0/);
     assert.match(signInButtonTextBlock, /maxWidth:\s*['"]100%['"]/);
     assert.match(signInButtonTextBlock, /flexShrink:\s*1/);
+    assert.match(signInButtonTextBlock, /color:\s*colors\.ink/);
     assert.match(signInButtonTextBlock, /textAlign:\s*'center'/);
     assert.doesNotMatch(signInButtonBlock, /shadow\.panel/);
     assert.doesNotMatch(guestMapStylesSource, /,\s*shadow,/);
     assert.match(guestMapStylesSource, /signInButtonAuthenticated:[\s\S]*backgroundColor:\s*colors\.surface/);
-    assert.match(guestMapStylesSource, /signInButtonTextAuthenticated:[\s\S]*color:\s*colors\.ink/);
+    assert.doesNotMatch(guestMapStylesSource, /signInButtonTextAuthenticated:/);
   });
 
   it("keeps saved-route picker session notices bounded and accessible", () => {

@@ -1584,10 +1584,7 @@ export function GuestMapScreen({
           >
             <Text
               numberOfLines={1}
-              style={[
-                styles.signInButtonText,
-                authenticated ? styles.signInButtonTextAuthenticated : null
-              ]}
+              style={styles.signInButtonText}
             >
               {mapHomeCopy.primaryActionLabel}
             </Text>

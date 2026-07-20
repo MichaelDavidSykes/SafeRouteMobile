@@ -58,9 +58,6 @@ export const guestMapStyles = StyleSheet.create({
     fontWeight: '800',
     textAlign: 'center'
   },
-  signInButtonTextAuthenticated: {
-    color: colors.ink
-  },
   riskLoadStatus: {
     minHeight: controlSizes.secondary,
     flexDirection: 'row',

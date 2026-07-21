@@ -12,6 +12,12 @@ import type {
   AreaRiskViewportRequest
 } from './areaRiskApiCore';
 
+export {
+  AreaRiskRetryableReadError,
+  getAreaRiskRetryableReadFailure,
+  parseRetryAfterSeconds
+} from './areaRiskApiTransportCore';
+
 export type AreaRiskHttpRequester =
   import('./areaRiskApiTransportCore').AreaRiskHttpRequester;
 export type AreaRiskFetchOptions = Omit<AreaRiskTransportFetchOptions, 'apiBase'>;

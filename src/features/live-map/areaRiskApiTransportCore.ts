@@ -27,6 +27,7 @@ import {
   type AreaRiskFeedPage,
   type AreaRiskLoadIntent,
   type AreaRiskResearchState,
+  type AreaRiskRetryableReadFailure,
   type AreaRiskViewportRequest,
   type AreaRiskViewportRequestOptions
 } from './areaRiskApiCore';
@@ -57,7 +58,30 @@ class AreaRiskResearchEndpointUnavailableError extends Error {
   }
 }
 
+export class AreaRiskRetryableReadError extends ApiRequestError {
+  retryableReadFailure: AreaRiskRetryableReadFailure;
+
+  constructor(message: string, retryAfterSeconds: number) {
+    super(message, 503);
+    this.name = 'AreaRiskRetryableReadError';
+    this.retryableReadFailure = {
+      operation: 'read',
+      retryAfterSeconds,
+      statusCode: 503
+    };
+  }
+}
+
+export function getAreaRiskRetryableReadFailure(
+  error: unknown
+): AreaRiskRetryableReadFailure | null {
+  return error instanceof AreaRiskRetryableReadError
+    ? error.retryableReadFailure
+    : null;
+}
+
 let readNonceCounter = 0;
+const MAX_SUPPORTED_RETRY_AFTER_SECONDS = Math.floor(2_147_483_647 / 1000);
 const INCOMPLETE_AREA_RISK_STATUSES = new Set([
   'error',
   'failed',
@@ -141,6 +165,7 @@ export async function fetchAreaRiskViewport(
         error,
         'Existing risk coverage could not be read.'
       ),
+      retryableReadFailure: getAreaRiskRetryableReadFailure(error),
       research,
       researchError,
       seedStatus: research?.seedStatus ?? null,
@@ -164,6 +189,7 @@ export async function fetchAreaRiskForRegion(
       partial: false,
       providerStatus: null,
       readError: null,
+      retryableReadFailure: null,
       research: null,
       researchError: null,
       seedStatus: null,
@@ -175,6 +201,9 @@ export async function fetchAreaRiskForRegion(
   const zones = mergeRiskZonesById(...feeds.map((feed) => feed.zones));
   const research = aggregateResearchState(feeds.map((feed) => feed.research));
   const readError = firstMessage(feeds.map((feed) => feed.readError));
+  const retryableReadFailure = aggregateRetryableReadFailure(
+    feeds.map((feed) => feed.retryableReadFailure)
+  );
   const researchError = firstMessage(feeds.map((feed) => feed.researchError));
   const requireTenantResearch = Boolean(
     String(options.accessToken || '').trim()
@@ -196,6 +225,7 @@ export async function fetchAreaRiskForRegion(
     partial,
     providerStatus: feeds.map((feed) => feed.providerStatus).find(Boolean) ?? null,
     readError,
+    retryableReadFailure,
     research,
     researchError,
     seedStatus: feeds.map((feed) => feed.seedStatus).find(Boolean) ?? research?.seedStatus ?? null,
@@ -252,6 +282,7 @@ async function readAreaRiskPages(
   let aggregate: AreaRiskFeedPage | null = null;
   let partial = false;
   let readError: string | null = null;
+  let retryableReadFailure: AreaRiskRetryableReadFailure | null = null;
 
   while (pagesLoaded < MAX_AREA_RISK_PAGES) {
     let page: AreaRiskFeedPage;
@@ -275,6 +306,7 @@ async function readAreaRiskPages(
         error,
         'Some risk coverage pages could not be loaded.'
       );
+      retryableReadFailure = getAreaRiskRetryableReadFailure(error);
       break;
     }
 
@@ -343,6 +375,7 @@ async function readAreaRiskPages(
     partial,
     providerStatus: aggregate.providerStatus,
     readError,
+    retryableReadFailure,
     research: null,
     researchError: null,
     seedStatus: aggregate.seedStatus,
@@ -387,6 +420,18 @@ async function readAreaRiskPage(
   );
   const body = await parseJsonResponse(response);
   if (!response.ok) {
+    const retryAfterSeconds = getRetryableReadUnavailableDelay(response, body);
+    if (retryAfterSeconds !== null) {
+      const responseError = createApiResponseError(
+        response.status,
+        body,
+        'Risk coverage is temporarily unavailable.'
+      );
+      throw new AreaRiskRetryableReadError(
+        responseError.message,
+        retryAfterSeconds
+      );
+    }
     throw createApiResponseError(
       response.status,
       body,
@@ -400,6 +445,104 @@ async function readAreaRiskPage(
     );
   }
   return normalizeAreaRiskFeedPage(body);
+}
+
+function aggregateRetryableReadFailure(
+  failures: Array<AreaRiskRetryableReadFailure | null | undefined>
+): AreaRiskRetryableReadFailure | null {
+  const available = failures.filter(
+    (failure): failure is AreaRiskRetryableReadFailure => Boolean(failure)
+  );
+  if (!available.length) {
+    return null;
+  }
+  return {
+    operation: 'read',
+    retryAfterSeconds: Math.max(
+      ...available.map((failure) => failure.retryAfterSeconds)
+    ),
+    statusCode: 503
+  };
+}
+
+function getRetryableReadUnavailableDelay(
+  response: Response,
+  body: unknown
+): number | null {
+  if (response.status !== 503 || getAreaRiskFailureOperation(body) !== 'read') {
+    return null;
+  }
+  const retryValues = [
+    parseRetryAfterSeconds(response.headers.get('Retry-After')),
+    getBodyRetryAfterSeconds(body)
+  ].filter((value): value is number => value !== null);
+  return retryValues.length ? Math.max(...retryValues) : null;
+}
+
+function getAreaRiskFailureOperation(body: unknown): string {
+  if (!body || typeof body !== 'object' || Array.isArray(body)) {
+    return '';
+  }
+  const detail = (body as { detail?: unknown }).detail;
+  if (!detail || typeof detail !== 'object' || Array.isArray(detail)) {
+    return '';
+  }
+  return String((detail as { operation?: unknown }).operation || '')
+    .trim()
+    .toLowerCase();
+}
+
+function getBodyRetryAfterSeconds(body: unknown): number | null {
+  if (!body || typeof body !== 'object' || Array.isArray(body)) {
+    return null;
+  }
+  const detail = (body as { detail?: unknown }).detail;
+  if (!detail || typeof detail !== 'object' || Array.isArray(detail)) {
+    return null;
+  }
+  return normalizeRetryAfterSeconds(
+    (detail as { retryAfterSeconds?: unknown; retry_after_seconds?: unknown })
+      .retryAfterSeconds
+      ?? (detail as { retry_after_seconds?: unknown }).retry_after_seconds
+  );
+}
+
+export function parseRetryAfterSeconds(
+  value: string | null | undefined,
+  nowMs = Date.now()
+): number | null {
+  const normalized = String(value ?? '').trim();
+  if (!normalized) {
+    return null;
+  }
+  const numeric = normalizeRetryAfterSeconds(normalized);
+  if (numeric !== null) {
+    return numeric;
+  }
+  if (!/[A-Za-z]/.test(normalized)) {
+    return null;
+  }
+  const deadlineMs = Date.parse(normalized);
+  if (!Number.isFinite(deadlineMs) || !Number.isFinite(nowMs)) {
+    return null;
+  }
+  const retryAfterSeconds = Math.max(0, Math.ceil((deadlineMs - nowMs) / 1000));
+  return retryAfterSeconds <= MAX_SUPPORTED_RETRY_AFTER_SECONDS
+    ? retryAfterSeconds
+    : null;
+}
+
+function normalizeRetryAfterSeconds(value: unknown): number | null {
+  const numeric = typeof value === 'number'
+    ? value
+    : (typeof value === 'string' && /^\d+$/.test(value.trim())
+      ? Number(value.trim())
+      : Number.NaN);
+  return Number.isSafeInteger(numeric)
+    && numeric >= 0
+    && numeric <= MAX_SUPPORTED_RETRY_AFTER_SECONDS
+    ? numeric
+    : null;
 }
 
 async function performAreaRiskRequest(

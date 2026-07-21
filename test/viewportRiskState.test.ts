@@ -15,6 +15,7 @@ import {
   pruneViewportRiskCache,
   resolveViewportRiskCoverageOutcome,
   resolveViewportRiskDisplayZones,
+  resolveViewportRiskUnavailableRecovery,
   viewportRiskCacheKey,
   type ViewportRiskCache
 } from '../src/features/live-map/viewportRiskState';
@@ -166,6 +167,8 @@ describe('viewport risk state', () => {
       researchFailureCount: 0,
       researchRequested: true,
       statusFailureCount: 0,
+      unavailableRequestCount: 0,
+      unavailableRetryAfterSeconds: 0,
       visibleZoneCount: 0
     });
     assert.equal(pending.coverageState, 'partial');
@@ -186,10 +189,80 @@ describe('viewport risk state', () => {
       researchFailureCount: 0,
       researchRequested: true,
       statusFailureCount: 0,
+      unavailableRequestCount: 0,
+      unavailableRetryAfterSeconds: 0,
       visibleZoneCount: 0
     });
     assert.equal(cooldown.coverageState, 'cooldown');
     assert.match(cooldown.statusMessage, /2 min/);
+
+    const unavailable = resolveViewportRiskCoverageOutcome({
+      allRequestsFailed: true,
+      cooldownRequestCount: 0,
+      cooldownRetryAfterSeconds: 0,
+      currentEmptyResearchCount: 0,
+      failedRequestCount: 1,
+      missingRequestCount: 0,
+      partialRequestCount: 0,
+      pendingRequestCount: 0,
+      readFailureCount: 0,
+      researchAvailable: true,
+      researchFailureCount: 0,
+      researchRequested: false,
+      statusFailureCount: 0,
+      unavailableRequestCount: 1,
+      unavailableRetryAfterSeconds: 5,
+      visibleZoneCount: 2
+    });
+    assert.equal(unavailable.coverageState, 'unavailable');
+    assert.match(unavailable.errorMessage, /temporarily unavailable/i);
+    assert.match(unavailable.errorMessage, /5 sec/i);
+    assert.match(unavailable.statusMessage, /Current-view risks remain visible/i);
+  });
+
+  it('honors the server deadline, context fence, wait cap, and one automatic recovery', () => {
+    const scheduled = resolveViewportRiskUnavailableRecovery({
+      attempts: 0,
+      context: 'tenant-a|viewport-a',
+      currentContext: 'tenant-a|viewport-a',
+      maxAutoRetries: 1,
+      maxAutoRetryMs: 30000,
+      nowMs: 1000,
+      retryAfterSeconds: 5
+    });
+    assert.deepEqual(scheduled, {
+      blockedUntilMs: 6000,
+      scheduleDelayMs: 5000
+    });
+    assert.equal(resolveViewportRiskUnavailableRecovery({
+      attempts: 1,
+      context: 'tenant-a|viewport-a',
+      currentContext: 'tenant-a|viewport-a',
+      maxAutoRetries: 1,
+      maxAutoRetryMs: 30000,
+      nowMs: 1000,
+      retryAfterSeconds: 5
+    }).scheduleDelayMs, null);
+    assert.equal(resolveViewportRiskUnavailableRecovery({
+      attempts: 0,
+      context: 'tenant-a|viewport-a',
+      currentContext: 'tenant-b|viewport-a',
+      maxAutoRetries: 1,
+      maxAutoRetryMs: 30000,
+      nowMs: 1000,
+      retryAfterSeconds: 5
+    }).scheduleDelayMs, null);
+    const longWait = resolveViewportRiskUnavailableRecovery({
+      attempts: 0,
+      context: 'tenant-a|viewport-a',
+      currentContext: 'tenant-a|viewport-a',
+      maxAutoRetries: 1,
+      maxAutoRetryMs: 30000,
+      nowMs: 1000,
+      retryAfterSeconds: 31
+    });
+    assert.equal(longWait.scheduleDelayMs, null);
+    assert.equal(longWait.blockedUntilMs, 32000);
   });
 
   it('treats TTL expiry inclusively and rejects future timestamps', () => {

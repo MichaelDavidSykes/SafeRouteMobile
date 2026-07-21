@@ -40,6 +40,15 @@ describe('viewport risk hook integration contract', () => {
     assert.match(source, /pending-timeout/);
     assert.match(source, /cooldownRequestCount/);
     assert.match(source, /researchBlockedUntilMs/);
+    assert.match(source, /readBlockedUntilMs/);
+    assert.match(source, /VIEWPORT_RISK_MAX_UNAVAILABLE_AUTO_RETRIES\s*=\s*1/);
+    assert.match(source, /VIEWPORT_RISK_MAX_UNAVAILABLE_AUTO_RETRY_MS\s*=\s*30000/);
+    assert.match(source, /getAreaRiskRetryableReadFailure/);
+    assert.match(source, /unavailableRetryStateRef/);
+    assert.match(source, /resolveViewportRiskUnavailableRecovery/);
+    assert.match(source, /setRecoveryRevision/);
+    assert.match(source, /unavailableRequestCount > 0 \? \[\] : retainedZones/);
+    assert.match(source, /retryAvailable:/);
     assert.match(source, /missingRequestCount/);
     assert.match(source, /legacyFallbackCount > 0/);
     assert.match(source, /Compatibility research is in progress/);
@@ -52,6 +61,7 @@ describe('viewport risk hook integration contract', () => {
     assert.match(stateSource, /Some risk coverage could not be updated/);
     assert.match(stateSource, /Previously loaded risks remain visible/);
     assert.match(stateSource, /Risk areas could not be updated/);
+    assert.match(stateSource, /Risk coverage is temporarily unavailable/);
     assert.match(source, /Risk areas are waiting for a valid map view\./);
     assert.match(source, /\bretry,\n/);
     assert.match(source, /research,/);

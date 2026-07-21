@@ -6,6 +6,7 @@ import {
   loadRouteRiskCorridor
 } from '../src/features/live-map/routeRiskCorridorCore';
 import { fetchAreaRiskAlongRoute as fetchAreaRiskAlongRouteTransport } from '../src/features/live-map/routeRiskCorridorApiCore';
+import { AreaRiskRetryableReadError } from '../src/features/live-map/areaRiskApiTransportCore';
 import {
   AREA_RISK_CAPABILITY_HEADER,
   MOBILE_AREA_RISK_CAPABILITY
@@ -228,6 +229,95 @@ describe('route risk corridor loading', () => {
     });
 
     assert.deepEqual(zones, []);
+  });
+
+  it('waits for Retry-After once, then recovers strict corridor proof without researching', async () => {
+    const coordinates = [
+      { latitude: -33.9249, longitude: 18.4241 },
+      { latitude: -33.9696, longitude: 18.5972 }
+    ];
+    const firstWaveCount = buildRouteRiskCorridorRegions(coordinates).length;
+    const calls: Array<{ at: number; init: RequestInit; url: URL }> = [];
+    const startedAt = Date.now();
+    const zones = await fetchAreaRiskAlongRoute(coordinates, {
+      accessToken: 'token-1',
+      clientId: 'tenant-1',
+      request: async (input, init = {}) => {
+        const url = new URL(String(input));
+        calls.push({ at: Date.now(), init, url });
+        if (calls.length <= firstWaveCount) {
+          return new Response(JSON.stringify({
+            detail: {
+              message: 'SafeRoute risk coverage is temporarily unavailable',
+              operation: 'read',
+              retryAfterSeconds: 1
+            }
+          }), {
+            headers: {
+              'Content-Type': 'application/json',
+              'Retry-After': '1'
+            },
+            status: 503
+          });
+        }
+        const [minLat, minLon, maxLat, maxLon] = String(url.searchParams.get('bbox'))
+          .split(',')
+          .map(Number);
+        return new Response(JSON.stringify({
+          data: {
+            bounds: { minLat, maxLat, minLon, maxLon },
+            hasMore: false,
+            items: [{
+              id: `recovered-${calls.length}`,
+              label: 'Recovered risk',
+              lat: (minLat + maxLat) / 2,
+              lon: (minLon + maxLon) / 2,
+              severity: 'high'
+            }],
+            providerStatus: 'primary',
+            seedStatus: 'covered'
+          }
+        }), { status: 200 });
+      }
+    });
+
+    assert.ok(zones.length >= 1);
+    assert.equal(calls.length, firstWaveCount * 2);
+    assert.ok(calls[firstWaveCount].at - startedAt >= 900);
+    assert.ok(calls.every(({ init, url }) =>
+      init.method !== 'POST'
+      && url.searchParams.get('read_only') === 'true'
+    ));
+  });
+
+  it('hard-caps automatic corridor recovery at one retry and keeps proof closed', async () => {
+    const coordinates = [
+      { latitude: -33.9249, longitude: 18.4241 },
+      { latitude: -33.9696, longitude: 18.5972 }
+    ];
+    const requestCount = buildRouteRiskCorridorRegions(coordinates).length;
+    let calls = 0;
+    await assert.rejects(
+      fetchAreaRiskAlongRoute(coordinates, {
+        accessToken: 'token-1',
+        clientId: 'tenant-1',
+        request: async () => {
+          calls += 1;
+          return new Response(JSON.stringify({
+            detail: {
+              message: 'SafeRoute risk coverage is temporarily unavailable',
+              operation: 'read',
+              retryAfterSeconds: 0
+            }
+          }), {
+            headers: { 'Content-Type': 'application/json', 'Retry-After': '0' },
+            status: 503
+          });
+        }
+      }),
+      (error: unknown) => error instanceof AreaRiskRetryableReadError
+    );
+    assert.equal(calls, requestCount * 2);
   });
 });
 

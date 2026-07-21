@@ -72,10 +72,17 @@ export interface AreaRiskFeed {
   partial: boolean;
   providerStatus: string | null;
   readError: string | null;
+  retryableReadFailure?: AreaRiskRetryableReadFailure | null;
   research: AreaRiskResearchState | null;
   researchError: string | null;
   seedStatus: string | null;
   zones: RiskZone[];
+}
+
+export interface AreaRiskRetryableReadFailure {
+  operation: 'read';
+  retryAfterSeconds: number;
+  statusCode: 503;
 }
 
 export interface AreaRiskResearchState {

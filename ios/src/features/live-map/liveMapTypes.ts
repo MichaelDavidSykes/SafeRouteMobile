@@ -1,6 +1,7 @@
 import type { LatLng, Region } from 'react-native-maps';
 
 export type RiskSeverity = 'low' | 'medium' | 'high';
+export type RiskAvoidanceSeverity = 'high' | 'critical';
 export type SavedRouteStatus = 'ready' | 'in-progress' | 'planned';
 
 export interface RoutePath {
@@ -37,6 +38,7 @@ export interface RiskZone {
   title: string;
   description: string;
   severity: RiskSeverity;
+  avoidanceSeverity?: RiskAvoidanceSeverity;
   category: string;
   coordinate: LatLng;
   routeSegmentCoordinates?: LatLng[];

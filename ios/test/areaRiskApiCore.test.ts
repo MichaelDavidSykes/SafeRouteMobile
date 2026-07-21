@@ -5,6 +5,7 @@ import {
   AREA_RISK_QUERY_COORDINATE_DECIMALS,
   AREA_RISK_RESEARCH_ENDPOINT_PATH,
   AREA_RISK_RESPONSE_BOUNDS_EPSILON,
+  areaRiskItemIntersectsBounds,
   areaRiskResponseBoundsMatchRequest,
   approximateMapZoom,
   buildAreaRiskRequestHeaders,
@@ -18,6 +19,7 @@ import {
   deriveRiskZoneAvoidRectangles,
   normalizeAreaRiskFeed,
   normalizeAreaRiskResearchState,
+  partitionAreaRiskItemsByBounds,
   regionToAreaRiskViewportRequests,
   type AreaRiskViewportRequest
 } from '../src/features/live-map/areaRiskApiCore';
@@ -209,6 +211,67 @@ describe('area risk API core', () => {
     );
   });
 
+  it('admits only points, circles, and geometry intersecting the requested map partition', () => {
+    const bounds = { south: -34.1, west: 18.3, north: -33.8, east: 18.8 };
+    const localPoint = { id: 'local', lat: -33.95, lon: 18.5 };
+    const overlappingCircle = {
+      id: 'edge-circle',
+      lat: -33.95,
+      lon: 18.29,
+      radiusM: 1200
+    };
+    const crossingGeometry = {
+      id: 'crossing',
+      coordinates: [
+        { lat: -33.95, lon: 18.2 },
+        { lat: -33.95, lon: 18.9 }
+      ]
+    };
+    const enclosingPolygon = {
+      id: 'enclosing',
+      coordinates: [
+        { lat: -34.2, lon: 18.2 },
+        { lat: -34.2, lon: 18.9 },
+        { lat: -33.7, lon: 18.9 },
+        { lat: -33.7, lon: 18.2 }
+      ]
+    };
+    const remotePoint = { id: 'remote', lat: 51.5, lon: -0.1, radiusM: 900 };
+
+    assert.equal(areaRiskItemIntersectsBounds(localPoint, bounds), true);
+    assert.equal(areaRiskItemIntersectsBounds(overlappingCircle, bounds), true);
+    assert.equal(areaRiskItemIntersectsBounds(crossingGeometry, bounds), true);
+    assert.equal(areaRiskItemIntersectsBounds(enclosingPolygon, bounds), true);
+    assert.equal(areaRiskItemIntersectsBounds(remotePoint, bounds), false);
+    assert.equal(areaRiskItemIntersectsBounds({ id: 'unverifiable' }, bounds), false);
+    assert.deepEqual(
+      partitionAreaRiskItemsByBounds([
+        localPoint,
+        overlappingCircle,
+        remotePoint,
+        { id: 'unverifiable' }
+      ], bounds),
+      {
+        accepted: [localPoint, overlappingCircle],
+        rejectedCount: 2
+      }
+    );
+  });
+
+  it('normalizes longitudes around an antimeridian request partition', () => {
+    assert.equal(areaRiskItemIntersectsBounds({
+      id: 'dateline-circle',
+      lat: -17.5,
+      lon: -179.999,
+      radiusM: 1200
+    }, {
+      south: -17.9,
+      west: 179.99,
+      north: -17.2,
+      east: 180
+    }), true);
+  });
+
   it('builds only bounded authenticated research commands with the exact backend body', () => {
     const request: AreaRiskViewportRequest = {
       bbox: '-34.10000,18.30000,-33.80000,18.80000',
@@ -354,6 +417,7 @@ describe('area risk API core', () => {
       title: 'Central district',
       description: 'Elevated road disruption. Source: General Risk Area Source.',
       severity: 'high',
+      avoidanceSeverity: 'critical',
       category: 'Area Risk',
       coordinate: { latitude: 51.5, longitude: -0.1 },
       polygonCoordinates: undefined,
@@ -432,12 +496,14 @@ describe('area risk API core', () => {
     const zones = normalizeAreaRiskFeed({
       items: [
         { id: 'zone/1', label: 'Station risk', severity: 'medium', lat: 51.5, lon: -0.1 },
-        { id: 'zone/1', label: 'Station risk', severity: 'high', lat: 51.5, lon: -0.1 }
+        { id: 'zone/1', label: 'Station risk', severity: 'high', lat: 51.5, lon: -0.1 },
+        { id: 'zone/1', label: 'Station risk', severity: 'critical', lat: 51.5, lon: -0.1 }
       ]
     }).zones;
     assert.equal(zones.length, 1);
     assert.equal(zones[0].id, 'generated-area-risk-zone-1');
     assert.equal(zones[0].severity, 'high');
+    assert.equal(zones[0].avoidanceSeverity, 'critical');
   });
 
   it('adds bearer auth only when supplied by the caller', () => {
@@ -457,14 +523,14 @@ describe('area risk API core', () => {
     const high = createZone('high', 'High zone', { latitude: 51.51, longitude: -0.11 });
     const criticalDateline = {
       ...createZone('high', 'Critical dateline zone', { latitude: 10, longitude: 179.9 }),
-      severity: 'critical',
+      avoidanceSeverity: 'critical' as const,
       polygonCoordinates: [
         { latitude: 9.99, longitude: 179.8 },
         { latitude: 10.01, longitude: 179.8 },
         { latitude: 10.01, longitude: -179.8 },
         { latitude: 9.99, longitude: -179.8 }
       ]
-    } as unknown as RiskZone;
+    } satisfies RiskZone;
 
     const rectangles = deriveRiskZoneAvoidRectangles([low, high, criticalDateline]);
 
@@ -479,12 +545,38 @@ describe('area risk API core', () => {
 
     const crossingCircle = {
       ...createZone('high', 'Crossing circle', { latitude: 0, longitude: 179.999 }),
-      radiusMeters: 1000
+      radiusMeters: 700
     };
     const circleRectangles = deriveRiskZoneAvoidRectangles([crossingCircle]);
     assert.equal(circleRectangles.length, 2);
     assert.ok(circleRectangles.some((rectangle) => rectangle.max_lon === 180));
     assert.ok(circleRectangles.some((rectangle) => rectangle.min_lon === -180));
+  });
+
+  it('keeps district-scale high risk advisory while critical areas remain hard exclusions', () => {
+    const districtHigh = {
+      ...createZone('high', 'Jakes Gerwel district', { latitude: -33.93, longitude: 18.465 }),
+      radiusMeters: 0,
+      polygonCoordinates: [
+        { latitude: -33.940621, longitude: 18.452212 },
+        { latitude: -33.940621, longitude: 18.477788 },
+        { latitude: -33.919379, longitude: 18.477788 },
+        { latitude: -33.919379, longitude: 18.452212 }
+      ]
+    } satisfies RiskZone;
+    const districtCritical = {
+      ...districtHigh,
+      id: 'critical-district',
+      title: 'Critical district exclusion',
+      avoidanceSeverity: 'critical' as const
+    } satisfies RiskZone;
+
+    const highOnly = deriveRiskZoneAvoidRectangles([districtHigh]);
+    const critical = deriveRiskZoneAvoidRectangles([districtCritical]);
+
+    assert.deepEqual(highOnly, []);
+    assert.equal(critical.length, 1);
+    assert.equal(critical[0].label, 'Critical district exclusion');
   });
 });
 

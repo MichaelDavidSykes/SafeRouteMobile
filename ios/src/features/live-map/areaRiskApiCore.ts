@@ -76,6 +76,7 @@ export interface AreaRiskFeed {
   fetchedAt: string | null;
   legacyFallback: boolean;
   localCityScaleRejectedCount: number;
+  localSpatialRejectedCount: number;
   message: string;
   pagesLoaded: number;
   partial: boolean;
@@ -126,6 +127,11 @@ export interface AreaRiskFeedPage extends AreaRiskFeed {
   nextCursor: string | null;
 }
 
+export interface AreaRiskSpatialPartition<T> {
+  accepted: T[];
+  rejectedCount: number;
+}
+
 export interface AreaRiskAvoidRectangle {
   label?: string;
   max_lat: number;
@@ -135,6 +141,7 @@ export interface AreaRiskAvoidRectangle {
 }
 
 export interface AreaRiskAvoidRectangleOptions {
+  maxHighRiskHardAvoidSpanKm?: number;
   maxRectangles?: number;
   maxSpanKm?: number;
   paddingMeters?: number;
@@ -150,6 +157,7 @@ const MIN_RADIUS_METERS = 50;
 export const SAFE_ROUTE_RISK_AREA_MAX_RADIUS_METERS = 2500;
 export const SAFE_ROUTE_RISK_AREA_MAX_AXIS_METERS = 5250;
 export const SAFE_ROUTE_RISK_AREA_MAX_DIAMETER_METERS = 8000;
+export const SAFE_ROUTE_HIGH_RISK_HARD_AVOID_MAX_SPAN_KM = 2;
 const MAX_RADIUS_METERS = SAFE_ROUTE_RISK_AREA_MAX_RADIUS_METERS;
 const MAX_COORDINATES_PER_ZONE = 512;
 const MAX_SAFETY_COORDINATES_PER_ZONE = 80;
@@ -459,7 +467,10 @@ export function normalizeAreaRiskFeed(payload: unknown): AreaRiskFeed {
   return normalizeAreaRiskFeedPage(payload);
 }
 
-export function normalizeAreaRiskFeedPage(payload: unknown): AreaRiskFeedPage {
+export function normalizeAreaRiskFeedPage(
+  payload: unknown,
+  requestedBounds: AreaRiskBounds | null = null
+): AreaRiskFeedPage {
   const body = unwrapDataEnvelope(payload);
   const record = asRecord(body);
   const source = cleanOptionalText(record?.source, 160) ?? 'LunarChain area-risk intelligence';
@@ -467,6 +478,7 @@ export function normalizeAreaRiskFeedPage(payload: unknown): AreaRiskFeedPage {
     ? body
     : (Array.isArray(record?.items) ? record.items : []);
   let localCityScaleRejectedCount = 0;
+  let localSpatialRejectedCount = 0;
   const zones = mergeRiskZonesById(
     items
       .slice(0, MAX_AREA_RISK_RECORDS * 2)
@@ -475,12 +487,17 @@ export function normalizeAreaRiskFeedPage(payload: unknown): AreaRiskFeedPage {
           localCityScaleRejectedCount += 1;
           return null;
         }
+        if (requestedBounds && !areaRiskItemIntersectsBounds(item, requestedBounds)) {
+          localSpatialRejectedCount += 1;
+          return null;
+        }
         return normalizeAreaRiskItem(item, index, source);
       })
       .filter((zone): zone is RiskZone => zone !== null)
   ).slice(0, MAX_AREA_RISK_RECORDS);
   const safetyFilter = readAreaRiskSafetyFilter(record ?? {});
   const discardedUnsafeAreaCount = localCityScaleRejectedCount
+    + localSpatialRejectedCount
     + (safetyFilter.valid ? safetyFilter.rejectedCount : 0);
   const safetyWarning = areaRiskSafetyWarning(discardedUnsafeAreaCount);
   const providerErrors = asArray(record?.providerErrors ?? record?.provider_errors)
@@ -496,6 +513,7 @@ export function normalizeAreaRiskFeedPage(payload: unknown): AreaRiskFeedPage {
     fetchedAt: cleanOptionalText(record?.fetchedAt ?? record?.fetched_at, 80),
     legacyFallback: false,
     localCityScaleRejectedCount,
+    localSpatialRejectedCount,
     message: zones.length
       ? `${zones.length} SafeRoute area-risk signal${zones.length === 1 ? '' : 's'} prepared.`
       : (safetyWarning
@@ -571,6 +589,92 @@ export function areaRiskItemWithinSafeRouteSizeLimit(value: unknown): boolean {
   return true;
 }
 
+export function areaRiskItemIntersectsBounds(
+  value: unknown,
+  requestedBounds: AreaRiskBounds
+): boolean {
+  const item = asRecord(value);
+  const bounds = normalizeAreaRiskBounds(requestedBounds);
+  if (!item || !bounds) {
+    return false;
+  }
+  const regionCenterLongitude = (bounds.west + bounds.east) / 2;
+  const coordinates = normalizeCoordinates(
+    item.polygonCoordinates
+      ?? item.polygon_coordinates
+      ?? item.coordinates
+      ?? item.geometry
+      ?? item.geojson
+  ).map((coordinate) => ({
+    latitude: coordinate.latitude,
+    longitude: longitudeNear(coordinate.longitude, regionCenterLongitude)
+  }));
+  if (coordinates.length >= 2) {
+    for (let index = 1; index < coordinates.length; index += 1) {
+      if (areaRiskSegmentIntersectsBounds(coordinates[index - 1], coordinates[index], bounds)) {
+        return true;
+      }
+    }
+    if (
+      coordinates.length >= 3
+      && areaRiskSegmentIntersectsBounds(
+        coordinates[coordinates.length - 1],
+        coordinates[0],
+        bounds
+      )
+    ) {
+      return true;
+    }
+    return coordinates.length >= 3 && areaRiskBoundsCorners(bounds).some((corner) =>
+      areaRiskPolygonContainsPoint(coordinates, corner)
+    );
+  }
+
+  const coordinate = normalizeCoordinate(item.coordinate)
+    ?? normalizeCoordinate(item.center)
+    ?? normalizeCoordinate(item)
+    ?? coordinates[0]
+    ?? null;
+  if (!coordinate) {
+    return false;
+  }
+  const center = {
+    latitude: coordinate.latitude,
+    longitude: longitudeNear(coordinate.longitude, regionCenterLongitude)
+  };
+  if (areaRiskPointInBounds(center, bounds)) {
+    return true;
+  }
+  const radiusMeters = Math.max(
+    0,
+    finiteNumber(item.radiusM ?? item.radius_m ?? item.radiusMeters) ?? 0
+  );
+  if (!radiusMeters) {
+    return false;
+  }
+  const closest = {
+    latitude: clamp(center.latitude, bounds.south, bounds.north),
+    longitude: clamp(center.longitude, bounds.west, bounds.east)
+  };
+  return coordinateDistanceMeters(center, closest) <= radiusMeters;
+}
+
+export function partitionAreaRiskItemsByBounds<T>(
+  values: readonly T[],
+  bounds: AreaRiskBounds
+): AreaRiskSpatialPartition<T> {
+  const accepted: T[] = [];
+  let rejectedCount = 0;
+  for (const value of values) {
+    if (areaRiskItemIntersectsBounds(value, bounds)) {
+      accepted.push(value);
+    } else {
+      rejectedCount += 1;
+    }
+  }
+  return { accepted, rejectedCount };
+}
+
 export function normalizeAreaRiskResearchState(payload: unknown): AreaRiskResearchState {
   const body = unwrapDataEnvelope(payload);
   const record = asRecord(body);
@@ -604,7 +708,7 @@ export function areaRiskResponseBoundsMatchRequest(
   const body = unwrapDataEnvelope(payload);
   const record = asRecord(body);
   const actual = normalizeAreaRiskBounds(record?.bounds);
-  const expected = serializedAreaRiskRequestBounds(request);
+  const expected = areaRiskQueryBoundsForRequest(request);
   if (!actual || !expected) {
     return false;
   }
@@ -612,6 +716,15 @@ export function areaRiskResponseBoundsMatchRequest(
     && Math.abs(actual.north - expected.north) <= AREA_RISK_RESPONSE_BOUNDS_EPSILON
     && Math.abs(actual.west - expected.west) <= AREA_RISK_RESPONSE_BOUNDS_EPSILON
     && Math.abs(actual.east - expected.east) <= AREA_RISK_RESPONSE_BOUNDS_EPSILON;
+}
+
+export function areaRiskQueryBoundsForRequest(
+  request: AreaRiskViewportRequest
+): AreaRiskBounds | null {
+  if (normalizeScope(request.scope, request.zoom) === 'global') {
+    return null;
+  }
+  return serializedAreaRiskRequestBounds(request);
 }
 
 export function mergeRiskZonesById(...zoneSets: ReadonlyArray<readonly RiskZone[]>): RiskZone[] {
@@ -654,6 +767,7 @@ export function canonicalAreaRiskZoneId(
 export function deriveRiskZoneAvoidRectangles(
   riskZones: readonly (RiskZone | AvoidanceRiskZone)[],
   {
+    maxHighRiskHardAvoidSpanKm = SAFE_ROUTE_HIGH_RISK_HARD_AVOID_MAX_SPAN_KM,
     maxRectangles = 10,
     maxSpanKm = 160,
     paddingMeters = 140
@@ -661,10 +775,15 @@ export function deriveRiskZoneAvoidRectangles(
 ): AreaRiskAvoidRectangle[] {
   const limit = clampInteger(maxRectangles, 0, 10, 10);
   const candidates = riskZones
-    .filter((zone) => zone.severity === 'high' || zone.severity === 'critical')
-    .flatMap((zone, index) => riskZoneToAvoidRectangles(zone, { maxSpanKm, paddingMeters }).map((rectangle) => ({
+    .map((zone) => ({ zone, avoidanceSeverity: riskZoneAvoidanceSeverity(zone) }))
+    .filter(({ avoidanceSeverity }) => avoidanceSeverity === 'high' || avoidanceSeverity === 'critical')
+    .flatMap(({ zone, avoidanceSeverity }, index) => riskZoneToAvoidRectangles(zone, {
+      maxHighRiskHardAvoidSpanKm,
+      maxSpanKm,
+      paddingMeters
+    }).map((rectangle) => ({
       index,
-      rank: zone.severity === 'critical' ? 4 : 3,
+      rank: avoidanceSeverity === 'critical' ? 4 : 3,
       rectangle
     })))
     .sort((left, right) => right.rank - left.rank || left.index - right.index);
@@ -692,11 +811,13 @@ export function deriveRiskZoneAvoidRectangles(
 export function riskZoneToAvoidRectangles(
   zone: RiskZone | AvoidanceRiskZone,
   {
+    maxHighRiskHardAvoidSpanKm = SAFE_ROUTE_HIGH_RISK_HARD_AVOID_MAX_SPAN_KM,
     maxSpanKm = 160,
     paddingMeters = 140
   }: Omit<AreaRiskAvoidRectangleOptions, 'maxRectangles'> = {}
 ): AreaRiskAvoidRectangle[] {
-  if (zone.severity !== 'high' && zone.severity !== 'critical') {
+  const avoidanceSeverity = riskZoneAvoidanceSeverity(zone);
+  if (avoidanceSeverity !== 'high' && avoidanceSeverity !== 'critical') {
     return [];
   }
 
@@ -723,6 +844,17 @@ export function riskZoneToAvoidRectangles(
   const south = clamp(southCoordinate - latitudePadding, -80, 80);
   const north = clamp(northCoordinate + latitudePadding, -80, 80);
   const safeMaxSpanKm = clamp(positiveFiniteNumber(maxSpanKm) ?? 160, 1, 160);
+  const safeHighRiskMaxSpanKm = Math.min(
+    safeMaxSpanKm,
+    clamp(
+      positiveFiniteNumber(maxHighRiskHardAvoidSpanKm) ?? SAFE_ROUTE_HIGH_RISK_HARD_AVOID_MAX_SPAN_KM,
+      0.1,
+      160
+    )
+  );
+  const hardAvoidMaxSpanKm = avoidanceSeverity === 'critical'
+    ? safeMaxSpanKm
+    : safeHighRiskMaxSpanKm;
   const label = cleanOptionalText(zone.title, 140);
 
   return longitudeRangesForPoints(
@@ -738,7 +870,7 @@ export function riskZoneToAvoidRectangles(
     };
     return rectangle.max_lat > rectangle.min_lat &&
       rectangle.max_lon > rectangle.min_lon &&
-      avoidRectangleSpanKm(rectangle) <= safeMaxSpanKm
+      avoidRectangleSpanKm(rectangle) <= hardAvoidMaxSpanKm
       ? rectangle
       : null;
   }).filter((rectangle): rectangle is AreaRiskAvoidRectangle => rectangle !== null);
@@ -751,6 +883,7 @@ function normalizeAreaRiskItem(value: unknown, index: number, feedSource: string
   }
 
   const severity = normalizeSeverity(item.severity, item.riskScore ?? item.risk_score);
+  const avoidanceSeverity = normalizeAvoidanceSeverity(item.severity);
   const colors = severityColors[severity];
   const radiusMeters = normalizeRadius(item.radiusM ?? item.radius_m ?? item.radiusMeters);
   const coordinates = normalizeCoordinates(
@@ -793,6 +926,7 @@ function normalizeAreaRiskItem(value: unknown, index: number, feedSource: string
     title,
     description,
     severity,
+    ...(avoidanceSeverity === 'critical' ? { avoidanceSeverity } : {}),
     category: 'Area Risk',
     coordinate,
     polygonCoordinates: polygonCoordinates.length >= 3 ? polygonCoordinates : undefined,
@@ -821,6 +955,9 @@ function mergeRiskZone(primary: RiskZone, incoming: RiskZone): RiskZone {
       ? primary.description
       : incoming.description,
     severity,
+    ...(primary.avoidanceSeverity === 'critical' || incoming.avoidanceSeverity === 'critical'
+      ? { avoidanceSeverity: 'critical' as const }
+      : {}),
     polygonCoordinates: polygonCoordinates.length >= 3 ? [...polygonCoordinates] : undefined,
     shape: polygonCoordinates.length >= 3 ? 'polygon' : primary.shape,
     radiusMeters: Math.max(primary.radiusMeters, incoming.radiusMeters),
@@ -828,6 +965,19 @@ function mergeRiskZone(primary: RiskZone, incoming: RiskZone): RiskZone {
     strokeColor: colors.stroke,
     fillColor: colors.fill
   };
+}
+
+function normalizeAvoidanceSeverity(value: unknown): RiskZone['avoidanceSeverity'] | undefined {
+  const severity = cleanOptionalText(value, 32)?.toLowerCase();
+  return severity === 'critical' ? 'critical' : undefined;
+}
+
+function riskZoneAvoidanceSeverity(
+  zone: RiskZone | AvoidanceRiskZone
+): RiskSeverity | 'critical' {
+  return zone.avoidanceSeverity === 'critical' || zone.severity === 'critical'
+    ? 'critical'
+    : zone.severity;
 }
 
 function cloneRiskZone(zone: RiskZone): RiskZone {
@@ -1082,6 +1232,122 @@ function coordinateDistanceMeters(left: Coordinate, right: Coordinate): number {
     Math.sqrt(haversine),
     Math.sqrt(Math.max(0, 1 - haversine))
   );
+}
+
+function areaRiskPointInBounds(point: Coordinate, bounds: AreaRiskBounds): boolean {
+  return point.latitude >= bounds.south
+    && point.latitude <= bounds.north
+    && point.longitude >= bounds.west
+    && point.longitude <= bounds.east;
+}
+
+function areaRiskSegmentOrientation(
+  left: Coordinate,
+  middle: Coordinate,
+  right: Coordinate
+): number {
+  return (middle.longitude - left.longitude) * (right.latitude - left.latitude)
+    - (middle.latitude - left.latitude) * (right.longitude - left.longitude);
+}
+
+function areaRiskPointOnSegment(
+  left: Coordinate,
+  point: Coordinate,
+  right: Coordinate
+): boolean {
+  const epsilon = 1e-10;
+  return Math.abs(areaRiskSegmentOrientation(left, point, right)) <= epsilon
+    && point.longitude >= Math.min(left.longitude, right.longitude) - epsilon
+    && point.longitude <= Math.max(left.longitude, right.longitude) + epsilon
+    && point.latitude >= Math.min(left.latitude, right.latitude) - epsilon
+    && point.latitude <= Math.max(left.latitude, right.latitude) + epsilon;
+}
+
+function areaRiskSegmentsIntersect(
+  leftStart: Coordinate,
+  leftEnd: Coordinate,
+  rightStart: Coordinate,
+  rightEnd: Coordinate
+): boolean {
+  const leftStartOrientation = areaRiskSegmentOrientation(leftStart, leftEnd, rightStart);
+  const leftEndOrientation = areaRiskSegmentOrientation(leftStart, leftEnd, rightEnd);
+  const rightStartOrientation = areaRiskSegmentOrientation(rightStart, rightEnd, leftStart);
+  const rightEndOrientation = areaRiskSegmentOrientation(rightStart, rightEnd, leftEnd);
+  if (
+    ((leftStartOrientation > 0 && leftEndOrientation < 0)
+      || (leftStartOrientation < 0 && leftEndOrientation > 0))
+    && ((rightStartOrientation > 0 && rightEndOrientation < 0)
+      || (rightStartOrientation < 0 && rightEndOrientation > 0))
+  ) {
+    return true;
+  }
+  return areaRiskPointOnSegment(leftStart, rightStart, leftEnd)
+    || areaRiskPointOnSegment(leftStart, rightEnd, leftEnd)
+    || areaRiskPointOnSegment(rightStart, leftStart, rightEnd)
+    || areaRiskPointOnSegment(rightStart, leftEnd, rightEnd);
+}
+
+function areaRiskBoundsCorners(bounds: AreaRiskBounds): Coordinate[] {
+  return [
+    { latitude: bounds.south, longitude: bounds.west },
+    { latitude: bounds.south, longitude: bounds.east },
+    { latitude: bounds.north, longitude: bounds.east },
+    { latitude: bounds.north, longitude: bounds.west }
+  ];
+}
+
+function areaRiskSegmentIntersectsBounds(
+  start: Coordinate,
+  end: Coordinate,
+  bounds: AreaRiskBounds
+): boolean {
+  if (areaRiskPointInBounds(start, bounds) || areaRiskPointInBounds(end, bounds)) {
+    return true;
+  }
+  const corners = areaRiskBoundsCorners(bounds);
+  return corners.some((corner, index) =>
+    areaRiskSegmentsIntersect(start, end, corner, corners[(index + 1) % corners.length])
+  );
+}
+
+function areaRiskPolygonContainsPoint(
+  coordinates: Coordinate[],
+  point: Coordinate
+): boolean {
+  let inside = false;
+  for (
+    let index = 0, previousIndex = coordinates.length - 1;
+    index < coordinates.length;
+    previousIndex = index, index += 1
+  ) {
+    const current = coordinates[index];
+    const previous = coordinates[previousIndex];
+    if (areaRiskPointOnSegment(previous, point, current)) {
+      return true;
+    }
+    const crosses = (current.latitude > point.latitude) !== (previous.latitude > point.latitude)
+      && point.longitude < (
+        (previous.longitude - current.longitude)
+        * (point.latitude - current.latitude)
+        / (previous.latitude - current.latitude)
+        + current.longitude
+      );
+    if (crosses) {
+      inside = !inside;
+    }
+  }
+  return inside;
+}
+
+function longitudeNear(value: number, reference: number): number {
+  let longitude = value;
+  while (longitude - reference > 180) {
+    longitude -= 360;
+  }
+  while (longitude - reference < -180) {
+    longitude += 360;
+  }
+  return longitude;
 }
 
 function normalizeScope(value: unknown, zoom: number): AreaRiskScope {

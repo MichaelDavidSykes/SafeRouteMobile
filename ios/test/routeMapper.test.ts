@@ -63,6 +63,7 @@ describe('SafeRoute mobile DTO mapper', () => {
     assert.equal(plan.clientId, 'client-1');
     assert.equal(plan.route.navigationSteps?.[0].instruction, 'Turn left onto Airport Road');
     assert.equal(plan.riskZones[0].severity, 'high');
+    assert.equal(plan.riskZones[0].avoidanceSeverity, 'critical');
     assert.equal(plan.checkpoints.length, 2);
   });
 
@@ -518,6 +519,7 @@ describe('SafeRoute mobile DTO mapper', () => {
         {
           id: 'road-suitability-alert',
           title: 'Duplicate risk overlay',
+          severity: 'critical',
           coordinate: { latitude: 51.5, longitude: -0.114 }
         }
       ]
@@ -527,6 +529,7 @@ describe('SafeRoute mobile DTO mapper', () => {
     assert.equal(plan.riskZones[0].id, 'road-suitability-alert');
     assert.equal(plan.riskZones[0].title, 'Road suitability');
     assert.equal(plan.riskZones[0].category, 'Road Suitability');
+    assert.equal(plan.riskZones[0].avoidanceSeverity, 'critical');
     assert.deepEqual(plan.riskZones[0].routeSegmentCoordinates, [
       { latitude: 51.5, longitude: -0.116 },
       { latitude: 51.5, longitude: -0.112 }
@@ -596,6 +599,7 @@ describe('SafeRoute mobile DTO mapper', () => {
     assert.equal(plan.route.color, '#f3a32b');
     assert.equal(plan.route.mutedColor, 'rgba(243, 163, 43, 0.24)');
     assert.equal(plan.riskZones[0].severity, 'high');
+    assert.equal(plan.riskZones[0].avoidanceSeverity, 'critical');
   });
 
   it('keeps fallback overlay copy risk-first instead of internal intel jargon', () => {

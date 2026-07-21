@@ -180,6 +180,41 @@ describe('route risk corridor loading', () => {
     );
   });
 
+  it('fails closed when a corridor response contains only remote risk geometry', async () => {
+    await assert.rejects(
+      fetchAreaRiskAlongRoute([
+        { latitude: -33.9249, longitude: 18.4241 },
+        { latitude: -33.9696, longitude: 18.5972 }
+      ], {
+        accessToken: 'token-1',
+        clientId: 'tenant-1',
+        request: async (input) => {
+          const url = new URL(String(input));
+          const [minLat, minLon, maxLat, maxLon] = String(url.searchParams.get('bbox'))
+            .split(',')
+            .map(Number);
+          return new Response(JSON.stringify({
+            data: {
+              bounds: { minLat, maxLat, minLon, maxLon },
+              hasMore: false,
+              items: [{
+                id: 'remote-london',
+                label: 'Remote London risk',
+                lat: 51.5,
+                lon: -0.1,
+                radiusM: 900,
+                severity: 'high'
+              }],
+              providerStatus: 'primary',
+              seedStatus: 'covered'
+            }
+          }), { status: 200 });
+        }
+      }),
+      /coverage is incomplete/i
+    );
+  });
+
   it('fails closed when strict coverage reports a terminal research failure', async () => {
     await assert.rejects(
       fetchAreaRiskAlongRoute([

@@ -1,7 +1,9 @@
 import type { LatLng } from 'react-native-maps';
 
 import {
+  AreaRiskRetryableReadError,
   fetchAreaRiskForRegion,
+  getAreaRiskRetryableReadFailure,
   type AreaRiskRegionFetchOptions
 } from './areaRiskApiTransportCore';
 import type { RiskZone } from './liveMapTypes';
@@ -17,6 +19,9 @@ import {
 
 export { buildRouteRiskCorridorRegions } from './routeRiskCorridorCore';
 
+export const ROUTE_RISK_MAX_UNAVAILABLE_AUTO_RETRIES = 1;
+export const ROUTE_RISK_MAX_UNAVAILABLE_AUTO_RETRY_MS = 30000;
+
 export async function fetchAreaRiskAlongRoute(
   coordinates: LatLng[],
   options: AreaRiskRegionFetchOptions & { maxChunks?: number } = {}
@@ -30,25 +35,70 @@ export async function fetchAreaRiskAlongRoute(
   if (!regions.length) {
     return [];
   }
-  return loadRouteRiskCorridor(regions, (region) =>
-    fetchAreaRiskForRegion(region, {
-      ...fetchOptions,
-      intent: 'read',
-      detailMaxRecords: Math.min(80, fetchOptions.detailMaxRecords ?? 80),
-      regionalMaxRecords: Math.min(60, fetchOptions.regionalMaxRecords ?? 60)
-    }).then((feed) => {
+  let unavailableRetries = 0;
+  while (true) {
+    try {
+      return await loadRouteRiskCorridor(regions, (region) =>
+        fetchAreaRiskForRegion(region, {
+          ...fetchOptions,
+          intent: 'read',
+          detailMaxRecords: Math.min(80, fetchOptions.detailMaxRecords ?? 80),
+          regionalMaxRecords: Math.min(60, fetchOptions.regionalMaxRecords ?? 60)
+        }).then((feed) => {
+          if (feed.retryableReadFailure) {
+            throw new AreaRiskRetryableReadError(
+              feed.readError || 'Route risk coverage is temporarily unavailable.',
+              feed.retryableReadFailure.retryAfterSeconds
+            );
+          }
+          if (
+            feed.partial
+            || feed.readError
+            || isAreaRiskFeedPending(feed)
+            || isAreaRiskFeedFailed(feed)
+            || isAreaRiskFeedMissing(feed, { requireTenantResearch })
+          ) {
+            throw new Error(
+              'Route risk coverage is incomplete. Retry after SafeRoute research finishes.'
+            );
+          }
+          return feed.zones;
+        })
+      );
+    } catch (error) {
+      const retryableReadFailure = getAreaRiskRetryableReadFailure(error);
+      const retryDelayMs = (retryableReadFailure?.retryAfterSeconds ?? 0) * 1000;
       if (
-        feed.partial
-        || feed.readError
-        || isAreaRiskFeedPending(feed)
-        || isAreaRiskFeedFailed(feed)
-        || isAreaRiskFeedMissing(feed, { requireTenantResearch })
+        !retryableReadFailure
+        || unavailableRetries >= ROUTE_RISK_MAX_UNAVAILABLE_AUTO_RETRIES
+        || retryDelayMs > ROUTE_RISK_MAX_UNAVAILABLE_AUTO_RETRY_MS
       ) {
-        throw new Error(
-          'Route risk coverage is incomplete. Retry after SafeRoute research finishes.'
-        );
+        throw error;
       }
-      return feed.zones;
-    })
-  );
+      unavailableRetries += 1;
+      await waitForAreaRiskRetry(retryDelayMs, fetchOptions.signal);
+    }
+  }
+}
+
+function waitForAreaRiskRetry(
+  delayMs: number,
+  signal?: AbortSignal
+): Promise<void> {
+  if (signal?.aborted) {
+    return Promise.reject(new Error('Route risk retry was cancelled.'));
+  }
+  return new Promise((resolve, reject) => {
+    const finish = () => {
+      signal?.removeEventListener('abort', cancel);
+      resolve();
+    };
+    const timer = setTimeout(finish, Math.max(0, delayMs));
+    const cancel = () => {
+      clearTimeout(timer);
+      signal?.removeEventListener('abort', cancel);
+      reject(new Error('Route risk retry was cancelled.'));
+    };
+    signal?.addEventListener('abort', cancel, { once: true });
+  });
 }

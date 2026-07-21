@@ -6,8 +6,10 @@ import {
   ApiSessionExpiredError
 } from '../src/features/api/apiClientCore';
 import {
+  AreaRiskRetryableReadError,
   fetchAreaRiskForRegion as fetchAreaRiskForRegionTransport,
   fetchAreaRiskViewport as fetchAreaRiskViewportTransport,
+  parseRetryAfterSeconds,
   type AreaRiskHttpRequester
 } from '../src/features/live-map/areaRiskApiTransportCore';
 import {
@@ -295,6 +297,84 @@ describe('area risk API transport', () => {
     assert.match(feed.readError ?? '', /provider unavailable/i);
   });
 
+  it('preserves exact shared-guard Retry-After truth on a later strict page', async () => {
+    const calls: CapturedRequest[] = [];
+    const feed = await fetchAreaRiskViewport(createRequest({ maxRecords: 120 }), {
+      accessToken: 'token-1',
+      intent: 'read',
+      request: captureRequester(calls, ({ url }) =>
+        url.searchParams.has('cursor')
+          ? jsonResponse({
+              detail: {
+                message: 'SafeRoute risk coverage is temporarily unavailable',
+                operation: 'read',
+                retryAfterSeconds: 5
+              }
+            }, 503, { 'Retry-After': '5' })
+          : jsonResponse(feedEnvelope({
+              items: createItems(0, 100),
+              hasMore: true,
+              nextCursor: 'opaque-next'
+            }))
+      )
+    });
+
+    assert.equal(feed.zones.length, 100);
+    assert.equal(feed.partial, true);
+    assert.deepEqual(feed.retryableReadFailure, {
+      operation: 'read',
+      retryAfterSeconds: 5,
+      statusCode: 503
+    });
+  });
+
+  it('throws a typed retryable failure only for an exact strict-read 503 contract', async () => {
+    await assert.rejects(
+      fetchAreaRiskViewport(createRequest(), {
+        accessToken: 'token-1',
+        intent: 'read',
+        request: async () => jsonResponse({
+          detail: {
+            details: 'The shared request guard could not verify capacity.',
+            message: 'SafeRoute risk coverage is temporarily unavailable',
+            operation: 'read',
+            retryAfterSeconds: 3
+          }
+        }, 503, { 'Retry-After': '5' })
+      }),
+      (error: unknown) =>
+        error instanceof AreaRiskRetryableReadError
+        && error.retryableReadFailure.retryAfterSeconds === 5
+    );
+
+    await assert.rejects(
+      fetchAreaRiskViewport(createRequest(), {
+        accessToken: 'token-1',
+        intent: 'read',
+        request: async () => jsonResponse({
+          detail: {
+            message: 'Unrelated service failure',
+            operation: 'research',
+            retryAfterSeconds: 5
+          }
+        }, 503, { 'Retry-After': '5' })
+      }),
+      (error: unknown) =>
+        error instanceof ApiRequestError
+        && !(error instanceof AreaRiskRetryableReadError)
+        && error.statusCode === 503
+    );
+  });
+
+  it('parses delta and HTTP-date Retry-After values without accepting malformed input', () => {
+    const now = Date.parse('2026-07-21T12:00:00Z');
+    assert.equal(parseRetryAfterSeconds('5', now), 5);
+    assert.equal(parseRetryAfterSeconds('Tue, 21 Jul 2026 12:00:05 GMT', now), 5);
+    assert.equal(parseRetryAfterSeconds('not-a-deadline', now), null);
+    assert.equal(parseRetryAfterSeconds('-1', now), null);
+    assert.equal(parseRetryAfterSeconds('999999999999', now), null);
+  });
+
   it('marks an overfilled final page partial instead of hiding sliced records', async () => {
     const feed = await fetchAreaRiskViewport(createRequest({ maxRecords: 120 }), {
       accessToken: 'token-1',
@@ -546,9 +626,13 @@ function createItems(start: number, count: number) {
   });
 }
 
-function jsonResponse(body: unknown, status = 200): Response {
+function jsonResponse(
+  body: unknown,
+  status = 200,
+  headers: Record<string, string> = {}
+): Response {
   return new Response(JSON.stringify(body), {
-    headers: { 'Content-Type': 'application/json' },
+    headers: { 'Content-Type': 'application/json', ...headers },
     status
   });
 }

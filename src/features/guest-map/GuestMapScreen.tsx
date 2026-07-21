@@ -1690,11 +1690,13 @@ export function GuestMapScreen({
             <Pressable
               accessibilityLabel={viewportRisk.loading
                 ? 'Risk areas are loading'
+                : !viewportRisk.retryAvailable
+                  ? 'Risk coverage is temporarily unavailable; retry is waiting for the server delay'
                 : viewportRisk.coverageState === 'pending-timeout'
                   ? 'Check whether risk research finished'
                   : 'Retry loading risk areas'}
               accessibilityRole={viewportRisk.loading ? 'progressbar' : 'button'}
-              disabled={viewportRisk.loading}
+              disabled={viewportRisk.loading || !viewportRisk.retryAvailable}
               testID={viewportRisk.loading ? uiTestIds.guestMapRiskLoadingStatus : undefined}
               style={styles.riskLoadStatus}
               onPress={viewportRisk.retry}
@@ -1705,6 +1707,8 @@ export function GuestMapScreen({
               <Text numberOfLines={1} style={styles.riskLoadStatusText}>
                 {viewportRisk.loading
                   ? 'Loading risks…'
+                  : !viewportRisk.retryAvailable
+                    ? 'Risk retry waiting…'
                   : viewportRisk.coverageState === 'pending-timeout'
                     ? 'Check risks'
                     : 'Retry risks'}
@@ -1758,6 +1762,8 @@ export function GuestMapScreen({
                   ? 'No current risks'
                   : viewportRisk.coverageState === 'cooldown'
                     ? 'Research cooling down'
+                    : viewportRisk.coverageState === 'unavailable'
+                      ? 'Risk service unavailable'
                     : viewportRisk.coverageState === 'missing'
                       ? 'Coverage unavailable'
                       : 'Risk coverage ready'}

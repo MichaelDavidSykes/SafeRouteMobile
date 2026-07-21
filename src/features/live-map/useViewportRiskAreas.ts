@@ -3,7 +3,10 @@ import type { Region } from 'react-native-maps';
 
 import { getRequestSessionExpiry } from '../api/sessionExpiry';
 import { getRequestUnavailableWorkspaceId } from '../workspaces/workspaceAccessRecovery';
-import { fetchAreaRiskViewport } from './areaRiskApi';
+import {
+  fetchAreaRiskViewport,
+  getAreaRiskRetryableReadFailure
+} from './areaRiskApi';
 import {
   areaRiskViewportRequestKey,
   canRequestAreaRiskResearch,
@@ -21,6 +24,7 @@ import {
   isAreaRiskFeedPending,
   resolveViewportRiskCoverageOutcome,
   resolveViewportRiskDisplayZones,
+  resolveViewportRiskUnavailableRecovery,
   type ViewportRiskCache,
   type ViewportRiskCoverageState
 } from './viewportRiskState';
@@ -30,6 +34,8 @@ export const VIEWPORT_RISK_TIMEOUT_MS = 6000;
 export const VIEWPORT_RISK_MAX_POLL_ATTEMPTS = 4;
 export const VIEWPORT_RISK_MIN_POLL_MS = 1500;
 export const VIEWPORT_RISK_MAX_POLL_MS = 10000;
+export const VIEWPORT_RISK_MAX_UNAVAILABLE_AUTO_RETRIES = 1;
+export const VIEWPORT_RISK_MAX_UNAVAILABLE_AUTO_RETRY_MS = 30000;
 const VIEWPORT_RISK_DEFAULT_COOLDOWN_SECONDS = 30;
 
 export function useViewportRiskAreas({
@@ -56,12 +62,14 @@ export function useViewportRiskAreas({
   const clientIdRef = useRef(clientId);
   const displayContextRef = useRef('');
   const handledPollRevisionRef = useRef(0);
+  const handledRecoveryRevisionRef = useRef(0);
   const handledResearchRevisionRef = useRef(0);
   const handledRetryRevisionRef = useRef(0);
   const legacyCompatibilityScopeRef = useRef('');
   const onSessionExpiredRef = useRef(onSessionExpired);
   const onWorkspaceUnavailableRef = useRef(onWorkspaceUnavailable);
   const pollStateRef = useRef({ attempts: 0, context: '' });
+  const unavailableRetryStateRef = useRef({ attempts: 0, context: '' });
   const requestRevisionRef = useRef(0);
   const requestsRef = useRef<AreaRiskViewportRequest[]>([]);
   const zonesRef = useRef<RiskZone[]>([]);
@@ -73,7 +81,9 @@ export function useViewportRiskAreas({
   const [retryRevision, setRetryRevision] = useState(0);
   const [researchRevision, setResearchRevision] = useState(0);
   const [pollRevision, setPollRevision] = useState(0);
+  const [recoveryRevision, setRecoveryRevision] = useState(0);
   const [researchBlockedUntilMs, setResearchBlockedUntilMs] = useState(0);
+  const [readBlockedUntilMs, setReadBlockedUntilMs] = useState(0);
   const normalizedAccessToken = String(accessToken || '').trim();
   const normalizedClientId = String(clientId || '').trim();
   if (accessSessionIdentityRef.current.token !== normalizedAccessToken) {
@@ -108,6 +118,7 @@ export function useViewportRiskAreas({
   const displayContext = `${cacheScopeContext}|${requestSignature}`;
   const researchAvailable = enabled
     && researchBlockedUntilMs <= Date.now()
+    && readBlockedUntilMs <= Date.now()
     && requests.length > 0
     && requests.every((request) =>
       canRequestAreaRiskResearch(request, normalizedAccessToken)
@@ -153,6 +164,18 @@ export function useViewportRiskAreas({
   }, [researchBlockedUntilMs]);
 
   useEffect(() => {
+    const remainingMs = readBlockedUntilMs - Date.now();
+    if (remainingMs <= 0) {
+      return;
+    }
+    const timer = setTimeout(
+      () => setReadBlockedUntilMs(0),
+      remainingMs
+    );
+    return () => clearTimeout(timer);
+  }, [readBlockedUntilMs]);
+
+  useEffect(() => {
     const revision = requestRevisionRef.current + 1;
     requestRevisionRef.current = revision;
     const requestEligibilityEpoch = requestEligibilityEpochRef.current;
@@ -161,10 +184,12 @@ export function useViewportRiskAreas({
     const researchRequested = handledResearchRevisionRef.current !== researchRevision;
     const retryRequested = handledRetryRevisionRef.current !== retryRevision;
     const pollRequested = handledPollRevisionRef.current !== pollRevision;
+    const recoveryRequested = handledRecoveryRevisionRef.current !== recoveryRevision;
     handledResearchRevisionRef.current = researchRevision;
     handledRetryRevisionRef.current = retryRevision;
     handledPollRevisionRef.current = pollRevision;
-    const bypassCache = researchRequested || retryRequested || pollRequested;
+    handledRecoveryRevisionRef.current = recoveryRevision;
+    const bypassCache = researchRequested || retryRequested || pollRequested || recoveryRequested;
     const requestIsCurrent = () =>
       !controller.signal.aborted
       && requestRevisionRef.current === revision
@@ -185,11 +210,17 @@ export function useViewportRiskAreas({
       }
       setResearchBlockedUntilMs(0);
       pollStateRef.current = { attempts: 0, context: displayContext };
+      unavailableRetryStateRef.current = { attempts: 0, context: displayContext };
+      setReadBlockedUntilMs(0);
     } else if (pollStateRef.current.context !== displayContext) {
       pollStateRef.current = { attempts: 0, context: displayContext };
     }
+    if (unavailableRetryStateRef.current.context !== displayContext) {
+      unavailableRetryStateRef.current = { attempts: 0, context: displayContext };
+    }
     if (researchRequested || retryRequested) {
       pollStateRef.current = { attempts: 0, context: displayContext };
+      unavailableRetryStateRef.current = { attempts: 0, context: displayContext };
     }
 
     if (!enabled) {
@@ -237,7 +268,9 @@ export function useViewportRiskAreas({
     setLoading(true);
     setErrorMessage('');
     setStatusMessage(
-      researchRequested ? 'Requesting risk research…' : 'Loading risk areas…'
+      researchRequested
+        ? 'Requesting risk research…'
+        : (recoveryRequested ? 'Retrying risk areas…' : 'Loading risk areas…')
     );
     setCoverageState('loading');
     const timer = setTimeout(() => {
@@ -252,6 +285,8 @@ export function useViewportRiskAreas({
       let readFailureCount = 0;
       let researchFailureCount = 0;
       let statusFailureCount = 0;
+      let unavailableRequestCount = 0;
+      let unavailableRetryAfterSeconds = 0;
       let missingRequestCount = 0;
       let cooldownRequestCount = 0;
       let cooldownRetryAfterSeconds = 0;
@@ -299,6 +334,13 @@ export function useViewportRiskAreas({
             readFailureCount += 1;
           } else {
             successfulRequestCount += 1;
+          }
+          if (feed.retryableReadFailure) {
+            unavailableRequestCount += 1;
+            unavailableRetryAfterSeconds = Math.max(
+              unavailableRetryAfterSeconds,
+              feed.retryableReadFailure.retryAfterSeconds
+            );
           }
           if (feed.researchError) {
             researchFailureCount += 1;
@@ -383,6 +425,14 @@ export function useViewportRiskAreas({
             onWorkspaceUnavailableRef.current?.(unavailableWorkspaceId);
             return;
           }
+          const retryableReadFailure = getAreaRiskRetryableReadFailure(error);
+          if (retryableReadFailure) {
+            unavailableRequestCount += 1;
+            unavailableRetryAfterSeconds = Math.max(
+              unavailableRetryAfterSeconds,
+              retryableReadFailure.retryAfterSeconds
+            );
+          }
           failedRequestCount += 1;
         }
       });
@@ -403,7 +453,7 @@ export function useViewportRiskAreas({
           && missingRequestCount === 0
           && cooldownRequestCount === 0;
         const visibleZones = resolveViewportRiskDisplayZones(
-          retainedZones,
+          unavailableRequestCount > 0 ? [] : retainedZones,
           allRequestsFailed ? cachedResult : nextZones,
           replacementReady
         );
@@ -423,12 +473,42 @@ export function useViewportRiskAreas({
           researchFailureCount,
           researchRequested,
           statusFailureCount,
+          unavailableRequestCount,
+          unavailableRetryAfterSeconds,
           visibleZoneCount: visibleZones.length
         });
         setErrorMessage(outcome.errorMessage);
         setStatusMessage(outcome.statusMessage);
         setCoverageState(outcome.coverageState);
         setLoading(false);
+
+        if (unavailableRequestCount > 0) {
+          const retryState = unavailableRetryStateRef.current;
+          const recovery = resolveViewportRiskUnavailableRecovery({
+            attempts: retryState.attempts,
+            context: retryState.context,
+            currentContext: displayContext,
+            maxAutoRetries: VIEWPORT_RISK_MAX_UNAVAILABLE_AUTO_RETRIES,
+            maxAutoRetryMs: VIEWPORT_RISK_MAX_UNAVAILABLE_AUTO_RETRY_MS,
+            nowMs: Date.now(),
+            retryAfterSeconds: unavailableRetryAfterSeconds
+          });
+          setReadBlockedUntilMs((current) => Math.max(
+            current,
+            recovery.blockedUntilMs
+          ));
+          if (recovery.scheduleDelayMs !== null) {
+            retryState.attempts += 1;
+            followupTimer = setTimeout(() => {
+              if (requestIsCurrent()) {
+                setRecoveryRevision((value) => value + 1);
+              }
+            }, recovery.scheduleDelayMs);
+          }
+          return;
+        }
+        setReadBlockedUntilMs(0);
+        unavailableRetryStateRef.current = { attempts: 0, context: displayContext };
 
         if (pendingRequestCount > 0) {
           if (
@@ -490,19 +570,26 @@ export function useViewportRiskAreas({
     displayContext,
     enabled,
     pollRevision,
+    recoveryRevision,
     researchRevision,
     requestSignature,
     retryRevision
   ]);
 
   const retry = useCallback(() => {
-    setRetryRevision((revision) => revision + 1);
-  }, []);
+    if (readBlockedUntilMs <= Date.now()) {
+      setRetryRevision((revision) => revision + 1);
+    }
+  }, [readBlockedUntilMs]);
   const research = useCallback(() => {
-    if (researchAvailable && researchBlockedUntilMs <= Date.now()) {
+    if (
+      researchAvailable
+      && researchBlockedUntilMs <= Date.now()
+      && readBlockedUntilMs <= Date.now()
+    ) {
       setResearchRevision((revision) => revision + 1);
     }
-  }, [researchAvailable, researchBlockedUntilMs]);
+  }, [readBlockedUntilMs, researchAvailable, researchBlockedUntilMs]);
 
   return {
     coverageState,
@@ -511,6 +598,7 @@ export function useViewportRiskAreas({
     research,
     researchAvailable,
     retry,
+    retryAvailable: readBlockedUntilMs <= Date.now(),
     statusMessage,
     zones: cacheScopeContextRef.current === cacheScopeContext ? zones : []
   };

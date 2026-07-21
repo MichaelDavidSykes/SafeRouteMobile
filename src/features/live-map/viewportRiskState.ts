@@ -33,6 +33,7 @@ export type ViewportRiskCoverageState =
   | 'current'
   | 'current-empty'
   | 'cooldown'
+  | 'unavailable'
   | 'missing'
   | 'partial'
   | 'pending-timeout'
@@ -53,6 +54,8 @@ export interface ViewportRiskCoverageOutcomeInput {
   researchFailureCount: number;
   researchRequested: boolean;
   statusFailureCount: number;
+  unavailableRequestCount: number;
+  unavailableRetryAfterSeconds: number;
   visibleZoneCount: number;
 }
 
@@ -60,6 +63,11 @@ export interface ViewportRiskCoverageOutcome {
   coverageState: ViewportRiskCoverageState;
   errorMessage: string;
   statusMessage: string;
+}
+
+export interface ViewportRiskUnavailableRecovery {
+  blockedUntilMs: number;
+  scheduleDelayMs: number | null;
 }
 
 const PENDING_RESEARCH_STATUSES = new Set([
@@ -151,8 +159,24 @@ export function resolveViewportRiskCoverageOutcome({
   researchFailureCount,
   researchRequested,
   statusFailureCount,
+  unavailableRequestCount,
+  unavailableRetryAfterSeconds,
   visibleZoneCount
 }: ViewportRiskCoverageOutcomeInput): ViewportRiskCoverageOutcome {
+  if (unavailableRequestCount > 0) {
+    const retryCopy = unavailableRetryAfterSeconds > 0
+      ? ` Retry is available in about ${unavailableRetryAfterSeconds} sec.`
+      : ' Retry is available shortly.';
+    return {
+      coverageState: 'unavailable',
+      errorMessage: `Risk coverage is temporarily unavailable.${retryCopy}`,
+      statusMessage: visibleZoneCount > 0
+        ? 'Current-view risks remain visible while SafeRoute waits for the service.'
+        : (pendingRequestCount > 0
+          ? 'Risk research remains in progress while coverage reads recover.'
+          : 'SafeRoute is waiting to retry risk coverage.')
+    };
+  }
   if (cooldownRequestCount > 0) {
     return {
       coverageState: 'cooldown',
@@ -237,6 +261,36 @@ export function resolveViewportRiskDisplayZones(
   return replacementReady
     ? mergeRiskZonesById(nextViewportZones)
     : mergeRiskZonesById(retainedZones, nextViewportZones);
+}
+
+export function resolveViewportRiskUnavailableRecovery({
+  attempts,
+  context,
+  currentContext,
+  maxAutoRetries,
+  maxAutoRetryMs,
+  nowMs,
+  retryAfterSeconds
+}: {
+  attempts: number;
+  context: string;
+  currentContext: string;
+  maxAutoRetries: number;
+  maxAutoRetryMs: number;
+  nowMs: number;
+  retryAfterSeconds: number;
+}): ViewportRiskUnavailableRecovery {
+  const delayMs = Math.max(0, retryAfterSeconds * 1000);
+  const boundedNowMs = Number.isFinite(nowMs) ? nowMs : Date.now();
+  return {
+    blockedUntilMs: boundedNowMs + delayMs,
+    scheduleDelayMs:
+      context === currentContext
+      && attempts < maxAutoRetries
+      && delayMs <= maxAutoRetryMs
+        ? delayMs
+        : null
+  };
 }
 
 export function viewportRiskCacheKey(

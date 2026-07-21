@@ -20,6 +20,8 @@ export const MAX_AREA_RISK_RESEARCH_SPAN_KM = 1500;
 export const DEFAULT_AREA_RISK_PAGE_SIZE = 100;
 export const MAX_AREA_RISK_PAGES = 8;
 export const AREA_RISK_CACHE_COORDINATE_QUANTUM = 0.00001;
+export const AREA_RISK_QUERY_COORDINATE_DECIMALS = 5;
+export const AREA_RISK_RESPONSE_BOUNDS_EPSILON = 0.000001;
 export const AREA_RISK_CACHE_ZOOM_QUANTUM = 0.5;
 export const AREA_RISK_VIEWPORT_PADDING_RATIO = 0.35;
 
@@ -311,7 +313,7 @@ export function buildAreaRiskViewportPath(
   const scope = normalizeScope(request.scope, request.zoom);
   const bounds = scope === 'global'
     ? null
-    : normalizeNonCrossingBounds({
+    : normalizeAreaRiskBounds({
         south: request.minLat,
         west: request.minLon,
         north: request.maxLat,
@@ -364,7 +366,7 @@ export function canRequestAreaRiskResearch(
   if (!String(accessToken ?? '').trim() || !clientId || request.scope === 'global') {
     return false;
   }
-  const bounds = normalizeNonCrossingBounds({
+  const bounds = normalizeAreaRiskBounds({
     south: request.minLat,
     west: request.minLon,
     north: request.maxLat,
@@ -389,7 +391,7 @@ export function buildAreaRiskResearchPayload(
   if (request.scope === 'global') {
     throw new Error('Global area-risk research is not supported.');
   }
-  const bounds = normalizeNonCrossingBounds({
+  const bounds = normalizeAreaRiskBounds({
     south: request.minLat,
     west: request.minLon,
     north: request.maxLat,
@@ -596,31 +598,20 @@ export function areaRiskResponseBoundsMatchRequest(
   payload: unknown,
   request: AreaRiskViewportRequest
 ): boolean {
-  if (request.scope === 'global') {
+  if (normalizeScope(request.scope, request.zoom) === 'global') {
     return true;
   }
   const body = unwrapDataEnvelope(payload);
   const record = asRecord(body);
-  const responseBounds = asRecord(record?.bounds);
-  if (!responseBounds) {
+  const actual = normalizeAreaRiskBounds(record?.bounds);
+  const expected = serializedAreaRiskRequestBounds(request);
+  if (!actual || !expected) {
     return false;
   }
-  const expected = [
-    request.minLat,
-    request.maxLat,
-    request.minLon,
-    request.maxLon
-  ];
-  const actual = [
-    responseBounds.minLat ?? responseBounds.min_lat,
-    responseBounds.maxLat ?? responseBounds.max_lat,
-    responseBounds.minLon ?? responseBounds.min_lon,
-    responseBounds.maxLon ?? responseBounds.max_lon
-  ].map(finiteNumber);
-  return actual.every((value) => value !== null)
-    && expected.every((value, index) =>
-      Math.abs(value - (actual[index] as number)) <= 0.00001
-    );
+  return Math.abs(actual.south - expected.south) <= AREA_RISK_RESPONSE_BOUNDS_EPSILON
+    && Math.abs(actual.north - expected.north) <= AREA_RISK_RESPONSE_BOUNDS_EPSILON
+    && Math.abs(actual.west - expected.west) <= AREA_RISK_RESPONSE_BOUNDS_EPSILON
+    && Math.abs(actual.east - expected.east) <= AREA_RISK_RESPONSE_BOUNDS_EPSILON;
 }
 
 export function mergeRiskZonesById(...zoneSets: ReadonlyArray<readonly RiskZone[]>): RiskZone[] {
@@ -982,14 +973,52 @@ function splitBoundsAtAntimeridian(bounds: AreaRiskBounds): AreaRiskBounds[] {
   return [];
 }
 
-function normalizeNonCrossingBounds(bounds: AreaRiskBounds): AreaRiskBounds | null {
-  const parts = splitBoundsAtAntimeridian(bounds);
-  return parts.length === 1 ? parts[0] : null;
+function normalizeAreaRiskBounds(value: unknown): AreaRiskBounds | null {
+  const record = asRecord(value);
+  if (!record) {
+    return null;
+  }
+  const south = finiteNumber(record.south ?? record.minLat ?? record.min_lat);
+  const north = finiteNumber(record.north ?? record.maxLat ?? record.max_lat);
+  const west = finiteNumber(record.west ?? record.minLon ?? record.min_lon);
+  const east = finiteNumber(record.east ?? record.maxLon ?? record.max_lon);
+  if (
+    south === null || north === null || west === null || east === null
+    || south < -90 || north > 90
+    || west < -180 || east > 180
+    || north <= south || east <= west
+  ) {
+    return null;
+  }
+  return { south, west, north, east };
+}
+
+function serializedAreaRiskRequestBounds(
+  request: AreaRiskViewportRequest
+): AreaRiskBounds | null {
+  const bounds = normalizeAreaRiskBounds({
+    south: request.minLat,
+    west: request.minLon,
+    north: request.maxLat,
+    east: request.maxLon
+  });
+  if (!bounds) {
+    return null;
+  }
+  const [south, west, north, east] = formatBbox(bounds)
+    .split(',')
+    .map(Number);
+  return normalizeAreaRiskBounds({
+    minLat: south,
+    maxLat: north,
+    minLon: west,
+    maxLon: east
+  });
 }
 
 function formatBbox(bounds: AreaRiskBounds): string {
   return [bounds.south, bounds.west, bounds.north, bounds.east]
-    .map((value) => roundCoordinate(value).toFixed(5))
+    .map((value) => roundCoordinate(value).toFixed(AREA_RISK_QUERY_COORDINATE_DECIMALS))
     .join(',');
 }
 

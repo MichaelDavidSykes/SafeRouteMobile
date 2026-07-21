@@ -2,7 +2,10 @@ import assert from 'node:assert/strict';
 import { describe, it } from 'node:test';
 
 import {
+  AREA_RISK_QUERY_COORDINATE_DECIMALS,
   AREA_RISK_RESEARCH_ENDPOINT_PATH,
+  AREA_RISK_RESPONSE_BOUNDS_EPSILON,
+  areaRiskResponseBoundsMatchRequest,
   approximateMapZoom,
   buildAreaRiskRequestHeaders,
   AREA_RISK_CAPABILITY_HEADER,
@@ -119,6 +122,91 @@ describe('area risk API core', () => {
     assert.equal(cursorUrl.searchParams.get('_read_nonce'), 'read-1');
     assert.equal(cursorUrl.searchParams.get('refresh'), 'false');
     assert.equal(cursorUrl.searchParams.get('read_only'), 'true');
+  });
+
+  it('admits only response bounds matching the exact five-decimal HTTP query', () => {
+    const request: AreaRiskViewportRequest = {
+      bbox: 'stale-caller-bbox-is-not-authoritative',
+      maxLat: -33.7999956,
+      maxLon: 18.7999956,
+      maxRecords: 12,
+      minLat: -34.1000044,
+      minLon: 18.3000044,
+      scope: 'detail',
+      zoom: 12
+    };
+    const url = new URL(buildAreaRiskViewportPath(request), 'https://example.test');
+
+    assert.equal(AREA_RISK_QUERY_COORDINATE_DECIMALS, 5);
+    assert.equal(AREA_RISK_RESPONSE_BOUNDS_EPSILON, 0.000001);
+    assert.equal(url.searchParams.get('bbox'), '-34.10000,18.30000,-33.80000,18.80000');
+    assert.equal(areaRiskResponseBoundsMatchRequest({
+      data: {
+        bounds: {
+          minLat: -34.1,
+          maxLat: -33.8,
+          minLon: 18.3,
+          maxLon: 18.8
+        }
+      }
+    }, request), true);
+    assert.equal(areaRiskResponseBoundsMatchRequest({
+      data: {
+        bounds: {
+          minLat: -34.09999,
+          maxLat: -33.8,
+          minLon: 18.3,
+          maxLon: 18.8
+        }
+      }
+    }, request), false);
+    assert.equal(areaRiskResponseBoundsMatchRequest({
+      data: {
+        bounds: {
+          minLat: -34.0999991,
+          maxLat: -33.8,
+          minLon: 18.3,
+          maxLon: 18.8
+        }
+      }
+    }, request), true);
+  });
+
+  it('rejects invalid, inverted, or precision-collapsed response authority', () => {
+    const request: AreaRiskViewportRequest = {
+      bbox: '-34.10000,18.30000,-33.80000,18.80000',
+      maxLat: -33.8,
+      maxLon: 18.8,
+      maxRecords: 12,
+      minLat: -34.1,
+      minLon: 18.3,
+      scope: 'detail',
+      zoom: 12
+    };
+    assert.equal(areaRiskResponseBoundsMatchRequest({
+      data: {
+        bounds: { minLat: -33.8, maxLat: -34.1, minLon: 18.3, maxLon: 18.8 }
+      }
+    }, request), false);
+    assert.equal(areaRiskResponseBoundsMatchRequest({
+      data: {
+        bounds: { minLat: -34.1, maxLat: -33.8, minLon: 18.3, maxLon: 181 }
+      }
+    }, request), false);
+    assert.equal(areaRiskResponseBoundsMatchRequest({ data: { bounds: request } }, {
+      ...request,
+      minLat: -34.000004,
+      maxLat: -34.000003
+    }), false);
+    assert.equal(areaRiskResponseBoundsMatchRequest({ data: { bounds: request } }, {
+      ...request,
+      minLat: -33.8,
+      maxLat: -34.1
+    }), false);
+    assert.throws(
+      () => buildAreaRiskViewportPath({ ...request, minLat: -33.8, maxLat: -34.1 }),
+      /valid, non-crossing viewport bbox/i
+    );
   });
 
   it('builds only bounded authenticated research commands with the exact backend body', () => {

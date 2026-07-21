@@ -371,6 +371,30 @@ describe('area risk API transport', () => {
     assert.match(feed.readError ?? '', /provider unavailable/i);
   });
 
+  it('retains only trusted pages when a continuation drifts by one query step', async () => {
+    const feed = await fetchAreaRiskViewport(createRequest({ maxRecords: 120 }), {
+      accessToken: 'token-1',
+      intent: 'read',
+      request: captureRequester([], ({ url }) =>
+        jsonResponse(feedEnvelope({
+          bounds: url.searchParams.has('cursor')
+            ? { ...requestBounds(createRequest()), minLat: -34.09999 }
+            : requestBounds(createRequest()),
+          items: url.searchParams.has('cursor')
+            ? createItems(100, 20)
+            : createItems(0, 100),
+          hasMore: !url.searchParams.has('cursor'),
+          nextCursor: url.searchParams.has('cursor') ? null : 'opaque-next'
+        }))
+      )
+    });
+
+    assert.equal(feed.zones.length, 100);
+    assert.equal(feed.pagesLoaded, 1);
+    assert.equal(feed.partial, true);
+    assert.match(feed.readError ?? '', /bounds that do not match/i);
+  });
+
   it('preserves exact shared-guard Retry-After truth on a later strict page', async () => {
     const calls: CapturedRequest[] = [];
     const feed = await fetchAreaRiskViewport(createRequest({ maxRecords: 120 }), {
@@ -518,7 +542,7 @@ describe('area risk API transport', () => {
     assert.match(feed.readError ?? '', /read unavailable/i);
   });
 
-  it('rejects a widened response bounds contract before rendering or caching', async () => {
+  it('rejects one query-step of response-bound drift before rendering or caching', async () => {
     await assert.rejects(
       fetchAreaRiskViewport(createRequest(), {
         accessToken: 'token-1',
@@ -526,10 +550,8 @@ describe('area risk API transport', () => {
         request: async () =>
           jsonResponse(feedEnvelope({
             bounds: {
-              minLat: -35,
-              maxLat: -33,
-              minLon: 18,
-              maxLon: 19
+              ...requestBounds(createRequest()),
+              minLat: -34.09999
             },
             items: createItems(0, 1)
           }))

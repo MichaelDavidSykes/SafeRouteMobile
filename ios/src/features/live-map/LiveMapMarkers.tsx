@@ -43,7 +43,10 @@ export function RiskOverlay({
   const routeAlertCoordinates = routeSegmentCoordinates.length > 1
     ? []
     : buildRouteRiskAlertSegment(routeCoordinates || [], zone);
-  const handlePress = () => onPress?.(zone);
+  const handlePress = (event?: { stopPropagation?: () => void }) => {
+    event?.stopPropagation?.();
+    onPress?.(zone);
+  };
   const routeAlert = isRouteAlertZone(zone);
   const riskColors = severityOverlayColors(zone.severity);
 

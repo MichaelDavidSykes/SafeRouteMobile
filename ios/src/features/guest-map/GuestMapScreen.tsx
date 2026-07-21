@@ -25,7 +25,13 @@ import {
   useWindowDimensions,
   View
 } from 'react-native';
-import MapView, { Marker, Polyline, type LatLng, type Region } from 'react-native-maps';
+import MapView, {
+  Marker,
+  Polyline,
+  type LatLng,
+  type MapPressEvent,
+  type Region,
+} from 'react-native-maps';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { LUNARCHAIN_API_BASE, SAFEROUTE_PREVIEW_MODE_ENABLED } from '../../config/env';
@@ -484,15 +490,6 @@ export function GuestMapScreen({
     activeRiskAreaRequestRef.current = null;
     riskAreaRequestIdRef.current += 1;
   }, []);
-
-  useEffect(() => {
-    if (
-      selectedRiskZone &&
-      !visibleRiskZones.some((zone) => zone.id === selectedRiskZone.id)
-    ) {
-      setSelectedRiskZone(null);
-    }
-  }, [selectedRiskZone, visibleRiskZones]);
 
   useEffect(() => {
     if (!mapReady) {
@@ -1279,6 +1276,14 @@ export function GuestMapScreen({
     animateRouteSheet(true);
   };
 
+  const handleMapPress = (event: MapPressEvent) => {
+    if (event.nativeEvent.action === 'marker-press') {
+      return;
+    }
+
+    setSelectedRiskZone(null);
+  };
+
   const handleAddMapRoutePoint = () => {
     if (!mapAction || !canAddMapRoutePoint) {
       return;
@@ -1460,9 +1465,9 @@ export function GuestMapScreen({
           mapRef.current?.animateCamera({ heading: 0, pitch: 38 }, { duration: 0 });
         }}
         onLongPress={(event) => handleMapLongPress(event.nativeEvent.coordinate)}
+        onPress={handleMapPress}
         onPanDrag={() => {
           userMovedMapRef.current = true;
-          setSelectedRiskZone(null);
         }}
         onRegionChangeComplete={handleMapRegionChangeComplete}
       >

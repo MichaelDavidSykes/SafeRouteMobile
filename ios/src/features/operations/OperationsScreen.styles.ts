@@ -715,13 +715,16 @@ export const operationsStyles = StyleSheet.create({
     color: colors.dangerText,
   },
   convoyGroup: {
-    marginBottom: 24,
+    marginBottom: 20,
+    paddingBottom: 20,
+    borderBottomWidth: StyleSheet.hairlineWidth,
+    borderBottomColor: colors.borderSoft,
   },
   convoyGroupHeader: {
     minHeight: 56,
     flexDirection: "row",
     alignItems: "center",
-    gap: spacing.sm,
+    gap: spacing.xs,
   },
   convoyIconTile: {
     width: 44,
@@ -729,7 +732,7 @@ export const operationsStyles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
     flexShrink: 0,
-    borderRadius: 12,
+    borderRadius: radius.pill,
     backgroundColor: colors.appleBlueSoft,
   },
   convoyIconTileSecondary: {
@@ -743,7 +746,19 @@ export const operationsStyles = StyleSheet.create({
   convoyGroupHeadingAction: {
     minWidth: 0,
     flex: 1,
+    minHeight: 56,
+    flexDirection: "row",
+    alignItems: "center",
+    gap: spacing.sm,
     justifyContent: "center",
+    borderRadius: radius.pill,
+  },
+  convoyGroupHeadingActionPressed: {
+    opacity: 0.58,
+  },
+  convoyGroupCopy: {
+    minWidth: 0,
+    flex: 1,
   },
   convoyGroupEyebrow: {
     color: colors.appleBlue,
@@ -773,11 +788,30 @@ export const operationsStyles = StyleSheet.create({
     lineHeight: 16,
   },
   convoyDisclosure: {
-    width: 22,
-    minHeight: 40,
+    width: 36,
+    height: 36,
     flexShrink: 0,
     alignItems: "center",
     justifyContent: "center",
+    borderRadius: radius.pill,
+    backgroundColor: colors.surface,
+  },
+  convoyHeaderActions: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 4,
+  },
+  convoyHeaderIconButton: {
+    width: 36,
+    height: 36,
+    alignItems: "center",
+    justifyContent: "center",
+    borderRadius: radius.pill,
+    backgroundColor: colors.surface,
+  },
+  convoyHeaderIconButtonPressed: {
+    backgroundColor: colors.controlStrong,
+    transform: [{ scale: 0.94 }],
   },
   convoyDisclosureText: {
     color: colors.muted,
@@ -786,7 +820,11 @@ export const operationsStyles = StyleSheet.create({
   },
   convoyExpandedContent: {
     gap: 10,
-    marginTop: 10,
+    marginTop: 12,
+    marginLeft: 22,
+    paddingLeft: 20,
+    borderLeftWidth: 2,
+    borderLeftColor: colors.appleBlueSoft,
   },
   convoyMovementSummary: {
     gap: 3,
@@ -814,18 +852,6 @@ export const operationsStyles = StyleSheet.create({
     fontSize: typeScale.xs - 1,
     fontWeight: "900",
     lineHeight: 13,
-  },
-  convoyDetailAction: {
-    minHeight: controlSizes.secondary,
-    alignItems: "center",
-    justifyContent: "center",
-    borderRadius: 14,
-    backgroundColor: colors.appleBlueSoft,
-  },
-  convoyDetailActionText: {
-    color: colors.appleBlue,
-    fontSize: typeScale.sm,
-    fontWeight: "900",
   },
   vehicleCard: {
     paddingHorizontal: 16,

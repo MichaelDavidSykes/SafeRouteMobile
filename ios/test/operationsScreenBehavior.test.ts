@@ -130,7 +130,7 @@ describe("operations screen behavior", () => {
     assert.match(text, /testID=\{uiTestIds\.operationsRouteCard\(row\.id\)\}/);
     assert.match(text, /testID=\{uiTestIds\.operationsConvoyCard\(row\.id\)\}/);
     assert.match(text, /function OperationsRouteCard[\s\S]*accessibilityRole="button"[\s\S]*onPress=\{onPress\}/);
-    assert.match(text, /function OperationsConvoyCard[\s\S]*accessibilityRole="button"[\s\S]*onPress=\{onPress\}/);
+    assert.match(text, /function OperationsConvoyCard[\s\S]*accessibilityRole="button"[\s\S]*onPress=\{onOpenDetails\}/);
     assert.match(text, /testID=\{uiTestIds\.operationsConvoyDetail\}/);
     assert.match(text, /testID=\{uiTestIds\.operationsConvoyRoute/);
     assert.doesNotMatch(text, /SafeRoute · View only/);

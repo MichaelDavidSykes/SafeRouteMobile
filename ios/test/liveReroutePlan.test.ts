@@ -82,6 +82,46 @@ describe('live reroute plan integration', () => {
     assert.equal(rectangles[0].label, 'route-risk');
   });
 
+  it('does not let district-scale high risk block the Cape Town corridor while critical remains fail closed', () => {
+    const origin = { latitude: -33.90876894132692, longitude: 18.420521374095387 };
+    const destination = { latitude: -33.86984598482066, longitude: 18.5545751389195 };
+    const zones = [
+      polygonRiskZone('Woodstock district', 'high', [
+        [-33.940183, 18.428262],
+        [-33.940183, 18.464066],
+        [-33.910443, 18.464066],
+        [-33.910443, 18.428262]
+      ]),
+      polygonRiskZone('Jakes Gerwel district', 'high', [
+        [-33.940621, 18.452212],
+        [-33.940621, 18.477788],
+        [-33.919379, 18.477788],
+        [-33.919379, 18.452212]
+      ]),
+      polygonRiskZone('Long Street local risk', 'high', [
+        [-33.930961, 18.408297],
+        [-33.930961, 18.426503],
+        [-33.915839, 18.426503],
+        [-33.915839, 18.408297]
+      ]),
+      polygonRiskZone('Critical shared area', 'critical', [
+        [-33.902602, 18.550364],
+        [-33.902602, 18.570294],
+        [-33.886032, 18.570294],
+        [-33.886032, 18.550364]
+      ])
+    ];
+
+    const rectangles = buildLiveRerouteAvoidRectangles(
+      zones,
+      [origin, destination],
+      [origin, destination]
+    );
+    const labels = rectangles.map((rectangle) => rectangle.label);
+
+    assert.deepEqual(labels, ['Critical shared area', 'Long Street local risk']);
+  });
+
   it('replaces the remaining path with provider-snapped geometry and resets its origin', () => {
     const current = { latitude: -33.96, longitude: 18.53 };
     const targets = buildLiveRerouteTargets(
@@ -151,6 +191,33 @@ function riskZone(id: string, coordinate: { latitude: number; longitude: number 
     category: 'area-risk',
     coordinate,
     radiusMeters,
+    markerColor: '#d84a3f',
+    strokeColor: '#d84a3f',
+    fillColor: 'rgba(216,74,63,.18)'
+  };
+}
+
+function polygonRiskZone(
+  title: string,
+  avoidanceSeverity: 'high' | 'critical',
+  coordinates: Array<[number, number]>
+): RiskZone {
+  const polygonCoordinates = coordinates.map(([latitude, longitude]) => ({ latitude, longitude }));
+  const latitude = polygonCoordinates.reduce((total, coordinate) => total + coordinate.latitude, 0) /
+    polygonCoordinates.length;
+  const longitude = polygonCoordinates.reduce((total, coordinate) => total + coordinate.longitude, 0) /
+    polygonCoordinates.length;
+  return {
+    id: title.toLowerCase().replace(/\s+/g, '-'),
+    title,
+    description: title,
+    severity: 'high',
+    ...(avoidanceSeverity === 'critical' ? { avoidanceSeverity } : {}),
+    category: 'area-risk',
+    coordinate: { latitude, longitude },
+    polygonCoordinates,
+    shape: 'polygon',
+    radiusMeters: 0,
     markerColor: '#d84a3f',
     strokeColor: '#d84a3f',
     fillColor: 'rgba(216,74,63,.18)'

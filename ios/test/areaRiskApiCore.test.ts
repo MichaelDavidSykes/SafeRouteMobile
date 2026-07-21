@@ -417,6 +417,7 @@ describe('area risk API core', () => {
       title: 'Central district',
       description: 'Elevated road disruption. Source: General Risk Area Source.',
       severity: 'high',
+      avoidanceSeverity: 'critical',
       category: 'Area Risk',
       coordinate: { latitude: 51.5, longitude: -0.1 },
       polygonCoordinates: undefined,
@@ -495,12 +496,14 @@ describe('area risk API core', () => {
     const zones = normalizeAreaRiskFeed({
       items: [
         { id: 'zone/1', label: 'Station risk', severity: 'medium', lat: 51.5, lon: -0.1 },
-        { id: 'zone/1', label: 'Station risk', severity: 'high', lat: 51.5, lon: -0.1 }
+        { id: 'zone/1', label: 'Station risk', severity: 'high', lat: 51.5, lon: -0.1 },
+        { id: 'zone/1', label: 'Station risk', severity: 'critical', lat: 51.5, lon: -0.1 }
       ]
     }).zones;
     assert.equal(zones.length, 1);
     assert.equal(zones[0].id, 'generated-area-risk-zone-1');
     assert.equal(zones[0].severity, 'high');
+    assert.equal(zones[0].avoidanceSeverity, 'critical');
   });
 
   it('adds bearer auth only when supplied by the caller', () => {
@@ -520,14 +523,14 @@ describe('area risk API core', () => {
     const high = createZone('high', 'High zone', { latitude: 51.51, longitude: -0.11 });
     const criticalDateline = {
       ...createZone('high', 'Critical dateline zone', { latitude: 10, longitude: 179.9 }),
-      severity: 'critical',
+      avoidanceSeverity: 'critical' as const,
       polygonCoordinates: [
         { latitude: 9.99, longitude: 179.8 },
         { latitude: 10.01, longitude: 179.8 },
         { latitude: 10.01, longitude: -179.8 },
         { latitude: 9.99, longitude: -179.8 }
       ]
-    } as unknown as RiskZone;
+    } satisfies RiskZone;
 
     const rectangles = deriveRiskZoneAvoidRectangles([low, high, criticalDateline]);
 
@@ -542,12 +545,38 @@ describe('area risk API core', () => {
 
     const crossingCircle = {
       ...createZone('high', 'Crossing circle', { latitude: 0, longitude: 179.999 }),
-      radiusMeters: 1000
+      radiusMeters: 700
     };
     const circleRectangles = deriveRiskZoneAvoidRectangles([crossingCircle]);
     assert.equal(circleRectangles.length, 2);
     assert.ok(circleRectangles.some((rectangle) => rectangle.max_lon === 180));
     assert.ok(circleRectangles.some((rectangle) => rectangle.min_lon === -180));
+  });
+
+  it('keeps district-scale high risk advisory while critical areas remain hard exclusions', () => {
+    const districtHigh = {
+      ...createZone('high', 'Jakes Gerwel district', { latitude: -33.93, longitude: 18.465 }),
+      radiusMeters: 0,
+      polygonCoordinates: [
+        { latitude: -33.940621, longitude: 18.452212 },
+        { latitude: -33.940621, longitude: 18.477788 },
+        { latitude: -33.919379, longitude: 18.477788 },
+        { latitude: -33.919379, longitude: 18.452212 }
+      ]
+    } satisfies RiskZone;
+    const districtCritical = {
+      ...districtHigh,
+      id: 'critical-district',
+      title: 'Critical district exclusion',
+      avoidanceSeverity: 'critical' as const
+    } satisfies RiskZone;
+
+    const highOnly = deriveRiskZoneAvoidRectangles([districtHigh]);
+    const critical = deriveRiskZoneAvoidRectangles([districtCritical]);
+
+    assert.deepEqual(highOnly, []);
+    assert.equal(critical.length, 1);
+    assert.equal(critical[0].label, 'Critical district exclusion');
   });
 });
 

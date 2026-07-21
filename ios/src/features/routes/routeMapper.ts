@@ -414,6 +414,9 @@ function mergeRiskZones(primary: RiskZone, incoming: RiskZone): RiskZone {
     ...primary,
     description: preferSpecificCopy(primary.description, incoming.description, 'SafeRoute risk note'),
     severity,
+    ...(primary.avoidanceSeverity === 'critical' || incoming.avoidanceSeverity === 'critical'
+      ? { avoidanceSeverity: 'critical' as const }
+      : {}),
     category: preferSpecificCopy(primary.category, incoming.category, 'Risk'),
     coordinate: primary.coordinate || incoming.coordinate,
     routeSegmentCoordinates: hasMultipleCoordinates(primary.routeSegmentCoordinates)
@@ -461,6 +464,7 @@ function severityRank(severity: RiskSeverity): number {
 
 function mapRiskOverlay(overlay: MobileRiskOverlayDto): RiskZone | null {
   const severity = normalizeSeverity(overlay.severity);
+  const isCriticalAvoidance = normalizeEnumToken(overlay.severity) === 'critical';
   const colors = severityColors[severity];
   const category = cleanText(overlay.category, 'Risk').replace(/[-_]+/g, ' ');
   const title = cleanText(overlay.title, 'Route risk');
@@ -518,6 +522,7 @@ function mapRiskOverlay(overlay: MobileRiskOverlayDto): RiskZone | null {
     title,
     description: cleanText(overlay.description, 'SafeRoute risk note'),
     severity,
+    ...(isCriticalAvoidance ? { avoidanceSeverity: 'critical' as const } : {}),
     category: toTitleCase(category),
     coordinate,
     routeSegmentCoordinates,

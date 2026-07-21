@@ -19,6 +19,78 @@ import {
 } from '../src/features/live-map/areaRiskApiCore';
 
 describe('area risk API transport', () => {
+  it('rejects workspace privacy mismatch before risk records enter transport state', async () => {
+    for (const privacy of [
+      null,
+      {
+        tenantScopedSeed: false,
+        sharedOutput: 'sanitized-global'
+      },
+      {
+        tenantScopedSeed: true,
+        sharedOutput: 'external-provider'
+      }
+    ]) {
+      await assert.rejects(
+        fetchAreaRiskViewport(createRequest(), {
+          accessToken: 'token-1',
+          intent: 'read',
+          request: async () => jsonResponse(feedEnvelope({
+            items: createItems(0, 1),
+            privacy
+          }))
+        }),
+        (error: unknown) =>
+          error instanceof ApiRequestError
+          && error.statusCode === 502
+          && /workspace authority/i.test(error.message)
+      );
+    }
+  });
+
+  it('fails closed when provider or privacy authority changes between pages', async () => {
+    await assert.rejects(
+      fetchAreaRiskViewport(createRequest({ maxRecords: 120 }), {
+        accessToken: 'token-1',
+        intent: 'read',
+        request: captureRequester([], ({ url }) =>
+          jsonResponse(feedEnvelope({
+            items: url.searchParams.has('cursor')
+              ? createItems(100, 20)
+              : createItems(0, 100),
+            hasMore: !url.searchParams.has('cursor'),
+            nextCursor: url.searchParams.has('cursor') ? null : 'opaque-next',
+            seedId: url.searchParams.has('cursor')
+              ? 'seed-other'
+              : 'seed-tenant-1'
+          }))
+        )
+      }),
+      (error: unknown) =>
+        error instanceof ApiRequestError
+        && error.statusCode === 502
+        && /changed provider or privacy authority between pages/i.test(error.message)
+    );
+  });
+
+  it('keeps an exact external-provider fallback visibly partial', async () => {
+    const feed = await fetchAreaRiskViewport(createRequest(), {
+      accessToken: 'token-1',
+      intent: 'read',
+      request: async () => jsonResponse(feedEnvelope({
+        items: createItems(0, 1),
+        privacy: {
+          tenantScopedSeed: false,
+          sharedOutput: 'external-provider'
+        },
+        providerStatus: 'external-fallback'
+      }))
+    });
+
+    assert.equal(feed.zones.length, 1);
+    assert.equal(feed.partial, true);
+  });
+
   it('preserves exact rejection authority across pages without double-counting it', async () => {
     const safetyFilter = rejectionSafetyFilter({ cityScaleRejectedCount: 1 });
     const feed = await fetchAreaRiskViewport(createRequest(), {
@@ -223,7 +295,12 @@ describe('area risk API transport', () => {
         request: captureRequester(calls, () =>
           jsonResponse(feedEnvelope({
             bounds: request.scope === 'global' ? undefined : requestBounds(request),
-            items: []
+            items: [],
+            privacy: {
+              tenantScopedSeed: Boolean(request.clientId),
+              sharedOutput: 'sanitized-global'
+            },
+            seedStatus: request.clientId ? 'covered' : 'not-requested'
           }))
         )
       });
@@ -256,6 +333,27 @@ describe('area risk API transport', () => {
       assert.equal(feed.legacyFallback, true);
       assert.match(feed.researchError ?? '', /legacy compatibility request/i);
     }
+  });
+
+  it('keeps an older authority-free compatibility response visibly partial', async () => {
+    const feed = await fetchAreaRiskViewport(createRequest(), {
+      accessToken: 'token-1',
+      intent: 'research',
+      request: captureRequester([], ({ init }) =>
+        init.method === 'POST'
+          ? jsonResponse({ detail: 'Not Found' }, 404)
+          : jsonResponse({
+              data: {
+                bounds: requestBounds(createRequest()),
+                items: createItems(0, 1)
+              }
+            })
+      )
+    });
+
+    assert.equal(feed.legacyFallback, true);
+    assert.equal(feed.zones.length, 1);
+    assert.equal(feed.partial, true);
   });
 
   it('stops after one mutating legacy ensure instead of requesting continuation pages', async () => {
@@ -661,6 +759,10 @@ describe('area risk API transport', () => {
               radiusM: 100,
               severity: 'high'
             }] : [],
+            privacy: {
+              tenantScopedSeed: true,
+              sharedOutput: 'sanitized-global'
+            },
             providerStatus: coveredPartition ? 'primary' : 'empty',
             seedStatus: coveredPartition ? 'covered' : 'not-requested'
           }
@@ -693,8 +795,12 @@ describe('area risk API transport', () => {
               coverageStatus: currentPartition ? 'current' : incompleteStatus,
               hasMore: false,
               items: [],
+              privacy: {
+                tenantScopedSeed: false,
+                sharedOutput: 'sanitized-global'
+              },
               providerStatus: 'empty',
-              seedStatus: 'covered'
+              seedStatus: 'not-requested'
             }
           });
         }
@@ -765,16 +871,25 @@ function feedEnvelope({
   hasMore = false,
   items,
   nextCursor = null,
+  privacy = {
+    tenantScopedSeed: true,
+    sharedOutput: 'sanitized-global'
+  },
+  providerErrors,
   providerStatus = 'primary',
   safetyFilter,
+  seedId = 'seed-tenant-1',
   seedStatus = 'covered'
 }: {
   bounds?: ReturnType<typeof requestBounds>;
   hasMore?: boolean;
   items: unknown[];
   nextCursor?: string | null;
+  privacy?: unknown;
+  providerErrors?: unknown[];
   providerStatus?: string;
   safetyFilter?: unknown;
+  seedId?: string | null;
   seedStatus?: string;
 }) {
   return {
@@ -784,8 +899,11 @@ function feedEnvelope({
       hasMore,
       items,
       nextCursor,
+      privacy,
+      ...(providerErrors === undefined ? {} : { providerErrors }),
       providerStatus,
       ...(safetyFilter === undefined ? {} : { safetyFilter }),
+      ...(seedId ? { seedId } : {}),
       seedStatus
     }
   };

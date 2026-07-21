@@ -92,7 +92,11 @@ import { RouteListScreen } from './src/features/routes/RouteListScreen';
 import { uiTestIds } from './src/testing/uiTestIds';
 import { shouldInjectConnectivityContractStorageFault } from './src/testing/connectivityContractStorageFault';
 import { colors, spacing } from './src/theme';
-import { AppTabBar, type AppTab } from './src/components/AppTabBar';
+import {
+  AppTabBar,
+  isAppTabDisabled,
+  type AppTab,
+} from './src/components/AppTabBar';
 import {
   shouldHandleActiveSessionExpiry,
   waitForSessionCleanup
@@ -2181,6 +2185,9 @@ function SafeRouteApp() {
   };
 
   const selectAppTab = (tab: AppTab) => {
+    if (isAppTabDisabled(tab, authenticated)) {
+      return;
+    }
     setMapPlannerOpen(false);
     setOperationsDetailOpen(false);
     if (tab === 'map') {
@@ -4866,6 +4873,7 @@ function SafeRouteApp() {
         {showAppTabBar ? (
           <AppTabBar
             activeTab={activeAppTab}
+            authenticated={authenticated}
             onSelect={selectAppTab}
           />
         ) : null}

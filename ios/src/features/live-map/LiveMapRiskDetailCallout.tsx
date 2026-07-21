@@ -1,6 +1,13 @@
-import type { RefObject } from "react";
+import { useRef, type RefObject } from "react";
 import { AlertTriangle, X } from "lucide-react-native";
-import { Pressable, StyleSheet, Text, View } from "react-native";
+import {
+  Animated,
+  PanResponder,
+  Pressable,
+  StyleSheet,
+  Text,
+  View,
+} from "react-native";
 import MapView from "react-native-maps";
 
 import { uiTestIds } from "../../testing/uiTestIds";
@@ -11,6 +18,10 @@ import {
   type RouteRiskProximity,
 } from "./routeRisk";
 import { formatDistance } from "./routeProgress";
+import {
+  shouldDismissRiskDetailGesture,
+  shouldStartRiskDetailDismissGesture,
+} from "./riskDetailInteraction";
 
 export function LiveMapRiskDetailCallout({
   bottomInset = chrome.tabBarHeight + 18,
@@ -24,6 +35,58 @@ export function LiveMapRiskDetailCallout({
   proximity?: RouteRiskProximity | null;
   zone: RiskZone;
 }) {
+  const translateY = useRef(new Animated.Value(0)).current;
+  const onDismissRef = useRef(onDismiss);
+  onDismissRef.current = onDismiss;
+  const panResponder = useRef(
+    PanResponder.create({
+      onMoveShouldSetPanResponder: (_, gestureState) =>
+        shouldStartRiskDetailDismissGesture({
+          translationX: gestureState.dx,
+          translationY: gestureState.dy,
+        }),
+      onPanResponderMove: (_, gestureState) => {
+        translateY.setValue(Math.max(0, gestureState.dy));
+      },
+      onPanResponderRelease: (_, gestureState) => {
+        if (
+          shouldDismissRiskDetailGesture({
+            translationX: gestureState.dx,
+            translationY: gestureState.dy,
+            velocityY: gestureState.vy,
+          })
+        ) {
+          Animated.timing(translateY, {
+            duration: 160,
+            toValue: 320,
+            useNativeDriver: true,
+          }).start(({ finished }) => {
+            if (finished) {
+              onDismissRef.current();
+            }
+          });
+          return;
+        }
+
+        Animated.spring(translateY, {
+          damping: 22,
+          mass: 0.7,
+          stiffness: 240,
+          toValue: 0,
+          useNativeDriver: true,
+        }).start();
+      },
+      onPanResponderTerminate: () => {
+        Animated.spring(translateY, {
+          damping: 22,
+          mass: 0.7,
+          stiffness: 240,
+          toValue: 0,
+          useNativeDriver: true,
+        }).start();
+      },
+    }),
+  ).current;
   const presentation = createRiskZoneDetailPresentation({
     proximity: proximity || null,
     zone,
@@ -33,12 +96,19 @@ export function LiveMapRiskDetailCallout({
 
   return (
     <View pointerEvents="box-none" style={[StyleSheet.absoluteFill, styles.overlay]}>
-      <View
+      <Animated.View
+        {...panResponder.panHandlers}
         accessible
         accessibilityLabel={presentation.accessibilityLabel}
         testID={uiTestIds.liveMapRiskDetail}
-        style={[styles.card, { bottom: bottomInset }]}
+        style={[
+          styles.card,
+          { bottom: bottomInset, transform: [{ translateY }] },
+        ]}
       >
+        <View accessibilityElementsHidden style={styles.dragHandleDock}>
+          <View style={styles.dragHandle} />
+        </View>
         <View style={styles.titleRow}>
           <View
             style={[
@@ -108,7 +178,7 @@ export function LiveMapRiskDetailCallout({
             {presentation.clearanceLabel}
           </Text>
         ) : null}
-      </View>
+      </Animated.View>
     </View>
   );
 }
@@ -205,6 +275,19 @@ const styles = StyleSheet.create({
     shadowRadius: 20,
     shadowOffset: { width: 0, height: 12 },
     elevation: 10,
+  },
+  dragHandleDock: {
+    height: 10,
+    alignItems: "center",
+    justifyContent: "flex-start",
+    marginTop: -10,
+    marginBottom: 4,
+  },
+  dragHandle: {
+    width: 36,
+    height: 4,
+    borderRadius: radius.pill,
+    backgroundColor: colors.border,
   },
   iconTile: {
     width: 42,

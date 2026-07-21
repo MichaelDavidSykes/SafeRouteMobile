@@ -1505,6 +1505,9 @@ export function LiveMapScreen({
 
   const handleMapPanDrag = () => {
     suspendDriveAlongCameraForMapReview();
+  };
+
+  const handleMapPress = () => {
     setSelectedRiskZoneId(null);
   };
 
@@ -1517,6 +1520,7 @@ export function LiveMapScreen({
         heading={heading}
         mapRef={mapRef}
         onMapReady={fitRoute}
+        onMapPress={handleMapPress}
         onPanDrag={handleMapPanDrag}
         onDismissRiskDetail={handleDismissRiskDetail}
         onRiskZonePress={handleRiskZonePress}

@@ -28,6 +28,7 @@ interface LiveMapCanvasProps {
   heading: number;
   mapRef: RefObject<MapView | null>;
   onMapReady: () => void;
+  onMapPress: () => void;
   onPanDrag: () => void;
   onRiskZonePress: (zone: RiskZone) => void;
   onDismissRiskDetail: () => void;
@@ -49,6 +50,7 @@ export function LiveMapCanvas({
   heading,
   mapRef,
   onMapReady,
+  onMapPress,
   onPanDrag,
   onRiskZonePress,
   onDismissRiskDetail,
@@ -103,6 +105,7 @@ export function LiveMapCanvas({
         platform: Platform.OS,
       })}
       userInterfaceStyle="dark"
+      onPress={onMapPress}
       onPanDrag={onPanDrag}
       onMapReady={onMapReady}
     >

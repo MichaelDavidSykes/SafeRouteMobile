@@ -176,7 +176,7 @@ describe('guest map interaction contract', () => {
     );
     assert.match(screen, /visibleRiskZones\.map\(\(zone\) => \(/);
     assert.match(screen, /routeCoordinates=\{routePlan\?\.route\.coordinates\}/);
-    assert.match(
+    assert.doesNotMatch(
       screen,
       /selectedRiskZone &&[\s\S]*!visibleRiskZones\.some\(\(zone\) => zone\.id === selectedRiskZone\.id\)/,
     );

@@ -7,6 +7,10 @@ import {
   type GuestRoadRoutePreview,
   type GuestRouteAvoidRectangle
 } from './guestRoadRouteProvider';
+import {
+  normalizeRouteAvoidRectangles,
+  routeIntersectsAvoidRectangles
+} from './routeAvoidanceGeometry';
 
 type SafeRouteRoutePreviewPayload = {
   avoid_rectangles?: Array<{
@@ -76,7 +80,7 @@ export function buildSafeRoutePreviewPayload({
       lon: Number(stop.longitude.toFixed(6))
     }))
   };
-  const normalizedAvoidRectangles = normalizeAvoidRectangles(avoidRectangles);
+  const normalizedAvoidRectangles = normalizeRouteAvoidRectangles(avoidRectangles);
   if (normalizedAvoidRectangles.length) {
     payload.avoid_rectangles = normalizedAvoidRectangles.map((rectangle) => ({
       ...(rectangle.label?.trim() ? { label: rectangle.label.trim().slice(0, 140) } : {}),
@@ -92,7 +96,7 @@ export function buildSafeRoutePreviewPayload({
 export function normalizeSafeRoutePreviewResponse(
   payload: unknown,
   requestedStops: LatLng[],
-  requestedAvoidAreaCount = 0
+  requestedAvoidRectangles: readonly GuestRouteAvoidRectangle[] = []
 ): GuestRoadRoutePreview | null {
   if (!payload || typeof payload !== 'object') {
     return null;
@@ -105,14 +109,24 @@ export function normalizeSafeRoutePreviewResponse(
     return null;
   }
 
-  const appliedAvoidAreaCount = normalizeNonNegativeNumber(
-    record.avoid_area_count ?? record.avoidAreaCount
-  );
-  if (
-    requestedAvoidAreaCount > 0 &&
-    (appliedAvoidAreaCount === null || appliedAvoidAreaCount < requestedAvoidAreaCount)
-  ) {
-    return null;
+  const avoidRectangles = normalizeRouteAvoidRectangles(requestedAvoidRectangles);
+  if (avoidRectangles.length) {
+    const appliedAvoidAreaCount = normalizeNonNegativeNumber(
+      record.avoid_area_count ?? record.avoidAreaCount
+    );
+    const ignoredAvoidAreaCount = normalizeNonNegativeNumber(
+      record.ignored_avoid_area_count ?? record.ignoredAvoidAreaCount
+    );
+    const constraintsApplied = record.constraints_applied ?? record.constraintsApplied;
+    const constraintsSatisfied = record.constraints_satisfied ?? record.constraintsSatisfied;
+    if (
+      constraintsApplied !== true ||
+      constraintsSatisfied !== true ||
+      appliedAvoidAreaCount !== avoidRectangles.length ||
+      ignoredAvoidAreaCount !== 0
+    ) {
+      return null;
+    }
   }
 
   const coordinates = normalizeProviderCoordinates(record.coordinates);
@@ -125,6 +139,9 @@ export function normalizeSafeRoutePreviewResponse(
     return null;
   }
   const withEndpointConnectors = preserveEndpointConnectors(coordinates, stops);
+  if (routeIntersectsAvoidRectangles(withEndpointConnectors, avoidRectangles)) {
+    return null;
+  }
   const measuredDistance = measureRouteDistance(withEndpointConnectors);
   const distanceMeters = normalizePositiveNumber(
     record.distance_meters ?? record.distanceMeters ?? record.distance
@@ -221,19 +238,6 @@ function measureRouteDistance(route: LatLng[]): number {
       distance + haversineDistanceMeters(route[index], coordinate),
     0
   );
-}
-
-function normalizeAvoidRectangles(
-  rectangles: GuestRouteAvoidRectangle[]
-): GuestRouteAvoidRectangle[] {
-  return rectangles.filter((rectangle) =>
-    Number.isFinite(rectangle?.minLatitude) &&
-    Number.isFinite(rectangle?.maxLatitude) &&
-    Number.isFinite(rectangle?.minLongitude) &&
-    Number.isFinite(rectangle?.maxLongitude) &&
-    rectangle.maxLatitude > rectangle.minLatitude &&
-    rectangle.maxLongitude > rectangle.minLongitude
-  ).slice(0, 10);
 }
 
 function normalizePositiveNumber(value: unknown): number | null {

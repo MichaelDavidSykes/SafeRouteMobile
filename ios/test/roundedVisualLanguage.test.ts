@@ -1181,7 +1181,7 @@ describe("rounded visual language", () => {
       /accessibilityRole=\{sessionNoticeState\.accessibilityRole\} style=\{styles\.noticeBox\}/,
     );
     assert.doesNotMatch(routeListHeaderSource, /SafeRouteLogo|Ionicons/);
-    assert.match(signOutButtonBlock, /minHeight:\s*36/);
+    assert.match(signOutButtonBlock, /minHeight:\s*controlSizes\.compact/);
     assert.match(signOutButtonBlock, /backgroundColor:\s*"transparent"/);
     assert.doesNotMatch(signOutButtonBlock, /\bborderWidth/);
     assert.match(signOutButtonPressedBlock, /backgroundColor:\s*colors\.appleBlueSoft/);

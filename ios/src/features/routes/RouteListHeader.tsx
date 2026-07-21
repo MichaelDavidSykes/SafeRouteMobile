@@ -30,27 +30,31 @@ export function RouteListHeader({
     <>
       <View style={styles.header}>
         <View style={styles.headerTitleRow}>
-          <Text numberOfLines={2} style={styles.title}>
-            {headerCopy.title}
-          </Text>
-          <Pressable
-            accessibilityHint={signOutState.signOutAccessibilityHint}
-            accessibilityLabel={signOutState.signOutAccessibilityLabel}
-            accessibilityRole="button"
-            hitSlop={ROUTE_LIST_HEADER_ACTION_HIT_SLOP}
-            testID={uiTestIds.routeListSignOut}
-            style={({ pressed }) => [
-              styles.signOutButton,
-              pressed ? styles.signOutButtonPressed : null,
-            ]}
-            onPress={onSignOut}
-          >
-            <Text numberOfLines={1} style={styles.signOutButtonText}>
-              {signOutState.label}
+          <View style={styles.headerCopy}>
+            <Text numberOfLines={1} style={styles.title}>
+              {headerCopy.title}
             </Text>
-          </Pressable>
+          </View>
+          <View style={styles.headerActions}>
+            <Pressable
+              accessibilityHint={signOutState.signOutAccessibilityHint}
+              accessibilityLabel={signOutState.signOutAccessibilityLabel}
+              accessibilityRole="button"
+              hitSlop={ROUTE_LIST_HEADER_ACTION_HIT_SLOP}
+              testID={uiTestIds.routeListSignOut}
+              style={({ pressed }) => [
+                styles.signOutButton,
+                pressed ? styles.signOutButtonPressed : null,
+              ]}
+              onPress={onSignOut}
+            >
+              <Text numberOfLines={1} style={styles.signOutButtonText}>
+                {signOutState.label}
+              </Text>
+            </Pressable>
+          </View>
         </View>
-        <Text numberOfLines={2} style={styles.subtitle}>
+        <Text numberOfLines={1} style={styles.subtitle}>
           {headerCopy.subtitle}
         </Text>
       </View>

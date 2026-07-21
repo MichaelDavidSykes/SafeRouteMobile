@@ -17,33 +17,38 @@ export const routeListStyles = StyleSheet.create({
   },
   header: {
     gap: 3,
-    marginTop: 3,
-    marginBottom: 16,
+    marginTop: 0,
+    marginBottom: spacing.md,
   },
   headerTitleRow: {
-    minWidth: 0,
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "space-between",
     gap: spacing.sm,
   },
-  title: {
-    minWidth: 0,
+  headerCopy: {
     flex: 1,
+    minWidth: 0,
+  },
+  title: {
     color: colors.ink,
     fontSize: typeScale.display,
     fontWeight: "800",
     lineHeight: 38,
   },
   subtitle: {
-    minWidth: 0,
     color: colors.muted,
-    fontSize: 14,
-    fontWeight: "400",
-    lineHeight: 18,
+    fontSize: typeScale.xs,
+    fontWeight: "600",
+    lineHeight: 16,
+  },
+  headerActions: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: spacing.xs,
   },
   signOutButton: {
-    minHeight: 36,
+    minHeight: controlSizes.compact,
     alignItems: "center",
     justifyContent: "center",
     paddingHorizontal: spacing.xs,
@@ -56,8 +61,8 @@ export const routeListStyles = StyleSheet.create({
   },
   signOutButtonText: {
     color: colors.muted,
-    fontSize: 12,
-    fontWeight: "700",
+    fontSize: typeScale.xs,
+    fontWeight: "800",
   },
   noticeBox: {
     alignSelf: "center",

@@ -36,7 +36,7 @@ describe("SafeRoute design handoff", () => {
     assert.match(screen, /useState\(true\)/);
     assert.match(screen, /uiTestIds\.guestMapLayerToggle/);
     assert.match(screen, /layer:\s*mapLayer/);
-    assert.match(styles, /bottom:\s*chrome\.tabBarHeight \+ 18/);
+    assert.match(styles, /bottom:\s*chrome\.screenBottomInset/);
     assert.match(transport, /if \(layer === "satellite"\)/);
     assert.match(transport, /if \(!online\)[\s\S]*return "none"/);
   });

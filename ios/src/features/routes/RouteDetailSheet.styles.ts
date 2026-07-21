@@ -9,7 +9,7 @@ export const routeDetailSheetStyles = StyleSheet.create({
   },
   scrim: {
     ...StyleSheet.absoluteFillObject,
-    backgroundColor: "rgba(0, 0, 0, 0.28)",
+    backgroundColor: "transparent",
   },
   sheet: {
     maxHeight: "86%",

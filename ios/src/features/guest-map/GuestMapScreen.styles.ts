@@ -575,8 +575,9 @@ export const guestMapStyles = StyleSheet.create({
   },
   collapsedSheet: {
     position: 'absolute',
+    zIndex: 32,
     right: spacing.md,
-    bottom: chrome.tabBarHeight + 18,
+    bottom: chrome.screenBottomInset,
     left: spacing.md,
     overflow: 'hidden',
     borderWidth: 0.5,
@@ -587,7 +588,7 @@ export const guestMapStyles = StyleSheet.create({
     shadowOpacity: 0.16,
     shadowRadius: 10,
     shadowOffset: { width: 0, height: 5 },
-    elevation: 7
+    elevation: 32
   },
   collapsedSheetButton: {
     minHeight: 64,

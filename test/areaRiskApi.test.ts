@@ -19,6 +19,80 @@ import {
 } from '../src/features/live-map/areaRiskApiCore';
 
 describe('area risk API transport', () => {
+  it('preserves exact rejection authority across pages without double-counting it', async () => {
+    const safetyFilter = rejectionSafetyFilter({ cityScaleRejectedCount: 1 });
+    const feed = await fetchAreaRiskViewport(createRequest(), {
+      accessToken: 'token-1',
+      intent: 'read',
+      request: captureRequester([], ({ url }) =>
+        jsonResponse(feedEnvelope({
+          items: createItems(url.searchParams.has('cursor') ? 1 : 0, 1),
+          hasMore: !url.searchParams.has('cursor'),
+          nextCursor: url.searchParams.has('cursor') ? null : 'opaque-next',
+          providerStatus: 'partial',
+          safetyFilter
+        }))
+      )
+    });
+
+    assert.equal(feed.pagesLoaded, 2);
+    assert.equal(feed.zones.length, 2);
+    assert.equal(feed.partial, true);
+    assert.equal(feed.safetyFilter.rejectedCount, 1);
+    assert.equal(feed.discardedUnsafeAreaCount, 1);
+    assert.match(feed.safetyWarning ?? '', /excluded 1 unsafe or unverifiable risk area/i);
+  });
+
+  it('fails closed for malformed or unexplained partial safety authority', async () => {
+    for (const safetyFilter of [
+      undefined,
+      {
+        ...rejectionSafetyFilter({ cityScaleRejectedCount: 1 }),
+        rejectedCount: 2
+      }
+    ]) {
+      await assert.rejects(
+        fetchAreaRiskViewport(createRequest(), {
+          accessToken: 'token-1',
+          intent: 'read',
+          request: async () => jsonResponse(feedEnvelope({
+            items: createItems(0, 1),
+            providerStatus: 'partial',
+            safetyFilter
+          }))
+        }),
+        (error: unknown) =>
+          error instanceof ApiRequestError
+          && error.statusCode === 502
+          && /safety-filter authority/i.test(error.message)
+      );
+    }
+  });
+
+  it('fails closed when safety-filter authority changes between pages', async () => {
+    await assert.rejects(
+      fetchAreaRiskViewport(createRequest(), {
+        accessToken: 'token-1',
+        intent: 'read',
+        request: captureRequester([], ({ url }) =>
+          jsonResponse(feedEnvelope({
+            items: createItems(url.searchParams.has('cursor') ? 1 : 0, 1),
+            hasMore: !url.searchParams.has('cursor'),
+            nextCursor: url.searchParams.has('cursor') ? null : 'opaque-next',
+            providerStatus: 'partial',
+            safetyFilter: rejectionSafetyFilter({
+              cityScaleRejectedCount: url.searchParams.has('cursor') ? 2 : 1
+            })
+          }))
+        )
+      }),
+      (error: unknown) =>
+        error instanceof ApiRequestError
+        && error.statusCode === 502
+        && /changed safety-filter authority between pages/i.test(error.message)
+    );
+  });
+
   it('loads every page with strict non-mutating GETs and opaque cursors', async () => {
     const calls: CapturedRequest[] = [];
     const requester = captureRequester(calls, ({ url }) => {
@@ -590,6 +664,7 @@ function feedEnvelope({
   items,
   nextCursor = null,
   providerStatus = 'primary',
+  safetyFilter,
   seedStatus = 'covered'
 }: {
   bounds?: ReturnType<typeof requestBounds>;
@@ -597,6 +672,7 @@ function feedEnvelope({
   items: unknown[];
   nextCursor?: string | null;
   providerStatus?: string;
+  safetyFilter?: unknown;
   seedStatus?: string;
 }) {
   return {
@@ -607,8 +683,33 @@ function feedEnvelope({
       items,
       nextCursor,
       providerStatus,
+      ...(safetyFilter === undefined ? {} : { safetyFilter }),
       seedStatus
     }
+  };
+}
+
+function rejectionSafetyFilter({
+  cityScaleRejectedCount = 0,
+  invalidRecordRejectedCount = 0,
+  localityRejectedCount = 0,
+  outOfBoundsRejectedCount = 0
+}: {
+  cityScaleRejectedCount?: number;
+  invalidRecordRejectedCount?: number;
+  localityRejectedCount?: number;
+  outOfBoundsRejectedCount?: number;
+} = {}) {
+  return {
+    capability: 'safe-route-risk-rejection-v1',
+    rejectedCount: cityScaleRejectedCount
+      + invalidRecordRejectedCount
+      + localityRejectedCount
+      + outOfBoundsRejectedCount,
+    localityRejectedCount,
+    cityScaleRejectedCount,
+    invalidRecordRejectedCount,
+    outOfBoundsRejectedCount
   };
 }
 

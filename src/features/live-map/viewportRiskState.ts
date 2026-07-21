@@ -53,6 +53,7 @@ export interface ViewportRiskCoverageOutcomeInput {
   researchAvailable: boolean;
   researchFailureCount: number;
   researchRequested: boolean;
+  safetyRejectedRequestCount: number;
   statusFailureCount: number;
   unavailableRequestCount: number;
   unavailableRetryAfterSeconds: number;
@@ -99,11 +100,23 @@ export function isAreaRiskFeedPending(
 
 export function isAreaRiskFeedFailed(
   feed: Pick<AreaRiskFeed, 'coverageStatus' | 'providerStatus' | 'seedStatus'>
+    & Partial<Pick<AreaRiskFeed, 'safetyFilter'>>
 ): boolean {
+  const providerStatus = String(feed.providerStatus || '').trim().toLowerCase();
+  if (
+    providerStatus === 'partial'
+    && (
+      !feed.safetyFilter?.valid
+      || feed.safetyFilter.rejectedCount <= 0
+    )
+  ) {
+    return true;
+  }
   return FAILED_RESEARCH_STATUSES.has(
     String(feed.coverageStatus || '').trim().toLowerCase()
-  ) || FAILED_RESEARCH_STATUSES.has(
-    String(feed.providerStatus || '').trim().toLowerCase()
+  ) || (
+    providerStatus !== 'partial'
+    && FAILED_RESEARCH_STATUSES.has(providerStatus)
   ) || FAILED_RESEARCH_STATUSES.has(
     String(feed.seedStatus || '').trim().toLowerCase()
   );
@@ -158,6 +171,7 @@ export function resolveViewportRiskCoverageOutcome({
   researchAvailable,
   researchFailureCount,
   researchRequested,
+  safetyRejectedRequestCount,
   statusFailureCount,
   unavailableRequestCount,
   unavailableRetryAfterSeconds,
@@ -207,6 +221,15 @@ export function resolveViewportRiskCoverageOutcome({
       statusMessage: visibleZoneCount > 0
         ? 'Previously loaded risks remain visible.'
         : ''
+    };
+  }
+  if (safetyRejectedRequestCount > 0) {
+    return {
+      coverageState: 'partial',
+      errorMessage: '',
+      statusMessage: visibleZoneCount > 0
+        ? 'SafeRoute excluded city-scale or unverifiable risk areas. Bounded local risks remain visible.'
+        : 'SafeRoute excluded city-scale or unverifiable risk areas; none were shown.'
     };
   }
   if (

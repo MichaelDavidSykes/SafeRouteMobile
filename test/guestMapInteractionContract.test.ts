@@ -153,6 +153,8 @@ describe('guest map interaction contract', () => {
     assert.match(screen, /Research cooling down/);
     assert.match(screen, /Coverage unavailable/);
     assert.match(screen, /viewportRisk\.coverageState === 'pending'/);
+    assert.match(screen, /viewportRisk\.coverageState === 'partial'/);
+    assert.match(screen, /Broad risks excluded/);
     assert.match(screen, /accessibilityLiveRegion="polite"/);
   });
 

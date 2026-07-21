@@ -10,6 +10,7 @@ import {
   collectFreshViewportRiskZones,
   getCachedViewportRiskZones,
   isAreaRiskFeedMissing,
+  isAreaRiskFeedFailed,
   isAreaRiskFeedPending,
   isViewportRiskCacheEntryFresh,
   pruneViewportRiskCache,
@@ -188,6 +189,41 @@ describe('viewport risk state', () => {
       }),
       true
     );
+    assert.equal(isAreaRiskFeedFailed({
+      coverageStatus: 'current',
+      providerStatus: 'partial',
+      safetyFilter: {
+        present: true,
+        valid: true,
+        rejectedCount: 1,
+        localityRejectedCount: 0,
+        cityScaleRejectedCount: 1,
+        invalidRecordRejectedCount: 0,
+        outOfBoundsRejectedCount: 0,
+        warning: 'SafeRoute excluded 1 unsafe or unverifiable risk area; coverage is partial.'
+      },
+      seedStatus: 'covered'
+    }), false);
+    assert.equal(isAreaRiskFeedFailed({
+      coverageStatus: 'partial',
+      providerStatus: 'partial',
+      safetyFilter: {
+        present: true,
+        valid: true,
+        rejectedCount: 1,
+        localityRejectedCount: 0,
+        cityScaleRejectedCount: 1,
+        invalidRecordRejectedCount: 0,
+        outOfBoundsRejectedCount: 0,
+        warning: 'SafeRoute excluded 1 unsafe or unverifiable risk area; coverage is partial.'
+      },
+      seedStatus: 'covered'
+    }), true);
+    assert.equal(isAreaRiskFeedFailed({
+      coverageStatus: 'current',
+      providerStatus: 'partial',
+      seedStatus: 'covered'
+    }), true);
   });
 
   it('keeps accepted pending research truthful when its strict read fails', () => {
@@ -204,6 +240,7 @@ describe('viewport risk state', () => {
       researchAvailable: false,
       researchFailureCount: 0,
       researchRequested: true,
+      safetyRejectedRequestCount: 0,
       statusFailureCount: 0,
       unavailableRequestCount: 0,
       unavailableRetryAfterSeconds: 0,
@@ -226,6 +263,7 @@ describe('viewport risk state', () => {
       researchAvailable: false,
       researchFailureCount: 0,
       researchRequested: true,
+      safetyRejectedRequestCount: 0,
       statusFailureCount: 0,
       unavailableRequestCount: 0,
       unavailableRetryAfterSeconds: 0,
@@ -247,6 +285,7 @@ describe('viewport risk state', () => {
       researchAvailable: true,
       researchFailureCount: 0,
       researchRequested: false,
+      safetyRejectedRequestCount: 0,
       statusFailureCount: 0,
       unavailableRequestCount: 1,
       unavailableRetryAfterSeconds: 5,
@@ -256,6 +295,30 @@ describe('viewport risk state', () => {
     assert.match(unavailable.errorMessage, /temporarily unavailable/i);
     assert.match(unavailable.errorMessage, /5 sec/i);
     assert.match(unavailable.statusMessage, /Current-view risks remain visible/i);
+
+    const safetyFiltered = resolveViewportRiskCoverageOutcome({
+      allRequestsFailed: false,
+      cooldownRequestCount: 0,
+      cooldownRetryAfterSeconds: 0,
+      currentEmptyResearchCount: 0,
+      failedRequestCount: 0,
+      missingRequestCount: 0,
+      partialRequestCount: 1,
+      pendingRequestCount: 0,
+      readFailureCount: 0,
+      researchAvailable: true,
+      researchFailureCount: 0,
+      researchRequested: false,
+      safetyRejectedRequestCount: 1,
+      statusFailureCount: 0,
+      unavailableRequestCount: 0,
+      unavailableRetryAfterSeconds: 0,
+      visibleZoneCount: 0
+    });
+    assert.equal(safetyFiltered.coverageState, 'partial');
+    assert.equal(safetyFiltered.errorMessage, '');
+    assert.match(safetyFiltered.statusMessage, /city-scale or unverifiable/i);
+    assert.match(safetyFiltered.statusMessage, /none were shown/i);
   });
 
   it('honors the server deadline, context fence, wait cap, and one automatic recovery', () => {

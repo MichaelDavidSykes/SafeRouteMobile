@@ -1,6 +1,11 @@
 import type { Region } from 'react-native-maps';
 
 import type { RiskSeverity, RiskZone } from './liveMapTypes';
+import {
+  areaRiskSafetyWarning,
+  readAreaRiskSafetyFilter,
+  type AreaRiskSafetyFilterAuthority
+} from './areaRiskSafetyFilter';
 
 export const AREA_RISK_ENDPOINT_PATH = '/intel/map/area-risk';
 export const AREA_RISK_RESEARCH_ENDPOINT_PATH = `${AREA_RISK_ENDPOINT_PATH}/research`;
@@ -65,8 +70,10 @@ export interface AreaRiskCacheKeyOptions {
 
 export interface AreaRiskFeed {
   coverageStatus: string | null;
+  discardedUnsafeAreaCount: number;
   fetchedAt: string | null;
   legacyFallback: boolean;
+  localCityScaleRejectedCount: number;
   message: string;
   pagesLoaded: number;
   partial: boolean;
@@ -75,6 +82,8 @@ export interface AreaRiskFeed {
   retryableReadFailure?: AreaRiskRetryableReadFailure | null;
   research: AreaRiskResearchState | null;
   researchError: string | null;
+  safetyFilter: AreaRiskSafetyFilterAuthority;
+  safetyWarning: string | null;
   seedStatus: string | null;
   zones: RiskZone[];
 }
@@ -136,8 +145,12 @@ type AvoidanceRiskZone = Omit<RiskZone, 'severity'> & {
 
 const DEFAULT_RADIUS_METERS = 1000;
 const MIN_RADIUS_METERS = 50;
-const MAX_RADIUS_METERS = 10000;
+export const SAFE_ROUTE_RISK_AREA_MAX_RADIUS_METERS = 2500;
+export const SAFE_ROUTE_RISK_AREA_MAX_AXIS_METERS = 5250;
+export const SAFE_ROUTE_RISK_AREA_MAX_DIAMETER_METERS = 8000;
+const MAX_RADIUS_METERS = SAFE_ROUTE_RISK_AREA_MAX_RADIUS_METERS;
 const MAX_COORDINATES_PER_ZONE = 512;
+const MAX_SAFETY_COORDINATES_PER_ZONE = 80;
 
 const severityColors: Record<RiskSeverity, { fill: string; marker: string; stroke: string }> = {
   low: {
@@ -451,12 +464,23 @@ export function normalizeAreaRiskFeedPage(payload: unknown): AreaRiskFeedPage {
   const items = Array.isArray(body)
     ? body
     : (Array.isArray(record?.items) ? record.items : []);
+  let localCityScaleRejectedCount = 0;
   const zones = mergeRiskZonesById(
     items
       .slice(0, MAX_AREA_RISK_RECORDS * 2)
-      .map((item, index) => normalizeAreaRiskItem(item, index, source))
+      .map((item, index) => {
+        if (!areaRiskItemWithinSafeRouteSizeLimit(item)) {
+          localCityScaleRejectedCount += 1;
+          return null;
+        }
+        return normalizeAreaRiskItem(item, index, source);
+      })
       .filter((zone): zone is RiskZone => zone !== null)
   ).slice(0, MAX_AREA_RISK_RECORDS);
+  const safetyFilter = readAreaRiskSafetyFilter(record ?? {});
+  const discardedUnsafeAreaCount = localCityScaleRejectedCount
+    + (safetyFilter.valid ? safetyFilter.rejectedCount : 0);
+  const safetyWarning = areaRiskSafetyWarning(discardedUnsafeAreaCount);
   const providerErrors = asArray(record?.providerErrors ?? record?.provider_errors)
     .map((value) => cleanOptionalText(value, 240))
     .filter((value): value is string => Boolean(value));
@@ -466,22 +490,83 @@ export function normalizeAreaRiskFeedPage(payload: unknown): AreaRiskFeedPage {
       record?.coverageStatus ?? record?.coverage_status,
       80
     ),
+    discardedUnsafeAreaCount,
     fetchedAt: cleanOptionalText(record?.fetchedAt ?? record?.fetched_at, 80),
     legacyFallback: false,
+    localCityScaleRejectedCount,
     message: zones.length
       ? `${zones.length} SafeRoute area-risk signal${zones.length === 1 ? '' : 's'} prepared.`
-      : (providerErrors[0] ?? 'No SafeRoute area-risk signals are available for this map view yet.'),
+      : (safetyWarning
+        ?? providerErrors[0]
+        ?? 'No SafeRoute area-risk signals are available for this map view yet.'),
     pagesLoaded: 1,
-    partial: false,
+    partial: discardedUnsafeAreaCount > 0,
     providerStatus: cleanOptionalText(record?.providerStatus ?? record?.provider_status, 80),
     readError: null,
     research: null,
     researchError: null,
+    safetyFilter,
+    safetyWarning,
     seedStatus: cleanOptionalText(record?.seedStatus ?? record?.seed_status, 80),
     hasMore: record?.hasMore === true || record?.has_more === true,
     nextCursor: cleanOptionalText(record?.nextCursor ?? record?.next_cursor, 160),
     zones
   };
+}
+
+export function areaRiskItemWithinSafeRouteSizeLimit(value: unknown): boolean {
+  const item = asRecord(value);
+  if (!item) {
+    return true;
+  }
+  const radiusMeters = finiteNumber(
+    item.radiusM ?? item.radius_m ?? item.radiusMeters
+  );
+  if (
+    radiusMeters !== null
+    && radiusMeters > SAFE_ROUTE_RISK_AREA_MAX_RADIUS_METERS
+  ) {
+    return false;
+  }
+  const coordinates = normalizeCoordinates(
+    item.polygonCoordinates
+      ?? item.polygon_coordinates
+      ?? item.coordinates
+      ?? item.geometry
+      ?? item.geojson
+  ).slice(0, MAX_SAFETY_COORDINATES_PER_ZONE);
+  if (coordinates.length < 2) {
+    return true;
+  }
+  const minLatitude = Math.min(...coordinates.map(({ latitude }) => latitude));
+  const maxLatitude = Math.max(...coordinates.map(({ latitude }) => latitude));
+  const minLongitude = Math.min(...coordinates.map(({ longitude }) => longitude));
+  const maxLongitude = Math.max(...coordinates.map(({ longitude }) => longitude));
+  const centerLatitude = (minLatitude + maxLatitude) / 2;
+  const centerLongitude = (minLongitude + maxLongitude) / 2;
+  if (
+    coordinateDistanceMeters(
+      { latitude: minLatitude, longitude: centerLongitude },
+      { latitude: maxLatitude, longitude: centerLongitude }
+    ) > SAFE_ROUTE_RISK_AREA_MAX_AXIS_METERS
+    || coordinateDistanceMeters(
+      { latitude: centerLatitude, longitude: minLongitude },
+      { latitude: centerLatitude, longitude: maxLongitude }
+    ) > SAFE_ROUTE_RISK_AREA_MAX_AXIS_METERS
+  ) {
+    return false;
+  }
+  for (let leftIndex = 0; leftIndex < coordinates.length; leftIndex += 1) {
+    for (let rightIndex = leftIndex + 1; rightIndex < coordinates.length; rightIndex += 1) {
+      if (
+        coordinateDistanceMeters(coordinates[leftIndex], coordinates[rightIndex])
+        > SAFE_ROUTE_RISK_AREA_MAX_DIAMETER_METERS
+      ) {
+        return false;
+      }
+    }
+  }
+  return true;
 }
 
 export function normalizeAreaRiskResearchState(payload: unknown): AreaRiskResearchState {
@@ -952,6 +1037,22 @@ function avoidRectangleSpanKm(rectangle: AreaRiskAvoidRectangle): number {
   const longitudeSpanKm = (rectangle.max_lon - rectangle.min_lon) * 111.32 *
     Math.max(0.05, Math.abs(Math.cos(centerLatitude * Math.PI / 180)));
   return Math.max(latitudeSpanKm, longitudeSpanKm);
+}
+
+function coordinateDistanceMeters(left: Coordinate, right: Coordinate): number {
+  const earthRadiusMeters = 6_371_000;
+  const leftLatitude = left.latitude * Math.PI / 180;
+  const rightLatitude = right.latitude * Math.PI / 180;
+  const latitudeDelta = (right.latitude - left.latitude) * Math.PI / 180;
+  const longitudeDelta = (right.longitude - left.longitude) * Math.PI / 180;
+  const haversine = Math.sin(latitudeDelta / 2) ** 2
+    + Math.cos(leftLatitude)
+      * Math.cos(rightLatitude)
+      * Math.sin(longitudeDelta / 2) ** 2;
+  return earthRadiusMeters * 2 * Math.atan2(
+    Math.sqrt(haversine),
+    Math.sqrt(Math.max(0, 1 - haversine))
+  );
 }
 
 function normalizeScope(value: unknown, zoom: number): AreaRiskScope {

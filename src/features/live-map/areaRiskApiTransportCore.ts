@@ -31,6 +31,11 @@ import {
   type AreaRiskViewportRequest,
   type AreaRiskViewportRequestOptions
 } from './areaRiskApiCore';
+import {
+  aggregateAreaRiskSafetyFilters,
+  areaRiskSafetyFiltersEqual,
+  areaRiskSafetyWarning
+} from './areaRiskSafetyFilter';
 
 export type AreaRiskHttpRequester = (
   input: Parameters<typeof fetch>[0],
@@ -153,8 +158,10 @@ export async function fetchAreaRiskViewport(
     }
     return {
       coverageStatus: research?.coverageStatus ?? null,
+      discardedUnsafeAreaCount: 0,
       fetchedAt: null,
       legacyFallback: false,
+      localCityScaleRejectedCount: 0,
       message: research?.pending
         ? 'Risk research is in progress, but existing coverage could not be read.'
         : 'Existing risk coverage could not be read after the research request.',
@@ -168,6 +175,8 @@ export async function fetchAreaRiskViewport(
       retryableReadFailure: getAreaRiskRetryableReadFailure(error),
       research,
       researchError,
+      safetyFilter: aggregateAreaRiskSafetyFilters([]),
+      safetyWarning: null,
       seedStatus: research?.seedStatus ?? null,
       zones: []
     };
@@ -182,8 +191,10 @@ export async function fetchAreaRiskForRegion(
   if (!requests.length) {
     return {
       coverageStatus: null,
+      discardedUnsafeAreaCount: 0,
       fetchedAt: null,
       legacyFallback: false,
+      localCityScaleRejectedCount: 0,
       message: 'Zoom in to load risk areas for this map view.',
       pagesLoaded: 0,
       partial: false,
@@ -192,12 +203,30 @@ export async function fetchAreaRiskForRegion(
       retryableReadFailure: null,
       research: null,
       researchError: null,
+      safetyFilter: aggregateAreaRiskSafetyFilters([]),
+      safetyWarning: null,
       seedStatus: null,
       zones: []
     };
   }
 
   const feeds = await Promise.all(requests.map((request) => fetchAreaRiskViewport(request, options)));
+  const safetyFilter = aggregateAreaRiskSafetyFilters(
+    feeds.map((feed) => feed.safetyFilter)
+  );
+  if (!safetyFilter.valid) {
+    throw new ApiRequestError(
+      'Risk coverage returned inconsistent safety-filter authority across map partitions.',
+      502
+    );
+  }
+  const localCityScaleRejectedCount = feeds.reduce(
+    (total, feed) => total + feed.localCityScaleRejectedCount,
+    0
+  );
+  const discardedUnsafeAreaCount = safetyFilter.rejectedCount
+    + localCityScaleRejectedCount;
+  const safetyWarning = areaRiskSafetyWarning(discardedUnsafeAreaCount);
   const zones = mergeRiskZonesById(...feeds.map((feed) => feed.zones));
   const research = aggregateResearchState(feeds.map((feed) => feed.research));
   const readError = firstMessage(feeds.map((feed) => feed.readError));
@@ -216,11 +245,15 @@ export async function fetchAreaRiskForRegion(
   );
   return {
     coverageStatus: feeds.map((feed) => feed.coverageStatus).find(Boolean) ?? null,
+    discardedUnsafeAreaCount,
     fetchedAt: feeds.map((feed) => feed.fetchedAt).find(Boolean) ?? null,
     legacyFallback: feeds.some((feed) => feed.legacyFallback),
+    localCityScaleRejectedCount,
     message: zones.length
       ? `${zones.length} SafeRoute area-risk signal${zones.length === 1 ? '' : 's'} prepared.`
-      : (feeds.map((feed) => feed.message).find(Boolean) ?? 'No risk areas were returned.'),
+      : (safetyWarning
+        ?? feeds.map((feed) => feed.message).find(Boolean)
+        ?? 'No risk areas were returned.'),
     pagesLoaded: feeds.reduce((total, feed) => total + feed.pagesLoaded, 0),
     partial,
     providerStatus: feeds.map((feed) => feed.providerStatus).find(Boolean) ?? null,
@@ -228,6 +261,8 @@ export async function fetchAreaRiskForRegion(
     retryableReadFailure,
     research,
     researchError,
+    safetyFilter,
+    safetyWarning,
     seedStatus: feeds.map((feed) => feed.seedStatus).find(Boolean) ?? research?.seedStatus ?? null,
     zones
   };
@@ -283,6 +318,7 @@ async function readAreaRiskPages(
   let partial = false;
   let readError: string | null = null;
   let retryableReadFailure: AreaRiskRetryableReadFailure | null = null;
+  let localCityScaleRejectedCount = 0;
 
   while (pagesLoaded < MAX_AREA_RISK_PAGES) {
     let page: AreaRiskFeedPage;
@@ -315,8 +351,18 @@ async function readAreaRiskPages(
       (aggregate?.zones.length ?? 0) + page.zones.length > viewportRequest.maxRecords;
     if (aggregate === null) {
       aggregate = page;
+      localCityScaleRejectedCount = page.localCityScaleRejectedCount;
     } else {
       const previousPage: AreaRiskFeedPage = aggregate;
+      if (!areaRiskSafetyFiltersEqual(previousPage.safetyFilter, page.safetyFilter)) {
+        throw new ApiRequestError(
+          'Risk coverage changed safety-filter authority between pages.',
+          502
+        );
+      }
+      localCityScaleRejectedCount += page.localCityScaleRejectedCount;
+      const discardedUnsafeAreaCount = previousPage.safetyFilter.rejectedCount
+        + localCityScaleRejectedCount;
       aggregate = {
         ...previousPage,
         coverageStatus: page.coverageStatus ?? previousPage.coverageStatus,
@@ -325,14 +371,19 @@ async function readAreaRiskPages(
         message: page.message || previousPage.message,
         nextCursor: page.nextCursor,
         providerStatus: page.providerStatus ?? previousPage.providerStatus,
+        discardedUnsafeAreaCount,
+        localCityScaleRejectedCount,
+        partial: previousPage.partial || page.partial || discardedUnsafeAreaCount > 0,
+        safetyWarning: areaRiskSafetyWarning(discardedUnsafeAreaCount),
         seedStatus: page.seedStatus ?? previousPage.seedStatus,
         zones: mergeRiskZonesById(previousPage.zones, page.zones)
           .slice(0, viewportRequest.maxRecords)
       };
     }
+    partial = partial || page.partial;
 
     if (legacyEnsure) {
-      partial = page.hasMore || pageOverflow;
+      partial = partial || page.hasMore || pageOverflow;
       if (partial) {
         readError =
           'Legacy compatibility research returned only its first page; strict continuation requires the current SafeRoute API.';
@@ -340,7 +391,7 @@ async function readAreaRiskPages(
       break;
     }
     if (!page.hasMore || aggregate.zones.length >= viewportRequest.maxRecords) {
-      partial = pageOverflow
+      partial = partial || pageOverflow
         || (page.hasMore && aggregate.zones.length >= viewportRequest.maxRecords);
       break;
     }
@@ -368,8 +419,11 @@ async function readAreaRiskPages(
 
   return {
     coverageStatus: aggregate.coverageStatus,
+    discardedUnsafeAreaCount: aggregate.safetyFilter.rejectedCount
+      + localCityScaleRejectedCount,
     fetchedAt: aggregate.fetchedAt,
     legacyFallback: false,
+    localCityScaleRejectedCount,
     message: aggregate.message,
     pagesLoaded,
     partial,
@@ -378,6 +432,10 @@ async function readAreaRiskPages(
     retryableReadFailure,
     research: null,
     researchError: null,
+    safetyFilter: aggregate.safetyFilter,
+    safetyWarning: areaRiskSafetyWarning(
+      aggregate.safetyFilter.rejectedCount + localCityScaleRejectedCount
+    ),
     seedStatus: aggregate.seedStatus,
     zones: aggregate.zones
   };
@@ -444,7 +502,21 @@ async function readAreaRiskPage(
       502
     );
   }
-  return normalizeAreaRiskFeedPage(body);
+  const page = normalizeAreaRiskFeedPage(body);
+  const providerStatus = String(page.providerStatus || '').trim().toLowerCase();
+  if (
+    (page.safetyFilter.present && !page.safetyFilter.valid)
+    || (
+      providerStatus === 'partial'
+      && (!page.safetyFilter.valid || page.safetyFilter.rejectedCount <= 0)
+    )
+  ) {
+    throw new ApiRequestError(
+      'Risk coverage returned incompatible safety-filter authority.',
+      502
+    );
+  }
+  return page;
 }
 
 function aggregateRetryableReadFailure(

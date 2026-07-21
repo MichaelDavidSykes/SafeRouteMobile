@@ -263,6 +263,23 @@ export function resolveViewportRiskDisplayZones(
     : mergeRiskZonesById(retainedZones, nextViewportZones);
 }
 
+export function resolveCompletedViewportRiskZones(
+  cachedZones: readonly RiskZone[],
+  receivedZones: readonly RiskZone[],
+  bypassCache: boolean
+): RiskZone[] {
+  return bypassCache
+    ? mergeRiskZonesById(receivedZones)
+    : mergeRiskZonesById(cachedZones, receivedZones);
+}
+
+export function resolveUnavailableViewportRiskZones(
+  retainedZones: readonly RiskZone[],
+  contextChanged: boolean
+): RiskZone[] {
+  return contextChanged ? [] : mergeRiskZonesById(retainedZones);
+}
+
 export function resolveViewportRiskUnavailableRecovery({
   attempts,
   context,

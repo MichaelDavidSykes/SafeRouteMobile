@@ -25,6 +25,8 @@ describe('viewport risk hook integration contract', () => {
     assert.match(source, /cacheViewportRiskZones/);
     assert.match(source, /Promise\.allSettled/);
     assert.match(source, /resolveViewportRiskDisplayZones/);
+    assert.match(source, /resolveCompletedViewportRiskZones/);
+    assert.match(source, /resolveUnavailableViewportRiskZones/);
     assert.match(source, /canCacheViewportRiskFeed/);
     assert.match(source, /requestSignature/);
     assert.match(source, /allRequestsFailed/);
@@ -47,7 +49,7 @@ describe('viewport risk hook integration contract', () => {
     assert.match(source, /unavailableRetryStateRef/);
     assert.match(source, /resolveViewportRiskUnavailableRecovery/);
     assert.match(source, /setRecoveryRevision/);
-    assert.match(source, /unavailableRequestCount > 0 \? \[\] : retainedZones/);
+    assert.match(source, /resolveUnavailableViewportRiskZones\(retainedZones, contextChanged\)/);
     assert.match(source, /retryAvailable:/);
     assert.match(source, /missingRequestCount/);
     assert.match(source, /legacyFallbackCount > 0/);

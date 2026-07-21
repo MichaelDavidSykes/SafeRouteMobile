@@ -15,6 +15,8 @@ import {
   pruneViewportRiskCache,
   resolveViewportRiskCoverageOutcome,
   resolveViewportRiskDisplayZones,
+  resolveCompletedViewportRiskZones,
+  resolveUnavailableViewportRiskZones,
   resolveViewportRiskUnavailableRecovery,
   viewportRiskCacheKey,
   type ViewportRiskCache
@@ -36,6 +38,42 @@ describe('viewport risk state', () => {
     assert.deepEqual(
       resolveViewportRiskDisplayZones(retained, [], false).map((zone) => zone.id),
       ['retained']
+    );
+  });
+
+  it('drops omitted exact-cache zones after a complete bypass recovery', () => {
+    const cached = [
+      createZone('omitted-after-recovery', 'high'),
+      createZone('surviving', 'medium')
+    ];
+    const received = [
+      createZone('surviving', 'high'),
+      createZone('new-current', 'medium')
+    ];
+
+    assert.deepEqual(
+      resolveCompletedViewportRiskZones(cached, received, true)
+        .map((zone) => zone.id),
+      ['surviving', 'new-current']
+    );
+    assert.deepEqual(
+      resolveCompletedViewportRiskZones(cached, received, false)
+        .map((zone) => zone.id),
+      ['omitted-after-recovery', 'surviving', 'new-current']
+    );
+  });
+
+  it('retains unavailable risks only inside the exact current viewport context', () => {
+    const retained = [createZone('same-context', 'high')];
+
+    assert.deepEqual(
+      resolveUnavailableViewportRiskZones(retained, false)
+        .map((zone) => zone.id),
+      ['same-context']
+    );
+    assert.deepEqual(
+      resolveUnavailableViewportRiskZones(retained, true),
+      []
     );
   });
 

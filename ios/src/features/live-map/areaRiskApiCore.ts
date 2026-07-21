@@ -141,6 +141,7 @@ export interface AreaRiskAvoidRectangle {
 }
 
 export interface AreaRiskAvoidRectangleOptions {
+  maxHighRiskHardAvoidSpanKm?: number;
   maxRectangles?: number;
   maxSpanKm?: number;
   paddingMeters?: number;
@@ -156,6 +157,7 @@ const MIN_RADIUS_METERS = 50;
 export const SAFE_ROUTE_RISK_AREA_MAX_RADIUS_METERS = 2500;
 export const SAFE_ROUTE_RISK_AREA_MAX_AXIS_METERS = 5250;
 export const SAFE_ROUTE_RISK_AREA_MAX_DIAMETER_METERS = 8000;
+export const SAFE_ROUTE_HIGH_RISK_HARD_AVOID_MAX_SPAN_KM = 2;
 const MAX_RADIUS_METERS = SAFE_ROUTE_RISK_AREA_MAX_RADIUS_METERS;
 const MAX_COORDINATES_PER_ZONE = 512;
 const MAX_SAFETY_COORDINATES_PER_ZONE = 80;
@@ -765,6 +767,7 @@ export function canonicalAreaRiskZoneId(
 export function deriveRiskZoneAvoidRectangles(
   riskZones: readonly (RiskZone | AvoidanceRiskZone)[],
   {
+    maxHighRiskHardAvoidSpanKm = SAFE_ROUTE_HIGH_RISK_HARD_AVOID_MAX_SPAN_KM,
     maxRectangles = 10,
     maxSpanKm = 160,
     paddingMeters = 140
@@ -772,10 +775,15 @@ export function deriveRiskZoneAvoidRectangles(
 ): AreaRiskAvoidRectangle[] {
   const limit = clampInteger(maxRectangles, 0, 10, 10);
   const candidates = riskZones
-    .filter((zone) => zone.severity === 'high' || zone.severity === 'critical')
-    .flatMap((zone, index) => riskZoneToAvoidRectangles(zone, { maxSpanKm, paddingMeters }).map((rectangle) => ({
+    .map((zone) => ({ zone, avoidanceSeverity: riskZoneAvoidanceSeverity(zone) }))
+    .filter(({ avoidanceSeverity }) => avoidanceSeverity === 'high' || avoidanceSeverity === 'critical')
+    .flatMap(({ zone, avoidanceSeverity }, index) => riskZoneToAvoidRectangles(zone, {
+      maxHighRiskHardAvoidSpanKm,
+      maxSpanKm,
+      paddingMeters
+    }).map((rectangle) => ({
       index,
-      rank: zone.severity === 'critical' ? 4 : 3,
+      rank: avoidanceSeverity === 'critical' ? 4 : 3,
       rectangle
     })))
     .sort((left, right) => right.rank - left.rank || left.index - right.index);
@@ -803,11 +811,13 @@ export function deriveRiskZoneAvoidRectangles(
 export function riskZoneToAvoidRectangles(
   zone: RiskZone | AvoidanceRiskZone,
   {
+    maxHighRiskHardAvoidSpanKm = SAFE_ROUTE_HIGH_RISK_HARD_AVOID_MAX_SPAN_KM,
     maxSpanKm = 160,
     paddingMeters = 140
   }: Omit<AreaRiskAvoidRectangleOptions, 'maxRectangles'> = {}
 ): AreaRiskAvoidRectangle[] {
-  if (zone.severity !== 'high' && zone.severity !== 'critical') {
+  const avoidanceSeverity = riskZoneAvoidanceSeverity(zone);
+  if (avoidanceSeverity !== 'high' && avoidanceSeverity !== 'critical') {
     return [];
   }
 
@@ -834,6 +844,17 @@ export function riskZoneToAvoidRectangles(
   const south = clamp(southCoordinate - latitudePadding, -80, 80);
   const north = clamp(northCoordinate + latitudePadding, -80, 80);
   const safeMaxSpanKm = clamp(positiveFiniteNumber(maxSpanKm) ?? 160, 1, 160);
+  const safeHighRiskMaxSpanKm = Math.min(
+    safeMaxSpanKm,
+    clamp(
+      positiveFiniteNumber(maxHighRiskHardAvoidSpanKm) ?? SAFE_ROUTE_HIGH_RISK_HARD_AVOID_MAX_SPAN_KM,
+      0.1,
+      160
+    )
+  );
+  const hardAvoidMaxSpanKm = avoidanceSeverity === 'critical'
+    ? safeMaxSpanKm
+    : safeHighRiskMaxSpanKm;
   const label = cleanOptionalText(zone.title, 140);
 
   return longitudeRangesForPoints(
@@ -849,7 +870,7 @@ export function riskZoneToAvoidRectangles(
     };
     return rectangle.max_lat > rectangle.min_lat &&
       rectangle.max_lon > rectangle.min_lon &&
-      avoidRectangleSpanKm(rectangle) <= safeMaxSpanKm
+      avoidRectangleSpanKm(rectangle) <= hardAvoidMaxSpanKm
       ? rectangle
       : null;
   }).filter((rectangle): rectangle is AreaRiskAvoidRectangle => rectangle !== null);
@@ -862,6 +883,7 @@ function normalizeAreaRiskItem(value: unknown, index: number, feedSource: string
   }
 
   const severity = normalizeSeverity(item.severity, item.riskScore ?? item.risk_score);
+  const avoidanceSeverity = normalizeAvoidanceSeverity(item.severity);
   const colors = severityColors[severity];
   const radiusMeters = normalizeRadius(item.radiusM ?? item.radius_m ?? item.radiusMeters);
   const coordinates = normalizeCoordinates(
@@ -904,6 +926,7 @@ function normalizeAreaRiskItem(value: unknown, index: number, feedSource: string
     title,
     description,
     severity,
+    ...(avoidanceSeverity === 'critical' ? { avoidanceSeverity } : {}),
     category: 'Area Risk',
     coordinate,
     polygonCoordinates: polygonCoordinates.length >= 3 ? polygonCoordinates : undefined,
@@ -932,6 +955,9 @@ function mergeRiskZone(primary: RiskZone, incoming: RiskZone): RiskZone {
       ? primary.description
       : incoming.description,
     severity,
+    ...(primary.avoidanceSeverity === 'critical' || incoming.avoidanceSeverity === 'critical'
+      ? { avoidanceSeverity: 'critical' as const }
+      : {}),
     polygonCoordinates: polygonCoordinates.length >= 3 ? [...polygonCoordinates] : undefined,
     shape: polygonCoordinates.length >= 3 ? 'polygon' : primary.shape,
     radiusMeters: Math.max(primary.radiusMeters, incoming.radiusMeters),
@@ -939,6 +965,19 @@ function mergeRiskZone(primary: RiskZone, incoming: RiskZone): RiskZone {
     strokeColor: colors.stroke,
     fillColor: colors.fill
   };
+}
+
+function normalizeAvoidanceSeverity(value: unknown): RiskZone['avoidanceSeverity'] | undefined {
+  const severity = cleanOptionalText(value, 32)?.toLowerCase();
+  return severity === 'critical' ? 'critical' : undefined;
+}
+
+function riskZoneAvoidanceSeverity(
+  zone: RiskZone | AvoidanceRiskZone
+): RiskSeverity | 'critical' {
+  return zone.avoidanceSeverity === 'critical' || zone.severity === 'critical'
+    ? 'critical'
+    : zone.severity;
 }
 
 function cloneRiskZone(zone: RiskZone): RiskZone {

@@ -116,6 +116,7 @@ export type OperationsRouteRow = {
   metaLabel: string;
   routeId: string | null;
   scheduleLabel: string;
+  statusLabel: string;
   title: string;
   tripId: string | null;
 };
@@ -129,6 +130,21 @@ export type OperationsConvoyRouteOption = {
   statusLabel: string;
   title: string;
   vehicleLabels: string[];
+};
+
+export type OperationsConvoyVehicle = {
+  accessibilityLabel: string;
+  callsign: string;
+  detailLabel: string;
+  id: string;
+  lead: boolean;
+  modelLabel: string;
+  nextEventLabel: string;
+  protectionLabel: string;
+  registrationLabel: string;
+  roleLabel: string;
+  seatLabel: string;
+  statusLabel: string;
 };
 
 export type OperationsConvoyRow = {
@@ -148,6 +164,7 @@ export type OperationsConvoyRow = {
   title: string;
   tripId: string | null;
   vehicleLabels: string[];
+  vehicles: OperationsConvoyVehicle[];
 };
 
 export type OperationsSummaryState = {
@@ -618,7 +635,7 @@ export function createOperationsTitle(tab: OperationsTab): string {
 
 export function createOperationsSubtitle(tab: OperationsTab): string {
   if (tab === "calendar") {
-    return "Scheduled movements synced from SafeRoute.";
+    return "Planned movements";
   }
 
   if (tab === "convoy-management") {
@@ -796,6 +813,7 @@ export function createOfflineCalendarRows(
       metaLabel,
       routeId: null,
       scheduleLabel,
+      statusLabel,
       title: entry.title,
       tripId: null,
     };
@@ -1003,6 +1021,39 @@ export function createConvoyRows(
       const peopleLabels = people.map(
         (person) => `${person.callsign || person.name} · ${toTitleLabel(person.role)}`,
       );
+      const convoyVehicles = vehicles
+        .map((vehicle) => {
+          const detailLabel = [
+            vehicle.year ? String(vehicle.year) : null,
+            vehicle.color,
+            vehicle.trim,
+          ].filter(Boolean).join(" · ") || "Vehicle details pending";
+          const modelLabel = [vehicle.make, vehicle.model].filter(Boolean).join(" ") ||
+            "Assigned vehicle";
+          const registrationLabel = vehicle.registration || "Registration pending";
+          const roleLabel = toTitleLabel(vehicle.vehicle_type);
+          const protectionLabel = toTitleLabel(vehicle.protection_profile);
+          const seatLabel = `${vehicle.seat_count} ${pluralize("seat", vehicle.seat_count)}`;
+          const vehicleStatusLabel = vehicle.is_active ? "Ready" : "Standby";
+          const lead = vehicle.id === trip.lead_vehicle_id;
+          const nextEventLabel = `${scheduleLabel} · ${normalizeLabel(trip.name, "SafeRoute trip")}`;
+
+          return {
+            accessibilityLabel: `${vehicle.callsign}. ${modelLabel}. ${detailLabel}. ${roleLabel}. ${protectionLabel}. ${seatLabel}. ${registrationLabel}. ${vehicleStatusLabel}. Opens vehicle details.`,
+            callsign: vehicle.callsign,
+            detailLabel,
+            id: vehicle.id,
+            lead,
+            modelLabel,
+            nextEventLabel,
+            protectionLabel,
+            registrationLabel,
+            roleLabel,
+            seatLabel,
+            statusLabel: vehicleStatusLabel,
+          };
+        })
+        .sort((left, right) => Number(right.lead) - Number(left.lead));
 
       return {
         id: trip.id || `trip-${index + 1}`,
@@ -1020,6 +1071,7 @@ export function createConvoyRows(
         scheduleLabel,
         tripId: trip.id || null,
         vehicleLabels,
+        vehicles: convoyVehicles,
         accessibilityLabel: `${normalizeLabel(trip.name, "SafeRoute convoy")}. ${statusLabel}. ${scheduleLabel}. ${endpointLabel}. ${durationLabel}. ${metaLabel}. ${manifestLabel}. ${routeLabels.join(", ")}. Opens convoy details.`
       };
     });
@@ -1065,6 +1117,7 @@ function createRouteRowFromAssignment(
     manifestLabel: knownManifestNames ? `${manifestLabel} · ${knownManifestNames}` : manifestLabel,
     routeId: route?.id || null,
     scheduleLabel,
+    statusLabel,
     tripId: trip.id || null,
     accessibilityLabel: `${title}. ${statusLabel}. ${endpointLabel}. ${scheduleLabel}. ${metaLabel}. ${manifestLabel}. ${route ? "Opens route map and details." : "Route map unavailable until this route reference is resolved."}`
   };
@@ -1082,6 +1135,7 @@ function createRouteRowFromSavedRoute(
   const metaLabel = `${operation} · ${convoy} · ${route.route.eta} · ${route.route.distance}`;
   const scheduleLabel = fallbackScheduleLabel || (route.status === "planned" ? "Schedule pending" : route.updatedAtLabel);
   const manifestLabel = "Manifest pending";
+  const statusLabel = toTitleLabel(route.status);
 
   return {
     id: route.id,
@@ -1092,6 +1146,7 @@ function createRouteRowFromSavedRoute(
     manifestLabel,
     routeId: route.id,
     scheduleLabel,
+    statusLabel,
     tripId: null,
     accessibilityLabel: `${title}. ${badgeLabel}. ${endpointLabel}. ${metaLabel}. ${scheduleLabel}. ${manifestLabel}. Opens route map and details.`
   };
@@ -1146,6 +1201,7 @@ function createFallbackConvoyRows(routes: SavedSafeRoutePlan[]): OperationsConvo
       scheduleLabel: "Schedule pending",
       tripId: null,
       vehicleLabels: [],
+      vehicles: [],
       accessibilityLabel: `${convoy}. ${metaLabel}. ${manifestLabel}. ${routeLabels.join(", ")}. Opens convoy details.`
     };
   });

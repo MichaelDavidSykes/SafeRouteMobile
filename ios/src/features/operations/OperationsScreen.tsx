@@ -1,4 +1,13 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
+import {
+  CalendarDays,
+  CarFront,
+  ChevronDown,
+  Layers3,
+  Route as RouteIcon,
+  UsersRound,
+  X,
+} from "lucide-react-native";
 import {
   AccessibilityInfo,
   ActivityIndicator,
@@ -24,7 +33,6 @@ import {
 } from "../routes/routeListErrors";
 import { hasUsableRoutePlan } from "../routes/offlineRouteCacheCore";
 import {
-  createRouteListMapReturnState,
   createRouteListSignOutState
 } from "../routes/routeListUiState";
 import { colors } from "../../theme";
@@ -62,9 +70,7 @@ import {
   createOperationsOfflineReviewPresentation,
   createOperationsOfflineCalendarSavingPresentation,
   createOperationsSubtitle,
-  createOperationsSummaryState,
   createOperationsSyncWarningState,
-  createOperationsTabOptions,
   createOperationsTitle,
   createOperationsWorkspaceOptions,
   createOperationsWorkspaceState,
@@ -74,6 +80,7 @@ import {
   createPlannedRouteRows,
   shouldShowOperationsWorkspaceSelector,
   type OperationsConvoyRow,
+  type OperationsConvoyVehicle,
   type OperationsOfflineCalendarRemovalState,
   type OperationsOfflineCalendarSavingState,
   type OperationsRouteRow,
@@ -133,6 +140,7 @@ interface OperationsScreenProps {
   onBackToMap: () => void;
   onRetryWorkspaceCatalog: () => void;
   onConvoySelectionChange?: (convoyId: string | null) => void;
+  onDetailVisibilityChange?: (visible: boolean) => void;
   onSelectRoute: (
     route: SavedSafeRoutePlan,
     sourceTab: OperationsTab,
@@ -166,9 +174,9 @@ export function OperationsScreen({
   cacheIdentity,
   initialConvoyId = null,
   initialTab,
-  onBackToMap,
   onRetryWorkspaceCatalog,
   onConvoySelectionChange,
+  onDetailVisibilityChange,
   onSelectRoute,
   onSessionExpired,
   onSignOut,
@@ -222,6 +230,14 @@ export function OperationsScreen({
   const [selectedConvoyId, setSelectedConvoyId] = useState<string | null>(
     initialConvoyId,
   );
+  const [selectedCalendarRowId, setSelectedCalendarRowId] = useState<string | null>(null);
+  const [selectedVehicle, setSelectedVehicle] = useState<{
+    convoyId: string;
+    vehicleId: string;
+  } | null>(null);
+  const [collapsedConvoyIds, setCollapsedConvoyIds] = useState<Set<string>>(
+    () => new Set(),
+  );
   const [detailLoadingId, setDetailLoadingId] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
@@ -231,6 +247,7 @@ export function OperationsScreen({
   const detailLoadingIdRef = useRef<string | null>(null);
   const operationsListRef = useRef<ScrollView | null>(null);
   const convoyDetailHeadingRef = useRef<Text | null>(null);
+  const calendarDetailHeadingRef = useRef<Text | null>(null);
   const offlineCalendarRemovalRevisionRef = useRef(0);
   const offlineCalendarSavingRevisionRef = useRef(0);
   const offlineCalendarSavingPendingRef = useRef<{
@@ -308,6 +325,8 @@ export function OperationsScreen({
     setSelectedConvoyId(
       initialTab === "convoy-management" ? initialConvoyId : null,
     );
+    setSelectedCalendarRowId(null);
+    setSelectedVehicle(null);
     if (initialTab !== "convoy-management" && initialConvoyId) {
       onConvoySelectionChange?.(null);
     }
@@ -647,6 +666,8 @@ export function OperationsScreen({
     setOfflineCopyStoredAtMs(null);
     setErrorState(null);
     setSelectedConvoyId(null);
+    setSelectedCalendarRowId(null);
+    setCollapsedConvoyIds(new Set());
     onConvoySelectionChange?.(null);
     setDetailLoadingId(null);
     setLoading(true);
@@ -714,7 +735,6 @@ export function OperationsScreen({
     [],
   );
 
-  const tabOptions = useMemo(() => createOperationsTabOptions(activeTab), [activeTab]);
   const workspaceOptions = useMemo(
     () => createOperationsWorkspaceOptions(availableWorkspaces, selectedWorkspaceId),
     [availableWorkspaces, selectedWorkspaceId]
@@ -789,6 +809,36 @@ export function OperationsScreen({
     () => convoyRows.find((row) => row.id === selectedConvoyId) || null,
     [convoyRows, selectedConvoyId],
   );
+  const selectedCalendarRow = useMemo(
+    () => calendarRows.find((row) => row.id === selectedCalendarRowId) || null,
+    [calendarRows, selectedCalendarRowId],
+  );
+  const selectedVehicleContext = useMemo(() => {
+    if (!selectedVehicle) {
+      return null;
+    }
+
+    const convoy = convoyRows.find((row) => row.id === selectedVehicle.convoyId);
+    const vehicle = convoy?.vehicles.find((item) => item.id === selectedVehicle.vehicleId);
+    return convoy && vehicle ? { convoy, vehicle } : null;
+  }, [convoyRows, selectedVehicle]);
+  const calendarGroups = useMemo(
+    () => createCalendarGroups(calendarRows),
+    [calendarRows],
+  );
+
+  useEffect(() => {
+    onDetailVisibilityChange?.(Boolean(
+      selectedCalendarRow || selectedConvoy || selectedVehicleContext,
+    ));
+
+    return () => onDetailVisibilityChange?.(false);
+  }, [
+    onDetailVisibilityChange,
+    selectedCalendarRow,
+    selectedConvoy,
+    selectedVehicleContext,
+  ]);
 
   useEffect(() => {
     if (!selectedConvoy) {
@@ -805,10 +855,21 @@ export function OperationsScreen({
 
     return () => cancelAnimationFrame(frame);
   }, [selectedConvoy?.id]);
-  const summaryState = useMemo(
-    () => createOperationsSummaryState(visibleRoutes, visibleOperationsState),
-    [visibleOperationsState, visibleRoutes]
-  );
+
+  useEffect(() => {
+    if (!selectedCalendarRow) {
+      return;
+    }
+
+    const frame = requestAnimationFrame(() => {
+      const headingNode = findNodeHandle(calendarDetailHeadingRef.current);
+      if (headingNode) {
+        AccessibilityInfo.setAccessibilityFocus(headingNode);
+      }
+    });
+
+    return () => cancelAnimationFrame(frame);
+  }, [selectedCalendarRow?.id]);
   const offlineReviewStatus = networkChecking
     ? "checking-connection"
     : !online
@@ -831,11 +892,12 @@ export function OperationsScreen({
           offlineReviewStatus,
         )
       : createOperationsEmptyState(activeTab));
-  const mapReturnState = createRouteListMapReturnState();
   const signOutState = createRouteListSignOutState(userEmail);
   const sessionNoticeState = createSessionNoticeState(sessionNotice);
   const title = createOperationsTitle(activeTab);
-  const subtitle = createOperationsSubtitle(activeTab);
+  const subtitle = activeTab === "convoy-management"
+    ? `${convoyRows.length} ${convoyRows.length === 1 ? "convoy" : "convoys"} · ${convoyRows.reduce((total, row) => total + row.vehicles.length, 0)} vehicles`
+    : createOperationsSubtitle(activeTab);
   const loadingLabel =
     !protectedRequestsAvailable && networkChecking
       ? "Checking connection and securely saved Operations data."
@@ -1394,23 +1456,9 @@ export function OperationsScreen({
       <View style={styles.header}>
         <View style={styles.headerTopRow}>
           <View style={styles.headerCopy}>
-            <Text style={styles.eyebrow}>SafeRoute · View only</Text>
             <Text numberOfLines={1} style={styles.title}>{title}</Text>
           </View>
           <View style={styles.headerActions}>
-            <Pressable
-              accessibilityHint={mapReturnState.accessibilityHint}
-              accessibilityLabel={mapReturnState.accessibilityLabel}
-              accessibilityRole="button"
-              testID={uiTestIds.operationsMapReturn}
-              style={({ pressed }) => [
-                styles.mapButton,
-                pressed ? styles.mapButtonPressed : null
-              ]}
-              onPress={onBackToMap}
-            >
-              <Text style={styles.mapButtonText}>{mapReturnState.label}</Text>
-            </Pressable>
             <Pressable
               accessibilityHint={signOutState.signOutAccessibilityHint}
               accessibilityLabel={signOutState.signOutAccessibilityLabel}
@@ -1441,39 +1489,8 @@ export function OperationsScreen({
         </View>
       ) : null}
 
-      <View style={styles.tabs}>
-        {tabOptions.map((tab) => (
-          <Pressable
-            key={tab.id}
-            accessibilityLabel={tab.accessibilityLabel}
-            accessibilityRole="tab"
-            accessibilityState={{ selected: tab.selected }}
-            testID={uiTestIds.operationsTab(tab.id)}
-            style={({ pressed }) => [
-              styles.tab,
-              tab.selected ? styles.tabSelected : null,
-              pressed ? styles.tabPressed : null
-            ]}
-            onPress={() => {
-              setClientMenuOpen(false);
-              setSelectedConvoyId(null);
-              onConvoySelectionChange?.(null);
-              setErrorState(null);
-              detailRevisionRef.current += 1;
-              detailLoadingIdRef.current = null;
-              setDetailLoadingId(null);
-              activeTabRef.current = tab.id;
-              setActiveTab(tab.id);
-            }}
-          >
-            <Text style={[styles.tabText, tab.selected ? styles.tabTextSelected : null]}>
-              {tab.label}
-            </Text>
-          </Pressable>
-        ))}
-      </View>
-
-      {shouldShowOperationsWorkspaceSelector(workspaceOptions) ? (
+      {(workspaceAlternativeSelectionPending || workspaceSelectionFailed) &&
+      shouldShowOperationsWorkspaceSelector(workspaceOptions) ? (
         <View style={styles.clientFilter}>
           <Pressable
             ref={workspaceAccessFocusTargetRef}
@@ -1852,27 +1869,6 @@ export function OperationsScreen({
         </Pressable>
       ) : null}
 
-      {!workspaceState &&
-      !contentLoading &&
-      !ownedErrorState &&
-      protectedRequestsAvailable &&
-      workspaceOwnsResults &&
-      (visibleOperationsState !== null || visibleRoutes.length > 0) &&
-      !ownedShowingOfflineCopy ? (
-        <View
-          accessible
-          accessibilityLabel={summaryState.accessibilityLabel}
-          style={styles.summaryStrip}
-        >
-          {summaryState.metrics.map((metric) => (
-            <View key={metric.label} style={styles.summaryMetric}>
-              <Text style={styles.summaryValue}>{metric.value}</Text>
-              <Text style={styles.summaryLabel}>{metric.label}</Text>
-            </View>
-          ))}
-        </View>
-      ) : null}
-
       {!workspaceState && workspaceOwnsResults && operationsWarning ? (
         <View
           accessibilityRole="alert"
@@ -1987,51 +1983,51 @@ export function OperationsScreen({
                 ))
               : null}
             {activeTab === "calendar"
-              ? calendarRows.map((row) => (
-                  <OperationsRouteCard
-                    calendar
-                    key={row.id}
-                    interactionLocked={Boolean(detailLoadingId)}
-                    loading={detailLoadingId === row.id}
-                    row={row}
-                    onPress={() => void handleSelectOperationsRoute(row)}
-                  />
+              ? calendarGroups.map((group) => (
+                  <View key={group.dateLabel} style={styles.calendarGroup}>
+                    <Text accessibilityRole="header" style={styles.calendarGroupTitle}>
+                      {group.dateLabel}
+                    </Text>
+                    <View style={styles.calendarGroupRows}>
+                      {group.rows.map(({ row, timeLabel }) => (
+                        <OperationsCalendarCard
+                          key={row.id}
+                          interactionLocked={Boolean(detailLoadingId)}
+                          row={row}
+                          timeLabel={timeLabel}
+                          onPress={() => setSelectedCalendarRowId(row.id)}
+                        />
+                      ))}
+                    </View>
+                  </View>
                 ))
               : null}
             {activeTab === "convoy-management"
-              ? selectedConvoy
-                ? (
-                    <OperationsConvoyDetail
-                      detailLoadingId={detailLoadingId}
-                      headingRef={(node) => {
-                        convoyDetailHeadingRef.current = node;
-                      }}
-                      interactionLocked={Boolean(detailLoadingId)}
-                      row={selectedConvoy}
-                      onBack={() => {
-                        detailRevisionRef.current += 1;
-                        detailLoadingIdRef.current = null;
-                        setDetailLoadingId(null);
-                        setSelectedConvoyId(null);
-                        onConvoySelectionChange?.(null);
-                      }}
-                      onSelectRoute={(routeId, title, index) =>
-                        void handleSelectOperationsRoute({
-                          convoyId: selectedConvoy.id,
-                          id: `${selectedConvoy.id}-${routeId || "unavailable"}-${index}`,
-                          routeId,
-                          title,
-                        })
-                      }
-                    />
-                  )
-                : convoyRows.map((row) => (
+              ? convoyRows.map((row, index) => (
                     <OperationsConvoyCard
                       key={row.id}
+                      expanded={!collapsedConvoyIds.has(row.id)}
+                      groupIndex={index}
                       row={row}
+                      onToggle={() => {
+                        setCollapsedConvoyIds((current) => {
+                          const next = new Set(current);
+                          if (next.has(row.id)) {
+                            next.delete(row.id);
+                          } else {
+                            next.add(row.id);
+                          }
+                          return next;
+                        });
+                      }}
                       onPress={() => {
                         setSelectedConvoyId(row.id);
                         onConvoySelectionChange?.(row.id);
+                      }}
+                      onVehiclePress={(vehicleId) => {
+                        setSelectedConvoyId(null);
+                        onConvoySelectionChange?.(null);
+                        setSelectedVehicle({ convoyId: row.id, vehicleId });
                       }}
                     />
                   ))
@@ -2056,18 +2052,68 @@ export function OperationsScreen({
           </ScrollView>
         )
       ) : null}
+
+      {!workspaceState && !ownedErrorState && activeTab === "calendar" && selectedCalendarRow ? (
+        <OperationsCalendarDetail
+          headingRef={(node) => {
+            calendarDetailHeadingRef.current = node;
+          }}
+          interactionLocked={Boolean(detailLoadingId)}
+          loading={detailLoadingId === selectedCalendarRow.id}
+          row={selectedCalendarRow}
+          onBack={() => {
+            detailRevisionRef.current += 1;
+            detailLoadingIdRef.current = null;
+            setDetailLoadingId(null);
+            setSelectedCalendarRowId(null);
+          }}
+          onSelectRoute={() => void handleSelectOperationsRoute(selectedCalendarRow)}
+        />
+      ) : null}
+
+      {!workspaceState && !ownedErrorState && activeTab === "convoy-management" && selectedConvoy ? (
+        <OperationsConvoyDetail
+          detailLoadingId={detailLoadingId}
+          headingRef={(node) => {
+            convoyDetailHeadingRef.current = node;
+          }}
+          interactionLocked={Boolean(detailLoadingId)}
+          row={selectedConvoy}
+          onBack={() => {
+            detailRevisionRef.current += 1;
+            detailLoadingIdRef.current = null;
+            setDetailLoadingId(null);
+            setSelectedConvoyId(null);
+            onConvoySelectionChange?.(null);
+          }}
+          onSelectRoute={(routeId, title, index) =>
+            void handleSelectOperationsRoute({
+              convoyId: selectedConvoy.id,
+              id: `${selectedConvoy.id}-${routeId || "unavailable"}-${index}`,
+              routeId,
+              title,
+            })
+          }
+        />
+      ) : null}
+
+      {!workspaceState && !ownedErrorState && activeTab === "convoy-management" && selectedVehicleContext ? (
+        <OperationsVehicleDetail
+          convoy={selectedVehicleContext.convoy}
+          vehicle={selectedVehicleContext.vehicle}
+          onBack={() => setSelectedVehicle(null)}
+        />
+      ) : null}
     </SafeAreaView>
   );
 }
 
 function OperationsRouteCard({
-  calendar = false,
   interactionLocked,
   loading,
   onPress,
   row,
 }: {
-  calendar?: boolean;
   interactionLocked: boolean;
   loading: boolean;
   onPress: () => void;
@@ -2100,16 +2146,14 @@ function OperationsRouteCard({
           <ActivityIndicator color={colors.appleBlue} size="small" />
         ) : (
           <View style={styles.badge}>
-            <Text style={styles.badgeText}>{calendar ? row.scheduleLabel : row.badgeLabel}</Text>
+            <Text style={styles.badgeText}>{row.badgeLabel}</Text>
           </View>
         )}
       </View>
       <Text numberOfLines={1} style={styles.routeEndpoint}>{row.endpointLabel}</Text>
       <Text numberOfLines={2} style={styles.routeMeta}>{row.metaLabel}</Text>
       <Text numberOfLines={2} style={styles.routeManifest}>{row.manifestLabel}</Text>
-      {!calendar ? (
-        <Text numberOfLines={1} style={styles.routeMeta}>{row.scheduleLabel}</Text>
-      ) : null}
+      <Text numberOfLines={1} style={styles.routeMeta}>{row.scheduleLabel}</Text>
       <Text style={styles.openDetailText}>
         {row.routeId ? "View map and details  ›" : "Map details unavailable"}
       </Text>
@@ -2117,46 +2161,307 @@ function OperationsRouteCard({
   );
 }
 
-function OperationsConvoyCard({
+type OperationsCalendarGroup = {
+  dateLabel: string;
+  rows: Array<{
+    row: OperationsRouteRow;
+    timeLabel: string;
+  }>;
+};
+
+function createCalendarGroups(rows: OperationsRouteRow[]): OperationsCalendarGroup[] {
+  const groups = new Map<string, OperationsCalendarGroup["rows"]>();
+
+  rows.forEach((row) => {
+    const { dateLabel, timeLabel } = splitScheduleLabel(row.scheduleLabel);
+    groups.set(dateLabel, [...(groups.get(dateLabel) || []), { row, timeLabel }]);
+  });
+
+  return Array.from(groups, ([dateLabel, groupedRows]) => ({
+    dateLabel,
+    rows: groupedRows,
+  }));
+}
+
+function splitScheduleLabel(scheduleLabel: string): {
+  dateLabel: string;
+  timeLabel: string;
+} {
+  const separator = " · ";
+  const separatorIndex = scheduleLabel.lastIndexOf(separator);
+  if (separatorIndex < 0) {
+    return {
+      dateLabel: scheduleLabel || "Schedule pending",
+      timeLabel: "TBD",
+    };
+  }
+
+  return {
+    dateLabel: scheduleLabel.slice(0, separatorIndex),
+    timeLabel: scheduleLabel.slice(separatorIndex + separator.length),
+  };
+}
+
+function OperationsCalendarCard({
+  interactionLocked,
   onPress,
   row,
+  timeLabel,
 }: {
+  interactionLocked: boolean;
   onPress: () => void;
-  row: OperationsConvoyRow;
+  row: OperationsRouteRow;
+  timeLabel: string;
 }) {
   return (
     <Pressable
-      accessibilityLabel={row.accessibilityLabel}
       accessibilityHint={
-        row.manifestAvailable
-          ? "Opens the complete read-only convoy manifest and its route choices."
-          : "Opens available route choices. Convoy manifest details need an Operations sync."
+        row.routeId
+          ? "Opens movement details with a Map action."
+          : "Opens saved movement details. A current authorized route link is required for the map."
       }
+      accessibilityLabel={row.accessibilityLabel}
       accessibilityRole="button"
-      testID={uiTestIds.operationsConvoyCard(row.id)}
+      accessibilityState={{ disabled: interactionLocked }}
+      disabled={interactionLocked}
+      testID={uiTestIds.operationsRouteCard(row.id)}
       style={({ pressed }) => [
-        styles.routeCard,
+        styles.calendarCard,
         pressed ? styles.routeCardPressed : null,
       ]}
       onPress={onPress}
     >
-      <View style={styles.routeHeader}>
-        <Text numberOfLines={2} style={styles.routeTitle}>{row.title}</Text>
-        <View style={styles.badge}>
-          <Text style={styles.badgeText}>{row.statusLabel}</Text>
+      <View style={styles.calendarTimeColumn}>
+        <Text numberOfLines={1} style={styles.calendarTime}>{timeLabel}</Text>
+        <Text style={styles.calendarTimeEyebrow}>DEPART</Text>
+      </View>
+      <View style={styles.calendarDivider} />
+      <View style={styles.calendarTripContent}>
+        <View style={styles.calendarTripHeader}>
+          <Text numberOfLines={2} style={styles.calendarTripTitle}>{row.title}</Text>
+          <OperationsStatusChip label={row.statusLabel} />
+        </View>
+        <Text numberOfLines={2} style={styles.calendarEndpoint}>{row.endpointLabel}</Text>
+        <Text numberOfLines={2} style={styles.calendarCrew}>{row.manifestLabel}</Text>
+      </View>
+    </Pressable>
+  );
+}
+
+function OperationsConvoyCard({
+  expanded,
+  groupIndex,
+  onPress,
+  onToggle,
+  onVehiclePress,
+  row,
+}: {
+  expanded: boolean;
+  groupIndex: number;
+  onPress: () => void;
+  onToggle: () => void;
+  onVehiclePress: (vehicleId: string) => void;
+  row: OperationsConvoyRow;
+}) {
+  return (
+    <View style={styles.convoyGroup}>
+      <Pressable
+        accessibilityHint={expanded ? "Collapses this convoy." : "Expands this convoy."}
+        accessibilityLabel={`${row.title}. ${row.metaLabel}. ${expanded ? "Expanded" : "Collapsed"}.`}
+        accessibilityRole="button"
+        accessibilityState={{ expanded }}
+        style={({ pressed }) => [
+          styles.convoyGroupHeader,
+          pressed ? styles.routeCardPressed : null,
+        ]}
+        onPress={onToggle}
+      >
+        <View style={[styles.convoyIconTile, groupIndex > 0 ? styles.convoyIconTileSecondary : null]}>
+          <Layers3
+            accessibilityElementsHidden
+            color={groupIndex === 0 ? colors.appleBlue : colors.info}
+            size={22}
+            strokeWidth={1.8}
+          />
+        </View>
+        <View style={styles.convoyGroupHeadingAction}>
+          <Text numberOfLines={2} style={styles.convoyGroupTitle}>{row.title}</Text>
+          <Text numberOfLines={1} style={styles.convoyGroupMeta}>
+            {row.vehicles.length
+              ? `${row.vehicles.length} ${row.vehicles.length === 1 ? "vehicle" : "vehicles"} · ${row.routeOptions.length} ${row.routeOptions.length === 1 ? "route" : "routes"}`
+              : row.metaLabel}
+          </Text>
+        </View>
+        <OperationsStatusChip label={row.statusLabel} />
+        <View style={styles.convoyDisclosure}>
+          <ChevronDown
+            accessibilityElementsHidden
+            color={colors.mutedSoft}
+            size={17}
+            strokeWidth={2.3}
+            style={{ transform: [{ rotate: expanded ? "180deg" : "0deg" }] }}
+          />
+        </View>
+      </Pressable>
+
+      {expanded ? (
+        <View style={styles.convoyExpandedContent}>
+          {row.vehicles.map((vehicle) => (
+            <OperationsVehicleCard
+              key={vehicle.id}
+              vehicle={vehicle}
+              onPress={() => onVehiclePress(vehicle.id)}
+            />
+          ))}
+          {!row.vehicles.length ? (
+            <View style={styles.convoyMovementSummary}>
+              <Text style={styles.convoySchedule}>{row.scheduleLabel}</Text>
+              <Text numberOfLines={2} style={styles.convoyEndpoint}>{row.endpointLabel}</Text>
+              <Text style={styles.convoyMeta}>{row.manifestLabel}</Text>
+            </View>
+          ) : null}
+          <Pressable
+            accessibilityLabel={`Open ${row.title} convoy details`}
+            accessibilityRole="button"
+            testID={uiTestIds.operationsConvoyCard(row.id)}
+            style={({ pressed }) => [
+              styles.convoyDetailAction,
+              pressed ? styles.routeCardPressed : null,
+            ]}
+            onPress={onPress}
+          >
+            <Text style={styles.convoyDetailActionText}>Convoy overview</Text>
+          </Pressable>
+        </View>
+      ) : null}
+    </View>
+  );
+}
+
+function OperationsVehicleCard({
+  onPress,
+  vehicle,
+}: {
+  onPress: () => void;
+  vehicle: OperationsConvoyVehicle;
+}) {
+  return (
+    <Pressable
+      accessibilityHint="Opens vehicle details and its next planned trips."
+      accessibilityLabel={vehicle.accessibilityLabel}
+      accessibilityRole="button"
+      testID={uiTestIds.operationsVehicleCard(vehicle.id)}
+      style={({ pressed }) => [
+        styles.vehicleCard,
+        pressed ? styles.routeCardPressed : null,
+      ]}
+      onPress={onPress}
+    >
+      <View style={styles.vehicleHeader}>
+        <View style={styles.vehicleIconTile}>
+          <CarFront accessibilityElementsHidden color={colors.inkSoft} size={25} strokeWidth={1.7} />
+          <View style={styles.vehicleStatusDot} />
+        </View>
+        <View style={styles.vehicleCopy}>
+          <View style={styles.vehicleTitleRow}>
+            <Text numberOfLines={1} style={styles.vehicleCallsign}>{vehicle.callsign}</Text>
+            {vehicle.lead ? <Text style={styles.vehicleLeadTag}>LEAD</Text> : null}
+          </View>
+          <Text numberOfLines={1} style={styles.vehicleModel}>{vehicle.modelLabel}</Text>
+          <Text numberOfLines={1} style={styles.vehicleDetail}>{vehicle.detailLabel}</Text>
+        </View>
+        <View style={styles.vehicleStatusCopy}>
+          <Text numberOfLines={1} style={styles.vehicleStatus}>{vehicle.statusLabel}</Text>
+          <Text numberOfLines={1} style={styles.vehicleRegistration}>{vehicle.registrationLabel}</Text>
         </View>
       </View>
-      <Text style={styles.routeMeta}>{row.metaLabel}</Text>
-      <Text numberOfLines={2} style={styles.routeManifest}>{row.manifestLabel}</Text>
-      <View style={styles.convoyRoutes}>
-        {row.routeLabels.map((routeLabel, index) => (
-          <Text key={`${routeLabel}-${index}`} numberOfLines={1} style={styles.convoyRouteText}>
-            {routeLabel}
-          </Text>
-        ))}
+      <View style={styles.vehicleTags}>
+        <Text style={styles.vehicleTag}>{vehicle.roleLabel}</Text>
+        <Text style={styles.vehicleTag}>{vehicle.protectionLabel}</Text>
+        <Text style={styles.vehicleTag}>{vehicle.seatLabel}</Text>
       </View>
-      <Text style={styles.openDetailText}>View convoy details  ›</Text>
+      <View style={styles.vehicleNextEvent}>
+        <CalendarDays accessibilityElementsHidden color={colors.appleBlue} size={17} strokeWidth={1.9} />
+        <View style={styles.vehicleNextEventCopy}>
+          <Text style={styles.vehicleNextEventEyebrow}>NEXT EVENT</Text>
+          <Text numberOfLines={2} style={styles.vehicleNextEventValue}>{vehicle.nextEventLabel}</Text>
+        </View>
+      </View>
     </Pressable>
+  );
+}
+
+function OperationsCalendarDetail({
+  headingRef,
+  interactionLocked,
+  loading,
+  onBack,
+  onSelectRoute,
+  row,
+}: {
+  headingRef: (node: Text | null) => void;
+  interactionLocked: boolean;
+  loading: boolean;
+  onBack: () => void;
+  onSelectRoute: () => void;
+  row: OperationsRouteRow;
+}) {
+  const mapDisabled = interactionLocked || !row.routeId;
+  const { dateLabel, timeLabel } = splitScheduleLabel(row.scheduleLabel);
+
+  return (
+    <OperationsDetailSheet
+      accessibilityLabel={`${row.title} movement details`}
+      eyebrow="MOVEMENT DETAILS"
+      headingRef={headingRef}
+      icon={<RouteIcon accessibilityElementsHidden color={colors.appleBlue} size={28} strokeWidth={1.9} />}
+      statusLabel={row.statusLabel}
+      subtitle={`${dateLabel} · ${timeLabel}`}
+      testID="safe-route-operations-calendar-detail"
+      title={row.title}
+      onClose={onBack}
+    >
+      <View style={styles.calendarDetailSchedule}>
+        <View style={styles.calendarDetailTimeBlock}>
+          <Text style={styles.calendarTimeEyebrow}>DEPART</Text>
+          <Text style={styles.calendarDetailTime}>{timeLabel}</Text>
+        </View>
+        <Text style={styles.calendarDetailDate}>{dateLabel}</Text>
+      </View>
+      <OperationsDetailFact label="Route" value={row.endpointLabel} />
+      <OperationsDetailFact label="Trip" value={row.metaLabel} />
+      <OperationsDetailFact label="Crew" value={row.manifestLabel} />
+      <Pressable
+        accessibilityHint={
+          row.routeId
+            ? "Opens the route map, risk information, checkpoints, and route details."
+            : "A current authorized route link and connection are required."
+        }
+        accessibilityLabel={row.routeId ? `Map for ${row.title}` : `Map unavailable for ${row.title}`}
+        accessibilityRole="button"
+        accessibilityState={{ busy: loading, disabled: mapDisabled }}
+        disabled={mapDisabled}
+        style={({ pressed }) => [
+          styles.sheetMapAction,
+          mapDisabled ? styles.sheetMapActionDisabled : null,
+          pressed ? styles.sheetMapActionPressed : null,
+        ]}
+        onPress={onSelectRoute}
+      >
+        {loading ? (
+          <ActivityIndicator color={colors.surface} size="small" />
+        ) : (
+          <Text
+            style={[
+              styles.sheetMapActionText,
+              mapDisabled ? styles.sheetMapActionTextDisabled : null,
+            ]}
+          >
+            {row.routeId ? "Map" : "Map unavailable"}
+          </Text>
+        )}
+      </Pressable>
+    </OperationsDetailSheet>
   );
 }
 
@@ -2176,60 +2481,27 @@ function OperationsConvoyDetail({
   row: OperationsConvoyRow;
 }) {
   return (
-    <View
+    <OperationsDetailSheet
+      accessibilityLabel={`${row.title} convoy details`}
+      closeTestID={uiTestIds.operationsConvoyDetailBack}
+      eyebrow="CONVOY HANDOFF"
+      headingRef={headingRef}
+      icon={<Layers3 accessibilityElementsHidden color={colors.appleBlue} size={28} strokeWidth={1.9} />}
+      statusLabel={row.statusLabel}
+      subtitle={row.metaLabel}
       testID={uiTestIds.operationsConvoyDetail}
-      style={styles.convoyDetail}
+      title={row.title}
+      onClose={onBack}
     >
-      <Pressable
-        accessibilityLabel="Return to convoys"
-        accessibilityRole="button"
-        testID={uiTestIds.operationsConvoyDetailBack}
-        style={({ pressed }) => [
-          styles.convoyDetailBack,
-          pressed ? styles.routeCardPressed : null,
-        ]}
-        onPress={onBack}
-      >
-        <Text style={styles.convoyDetailBackText}>‹ Convoys</Text>
-      </Pressable>
-
-      <View style={styles.convoyDetailHeader}>
-        <Text
-          accessible
-          accessibilityLabel={`${row.title} convoy details`}
-          accessibilityRole="header"
-          ref={headingRef}
-          style={styles.convoyDetailTitle}
-        >
-          {row.title}
-        </Text>
-        <View style={styles.badge}>
-          <Text style={styles.badgeText}>{row.statusLabel}</Text>
-        </View>
+      <View style={styles.convoyDetailOverview}>
+        <OperationsDetailFact label="Departure" value={row.scheduleLabel} />
+        <OperationsDetailFact label="Route" value={row.endpointLabel} />
+        <OperationsDetailFact label="Window" value={row.durationLabel} />
+        <OperationsDetailFact label="Manifest" value={row.metaLabel} />
       </View>
-      <Text style={styles.convoyDetailMeta}>{row.scheduleLabel}</Text>
-      <Text style={styles.convoyDetailMeta}>{row.endpointLabel}</Text>
-      <Text style={styles.convoyDetailMeta}>{row.durationLabel}</Text>
-      <Text style={styles.convoyDetailMeta}>{row.metaLabel}</Text>
 
       {row.manifestAvailable ? (
-        <>
-          <OperationsDetailSection
-            emptyLabel="No lead vehicle assigned"
-            labels={[row.leadVehicleLabel]}
-            title="Lead vehicle"
-          />
-          <OperationsDetailSection
-            emptyLabel="No vehicles assigned"
-            labels={row.vehicleLabels}
-            title="Vehicles"
-          />
-          <OperationsDetailSection
-            emptyLabel="No people assigned"
-            labels={row.peopleLabels}
-            title="People"
-          />
-        </>
+        <OperationsAssignmentCards row={row} />
       ) : (
         <OperationsDetailSection
           emptyLabel="Manifest unavailable. Refresh or reconnect to load assigned people and vehicles."
@@ -2239,7 +2511,7 @@ function OperationsConvoyDetail({
       )}
 
       <View style={styles.convoyDetailSection}>
-        <Text style={styles.convoyDetailSectionTitle}>Routes</Text>
+        <Text style={styles.convoyDetailSectionTitle}>Route maps</Text>
         {row.routeOptions.length ? row.routeOptions.map((option, index) => {
           const optionId = `${option.routeId || "unavailable"}-${index}`;
           const selectionId = `${row.id}-${optionId}`;
@@ -2299,7 +2571,7 @@ function OperationsConvoyDetail({
                 <ActivityIndicator color={colors.appleBlue} size="small" />
               ) : (
                 <Text style={styles.convoyRouteActionLabel}>
-                  {option.routeId ? "View map  ›" : "Unavailable"}
+                  {option.routeId ? "Map" : "Unavailable"}
                 </Text>
               )}
             </Pressable>
@@ -2308,6 +2580,317 @@ function OperationsConvoyDetail({
           <Text style={styles.convoyDetailEmpty}>No routes assigned.</Text>
         )}
       </View>
+    </OperationsDetailSheet>
+  );
+}
+
+function OperationsVehicleDetail({
+  convoy,
+  onBack,
+  vehicle,
+}: {
+  convoy: OperationsConvoyRow;
+  onBack: () => void;
+  vehicle: OperationsConvoyVehicle;
+}) {
+  return (
+    <OperationsDetailSheet
+      accessibilityLabel={`${vehicle.callsign} vehicle details`}
+      closeTestID={uiTestIds.operationsVehicleDetailDone}
+      eyebrow={vehicle.lead ? "LEAD VEHICLE" : "ASSIGNED VEHICLE"}
+      headingRef={() => undefined}
+      icon={<CarFront accessibilityElementsHidden color={colors.inkSoft} size={29} strokeWidth={1.8} />}
+      statusLabel={vehicle.statusLabel}
+      subtitle={`${vehicle.modelLabel} · ${convoy.title}`}
+      testID={uiTestIds.operationsVehicleDetail}
+      title={vehicle.callsign}
+      onClose={onBack}
+    >
+      <View style={styles.vehicleSpecGrid}>
+        <OperationsVehicleSpec label="Role" value={vehicle.roleLabel} />
+        <OperationsVehicleSpec label="Protection" value={vehicle.protectionLabel} />
+        <OperationsVehicleSpec label="Capacity" value={vehicle.seatLabel} />
+        <OperationsVehicleSpec label="Registration" value={vehicle.registrationLabel} mono />
+      </View>
+
+      <View style={styles.vehicleTripsSection}>
+        <Text style={styles.convoyDetailSectionTitle}>Next planned trips</Text>
+        {convoy.routeOptions.length ? convoy.routeOptions.map((route, index) => (
+          <View key={`${route.routeId || route.title}-${index}`} style={styles.vehicleTripRow}>
+            <View style={styles.vehicleTripDateTile}>
+              <Text style={styles.vehicleTripDateText}>
+                {route.scheduleLabel === "Unscheduled" ? "TBD" : String(index + 1).padStart(2, "0")}
+              </Text>
+            </View>
+            <View style={styles.vehicleCopy}>
+              <Text numberOfLines={1} style={styles.vehicleTripTitle}>{route.title}</Text>
+              <Text numberOfLines={2} style={styles.vehicleTripMeta}>
+                {route.scheduleLabel} · {vehicle.roleLabel}
+              </Text>
+            </View>
+          </View>
+        )) : (
+          <Text style={styles.convoyDetailEmpty}>No planned trips.</Text>
+        )}
+      </View>
+
+      <Pressable
+        accessibilityLabel="Done viewing vehicle details"
+        accessibilityRole="button"
+        style={({ pressed }) => [
+          styles.vehicleDoneButton,
+          pressed ? styles.sheetMapActionPressed : null,
+        ]}
+        onPress={onBack}
+      >
+        <Text style={styles.vehicleDoneButtonText}>Done</Text>
+      </Pressable>
+    </OperationsDetailSheet>
+  );
+}
+
+function OperationsVehicleSpec({
+  label,
+  mono = false,
+  value,
+}: {
+  label: string;
+  mono?: boolean;
+  value: string;
+}) {
+  return (
+    <View style={styles.vehicleSpec}>
+      <Text style={styles.vehicleSpecLabel}>{label}</Text>
+      <Text numberOfLines={2} style={[styles.vehicleSpecValue, mono ? styles.vehicleSpecValueMono : null]}>
+        {value}
+      </Text>
+    </View>
+  );
+}
+
+function OperationsDetailSheet({
+  accessibilityLabel,
+  children,
+  closeTestID,
+  eyebrow,
+  headingRef,
+  icon,
+  onClose,
+  statusLabel,
+  subtitle,
+  testID,
+  title,
+}: {
+  accessibilityLabel: string;
+  children: ReactNode;
+  closeTestID?: string;
+  eyebrow: string;
+  headingRef: (node: Text | null) => void;
+  icon: ReactNode;
+  onClose: () => void;
+  statusLabel: string;
+  subtitle?: string;
+  testID: string;
+  title: string;
+}) {
+  return (
+    <View style={styles.detailOverlay}>
+      <Pressable
+        accessible={false}
+        accessibilityElementsHidden
+        importantForAccessibility="no-hide-descendants"
+        style={styles.detailScrim}
+        onPress={onClose}
+      />
+      <View
+        accessibilityLabel={accessibilityLabel}
+        accessibilityViewIsModal
+        testID={testID}
+        style={styles.detailSheet}
+      >
+        <View style={styles.detailGrabber} />
+        <View style={styles.detailSheetHeader}>
+          <View style={styles.detailHeaderIconTile}>{icon}</View>
+          <View style={styles.detailSheetHeadingCopy}>
+            <Text
+              accessible
+              accessibilityLabel={accessibilityLabel}
+              accessibilityRole="header"
+              ref={headingRef}
+              style={styles.detailSheetTitle}
+            >
+              {title}
+            </Text>
+            {subtitle ? (
+              <Text numberOfLines={2} style={styles.detailSheetSubtitle}>{subtitle}</Text>
+            ) : null}
+            <View style={styles.detailSheetMetaRow}>
+              <OperationsStatusChip label={statusLabel} />
+              <Text style={styles.detailSheetEyebrow}>{eyebrow}</Text>
+            </View>
+          </View>
+          <Pressable
+            accessibilityLabel="Close details"
+            accessibilityRole="button"
+            hitSlop={6}
+            testID={closeTestID}
+            style={({ pressed }) => [
+              styles.detailClose,
+              pressed ? styles.routeCardPressed : null,
+            ]}
+            onPress={onClose}
+          >
+            <X accessibilityElementsHidden color={colors.muted} size={15} strokeWidth={2.2} />
+          </Pressable>
+        </View>
+        <ScrollView
+          contentContainerStyle={styles.detailSheetContent}
+          nestedScrollEnabled
+          showsVerticalScrollIndicator={false}
+        >
+          {children}
+        </ScrollView>
+      </View>
+    </View>
+  );
+}
+
+function OperationsStatusChip({ label }: { label: string }) {
+  const tone = getStatusTone(label);
+  return (
+    <View
+      accessible
+      accessibilityLabel={`Status, ${label}`}
+      style={[
+        styles.statusChip,
+        tone === "safe" ? styles.statusChipSafe : null,
+        tone === "warning" ? styles.statusChipWarning : null,
+        tone === "danger" ? styles.statusChipDanger : null,
+      ]}
+    >
+      <View
+        style={[
+          styles.statusDot,
+          tone === "safe" ? styles.statusDotSafe : null,
+          tone === "warning" ? styles.statusDotWarning : null,
+          tone === "danger" ? styles.statusDotDanger : null,
+        ]}
+      />
+      <Text
+        numberOfLines={1}
+        style={[
+          styles.statusChipText,
+          tone === "safe" ? styles.statusChipTextSafe : null,
+          tone === "warning" ? styles.statusChipTextWarning : null,
+          tone === "danger" ? styles.statusChipTextDanger : null,
+        ]}
+      >
+        {label}
+      </Text>
+    </View>
+  );
+}
+
+function getStatusTone(label: string): "danger" | "info" | "safe" | "warning" {
+  const normalized = label.trim().toLowerCase();
+  if (normalized.includes("cancel") || normalized.includes("blocked")) {
+    return "danger";
+  }
+  if (
+    normalized.includes("pending") ||
+    normalized.includes("standby")
+  ) {
+    return "warning";
+  }
+  if (
+    normalized.includes("ready") ||
+    normalized.includes("active") ||
+    normalized.includes("live") ||
+    normalized.includes("complete")
+  ) {
+    return "safe";
+  }
+  return "info";
+}
+
+function OperationsAssignmentCards({ row }: { row: OperationsConvoyRow }) {
+  return (
+    <View style={styles.assignmentSection}>
+      <Text style={styles.convoySectionEyebrow}>ASSIGNMENTS</Text>
+      <View style={styles.assignmentList}>
+        {row.vehicleLabels.length ? row.vehicleLabels.map((label, index) => (
+          <OperationsAssignmentCard
+            key={`vehicle-${label}-${index}`}
+            kind={label === row.leadVehicleLabel ? "Lead vehicle" : "Vehicle"}
+            label={label}
+            marker="V"
+          />
+        )) : (
+          <OperationsAssignmentCard
+            kind="Vehicles"
+            label={row.manifestAvailable
+              ? "No vehicles assigned"
+              : "Vehicle details unavailable until Operations syncs"}
+            marker="V"
+          />
+        )}
+        {row.peopleLabels.length ? row.peopleLabels.map((label, index) => (
+          <OperationsAssignmentCard
+            key={`person-${label}-${index}`}
+            kind="Person"
+            label={label}
+            marker="P"
+          />
+        )) : (
+          <OperationsAssignmentCard
+            kind="People"
+            label={row.manifestAvailable
+              ? "No people assigned"
+              : "People details unavailable until Operations syncs"}
+            marker="P"
+          />
+        )}
+      </View>
+    </View>
+  );
+}
+
+function OperationsAssignmentCard({
+  kind,
+  label,
+  marker,
+}: {
+  kind: string;
+  label: string;
+  marker: string;
+}) {
+  const [title, ...detailParts] = label.split(" · ");
+  const detail = detailParts.join(" · ");
+  return (
+    <View accessible accessibilityLabel={`${kind}, ${label}`} style={styles.assignmentCard}>
+      <View style={styles.assignmentMarker}>
+        {marker === "V" ? (
+          <CarFront accessibilityElementsHidden color={colors.inkSoft} size={18} strokeWidth={1.8} />
+        ) : (
+          <UsersRound accessibilityElementsHidden color={colors.inkSoft} size={18} strokeWidth={1.8} />
+        )}
+      </View>
+      <View style={styles.assignmentCopy}>
+        <Text style={styles.assignmentKind}>{kind}</Text>
+        <Text numberOfLines={1} style={styles.assignmentTitle}>{title}</Text>
+        {detail ? (
+          <Text numberOfLines={2} style={styles.assignmentDetail}>{detail}</Text>
+        ) : null}
+      </View>
+    </View>
+  );
+}
+
+function OperationsDetailFact({ label, value }: { label: string; value: string }) {
+  return (
+    <View style={styles.detailFact}>
+      <Text style={styles.detailFactLabel}>{label}</Text>
+      <Text style={styles.detailFactValue}>{value}</Text>
     </View>
   );
 }

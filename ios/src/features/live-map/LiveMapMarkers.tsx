@@ -1,4 +1,5 @@
 import type { ComponentProps, ComponentType } from 'react';
+import { AlertTriangle, MapPin } from 'lucide-react-native';
 import { StyleSheet, View } from 'react-native';
 import { Circle, Marker, Polygon, Polyline } from 'react-native-maps';
 
@@ -44,6 +45,7 @@ export function RiskOverlay({
     : buildRouteRiskAlertSegment(routeCoordinates || [], zone);
   const handlePress = () => onPress?.(zone);
   const routeAlert = isRouteAlertZone(zone);
+  const riskColors = severityOverlayColors(zone.severity);
 
   return (
     <>
@@ -60,7 +62,7 @@ export function RiskOverlay({
           />
           <Polyline
             coordinates={routeAlertCoordinates}
-            strokeColor={zone.markerColor}
+            strokeColor={riskColors.stroke}
             strokeWidth={selected || active ? 3 : 2}
             lineCap="round"
             lineJoin="round"
@@ -83,7 +85,7 @@ export function RiskOverlay({
           />
           <Polyline
             coordinates={routeSegmentCoordinates}
-            strokeColor={zone.markerColor}
+            strokeColor={riskColors.stroke}
             strokeWidth={selected || active ? 3 : 2}
             lineCap="round"
             lineJoin="round"
@@ -96,7 +98,7 @@ export function RiskOverlay({
       {connectorCoordinates.length > 1 ? (
         <Polyline
           coordinates={connectorCoordinates}
-          strokeColor={zone.strokeColor}
+          strokeColor={riskColors.stroke}
           strokeWidth={2}
           lineDashPattern={[3, 9]}
           lineCap="round"
@@ -108,9 +110,9 @@ export function RiskOverlay({
       {shouldRenderRiskCoverage(zone) && polygonCoordinates.length > 2 ? (
         <Polygon
           coordinates={polygonCoordinates}
-          strokeColor={zone.strokeColor}
-          fillColor={zone.fillColor}
-          strokeWidth={selected || active ? 3 : 2}
+          strokeColor="transparent"
+          fillColor={riskColors.fill}
+          strokeWidth={0}
           testID={uiTestIds.liveMapRiskZoneArea(zone.id)}
           tappable={Boolean(onPress)}
           onPress={handlePress}
@@ -119,9 +121,9 @@ export function RiskOverlay({
         <TappableCircle
           center={zone.coordinate}
           radius={visibleRiskRadiusMeters(zone)}
-          strokeColor={zone.strokeColor}
-          fillColor={zone.fillColor}
-          strokeWidth={selected || active ? 3 : 2}
+          strokeColor="transparent"
+          fillColor={riskColors.fill}
+          strokeWidth={0}
           testID={uiTestIds.liveMapRiskZoneArea(zone.id)}
           tappable={Boolean(onPress)}
           onPress={handlePress}
@@ -153,18 +155,26 @@ export function CheckpointMarker({ checkpoint }: { checkpoint: RouteCheckpoint }
         accessibilityRole="image"
         style={styles.checkpointMarkerHitArea}
       >
-        <View
-          style={[
-            styles.checkpointMarker,
-            checkpoint.kind === 'origin'
-              ? styles.checkpointMarkerOrigin
-              : checkpoint.kind === 'waypoint'
-                ? styles.checkpointMarkerWaypoint
-                : styles.checkpointMarkerDestination
-          ]}
-        >
-          <View style={styles.checkpointMarkerCore} />
-        </View>
+        {checkpoint.kind === 'destination' ? (
+          <MapPin
+            accessibilityElementsHidden
+            color={colors.appleBlue}
+            fill={colors.appleBlue}
+            size={27}
+            strokeWidth={1.8}
+          />
+        ) : (
+          <View
+            style={[
+              styles.checkpointMarker,
+              checkpoint.kind === 'origin'
+                ? styles.checkpointMarkerOrigin
+                : styles.checkpointMarkerWaypoint
+            ]}
+          >
+            <View style={styles.checkpointMarkerCore} />
+          </View>
+        )}
       </View>
     </Marker>
   );
@@ -195,6 +205,8 @@ function RiskMarker({
   routeAlert: boolean;
   zone: RiskZone;
 }) {
+  const markerColor = severityMarkerColor(zone.severity);
+
   return (
     <Marker
       coordinate={zone.coordinate}
@@ -213,13 +225,18 @@ function RiskMarker({
         <View
           style={[
             styles.riskMarker,
-            routeAlert ? styles.routeAlertMarker : null,
             active ? styles.riskMarkerActive : null,
             selected ? styles.riskMarkerSelected : null,
             severityMarkerStyle(zone.severity)
           ]}
         >
-          <View style={routeAlert ? styles.routeAlertMarkerCore : styles.riskMarkerCore} />
+          <AlertTriangle
+            accessibilityElementsHidden
+            color={markerColor}
+            fill={severityMarkerFill(zone.severity)}
+            size={severityMarkerSize(zone.severity)}
+            strokeWidth={2}
+          />
         </View>
       </View>
     </Marker>
@@ -272,6 +289,54 @@ function severityMarkerStyle(severity: RiskSeverity) {
   return styles.riskMarkerLow;
 }
 
+function severityMarkerColor(severity: RiskSeverity): string {
+  if (severity === 'high') {
+    return colors.danger;
+  }
+
+  if (severity === 'medium') {
+    return colors.amber;
+  }
+
+  return colors.info;
+}
+
+function severityMarkerFill(severity: RiskSeverity): string {
+  if (severity === 'high') {
+    return 'rgba(229, 72, 77, 0.24)';
+  }
+
+  if (severity === 'medium') {
+    return 'rgba(247, 107, 21, 0.22)';
+  }
+
+  return 'rgba(126, 156, 191, 0.20)';
+}
+
+function severityMarkerSize(severity: RiskSeverity): number {
+  if (severity === 'high') {
+    return 22;
+  }
+
+  if (severity === 'medium') {
+    return 19;
+  }
+
+  return 16;
+}
+
+function severityOverlayColors(severity: RiskSeverity) {
+  if (severity === 'high') {
+    return { fill: 'rgba(229, 72, 77, 0.15)', stroke: colors.danger };
+  }
+
+  if (severity === 'medium') {
+    return { fill: 'rgba(245, 165, 36, 0.10)', stroke: colors.amber };
+  }
+
+  return { fill: colors.infoSoft, stroke: colors.info };
+}
+
 const styles = StyleSheet.create({
   checkpointMarkerHitArea: {
     width: 32,
@@ -293,15 +358,11 @@ const styles = StyleSheet.create({
     elevation: 0
   },
   checkpointMarkerOrigin: {
-    backgroundColor: colors.appleBlue,
-    borderRadius: radius.pill
-  },
-  checkpointMarkerWaypoint: {
     backgroundColor: colors.safe,
     borderRadius: radius.pill
   },
-  checkpointMarkerDestination: {
-    backgroundColor: colors.ink,
+  checkpointMarkerWaypoint: {
+    backgroundColor: colors.inkSoft,
     borderRadius: radius.pill
   },
   checkpointMarkerCore: {
@@ -317,60 +378,38 @@ const styles = StyleSheet.create({
     justifyContent: 'center'
   },
   riskMarker: {
-    width: 14,
-    height: 14,
+    width: 26,
+    height: 26,
     alignItems: 'center',
     justifyContent: 'center',
-    borderWidth: 2,
-    borderColor: colors.surface,
-    borderRadius: radius.pill,
-    shadowOpacity: 0,
-    shadowRadius: 0,
-    shadowOffset: { width: 0, height: 0 },
-    elevation: 0
-  },
-  riskMarkerCore: {
-    width: 4,
-    height: 4,
-    borderRadius: radius.pill,
-    backgroundColor: colors.surface
+    opacity: 0.78,
+    shadowOpacity: 0.45,
+    shadowRadius: 4,
+    shadowOffset: { width: 0, height: 2 },
+    elevation: 4
   },
   riskMarkerActive: {
-    width: 18,
-    height: 18
+    opacity: 0.92,
+    transform: [{ scale: 1.08 }]
   },
   riskMarkerSelected: {
-    width: 20,
-    height: 20,
-    borderWidth: 2
+    opacity: 1,
+    transform: [{ scale: 1.18 }]
   },
   riskMarkerHigh: {
-    backgroundColor: colors.danger
+    shadowColor: colors.danger
   },
   riskMarkerMedium: {
-    backgroundColor: colors.amber
+    shadowColor: colors.amber
   },
   riskMarkerLow: {
-    backgroundColor: colors.info
+    shadowColor: colors.info
   },
   routeAlertMarkerHitArea: {
     width: 28,
     height: 28,
     alignItems: 'center',
     justifyContent: 'center'
-  },
-  routeAlertMarker: {
-    width: 9,
-    height: 9,
-    borderWidth: 1,
-    borderRadius: 2,
-    opacity: 0.86
-  },
-  routeAlertMarkerCore: {
-    width: 3,
-    height: 3,
-    borderRadius: 1,
-    backgroundColor: colors.surface
   },
   vehicleMarker: {
     width: 30,

@@ -175,6 +175,7 @@ export function LiveMapCanvas({
       </MapView>
       {selectedRiskZone ? (
         <LiveMapRiskDetailCallout
+          bottomInset={12}
           mapRef={mapRef}
           proximity={selectedRiskProximity}
           zone={selectedRiskZone}

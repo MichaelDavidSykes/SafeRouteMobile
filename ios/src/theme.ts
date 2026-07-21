@@ -1,15 +1,17 @@
 export const colors = {
-  ink: '#111113',
-  inkSoft: '#2c2c2e',
-  muted: '#6e6e73',
-  mutedSoft: '#9a9aa0',
+  ink: '#1c1c1e',
+  inkSoft: '#3a3a3c',
+  muted: '#8e8e93',
+  mutedSoft: '#b0b0b5',
   surface: '#ffffff',
-  surfaceTranslucent: 'rgba(255, 255, 255, 0.94)',
+  surfaceTranslucent: 'rgba(255, 255, 255, 0.92)',
   surfaceGlass: 'rgba(255, 255, 255, 0.82)',
   control: '#f2f2f7',
-  controlStrong: '#e5e5ea',
+  controlStrong: '#eceef1',
+  sheet: '#f6f6f8',
+  quiet: '#f2f3f5',
   border: '#d1d1d6',
-  borderSoft: 'rgba(60, 60, 67, 0.12)',
+  borderSoft: 'rgba(0, 0, 0, 0.08)',
   glassBorder: 'rgba(255, 255, 255, 0.64)',
   mapFallback: '#101318',
   mapRoad: 'rgba(151, 163, 181, 0.2)',
@@ -19,18 +21,18 @@ export const colors = {
   routePrimary: '#0a84ff',
   routeRemaining: 'rgba(10, 132, 255, 0.28)',
   routeCompleted: '#005ecb',
-  safe: '#15b981',
-  safeSoft: '#dcf7ed',
-  safeText: '#087a55',
-  amber: '#f3a32b',
-  amberSoft: '#fff1d8',
-  amberText: '#8d5a04',
-  danger: '#d84a3f',
-  dangerSoft: '#fde7e3',
-  dangerText: '#963126',
-  info: '#5c8df6',
-  infoSoft: '#e7efff',
-  infoText: '#315fbe'
+  safe: '#30b85a',
+  safeSoft: 'rgba(48, 184, 90, 0.12)',
+  safeText: '#1a7f43',
+  amber: '#f76b15',
+  amberSoft: 'rgba(247, 107, 21, 0.12)',
+  amberText: '#c2410c',
+  danger: '#e5484d',
+  dangerSoft: 'rgba(229, 72, 77, 0.12)',
+  dangerText: '#c0362f',
+  info: '#5e7b96',
+  infoSoft: 'rgba(94, 123, 150, 0.12)',
+  infoText: '#4a6d8c'
 };
 
 export const spacing = {
@@ -46,6 +48,8 @@ export const radius = {
   md: 18,
   lg: 24,
   xl: 34,
+  card: 18,
+  sheet: 22,
   pill: 999
 };
 
@@ -63,4 +67,11 @@ export const controlSizes = {
   secondary: 44,
   compact: 38,
   icon: 44
+};
+
+export const chrome = {
+  tabBarHeight: 86,
+  tabBarContentHeight: 60,
+  tabBarBottomInset: 26,
+  screenBottomInset: 112,
 };

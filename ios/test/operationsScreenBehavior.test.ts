@@ -125,7 +125,7 @@ describe("operations screen behavior", () => {
   it("keeps Operations read-only while making route and convoy review interactive", () => {
     const text = screenSource();
 
-    assert.match(text, /accessibilityRole="tab"/);
+    assert.doesNotMatch(text, /accessibilityRole="tab"/);
     assert.match(text, /testID=\{uiTestIds\.operationsScreen\}/);
     assert.match(text, /testID=\{uiTestIds\.operationsRouteCard\(row\.id\)\}/);
     assert.match(text, /testID=\{uiTestIds\.operationsConvoyCard\(row\.id\)\}/);
@@ -133,7 +133,7 @@ describe("operations screen behavior", () => {
     assert.match(text, /function OperationsConvoyCard[\s\S]*accessibilityRole="button"[\s\S]*onPress=\{onPress\}/);
     assert.match(text, /testID=\{uiTestIds\.operationsConvoyDetail\}/);
     assert.match(text, /testID=\{uiTestIds\.operationsConvoyRoute/);
-    assert.match(text, /SafeRoute · View only/);
+    assert.doesNotMatch(text, /SafeRoute · View only/);
     assert.doesNotMatch(text, /onEdit|Edit route|Save changes|Delete route|Create convoy|saveSelected|upsert|deleteTrip/);
   });
 
@@ -342,10 +342,7 @@ describe("operations screen behavior", () => {
       source,
       /if \(cacheResult\.status === "allowed"\) \{[\s\S]*offlineCalendarRemovalRetryScopesRef\.current\.delete\([\s\S]*setOfflineCalendarRemovalState\("idle"\)/,
     );
-    assert.match(
-      source,
-      /!ownedErrorState &&[\s\S]*protectedRequestsAvailable &&[\s\S]*workspaceOwnsResults &&[\s\S]*visibleOperationsState !== null \|\| visibleRoutes\.length > 0[\s\S]*!ownedShowingOfflineCopy[\s\S]*styles\.summaryStrip/,
-    );
+    assert.doesNotMatch(source, /styles\.summaryStrip/);
   });
 
   it("owns durable offline Calendar consent by exact principal and workspace", () => {

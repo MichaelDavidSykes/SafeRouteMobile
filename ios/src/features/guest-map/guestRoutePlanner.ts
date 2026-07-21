@@ -85,10 +85,10 @@ export type GuestMapGateOptions = {
 };
 
 export const GUEST_MAP_REGION: Region = {
-  latitude: 51.512,
-  longitude: -0.073,
-  latitudeDelta: 0.095,
-  longitudeDelta: 0.14
+  latitude: -33.945,
+  longitude: 18.55,
+  latitudeDelta: 0.12,
+  longitudeDelta: 0.16
 };
 
 export const GUEST_ROUTE_LABEL_MAX_LENGTH = 80;
@@ -282,7 +282,7 @@ export function createGuestMapHomeCopy(authenticated: boolean): GuestMapHomeCopy
 
   return {
     primaryActionAccessibilityLabel: 'Sign in to SafeRoute',
-    primaryActionLabel: 'Sign in',
+    primaryActionLabel: 'Login',
     sheetTitle: 'Where to?',
     sheetSubtitle: 'Map first. Save after sign-in.'
   };

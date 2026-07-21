@@ -1,130 +1,191 @@
-import { useEffect, useMemo, useState, type RefObject } from "react";
-import {
-  Pressable,
-  StyleSheet,
-  Text,
-  useWindowDimensions,
-  View,
-  type LayoutChangeEvent,
-} from "react-native";
-import MapView, { type Point } from "react-native-maps";
+import type { RefObject } from "react";
+import { AlertTriangle, X } from "lucide-react-native";
+import { Pressable, StyleSheet, Text, View } from "react-native";
+import MapView from "react-native-maps";
 
 import { uiTestIds } from "../../testing/uiTestIds";
-import type { RiskZone } from "./liveMapTypes";
+import { chrome, colors, radius, typeScale } from "../../theme";
+import type { RiskSeverity, RiskZone } from "./liveMapTypes";
 import {
   createRiskZoneDetailPresentation,
   type RouteRiskProximity,
 } from "./routeRisk";
-import { resolveRiskCalloutPlacement } from "./liveMapRiskDetailPlacement";
-
-const CALLOUT_ESTIMATED_HEIGHT = 164;
+import { formatDistance } from "./routeProgress";
 
 export function LiveMapRiskDetailCallout({
-  mapRef,
+  bottomInset = chrome.tabBarHeight + 18,
   onDismiss,
   proximity,
   zone,
 }: {
+  bottomInset?: number;
   mapRef: RefObject<MapView | null>;
   onDismiss: () => void;
   proximity?: RouteRiskProximity | null;
   zone: RiskZone;
 }) {
-  const viewport = useWindowDimensions();
-  const [anchorPoint, setAnchorPoint] = useState<Point>({
-    x: viewport.width / 2,
-    y: viewport.height * 0.32,
+  const presentation = createRiskZoneDetailPresentation({
+    proximity: proximity || null,
+    zone,
   });
-  const [calloutHeight, setCalloutHeight] = useState(CALLOUT_ESTIMATED_HEIGHT);
-  const presentation = useMemo(
-    () => createRiskZoneDetailPresentation({ proximity: proximity || null, zone }),
-    [proximity, zone],
-  );
-
-  useEffect(() => {
-    let active = true;
-    const resolveAnchor = async () => {
-      try {
-        const point = await mapRef.current?.pointForCoordinate(zone.coordinate);
-        if (active && point) {
-          setAnchorPoint(point);
-        }
-      } catch {
-        // The compact fallback remains visible while the native map settles.
-      }
-    };
-
-    void resolveAnchor();
-    const retryTimer = setTimeout(() => void resolveAnchor(), 120);
-    return () => {
-      active = false;
-      clearTimeout(retryTimer);
-    };
-  }, [mapRef, zone.coordinate.latitude, zone.coordinate.longitude, viewport.height, viewport.width]);
-
-  const placement = resolveRiskCalloutPlacement({
-    anchorPoint,
-    calloutHeight,
-    viewportHeight: viewport.height,
-    viewportWidth: viewport.width,
-  });
-
-  const handleLayout = (event: LayoutChangeEvent) => {
-    const measuredHeight = event.nativeEvent.layout.height;
-    if (measuredHeight > 0 && Math.abs(measuredHeight - calloutHeight) > 1) {
-      setCalloutHeight(measuredHeight);
-    }
-  };
+  const areaLabel = createRiskAreaChipLabel(zone);
+  const severityColor = resolveSeverityColor(presentation.tone);
 
   return (
     <View pointerEvents="box-none" style={[StyleSheet.absoluteFill, styles.overlay]}>
       <View
-        pointerEvents="none"
-        style={[
-          styles.connector,
-          {
-            height: placement.connectorLength,
-            left: placement.connectorLeft,
-            top: placement.connectorTop,
-            transform: [{ rotate: `${placement.connectorRotationDegrees}deg` }],
-          },
-        ]}
-      />
-      <View
         accessible
         accessibilityLabel={presentation.accessibilityLabel}
         testID={uiTestIds.liveMapRiskDetail}
-        style={[
-          styles.callout,
-          {
-            left: placement.left,
-            top: placement.top,
-            width: placement.width,
-          },
-        ]}
-        onLayout={handleLayout}
+        style={[styles.card, { bottom: bottomInset }]}
       >
-        <Text numberOfLines={1} style={styles.eyebrow}>Risk area</Text>
-        <Text numberOfLines={2} style={styles.title}>{presentation.title}</Text>
-        <Text numberOfLines={2} style={styles.body}>{presentation.body}</Text>
-        <Text numberOfLines={2} style={styles.meta}>{presentation.metaLabel}</Text>
-        <Text numberOfLines={1} style={styles.clearance}>{presentation.clearanceLabel}</Text>
-        <Pressable
-          accessibilityLabel="Close risk details"
-          accessibilityRole="button"
-          hitSlop={8}
-          testID={uiTestIds.liveMapRiskDetailDismiss}
-          style={({ pressed }) => [
-            styles.dismiss,
-            pressed ? styles.dismissPressed : null,
-          ]}
-          onPress={onDismiss}
-        >
-          <Text numberOfLines={1} style={styles.dismissText}>Close</Text>
-        </Pressable>
+        <View style={styles.titleRow}>
+          <View
+            style={[
+              styles.iconTile,
+              severityIconTileStyle(presentation.tone),
+            ]}
+          >
+            <AlertTriangle
+              accessibilityElementsHidden
+              color={severityColor}
+              size={22}
+              strokeWidth={2}
+            />
+          </View>
+          <View style={styles.titleCopy}>
+            <Text numberOfLines={2} style={styles.title}>
+              {presentation.title}
+            </Text>
+            <Text numberOfLines={1} style={styles.category}>
+              {zone.category || "Risk area"}
+            </Text>
+          </View>
+          <Pressable
+            accessibilityLabel="Close risk details"
+            accessibilityRole="button"
+            hitSlop={8}
+            testID={uiTestIds.liveMapRiskDetailDismiss}
+            style={({ pressed }) => [
+              styles.dismiss,
+              pressed ? styles.dismissPressed : null,
+            ]}
+            onPress={onDismiss}
+          >
+            <X accessibilityElementsHidden color={colors.muted} size={14} strokeWidth={2.2} />
+          </Pressable>
+        </View>
+
+        <View style={styles.chipRow}>
+          <View
+            style={[
+              styles.chip,
+              severityChipStyle(presentation.tone),
+            ]}
+          >
+            <View style={[styles.severityDot, { backgroundColor: severityColor }]} />
+            <Text
+              numberOfLines={1}
+              style={[
+                styles.chipText,
+                severityTextStyle(presentation.tone),
+              ]}
+            >
+              {createSeverityChipLabel(presentation.tone)}
+            </Text>
+          </View>
+          <View style={[styles.chip, styles.areaChip]}>
+            <Text numberOfLines={1} style={styles.areaChipText}>
+              {areaLabel}
+            </Text>
+          </View>
+        </View>
+
+        <Text style={styles.body}>{presentation.body}</Text>
+
+        {proximity ? (
+          <Text numberOfLines={1} style={styles.clearance}>
+            {presentation.clearanceLabel}
+          </Text>
+        ) : null}
       </View>
     </View>
   );
+}
+
+function createRiskAreaChipLabel(zone: RiskZone): string {
+  if (
+    zone.shape?.trim().toLowerCase() === "route-alert" ||
+    (zone.routeSegmentCoordinates?.length || 0) > 1
+  ) {
+    return "Route segment";
+  }
+
+  if ((zone.polygonCoordinates?.length || 0) > 2) {
+    return "Mapped area";
+  }
+
+  return `Radius ${formatDistance(zone.radiusMeters)}`;
+}
+
+function createSeverityChipLabel(severity: RiskSeverity): string {
+  if (severity === "high") {
+    return "High severity";
+  }
+
+  if (severity === "medium") {
+    return "Medium severity";
+  }
+
+  return "Low severity";
+}
+
+function resolveSeverityColor(severity: RiskSeverity): string {
+  if (severity === "high") {
+    return colors.danger;
+  }
+
+  if (severity === "medium") {
+    return colors.amber;
+  }
+
+  return colors.info;
+}
+
+function severityIconTileStyle(severity: RiskSeverity) {
+  if (severity === "high") {
+    return styles.iconTileHigh;
+  }
+
+  if (severity === "medium") {
+    return styles.iconTileMedium;
+  }
+
+  return styles.iconTileLow;
+}
+
+function severityChipStyle(severity: RiskSeverity) {
+  if (severity === "high") {
+    return styles.chipHigh;
+  }
+
+  if (severity === "medium") {
+    return styles.chipMedium;
+  }
+
+  return styles.chipLow;
+}
+
+function severityTextStyle(severity: RiskSeverity) {
+  if (severity === "high") {
+    return styles.textHigh;
+  }
+
+  if (severity === "medium") {
+    return styles.textMedium;
+  }
+
+  return styles.textLow;
 }
 
 const styles = StyleSheet.create({
@@ -132,70 +193,131 @@ const styles = StyleSheet.create({
     zIndex: 50,
     elevation: 50,
   },
-  connector: {
+  card: {
     position: "absolute",
-    width: 1.5,
-    zIndex: 39,
-    backgroundColor: "rgba(248,250,252,0.82)",
+    right: 12,
+    left: 12,
+    padding: 18,
+    borderRadius: radius.sheet,
+    backgroundColor: colors.surface,
+    shadowColor: "#000000",
+    shadowOpacity: 0.2,
+    shadowRadius: 20,
+    shadowOffset: { width: 0, height: 12 },
+    elevation: 10,
   },
-  callout: {
-    position: "absolute",
-    zIndex: 40,
-    paddingHorizontal: 14,
-    paddingVertical: 12,
-    borderWidth: 0.5,
-    borderColor: "rgba(255,255,255,0.18)",
-    borderRadius: 18,
-    backgroundColor: "rgba(8,11,15,0.94)",
+  iconTile: {
+    width: 42,
+    height: 42,
+    alignItems: "center",
+    justifyContent: "center",
+    flexShrink: 0,
+    borderRadius: 12,
   },
-  eyebrow: {
-    color: "rgba(226,232,240,0.72)",
-    fontSize: 10,
-    fontWeight: "900",
-    letterSpacing: 0.8,
-    textTransform: "uppercase",
+  iconTileHigh: {
+    backgroundColor: colors.dangerSoft,
+  },
+  iconTileMedium: {
+    backgroundColor: colors.amberSoft,
+  },
+  iconTileLow: {
+    backgroundColor: colors.infoSoft,
+  },
+  titleRow: {
+    flexDirection: "row",
+    alignItems: "flex-start",
+    gap: 12,
+  },
+  titleCopy: {
+    flex: 1,
+    minWidth: 0,
   },
   title: {
-    marginTop: 4,
-    color: "#f8fafc",
-    fontSize: 15,
-    fontWeight: "900",
-    lineHeight: 19,
+    color: colors.ink,
+    fontSize: 18,
+    fontWeight: "700",
+    lineHeight: 22,
+  },
+  category: {
+    marginTop: 3,
+    color: colors.muted,
+    fontSize: typeScale.sm,
+    lineHeight: 17,
   },
   body: {
-    marginTop: 6,
-    color: "rgba(226,232,240,0.78)",
+    marginTop: 13,
+    color: colors.inkSoft,
+    fontSize: 13.5,
+    fontWeight: "400",
+    lineHeight: 20,
+  },
+  chipRow: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: 8,
+    marginTop: 14,
+  },
+  chip: {
+    minHeight: 28,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 6,
+    paddingHorizontal: 11,
+    borderRadius: radius.pill,
+  },
+  severityDot: {
+    width: 7,
+    height: 7,
+    borderRadius: radius.pill,
+  },
+  chipHigh: {
+    backgroundColor: colors.dangerSoft,
+  },
+  chipMedium: {
+    backgroundColor: colors.amberSoft,
+  },
+  chipLow: {
+    backgroundColor: colors.infoSoft,
+  },
+  chipText: {
+    fontSize: 12,
+    fontWeight: "700",
+  },
+  textHigh: {
+    color: colors.dangerText,
+  },
+  textMedium: {
+    color: colors.amberText,
+  },
+  textLow: {
+    color: colors.infoText,
+  },
+  areaChip: {
+    backgroundColor: colors.control,
+  },
+  areaChipText: {
+    color: "#6e6e73",
     fontSize: 12,
     fontWeight: "600",
-    lineHeight: 16,
-  },
-  meta: {
-    marginTop: 8,
-    color: "rgba(226,232,240,0.9)",
-    fontSize: 10,
-    fontWeight: "800",
-    lineHeight: 14,
-    textTransform: "uppercase",
   },
   clearance: {
-    marginTop: 6,
-    color: "#f8fafc",
-    fontSize: 11,
-    fontWeight: "800",
+    marginTop: 8,
+    color: colors.muted,
+    fontSize: typeScale.xs,
+    fontWeight: "600",
   },
   dismiss: {
-    minHeight: 32,
-    alignSelf: "flex-start",
+    width: 30,
+    height: 30,
+    alignItems: "center",
     justifyContent: "center",
-    marginTop: 5,
-    paddingRight: 12,
+    flexShrink: 0,
+    borderRadius: radius.pill,
+    backgroundColor: colors.controlStrong,
   },
   dismissPressed: {
-    opacity: 0.62,
-  },
-  dismissText: {
-    color: "#8cc8ff",
-    fontSize: 11,
-    fontWeight: "900",
+    backgroundColor: colors.controlStrong,
+    transform: [{ scale: 0.96 }],
   },
 });

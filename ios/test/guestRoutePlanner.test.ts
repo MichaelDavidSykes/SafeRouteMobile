@@ -28,7 +28,7 @@ describe('guest route planner helpers', () => {
   it('keeps map-home state copy minimal before and after sign-in', () => {
     assert.deepEqual(createGuestMapHomeCopy(false), {
       primaryActionAccessibilityLabel: 'Sign in to SafeRoute',
-      primaryActionLabel: 'Sign in',
+      primaryActionLabel: 'Login',
       sheetTitle: 'Where to?',
       sheetSubtitle: 'Map first. Save after sign-in.'
     });

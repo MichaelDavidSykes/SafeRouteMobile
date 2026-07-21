@@ -1,6 +1,6 @@
 import { Platform, StyleSheet } from 'react-native';
 
-import { colors, controlSizes, radius, spacing, typeScale } from '../../theme';
+import { chrome, colors, controlSizes, radius, spacing, typeScale } from '../../theme';
 
 export const guestMapStyles = StyleSheet.create({
   screen: {
@@ -21,9 +21,9 @@ export const guestMapStyles = StyleSheet.create({
   },
   topBar: {
     marginHorizontal: spacing.md,
-    marginTop: Platform.OS === 'android' ? spacing.lg : spacing.sm,
+    marginTop: Platform.OS === 'android' ? spacing.lg : 0,
     flexDirection: 'row',
-    alignItems: 'center',
+    alignItems: 'flex-start',
     justifyContent: 'space-between',
     gap: spacing.sm
   },
@@ -32,16 +32,18 @@ export const guestMapStyles = StyleSheet.create({
     minHeight: controlSizes.secondary,
     flexDirection: 'row',
     alignItems: 'center',
-    gap: spacing.xs,
-    paddingHorizontal: spacing.md,
+    gap: 8,
+    paddingLeft: 15,
+    paddingRight: 18,
     borderWidth: 0.5,
     borderColor: colors.glassBorder,
     borderRadius: radius.pill,
-    backgroundColor: colors.surfaceGlass,
-    shadowOpacity: 0,
-    shadowRadius: 0,
-    shadowOffset: { width: 0, height: 0 },
-    elevation: 0
+    backgroundColor: colors.surface,
+    shadowColor: '#000000',
+    shadowOpacity: 0.16,
+    shadowRadius: 8,
+    shadowOffset: { width: 0, height: 4 },
+    elevation: 5
   },
   signInButtonAuthenticated: {
     borderColor: 'rgba(255, 255, 255, 0.92)',
@@ -54,23 +56,21 @@ export const guestMapStyles = StyleSheet.create({
     maxWidth: '100%',
     flexShrink: 1,
     color: colors.ink,
-    fontSize: typeScale.sm,
-    fontWeight: '800',
+    fontSize: typeScale.md,
+    fontWeight: '700',
     textAlign: 'center'
   },
   riskLoadStatus: {
-    minHeight: controlSizes.secondary,
+    minHeight: 20,
     flexDirection: 'row',
     alignItems: 'center',
     gap: spacing.xs,
-    paddingHorizontal: spacing.md,
-    borderWidth: 0.5,
-    borderColor: colors.glassBorder,
-    borderRadius: radius.pill,
-    backgroundColor: colors.surfaceGlass
+    paddingHorizontal: 0,
+    borderWidth: 0,
+    backgroundColor: 'transparent'
   },
   riskLoadStatusText: {
-    color: colors.inkSoft,
+    color: colors.surface,
     fontSize: typeScale.xs,
     fontWeight: '700'
   },
@@ -78,21 +78,28 @@ export const guestMapStyles = StyleSheet.create({
     position: 'absolute',
     zIndex: 24,
     elevation: 24,
-    right: spacing.md,
-    alignItems: 'flex-end'
+    right: 14,
+    bottom: 186,
+    alignItems: 'flex-end',
+    gap: spacing.sm,
   },
   currentLocationButton: {
-    width: controlSizes.icon,
-    height: controlSizes.icon,
+    width: 46,
+    height: 46,
     alignItems: 'center',
     justifyContent: 'center',
     borderWidth: 0.5,
     borderColor: colors.glassBorder,
     borderRadius: radius.pill,
-    backgroundColor: colors.surfaceTranslucent,
-    shadowOpacity: 0,
-    shadowRadius: 0,
-    shadowOffset: { width: 0, height: 0 }
+    backgroundColor: colors.surface,
+    shadowColor: '#000000',
+    shadowOpacity: 0.16,
+    shadowRadius: 8,
+    shadowOffset: { width: 0, height: 4 },
+    elevation: 5
+  },
+  layerButton: {
+    marginBottom: 0
   },
   currentLocationButtonDisabled: {
     opacity: 0.5
@@ -101,53 +108,36 @@ export const guestMapStyles = StyleSheet.create({
     backgroundColor: colors.appleBlueSoft,
     transform: [{ scale: 0.96 }]
   },
-  currentLocationGlyph: {
-    width: 22,
-    height: 22,
-    alignItems: 'center',
-    justifyContent: 'center'
-  },
-  currentLocationGlyphRing: {
-    position: 'absolute',
-    width: 14,
-    height: 14,
-    borderWidth: 2,
-    borderColor: colors.appleBlue,
-    borderRadius: radius.pill
-  },
-  currentLocationGlyphHorizontal: {
-    position: 'absolute',
-    width: 22,
-    height: 2,
-    backgroundColor: colors.appleBlue
-  },
-  currentLocationGlyphVertical: {
-    position: 'absolute',
-    width: 2,
-    height: 22,
-    backgroundColor: colors.appleBlue
-  },
-  currentLocationGlyphDot: {
-    width: 6,
-    height: 6,
-    borderRadius: radius.pill,
-    backgroundColor: colors.surface
-  },
   sheet: {
-    marginHorizontal: spacing.md,
-    marginBottom: Platform.OS === 'ios' ? spacing.sm : spacing.md,
-    padding: spacing.sm,
+    marginHorizontal: 0,
+    marginBottom: 0,
+    paddingHorizontal: spacing.lg,
+    paddingBottom: spacing.lg,
     borderWidth: 0.5,
     borderColor: colors.glassBorder,
-    borderRadius: radius.xl,
-    backgroundColor: colors.surfaceTranslucent,
-    shadowOpacity: 0,
-    shadowRadius: 0,
-    shadowOffset: { width: 0, height: 0 },
-    elevation: 0
+    borderTopLeftRadius: radius.sheet,
+    borderTopRightRadius: radius.sheet,
+    backgroundColor: colors.sheet,
+    shadowColor: '#000000',
+    shadowOpacity: 0.2,
+    shadowRadius: 20,
+    shadowOffset: { width: 0, height: -6 },
+    elevation: 18
   },
   sheetDock: {
-    position: 'relative'
+    position: 'relative',
+    zIndex: 31,
+    elevation: 31
+  },
+  sheetScrim: {
+    position: 'absolute',
+    zIndex: 30,
+    elevation: 30,
+    top: 0,
+    right: 0,
+    bottom: 0,
+    left: 0,
+    backgroundColor: 'rgba(0, 0, 0, 0.12)'
   },
   sheetScroll: {
     maxHeight: 520
@@ -178,8 +168,23 @@ export const guestMapStyles = StyleSheet.create({
   },
   sheetTitle: {
     color: colors.ink,
-    fontSize: typeScale.xl,
+    fontSize: 28,
     fontWeight: '800'
+  },
+  sheetCancel: {
+    minHeight: controlSizes.secondary,
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingHorizontal: spacing.xs,
+    borderRadius: radius.pill
+  },
+  sheetCancelPressed: {
+    backgroundColor: colors.appleBlueSoft
+  },
+  sheetCancelText: {
+    color: colors.appleBlue,
+    fontSize: typeScale.sm,
+    fontWeight: '700'
   },
   sheetSubtitle: {
     maxWidth: 260,
@@ -193,16 +198,21 @@ export const guestMapStyles = StyleSheet.create({
     marginTop: spacing.sm
   },
   workspaceSelector: {
-    minHeight: controlSizes.secondary,
+    minHeight: 64,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
     gap: spacing.sm,
     paddingHorizontal: spacing.md,
-    borderWidth: 0.5,
-    borderColor: colors.glassBorder,
-    borderRadius: radius.lg,
-    backgroundColor: colors.surfaceGlass
+    paddingVertical: 10,
+    borderWidth: 0,
+    borderRadius: 16,
+    backgroundColor: colors.surface,
+    shadowColor: '#000000',
+    shadowOpacity: 0.04,
+    shadowRadius: 8,
+    shadowOffset: { width: 0, height: 3 },
+    elevation: 1
   },
   workspaceSelectorOpen: {
     borderColor: colors.appleBlue
@@ -222,7 +232,7 @@ export const guestMapStyles = StyleSheet.create({
   },
   workspaceSelectorValue: {
     color: colors.ink,
-    fontSize: typeScale.sm,
+    fontSize: 16,
     fontWeight: '700'
   },
   workspaceSelectorAction: {
@@ -271,17 +281,18 @@ export const guestMapStyles = StyleSheet.create({
     overflow: 'hidden',
     borderWidth: 0.5,
     borderColor: colors.glassBorder,
-    borderRadius: radius.lg,
-    backgroundColor: colors.surfaceGlass
+    borderRadius: 16,
+    backgroundColor: colors.surface
   },
   inputRow: {
-    minHeight: controlSizes.secondary,
+    minHeight: 64,
     flexDirection: 'row',
     alignItems: 'center',
-    paddingHorizontal: spacing.sm
+    gap: 12,
+    paddingHorizontal: spacing.md
   },
   waypointRow: {
-    minHeight: controlSizes.secondary,
+    minHeight: 54,
     flexDirection: 'row',
     alignItems: 'center',
     paddingLeft: spacing.sm,
@@ -293,12 +304,11 @@ export const guestMapStyles = StyleSheet.create({
     gap: 2
   },
   waypointAction: {
-    maxWidth: 58,
-    minHeight: 34,
-    flexShrink: 1,
+    width: 34,
+    height: 34,
     alignItems: 'center',
     justifyContent: 'center',
-    paddingHorizontal: spacing.xs,
+    paddingHorizontal: 0,
     borderRadius: radius.pill
   },
   waypointActionPressed: {
@@ -326,9 +336,43 @@ export const guestMapStyles = StyleSheet.create({
   },
   input: {
     flex: 1,
+    minHeight: 24,
+    paddingVertical: 0,
     color: colors.ink,
-    fontSize: typeScale.sm,
+    fontSize: 15,
     fontWeight: '600'
+  },
+  routeInputCopy: {
+    minWidth: 0,
+    flex: 1,
+    justifyContent: 'center'
+  },
+  routeInputOverline: {
+    color: colors.muted,
+    fontSize: 10,
+    fontWeight: '700',
+    lineHeight: 13,
+    textTransform: 'uppercase'
+  },
+  routeInputMarker: {
+    width: 10,
+    height: 10,
+    flexShrink: 0,
+    borderRadius: radius.pill
+  },
+  routeInputMarkerOrigin: {
+    backgroundColor: colors.safe
+  },
+  routeInputMarkerDestination: {
+    borderRadius: 3,
+    backgroundColor: colors.appleBlue
+  },
+  waypointMarker: {
+    width: 8,
+    height: 8,
+    flexShrink: 0,
+    borderRadius: radius.pill,
+    backgroundColor: colors.info
   },
   searchResults: {
     maxHeight: 252,
@@ -387,6 +431,8 @@ export const guestMapStyles = StyleSheet.create({
     minHeight: controlSizes.secondary,
     alignItems: 'center',
     justifyContent: 'center',
+    flexDirection: 'row',
+    gap: 5,
     marginTop: spacing.xs,
     borderRadius: radius.pill,
     backgroundColor: 'transparent'
@@ -530,39 +576,51 @@ export const guestMapStyles = StyleSheet.create({
   collapsedSheet: {
     position: 'absolute',
     right: spacing.md,
-    bottom: Platform.OS === 'ios' ? spacing.sm : spacing.md,
+    bottom: chrome.tabBarHeight + 18,
     left: spacing.md,
     overflow: 'hidden',
     borderWidth: 0.5,
     borderColor: colors.glassBorder,
-    borderRadius: radius.xl,
-    backgroundColor: colors.surfaceTranslucent
+    borderRadius: radius.md,
+    backgroundColor: colors.surfaceTranslucent,
+    shadowColor: '#000000',
+    shadowOpacity: 0.16,
+    shadowRadius: 10,
+    shadowOffset: { width: 0, height: 5 },
+    elevation: 7
   },
   collapsedSheetButton: {
     minHeight: 64,
     flexDirection: 'row',
     alignItems: 'center',
-    gap: spacing.sm,
-    paddingHorizontal: spacing.md,
-    paddingVertical: spacing.sm
+    gap: 13,
+    paddingHorizontal: 18,
+    paddingVertical: 13
   },
   collapsedSheetPressed: {
     backgroundColor: colors.appleBlueSoft
   },
   collapsedSheetCopy: {
     minWidth: 0,
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.sm
+  },
+  collapsedSearchCopy: {
+    minWidth: 0,
     flex: 1
   },
   collapsedSheetTitle: {
     color: colors.ink,
-    fontSize: typeScale.md,
-    fontWeight: '800'
+    fontSize: typeScale.lg,
+    fontWeight: '700'
   },
   collapsedSheetSubtitle: {
-    marginTop: 2,
+    marginTop: 1,
     color: colors.muted,
-    fontSize: typeScale.xs,
-    fontWeight: '600'
+    fontSize: typeScale.sm,
+    fontWeight: '400'
   },
   currentLocationMarker: {
     width: 38,
@@ -570,34 +628,17 @@ export const guestMapStyles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center'
   },
-  currentLocationDirectionBorder: {
+  currentLocationHalo: {
     position: 'absolute',
-    top: 0,
-    width: 0,
-    height: 0,
-    borderLeftWidth: 8,
-    borderRightWidth: 8,
-    borderBottomWidth: 19,
-    borderLeftColor: 'transparent',
-    borderRightColor: 'transparent',
-    borderBottomColor: colors.surface
-  },
-  currentLocationDirectionFill: {
-    position: 'absolute',
-    top: 3,
-    width: 0,
-    height: 0,
-    borderLeftWidth: 6,
-    borderRightWidth: 6,
-    borderBottomWidth: 15,
-    borderLeftColor: 'transparent',
-    borderRightColor: 'transparent',
-    borderBottomColor: colors.appleBlue
+    width: 26,
+    height: 26,
+    borderRadius: radius.pill,
+    backgroundColor: 'rgba(10, 132, 255, 0.25)'
   },
   currentLocationDot: {
     width: 18,
     height: 18,
-    borderWidth: 2,
+    borderWidth: 3,
     borderColor: colors.surface,
     borderRadius: radius.pill,
     backgroundColor: colors.appleBlue,
@@ -626,11 +667,11 @@ export const guestMapStyles = StyleSheet.create({
     elevation: 0
   },
   markerOrigin: {
-    backgroundColor: colors.appleBlue,
+    backgroundColor: colors.safe,
     borderRadius: radius.pill
   },
   markerDestination: {
-    backgroundColor: colors.ink,
+    backgroundColor: colors.appleBlue,
     borderRadius: radius.pill
   },
   markerWaypoint: {
@@ -647,5 +688,48 @@ export const guestMapStyles = StyleSheet.create({
     height: 5,
     borderRadius: radius.pill,
     backgroundColor: colors.surface
+  },
+  mapStatusStack: {
+    flex: 1,
+    minWidth: 0,
+    gap: 3,
+    marginLeft: 6
+  },
+  riskSummary: {
+    minHeight: 26,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8
+  },
+  riskSummaryText: {
+    color: colors.surface,
+    fontSize: typeScale.md,
+    fontWeight: '700',
+    lineHeight: 18,
+    textShadowColor: 'rgba(0, 0, 0, 0.55)',
+    textShadowOffset: { width: 0, height: 1 },
+    textShadowRadius: 4
+  },
+  summaryDot: {
+    width: 9,
+    height: 9,
+    borderRadius: radius.pill,
+    shadowOpacity: 0.9,
+    shadowRadius: 4,
+    shadowOffset: { width: 0, height: 0 }
+  },
+  summaryDotDanger: {
+    backgroundColor: colors.danger,
+    shadowColor: colors.danger
+  },
+  summaryDotAmber: {
+    backgroundColor: colors.amber,
+    shadowColor: colors.amber
+  },
+  summaryDivider: {
+    width: 1,
+    height: 14,
+    marginHorizontal: 2,
+    backgroundColor: 'rgba(255, 255, 255, 0.62)'
   }
 });

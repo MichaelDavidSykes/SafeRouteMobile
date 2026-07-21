@@ -13,6 +13,7 @@ import { ApiSessionExpiredError } from "../api/apiClient";
 import type { SavedSafeRoutePlan } from "../live-map/liveMapTypes";
 import { fetchRouteDetail, fetchSavedRoutes } from "./routeApi";
 import { RouteCard } from "./RouteCard";
+import { RouteDetailSheet } from "./RouteDetailSheet";
 import { RouteListFilters } from "./RouteListFilters";
 import { RouteListHeader } from "./RouteListHeader";
 import { routeListStyles as styles } from "./RouteListScreen.styles";
@@ -147,6 +148,8 @@ export function RouteListScreen({
     null,
   );
   const [detailLoadingId, setDetailLoadingId] = useState<string | null>(null);
+  const [selectedDetailRoute, setSelectedDetailRoute] =
+    useState<SavedSafeRoutePlan | null>(null);
   const [showingOfflineCopy, setShowingOfflineCopy] = useState(false);
   const [loadedWorkspaceId, setLoadedWorkspaceId] = useState<string | null>(null);
   const [offlineCopyStoredAtMs, setOfflineCopyStoredAtMs] = useState<
@@ -434,6 +437,17 @@ export function RouteListScreen({
     () => filterSavedRoutes(workspaceRoutes, query),
     [query, workspaceRoutes],
   );
+  useEffect(() => {
+    setSelectedDetailRoute((currentRoute) => {
+      if (!currentRoute) {
+        return null;
+      }
+
+      return (
+        workspaceRoutes.find((route) => route.id === currentRoute.id) || null
+      );
+    });
+  }, [workspaceRoutes]);
   const loadingState =
     reviewOnly && networkChecking
       ? {
@@ -896,7 +910,8 @@ export function RouteListScreen({
               key={route.id}
               loading={detailLoadingId === route.id}
               route={route}
-              onPress={() => handleSelectRoute(route)}
+              onMapPress={() => handleSelectRoute(route)}
+              onPress={() => setSelectedDetailRoute(route)}
             />
           ))}
 
@@ -917,6 +932,11 @@ export function RouteListScreen({
           ) : null}
         </ScrollView>
       )}
+
+      <RouteDetailSheet
+        route={selectedDetailRoute}
+        onClose={() => setSelectedDetailRoute(null)}
+      />
     </SafeAreaView>
   );
 }

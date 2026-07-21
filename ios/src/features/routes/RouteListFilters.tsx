@@ -54,6 +54,7 @@ export function RouteListFilters({
   const selectedClientOption =
     clientFilterOptions.find((option) => option.selected) || null;
   const workspaceLabel = selectedClientOption?.label || "Choose workspace";
+  const showWorkspaceCard = showClientFilters || clientFilterOptions.length > 0;
 
   useEffect(() => {
     if (
@@ -96,7 +97,7 @@ export function RouteListFilters({
 
   return (
     <>
-      {showClientFilters ? (
+      {showWorkspaceCard ? (
         <View style={styles.clientFilter}>
           <Pressable
             ref={workspaceAccessFocusTargetRef}

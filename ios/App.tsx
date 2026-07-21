@@ -92,6 +92,7 @@ import { RouteListScreen } from './src/features/routes/RouteListScreen';
 import { uiTestIds } from './src/testing/uiTestIds';
 import { shouldInjectConnectivityContractStorageFault } from './src/testing/connectivityContractStorageFault';
 import { colors, spacing } from './src/theme';
+import { AppTabBar, type AppTab } from './src/components/AppTabBar';
 import {
   shouldHandleActiveSessionExpiry,
   waitForSessionCleanup
@@ -254,6 +255,9 @@ function SafeRouteApp() {
   const [sessionMessage, setSessionMessage] = useState('');
   const [authPrompt, setAuthPrompt] = useState('');
   const [screen, setScreen] = useState<AppScreen>('guest-map');
+  const [mapPlannerOpen, setMapPlannerOpen] = useState(false);
+  const [operationsDetailOpen, setOperationsDetailOpen] = useState(false);
+  const [mapLayer, setMapLayer] = useState<'dark' | 'satellite'>('dark');
   const currentScreenRef = useRef<AppScreen>(screen);
   currentScreenRef.current = screen;
   const [routePreviewSource, setRoutePreviewSource] = useState<RoutePreviewSource>('guest');
@@ -2174,6 +2178,22 @@ function SafeRouteApp() {
     setOperationsTab('planned-routes');
     pendingFullAccessFeatureRef.current = null;
     setScreen('guest-map');
+  };
+
+  const selectAppTab = (tab: AppTab) => {
+    setMapPlannerOpen(false);
+    setOperationsDetailOpen(false);
+    if (tab === 'map') {
+      returnToMapHome();
+      return;
+    }
+    if (tab === 'routes') {
+      openFullAccessFeature('saved-routes');
+      return;
+    }
+    openFullAccessFeature(
+      tab === 'convoys' ? 'convoy-management' : 'calendar',
+    );
   };
 
   const handleSessionExpired = async (
@@ -4649,6 +4669,20 @@ function SafeRouteApp() {
   const statusBarStyle = screen === 'guest-map' || screen === 'route-preview'
     ? 'light'
     : 'dark';
+  const activeAppTab: AppTab = screen === 'routes'
+    ? 'routes'
+    : screen === 'operations'
+      ? operationsTab === 'calendar'
+        ? 'calendar'
+        : operationsTab === 'convoy-management'
+          ? 'convoys'
+          : 'routes'
+      : 'map';
+  const showAppTabBar =
+    screen !== 'login' &&
+    screen !== 'route-preview' &&
+    !operationsDetailOpen &&
+    !(screen === 'guest-map' && mapPlannerOpen);
 
   return (
     <SafeAreaProvider initialMetrics={initialWindowMetrics} style={styles.root}>
@@ -4755,6 +4789,7 @@ function SafeRouteApp() {
             userEmail={session.user?.email || session.email}
             onBackToMap={returnToMapHome}
             onConvoySelectionChange={setOperationsRoutePreviewReturnConvoyId}
+            onDetailVisibilityChange={setOperationsDetailOpen}
             onRetryWorkspaceCatalog={handleRetryWorkspaceCatalog}
             onSelectRoute={handleSelectOperationsRoute}
             onSessionExpired={handleSessionExpired}
@@ -4789,7 +4824,10 @@ function SafeRouteApp() {
             activeWorkspace={activeWorkspace}
             authenticated={authenticated}
             availableWorkspaces={availableWorkspaces}
+            mapLayer={mapLayer}
             onOpenFullAccessFeature={openFullAccessFeature}
+            onMapLayerChange={setMapLayer}
+            onPlannerVisibilityChange={setMapPlannerOpen}
             onOpenRoutePreview={openRoutePreview}
             onSessionExpired={handleSessionExpired}
             onWorkspaceUnavailable={handleWorkspaceUnavailable}
@@ -4825,6 +4863,12 @@ function SafeRouteApp() {
             workspaceSelectionPending={workspaceSelectionPending}
           />
         )}
+        {showAppTabBar ? (
+          <AppTabBar
+            activeTab={activeAppTab}
+            onSelect={selectAppTab}
+          />
+        ) : null}
         {activeNavigationSession && screen !== 'route-preview' && screen !== 'login' ? (
           <ResumeNavigationButton
             routeName={activeNavigationSession.routePlan.name}

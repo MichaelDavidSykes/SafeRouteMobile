@@ -40,9 +40,10 @@ describe("SafeRoute dark map theme", () => {
     );
     assert.match(mapTheme, /SAFE_ROUTE_DARK_ROUTE_CASING/);
     assert.match(mapTheme, /SAFE_ROUTE_DARK_ROUTE_GLOW/);
-    assert.match(mapTheme, /SAFE_ROUTE_ROUTE_CASING_WIDTH\s*=\s*8/);
-    assert.match(mapTheme, /SAFE_ROUTE_ROUTE_GLOW_WIDTH\s*=\s*6/);
-    assert.match(mapTheme, /SAFE_ROUTE_ROUTE_CORE_WIDTH\s*=\s*4/);
+    assert.match(mapTheme, /SAFE_ROUTE_DARK_ROUTE_CASING\s*=\s*"#ffffff"/);
+    assert.match(mapTheme, /SAFE_ROUTE_ROUTE_CASING_WIDTH\s*=\s*9/);
+    assert.match(mapTheme, /SAFE_ROUTE_ROUTE_GLOW_WIDTH\s*=\s*7/);
+    assert.match(mapTheme, /SAFE_ROUTE_ROUTE_CORE_WIDTH\s*=\s*5/);
   });
 
   it("uses muted native iOS tiles while retaining pitch and 3D buildings", () => {

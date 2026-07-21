@@ -125,7 +125,7 @@ export function LiveMapOverlay({
         />
       ) : null}
 
-      <LiveMapRouteSummarySheet
+      {!selectedRiskZone ? <LiveMapRouteSummarySheet
         backgroundNavigationPresentation={backgroundNavigationPresentation}
         navigationState={activeNavigationState}
         layout={layout}
@@ -133,12 +133,13 @@ export function LiveMapOverlay({
         route={routePlan.route}
         routeContext={routeContext}
         routePlan={routePlan}
+        trackingLabel={trackingLabel}
         primaryActionStatusReason={primaryActionStatusReason}
         primaryDisabledReason={primaryDisabledReason}
         onEnableBackgroundNavigation={onEnableBackgroundNavigation}
         onPrimaryAction={onPrimaryAction}
         onStopRoute={onStopRoute}
-      />
+      /> : null}
     </SafeAreaView>
   );
 }

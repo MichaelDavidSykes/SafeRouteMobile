@@ -64,7 +64,8 @@ const baseRoute: SavedSafeRoutePlan = {
 describe("route list UI state helpers", () => {
   it("keeps route list copy minimal and product-led", () => {
     assert.deepEqual(createRouteListHeaderCopy(), {
-      title: "Choose route",
+      title: "Assigned routes",
+      subtitle: "Tap Map to preview it live",
     });
   });
 
@@ -269,6 +270,13 @@ describe("route list UI state helpers", () => {
       shouldShowRouteSearch({
         query: "",
         totalRouteCount: 4,
+      }),
+      false,
+    );
+    assert.equal(
+      shouldShowRouteSearch({
+        query: "",
+        totalRouteCount: 8,
       }),
       true,
     );
@@ -575,10 +583,10 @@ describe("route list UI state helpers", () => {
         totalRouteCount: 1,
       }),
       {
-        accessibilityLabel: "1 map-ready saved route.",
+        accessibilityLabel: "1 route assigned to you.",
         clearSearchAccessibilityLabel: null,
         clearSearchLabel: null,
-        text: "1 route",
+        text: "1 route assigned to you",
       },
     );
 

@@ -1,10 +1,10 @@
 import type { MapStyleElement } from "react-native-maps";
 
-export const SAFE_ROUTE_DARK_ROUTE_CASING = "rgba(3, 9, 17, 0.9)";
-export const SAFE_ROUTE_DARK_ROUTE_GLOW = "rgba(92, 164, 255, 0.32)";
-export const SAFE_ROUTE_ROUTE_CASING_WIDTH = 8;
-export const SAFE_ROUTE_ROUTE_GLOW_WIDTH = 6;
-export const SAFE_ROUTE_ROUTE_CORE_WIDTH = 4;
+export const SAFE_ROUTE_DARK_ROUTE_CASING = "#ffffff";
+export const SAFE_ROUTE_DARK_ROUTE_GLOW = "#ffffff";
+export const SAFE_ROUTE_ROUTE_CASING_WIDTH = 9;
+export const SAFE_ROUTE_ROUTE_GLOW_WIDTH = 7;
+export const SAFE_ROUTE_ROUTE_CORE_WIDTH = 5;
 
 /**
  * Google Maps styling used on Android and whenever the Google provider is

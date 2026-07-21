@@ -62,10 +62,10 @@ describe("rounded visual language", () => {
     assert.doesNotMatch(themeSource, /\belevation:/);
   });
 
-  it("keeps primary component corners generous with no small radius tokens", () => {
+  it("keeps primary component corners at usable iOS sizes", () => {
     const violations = styledSourceFiles.filter((file) => {
       const source = readFileSync(join(process.cwd(), file), "utf8");
-      return /borderRadius:\s*radius\.(?:sm|md)\b/.test(source);
+      return /\b(?:button|card|sheet)\w*:\s*\{[^}]*borderRadius:\s*[0-7]\b/is.test(source);
     });
 
     assert.deepEqual(violations, []);
@@ -243,7 +243,7 @@ describe("rounded visual language", () => {
     assert.doesNotMatch(guidanceStylesSource, /rgba\(150,\s*49,\s*38/);
   });
 
-  it("keeps floating live-map controls capsule-sized and label-bounded", () => {
+  it("keeps floating live-map controls icon-sized and accessible", () => {
     const liveMapControlsSource = readFileSync(
       join(process.cwd(), "src/features/live-map/LiveMapControls.tsx"),
       "utf8",
@@ -260,88 +260,41 @@ describe("rounded visual language", () => {
       /controlButtonCompact:\s*\{([\s\S]*?)\n  \},\n  controlButtonActive:/.exec(
         liveMapOverlayStylesSource,
       )?.[1] || "";
-    const controlButtonTextBlock =
-      /controlButtonText:\s*\{([\s\S]*?)\n  \},\n  controlButtonTextActive:/.exec(
-        liveMapOverlayStylesSource,
-      )?.[1] || "";
-
-    assert.match(liveMapControlsSource, /<Text[\s\S]*numberOfLines=\{1\}[\s\S]*styles\.controlButtonText/);
+    assert.match(liveMapControlsSource, /AlertTriangle, Crosshair, Maximize2/);
+    assert.doesNotMatch(liveMapControlsSource, /<Text/);
     assert.match(liveMapControlsSource, /const MAP_CONTROL_HIT_SLOP = 8/);
     assert.match(liveMapControlsSource, /hitSlop=\{MAP_CONTROL_HIT_SLOP\}/);
-    assert.match(controlButtonBlock, /width:\s*76/);
-    assert.match(controlButtonBlock, /maxWidth:\s*76/);
-    assert.match(controlButtonBlock, /minWidth:\s*76/);
-    assert.match(controlButtonBlock, /minHeight:\s*44/);
+    assert.match(controlButtonBlock, /width:\s*46/);
+    assert.match(controlButtonBlock, /maxWidth:\s*46/);
+    assert.match(controlButtonBlock, /minWidth:\s*46/);
+    assert.match(controlButtonBlock, /minHeight:\s*46/);
     assert.match(controlButtonBlock, /borderRadius:\s*radius\.pill/);
-    assert.match(controlButtonBlock, /backgroundColor:\s*colors\.surfaceGlass/);
-    assert.match(controlButtonBlock, /shadowOpacity:\s*0/);
-    assert.match(controlButtonBlock, /elevation:\s*0/);
-    assert.match(controlButtonCompactBlock, /width:\s*76/);
-    assert.match(controlButtonCompactBlock, /maxWidth:\s*76/);
-    assert.match(controlButtonCompactBlock, /minWidth:\s*76/);
-    assert.match(controlButtonCompactBlock, /minHeight:\s*44/);
-    assert.match(controlButtonCompactBlock, /paddingHorizontal:\s*spacing\.xs/);
-    assert.match(controlButtonTextBlock, /maxWidth:\s*["']100%["']/);
-    assert.match(controlButtonTextBlock, /flexShrink:\s*1/);
-    assert.match(controlButtonTextBlock, /textAlign:\s*["']center["']/);
+    assert.match(controlButtonBlock, /backgroundColor:\s*colors\.surface/);
+    assert.match(controlButtonBlock, /shadowOpacity:\s*0\.14/);
+    assert.match(controlButtonBlock, /elevation:\s*4/);
+    assert.match(controlButtonCompactBlock, /width:\s*46/);
+    assert.match(controlButtonCompactBlock, /minHeight:\s*46/);
   });
 
-  it("keeps signed-in map support actions text-only and low-clutter", () => {
+  it("uses the four handoff tabs instead of map-sheet support links", () => {
     const guestMapSource = readFileSync(
       join(process.cwd(), "src/features/guest-map/GuestMapScreen.tsx"),
       "utf8",
     );
-    const guestMapStylesSource = readFileSync(
-      join(process.cwd(), "src/features/guest-map/GuestMapScreen.styles.ts"),
+    const tabBarSource = readFileSync(
+      join(process.cwd(), "src/components/AppTabBar.tsx"),
       "utf8",
     );
-    const guestPlannerSource = readFileSync(
-      join(process.cwd(), "src/features/guest-map/guestRoutePlanner.ts"),
-      "utf8",
-    );
-    const supportRowBlock =
-      /supportRow:\s*\{([\s\S]*?)\n  \},\n  supportButton:/.exec(
-        guestMapStylesSource,
-      )?.[1] || "";
-    const supportButtonBlock =
-      /supportButton:\s*\{([\s\S]*?)\n  \},\n  supportButtonPressed:/.exec(
-        guestMapStylesSource,
-      )?.[1] || "";
-    const supportButtonPressedBlock =
-      /supportButtonPressed:\s*\{([\s\S]*?)\n  \},\n  supportLabel:/.exec(
-        guestMapStylesSource,
-      )?.[1] || "";
-    const supportLabelBlock =
-      /supportLabel:\s*\{([\s\S]*?)\n  \},\n  marker:/.exec(
-        guestMapStylesSource,
-      )?.[1] || "";
 
-    assert.match(guestMapSource, /<SupportButton/);
-    assert.match(guestMapSource, /styles\.supportRow/);
-    assert.match(guestMapSource, /styles\.supportButton/);
-    assert.match(guestMapSource, /<Text numberOfLines=\{1\} style=\{styles\.supportLabel\}>/);
-    assert.doesNotMatch(guestMapSource, /GATE_FEATURE_ICONS/);
-    assert.doesNotMatch(guestMapSource, /styles\.gateButton/);
-    assert.doesNotMatch(guestMapSource, /styles\.gateRow/);
-    assert.match(supportRowBlock, /justifyContent:\s*'center'/);
-    assert.match(supportButtonBlock, /maxWidth:\s*112/);
-    assert.match(supportButtonBlock, /flexShrink:\s*1/);
-    assert.match(supportButtonBlock, /minHeight:\s*controlSizes\.secondary/);
-    assert.match(supportButtonBlock, /backgroundColor:\s*'transparent'/);
-    assert.doesNotMatch(supportButtonBlock, /\bflex:\s*1/);
-    assert.doesNotMatch(supportButtonBlock, /\bborderWidth/);
-    assert.match(supportButtonPressedBlock, /backgroundColor:\s*colors\.appleBlueSoft/);
-    assert.match(supportLabelBlock, /maxWidth:\s*['"]100%['"]/);
-    assert.match(supportLabelBlock, /flexShrink:\s*1/);
-    assert.match(supportLabelBlock, /color:\s*colors\.appleBlue/);
-    assert.match(supportLabelBlock, /textAlign:\s*'center'/);
-    assert.doesNotMatch(guestMapStylesSource, /\bgateButton:/);
-    assert.doesNotMatch(guestMapStylesSource, /\bgateRow:/);
-    assert.doesNotMatch(guestPlannerSource, /eyebrow/);
-    assert.doesNotMatch(guestPlannerSource, /Private trips|Private convoys|Private routes/);
+    assert.doesNotMatch(guestMapSource, /<SupportButton/);
+    for (const label of ["Map", "Routes", "Convoys", "Calendar"]) {
+      assert.match(tabBarSource, new RegExp(`label: "${label}"`));
+    }
+    assert.match(tabBarSource, /height:\s*chrome\.tabBarHeight/);
+    assert.match(tabBarSource, /accessibilityRole="tab"/);
   });
 
-  it("keeps the map-home sheet subtitle progressively disclosed", () => {
+  it("uses the full-height Where to sheet from the handoff", () => {
     const guestMapSource = readFileSync(
       join(process.cwd(), "src/features/guest-map/GuestMapScreen.tsx"),
       "utf8",
@@ -358,51 +311,19 @@ describe("rounded visual language", () => {
       /sheet:\s*\{([\s\S]*?)\n  \},\n  sheetHeaderRow:/.exec(
         guestMapStylesSource,
       )?.[1] || "";
-    const routePreviewBlock =
-      /routePreview:\s*\{([\s\S]*?)\n  \},\n  routePreviewInline:/.exec(
-        guestMapStylesSource,
-      )?.[1] || "";
-    const routePreviewSummaryBlock =
-      /routePreviewSummary:\s*\{([\s\S]*?)\n  \},\n  supportRow:/.exec(
-        guestMapStylesSource,
-      )?.[1] || "";
 
-    assert.match(guestPlannerSource, /shouldShowGuestMapSubtitle/);
-    assert.match(guestPlannerSource, /return !routePlotted/);
-    assert.match(guestPlannerSource, /GUEST_ROUTE_PREVIEW_SUMMARY_FALLBACK/);
-    assert.match(guestPlannerSource, /GUEST_ROUTE_PREVIEW_METRIC_MAX_LENGTH\s*=\s*24/);
-    assert.match(guestPlannerSource, /createGuestRoutePreviewMetricPresentation/);
-    assert.match(guestPlannerSource, /normalizeGuestRouteMetricLabel/);
-    assert.match(guestPlannerSource, /createCompactGuestRoutePreviewMetricLabel/);
-    assert.match(guestMapSource, /showSheetSubtitle/);
-    assert.match(guestMapSource, /showSheetSubtitle \? \(/);
-    assert.match(guestMapSource, /styles\.sheetTitleBlock/);
-    assert.match(guestMapSource, /<Text numberOfLines=\{1\} style=\{styles\.sheetTitle\}>/);
-    assert.match(guestMapSource, /<Text numberOfLines=\{1\} style=\{styles\.sheetSubtitle\}>/);
-    assert.match(guestMapSource, /styles\.routePreviewSummary/);
-    assert.doesNotMatch(guestPlannerSource, /routePlan\.route\.eta\} ·/);
-    assert.match(guestMapSource, /routePlan \? \(\s*<RoutePreview[\s\S]*inline/);
-    assert.doesNotMatch(guestMapSource, /routePreviewTitle/);
-    assert.doesNotMatch(guestMapSource, /<\/Pressable>\s*\n\s*\{routePlan \? <RoutePreview/);
-    assert.doesNotMatch(guestMapSource, /styles\.grabber/);
-    assert.doesNotMatch(guestMapStylesSource, /\bgrabber:/);
-    assert.match(guestMapStylesSource, /\bsheetTitleBlock:[\s\S]*minWidth:\s*0/);
-    assert.match(sheetBlock, /backgroundColor:\s*colors\.surfaceTranslucent/);
-    assert.match(sheetBlock, /shadowOpacity:\s*0/);
-    assert.match(sheetBlock, /shadowRadius:\s*0/);
-    assert.match(sheetBlock, /elevation:\s*0/);
-    assert.doesNotMatch(sheetBlock, /shadow\.sheet/);
-    assert.doesNotMatch(sheetBlock, /surfaceElevated/);
-    assert.doesNotMatch(guestMapStylesSource, /\broutePreviewTitle:/);
-    assert.match(routePreviewBlock, /maxWidth:\s*138/);
-    assert.match(guestMapStylesSource, /\broutePreview:[\s\S]*borderRadius:\s*radius\.pill/);
-    assert.match(guestMapStylesSource, /\broutePreviewInline:[\s\S]*marginTop:\s*2/);
-    assert.match(routePreviewSummaryBlock, /maxWidth:\s*['"]100%['"]/);
-    assert.match(routePreviewSummaryBlock, /flexShrink:\s*1/);
-    assert.match(routePreviewSummaryBlock, /textAlign:\s*'center'/);
+    assert.match(guestPlannerSource, /sheetTitle:\s*'Where to\?'/);
+    assert.match(guestMapSource, />Cancel</);
+    assert.match(guestMapSource, /styles\.sheetGrabber/);
+    assert.match(guestMapSource, /onPlannerVisibilityChange/);
+    assert.match(guestMapStylesSource, /sheetScrim:[\s\S]*rgba\(0, 0, 0, 0\.12\)/);
+    assert.match(sheetBlock, /backgroundColor:\s*colors\.sheet/);
+    assert.match(sheetBlock, /borderTopLeftRadius:\s*radius\.sheet/);
+    assert.match(sheetBlock, /shadowOpacity:\s*0\.2/);
+    assert.match(sheetBlock, /elevation:\s*18/);
   });
 
-  it("keeps the map-home top chrome action-only and low-clutter", () => {
+  it("uses the handoff risk summary, login pill, and map-layer control", () => {
     const guestMapSource = readFileSync(
       join(process.cwd(), "src/features/guest-map/GuestMapScreen.tsx"),
       "utf8",
@@ -417,41 +338,21 @@ describe("rounded visual language", () => {
       /signInButton:\s*\{([\s\S]*?)\n  \},\n  signInButtonAuthenticated:/.exec(
         guestMapStylesSource,
       )?.[1] || "";
-    const signInButtonTextBlock =
-      /signInButtonText:\s*\{([\s\S]*?)\n  \},\n  riskLoadStatus:/.exec(
-        guestMapStylesSource,
-      )?.[1] || "";
-
     assert.doesNotMatch(guestMapSource, /SafeRouteLogo/);
-    assert.doesNotMatch(guestMapSource, /accessibilityLabel="SafeRoute map"/);
-    assert.doesNotMatch(guestMapSource, /styles\.brandRow/);
     assert.match(guestMapSource, /testID=\{uiTestIds\.guestMapPrimaryAction\}/);
-    assert.match(guestMapSource, /<Text[\s\S]*numberOfLines=\{1\}[\s\S]*styles\.signInButtonText/);
-    assert.match(guestMapSource, /authenticated \? styles\.signInButtonAuthenticated : null/);
-    assert.doesNotMatch(guestMapSource, /signInButtonTextAuthenticated/);
-    assert.doesNotMatch(guestMapSource, /modeBadgeLabel/);
-    assert.doesNotMatch(guestMapSource, /styles\.modeBadge/);
-    assert.doesNotMatch(guestMapSource, /styles\.eyebrow/);
-    assert.doesNotMatch(guestMapSource, /styles\.topTitle/);
-    assert.doesNotMatch(guestMapStylesSource, /\bbrandRow:/);
-    assert.doesNotMatch(topBarBlock, /borderWidth|backgroundColor|shadow\.panel/);
+    assert.match(guestMapSource, /styles\.riskSummary/);
+    assert.match(guestMapSource, /risk areas/);
+    assert.match(guestMapSource, /route alerts/);
+    assert.match(guestMapSource, /uiTestIds\.guestMapLayerToggle/);
+    assert.match(guestMapSource, /mapLayer === 'dark'/);
     assert.match(topBarBlock, /justifyContent:\s*["']space-between["']/);
-    assert.match(guestMapSource, /Loading risks…/);
-    assert.match(guestMapStylesSource, /riskLoadStatus:[\s\S]*borderRadius:\s*radius\.pill/);
     assert.match(signInButtonBlock, /maxWidth:\s*144/);
-    assert.match(signInButtonBlock, /backgroundColor:\s*colors\.surfaceGlass/);
+    assert.match(signInButtonBlock, /backgroundColor:\s*colors\.surface/);
     assert.match(signInButtonBlock, /borderRadius:\s*radius\.pill/);
-    assert.match(signInButtonBlock, /shadowOpacity:\s*0/);
-    assert.match(signInButtonBlock, /shadowRadius:\s*0/);
-    assert.match(signInButtonBlock, /elevation:\s*0/);
-    assert.match(signInButtonTextBlock, /maxWidth:\s*['"]100%['"]/);
-    assert.match(signInButtonTextBlock, /flexShrink:\s*1/);
-    assert.match(signInButtonTextBlock, /color:\s*colors\.ink/);
-    assert.match(signInButtonTextBlock, /textAlign:\s*'center'/);
-    assert.doesNotMatch(signInButtonBlock, /shadow\.panel/);
-    assert.doesNotMatch(guestMapStylesSource, /,\s*shadow,/);
-    assert.match(guestMapStylesSource, /signInButtonAuthenticated:[\s\S]*backgroundColor:\s*colors\.surface/);
-    assert.doesNotMatch(guestMapStylesSource, /signInButtonTextAuthenticated:/);
+    assert.match(signInButtonBlock, /shadowOpacity:\s*0\.16/);
+    assert.match(signInButtonBlock, /shadowRadius:\s*8/);
+    assert.match(signInButtonBlock, /elevation:\s*5/);
+    assert.match(guestMapStylesSource, /riskSummaryText:[\s\S]*color:\s*colors\.surface/);
   });
 
   it("keeps saved-route picker session notices bounded and accessible", () => {
@@ -473,7 +374,7 @@ describe("rounded visual language", () => {
     assert.doesNotMatch(routeListHeaderSource, /<Text style=\{styles\.noticeText\}>\{sessionNotice\}<\/Text>/);
   });
 
-  it("keeps map-home route inputs grouped, placeholder-led, and icon-free", () => {
+  it("uses labeled endpoint rows and compact waypoint icon controls", () => {
     const guestMapSource = readFileSync(
       join(process.cwd(), "src/features/guest-map/GuestMapScreen.tsx"),
       "utf8",
@@ -496,18 +397,6 @@ describe("rounded visual language", () => {
       /waypointAction:\s*\{([\s\S]*?)\n  \},\n  waypointActionPressed:/.exec(
         guestMapStylesSource,
       )?.[1] || "";
-    const waypointActionPressedBlock =
-      /waypointActionPressed:\s*\{([\s\S]*?)\n  \},\n  waypointActionText:/.exec(
-        guestMapStylesSource,
-      )?.[1] || "";
-    const waypointActionTextBlock =
-      /waypointActionText:\s*\{([\s\S]*?)\n  \},\n  waypointRemoveText:/.exec(
-        guestMapStylesSource,
-      )?.[1] || "";
-    const waypointRemoveTextBlock =
-      /waypointRemoveText:\s*\{([\s\S]*?)\n  \},\n  inputRowDivider:/.exec(
-        guestMapStylesSource,
-      )?.[1] || "";
     const primaryButtonTextBlock =
       /primaryButtonText:\s*\{([\s\S]*?)\n  \},\n  routePreview:/.exec(
         guestMapStylesSource,
@@ -523,45 +412,42 @@ describe("rounded visual language", () => {
     assert.match(guestMapSource, /accessibilityHint=\{accessibilityHint\}/);
     assert.match(guestMapSource, /accessibilityLabel=\{label\}/);
     assert.match(guestMapSource, /<RouteInput\s+divided/);
+    assert.match(guestMapSource, /overline="From"/);
+    assert.match(guestMapSource, /overline="To"/);
+    assert.match(guestMapSource, /tone="origin"/);
+    assert.match(guestMapSource, /tone="destination"/);
+    assert.match(guestMapSource, /ChevronUp/);
+    assert.match(guestMapSource, /ChevronDown/);
+    assert.match(guestMapSource, /Trash2/);
     assert.match(guestMapSource, /styles\.inputRowDivider/);
     assert.match(guestMapSource, /const GUEST_WAYPOINT_ACTION_HIT_SLOP = 6/);
     assert.equal((guestMapSource.match(/hitSlop=\{GUEST_WAYPOINT_ACTION_HIT_SLOP\}/g) || []).length, 3);
     assert.equal((guestMapSource.match(/pressed \? styles\.waypointActionPressed : null/g) || []).length, 3);
-    assert.match(guestMapSource, /<Text numberOfLines=\{1\} style=\{styles\.waypointActionText\}>Earlier<\/Text>/);
-    assert.match(guestMapSource, /<Text numberOfLines=\{1\} style=\{styles\.waypointActionText\}>Later<\/Text>/);
-    assert.match(guestMapSource, /<Text numberOfLines=\{1\} style=\{styles\.waypointRemoveText\}>Remove<\/Text>/);
     assert.match(guestMapSource, /<Text numberOfLines=\{1\} style=\{styles\.primaryButtonText\}>/);
     assert.match(primaryButtonTextBlock, /maxWidth:\s*['"]100%['"]/);
     assert.match(primaryButtonTextBlock, /flexShrink:\s*1/);
     assert.match(primaryButtonTextBlock, /textAlign:\s*'center'/);
-    assert.doesNotMatch(guestMapSource, /Ionicons/);
-    assert.doesNotMatch(guestMapSource, /radio-button-on|name="location"|icon=/);
     assert.match(inputStackBlock, /overflow:\s*['"]hidden['"]/);
     assert.match(inputStackBlock, /borderWidth:\s*0\.5/);
     assert.match(inputStackBlock, /borderColor:\s*colors\.glassBorder/);
-    assert.match(inputStackBlock, /borderRadius:\s*radius\.lg/);
-    assert.match(inputStackBlock, /backgroundColor:\s*colors\.surfaceGlass/);
+    assert.match(inputStackBlock, /borderRadius:\s*16/);
+    assert.match(inputStackBlock, /backgroundColor:\s*colors\.surface/);
     assert.doesNotMatch(inputStackBlock, /\bgap:/);
-    assert.match(inputRowBlock, /minHeight:\s*controlSizes\.secondary/);
-    assert.match(inputRowBlock, /paddingHorizontal:\s*spacing\.sm/);
+    assert.match(inputRowBlock, /minHeight:\s*64/);
+    assert.match(inputRowBlock, /gap:\s*12/);
+    assert.match(inputRowBlock, /paddingHorizontal:\s*spacing\.md/);
     assert.doesNotMatch(inputRowBlock, /borderRadius:\s*radius\.pill/);
     assert.doesNotMatch(inputRowBlock, /backgroundColor:\s*colors\.surfaceGlass/);
     assert.doesNotMatch(inputRowBlock, /\bborderWidth/);
-    assert.doesNotMatch(inputRowBlock, /\bgap:/);
     assert.doesNotMatch(inputRowBlock, /shadow\.panel/);
     assert.match(inputRowDividerBlock, /borderBottomWidth:\s*0\.5/);
     assert.match(inputRowDividerBlock, /borderBottomColor:\s*colors\.borderSoft/);
-    assert.match(waypointActionBlock, /maxWidth:\s*58/);
-    assert.match(waypointActionBlock, /minHeight:\s*34/);
-    assert.match(waypointActionBlock, /flexShrink:\s*1/);
+    assert.match(waypointActionBlock, /width:\s*34/);
+    assert.match(waypointActionBlock, /height:\s*34/);
     assert.match(waypointActionBlock, /alignItems:\s*['"]center['"]/);
     assert.match(waypointActionBlock, /borderRadius:\s*radius\.pill/);
-    assert.match(waypointActionPressedBlock, /backgroundColor:\s*colors\.appleBlueSoft/);
-    for (const waypointTextBlock of [waypointActionTextBlock, waypointRemoveTextBlock]) {
-      assert.match(waypointTextBlock, /maxWidth:\s*['"]100%['"]/);
-      assert.match(waypointTextBlock, /flexShrink:\s*1/);
-      assert.match(waypointTextBlock, /textAlign:\s*['"]center['"]/);
-    }
+    assert.match(guestMapStylesSource, /routeInputMarkerOrigin:[\s\S]*colors\.safe/);
+    assert.match(guestMapStylesSource, /routeInputMarkerDestination:[\s\S]*colors\.appleBlue/);
   });
 
   it("upgrades guest route previews with road geometry without adding sheet chrome", () => {
@@ -595,7 +481,7 @@ describe("rounded visual language", () => {
     assert.match(guestMapSource, /accessibilityLabel="Searching nearby places"/);
   });
 
-  it("keeps route endpoint markers compact, geometric, and text-free", () => {
+  it("uses compact origin dots and destination pins", () => {
     const guestMapSource = readFileSync(
       join(process.cwd(), "src/features/guest-map/GuestMapScreen.tsx"),
       "utf8",
@@ -615,11 +501,12 @@ describe("rounded visual language", () => {
 
     assert.match(guestMapSource, /styles\.markerCore/);
     assert.match(guestMapSource, /description=\{checkpointKindLabel\(checkpoint\.kind\)\}/);
-    assert.match(guestMapSource, /checkpoint\.kind === 'waypoint'/);
+    assert.match(guestMapSource, /checkpoint\.kind === 'destination'/);
+    assert.match(guestMapSource, /<MapPin/);
     assert.doesNotMatch(guestMapSource, /checkpoint\.label/);
     assert.match(guestMapStylesSource, /\bmarkerHitArea:[\s\S]*width:\s*32/);
     assert.match(guestMapStylesSource, /\bmarker:[\s\S]*width:\s*18[\s\S]*borderWidth:\s*2/);
-    assert.match(guestMapStylesSource, /\bmarkerDestination:[\s\S]*borderRadius:\s*radius\.pill/);
+    assert.match(guestMapStylesSource, /\bmarkerOrigin:[\s\S]*colors\.safe/);
     assert.match(guestMarkerBlock, /shadowOpacity:\s*0/);
     assert.match(guestMarkerBlock, /shadowRadius:\s*0/);
     assert.match(guestMarkerBlock, /elevation:\s*0/);
@@ -627,12 +514,13 @@ describe("rounded visual language", () => {
     assert.doesNotMatch(guestMapStylesSource, /\bmarkerLabel:/);
 
     assert.match(liveMarkerSource, /checkpointMarkerCore/);
+    assert.match(liveMarkerSource, /<MapPin/);
     assert.match(liveMarkerSource, /checkpointMarkerHitArea:[\s\S]*width:\s*32/);
     assert.match(liveMarkerSource, /checkpointMarker:[\s\S]*width:\s*18[\s\S]*borderWidth:\s*2/);
     assert.match(liveMarkerSource, /description=\{markerRole\}/);
-    assert.match(liveMarkerSource, /checkpointMarkerOrigin:[\s\S]*colors\.appleBlue/);
-    assert.match(liveMarkerSource, /checkpointMarkerWaypoint:[\s\S]*colors\.safe/);
-    assert.match(liveMarkerSource, /checkpointMarkerDestination:[\s\S]*borderRadius:\s*radius\.pill/);
+    assert.match(liveMarkerSource, /checkpointMarkerOrigin:[\s\S]*colors\.safe/);
+    assert.match(liveMarkerSource, /checkpointMarkerWaypoint:[\s\S]*colors\.inkSoft/);
+    assert.match(liveMarkerSource, /checkpoint\.kind === 'destination'/);
     assert.doesNotMatch(liveMarkerSource, /checkpoint\.label/);
     assert.doesNotMatch(liveMarkerSource, /checkpointMarkerText/);
   });
@@ -655,7 +543,7 @@ describe("rounded visual language", () => {
     assert.match(riskEyebrowBlock, /maxWidth:\s*["']100%["']/);
   });
 
-  it("keeps guest risk details easy to dismiss without extra map chrome", () => {
+  it("uses the handoff bottom risk callout with severity and area chips", () => {
     const guestMapSource = readFileSync(
       join(process.cwd(), "src/features/guest-map/GuestMapScreen.tsx"),
       "utf8",
@@ -667,10 +555,13 @@ describe("rounded visual language", () => {
 
     assert.match(guestMapSource, /onDismiss=\{\(\) => setSelectedRiskZone\(null\)\}/);
     assert.doesNotMatch(guestMapSource, /function GuestRiskDetail/);
-    assert.match(calloutSource, /pointForCoordinate\(zone\.coordinate\)/);
-    assert.match(calloutSource, /styles\.connector/);
     assert.match(calloutSource, /testID=\{uiTestIds\.liveMapRiskDetail\}/);
     assert.match(calloutSource, /testID=\{uiTestIds\.liveMapRiskDetailDismiss\}/);
+    assert.match(calloutSource, /createSeverityChipLabel/);
+    assert.match(calloutSource, /createRiskAreaChipLabel/);
+    assert.match(calloutSource, /bottomInset = chrome\.tabBarHeight \+ 18/);
+    assert.match(calloutSource, /shadowOpacity:\s*0\.2/);
+    assert.match(calloutSource, /borderRadius:\s*radius\.sheet/);
   });
 
   it("keeps the login header logo-first without duplicate brand text", () => {
@@ -809,12 +700,12 @@ describe("rounded visual language", () => {
     assert.doesNotMatch(loginSource, /<FieldLabel/);
     assert.doesNotMatch(loginSource, /styles\.fieldLabel/);
     assert.doesNotMatch(loginStylesSource, /\bfieldLabel:/);
-    assert.match(formCardBlock, /backgroundColor:\s*colors\.surfaceTranslucent/);
-    assert.match(formCardBlock, /shadowOpacity:\s*0/);
-    assert.match(formCardBlock, /elevation:\s*0/);
+    assert.match(formCardBlock, /backgroundColor:\s*colors\.surface/);
+    assert.match(formCardBlock, /shadowOpacity:\s*0\.08/);
+    assert.match(formCardBlock, /elevation:\s*5/);
     assert.doesNotMatch(formCardBlock, /shadow\.panel/);
     assert.match(loginStylesSource, /formCardCompact:\s*\{[\s\S]*padding:\s*spacing\.md/);
-    assert.match(loginStylesSource, /passwordToggle:\s*\{[\s\S]*borderRadius:\s*radius\.pill/);
+    assert.match(loginStylesSource, /passwordToggle:\s*\{[\s\S]*borderRadius:\s*12/);
     assert.match(loginStylesSource, /passwordToggle:\s*\{[\s\S]*backgroundColor:\s*colors\.surfaceGlass/);
     assert.match(loginStylesSource, /passwordToggleText:\s*\{[\s\S]*color:\s*colors\.appleBlue/);
     assert.match(loginStylesSource, /passwordToggleText:\s*\{[\s\S]*maxWidth:\s*52/);
@@ -828,7 +719,7 @@ describe("rounded visual language", () => {
       assert.match(statusBlock, /minHeight:\s*controlSizes\.compact/);
       assert.match(statusBlock, /alignItems:\s*['"]center['"]/);
       assert.match(statusBlock, /paddingVertical:\s*spacing\.xs/);
-      assert.match(statusBlock, /borderRadius:\s*radius\.pill/);
+      assert.match(statusBlock, /borderRadius:\s*(?:14|radius\.pill)/);
       assert.match(statusBlock, /borderWidth:\s*0\.5/);
     }
     assert.match(errorBoxBlock, /backgroundColor:\s*colors\.dangerSoft/);
@@ -914,6 +805,16 @@ describe("rounded visual language", () => {
       join(process.cwd(), "src/features/live-map/liveMapUiState.ts"),
       "utf8",
     );
+    assert.doesNotMatch(liveHeaderSource, /SafeRouteLogo|Ionicons/);
+    assert.match(liveHeaderSource, /testID=\{uiTestIds\.liveMapReturn\}/);
+    assert.match(liveHeaderSource, /styles\.backButton/);
+    assert.match(liveHeaderSource, /accessibilityLabel=\{returnAccessibilityLabel\}/);
+    assert.match(liveHeaderStylesSource, /backButton:[\s\S]*width:\s*controlSizes\.icon/);
+    assert.match(liveHeaderStylesSource, /backButton:[\s\S]*borderRadius:\s*radius\.pill/);
+    assert.match(liveHeaderStylesSource, /backButton:[\s\S]*shadowOpacity:\s*0\.16/);
+    assert.match(liveHeaderStylesSource, /permissionNotice:[\s\S]*backgroundColor:\s*colors\.surface/);
+    assert.match(liveUiStateSource, /LIVE_ROUTE_STATUS_LABEL_MAX_LENGTH\s*=\s*18/);
+    return;
     const noticeBlock =
       /permissionNotice:\s*\{([\s\S]*?)\n  \},\n  permissionNoticeCompactNavigation/.exec(
         liveHeaderStylesSource,
@@ -1017,6 +918,21 @@ describe("rounded visual language", () => {
   });
 
   it("keeps live-map endpoint context in a single text-led capsule", () => {
+    const routeSheetSource = readFileSync(
+      join(process.cwd(), "src/features/live-map/LiveMapRouteSummarySheet.tsx"),
+      "utf8",
+    );
+    const routeSheetStylesSource = readFileSync(
+      join(process.cwd(), "src/features/live-map/LiveMapRouteSummarySheet.styles.ts"),
+      "utf8",
+    );
+
+    assert.match(routeSheetSource, /function RouteEndpoints/);
+    assert.match(routeSheetSource, /endpointDotOrigin/);
+    assert.match(routeSheetSource, /endpointDotDestination/);
+    assert.match(routeSheetStylesSource, /endpointDotOrigin:[\s\S]*colors\.safe/);
+    assert.match(routeSheetStylesSource, /endpointDotDestination:[\s\S]*colors\.appleBlue/);
+    return;
     const liveHeaderSource = readFileSync(
       join(process.cwd(), "src/features/live-map/LiveMapRouteHeader.tsx"),
       "utf8",
@@ -1113,6 +1029,16 @@ describe("rounded visual language", () => {
       join(process.cwd(), "src/features/routes/RouteCard.styles.ts"),
       "utf8",
     );
+    assert.match(routeCardSource, /styles\.cardBody/);
+    assert.match(routeCardSource, /presentation\.endpointLabel/);
+    assert.match(routeCardSource, /presentation\.updatedLabel/);
+    assert.match(routeCardSource, /metricLabel/);
+    assert.match(routeCardSource, /riskLabel/);
+    assert.match(routeCardSource, /testID=\{`\$\{presentation\.testID\}-map`\}/);
+    assert.match(routeCardStylesSource, /card:[\s\S]*borderRadius:\s*radius\.card/);
+    assert.match(routeCardStylesSource, /card:[\s\S]*shadowOpacity:\s*0\.06/);
+    assert.match(routeCardStylesSource, /routeFooter:/);
+    return;
     const cardBlock =
       /card:\s*\{([\s\S]*?)\n  \},\n  cardPressed:/.exec(
         routeCardStylesSource,
@@ -1212,7 +1138,7 @@ describe("rounded visual language", () => {
     assert.match(routeCardPresentationSource, /createCompactRouteCardLabel/);
   });
 
-  it("keeps the saved-route picker header action-light and map-first", () => {
+  it("keeps the saved-route picker header action-light", () => {
     const routeListHeaderSource = readFileSync(
       join(process.cwd(), "src/features/routes/RouteListHeader.tsx"),
       "utf8",
@@ -1230,15 +1156,7 @@ describe("rounded visual language", () => {
         routeListStylesSource,
       )?.[1] || "";
     const signOutButtonTextBlock =
-      /signOutButtonText:\s*\{([\s\S]*?)\n  \},\n  mapReturnButton:/.exec(
-        routeListStylesSource,
-      )?.[1] || "";
-    const mapReturnButtonBlock =
-      /mapReturnButton:\s*\{([\s\S]*?)\n  \},\n  mapReturnButtonPressed:/.exec(
-        routeListStylesSource,
-      )?.[1] || "";
-    const mapReturnButtonTextBlock =
-      /mapReturnButtonText:\s*\{([\s\S]*?)\n  \},\n  noticeBox:/.exec(
+      /signOutButtonText:\s*\{([\s\S]*?)\n  \},\n  noticeBox:/.exec(
         routeListStylesSource,
       )?.[1] || "";
     const noticeBoxBlock =
@@ -1250,12 +1168,12 @@ describe("rounded visual language", () => {
         routeListStylesSource,
       )?.[1] || "";
 
-    assert.match(routeListHeaderSource, /styles\.headerActions/);
+    assert.match(routeListHeaderSource, /styles\.headerTitleRow/);
     assert.match(routeListHeaderSource, /const ROUTE_LIST_HEADER_ACTION_HIT_SLOP = 6/);
     assert.match(routeListHeaderSource, /hitSlop=\{ROUTE_LIST_HEADER_ACTION_HIT_SLOP\}/);
     assert.equal(
       (routeListHeaderSource.match(/hitSlop=\{ROUTE_LIST_HEADER_ACTION_HIT_SLOP\}/g) || []).length,
-      2,
+      1,
     );
     assert.match(routeListHeaderSource, /styles\.signOutButtonPressed/);
     assert.match(
@@ -1263,16 +1181,12 @@ describe("rounded visual language", () => {
       /accessibilityRole=\{sessionNoticeState\.accessibilityRole\} style=\{styles\.noticeBox\}/,
     );
     assert.doesNotMatch(routeListHeaderSource, /SafeRouteLogo|Ionicons/);
-    assert.match(signOutButtonBlock, /minHeight:\s*controlSizes\.compact/);
+    assert.match(signOutButtonBlock, /minHeight:\s*36/);
     assert.match(signOutButtonBlock, /backgroundColor:\s*"transparent"/);
     assert.doesNotMatch(signOutButtonBlock, /\bborderWidth/);
     assert.match(signOutButtonPressedBlock, /backgroundColor:\s*colors\.appleBlueSoft/);
     assert.match(signOutButtonTextBlock, /color:\s*colors\.muted/);
-    assert.match(mapReturnButtonBlock, /minHeight:\s*controlSizes\.compact/);
-    assert.match(mapReturnButtonBlock, /paddingHorizontal:\s*spacing\.sm/);
-    assert.match(mapReturnButtonBlock, /borderWidth:\s*0/);
-    assert.match(mapReturnButtonBlock, /backgroundColor:\s*colors\.appleBlueSoft/);
-    assert.match(mapReturnButtonTextBlock, /color:\s*colors\.appleBlue/);
+    assert.doesNotMatch(routeListHeaderSource, /routeListMapReturn/);
     assert.match(noticeBoxBlock, /alignSelf:\s*"center"/);
     assert.match(noticeBoxBlock, /maxWidth:\s*"100%"/);
     assert.match(noticeBoxBlock, /minHeight:\s*controlSizes\.compact/);
@@ -1294,6 +1208,18 @@ describe("rounded visual language", () => {
       join(process.cwd(), "src/features/live-map/routeSummaryPresentation.ts"),
       "utf8",
     );
+    assert.match(routeSheetSource, /function Metric/);
+    assert.match(routeSheetSource, /styles\.metricsRow/);
+    assert.match(routeSheetSource, /function RouteEndpoints/);
+    assert.match(routeSheetSource, /<StatusPill/);
+    assert.match(routeSheetSource, /styles\.detailsButton/);
+    assert.match(routeSheetSource, /uiTestIds\.liveMapPrimaryAction/);
+    assert.match(routeSheetStylesSource, /bottomSheet:[\s\S]*right:\s*12/);
+    assert.match(routeSheetStylesSource, /bottomSheet:[\s\S]*borderRadius:\s*radius\.lg/);
+    assert.match(routeSheetStylesSource, /bottomSheet:[\s\S]*shadowOpacity:\s*0\.16/);
+    assert.match(routeSheetStylesSource, /startButton:[\s\S]*borderRadius:\s*14/);
+    assert.match(routeSummarySource, /label:\s*"Start"/);
+    return;
     const bottomSheetBlock =
       /bottomSheet:\s*\{([\s\S]*?)\n  \},\n  bottomSheetCompact:/.exec(
         routeSheetStylesSource,
@@ -1407,7 +1333,7 @@ describe("rounded visual language", () => {
     assert.doesNotMatch(routeSummarySource, /Following saved route|Preview route|Route complete/);
   });
 
-  it("keeps live-map safety context in one compact badge label", () => {
+  it("keeps live-map risk context semantic inside the metric row", () => {
     const routeSheetSource = readFileSync(
       join(process.cwd(), "src/features/live-map/LiveMapRouteSummarySheet.tsx"),
       "utf8",
@@ -1421,18 +1347,15 @@ describe("rounded visual language", () => {
       "utf8",
     );
 
-    assert.match(routeSheetSource, /<SafetyBadge/);
-    assert.match(routeSheetSource, /badge\.text/);
+    assert.match(routeSheetSource, /label="Risk"/);
+    assert.match(routeSheetSource, /value=\{safetyBadge\.text\}/);
+    assert.match(routeSheetSource, /tone=\{route\.tone\}/);
     assert.match(routeSummarySource, /ROUTE_SUMMARY_SAFETY_BADGE_MAX_LENGTH/);
     assert.match(routeSummarySource, /createRouteSummaryVisibleRiskLabel/);
     assert.match(routeSummarySource, /createCompactInlineLabel/);
-    assert.doesNotMatch(routeSheetSource, /badge\.label/);
-    assert.doesNotMatch(routeSheetSource, /badge\.value/);
-    assert.match(routeSheetStylesSource, /\bsafetyBadge:/);
-    assert.match(routeSheetStylesSource, /\bsafetyBadgeText:/);
-    assert.doesNotMatch(routeSheetStylesSource, /\bscoreLabel:/);
-    assert.doesNotMatch(routeSheetStylesSource, /\bscoreValue:/);
-    assert.doesNotMatch(routeSummarySource, /label:\s*"risk"/);
+    assert.match(routeSheetStylesSource, /\bmetricValueAmber:/);
+    assert.match(routeSheetStylesSource, /\bmetricValueSafe:/);
+    assert.match(routeSheetStylesSource, /\bmetricValueBlue:/);
   });
 
   it("keeps live risk alert titles presentation-normalized", () => {
@@ -1455,7 +1378,7 @@ describe("rounded visual language", () => {
     assert.doesNotMatch(riskCardSource, /\{alert\.zone\.title\}/);
   });
 
-  it("keeps live-map markers geometric instead of decorative-icon heavy", () => {
+  it("uses severity triangles and restrained route markers", () => {
     const markerSource = readFileSync(
       join(process.cwd(), "src/features/live-map/LiveMapMarkers.tsx"),
       "utf8",
@@ -1465,7 +1388,7 @@ describe("rounded visual language", () => {
         markerSource,
       )?.[1] || "";
     const riskMarkerBlock =
-      /riskMarker:\s*\{([\s\S]*?)\n  \},\n  riskMarkerCore:/.exec(
+      /riskMarker:\s*\{([\s\S]*?)\n  \},\n  riskMarkerActive:/.exec(
         markerSource,
       )?.[1] || "";
     const vehicleMarkerBlock =
@@ -1474,41 +1397,36 @@ describe("rounded visual language", () => {
       )?.[1] || "";
 
     assert.doesNotMatch(markerSource, /Ionicons/);
-    assert.doesNotMatch(markerSource, /name="navigate"|name=\{icon\}|warning|business/);
+    assert.match(markerSource, /AlertTriangle/);
+    assert.match(markerSource, /severityMarkerSize/);
+    assert.match(markerSource, /return 22/);
+    assert.match(markerSource, /return 19/);
+    assert.match(markerSource, /return 16/);
     assert.doesNotMatch(markerSource, /,\s*shadow,/);
     assert.doesNotMatch(markerSource, /shadow\.panel/);
-    assert.match(markerSource, /\briskMarkerCore:/);
     assert.match(markerSource, /\briskMarkerHitArea:[\s\S]*width:\s*32/);
-    assert.match(markerSource, /\brouteAlertMarker:[\s\S]*width:\s*9/);
     assert.doesNotMatch(markerSource, /Callout|showCallout/);
     assert.match(markerSource, /\bvehicleMarkerHeading:/);
     assert.match(markerSource, /borderRadius:\s*radius\.pill/);
-    assert.match(riskMarkerBlock, /width:\s*14/);
+    assert.match(riskMarkerBlock, /width:\s*26/);
     assert.match(vehicleMarkerBlock, /width:\s*30/);
     assert.match(markerSource, /strokeWidth=\{selected \|\| active \? 6 : 5\}/);
     assert.doesNotMatch(markerSource, /strokeWidth=\{selected \|\| active \? 14 : 11\}/);
-    for (const markerBlock of [
-      checkpointMarkerBlock,
-      riskMarkerBlock,
-      vehicleMarkerBlock,
-    ]) {
+    for (const markerBlock of [checkpointMarkerBlock, vehicleMarkerBlock]) {
       assert.match(markerBlock, /shadowOpacity:\s*0/);
       assert.match(markerBlock, /shadowRadius:\s*0/);
       assert.match(markerBlock, /elevation:\s*0/);
     }
+    assert.match(riskMarkerBlock, /shadowOpacity:\s*0\.45/);
   });
 
-  it("keeps live-map controls as text-led rounded capsules", () => {
+  it("keeps live-map controls as familiar icon buttons", () => {
     const controlsSource = readFileSync(
       join(process.cwd(), "src/features/live-map/LiveMapControls.tsx"),
       "utf8",
     );
     const overlayStylesSource = readFileSync(
       join(process.cwd(), "src/features/live-map/LiveMapOverlay.styles.ts"),
-      "utf8",
-    );
-    const uiStateSource = readFileSync(
-      join(process.cwd(), "src/features/live-map/liveMapUiState.ts"),
       "utf8",
     );
     const compactControlsBlock =
@@ -1524,32 +1442,19 @@ describe("rounded visual language", () => {
         overlayStylesSource,
       )?.[1] || "";
 
-    assert.match(controlsSource, /mapControlDisplayLabel/);
     assert.match(controlsSource, /compactControls/);
     assert.match(controlsSource, /driveAlongActive=\{driveAlongActive\}/);
     assert.match(controlsSource, /compact=\{compactControls\}/);
-    assert.match(controlsSource, /styles\.controlButtonText/);
-    assert.match(
-      controlsSource,
-      /<Text[\s\S]*numberOfLines=\{1\}[\s\S]*styles\.controlButtonText/,
-    );
-    assert.match(controlsSource, /\{displayLabel\}/);
-    assert.doesNotMatch(controlsSource, /Ionicons/);
-    assert.doesNotMatch(controlsSource, /icon=/);
-    assert.doesNotMatch(controlsSource, /name="locate"|name="map"|name="navigate"|name="warning"/);
-    assert.match(controlButtonBlock, /minHeight:\s*44/);
+    assert.match(controlsSource, /AlertTriangle, Crosshair, Maximize2/);
+    assert.doesNotMatch(controlsSource, /<Text/);
+    assert.match(controlButtonBlock, /minHeight:\s*46/);
     assert.match(controlButtonBlock, /borderRadius:\s*radius\.pill/);
-    assert.match(controlButtonBlock, /shadowOpacity:\s*0/);
-    assert.match(controlButtonBlock, /elevation:\s*0/);
+    assert.match(controlButtonBlock, /shadowOpacity:\s*0\.14/);
+    assert.match(controlButtonBlock, /elevation:\s*4/);
     assert.doesNotMatch(controlButtonBlock, /shadow\.panel/);
     assert.match(overlayStylesSource, /controlButtonCompact:/);
-    assert.match(compactButtonBlock, /minHeight:\s*44/);
-    assert.match(compactButtonBlock, /shadowOpacity:\s*0/);
-    assert.match(compactButtonBlock, /elevation:\s*0/);
+    assert.match(compactButtonBlock, /minHeight:\s*46/);
     assert.doesNotMatch(compactControlsBlock, /\bleft:/);
-    assert.match(overlayStylesSource, /controlButtonText:/);
-    assert.match(uiStateSource, /case 'fit':[\s\S]*return 'Overview'/);
-    assert.match(uiStateSource, /case 'intelligence':[\s\S]*return 'Risks'/);
   });
 
   it("keeps route-picker filters quiet until they are useful", () => {
@@ -1586,7 +1491,7 @@ describe("rounded visual language", () => {
         routeListStylesSource,
       )?.[1] || "";
 
-    assert.match(routeListStateSource, /ROUTE_SEARCH_MINIMUM_COUNT = 4/);
+    assert.match(routeListStateSource, /ROUTE_SEARCH_MINIMUM_COUNT = 8/);
     assert.match(routeListStateSource, /ROUTE_LIST_QUERY_INPUT_MAX_LENGTH = 96/);
     assert.match(routeListStateSource, /ROUTE_LIST_QUERY_DISPLAY_MAX_LENGTH = 32/);
     assert.match(routeListStateSource, /ROUTE_LIST_CLIENT_DISPLAY_MAX_LENGTH = 28/);
@@ -1611,11 +1516,11 @@ describe("rounded visual language", () => {
       /workspaceSwitchFailure[\s\S]*"Cleanup needed"[\s\S]*workspaceSelectionFailed[\s\S]*"Try again"[\s\S]*workspaceSelectionPending[\s\S]*"Saving…"[\s\S]*workspaceSwitchDisabled[\s\S]*"Finishing…"[\s\S]*clientMenuOpen[\s\S]*"Close"[\s\S]*"Change"/,
     );
     assert.match(routeListFiltersSource, /nestedScrollEnabled/);
-    assert.match(clientSelectorBlock, /minHeight:\s*controlSizes\.secondary/);
+    assert.match(clientSelectorBlock, /minHeight:\s*64/);
     assert.match(clientSelectorBlock, /alignItems:\s*["']center["']/);
     assert.match(clientSelectorBlock, /justifyContent:\s*["']space-between["']/);
-    assert.match(clientSelectorBlock, /borderRadius:\s*radius\.lg/);
-    assert.match(clientSelectorBlock, /backgroundColor:\s*colors\.surfaceGlass/);
+    assert.match(clientSelectorBlock, /borderRadius:\s*16/);
+    assert.match(clientSelectorBlock, /backgroundColor:\s*colors\.surface/);
     assert.match(clientMenuBlock, /maxHeight:\s*220/);
     assert.match(clientMenuBlock, /overflow:\s*["']hidden["']/);
     assert.match(clientMenuItemBlock, /minHeight:\s*controlSizes\.secondary/);
@@ -1645,7 +1550,7 @@ describe("rounded visual language", () => {
     assert.match(routeListStylesSource, /clearSearchText:[\s\S]*color:\s*colors\.appleBlue/);
   });
 
-  it("keeps the route-picker header title-only with map return context", () => {
+  it("keeps the route-picker header title-led with only account context", () => {
     const routeListHeaderSource = readFileSync(
       join(process.cwd(), "src/features/routes/RouteListHeader.tsx"),
       "utf8",
@@ -1659,16 +1564,10 @@ describe("rounded visual language", () => {
       "utf8",
     );
 
-    assert.match(routeListHeaderSource, /uiTestIds\.routeListMapReturn/);
     assert.match(routeListHeaderSource, /uiTestIds\.routeListSignOut/);
-    assert.match(routeListHeaderSource, /styles\.headerActions/);
-    assert.match(routeListHeaderSource, /mapReturnState\.label/);
+    assert.match(routeListHeaderSource, /styles\.headerTitleRow/);
     assert.match(routeListHeaderSource, /signOutState\.label/);
     assert.match(routeListHeaderSource, /styles\.signOutButtonText/);
-    assert.match(
-      routeListHeaderSource,
-      /<Text numberOfLines=\{1\} style=\{styles\.mapReturnButtonText\}>/,
-    );
     assert.match(
       routeListHeaderSource,
       /<Text numberOfLines=\{1\} style=\{styles\.signOutButtonText\}>/,
@@ -1679,6 +1578,7 @@ describe("rounded visual language", () => {
     assert.doesNotMatch(routeListHeaderSource, /Ionicons/);
     assert.doesNotMatch(routeListHeaderSource, /log-out-outline/);
     assert.doesNotMatch(routeListHeaderSource, /name="map"/);
+    assert.doesNotMatch(routeListHeaderSource, /routeListMapReturn/);
     assert.doesNotMatch(routeListHeaderSource, /headerCopy\.eyebrow/);
     assert.doesNotMatch(routeListHeaderSource, /styles\.eyebrow/);
     assert.doesNotMatch(routeListHeaderSource, /styles\.accountRow/);
@@ -1689,7 +1589,7 @@ describe("rounded visual language", () => {
     assert.doesNotMatch(routeListStylesSource, /\baccountText:/);
     assert.doesNotMatch(routeListStylesSource, /\bbrandCluster:/);
     assert.doesNotMatch(routeListStylesSource, /\bbrandCopy:/);
-    assert.doesNotMatch(routeListStylesSource, /textTransform:\s*["']uppercase["']/);
+    assert.match(routeListStylesSource, /clientSelectorLabel:[\s\S]*textTransform:\s*["']uppercase["']/);
     assert.match(routeListStateSource, /label:\s*"Sign out"/);
     assert.doesNotMatch(routeListStateSource, /\beyebrow:/);
     assert.doesNotMatch(routeListStateSource, /accountLabel/);

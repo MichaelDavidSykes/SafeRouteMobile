@@ -21,5 +21,21 @@ describe("map transport state", () => {
       resolveSafeRouteMapType({ online: true, platform: "android" }),
       "standard",
     );
+    assert.equal(
+      resolveSafeRouteMapType({
+        layer: "satellite",
+        online: true,
+        platform: "ios",
+      }),
+      "satellite",
+    );
+    assert.equal(
+      resolveSafeRouteMapType({
+        layer: "satellite",
+        online: false,
+        platform: "ios",
+      }),
+      "none",
+    );
   });
 });

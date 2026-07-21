@@ -29,6 +29,7 @@ export type RouteListClientFilterOption = {
 };
 
 export type RouteListHeaderCopy = {
+  subtitle: string;
   title: string;
 };
 
@@ -71,7 +72,7 @@ const ROUTE_LIST_CACHE_AGE_TIMER_MAX_DELAY_MS = 2_147_483_647;
 
 // Keep the saved-route picker lightweight for tiny route sets; the cards are
 // quicker to scan than an always-visible search field.
-const ROUTE_SEARCH_MINIMUM_COUNT = 4;
+const ROUTE_SEARCH_MINIMUM_COUNT = 8;
 export const ROUTE_LIST_QUERY_INPUT_MAX_LENGTH = 96;
 export const ROUTE_LIST_QUERY_DISPLAY_MAX_LENGTH = 32;
 export const ROUTE_LIST_CLIENT_DISPLAY_MAX_LENGTH = 28;
@@ -106,7 +107,8 @@ export function createRouteListSearchQueryValue(query: string): string {
 
 export function createRouteListHeaderCopy(): RouteListHeaderCopy {
   return {
-    title: "Choose route",
+    subtitle: "Tap Map to preview it live",
+    title: "Assigned routes",
   };
 }
 
@@ -477,10 +479,10 @@ export function createRouteListSummaryState({
   }
 
   return {
-    accessibilityLabel: `${filteredRouteCount} map-ready saved ${routeLabel}${clientSuffix}.`,
+    accessibilityLabel: `${filteredRouteCount} ${routeLabel} assigned to you${clientSuffix}.`,
     clearSearchAccessibilityLabel: null,
     clearSearchLabel: null,
-    text: `${filteredRouteCount} ${routeLabel}`,
+    text: `${filteredRouteCount} ${routeLabel} assigned to you`,
   };
 }
 

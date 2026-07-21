@@ -5,7 +5,6 @@ import { uiTestIds } from "../../testing/uiTestIds";
 import { routeListStyles as styles } from "./RouteListScreen.styles";
 import {
   createRouteListHeaderCopy,
-  createRouteListMapReturnState,
   createRouteListSignOutState,
 } from "./routeListUiState";
 
@@ -19,39 +18,21 @@ interface RouteListHeaderProps {
 }
 
 export function RouteListHeader({
-  onBackToMap,
   onSignOut,
   sessionNotice,
   userEmail,
 }: RouteListHeaderProps) {
   const headerCopy = createRouteListHeaderCopy();
-  const mapReturnState = createRouteListMapReturnState();
   const sessionNoticeState = createSessionNoticeState(sessionNotice);
   const signOutState = createRouteListSignOutState(userEmail);
 
   return (
     <>
       <View style={styles.header}>
-        <Text numberOfLines={1} style={styles.title}>
-          {headerCopy.title}
-        </Text>
-        <View style={styles.headerActions}>
-          <Pressable
-            accessibilityHint={mapReturnState.accessibilityHint}
-            accessibilityLabel={mapReturnState.accessibilityLabel}
-            accessibilityRole="button"
-            hitSlop={ROUTE_LIST_HEADER_ACTION_HIT_SLOP}
-            testID={uiTestIds.routeListMapReturn}
-            style={({ pressed }) => [
-              styles.mapReturnButton,
-              pressed ? styles.mapReturnButtonPressed : null,
-            ]}
-            onPress={onBackToMap}
-          >
-            <Text numberOfLines={1} style={styles.mapReturnButtonText}>
-              {mapReturnState.label}
-            </Text>
-          </Pressable>
+        <View style={styles.headerTitleRow}>
+          <Text numberOfLines={2} style={styles.title}>
+            {headerCopy.title}
+          </Text>
           <Pressable
             accessibilityHint={signOutState.signOutAccessibilityHint}
             accessibilityLabel={signOutState.signOutAccessibilityLabel}
@@ -69,6 +50,9 @@ export function RouteListHeader({
             </Text>
           </Pressable>
         </View>
+        <Text numberOfLines={2} style={styles.subtitle}>
+          {headerCopy.subtitle}
+        </Text>
       </View>
 
       {sessionNoticeState ? (

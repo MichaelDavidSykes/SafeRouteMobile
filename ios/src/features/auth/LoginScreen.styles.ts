@@ -35,9 +35,9 @@ export const styles = StyleSheet.create({
   },
   title: {
     color: colors.ink,
-    fontSize: 36,
-    fontWeight: '900',
-    lineHeight: 40
+    fontSize: 32,
+    fontWeight: '800',
+    lineHeight: 37
   },
   titleCompact: {
     fontSize: 30,
@@ -61,12 +61,13 @@ export const styles = StyleSheet.create({
     padding: spacing.lg,
     borderWidth: 0.5,
     borderColor: colors.borderSoft,
-    borderRadius: radius.xl,
-    backgroundColor: colors.surfaceTranslucent,
-    shadowOpacity: 0,
-    shadowRadius: 0,
-    shadowOffset: { width: 0, height: 0 },
-    elevation: 0
+    borderRadius: radius.sheet,
+    backgroundColor: colors.surface,
+    shadowColor: '#000000',
+    shadowOpacity: 0.08,
+    shadowRadius: 12,
+    shadowOffset: { width: 0, height: 6 },
+    elevation: 5
   },
   formCardCompact: {
     gap: spacing.xs,
@@ -80,8 +81,8 @@ export const styles = StyleSheet.create({
     paddingHorizontal: spacing.md,
     borderWidth: 0.5,
     borderColor: colors.borderSoft,
-    borderRadius: radius.xl,
-    backgroundColor: colors.control
+    borderRadius: 14,
+    backgroundColor: colors.quiet
   },
   inputShellDisabled: {
     opacity: 0.62
@@ -98,7 +99,7 @@ export const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     paddingHorizontal: spacing.md,
-    borderRadius: radius.pill,
+    borderRadius: 12,
     backgroundColor: colors.surfaceGlass
   },
   passwordTogglePressed: {
@@ -124,7 +125,7 @@ export const styles = StyleSheet.create({
     paddingVertical: spacing.xs,
     borderWidth: 0.5,
     borderColor: 'rgba(216, 74, 63, 0.18)',
-    borderRadius: radius.pill,
+    borderRadius: 14,
     backgroundColor: colors.dangerSoft
   },
   errorText: {
@@ -144,7 +145,7 @@ export const styles = StyleSheet.create({
     paddingVertical: spacing.xs,
     borderWidth: 0.5,
     borderColor: 'rgba(243, 163, 43, 0.2)',
-    borderRadius: radius.pill,
+    borderRadius: 14,
     backgroundColor: colors.amberSoft
   },
   noticeText: {
@@ -188,7 +189,7 @@ export const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     gap: spacing.sm,
-    borderRadius: radius.pill,
+    borderRadius: 14,
     backgroundColor: colors.appleBlue
   },
   primaryButtonPressed: {
@@ -215,7 +216,7 @@ export const styles = StyleSheet.create({
     paddingHorizontal: spacing.lg,
     borderWidth: 0.5,
     borderColor: colors.appleBlue,
-    borderRadius: radius.pill,
+    borderRadius: 14,
     backgroundColor: colors.appleBlueSoft
   },
   savedSessionRetryButtonPressed: {
@@ -237,7 +238,7 @@ export const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     paddingHorizontal: spacing.lg,
-    borderRadius: radius.pill,
+    borderRadius: 14,
     backgroundColor: 'transparent'
   },
   secondaryButtonPressed: {

@@ -54,7 +54,7 @@ describe('Expo Go SDK compatibility', () => {
     const packageLock = readPackageLock();
     const expectedDependencies = {
       '@react-native-async-storage/async-storage': '2.2.0',
-      expo: '~54.0.35',
+      expo: '~54.0.36',
       'expo-constants': '~18.0.13',
       'expo-location': '~19.0.8',
       'expo-secure-store': '~15.0.8',
@@ -89,7 +89,7 @@ describe('Expo Go SDK compatibility', () => {
       );
     }
 
-    assert.equal(packageLock.packages?.['node_modules/expo']?.version, '54.0.35');
+    assert.equal(packageLock.packages?.['node_modules/expo']?.version, '54.0.36');
     assert.equal(packageLock.packages?.['node_modules/react-native']?.version, '0.81.5');
   });
 

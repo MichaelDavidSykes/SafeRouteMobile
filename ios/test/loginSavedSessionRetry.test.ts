@@ -32,7 +32,7 @@ describe("saved session validation retry", () => {
       )?.[1] || "";
 
     assert.match(button, /minHeight:\s*controlSizes\.secondary/);
-    assert.match(button, /borderRadius:\s*radius\.pill/);
+    assert.match(button, /borderRadius:\s*14/);
     assert.match(button, /flexDirection:\s*'row'/);
     assert.match(styles, /savedSessionRetryButtonText:[\s\S]*maxWidth:\s*210/);
   });

@@ -151,6 +151,10 @@ describe("view-only operations UI state", () => {
     assert.match(alpha.endpointLabel, /Mayfair/);
     assert.match(alpha.durationLabel, /window/);
     assert.equal(alpha.vehicleLabels.length, 2);
+    assert.equal(alpha.vehicles.length, 2);
+    assert.equal(alpha.vehicles[0].lead, true);
+    assert.match(alpha.vehicles[0].modelLabel, /Land Rover|Range Rover|Toyota|Mercedes|BMW/i);
+    assert.match(alpha.vehicles[0].nextEventLabel, /Airport transfer window/);
     assert.equal(alpha.peopleLabels.length, 2);
     assert.match(alpha.accessibilityLabel, /Opens convoy details/);
   });

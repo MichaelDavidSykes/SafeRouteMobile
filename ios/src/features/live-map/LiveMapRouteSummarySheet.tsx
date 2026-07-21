@@ -1,11 +1,19 @@
+import { useState } from "react";
+import { List } from "lucide-react-native";
 import { Pressable, Text, View } from "react-native";
 
 import type { LiveMapOverlayLayout } from "./liveMapLayout";
 import type { RoutePath, SavedSafeRoutePlan } from "./liveMapTypes";
 import {
+  createRouteEndpointLinePresentation,
+  createRouteTitleAccessibilityLabel,
+  createRouteTitleDisplayText,
   primaryRouteActionAccessibility,
+  routeStatusPillPresentation,
   stopRouteAccessibility,
   type NavigationLifecycle,
+  type RouteStatusPillPresentation,
+  type RouteStatusTone,
 } from "./liveMapUiState";
 import {
   formatDistance,
@@ -21,9 +29,7 @@ import {
   createRouteSummaryRemainingMetric,
   createRouteSummarySafetyBadge,
   createSavedRouteContextDetail,
-  shouldShowRouteSummarySafetyBadge,
   shouldUseCompactRouteSummary,
-  type RouteSummarySafetyBadge,
 } from "./routeSummaryPresentation";
 import type { BackgroundNavigationPresentation } from "./backgroundNavigationState";
 
@@ -43,6 +49,7 @@ interface LiveMapRouteSummarySheetProps {
   route: RoutePath;
   routeContext: "guest" | "saved";
   routePlan: SavedSafeRoutePlan;
+  trackingLabel: string;
 }
 
 export function LiveMapRouteSummarySheet({
@@ -58,7 +65,9 @@ export function LiveMapRouteSummarySheet({
   route,
   routeContext,
   routePlan,
+  trackingLabel,
 }: LiveMapRouteSummarySheetProps) {
+  const [detailsVisible, setDetailsVisible] = useState(false);
   const routeIntelCount = routePlan.riskZones.length;
   const primary = createRouteSummaryPrimaryAction(
     navigationState,
@@ -87,16 +96,17 @@ export function LiveMapRouteSummarySheet({
     routeContext,
     state: navigationState,
   });
+  const remainingDistance = progress
+    ? formatDistance(progress.remainingDistanceMeters)
+    : null;
+  const distanceMetricValue =
+    remainingDistance || route.distance.trim() || "Distance unavailable";
   const compactRemainingMetric =
-    compactRouteSummary && progress
-      ? createRouteSummaryRemainingMetric(
-          formatDistance(progress.remainingDistanceMeters),
-        )
+    compactRouteSummary && remainingDistance
+      ? createRouteSummaryRemainingMetric(remainingDistance)
       : null;
   const routeDetail = createRouteSummaryDetail({
-    remainingDistance: progress
-      ? formatDistance(progress.remainingDistanceMeters)
-      : null,
+    remainingDistance,
     routeContext,
     routeDescription: route.description,
     routeDistance: route.distance,
@@ -115,6 +125,15 @@ export function LiveMapRouteSummarySheet({
       (checkpoint) => checkpoint.kind === "waypoint",
     ).length,
   });
+  const routeTitleAccessibilityLabel = createRouteTitleAccessibilityLabel({
+    convoyCallsign: routePlan.convoyCallsign,
+    name: routePlan.name,
+    operation: routePlan.operation,
+  });
+  const statusPresentation = routeStatusPillPresentation({
+    state: navigationState,
+    trackingLabel,
+  });
 
   return (
     <View
@@ -123,72 +142,96 @@ export function LiveMapRouteSummarySheet({
         styles.bottomSheet,
         layout.isCompact ? styles.bottomSheetCompact : null,
         compactRouteSummary ? styles.bottomSheetCompactNavigation : null,
-        { paddingBottom: layout.sheetBottomPadding },
+        {
+          paddingBottom: compactRouteSummary
+            ? 10
+            : Math.max(14, layout.sheetBottomPadding),
+        },
       ]}
     >
-      <View
-        testID={uiTestIds.liveMapJourney(routePlan.id)}
-        style={[
-          styles.summaryRow,
-          compactRouteSummary ? styles.summaryRowCompactNavigation : null,
-        ]}
-      >
-        <View
-          style={[
-            styles.summaryCopy,
-            compactRouteSummary ? styles.summaryCopyCompactNavigation : null,
-          ]}
-        >
-          <Text
-            accessibilityLabel={headlinePresentation.accessibilityLabel}
-            numberOfLines={1}
-            style={[
-              styles.etaText,
-              compactRouteSummary ? styles.etaTextCompactNavigation : null,
-            ]}
-          >
-            {headlinePresentation.text}
-          </Text>
-          {compactRemainingMetric ? (
-            <Text
-              accessibilityLabel={compactRemainingMetric.accessibilityLabel}
-              numberOfLines={1}
-              testID={uiTestIds.liveMapRemainingMetrics}
-              style={styles.remainingMetricLine}
-            >
-              {compactRemainingMetric.text}
-            </Text>
-          ) : compactRouteSummary ? null : (
-            <Text
-              accessibilityLabel={routeDetail.accessibilityLabel}
-              numberOfLines={1}
-              style={styles.routeDetailLine}
-            >
-              {routeDetail.text}
-            </Text>
-          )}
-        </View>
-        {!compactRouteSummary && shouldShowRouteSummarySafetyBadge(routeContext) ? (
-          <SafetyBadge
-            badge={safetyBadge}
-            compact={layout.isCompact}
-            route={route}
-          />
-        ) : null}
+      <View testID={uiTestIds.liveMapJourney(routePlan.id)}>
+        {compactRouteSummary ? (
+          <View style={styles.compactSummaryRow}>
+            <View style={styles.compactSummaryCopy}>
+              <Text
+                accessibilityLabel={headlinePresentation.accessibilityLabel}
+                numberOfLines={1}
+                style={styles.compactEtaText}
+              >
+                {headlinePresentation.text}
+              </Text>
+              {compactRemainingMetric ? (
+                <Text
+                  accessibilityLabel={compactRemainingMetric.accessibilityLabel}
+                  numberOfLines={1}
+                  testID={uiTestIds.liveMapRemainingMetrics}
+                  style={styles.remainingMetricLine}
+                >
+                  {compactRemainingMetric.text}
+                </Text>
+              ) : null}
+            </View>
+            <StatusPill compact presentation={statusPresentation} />
+          </View>
+        ) : (
+          <>
+            <View style={styles.identityRow}>
+              <Text
+                accessibilityLabel={routeTitleAccessibilityLabel}
+                numberOfLines={1}
+                style={styles.routeTitle}
+              >
+                {createRouteTitleDisplayText(routePlan.name)}
+              </Text>
+              <StatusPill presentation={statusPresentation} />
+            </View>
+
+            <RouteEndpoints
+              destination={routePlan.destination}
+              origin={routePlan.origin}
+            />
+
+            <View style={styles.metricsRow}>
+              <Metric
+                accessibilityLabel={headlinePresentation.accessibilityLabel}
+                label="ETA"
+                value={headlinePresentation.text}
+              />
+              <View style={styles.metricDivider} />
+              <Metric
+                accessibilityLabel={routeDetail.accessibilityLabel}
+                label={remainingDistance ? "Remaining" : "Distance"}
+                value={distanceMetricValue}
+              />
+              <View style={styles.metricDivider} />
+              <Metric
+                accessibilityLabel={safetyBadge.accessibilityLabel}
+                label="Risk"
+                tone={route.tone}
+                value={safetyBadge.text}
+              />
+            </View>
+          </>
+        )}
       </View>
 
-      {!compactRouteSummary && routeContext === "saved" ? (
-        <View
-          accessible
-          accessibilityLabel={savedRouteContext.accessibilityLabel}
-          testID={uiTestIds.liveMapSavedRouteDetails}
-          style={styles.savedRouteContext}
-        >
-          <Text numberOfLines={1} style={styles.savedRouteContextPrimary}>
-            {savedRouteContext.primary}
-          </Text>
-          <Text numberOfLines={1} style={styles.savedRouteContextSecondary}>
-            {savedRouteContext.secondary}
+      {!compactRouteSummary && detailsVisible ? (
+        <View style={styles.detailsPanel}>
+          {routeContext === "saved" ? (
+            <View
+              accessible
+              accessibilityLabel={savedRouteContext.accessibilityLabel}
+            >
+              <Text numberOfLines={1} style={styles.detailsPrimary}>
+                {savedRouteContext.primary}
+              </Text>
+              <Text numberOfLines={1} style={styles.detailsSecondary}>
+                {savedRouteContext.secondary}
+              </Text>
+            </View>
+          ) : null}
+          <Text numberOfLines={2} style={styles.routeDescription}>
+            {route.description || routeDetail.text}
           </Text>
         </View>
       ) : null}
@@ -246,6 +289,7 @@ export function LiveMapRouteSummarySheet({
             {primary.label}
           </Text>
         </Pressable>
+
         {showStopAction ? (
           <Pressable
             accessibilityHint={stopAccessibility.hint}
@@ -266,47 +310,169 @@ export function LiveMapRouteSummarySheet({
               End
             </Text>
           </Pressable>
-        ) : null}
+        ) : (
+          <Pressable
+            accessibilityLabel={
+              routeContext === "saved"
+                ? savedRouteContext.accessibilityLabel
+                : "Route details"
+            }
+            accessibilityRole="button"
+            accessibilityState={{ expanded: detailsVisible }}
+            hitSlop={ROUTE_SUMMARY_ACTION_HIT_SLOP}
+            testID={uiTestIds.liveMapSavedRouteDetails}
+            style={({ pressed }) => [
+              styles.detailsButton,
+              detailsVisible ? styles.detailsButtonActive : null,
+              pressed ? styles.detailsButtonPressed : null,
+            ]}
+            onPress={() => setDetailsVisible((visible) => !visible)}
+          >
+            <List accessibilityElementsHidden color="#0a84ff" size={22} strokeWidth={2.1} />
+          </Pressable>
+        )}
       </View>
     </View>
   );
 }
 
-function SafetyBadge({
-  badge,
-  compact,
-  route,
+function Metric({
+  accessibilityLabel,
+  label,
+  tone,
+  value,
 }: {
-  badge: RouteSummarySafetyBadge;
-  compact: boolean;
-  route: RoutePath;
+  accessibilityLabel: string;
+  label: string;
+  tone?: RoutePath["tone"];
+  value: string;
 }) {
-  const toneStyle =
-    route.tone === "amber"
-      ? styles.safetyBadgeAmber
-      : route.tone === "blue"
-        ? styles.safetyBadgeBlue
-        : styles.safetyBadgeSafe;
-  const textStyle =
-    route.tone === "amber"
-      ? styles.safetyBadgeTextAmber
-      : route.tone === "blue"
-        ? styles.safetyBadgeTextBlue
-        : styles.safetyBadgeTextSafe;
+  return (
+    <View accessible accessibilityLabel={accessibilityLabel} style={styles.metric}>
+      <Text numberOfLines={1} style={styles.metricLabel}>
+        {label}
+      </Text>
+      <Text
+        adjustsFontSizeToFit
+        minimumFontScale={0.78}
+        numberOfLines={1}
+        style={[styles.metricValue, tone ? metricToneStyle(tone) : null]}
+      >
+        {value}
+      </Text>
+    </View>
+  );
+}
+
+function RouteEndpoints({
+  destination,
+  origin,
+}: {
+  destination: string;
+  origin: string;
+}) {
+  const presentation = createRouteEndpointLinePresentation({
+    destination,
+    origin,
+  });
 
   return (
     <View
       accessible
-      accessibilityLabel={badge.accessibilityLabel}
+      accessibilityLabel={presentation.accessibilityLabel}
+      style={styles.endpointRow}
+    >
+      <View style={styles.endpointRail}>
+        <View style={[styles.endpointDot, styles.endpointDotOrigin]} />
+        <View style={styles.endpointLine} />
+        <View style={[styles.endpointDot, styles.endpointDotDestination]} />
+      </View>
+      <View style={styles.endpointCopy}>
+        <Text numberOfLines={1} style={styles.endpointText}>
+          {origin || "Route start"}
+        </Text>
+        <Text numberOfLines={1} style={styles.endpointText}>
+          {destination || "Destination"}
+        </Text>
+      </View>
+    </View>
+  );
+}
+
+function StatusPill({
+  compact,
+  presentation,
+}: {
+  compact?: boolean;
+  presentation: RouteStatusPillPresentation;
+}) {
+  return (
+    <View
+      accessible
+      accessibilityLabel={presentation.accessibilityLabel}
       style={[
-        styles.safetyBadge,
-        compact ? styles.safetyBadgeCompact : null,
-        toneStyle,
+        styles.statusPill,
+        compact ? styles.statusPillCompact : null,
+        statusPillStyle(presentation.tone),
       ]}
     >
-      <Text numberOfLines={1} style={[styles.safetyBadgeText, textStyle]}>
-        {badge.text}
+      <View style={[styles.statusDot, statusDotStyle(presentation.tone)]} />
+      <Text
+        adjustsFontSizeToFit
+        minimumFontScale={0.8}
+        numberOfLines={1}
+        style={[styles.statusText, statusTextStyle(presentation.tone)]}
+      >
+        {presentation.label}
       </Text>
     </View>
   );
+}
+
+function statusPillStyle(tone: RouteStatusTone) {
+  if (tone === "danger") {
+    return styles.statusPillDanger;
+  }
+
+  if (tone === "live") {
+    return styles.statusPillLive;
+  }
+
+  return styles.statusPillDemo;
+}
+
+function statusDotStyle(tone: RouteStatusTone) {
+  if (tone === "danger") {
+    return styles.statusDotDanger;
+  }
+
+  if (tone === "live") {
+    return styles.statusDotLive;
+  }
+
+  return styles.statusDotDemo;
+}
+
+function statusTextStyle(tone: RouteStatusTone) {
+  if (tone === "danger") {
+    return styles.statusTextDanger;
+  }
+
+  if (tone === "live") {
+    return styles.statusTextLive;
+  }
+
+  return styles.statusTextDemo;
+}
+
+function metricToneStyle(tone: RoutePath["tone"]) {
+  if (tone === "amber") {
+    return styles.metricValueAmber;
+  }
+
+  if (tone === "blue") {
+    return styles.metricValueBlue;
+  }
+
+  return styles.metricValueSafe;
 }

@@ -13,9 +13,9 @@ describe("live map route line presentation", () => {
       }),
       {
         completedStrokeColor: colors.routePrimary,
-        completedStrokeWidth: 4,
+      completedStrokeWidth: 5,
         remainingStrokeColor: colors.routePrimary,
-        remainingStrokeWidth: 4,
+      remainingStrokeWidth: 5,
         showCompletedSegment: false,
       },
     );
@@ -29,9 +29,9 @@ describe("live map route line presentation", () => {
       }),
       {
         completedStrokeColor: colors.routePrimary,
-        completedStrokeWidth: 4,
+      completedStrokeWidth: 5,
         remainingStrokeColor: colors.routeRemaining,
-        remainingStrokeWidth: 4,
+      remainingStrokeWidth: 5,
         showCompletedSegment: true,
       },
     );

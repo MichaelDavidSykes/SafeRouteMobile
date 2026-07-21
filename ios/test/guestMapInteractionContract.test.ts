@@ -47,43 +47,32 @@ describe('guest map interaction contract', () => {
     );
   });
 
-  it('offers an accessible current-location control above either route sheet state', () => {
+  it('offers an accessible current-location FAB only when map chrome is clear', () => {
     assert.match(screen, /testID=\{uiTestIds\.guestMapCurrentLocation\}/);
     assert.match(screen, /accessibilityLabel=\{[\s\S]*Center map on current location/);
     assert.match(screen, /disabled=\{!mapReady \|\| !liveCoordinate\}/);
-    assert.match(
-      screen,
-      /currentLocationControlBottom = sheetProgress\.interpolate\([\s\S]*routeSheetHeight[\s\S]*64 \+ routeSheetBottomMargin/,
-    );
+    assert.match(screen, /sheetCollapsed && !selectedRiskZone/);
+    assert.doesNotMatch(screen, /currentLocationControlBottom = sheetProgress\.interpolate/);
     assert.match(
       screen,
       /handleCenterCurrentLocation[\s\S]*!mapReady \|\| !liveCoordinate[\s\S]*userMovedMapRef\.current = false[\s\S]*animateCamera\([\s\S]*center: liveCoordinate/,
     );
-    assert.match(styles, /currentLocationButton:[\s\S]*width: controlSizes\.icon[\s\S]*height: controlSizes\.icon/);
-    assert.match(styles, /currentLocationGlyphRing:[\s\S]*borderColor: colors\.appleBlue/);
+    assert.match(styles, /currentLocationButton:[\s\S]*width: 46[\s\S]*height: 46/);
+    assert.match(screen, /<Crosshair/);
     assert.doesNotMatch(screen, /Ionicons|MaterialIcons|FontAwesome/);
   });
 
-  it('shows a compass-backed facing direction at the live map coordinate', () => {
+  it('shows the handoff blue location dot without a directional triangle', () => {
     assert.match(screen, /useDeviceHeading\(permissionStatus === 'granted'\)/);
     assert.match(deviceHeadingHook, /Location\.watchHeadingAsync\(/);
     assert.match(deviceHeadingHook, /subscription\?\.remove\(\)/);
     assert.match(screen, /showsUserLocation=\{false\}/);
     assert.match(screen, /testID=\{uiTestIds\.guestMapCurrentLocationMarker\}/);
-    assert.match(
-      screen,
-      /resolveDeviceHeadingScreenRotation\([\s\S]*deviceHeadingDegrees[\s\S]*mapCameraHeadingDegrees/,
-    );
     assert.match(screen, /onRegionChangeComplete=\{handleMapRegionChangeComplete\}/);
-    assert.match(screen, /rotate: `\$\{deviceHeadingScreenRotation\}deg`/);
-    assert.doesNotMatch(screen, /rotation=\{deviceHeadingDegrees/);
-    assert.match(
-      screen,
-      /deviceHeadingDegrees !== null[\s\S]*currentLocationDirectionBorder[\s\S]*currentLocationDirectionFill/,
-    );
+    assert.doesNotMatch(screen, /deviceHeadingScreenRotation|currentLocationDirectionBorder|currentLocationDirectionFill/);
     assert.match(screen, /createDeviceHeadingAccessibilityLabel\(deviceHeadingDegrees\)/);
     assert.match(styles, /currentLocationDot:[\s\S]*backgroundColor: colors\.appleBlue/);
-    assert.match(styles, /currentLocationDirectionFill:[\s\S]*borderBottomColor: colors\.appleBlue/);
+    assert.match(styles, /currentLocationHalo:[\s\S]*rgba\(10, 132, 255, 0\.25\)/);
   });
 
   it('keeps the source map intact and blocks protected work while workspace selection saves', () => {

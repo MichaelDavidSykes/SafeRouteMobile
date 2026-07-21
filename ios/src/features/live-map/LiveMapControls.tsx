@@ -1,9 +1,9 @@
-import { Pressable, Text, View } from "react-native";
+import { AlertTriangle, Crosshair, Maximize2 } from "lucide-react-native";
+import { Pressable, View } from "react-native";
 
 import type { LiveMapOverlayLayout } from "./liveMapLayout";
 import {
   mapControlAccessibility,
-  mapControlDisplayLabel,
   resolveVisibleMapControls,
   shouldShowDriveAlongControl,
   type NavigationLifecycle,
@@ -104,7 +104,11 @@ function MapControlButton({
     hasLiveLocation,
   };
   const accessibility = mapControlAccessibility(control, controlOptions);
-  const displayLabel = mapControlDisplayLabel(control);
+  const iconColor = active
+    ? "#ffffff"
+    : disabled
+      ? "#b0b0b5"
+      : "#0a84ff";
 
   return (
     <Pressable
@@ -124,16 +128,13 @@ function MapControlButton({
       ]}
       onPress={onPress}
     >
-      <Text
-        numberOfLines={1}
-        style={[
-          styles.controlButtonText,
-          active ? styles.controlButtonTextActive : null,
-          disabled ? styles.controlButtonTextDisabled : null,
-        ]}
-      >
-        {displayLabel}
-      </Text>
+      {control === "center" ? (
+        <Crosshair accessibilityElementsHidden color={iconColor} size={21} strokeWidth={2} />
+      ) : control === "fit" ? (
+        <Maximize2 accessibilityElementsHidden color={iconColor} size={20} strokeWidth={2} />
+      ) : (
+        <AlertTriangle accessibilityElementsHidden color={iconColor} size={21} strokeWidth={2} />
+      )}
     </Pressable>
   );
 }

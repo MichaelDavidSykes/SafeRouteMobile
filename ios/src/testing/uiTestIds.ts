@@ -2,8 +2,12 @@ const UNKNOWN_TEST_ID_SEGMENT = "unknown";
 
 export const uiTestIds = {
   appRoot: "saferoute-app-root",
+  appTabBar: "safe-route-tab-bar",
+  appTab: (tabId: string) =>
+    `safe-route-tab-${normalizeTestIdSegment(tabId)}`,
   guestMapCanvas: "guest-map-canvas",
   guestMapCurrentLocation: "guest-map-current-location",
+  guestMapLayerToggle: "guest-map-layer-toggle",
   guestMapCurrentLocationMarker: "guest-map-current-location-marker",
   guestMapNetworkStatus: "guest-map-network-status",
   guestMapPrimaryAction: "guest-map-primary-action",
@@ -80,6 +84,10 @@ export const uiTestIds = {
   operationsConvoyDetailBack: "safe-route-operations-convoy-detail-back",
   operationsConvoyRoute: (routeId: string) =>
     `safe-route-operations-convoy-route-${normalizeTestIdSegment(routeId)}`,
+  operationsVehicleCard: (vehicleId: string) =>
+    `safe-route-operations-vehicle-${normalizeTestIdSegment(vehicleId)}`,
+  operationsVehicleDetail: "safe-route-operations-vehicle-detail",
+  operationsVehicleDetailDone: "safe-route-operations-vehicle-detail-done",
   savedRouteCard: (routeId: string) =>
     `safe-route-card-${normalizeTestIdSegment(routeId)}`,
   liveMapScreen: "safe-route-live-map",

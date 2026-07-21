@@ -1,124 +1,243 @@
-import { Platform, StyleSheet } from "react-native";
+import { StyleSheet } from "react-native";
 
 import { colors, controlSizes, radius, spacing, typeScale } from "../../theme";
 
 export const routeSummaryStyles = StyleSheet.create({
   bottomSheet: {
     position: "absolute",
-    left: 0,
-    right: 0,
-    bottom: 0,
-    paddingHorizontal: spacing.md,
-    paddingTop: 9,
-    paddingBottom: Platform.OS === "ios" ? 24 : spacing.md,
+    right: 12,
+    bottom: 12,
+    left: 12,
+    padding: spacing.md,
     borderWidth: 0.5,
-    borderColor: colors.glassBorder,
-    borderTopLeftRadius: radius.xl,
-    borderTopRightRadius: radius.xl,
-    backgroundColor: colors.surfaceTranslucent,
-    shadowOpacity: 0,
-    shadowRadius: 0,
-    shadowOffset: { width: 0, height: 0 },
-    elevation: 0,
+    borderColor: colors.borderSoft,
+    borderRadius: radius.lg,
+    backgroundColor: colors.surface,
+    shadowColor: "#000000",
+    shadowOpacity: 0.16,
+    shadowRadius: 20,
+    shadowOffset: { width: 0, height: 10 },
+    elevation: 10,
   },
   bottomSheetCompact: {
-    paddingTop: spacing.xs,
-    paddingBottom: Platform.OS === "ios" ? 18 : spacing.sm,
+    paddingHorizontal: spacing.md,
   },
   bottomSheetCompactNavigation: {
     paddingTop: spacing.sm,
   },
-  summaryRow: {
+  identityRow: {
+    minHeight: 34,
     flexDirection: "row",
-    alignItems: "flex-start",
-    justifyContent: "space-between",
-    gap: spacing.md,
-  },
-  summaryRowCompactNavigation: {
     alignItems: "center",
+    justifyContent: "space-between",
+    gap: spacing.sm,
   },
-  summaryCopy: {
+  routeTitle: {
     flex: 1,
     minWidth: 0,
-  },
-  summaryCopyCompactNavigation: {
-    justifyContent: "center",
-  },
-  etaText: {
     color: colors.ink,
-    fontSize: 30,
-    fontWeight: "800",
-    lineHeight: 32,
-  },
-  etaTextCompactNavigation: {
     fontSize: typeScale.xl,
+    fontWeight: "800",
     lineHeight: 26,
   },
-  routeDetailLine: {
-    marginTop: 3,
-    color: colors.inkSoft,
-    fontSize: typeScale.xs,
-    fontWeight: "800",
-  },
-  remainingMetricLine: {
-    marginTop: 2,
-    color: colors.inkSoft,
-    fontSize: typeScale.xs,
-    fontWeight: "800",
-  },
-  safetyBadge: {
-    minWidth: 64,
-    minHeight: 34,
+  statusPill: {
+    minWidth: 0,
+    maxWidth: 132,
+    minHeight: 30,
+    flexDirection: "row",
     alignItems: "center",
     justifyContent: "center",
-    alignSelf: "flex-start",
+    gap: spacing.xs,
+    flexShrink: 1,
     paddingHorizontal: spacing.sm,
     borderRadius: radius.pill,
   },
-  safetyBadgeCompact: {
-    minWidth: 56,
-    minHeight: 32,
+  statusPillCompact: {
+    maxWidth: 112,
+    minHeight: 28,
   },
-  safetyBadgeSafe: {
+  statusPillLive: {
+    backgroundColor: colors.appleBlueSoft,
+  },
+  statusPillDemo: {
     backgroundColor: colors.safeSoft,
   },
-  safetyBadgeAmber: {
-    backgroundColor: colors.amberSoft,
+  statusPillDanger: {
+    backgroundColor: colors.dangerSoft,
   },
-  safetyBadgeBlue: {
-    backgroundColor: colors.infoSoft,
+  statusDot: {
+    width: 7,
+    height: 7,
+    flexShrink: 0,
+    borderRadius: radius.pill,
   },
-  safetyBadgeText: {
-    maxWidth: 84,
-    fontSize: typeScale.sm,
-    fontWeight: "900",
-    lineHeight: 17,
+  statusDotLive: {
+    backgroundColor: colors.appleBlue,
   },
-  safetyBadgeTextSafe: {
+  statusDotDemo: {
+    backgroundColor: colors.safe,
+  },
+  statusDotDanger: {
+    backgroundColor: colors.danger,
+  },
+  statusText: {
+    maxWidth: "100%",
+    minWidth: 0,
+    flexShrink: 1,
+    fontSize: typeScale.xs,
+    fontWeight: "800",
+    textAlign: "center",
+  },
+  statusTextLive: {
+    color: colors.appleBlue,
+  },
+  statusTextDemo: {
     color: colors.safeText,
   },
-  safetyBadgeTextAmber: {
+  statusTextDanger: {
+    color: colors.dangerText,
+  },
+  endpointRow: {
+    minHeight: 48,
+    flexDirection: "row",
+    alignItems: "stretch",
+    gap: spacing.sm,
+    marginTop: spacing.sm,
+    paddingVertical: 4,
+  },
+  endpointRail: {
+    width: 14,
+    alignItems: "center",
+    justifyContent: "space-between",
+    flexShrink: 0,
+  },
+  endpointDot: {
+    width: 10,
+    height: 10,
+    zIndex: 2,
+    borderWidth: 2,
+    borderColor: colors.surface,
+    borderRadius: radius.pill,
+  },
+  endpointDotOrigin: {
+    backgroundColor: colors.safe,
+  },
+  endpointDotDestination: {
+    backgroundColor: colors.appleBlue,
+  },
+  endpointLine: {
+    position: "absolute",
+    top: 8,
+    bottom: 8,
+    width: 2,
+    backgroundColor: colors.border,
+  },
+  endpointCopy: {
+    flex: 1,
+    minWidth: 0,
+    justifyContent: "space-between",
+    paddingVertical: 1,
+  },
+  endpointText: {
+    color: colors.inkSoft,
+    fontSize: typeScale.sm,
+    fontWeight: "700",
+    lineHeight: 18,
+  },
+  metricsRow: {
+    minHeight: 54,
+    flexDirection: "row",
+    alignItems: "stretch",
+    marginTop: spacing.sm,
+    paddingVertical: spacing.xs,
+    borderTopWidth: 0.5,
+    borderBottomWidth: 0.5,
+    borderColor: colors.borderSoft,
+  },
+  metric: {
+    flex: 1,
+    minWidth: 0,
+    justifyContent: "center",
+    paddingHorizontal: spacing.xs,
+  },
+  metricDivider: {
+    width: 0.5,
+    marginVertical: 4,
+    backgroundColor: colors.borderSoft,
+  },
+  metricLabel: {
+    color: colors.muted,
+    fontSize: typeScale.xs,
+    fontWeight: "700",
+  },
+  metricValue: {
+    marginTop: 2,
+    color: colors.ink,
+    fontSize: typeScale.md,
+    fontWeight: "800",
+    lineHeight: 19,
+  },
+  metricValueSafe: {
+    color: colors.safeText,
+  },
+  metricValueAmber: {
     color: colors.amberText,
   },
-  safetyBadgeTextBlue: {
+  metricValueBlue: {
     color: colors.infoText,
   },
-  savedRouteContext: {
-    marginTop: spacing.xs,
-    paddingTop: spacing.xs,
+  compactSummaryRow: {
+    minHeight: 34,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    gap: spacing.sm,
+  },
+  compactSummaryCopy: {
+    flex: 1,
+    minWidth: 0,
+    flexDirection: "row",
+    alignItems: "baseline",
+    gap: spacing.sm,
+  },
+  compactEtaText: {
+    minWidth: 0,
+    flexShrink: 1,
+    color: colors.ink,
+    fontSize: typeScale.xl,
+    fontWeight: "800",
+    lineHeight: 26,
+  },
+  remainingMetricLine: {
+    minWidth: 0,
+    flexShrink: 1,
+    color: colors.inkSoft,
+    fontSize: typeScale.xs,
+    fontWeight: "800",
+  },
+  detailsPanel: {
+    marginTop: spacing.sm,
+    paddingTop: spacing.sm,
     borderTopWidth: 0.5,
     borderTopColor: colors.borderSoft,
   },
-  savedRouteContextPrimary: {
+  detailsPrimary: {
     color: colors.ink,
     fontSize: typeScale.xs,
     fontWeight: "800",
   },
-  savedRouteContextSecondary: {
+  detailsSecondary: {
     marginTop: 2,
     color: colors.inkSoft,
     fontSize: typeScale.xs,
     fontWeight: "700",
+  },
+  routeDescription: {
+    marginTop: spacing.xs,
+    color: colors.inkSoft,
+    fontSize: typeScale.xs,
+    fontWeight: "600",
+    lineHeight: 16,
   },
   continuityAction: {
     minHeight: 36,
@@ -157,13 +276,11 @@ export const routeSummaryStyles = StyleSheet.create({
     marginTop: spacing.xs,
   },
   startButton: {
+    minHeight: controlSizes.primary,
     flex: 1,
-    minHeight: 50,
-    flexDirection: "row",
     alignItems: "center",
     justifyContent: "center",
-    gap: spacing.sm,
-    borderRadius: radius.pill,
+    borderRadius: 14,
     backgroundColor: colors.appleBlue,
   },
   startButtonCompactNavigation: {
@@ -189,16 +306,45 @@ export const routeSummaryStyles = StyleSheet.create({
   startButtonTextDisabled: {
     color: colors.inkSoft,
   },
+  detailsButton: {
+    width: controlSizes.primary,
+    height: controlSizes.primary,
+    alignItems: "center",
+    justifyContent: "center",
+    flexShrink: 0,
+    borderWidth: 0.5,
+    borderColor: colors.borderSoft,
+    borderRadius: 14,
+    backgroundColor: colors.control,
+  },
+  detailsButtonActive: {
+    borderColor: colors.appleBlue,
+    backgroundColor: colors.appleBlueSoft,
+  },
+  detailsButtonPressed: {
+    transform: [{ scale: 0.96 }],
+  },
+  detailsGlyph: {
+    width: 22,
+    height: 18,
+    justifyContent: "space-between",
+  },
+  detailsGlyphLine: {
+    width: 22,
+    height: 2,
+    borderRadius: radius.pill,
+    backgroundColor: colors.appleBlue,
+  },
   stopButton: {
+    minHeight: controlSizes.primary,
     flex: 1,
-    minHeight: 50,
     alignItems: "center",
     justifyContent: "center",
     paddingHorizontal: spacing.md,
     borderWidth: 0.5,
-    borderColor: "rgba(255, 59, 48, 0.22)",
-    borderRadius: radius.pill,
-    backgroundColor: "rgba(255, 59, 48, 0.12)",
+    borderColor: colors.dangerSoft,
+    borderRadius: 14,
+    backgroundColor: colors.dangerSoft,
   },
   stopButtonCompactNavigation: {
     minHeight: controlSizes.secondary,

@@ -1,5 +1,17 @@
 import { useCallback, useEffect, useMemo, useReducer, useRef, useState } from 'react';
 import {
+  ChevronDown,
+  ChevronUp,
+  Crosshair,
+  Globe2,
+  Map as MapIcon,
+  MapPin,
+  Plus,
+  Search,
+  Trash2,
+  UserRound,
+} from 'lucide-react-native';
+import {
   ActivityIndicator,
   Animated,
   Keyboard,
@@ -17,7 +29,7 @@ import MapView, { Marker, Polyline, type LatLng, type Region } from 'react-nativ
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { LUNARCHAIN_API_BASE, SAFEROUTE_PREVIEW_MODE_ENABLED } from '../../config/env';
-import { colors, spacing } from '../../theme';
+import { chrome, colors, spacing } from '../../theme';
 import { uiTestIds } from '../../testing/uiTestIds';
 import type { SavedSafeRoutePlan } from '../live-map/liveMapTypes';
 import type { RiskZone } from '../live-map/liveMapTypes';
@@ -36,10 +48,7 @@ import {
   SAFE_ROUTE_ROUTE_CORE_WIDTH,
   SAFE_ROUTE_ROUTE_GLOW_WIDTH
 } from '../maps/safeRouteMapTheme';
-import {
-  createDeviceHeadingAccessibilityLabel,
-  resolveDeviceHeadingScreenRotation
-} from '../maps/deviceHeading';
+import { createDeviceHeadingAccessibilityLabel } from '../maps/deviceHeading';
 import { shouldRenderRouteCheckpointMarker } from '../maps/mapMarkerPresentation';
 import { useDeviceHeading } from '../maps/useDeviceHeading';
 import { isPreviewAccessToken } from '../auth/previewSession';
@@ -62,8 +71,6 @@ import {
   createGuestRoutePlanId,
   createGuestRoutePlan,
   createGuestRoutePreviewState,
-  getGuestFullAccessCopy,
-  getGuestMapGateFeatures,
   resolveGuestRoadPreviewStops,
   shouldShowGuestMapSubtitle,
   type GuestFullAccessFeature
@@ -116,7 +123,10 @@ interface GuestMapScreenProps {
   activeWorkspace?: SafeRouteWorkspace | null;
   authenticated: boolean;
   availableWorkspaces?: SafeRouteWorkspace[];
+  mapLayer?: 'dark' | 'satellite';
+  onMapLayerChange?: (layer: 'dark' | 'satellite') => void;
   onOpenFullAccessFeature: (feature: GuestFullAccessFeature) => void;
+  onPlannerVisibilityChange?: (open: boolean) => void;
   onOpenRoutePreview?: (routePlan: SavedSafeRoutePlan) => void;
   onSessionExpired?: (message?: string) => void;
   onWorkspaceUnavailable?: (workspaceId: string) => void;
@@ -147,7 +157,10 @@ export function GuestMapScreen({
   activeWorkspace = null,
   authenticated,
   availableWorkspaces = [],
+  mapLayer = 'dark',
+  onMapLayerChange,
   onOpenFullAccessFeature,
+  onPlannerVisibilityChange,
   onOpenRoutePreview,
   onSessionExpired,
   onWorkspaceUnavailable,
@@ -198,14 +211,13 @@ export function GuestMapScreen({
   const pendingOpenPreviewRef = useRef(false);
   const roadRouteRequestIdRef = useRef(0);
   const riskAreaRequestIdRef = useRef(0);
-  const mapCameraRequestIdRef = useRef(0);
   const workspaceAuthorizationEpochRef = useRef(0);
   const workspaceAuthorizationFreshRef = useRef(workspaceAuthorizationFresh);
   if (workspaceAuthorizationFreshRef.current !== workspaceAuthorizationFresh) {
     workspaceAuthorizationFreshRef.current = workspaceAuthorizationFresh;
     workspaceAuthorizationEpochRef.current += 1;
   }
-  const sheetProgress = useRef(new Animated.Value(0)).current;
+  const sheetProgress = useRef(new Animated.Value(1)).current;
   const sheetGestureActionRef = useRef<(collapsed: boolean) => void>(() => undefined);
   const routeInputRefs = useRef(new Map<string, TextInput>());
   const pendingInputFocusFrameRef = useRef<number | null>(null);
@@ -218,7 +230,7 @@ export function GuestMapScreen({
   const [locationSearchResults, setLocationSearchResults] = useState<GuestLocationSearchResult[]>([]);
   const [locationSearchPending, setLocationSearchPending] = useState(false);
   const [locationSearchMessage, setLocationSearchMessage] = useState('');
-  const [sheetCollapsed, setSheetCollapsed] = useState(false);
+  const [sheetCollapsed, setSheetCollapsed] = useState(true);
   const handleWorkspaceAccessFocusTarget = useCallback(
     (target: View | null) => {
       workspaceAccessFocusTargetRef?.(sheetCollapsed ? null : target);
@@ -232,8 +244,6 @@ export function GuestMapScreen({
   } | null>(null);
   const [mapReady, setMapReady] = useState(false);
   const [mapRegion, setMapRegion] = useState<Region>(GUEST_MAP_REGION);
-  const [mapCameraHeadingDegrees, setMapCameraHeadingDegrees] = useState(0);
-  const [routeSheetHeight, setRouteSheetHeight] = useState(0);
   const [routeMessage, setRouteMessage] = useState('');
   const [workspaceMenuOpen, setWorkspaceMenuOpen] = useState(false);
   const [selectedRiskZone, setSelectedRiskZone] = useState<RiskZone | null>(null);
@@ -252,10 +262,6 @@ export function GuestMapScreen({
     ? { latitude: liveLocation.latitude, longitude: liveLocation.longitude }
     : null;
   const deviceHeadingDegrees = useDeviceHeading(permissionStatus === 'granted');
-  const deviceHeadingScreenRotation = resolveDeviceHeadingScreenRotation(
-    deviceHeadingDegrees,
-    mapCameraHeadingDegrees
-  );
   const routingClientId = authenticated ? activeWorkspace?.id || null : null;
   const routingClientIdRef = useRef(routingClientId);
   const workspaceSelectionRequired = authenticated && !routingClientId;
@@ -277,17 +283,9 @@ export function GuestMapScreen({
   const origin = routeDraft.origin.label;
   const destination = routeDraft.destination.label;
   const routeSheetMaxHeight = Math.max(
-    230,
-    Math.min(520, viewport.height * (activeInput ? 0.43 : 0.62))
+    420,
+    viewport.height - 72
   );
-  const routeSheetBottomMargin = Platform.OS === 'ios' ? spacing.sm : spacing.md;
-  const currentLocationControlBottom = sheetProgress.interpolate({
-    inputRange: [0, 1],
-    outputRange: [
-      (routeSheetHeight || routeSheetMaxHeight) + routeSheetBottomMargin + spacing.sm,
-      64 + routeSheetBottomMargin + spacing.sm
-    ]
-  });
   const activeDraftStop = activeInput
     ? findGuestRouteDraftStop(routeDraft, activeInput)
     : null;
@@ -298,6 +296,11 @@ export function GuestMapScreen({
     destination,
     routePlotted
   });
+  const routeAlertCount = routePlan?.riskZones.length || 0;
+
+  useEffect(() => {
+    onPlannerVisibilityChange?.(!sheetCollapsed);
+  }, [onPlannerVisibilityChange, sheetCollapsed]);
   const routeActionDisabled =
     !online ||
     routeAction.disabled ||
@@ -365,10 +368,6 @@ export function GuestMapScreen({
   });
   const destinationInputCopy = createGuestRouteInputCopy({
     field: 'destination',
-    routePlotted
-  });
-  const gateFeatures = getGuestMapGateFeatures({
-    authenticated,
     routePlotted
   });
   const viewportRisk = useViewportRiskAreas({
@@ -484,7 +483,6 @@ export function GuestMapScreen({
     activeRiskAreaRequestRef.current?.abort();
     activeRiskAreaRequestRef.current = null;
     riskAreaRequestIdRef.current += 1;
-    mapCameraRequestIdRef.current += 1;
   }, []);
 
   useEffect(() => {
@@ -1127,20 +1125,6 @@ export function GuestMapScreen({
 
   const handleMapRegionChangeComplete = (region: Region) => {
     setMapRegion(region);
-    const requestId = mapCameraRequestIdRef.current + 1;
-    mapCameraRequestIdRef.current = requestId;
-    const cameraPromise = mapRef.current?.getCamera();
-    if (!cameraPromise) {
-      return;
-    }
-
-    void cameraPromise.then((camera) => {
-      if (mapCameraRequestIdRef.current !== requestId) {
-        return;
-      }
-      const nextHeading = Number(camera.heading);
-      setMapCameraHeadingDegrees(Number.isFinite(nextHeading) ? nextHeading : 0);
-    }).catch(() => undefined);
   };
 
   const handleStopChange = (stopId: string, value: string) => {
@@ -1464,6 +1448,7 @@ export function GuestMapScreen({
         toolbarEnabled={false}
         customMapStyle={SAFE_ROUTE_DARK_MAP_STYLE}
         mapType={resolveSafeRouteMapType({
+          layer: mapLayer,
           online,
           platform: Platform.OS,
         })}
@@ -1499,24 +1484,10 @@ export function GuestMapScreen({
               accessible
               accessibilityLabel={createDeviceHeadingAccessibilityLabel(deviceHeadingDegrees)}
               accessibilityRole="image"
-              style={[
-                styles.currentLocationMarker,
-                deviceHeadingScreenRotation !== null
-                  ? {
-                      transform: [{
-                        rotate: `${deviceHeadingScreenRotation}deg`
-                      }]
-                    }
-                  : null
-              ]}
+              style={styles.currentLocationMarker}
               testID={uiTestIds.guestMapCurrentLocationMarker}
             >
-              {deviceHeadingDegrees !== null ? (
-                <>
-                  <View style={styles.currentLocationDirectionBorder} />
-                  <View style={styles.currentLocationDirectionFill} />
-                </>
-              ) : null}
+              <View style={styles.currentLocationHalo} />
               <View style={styles.currentLocationDot} />
             </View>
           </Marker>
@@ -1564,18 +1535,26 @@ export function GuestMapScreen({
                   accessibilityRole="image"
                   style={styles.markerHitArea}
                 >
-                  <View
-                    style={[
-                      styles.marker,
-                      checkpoint.kind === 'origin'
-                        ? styles.markerOrigin
-                        : checkpoint.kind === 'waypoint'
-                          ? styles.markerWaypoint
-                          : styles.markerDestination
-                    ]}
-                  >
-                    <View style={styles.markerCore} />
-                  </View>
+                  {checkpoint.kind === 'destination' ? (
+                    <MapPin
+                      accessibilityElementsHidden
+                      color={colors.appleBlue}
+                      fill={colors.appleBlue}
+                      size={27}
+                      strokeWidth={1.8}
+                    />
+                  ) : (
+                    <View
+                      style={[
+                        styles.marker,
+                        checkpoint.kind === 'origin'
+                          ? styles.markerOrigin
+                          : styles.markerWaypoint
+                      ]}
+                    >
+                      <View style={styles.markerCore} />
+                    </View>
+                  )}
                 </View>
               </Marker>
             ))}
@@ -1609,13 +1588,26 @@ export function GuestMapScreen({
         style={styles.overlay}
       >
       <SafeAreaView pointerEvents="box-none" style={styles.overlay}>
-        <Animated.View
-          pointerEvents="box-none"
-          style={[
-            styles.currentLocationControlDock,
-            { bottom: currentLocationControlBottom }
-          ]}
-        >
+        {sheetCollapsed && !selectedRiskZone ? (
+        <View pointerEvents="box-none" style={styles.currentLocationControlDock}>
+          <Pressable
+            accessibilityHint={`Switches to the ${mapLayer === 'dark' ? 'satellite' : 'dark'} map.`}
+            accessibilityLabel={mapLayer === 'dark' ? 'Show satellite map' : 'Show dark map'}
+            accessibilityRole="button"
+            testID={uiTestIds.guestMapLayerToggle}
+            style={({ pressed }) => [
+              styles.currentLocationButton,
+              styles.layerButton,
+              pressed ? styles.currentLocationButtonPressed : null,
+            ]}
+            onPress={() => onMapLayerChange?.(mapLayer === 'dark' ? 'satellite' : 'dark')}
+          >
+            {mapLayer === 'dark' ? (
+              <Globe2 accessibilityElementsHidden color={colors.appleBlue} size={21} strokeWidth={1.9} />
+            ) : (
+              <MapIcon accessibilityElementsHidden color={colors.appleBlue} size={21} strokeWidth={1.9} />
+            )}
+          </Pressable>
           <Pressable
             accessibilityHint={
               mapReady && liveCoordinate
@@ -1649,18 +1641,10 @@ export function GuestMapScreen({
             ]}
             onPress={handleCenterCurrentLocation}
           >
-            <View
-              accessibilityElementsHidden
-              importantForAccessibility="no-hide-descendants"
-              style={styles.currentLocationGlyph}
-            >
-              <View style={styles.currentLocationGlyphRing} />
-              <View style={styles.currentLocationGlyphHorizontal} />
-              <View style={styles.currentLocationGlyphVertical} />
-              <View style={styles.currentLocationGlyphDot} />
-            </View>
+            <Crosshair accessibilityElementsHidden color={colors.appleBlue} size={21} strokeWidth={1.9} />
           </Pressable>
-        </Animated.View>
+        </View>
+        ) : null}
 
         <View
           style={[
@@ -1670,6 +1654,19 @@ export function GuestMapScreen({
               : null,
           ]}
         >
+          <View style={styles.mapStatusStack}>
+            <View
+              accessible
+              accessibilityLabel={`${visibleRiskZones.length} risk areas and ${routeAlertCount} route alerts`}
+              accessibilityRole="summary"
+              style={styles.riskSummary}
+            >
+              <View style={[styles.summaryDot, styles.summaryDotDanger]} />
+              <Text style={styles.riskSummaryText}>{visibleRiskZones.length} risk areas</Text>
+              <View style={styles.summaryDivider} />
+              <View style={[styles.summaryDot, styles.summaryDotAmber]} />
+              <Text style={styles.riskSummaryText}>{routeAlertCount} route alerts</Text>
+            </View>
           {networkChecking || offline ? (
             <View
               accessible
@@ -1781,7 +1778,8 @@ export function GuestMapScreen({
                       : 'Risk coverage ready'}
               </Text>
             </View>
-          ) : <View />}
+          ) : null}
+          </View>
           <Pressable
             accessibilityRole="button"
             accessibilityLabel={mapHomeCopy.primaryActionAccessibilityLabel}
@@ -1793,6 +1791,7 @@ export function GuestMapScreen({
             ]}
             onPress={() => (authenticated ? onOpenFullAccessFeature('saved-routes') : onSignIn())}
           >
+            <UserRound accessibilityElementsHidden color={colors.appleBlue} size={17} strokeWidth={2} />
             <Text
               numberOfLines={1}
               style={styles.signInButtonText}
@@ -1878,6 +1877,14 @@ export function GuestMapScreen({
           </View>
         ) : null}
 
+        {!sheetCollapsed ? (
+          <Pressable
+            accessibilityLabel="Close directions"
+            accessibilityRole="button"
+            style={styles.sheetScrim}
+            onPress={() => animateRouteSheet(true)}
+          />
+        ) : null}
         <View pointerEvents="box-none" style={styles.sheetDock}>
           <Animated.View
             accessibilityElementsHidden={sheetCollapsed}
@@ -1885,6 +1892,7 @@ export function GuestMapScreen({
             pointerEvents={sheetCollapsed ? 'none' : 'auto'}
             style={[
               styles.sheet,
+              { height: routeSheetMaxHeight },
               {
                 opacity: sheetProgress.interpolate({
                   inputRange: [0, 0.72, 1],
@@ -1898,12 +1906,6 @@ export function GuestMapScreen({
                 }]
               }
             ]}
-            onLayout={({ nativeEvent }) => {
-              const measuredHeight = Math.ceil(nativeEvent.layout.height);
-              setRouteSheetHeight((currentHeight) =>
-                currentHeight === measuredHeight ? currentHeight : measuredHeight
-              );
-            }}
           >
             <View
               accessibilityLabel="Swipe down to minimize route planning"
@@ -1928,6 +1930,17 @@ export function GuestMapScreen({
                     <Text numberOfLines={1} style={styles.sheetSubtitle}>{mapHomeCopy.sheetSubtitle}</Text>
                   ) : null}
                 </View>
+                <Pressable
+                  accessibilityLabel="Close directions"
+                  accessibilityRole="button"
+                  style={({ pressed }) => [
+                    styles.sheetCancel,
+                    pressed ? styles.sheetCancelPressed : null,
+                  ]}
+                  onPress={() => animateRouteSheet(true)}
+                >
+                  <Text style={styles.sheetCancelText}>Cancel</Text>
+                </Pressable>
                 {routePlan ? (
                   <RoutePreview authenticated={authenticated} inline routePlan={routePlan} />
                 ) : null}
@@ -1984,7 +1997,9 @@ export function GuestMapScreen({
                   divided
                   accessibilityHint={originInputCopy.accessibilityHint}
                   label={originInputCopy.accessibilityLabel}
+                  overline="From"
                   placeholder={originInputCopy.placeholder}
+                  tone="origin"
                   testID={uiTestIds.guestMapOriginInput}
                   value={origin}
                   inputRef={(input) => {
@@ -2022,7 +2037,9 @@ export function GuestMapScreen({
                 <RouteInput
                   accessibilityHint={destinationInputCopy.accessibilityHint}
                   label={destinationInputCopy.accessibilityLabel}
+                  overline="To"
                   placeholder={destinationInputCopy.placeholder}
+                  tone="destination"
                   testID={uiTestIds.guestMapDestinationInput}
                   value={destination}
                   inputRef={(input) => {
@@ -2059,6 +2076,7 @@ export function GuestMapScreen({
                 ]}
                 onPress={handleAddWaypoint}
               >
+                <Plus accessibilityElementsHidden color={colors.appleBlue} size={17} strokeWidth={2.1} />
                 <Text style={styles.addStopButtonText}>Add stop</Text>
               </Pressable>
 
@@ -2100,18 +2118,6 @@ export function GuestMapScreen({
                 <Text numberOfLines={1} style={styles.primaryButtonText}>{routeActionLabel}</Text>
               </Pressable>
 
-              {gateFeatures.length ? (
-                <View style={styles.supportRow}>
-                  {gateFeatures.map((feature) => (
-                    <SupportButton
-                      key={feature}
-                      authenticated={authenticated}
-                      feature={feature}
-                      onPress={onOpenFullAccessFeature}
-                    />
-                  ))}
-                </View>
-              ) : null}
             </ScrollView>
           </Animated.View>
 
@@ -2147,6 +2153,8 @@ export function GuestMapScreen({
               onPress={handleCollapsedLocationSearch}
             >
               <View style={styles.collapsedSheetCopy}>
+                <Search accessibilityElementsHidden color={colors.muted} size={20} strokeWidth={2.2} />
+                <View style={styles.collapsedSearchCopy}>
                 <Text numberOfLines={1} style={styles.collapsedSheetTitle}>
                   Search for a location
                 </Text>
@@ -2155,6 +2163,7 @@ export function GuestMapScreen({
                     ? `Current route to ${destination}`
                     : `From ${origin || 'current location'}`}
                 </Text>
+                </View>
               </View>
             </Pressable>
           </Animated.View>
@@ -2350,11 +2359,13 @@ function resolveRoadPreviewStops(routePlan: SavedSafeRoutePlan) {
 function RouteInput({
   accessibilityHint,
   label,
+  overline,
   inputRef,
   onChangeText,
   onFocus,
   onSubmitEditing,
   placeholder,
+  tone,
   testID,
   value,
   divided = false
@@ -2362,34 +2373,48 @@ function RouteInput({
   accessibilityHint: string;
   divided?: boolean;
   label: string;
+  overline: string;
   inputRef?: (input: TextInput | null) => void;
   onChangeText: (value: string) => void;
   onFocus?: () => void;
   onSubmitEditing?: () => void;
   placeholder: string;
+  tone: 'destination' | 'origin';
   testID: string;
   value: string;
 }) {
   return (
     <View style={[styles.inputRow, divided ? styles.inputRowDivider : null]}>
-      <TextInput
-        ref={inputRef}
-        accessibilityHint={accessibilityHint}
-        accessibilityLabel={label}
-        autoCapitalize="words"
-        autoCorrect={false}
-        maxLength={GUEST_ROUTE_LABEL_MAX_LENGTH}
-        placeholder={placeholder}
-        placeholderTextColor={colors.muted}
-        returnKeyType={onSubmitEditing ? 'done' : 'default'}
-        style={styles.input}
-        submitBehavior={onSubmitEditing ? 'blurAndSubmit' : 'blurAndSubmit'}
-        testID={testID}
-        value={value}
-        onChangeText={onChangeText}
-        onFocus={onFocus}
-        onSubmitEditing={onSubmitEditing}
+      <View
+        accessibilityElementsHidden
+        style={[
+          styles.routeInputMarker,
+          tone === 'origin'
+            ? styles.routeInputMarkerOrigin
+            : styles.routeInputMarkerDestination,
+        ]}
       />
+      <View style={styles.routeInputCopy}>
+        <Text accessibilityElementsHidden style={styles.routeInputOverline}>{overline}</Text>
+        <TextInput
+          ref={inputRef}
+          accessibilityHint={accessibilityHint}
+          accessibilityLabel={label}
+          autoCapitalize="words"
+          autoCorrect={false}
+          maxLength={GUEST_ROUTE_LABEL_MAX_LENGTH}
+          placeholder={placeholder}
+          placeholderTextColor={colors.muted}
+          returnKeyType={onSubmitEditing ? 'done' : 'default'}
+          style={styles.input}
+          submitBehavior="blurAndSubmit"
+          testID={testID}
+          value={value}
+          onChangeText={onChangeText}
+          onFocus={onFocus}
+          onSubmitEditing={onSubmitEditing}
+        />
+      </View>
     </View>
   );
 }
@@ -2421,6 +2446,7 @@ function WaypointInput({
 }) {
   return (
     <View style={[styles.waypointRow, divided ? styles.inputRowDivider : null]}>
+      <View accessibilityElementsHidden style={styles.waypointMarker} />
       <TextInput
         ref={inputRef}
         accessibilityHint="Enter a place, address, or coordinate for this stop."
@@ -2450,7 +2476,7 @@ function WaypointInput({
             ]}
             onPress={() => onMove(index - 1)}
           >
-            <Text numberOfLines={1} style={styles.waypointActionText}>Earlier</Text>
+            <ChevronUp accessibilityElementsHidden color={colors.appleBlue} size={17} strokeWidth={2.1} />
           </Pressable>
         ) : null}
         {canMoveDown ? (
@@ -2464,7 +2490,7 @@ function WaypointInput({
             ]}
             onPress={() => onMove(index + 1)}
           >
-            <Text numberOfLines={1} style={styles.waypointActionText}>Later</Text>
+            <ChevronDown accessibilityElementsHidden color={colors.appleBlue} size={17} strokeWidth={2.1} />
           </Pressable>
         ) : null}
         <Pressable
@@ -2477,7 +2503,7 @@ function WaypointInput({
           ]}
           onPress={onRemove}
         >
-          <Text numberOfLines={1} style={styles.waypointRemoveText}>Remove</Text>
+          <Trash2 accessibilityElementsHidden color={colors.danger} size={16} strokeWidth={2} />
         </Pressable>
       </View>
     </View>
@@ -2601,29 +2627,5 @@ function RoutePreview({
         {previewState.summaryLabel}
       </Text>
     </View>
-  );
-}
-
-function SupportButton({
-  authenticated,
-  feature,
-  onPress
-}: {
-  authenticated: boolean;
-  feature: GuestFullAccessFeature;
-  onPress: (feature: GuestFullAccessFeature) => void;
-}) {
-  const copy = getGuestFullAccessCopy(feature);
-  return (
-    <Pressable
-      accessibilityRole="button"
-      accessibilityLabel={authenticated ? `Open ${copy.title}` : copy.action}
-      accessibilityHint={authenticated ? 'Opens authenticated SafeRoute functionality.' : copy.body}
-      testID={uiTestIds.guestMapGateAction(feature)}
-      style={({ pressed }) => [styles.supportButton, pressed ? styles.supportButtonPressed : null]}
-      onPress={() => onPress(feature)}
-    >
-      <Text numberOfLines={1} style={styles.supportLabel}>{copy.title}</Text>
-    </Pressable>
   );
 }

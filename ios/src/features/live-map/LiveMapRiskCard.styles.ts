@@ -5,67 +5,130 @@ import { colors, radius, spacing, typeScale } from "../../theme";
 export const riskCardStyles = StyleSheet.create({
   riskCard: {
     position: "absolute",
-    left: spacing.md,
-    right: spacing.md,
-    minHeight: 68,
+    right: 12,
+    left: 12,
+    minHeight: 86,
     flexDirection: "row",
-    alignItems: "center",
+    alignItems: "flex-start",
     gap: spacing.sm,
-    paddingVertical: spacing.sm,
-    paddingHorizontal: spacing.md,
+    padding: spacing.sm,
     borderWidth: 0.5,
-    borderColor: colors.glassBorder,
-    borderRadius: radius.xl,
-    backgroundColor: colors.surfaceTranslucent,
-    shadowOpacity: 0,
-    shadowRadius: 0,
-    shadowOffset: { width: 0, height: 0 },
-    elevation: 0,
+    borderColor: colors.borderSoft,
+    borderRadius: radius.lg,
+    backgroundColor: colors.surface,
+    shadowColor: "#000000",
+    shadowOpacity: 0.16,
+    shadowRadius: 16,
+    shadowOffset: { width: 0, height: 8 },
+    elevation: 8,
   },
   riskCardCompact: {
-    minHeight: 62,
+    minHeight: 80,
     paddingVertical: spacing.xs,
   },
   riskCardPressed: {
     transform: [{ scale: 0.992 }],
   },
+  riskIconTile: {
+    width: 42,
+    height: 42,
+    alignItems: "center",
+    justifyContent: "center",
+    flexShrink: 0,
+    borderRadius: radius.card,
+  },
+  riskIconTileHigh: {
+    backgroundColor: colors.dangerSoft,
+  },
+  riskIconTileMedium: {
+    backgroundColor: colors.amberSoft,
+  },
+  riskIconTileLow: {
+    backgroundColor: colors.infoSoft,
+  },
   riskCopy: {
+    flex: 1,
+    minWidth: 0,
+  },
+  riskTitleRow: {
+    flexDirection: "row",
+    alignItems: "flex-start",
+    gap: spacing.sm,
+  },
+  riskTitleCopy: {
     flex: 1,
     minWidth: 0,
   },
   riskEyebrow: {
     maxWidth: "100%",
-    color: colors.inkSoft,
+    color: colors.muted,
     fontSize: typeScale.xs,
-    fontWeight: "900",
-    letterSpacing: 0.2,
-    textTransform: "uppercase",
+    fontWeight: "800",
   },
   riskTitle: {
     marginTop: 1,
     color: colors.ink,
     fontSize: typeScale.md,
-    fontWeight: "900",
+    fontWeight: "800",
   },
-  riskMeta: {
+  riskDistance: {
+    maxWidth: 116,
+    flexShrink: 1,
+    color: colors.ink,
+    fontSize: typeScale.sm,
+    fontWeight: "800",
+    textAlign: "right",
+  },
+  riskChipRow: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: spacing.xs,
+    marginTop: spacing.xs,
+  },
+  riskChip: {
+    minHeight: 24,
+    alignItems: "center",
+    justifyContent: "center",
+    paddingHorizontal: spacing.sm,
+    borderRadius: radius.pill,
+  },
+  riskChipHigh: {
+    backgroundColor: colors.dangerSoft,
+  },
+  riskChipMedium: {
+    backgroundColor: colors.amberSoft,
+  },
+  riskChipLow: {
+    backgroundColor: colors.infoSoft,
+  },
+  riskChipText: {
+    fontSize: typeScale.xs,
+    fontWeight: "800",
+  },
+  riskAreaChip: {
+    backgroundColor: colors.control,
+  },
+  riskAreaChipText: {
     color: colors.inkSoft,
     fontSize: typeScale.xs,
     fontWeight: "800",
   },
-  riskDistance: {
-    maxWidth: 128,
-    color: colors.ink,
-    fontSize: typeScale.sm,
-    fontWeight: "900",
-    textAlign: "right",
+  riskTextHigh: {
+    color: colors.dangerText,
+  },
+  riskTextMedium: {
+    color: colors.amberText,
+  },
+  riskTextLow: {
+    color: colors.infoText,
   },
   riskCardHigh: {
-    borderColor: "rgba(216, 74, 63, 0.34)",
+    borderColor: colors.dangerSoft,
   },
   riskCardMedium: {
-    borderColor: "rgba(243, 163, 43, 0.38)",
+    borderColor: colors.amberSoft,
   },
   riskCardLow: {
-    borderColor: "rgba(92, 141, 246, 0.34)",
+    borderColor: colors.infoSoft,
   },
 });

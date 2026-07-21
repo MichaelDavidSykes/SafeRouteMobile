@@ -130,6 +130,28 @@ describe('guest map interaction contract', () => {
     assert.doesNotMatch(screen, /Ionicons|MaterialIcons|FontAwesome/);
   });
 
+  it('collapses accepted route plots and reopens only when road routing fails', () => {
+    const plotStart = screen.indexOf('const handlePlotRoute = async () => {');
+    const roadUpgradeStart = screen.indexOf(
+      'const upgradeGuestRouteWithRoadPreview =',
+      plotStart,
+    );
+    const plotHandler = screen.slice(plotStart, roadUpgradeStart);
+
+    assert.match(
+      plotHandler,
+      /createGuestRoutePlan\([\s\S]*animateRouteSheet\(true\)[\s\S]*upgradeGuestRouteWithRoadPreview\(localRoutePlan\)/,
+    );
+    assert.ok(
+      plotHandler.indexOf('if (unresolvedStopIds.length)') <
+        plotHandler.indexOf('animateRouteSheet(true)'),
+    );
+    assert.match(
+      screen,
+      /!acceptedRoadPreview && !sessionExpiryHandled && !workspaceUnavailableHandled[\s\S]*setRouteMessage\('A road-snapped safe route is unavailable\. Retry in a moment\.'\);[\s\S]*animateRouteSheet\(false\)/,
+    );
+  });
+
   it('offers bounded authenticated research separately from passive reloads', () => {
     assert.match(screen, /viewportRisk\.researchAvailable/);
     assert.match(screen, /testID=\{uiTestIds\.guestMapRiskResearch\}/);

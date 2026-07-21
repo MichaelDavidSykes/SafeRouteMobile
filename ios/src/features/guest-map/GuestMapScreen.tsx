@@ -844,6 +844,7 @@ export function GuestMapScreen({
     // A straight checkpoint connector is useful as an internal request
     // scaffold, but it is never a drivable route. Keep navigation gated until
     // an authoritative provider returns road-snapped geometry.
+    animateRouteSheet(true);
     setRoutePlan(null);
     upgradeGuestRouteWithRoadPreview(localRoutePlan);
   };
@@ -1079,6 +1080,7 @@ export function GuestMapScreen({
             pendingOpenPreviewRef.current = false;
             setRoutePlan(null);
             setRouteMessage('A road-snapped safe route is unavailable. Retry in a moment.');
+            animateRouteSheet(false);
           }
         }
       });

@@ -14,6 +14,7 @@ import {
   AREA_RISK_RESEARCH_ENDPOINT_PATH,
   DEFAULT_AREA_RISK_PAGE_SIZE,
   MAX_AREA_RISK_PAGES,
+  areaRiskQueryBoundsForRequest,
   areaRiskResponseBoundsMatchRequest,
   buildAreaRiskRequestHeaders,
   buildAreaRiskResearchPayload,
@@ -162,6 +163,7 @@ export async function fetchAreaRiskViewport(
       fetchedAt: null,
       legacyFallback: false,
       localCityScaleRejectedCount: 0,
+      localSpatialRejectedCount: 0,
       message: research?.pending
         ? 'Risk research is in progress, but existing coverage could not be read.'
         : 'Existing risk coverage could not be read after the research request.',
@@ -195,6 +197,7 @@ export async function fetchAreaRiskForRegion(
       fetchedAt: null,
       legacyFallback: false,
       localCityScaleRejectedCount: 0,
+      localSpatialRejectedCount: 0,
       message: 'Zoom in to load risk areas for this map view.',
       pagesLoaded: 0,
       partial: false,
@@ -224,8 +227,13 @@ export async function fetchAreaRiskForRegion(
     (total, feed) => total + feed.localCityScaleRejectedCount,
     0
   );
+  const localSpatialRejectedCount = feeds.reduce(
+    (total, feed) => total + feed.localSpatialRejectedCount,
+    0
+  );
   const discardedUnsafeAreaCount = safetyFilter.rejectedCount
-    + localCityScaleRejectedCount;
+    + localCityScaleRejectedCount
+    + localSpatialRejectedCount;
   const safetyWarning = areaRiskSafetyWarning(discardedUnsafeAreaCount);
   const zones = mergeRiskZonesById(...feeds.map((feed) => feed.zones));
   const research = aggregateResearchState(feeds.map((feed) => feed.research));
@@ -249,6 +257,7 @@ export async function fetchAreaRiskForRegion(
     fetchedAt: feeds.map((feed) => feed.fetchedAt).find(Boolean) ?? null,
     legacyFallback: feeds.some((feed) => feed.legacyFallback),
     localCityScaleRejectedCount,
+    localSpatialRejectedCount,
     message: zones.length
       ? `${zones.length} SafeRoute area-risk signal${zones.length === 1 ? '' : 's'} prepared.`
       : (safetyWarning
@@ -319,6 +328,7 @@ async function readAreaRiskPages(
   let readError: string | null = null;
   let retryableReadFailure: AreaRiskRetryableReadFailure | null = null;
   let localCityScaleRejectedCount = 0;
+  let localSpatialRejectedCount = 0;
 
   while (pagesLoaded < MAX_AREA_RISK_PAGES) {
     let page: AreaRiskFeedPage;
@@ -352,6 +362,7 @@ async function readAreaRiskPages(
     if (aggregate === null) {
       aggregate = page;
       localCityScaleRejectedCount = page.localCityScaleRejectedCount;
+      localSpatialRejectedCount = page.localSpatialRejectedCount;
     } else {
       const previousPage: AreaRiskFeedPage = aggregate;
       if (!areaRiskSafetyFiltersEqual(previousPage.safetyFilter, page.safetyFilter)) {
@@ -361,23 +372,30 @@ async function readAreaRiskPages(
         );
       }
       localCityScaleRejectedCount += page.localCityScaleRejectedCount;
+      localSpatialRejectedCount += page.localSpatialRejectedCount;
       const discardedUnsafeAreaCount = previousPage.safetyFilter.rejectedCount
-        + localCityScaleRejectedCount;
+        + localCityScaleRejectedCount
+        + localSpatialRejectedCount;
+      const zones = mergeRiskZonesById(previousPage.zones, page.zones)
+        .slice(0, viewportRequest.maxRecords);
+      const safetyWarning = areaRiskSafetyWarning(discardedUnsafeAreaCount);
       aggregate = {
         ...previousPage,
         coverageStatus: page.coverageStatus ?? previousPage.coverageStatus,
         fetchedAt: page.fetchedAt ?? previousPage.fetchedAt,
         hasMore: page.hasMore,
-        message: page.message || previousPage.message,
+        message: zones.length
+          ? `${zones.length} SafeRoute area-risk signal${zones.length === 1 ? '' : 's'} prepared.`
+          : (safetyWarning || page.message || previousPage.message),
         nextCursor: page.nextCursor,
         providerStatus: page.providerStatus ?? previousPage.providerStatus,
         discardedUnsafeAreaCount,
         localCityScaleRejectedCount,
+        localSpatialRejectedCount,
         partial: previousPage.partial || page.partial || discardedUnsafeAreaCount > 0,
-        safetyWarning: areaRiskSafetyWarning(discardedUnsafeAreaCount),
+        safetyWarning,
         seedStatus: page.seedStatus ?? previousPage.seedStatus,
-        zones: mergeRiskZonesById(previousPage.zones, page.zones)
-          .slice(0, viewportRequest.maxRecords)
+        zones
       };
     }
     partial = partial || page.partial;
@@ -420,10 +438,12 @@ async function readAreaRiskPages(
   return {
     coverageStatus: aggregate.coverageStatus,
     discardedUnsafeAreaCount: aggregate.safetyFilter.rejectedCount
-      + localCityScaleRejectedCount,
+      + localCityScaleRejectedCount
+      + localSpatialRejectedCount,
     fetchedAt: aggregate.fetchedAt,
     legacyFallback: false,
     localCityScaleRejectedCount,
+    localSpatialRejectedCount,
     message: aggregate.message,
     pagesLoaded,
     partial,
@@ -434,7 +454,9 @@ async function readAreaRiskPages(
     researchError: null,
     safetyFilter: aggregate.safetyFilter,
     safetyWarning: areaRiskSafetyWarning(
-      aggregate.safetyFilter.rejectedCount + localCityScaleRejectedCount
+      aggregate.safetyFilter.rejectedCount
+        + localCityScaleRejectedCount
+        + localSpatialRejectedCount
     ),
     seedStatus: aggregate.seedStatus,
     zones: aggregate.zones
@@ -502,7 +524,14 @@ async function readAreaRiskPage(
       502
     );
   }
-  const page = normalizeAreaRiskFeedPage(body);
+  const queryBounds = areaRiskQueryBoundsForRequest(viewportRequest);
+  if (viewportRequest.scope !== 'global' && !queryBounds) {
+    throw new ApiRequestError(
+      'Risk coverage request bounds could not be verified after serialization.',
+      502
+    );
+  }
+  const page = normalizeAreaRiskFeedPage(body, queryBounds);
   const providerStatus = String(page.providerStatus || '').trim().toLowerCase();
   if (
     (page.safetyFilter.present && !page.safetyFilter.valid)

@@ -76,6 +76,7 @@ export interface AreaRiskFeed {
   fetchedAt: string | null;
   legacyFallback: boolean;
   localCityScaleRejectedCount: number;
+  localSpatialRejectedCount: number;
   message: string;
   pagesLoaded: number;
   partial: boolean;
@@ -124,6 +125,11 @@ export interface AreaRiskResearchPayload {
 export interface AreaRiskFeedPage extends AreaRiskFeed {
   hasMore: boolean;
   nextCursor: string | null;
+}
+
+export interface AreaRiskSpatialPartition<T> {
+  accepted: T[];
+  rejectedCount: number;
 }
 
 export interface AreaRiskAvoidRectangle {
@@ -459,7 +465,10 @@ export function normalizeAreaRiskFeed(payload: unknown): AreaRiskFeed {
   return normalizeAreaRiskFeedPage(payload);
 }
 
-export function normalizeAreaRiskFeedPage(payload: unknown): AreaRiskFeedPage {
+export function normalizeAreaRiskFeedPage(
+  payload: unknown,
+  requestedBounds: AreaRiskBounds | null = null
+): AreaRiskFeedPage {
   const body = unwrapDataEnvelope(payload);
   const record = asRecord(body);
   const source = cleanOptionalText(record?.source, 160) ?? 'LunarChain area-risk intelligence';
@@ -467,6 +476,7 @@ export function normalizeAreaRiskFeedPage(payload: unknown): AreaRiskFeedPage {
     ? body
     : (Array.isArray(record?.items) ? record.items : []);
   let localCityScaleRejectedCount = 0;
+  let localSpatialRejectedCount = 0;
   const zones = mergeRiskZonesById(
     items
       .slice(0, MAX_AREA_RISK_RECORDS * 2)
@@ -475,12 +485,17 @@ export function normalizeAreaRiskFeedPage(payload: unknown): AreaRiskFeedPage {
           localCityScaleRejectedCount += 1;
           return null;
         }
+        if (requestedBounds && !areaRiskItemIntersectsBounds(item, requestedBounds)) {
+          localSpatialRejectedCount += 1;
+          return null;
+        }
         return normalizeAreaRiskItem(item, index, source);
       })
       .filter((zone): zone is RiskZone => zone !== null)
   ).slice(0, MAX_AREA_RISK_RECORDS);
   const safetyFilter = readAreaRiskSafetyFilter(record ?? {});
   const discardedUnsafeAreaCount = localCityScaleRejectedCount
+    + localSpatialRejectedCount
     + (safetyFilter.valid ? safetyFilter.rejectedCount : 0);
   const safetyWarning = areaRiskSafetyWarning(discardedUnsafeAreaCount);
   const providerErrors = asArray(record?.providerErrors ?? record?.provider_errors)
@@ -496,6 +511,7 @@ export function normalizeAreaRiskFeedPage(payload: unknown): AreaRiskFeedPage {
     fetchedAt: cleanOptionalText(record?.fetchedAt ?? record?.fetched_at, 80),
     legacyFallback: false,
     localCityScaleRejectedCount,
+    localSpatialRejectedCount,
     message: zones.length
       ? `${zones.length} SafeRoute area-risk signal${zones.length === 1 ? '' : 's'} prepared.`
       : (safetyWarning
@@ -571,6 +587,92 @@ export function areaRiskItemWithinSafeRouteSizeLimit(value: unknown): boolean {
   return true;
 }
 
+export function areaRiskItemIntersectsBounds(
+  value: unknown,
+  requestedBounds: AreaRiskBounds
+): boolean {
+  const item = asRecord(value);
+  const bounds = normalizeAreaRiskBounds(requestedBounds);
+  if (!item || !bounds) {
+    return false;
+  }
+  const regionCenterLongitude = (bounds.west + bounds.east) / 2;
+  const coordinates = normalizeCoordinates(
+    item.polygonCoordinates
+      ?? item.polygon_coordinates
+      ?? item.coordinates
+      ?? item.geometry
+      ?? item.geojson
+  ).map((coordinate) => ({
+    latitude: coordinate.latitude,
+    longitude: longitudeNear(coordinate.longitude, regionCenterLongitude)
+  }));
+  if (coordinates.length >= 2) {
+    for (let index = 1; index < coordinates.length; index += 1) {
+      if (areaRiskSegmentIntersectsBounds(coordinates[index - 1], coordinates[index], bounds)) {
+        return true;
+      }
+    }
+    if (
+      coordinates.length >= 3
+      && areaRiskSegmentIntersectsBounds(
+        coordinates[coordinates.length - 1],
+        coordinates[0],
+        bounds
+      )
+    ) {
+      return true;
+    }
+    return coordinates.length >= 3 && areaRiskBoundsCorners(bounds).some((corner) =>
+      areaRiskPolygonContainsPoint(coordinates, corner)
+    );
+  }
+
+  const coordinate = normalizeCoordinate(item.coordinate)
+    ?? normalizeCoordinate(item.center)
+    ?? normalizeCoordinate(item)
+    ?? coordinates[0]
+    ?? null;
+  if (!coordinate) {
+    return false;
+  }
+  const center = {
+    latitude: coordinate.latitude,
+    longitude: longitudeNear(coordinate.longitude, regionCenterLongitude)
+  };
+  if (areaRiskPointInBounds(center, bounds)) {
+    return true;
+  }
+  const radiusMeters = Math.max(
+    0,
+    finiteNumber(item.radiusM ?? item.radius_m ?? item.radiusMeters) ?? 0
+  );
+  if (!radiusMeters) {
+    return false;
+  }
+  const closest = {
+    latitude: clamp(center.latitude, bounds.south, bounds.north),
+    longitude: clamp(center.longitude, bounds.west, bounds.east)
+  };
+  return coordinateDistanceMeters(center, closest) <= radiusMeters;
+}
+
+export function partitionAreaRiskItemsByBounds<T>(
+  values: readonly T[],
+  bounds: AreaRiskBounds
+): AreaRiskSpatialPartition<T> {
+  const accepted: T[] = [];
+  let rejectedCount = 0;
+  for (const value of values) {
+    if (areaRiskItemIntersectsBounds(value, bounds)) {
+      accepted.push(value);
+    } else {
+      rejectedCount += 1;
+    }
+  }
+  return { accepted, rejectedCount };
+}
+
 export function normalizeAreaRiskResearchState(payload: unknown): AreaRiskResearchState {
   const body = unwrapDataEnvelope(payload);
   const record = asRecord(body);
@@ -604,7 +706,7 @@ export function areaRiskResponseBoundsMatchRequest(
   const body = unwrapDataEnvelope(payload);
   const record = asRecord(body);
   const actual = normalizeAreaRiskBounds(record?.bounds);
-  const expected = serializedAreaRiskRequestBounds(request);
+  const expected = areaRiskQueryBoundsForRequest(request);
   if (!actual || !expected) {
     return false;
   }
@@ -612,6 +714,15 @@ export function areaRiskResponseBoundsMatchRequest(
     && Math.abs(actual.north - expected.north) <= AREA_RISK_RESPONSE_BOUNDS_EPSILON
     && Math.abs(actual.west - expected.west) <= AREA_RISK_RESPONSE_BOUNDS_EPSILON
     && Math.abs(actual.east - expected.east) <= AREA_RISK_RESPONSE_BOUNDS_EPSILON;
+}
+
+export function areaRiskQueryBoundsForRequest(
+  request: AreaRiskViewportRequest
+): AreaRiskBounds | null {
+  if (normalizeScope(request.scope, request.zoom) === 'global') {
+    return null;
+  }
+  return serializedAreaRiskRequestBounds(request);
 }
 
 export function mergeRiskZonesById(...zoneSets: ReadonlyArray<readonly RiskZone[]>): RiskZone[] {
@@ -1082,6 +1193,122 @@ function coordinateDistanceMeters(left: Coordinate, right: Coordinate): number {
     Math.sqrt(haversine),
     Math.sqrt(Math.max(0, 1 - haversine))
   );
+}
+
+function areaRiskPointInBounds(point: Coordinate, bounds: AreaRiskBounds): boolean {
+  return point.latitude >= bounds.south
+    && point.latitude <= bounds.north
+    && point.longitude >= bounds.west
+    && point.longitude <= bounds.east;
+}
+
+function areaRiskSegmentOrientation(
+  left: Coordinate,
+  middle: Coordinate,
+  right: Coordinate
+): number {
+  return (middle.longitude - left.longitude) * (right.latitude - left.latitude)
+    - (middle.latitude - left.latitude) * (right.longitude - left.longitude);
+}
+
+function areaRiskPointOnSegment(
+  left: Coordinate,
+  point: Coordinate,
+  right: Coordinate
+): boolean {
+  const epsilon = 1e-10;
+  return Math.abs(areaRiskSegmentOrientation(left, point, right)) <= epsilon
+    && point.longitude >= Math.min(left.longitude, right.longitude) - epsilon
+    && point.longitude <= Math.max(left.longitude, right.longitude) + epsilon
+    && point.latitude >= Math.min(left.latitude, right.latitude) - epsilon
+    && point.latitude <= Math.max(left.latitude, right.latitude) + epsilon;
+}
+
+function areaRiskSegmentsIntersect(
+  leftStart: Coordinate,
+  leftEnd: Coordinate,
+  rightStart: Coordinate,
+  rightEnd: Coordinate
+): boolean {
+  const leftStartOrientation = areaRiskSegmentOrientation(leftStart, leftEnd, rightStart);
+  const leftEndOrientation = areaRiskSegmentOrientation(leftStart, leftEnd, rightEnd);
+  const rightStartOrientation = areaRiskSegmentOrientation(rightStart, rightEnd, leftStart);
+  const rightEndOrientation = areaRiskSegmentOrientation(rightStart, rightEnd, leftEnd);
+  if (
+    ((leftStartOrientation > 0 && leftEndOrientation < 0)
+      || (leftStartOrientation < 0 && leftEndOrientation > 0))
+    && ((rightStartOrientation > 0 && rightEndOrientation < 0)
+      || (rightStartOrientation < 0 && rightEndOrientation > 0))
+  ) {
+    return true;
+  }
+  return areaRiskPointOnSegment(leftStart, rightStart, leftEnd)
+    || areaRiskPointOnSegment(leftStart, rightEnd, leftEnd)
+    || areaRiskPointOnSegment(rightStart, leftStart, rightEnd)
+    || areaRiskPointOnSegment(rightStart, leftEnd, rightEnd);
+}
+
+function areaRiskBoundsCorners(bounds: AreaRiskBounds): Coordinate[] {
+  return [
+    { latitude: bounds.south, longitude: bounds.west },
+    { latitude: bounds.south, longitude: bounds.east },
+    { latitude: bounds.north, longitude: bounds.east },
+    { latitude: bounds.north, longitude: bounds.west }
+  ];
+}
+
+function areaRiskSegmentIntersectsBounds(
+  start: Coordinate,
+  end: Coordinate,
+  bounds: AreaRiskBounds
+): boolean {
+  if (areaRiskPointInBounds(start, bounds) || areaRiskPointInBounds(end, bounds)) {
+    return true;
+  }
+  const corners = areaRiskBoundsCorners(bounds);
+  return corners.some((corner, index) =>
+    areaRiskSegmentsIntersect(start, end, corner, corners[(index + 1) % corners.length])
+  );
+}
+
+function areaRiskPolygonContainsPoint(
+  coordinates: Coordinate[],
+  point: Coordinate
+): boolean {
+  let inside = false;
+  for (
+    let index = 0, previousIndex = coordinates.length - 1;
+    index < coordinates.length;
+    previousIndex = index, index += 1
+  ) {
+    const current = coordinates[index];
+    const previous = coordinates[previousIndex];
+    if (areaRiskPointOnSegment(previous, point, current)) {
+      return true;
+    }
+    const crosses = (current.latitude > point.latitude) !== (previous.latitude > point.latitude)
+      && point.longitude < (
+        (previous.longitude - current.longitude)
+        * (point.latitude - current.latitude)
+        / (previous.latitude - current.latitude)
+        + current.longitude
+      );
+    if (crosses) {
+      inside = !inside;
+    }
+  }
+  return inside;
+}
+
+function longitudeNear(value: number, reference: number): number {
+  let longitude = value;
+  while (longitude - reference > 180) {
+    longitude -= 360;
+  }
+  while (longitude - reference < -180) {
+    longitude += 360;
+  }
+  return longitude;
 }
 
 function normalizeScope(value: unknown, zoom: number): AreaRiskScope {

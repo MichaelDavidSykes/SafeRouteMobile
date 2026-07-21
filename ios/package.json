@@ -8,7 +8,7 @@
     "npm": ">=10"
   },
   "scripts": {
-    "start": "expo start",
+    "start": "SAFEROUTE_ENABLE_PREVIEW_MODE=false expo start",
     "repair:maestro:ios:expo-go": "node scripts/install-maestro-expo-go.mjs",
     "prestart:maestro:ios": "node scripts/maestro-ios-preflight.mjs",
     "prestart:maestro:ios:preview": "node scripts/maestro-ios-preflight.mjs",

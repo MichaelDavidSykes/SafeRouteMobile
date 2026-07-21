@@ -286,6 +286,7 @@ export function useViewportRiskAreas({
       let partialRequestCount = 0;
       let readFailureCount = 0;
       let researchFailureCount = 0;
+      let safetyRejectedRequestCount = 0;
       let statusFailureCount = 0;
       let unavailableRequestCount = 0;
       let unavailableRetryAfterSeconds = 0;
@@ -346,6 +347,9 @@ export function useViewportRiskAreas({
           }
           if (feed.researchError) {
             researchFailureCount += 1;
+          }
+          if (feed.discardedUnsafeAreaCount > 0) {
+            safetyRejectedRequestCount += 1;
           }
           if (feed.legacyFallback) {
             legacyFallbackCount += 1;
@@ -483,6 +487,7 @@ export function useViewportRiskAreas({
           researchAvailable,
           researchFailureCount,
           researchRequested,
+          safetyRejectedRequestCount,
           statusFailureCount,
           unavailableRequestCount,
           unavailableRetryAfterSeconds,

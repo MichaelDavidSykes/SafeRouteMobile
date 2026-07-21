@@ -144,6 +144,42 @@ describe('route risk corridor loading', () => {
     assert.ok(calls.every(({ url }) => url.searchParams.get('read_only') === 'true'));
   });
 
+  it('fails closed when the provider excluded a city-scale route risk area', async () => {
+    await assert.rejects(
+      fetchAreaRiskAlongRoute([
+        { latitude: -33.9249, longitude: 18.4241 },
+        { latitude: -33.9696, longitude: 18.5972 }
+      ], {
+        accessToken: 'token-1',
+        clientId: 'tenant-1',
+        request: async (input) => {
+          const url = new URL(String(input));
+          const [minLat, minLon, maxLat, maxLon] = String(url.searchParams.get('bbox'))
+            .split(',')
+            .map(Number);
+          return new Response(JSON.stringify({
+            data: {
+              bounds: { minLat, maxLat, minLon, maxLon },
+              hasMore: false,
+              items: [],
+              providerStatus: 'partial',
+              safetyFilter: {
+                capability: 'safe-route-risk-rejection-v1',
+                rejectedCount: 1,
+                localityRejectedCount: 0,
+                cityScaleRejectedCount: 1,
+                invalidRecordRejectedCount: 0,
+                outOfBoundsRejectedCount: 0
+              },
+              seedStatus: 'covered'
+            }
+          }), { status: 200 });
+        }
+      }),
+      /coverage is incomplete/i
+    );
+  });
+
   it('fails closed when strict coverage reports a terminal research failure', async () => {
     await assert.rejects(
       fetchAreaRiskAlongRoute([

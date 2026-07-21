@@ -7,6 +7,7 @@ import {
   buildAreaRiskRequestHeaders,
   AREA_RISK_CAPABILITY_HEADER,
   MOBILE_AREA_RISK_CAPABILITY,
+  SAFE_ROUTE_RISK_AREA_MAX_RADIUS_METERS,
   buildAreaRiskResearchPayload,
   buildAreaRiskViewportPath,
   canRequestAreaRiskResearch,
@@ -280,6 +281,52 @@ describe('area risk API core', () => {
       latitude: -33.925,
       longitude: 18.42
     });
+  });
+
+  it('rejects city-scale circles and polygons instead of shrinking them into local hotspots', () => {
+    const feed = normalizeAreaRiskFeed({
+      data: {
+        items: [
+          {
+            id: 'bounded-locality',
+            label: 'Bounded locality',
+            lat: -33.925,
+            lon: 18.424,
+            radiusM: SAFE_ROUTE_RISK_AREA_MAX_RADIUS_METERS
+          },
+          {
+            id: 'whole-cape-town-circle',
+            label: 'Cape Town',
+            lat: -33.925,
+            lon: 18.424,
+            radiusM: SAFE_ROUTE_RISK_AREA_MAX_RADIUS_METERS + 1
+          },
+          {
+            id: 'whole-cape-town-polygon',
+            label: 'Cape Town polygon',
+            radiusM: 1200,
+            areaShape: 'polygon',
+            coordinates: [
+              { lat: -34.10, lon: 18.25 },
+              { lat: -34.10, lon: 18.75 },
+              { lat: -33.70, lon: 18.75 },
+              { lat: -33.70, lon: 18.25 }
+            ]
+          }
+        ],
+        providerStatus: 'primary',
+        seedStatus: 'covered'
+      }
+    });
+
+    assert.deepEqual(feed.zones.map((zone) => zone.id), [
+      'generated-area-risk-bounded-locality'
+    ]);
+    assert.equal(feed.zones[0].radiusMeters, SAFE_ROUTE_RISK_AREA_MAX_RADIUS_METERS);
+    assert.equal(feed.localCityScaleRejectedCount, 2);
+    assert.equal(feed.discardedUnsafeAreaCount, 2);
+    assert.equal(feed.partial, true);
+    assert.match(feed.safetyWarning ?? '', /excluded 2 unsafe or unverifiable risk areas/i);
   });
 
   it('uses deterministic fallback IDs and merges duplicate provider IDs canonically', () => {

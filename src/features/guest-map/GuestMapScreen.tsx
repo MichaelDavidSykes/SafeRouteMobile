@@ -1727,6 +1727,18 @@ export function GuestMapScreen({
                 Researching risks…
               </Text>
             </View>
+          ) : viewportRisk.coverageState === 'partial' && viewportRisk.statusMessage ? (
+            <View
+              accessible
+              accessibilityLabel={viewportRisk.statusMessage}
+              accessibilityLiveRegion="polite"
+              accessibilityRole="summary"
+              style={styles.riskLoadStatus}
+            >
+              <Text numberOfLines={1} style={styles.riskLoadStatusText}>
+                Broad risks excluded
+              </Text>
+            </View>
           ) : viewportRisk.researchAvailable ? (
             <Pressable
               accessibilityHint={

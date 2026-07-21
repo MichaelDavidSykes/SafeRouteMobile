@@ -5,6 +5,7 @@ import {
   AREA_RISK_QUERY_COORDINATE_DECIMALS,
   AREA_RISK_RESEARCH_ENDPOINT_PATH,
   AREA_RISK_RESPONSE_BOUNDS_EPSILON,
+  areaRiskItemIntersectsBounds,
   areaRiskResponseBoundsMatchRequest,
   approximateMapZoom,
   buildAreaRiskRequestHeaders,
@@ -18,6 +19,7 @@ import {
   deriveRiskZoneAvoidRectangles,
   normalizeAreaRiskFeed,
   normalizeAreaRiskResearchState,
+  partitionAreaRiskItemsByBounds,
   regionToAreaRiskViewportRequests,
   type AreaRiskViewportRequest
 } from '../src/features/live-map/areaRiskApiCore';
@@ -207,6 +209,67 @@ describe('area risk API core', () => {
       () => buildAreaRiskViewportPath({ ...request, minLat: -33.8, maxLat: -34.1 }),
       /valid, non-crossing viewport bbox/i
     );
+  });
+
+  it('admits only points, circles, and geometry intersecting the requested map partition', () => {
+    const bounds = { south: -34.1, west: 18.3, north: -33.8, east: 18.8 };
+    const localPoint = { id: 'local', lat: -33.95, lon: 18.5 };
+    const overlappingCircle = {
+      id: 'edge-circle',
+      lat: -33.95,
+      lon: 18.29,
+      radiusM: 1200
+    };
+    const crossingGeometry = {
+      id: 'crossing',
+      coordinates: [
+        { lat: -33.95, lon: 18.2 },
+        { lat: -33.95, lon: 18.9 }
+      ]
+    };
+    const enclosingPolygon = {
+      id: 'enclosing',
+      coordinates: [
+        { lat: -34.2, lon: 18.2 },
+        { lat: -34.2, lon: 18.9 },
+        { lat: -33.7, lon: 18.9 },
+        { lat: -33.7, lon: 18.2 }
+      ]
+    };
+    const remotePoint = { id: 'remote', lat: 51.5, lon: -0.1, radiusM: 900 };
+
+    assert.equal(areaRiskItemIntersectsBounds(localPoint, bounds), true);
+    assert.equal(areaRiskItemIntersectsBounds(overlappingCircle, bounds), true);
+    assert.equal(areaRiskItemIntersectsBounds(crossingGeometry, bounds), true);
+    assert.equal(areaRiskItemIntersectsBounds(enclosingPolygon, bounds), true);
+    assert.equal(areaRiskItemIntersectsBounds(remotePoint, bounds), false);
+    assert.equal(areaRiskItemIntersectsBounds({ id: 'unverifiable' }, bounds), false);
+    assert.deepEqual(
+      partitionAreaRiskItemsByBounds([
+        localPoint,
+        overlappingCircle,
+        remotePoint,
+        { id: 'unverifiable' }
+      ], bounds),
+      {
+        accepted: [localPoint, overlappingCircle],
+        rejectedCount: 2
+      }
+    );
+  });
+
+  it('normalizes longitudes around an antimeridian request partition', () => {
+    assert.equal(areaRiskItemIntersectsBounds({
+      id: 'dateline-circle',
+      lat: -17.5,
+      lon: -179.999,
+      radiusM: 1200
+    }, {
+      south: -17.9,
+      west: 179.99,
+      north: -17.2,
+      east: 180
+    }), true);
   });
 
   it('builds only bounded authenticated research commands with the exact backend body', () => {

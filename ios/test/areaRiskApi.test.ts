@@ -560,6 +560,79 @@ describe('area risk API transport', () => {
     );
   });
 
+  it('omits remote and unverifiable first-page items with truthful partial coverage', async () => {
+    const feed = await fetchAreaRiskViewport(createRequest(), {
+      accessToken: 'token-1',
+      intent: 'read',
+      request: async () => jsonResponse(feedEnvelope({
+        items: [
+          ...createItems(0, 1),
+          {
+            id: 'edge-circle',
+            label: 'Edge circle',
+            lat: -33.95,
+            lon: 18.29,
+            radiusM: 1200,
+            severity: 'medium'
+          },
+          {
+            id: 'remote-london',
+            label: 'Remote London risk',
+            lat: 51.5,
+            lon: -0.1,
+            radiusM: 900,
+            severity: 'high'
+          },
+          { id: 'unverifiable', label: 'No geometry' }
+        ]
+      }))
+    });
+
+    assert.deepEqual(feed.zones.map((zone) => zone.id), [
+      'generated-area-risk-risk-0',
+      'generated-area-risk-edge-circle'
+    ]);
+    assert.equal(feed.localCityScaleRejectedCount, 0);
+    assert.equal(feed.localSpatialRejectedCount, 2);
+    assert.equal(feed.discardedUnsafeAreaCount, 2);
+    assert.equal(feed.partial, true);
+    assert.match(feed.safetyWarning ?? '', /excluded 2 unsafe or unverifiable risk areas/i);
+  });
+
+  it('omits remote continuation items without discarding earlier trusted pages', async () => {
+    const feed = await fetchAreaRiskViewport(createRequest({ maxRecords: 120 }), {
+      accessToken: 'token-1',
+      intent: 'read',
+      request: captureRequester([], ({ url }) =>
+        jsonResponse(feedEnvelope({
+          items: url.searchParams.has('cursor')
+            ? [
+                ...createItems(100, 19),
+                {
+                  id: 'remote-london',
+                  label: 'Remote London risk',
+                  lat: 51.5,
+                  lon: -0.1,
+                  radiusM: 900,
+                  severity: 'high'
+                }
+              ]
+            : createItems(0, 100),
+          hasMore: !url.searchParams.has('cursor'),
+          nextCursor: url.searchParams.has('cursor') ? null : 'opaque-next'
+        }))
+      )
+    });
+
+    assert.equal(feed.pagesLoaded, 2);
+    assert.equal(feed.zones.length, 119);
+    assert.equal(feed.zones.some((zone) => zone.id.includes('remote-london')), false);
+    assert.equal(feed.localSpatialRejectedCount, 1);
+    assert.equal(feed.discardedUnsafeAreaCount, 1);
+    assert.equal(feed.partial, true);
+    assert.equal(feed.message, '119 SafeRoute area-risk signals prepared.');
+  });
+
   it('marks a split view partial when either antimeridian partition lacks tenant coverage', async () => {
     const feed = await fetchAreaRiskForRegionTransport({
       latitude: 0,
@@ -580,7 +653,14 @@ describe('area risk API transport', () => {
           data: {
             bounds: { minLat, maxLat, minLon, maxLon },
             hasMore: false,
-            items: coveredPartition ? createItems(0, 1) : [],
+            items: coveredPartition ? [{
+              id: 'dateline-local',
+              label: 'Dateline local risk',
+              lat: (minLat + maxLat) / 2,
+              lon: (minLon + maxLon) / 2,
+              radiusM: 100,
+              severity: 'high'
+            }] : [],
             providerStatus: coveredPartition ? 'primary' : 'empty',
             seedStatus: coveredPartition ? 'covered' : 'not-requested'
           }

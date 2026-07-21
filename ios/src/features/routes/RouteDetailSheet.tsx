@@ -1,5 +1,6 @@
+import { useEffect, useRef } from "react";
 import { CarFront, Route as RouteIcon, UsersRound, X } from "lucide-react-native";
-import { Modal, Pressable, ScrollView, Text, View } from "react-native";
+import { Animated, Modal, Pressable, ScrollView, Text, useWindowDimensions, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 
 import type { SavedSafeRoutePlan } from "../live-map/liveMapTypes";
@@ -10,12 +11,33 @@ import {
 import { routeDetailSheetStyles as styles } from "./RouteDetailSheet.styles";
 import { colors } from "../../theme";
 
+const AnimatedSafeAreaView = Animated.createAnimatedComponent(SafeAreaView);
+
 interface RouteDetailSheetProps {
   onClose: () => void;
   route: SavedSafeRoutePlan | null;
 }
 
 export function RouteDetailSheet({ onClose, route }: RouteDetailSheetProps) {
+  const viewport = useWindowDimensions();
+  const sheetTranslateY = useRef(new Animated.Value(viewport.height)).current;
+
+  useEffect(() => {
+    if (!route) {
+      sheetTranslateY.setValue(viewport.height);
+      return;
+    }
+
+    sheetTranslateY.setValue(viewport.height);
+    Animated.spring(sheetTranslateY, {
+      damping: 24,
+      mass: 0.9,
+      stiffness: 220,
+      toValue: 0,
+      useNativeDriver: true,
+    }).start();
+  }, [route, sheetTranslateY, viewport.height]);
+
   if (!route) {
     return null;
   }
@@ -46,7 +68,7 @@ export function RouteDetailSheet({ onClose, route }: RouteDetailSheetProps) {
 
   return (
     <Modal
-      animationType="slide"
+      animationType="none"
       presentationStyle="overFullScreen"
       statusBarTranslucent
       transparent
@@ -60,11 +82,14 @@ export function RouteDetailSheet({ onClose, route }: RouteDetailSheetProps) {
           style={styles.scrim}
           onPress={onClose}
         />
-        <SafeAreaView
+        <AnimatedSafeAreaView
           accessibilityViewIsModal
           edges={["bottom"]}
           onAccessibilityEscape={onClose}
-          style={styles.sheet}
+          style={[
+            styles.sheet,
+            { transform: [{ translateY: sheetTranslateY }] },
+          ]}
           testID="safe-route-detail-sheet"
         >
           <View
@@ -165,7 +190,7 @@ export function RouteDetailSheet({ onClose, route }: RouteDetailSheetProps) {
               Done
             </Text>
           </Pressable>
-        </SafeAreaView>
+        </AnimatedSafeAreaView>
       </View>
     </Modal>
   );

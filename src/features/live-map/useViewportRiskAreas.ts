@@ -22,6 +22,8 @@ import {
   isAreaRiskFeedFailed,
   isAreaRiskFeedMissing,
   isAreaRiskFeedPending,
+  resolveCompletedViewportRiskZones,
+  resolveUnavailableViewportRiskZones,
   resolveViewportRiskCoverageOutcome,
   resolveViewportRiskDisplayZones,
   resolveViewportRiskUnavailableRecovery,
@@ -452,9 +454,18 @@ export function useViewportRiskAreas({
           && statusFailureCount === 0
           && missingRequestCount === 0
           && cooldownRequestCount === 0;
+        const replacementZones = resolveCompletedViewportRiskZones(
+          cachedResult,
+          mergeRiskZonesById(...receivedZones),
+          bypassCache
+        );
         const visibleZones = resolveViewportRiskDisplayZones(
-          unavailableRequestCount > 0 ? [] : retainedZones,
-          allRequestsFailed ? cachedResult : nextZones,
+          unavailableRequestCount > 0
+            ? resolveUnavailableViewportRiskZones(retainedZones, contextChanged)
+            : retainedZones,
+          allRequestsFailed
+            ? cachedResult
+            : (replacementReady ? replacementZones : nextZones),
           replacementReady
         );
         setZones(visibleZones);

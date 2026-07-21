@@ -2120,8 +2120,9 @@ export function GuestMapScreen({
 
             </ScrollView>
           </Animated.View>
+        </View>
 
-          <Animated.View
+        <Animated.View
             accessibilityElementsHidden={!sheetCollapsed}
             importantForAccessibility={sheetCollapsed ? 'auto' : 'no-hide-descendants'}
             pointerEvents={sheetCollapsed ? 'auto' : 'none'}
@@ -2166,8 +2167,7 @@ export function GuestMapScreen({
                 </View>
               </View>
             </Pressable>
-          </Animated.View>
-        </View>
+        </Animated.View>
       </SafeAreaView>
       </KeyboardAvoidingView>
     </View>

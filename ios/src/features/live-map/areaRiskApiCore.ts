@@ -1,6 +1,7 @@
 import type { Region } from 'react-native-maps';
 
 import type { RiskSeverity, RiskZone } from './liveMapTypes';
+import type { AreaRiskFeedAuthority } from './areaRiskAuthority';
 import {
   areaRiskSafetyWarning,
   readAreaRiskSafetyFilter,
@@ -123,6 +124,7 @@ export interface AreaRiskResearchPayload {
 }
 
 export interface AreaRiskFeedPage extends AreaRiskFeed {
+  semanticAuthority?: AreaRiskFeedAuthority;
   hasMore: boolean;
   nextCursor: string | null;
 }

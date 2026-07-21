@@ -90,6 +90,7 @@ describe('route risk corridor loading', () => {
               lon: (minLon + maxLon) / 2,
               severity: 'high'
             }],
+            privacy: tenantPrivacy(),
             providerStatus: 'primary',
             seedStatus: 'covered'
           }
@@ -132,6 +133,7 @@ describe('route risk corridor loading', () => {
               bounds: { minLat, maxLat, minLon, maxLon },
               hasMore: false,
               items: [],
+              privacy: tenantPrivacy(),
               providerStatus: 'queued',
               seedStatus: 'researching'
             }
@@ -162,6 +164,7 @@ describe('route risk corridor loading', () => {
               bounds: { minLat, maxLat, minLon, maxLon },
               hasMore: false,
               items: [],
+              privacy: tenantPrivacy(),
               providerStatus: 'partial',
               safetyFilter: {
                 capability: 'safe-route-risk-rejection-v1',
@@ -205,6 +208,7 @@ describe('route risk corridor loading', () => {
                 radiusM: 900,
                 severity: 'high'
               }],
+              privacy: tenantPrivacy(),
               providerStatus: 'primary',
               seedStatus: 'covered'
             }
@@ -233,13 +237,14 @@ describe('route risk corridor loading', () => {
               bounds: { minLat, maxLat, minLon, maxLon },
               hasMore: false,
               items: [],
+              privacy: tenantPrivacy(),
               providerStatus: 'empty',
               seedStatus: 'failed'
             }
           }), { status: 200 });
         }
       }),
-      /coverage is incomplete/i
+      /workspace research did not complete/i
     );
   });
 
@@ -267,6 +272,7 @@ describe('route risk corridor loading', () => {
                 lon: (minLon + maxLon) / 2,
                 severity: 'high'
               }],
+              privacy: tenantPrivacy(),
               providerStatus: 'primary',
               seedStatus: 'not-requested'
             }
@@ -292,6 +298,7 @@ describe('route risk corridor loading', () => {
             bounds: { minLat, maxLat, minLon, maxLon },
             hasMore: false,
             items: [],
+            privacy: publicPrivacy(),
             providerStatus: 'empty',
             seedStatus: 'not-requested'
           }
@@ -345,6 +352,7 @@ describe('route risk corridor loading', () => {
               lon: (minLon + maxLon) / 2,
               severity: 'high'
             }],
+            privacy: tenantPrivacy(),
             providerStatus: 'primary',
             seedStatus: 'covered'
           }
@@ -413,5 +421,19 @@ function riskZone(id: string): RiskZone {
     markerColor: '#d84a3f',
     strokeColor: '#d84a3f',
     fillColor: 'rgba(216,74,63,.18)'
+  };
+}
+
+function tenantPrivacy() {
+  return {
+    tenantScopedSeed: true,
+    sharedOutput: 'sanitized-global'
+  };
+}
+
+function publicPrivacy() {
+  return {
+    tenantScopedSeed: false,
+    sharedOutput: 'sanitized-global'
   };
 }

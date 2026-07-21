@@ -32,6 +32,7 @@ import {
   type AreaRiskViewportRequest,
   type AreaRiskViewportRequestOptions
 } from './areaRiskApiCore';
+import { classifyAreaRiskFeedAuthority } from './areaRiskAuthority';
 import {
   aggregateAreaRiskSafetyFilters,
   areaRiskSafetyFiltersEqual,
@@ -365,6 +366,17 @@ async function readAreaRiskPages(
       localSpatialRejectedCount = page.localSpatialRejectedCount;
     } else {
       const previousPage: AreaRiskFeedPage = aggregate;
+      if (
+        !previousPage.semanticAuthority
+        || !page.semanticAuthority
+        || previousPage.semanticAuthority.paginationSignature
+          !== page.semanticAuthority.paginationSignature
+      ) {
+        throw new ApiRequestError(
+          'Risk coverage changed provider or privacy authority between pages.',
+          502
+        );
+      }
       if (!areaRiskSafetyFiltersEqual(previousPage.safetyFilter, page.safetyFilter)) {
         throw new ApiRequestError(
           'Risk coverage changed safety-filter authority between pages.',
@@ -531,7 +543,19 @@ async function readAreaRiskPage(
       502
     );
   }
+  const semanticAuthority = classifyAreaRiskFeedAuthority(body, {
+    clientId: viewportRequest.clientId,
+    legacyFallback: legacyEnsure
+  });
+  if (semanticAuthority.state === 'failed') {
+    throw new ApiRequestError(
+      semanticAuthority.error || 'Risk coverage returned incompatible authority.',
+      502
+    );
+  }
   const page = normalizeAreaRiskFeedPage(body, queryBounds);
+  page.semanticAuthority = semanticAuthority;
+  page.partial = page.partial || semanticAuthority.state === 'partial';
   const providerStatus = String(page.providerStatus || '').trim().toLowerCase();
   if (
     (page.safetyFilter.present && !page.safetyFilter.valid)

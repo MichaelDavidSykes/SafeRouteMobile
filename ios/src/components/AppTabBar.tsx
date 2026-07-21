@@ -3,11 +3,14 @@ import { Pressable, StyleSheet, Text, View } from "react-native";
 
 import { chrome, colors, typeScale } from "../theme";
 import { uiTestIds } from "../testing/uiTestIds";
+import { isAppTabDisabled, type AppTab } from "./appTabBarState";
 
-export type AppTab = "map" | "routes" | "convoys" | "calendar";
+export { isAppTabDisabled } from "./appTabBarState";
+export type { AppTab } from "./appTabBarState";
 
 type AppTabBarProps = {
   activeTab: AppTab;
+  authenticated: boolean;
   onSelect: (tab: AppTab) => void;
 };
 
@@ -20,32 +23,38 @@ const tabs: Array<{ id: AppTab; label: string }> = [
 
 export function AppTabBar({
   activeTab,
+  authenticated,
   onSelect,
 }: AppTabBarProps) {
   return (
     <View testID={uiTestIds.appTabBar} style={styles.bar}>
       {tabs.map((tab) => {
         const selected = activeTab === tab.id;
+        const disabled = isAppTabDisabled(tab.id, authenticated);
         return (
           <Pressable
             key={tab.id}
+            accessibilityHint={disabled ? `Sign in to use ${tab.label}.` : undefined}
             accessibilityLabel={tab.label}
             accessibilityRole="tab"
-            accessibilityState={{ selected }}
+            accessibilityState={{ disabled, selected }}
+            disabled={disabled}
             hitSlop={4}
             testID={uiTestIds.appTab(tab.id)}
             style={({ pressed }) => [
               styles.item,
-              pressed ? styles.itemPressed : null,
+              disabled ? styles.itemDisabled : null,
+              pressed && !disabled ? styles.itemPressed : null,
             ]}
             onPress={() => onSelect(tab.id)}
           >
-            <TabGlyph selected={selected} tab={tab.id} />
+            <TabGlyph disabled={disabled} selected={selected} tab={tab.id} />
             <Text
               numberOfLines={1}
               style={[
                 styles.label,
                 selected ? styles.selected : null,
+                disabled ? styles.disabledLabel : null,
               ]}
             >
               {tab.label}
@@ -58,13 +67,19 @@ export function AppTabBar({
 }
 
 function TabGlyph({
+  disabled,
   selected,
   tab,
 }: {
+  disabled: boolean;
   selected: boolean;
   tab: AppTab;
 }) {
-  const color = selected ? colors.appleBlue : colors.muted;
+  const color = disabled
+    ? colors.mutedSoft
+    : selected
+      ? colors.appleBlue
+      : colors.muted;
   const iconProps = {
     color,
     size: 23,
@@ -112,6 +127,9 @@ const styles = StyleSheet.create({
   itemPressed: {
     opacity: 0.58,
   },
+  itemDisabled: {
+    opacity: 0.34,
+  },
   label: {
     color: colors.muted,
     fontSize: typeScale.xs - 1,
@@ -121,5 +139,8 @@ const styles = StyleSheet.create({
   },
   selected: {
     color: colors.appleBlue,
+  },
+  disabledLabel: {
+    color: colors.mutedSoft,
   },
 });

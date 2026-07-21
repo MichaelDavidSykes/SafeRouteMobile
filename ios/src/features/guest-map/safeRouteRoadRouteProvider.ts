@@ -17,6 +17,7 @@ import {
   normalizeSafeRoutePreviewResponse,
   resolveSafeRoutePreviewRequestMode
 } from './safeRouteRoadRouteProviderCore';
+import { normalizeRouteAvoidRectangles } from './routeAvoidanceGeometry';
 
 export type SafeRouteRoadRoutePreviewOptions = GuestRoadRoutePreviewOptions & {
   accessToken?: string | null;
@@ -29,7 +30,7 @@ export async function fetchSafeRouteRoadRoutePreview(
   options: SafeRouteRoadRoutePreviewOptions
 ): Promise<GuestRoadRoutePreview | null> {
   const requestMode = resolveSafeRoutePreviewRequestMode(options);
-  const avoidRectangles = options.avoidRectangles || [];
+  const avoidRectangles = normalizeRouteAvoidRectangles(options.avoidRectangles || []);
 
   if (requestMode.kind === 'invalid') {
     throw new ApiRequestError(
@@ -56,7 +57,7 @@ export async function fetchSafeRouteRoadRoutePreview(
     const normalized = normalizeSafeRoutePreviewResponse(
       response,
       options.stops,
-      avoidRectangles.length
+      avoidRectangles
     );
     return normalized;
   }
@@ -89,7 +90,7 @@ export async function fetchSafeRouteRoadRoutePreview(
       const normalized = normalizeSafeRoutePreviewResponse(
         unwrapApiEnvelope<unknown>(body),
         options.stops,
-        avoidRectangles.length
+        avoidRectangles
       );
       if (normalized || avoidRectangles.length || !SAFEROUTE_PREVIEW_MODE_ENABLED) {
         return normalized;

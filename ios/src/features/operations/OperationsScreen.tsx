@@ -3,6 +3,7 @@ import {
   CalendarDays,
   CarFront,
   ChevronDown,
+  Info,
   Layers3,
   Route as RouteIcon,
   UsersRound,
@@ -12,7 +13,10 @@ import {
   AccessibilityInfo,
   ActivityIndicator,
   Alert,
+  Animated,
+  Easing,
   findNodeHandle,
+  LayoutAnimation,
   Pressable,
   RefreshControl,
   ScrollView,
@@ -88,6 +92,7 @@ import {
 } from "./operationsUiState";
 
 const OPERATIONS_ERROR_ACTION_HIT_SLOP = 6;
+const CONVOY_EXPANSION_DURATION_MS = 240;
 const OFFLINE_CALENDAR_REMOVAL_RETRY_SCOPES = new Set<string>();
 const COMPACT_OFFLINE_SAVING_STATES = new Set<OperationsOfflineCalendarSavingState>([
   "allowed",
@@ -826,19 +831,18 @@ export function OperationsScreen({
     () => createCalendarGroups(calendarRows),
     [calendarRows],
   );
+  const detailVisible = Boolean(
+    selectedCalendarRow || selectedConvoy || selectedVehicleContext,
+  );
 
   useEffect(() => {
-    onDetailVisibilityChange?.(Boolean(
-      selectedCalendarRow || selectedConvoy || selectedVehicleContext,
-    ));
+    onDetailVisibilityChange?.(detailVisible);
+  }, [detailVisible, onDetailVisibilityChange]);
 
-    return () => onDetailVisibilityChange?.(false);
-  }, [
-    onDetailVisibilityChange,
-    selectedCalendarRow,
-    selectedConvoy,
-    selectedVehicleContext,
-  ]);
+  useEffect(
+    () => () => onDetailVisibilityChange?.(false),
+    [onDetailVisibilityChange],
+  );
 
   useEffect(() => {
     if (!selectedConvoy) {
@@ -1995,7 +1999,12 @@ export function OperationsScreen({
                           interactionLocked={Boolean(detailLoadingId)}
                           row={row}
                           timeLabel={timeLabel}
-                          onPress={() => setSelectedCalendarRowId(row.id)}
+                          onPress={() => {
+                            setSelectedConvoyId(null);
+                            setSelectedVehicle(null);
+                            onConvoySelectionChange?.(null);
+                            setSelectedCalendarRowId(row.id);
+                          }}
                         />
                       ))}
                     </View>
@@ -2010,6 +2019,7 @@ export function OperationsScreen({
                       groupIndex={index}
                       row={row}
                       onToggle={() => {
+                        configureConvoyExpansionAnimation();
                         setCollapsedConvoyIds((current) => {
                           const next = new Set(current);
                           if (next.has(row.id)) {
@@ -2020,13 +2030,15 @@ export function OperationsScreen({
                           return next;
                         });
                       }}
-                      onPress={() => {
+                      onOpenDetails={() => {
+                        setSelectedCalendarRowId(null);
+                        setSelectedVehicle(null);
                         setSelectedConvoyId(row.id);
                         onConvoySelectionChange?.(row.id);
                       }}
                       onVehiclePress={(vehicleId) => {
+                        setSelectedCalendarRowId(null);
                         setSelectedConvoyId(null);
-                        onConvoySelectionChange?.(null);
                         setSelectedVehicle({ convoyId: row.id, vehicleId });
                       }}
                     />
@@ -2101,7 +2113,10 @@ export function OperationsScreen({
         <OperationsVehicleDetail
           convoy={selectedVehicleContext.convoy}
           vehicle={selectedVehicleContext.vehicle}
-          onBack={() => setSelectedVehicle(null)}
+          onBack={() => {
+            setSelectedVehicle(null);
+            onConvoySelectionChange?.(null);
+          }}
         />
       ) : null}
     </SafeAreaView>
@@ -2248,61 +2263,98 @@ function OperationsCalendarCard({
   );
 }
 
+function configureConvoyExpansionAnimation() {
+  LayoutAnimation.configureNext({
+    duration: CONVOY_EXPANSION_DURATION_MS,
+    create: {
+      property: LayoutAnimation.Properties.opacity,
+      type: LayoutAnimation.Types.easeInEaseOut,
+    },
+    update: {
+      type: LayoutAnimation.Types.easeInEaseOut,
+    },
+    delete: {
+      property: LayoutAnimation.Properties.opacity,
+      type: LayoutAnimation.Types.easeInEaseOut,
+    },
+  });
+}
+
 function OperationsConvoyCard({
   expanded,
   groupIndex,
-  onPress,
+  onOpenDetails,
   onToggle,
   onVehiclePress,
   row,
 }: {
   expanded: boolean;
   groupIndex: number;
-  onPress: () => void;
+  onOpenDetails: () => void;
   onToggle: () => void;
   onVehiclePress: (vehicleId: string) => void;
   row: OperationsConvoyRow;
 }) {
   return (
     <View style={styles.convoyGroup}>
-      <Pressable
-        accessibilityHint={expanded ? "Collapses this convoy." : "Expands this convoy."}
-        accessibilityLabel={`${row.title}. ${row.metaLabel}. ${expanded ? "Expanded" : "Collapsed"}.`}
-        accessibilityRole="button"
-        accessibilityState={{ expanded }}
-        style={({ pressed }) => [
-          styles.convoyGroupHeader,
-          pressed ? styles.routeCardPressed : null,
-        ]}
-        onPress={onToggle}
-      >
-        <View style={[styles.convoyIconTile, groupIndex > 0 ? styles.convoyIconTileSecondary : null]}>
-          <Layers3
-            accessibilityElementsHidden
-            color={groupIndex === 0 ? colors.appleBlue : colors.info}
-            size={22}
-            strokeWidth={1.8}
-          />
+      <View style={styles.convoyGroupHeader}>
+        <Pressable
+          accessibilityHint={expanded ? "Collapses this convoy." : "Expands this convoy."}
+          accessibilityLabel={`${row.title}. ${row.metaLabel}. ${expanded ? "Expanded" : "Collapsed"}.`}
+          accessibilityRole="button"
+          accessibilityState={{ expanded }}
+          style={({ pressed }) => [
+            styles.convoyGroupHeadingAction,
+            pressed ? styles.convoyGroupHeadingActionPressed : null,
+          ]}
+          onPress={onToggle}
+        >
+          <View style={[styles.convoyIconTile, groupIndex > 0 ? styles.convoyIconTileSecondary : null]}>
+            <Layers3
+              accessibilityElementsHidden
+              color={groupIndex === 0 ? colors.appleBlue : colors.info}
+              size={22}
+              strokeWidth={1.8}
+            />
+          </View>
+          <View style={styles.convoyGroupCopy}>
+            <Text numberOfLines={2} style={styles.convoyGroupTitle}>{row.title}</Text>
+            <Text numberOfLines={1} style={styles.convoyGroupMeta}>
+              {row.vehicles.length
+                ? `${row.statusLabel} · ${row.vehicles.length} ${row.vehicles.length === 1 ? "vehicle" : "vehicles"} · ${row.routeOptions.length} ${row.routeOptions.length === 1 ? "route" : "routes"}`
+                : `${row.statusLabel} · ${row.metaLabel}`}
+            </Text>
+          </View>
+        </Pressable>
+        <View style={styles.convoyHeaderActions}>
+          <Pressable
+            accessibilityLabel={`Open details for ${row.title}`}
+            accessibilityRole="button"
+            hitSlop={4}
+            testID={uiTestIds.operationsConvoyCard(row.id)}
+            style={({ pressed }) => [
+              styles.convoyHeaderIconButton,
+              pressed ? styles.convoyHeaderIconButtonPressed : null,
+            ]}
+            onPress={onOpenDetails}
+          >
+            <Info accessibilityElementsHidden color={colors.appleBlue} size={17} strokeWidth={2} />
+          </Pressable>
+          <Pressable
+            accessibilityLabel={expanded ? `Collapse ${row.title}` : `Expand ${row.title}`}
+            accessibilityRole="button"
+            accessibilityState={{ expanded }}
+            hitSlop={4}
+            style={({ pressed }) => [
+              styles.convoyDisclosure,
+              pressed ? styles.convoyHeaderIconButtonPressed : null,
+            ]}
+            onPress={onToggle}
+          >
+            <ConvoyDisclosure expanded={expanded} />
+          </Pressable>
         </View>
-        <View style={styles.convoyGroupHeadingAction}>
-          <Text numberOfLines={2} style={styles.convoyGroupTitle}>{row.title}</Text>
-          <Text numberOfLines={1} style={styles.convoyGroupMeta}>
-            {row.vehicles.length
-              ? `${row.vehicles.length} ${row.vehicles.length === 1 ? "vehicle" : "vehicles"} · ${row.routeOptions.length} ${row.routeOptions.length === 1 ? "route" : "routes"}`
-              : row.metaLabel}
-          </Text>
-        </View>
-        <OperationsStatusChip label={row.statusLabel} />
-        <View style={styles.convoyDisclosure}>
-          <ChevronDown
-            accessibilityElementsHidden
-            color={colors.mutedSoft}
-            size={17}
-            strokeWidth={2.3}
-            style={{ transform: [{ rotate: expanded ? "180deg" : "0deg" }] }}
-          />
-        </View>
-      </Pressable>
+      </View>
 
       {expanded ? (
         <View style={styles.convoyExpandedContent}>
@@ -2320,21 +2372,42 @@ function OperationsConvoyCard({
               <Text style={styles.convoyMeta}>{row.manifestLabel}</Text>
             </View>
           ) : null}
-          <Pressable
-            accessibilityLabel={`Open ${row.title} convoy details`}
-            accessibilityRole="button"
-            testID={uiTestIds.operationsConvoyCard(row.id)}
-            style={({ pressed }) => [
-              styles.convoyDetailAction,
-              pressed ? styles.routeCardPressed : null,
-            ]}
-            onPress={onPress}
-          >
-            <Text style={styles.convoyDetailActionText}>Convoy overview</Text>
-          </Pressable>
         </View>
       ) : null}
     </View>
+  );
+}
+
+function ConvoyDisclosure({ expanded }: { expanded: boolean }) {
+  const progress = useRef(new Animated.Value(expanded ? 1 : 0)).current;
+
+  useEffect(() => {
+    Animated.timing(progress, {
+      duration: CONVOY_EXPANSION_DURATION_MS,
+      easing: Easing.out(Easing.cubic),
+      toValue: expanded ? 1 : 0,
+      useNativeDriver: true,
+    }).start();
+  }, [expanded, progress]);
+
+  return (
+    <Animated.View
+      style={{
+        transform: [{
+          rotate: progress.interpolate({
+            inputRange: [0, 1],
+            outputRange: ["0deg", "180deg"],
+          }),
+        }],
+      }}
+    >
+      <ChevronDown
+        accessibilityElementsHidden
+        color={colors.muted}
+        size={17}
+        strokeWidth={2.3}
+      />
+    </Animated.View>
   );
 }
 

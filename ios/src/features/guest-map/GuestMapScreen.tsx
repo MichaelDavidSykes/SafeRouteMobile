@@ -57,6 +57,7 @@ import {
 } from '../maps/safeRouteMapTheme';
 import { createDeviceHeadingAccessibilityLabel } from '../maps/deviceHeading';
 import { shouldRenderRouteCheckpointMarker } from '../maps/mapMarkerPresentation';
+import { SafeRouteDarkMapMask } from '../maps/SafeRouteDarkMapMask';
 import { useDeviceHeading } from '../maps/useDeviceHeading';
 import { isPreviewAccessToken } from '../auth/previewSession';
 import { createSessionNoticeState } from '../auth/sessionNoticeState';
@@ -1476,6 +1477,7 @@ export function GuestMapScreen({
         }}
         onRegionChangeComplete={handleMapRegionChangeComplete}
       >
+        {mapLayer === 'dark' && Platform.OS === 'ios' ? <SafeRouteDarkMapMask /> : null}
         {visibleRiskZones.map((zone) => (
           <RiskOverlay
             key={zone.id}

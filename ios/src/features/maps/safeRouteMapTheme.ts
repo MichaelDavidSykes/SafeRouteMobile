@@ -5,6 +5,7 @@ export const SAFE_ROUTE_DARK_ROUTE_GLOW = "#ffffff";
 export const SAFE_ROUTE_ROUTE_CASING_WIDTH = 9;
 export const SAFE_ROUTE_ROUTE_GLOW_WIDTH = 7;
 export const SAFE_ROUTE_ROUTE_CORE_WIDTH = 5;
+export const SAFE_ROUTE_DARK_MAP_MASK = "rgba(0, 0, 0, 0.46)";
 export const SAFE_ROUTE_CAMERA_ZOOM_RANGE: CameraZoomRange = {
   maxCenterCoordinateDistance: 40_000_000,
 };

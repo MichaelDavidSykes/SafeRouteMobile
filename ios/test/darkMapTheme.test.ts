@@ -11,6 +11,7 @@ describe("SafeRoute dark map theme", () => {
   it("uses the dark map treatment on guest planning and live navigation", () => {
     const guestMap = source("src/features/guest-map/GuestMapScreen.tsx");
     const liveMap = source("src/features/live-map/LiveMapCanvas.tsx");
+    const mapMask = source("src/features/maps/SafeRouteDarkMapMask.tsx");
 
     for (const mapSource of [guestMap, liveMap]) {
       assert.match(mapSource, /customMapStyle=\{SAFE_ROUTE_DARK_MAP_STYLE\}/);
@@ -25,6 +26,18 @@ describe("SafeRoute dark map theme", () => {
       assert.match(mapSource, /SAFE_ROUTE_ROUTE_CASING_WIDTH/);
       assert.match(mapSource, /SAFE_ROUTE_ROUTE_GLOW_WIDTH/);
     }
+    assert.match(
+      guestMap,
+      /mapLayer === 'dark' && Platform\.OS === 'ios' \? <SafeRouteDarkMapMask \/>/,
+    );
+    assert.match(
+      liveMap,
+      /Platform\.OS === "ios" \? <SafeRouteDarkMapMask \/>/,
+    );
+    assert.equal((mapMask.match(/<Polygon/g) || []).length, 1);
+    assert.match(mapMask, /WESTERN_HEMISPHERE, EASTERN_HEMISPHERE/);
+    assert.match(mapMask, /tappable=\{false\}/);
+    assert.match(mapMask, /zIndex=\{-100\}/);
   });
 
   it("keeps the Google map palette dark, restrained, and route-readable", () => {
@@ -42,6 +55,7 @@ describe("SafeRoute dark map theme", () => {
     );
     assert.match(mapTheme, /SAFE_ROUTE_DARK_ROUTE_CASING/);
     assert.match(mapTheme, /SAFE_ROUTE_DARK_ROUTE_GLOW/);
+    assert.match(mapTheme, /SAFE_ROUTE_DARK_MAP_MASK\s*=\s*"rgba\(0, 0, 0, 0\.46\)"/);
     assert.match(
       mapTheme,
       /SAFE_ROUTE_CAMERA_ZOOM_RANGE[\s\S]*maxCenterCoordinateDistance:\s*40_000_000/,

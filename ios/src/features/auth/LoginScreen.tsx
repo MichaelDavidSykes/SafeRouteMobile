@@ -12,8 +12,14 @@ import {
   View,
   useWindowDimensions,
 } from 'react-native';
-import { BlurView } from 'expo-blur';
-import { ArrowLeft, Eye, EyeOff } from 'lucide-react-native';
+import {
+  ArrowLeft,
+  CircleCheck,
+  Eye,
+  EyeOff,
+  LockKeyhole,
+  MailCheck,
+} from 'lucide-react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { getUserFacingErrorMessage } from '../api/userFacingErrors';
@@ -30,7 +36,6 @@ import {
   verifyLoginCode,
 } from './authApi';
 import { AuthBackdrop } from './AuthBackdrop';
-import { authColors } from './authDesign';
 import { CreateAccountScreen } from './CreateAccountScreen';
 import type { AccountInvitation } from './accountInvitation';
 import {
@@ -103,7 +108,7 @@ interface LoginScreenProps {
 
 interface AuthHeaderProps {
   compact: boolean;
-  eyebrow: string;
+  icon: 'lock' | 'logo' | 'mail' | 'success';
   subtitle: string | null;
   subtitleAccessibilityLabel?: string | null;
   title: string;
@@ -112,28 +117,46 @@ interface AuthHeaderProps {
 
 function AuthHeader({
   compact,
-  eyebrow,
+  icon,
   subtitle,
   subtitleAccessibilityLabel,
   title,
   titleAccessibilityLabel,
 }: AuthHeaderProps) {
+  const headerIcon =
+    icon === 'logo' ? (
+      <Image
+        accessibilityIgnoresInvertColors
+        accessibilityLabel="SafeRoute"
+        source={require('../../../assets/logo-mark.png')}
+        style={styles.flowLogo}
+      />
+    ) : (
+      <View accessible={false} style={styles.flowIconTile}>
+        {icon === 'lock' ? (
+          <LockKeyhole color="#5CB0FF" size={28} strokeWidth={1.9} />
+        ) : icon === 'success' ? (
+          <CircleCheck color="#56D47B" size={30} strokeWidth={1.9} />
+        ) : (
+          <MailCheck color="#5CB0FF" size={29} strokeWidth={1.9} />
+        )}
+      </View>
+    );
+
   return (
-    <View style={[styles.header, compact ? styles.headerCompact : null]}>
-      <Text numberOfLines={1} style={styles.eyebrow}>
-        {eyebrow}
-      </Text>
+    <View style={[styles.flowHeader, compact ? styles.flowHeaderCompact : null]}>
+      {headerIcon}
       <Text
         accessibilityLabel={titleAccessibilityLabel}
         accessibilityRole="header"
-        style={[styles.title, compact ? styles.titleCompact : null]}
+        style={styles.flowTitle}
       >
         {title}
       </Text>
       {subtitle ? (
         <Text
           accessibilityLabel={subtitleAccessibilityLabel || undefined}
-          style={styles.subtitle}
+          style={styles.flowSubtitle}
         >
           {subtitle}
         </Text>
@@ -236,6 +259,7 @@ export function LoginScreen({
   );
   const [focusedField, setFocusedField] = useState<FocusedField>(null);
   const passwordInputRef = useRef<TextInput>(null);
+  const codeInputRef = useRef<TextInput>(null);
   const resetCodeInputRef = useRef<TextInput>(null);
   const newPasswordInputRef = useRef<TextInput>(null);
   const confirmPasswordInputRef = useRef<TextInput>(null);
@@ -265,9 +289,9 @@ export function LoginScreen({
     if (view === 'reset-request') {
       return {
         compact: loginLayout.compact,
-        eyebrow: 'Password reset',
-        subtitle: "Enter your email and we'll send you a 6-digit verification code.",
-        title: 'Reset your password',
+        icon: 'logo',
+        subtitle: "Enter the email linked to your account and we'll send a secure reset code.",
+        title: 'Reset password',
         titleAccessibilityLabel: 'Reset your LunarChain password',
       };
     }
@@ -275,7 +299,7 @@ export function LoginScreen({
     if (view === 'reset-code') {
       return {
         compact: loginLayout.compact,
-        eyebrow: 'Reset password',
+        icon: 'mail',
         subtitle: resetEmail
           ? `Use the code sent to ${resetEmail}.`
           : 'Use the code from your password reset email.',
@@ -287,7 +311,7 @@ export function LoginScreen({
     if (view === 'reset-success') {
       return {
         compact: loginLayout.compact,
-        eyebrow: 'Password reset',
+        icon: 'success',
         subtitle: 'Your password has been reset. Sign in with your new password.',
         title: 'Password updated',
         titleAccessibilityLabel: 'LunarChain password updated',
@@ -296,7 +320,11 @@ export function LoginScreen({
 
     return {
       compact: loginLayout.compact,
-      ...loginHeaderState,
+      icon: 'lock',
+      subtitle: loginHeaderState.subtitle,
+      subtitleAccessibilityLabel: loginHeaderState.subtitleAccessibilityLabel,
+      title: 'Two-factor auth',
+      titleAccessibilityLabel: 'LunarChain two-factor authentication',
     };
   }, [loginHeaderState, loginLayout.compact, resetEmail, view]);
   const secondaryChallengeAction = challenge
@@ -646,7 +674,7 @@ export function LoginScreen({
             style={({ pressed }) => [
               styles.handoffBackButton,
               pressed && !formBusy ? styles.handoffBackButtonPressed : null,
-              formBusy ? styles.backButtonDisabled : null,
+              formBusy ? styles.handoffPrimaryButtonDisabled : null,
             ]}
             testID={uiTestIds.loginMapReturn}
             onPress={handleBack}
@@ -802,7 +830,7 @@ export function LoginScreen({
                   style={({ pressed }) => [
                     styles.savedSessionRetryButton,
                     pressed && !formBusy ? styles.savedSessionRetryButtonPressed : null,
-                    formBusy ? styles.secondaryButtonDisabled : null,
+                    formBusy ? styles.handoffPrimaryButtonDisabled : null,
                   ]}
                   testID={uiTestIds.loginSavedSessionRetry}
                   onPress={onRetrySavedSession}
@@ -875,6 +903,22 @@ export function LoginScreen({
   return (
     <SafeAreaView style={styles.screen} testID={uiTestIds.loginScreen}>
       <AuthBackdrop />
+      <Pressable
+        accessibilityHint="Returns to the previous authentication step."
+        accessibilityLabel="Back"
+        accessibilityRole="button"
+        disabled={formBusy}
+        hitSlop={ICON_BUTTON_HIT_SLOP}
+        style={({ pressed }) => [
+          styles.handoffBackButton,
+          pressed && !formBusy ? styles.handoffBackButtonPressed : null,
+          formBusy ? styles.handoffPrimaryButtonDisabled : null,
+        ]}
+        testID={uiTestIds.authBack}
+        onPress={handleBack}
+      >
+        <ArrowLeft color="#FFFFFF" size={20} strokeWidth={2.4} />
+      </Pressable>
       <KeyboardAvoidingView
         behavior={Platform.OS === 'ios' ? 'padding' : undefined}
         keyboardVerticalOffset={loginLayout.keyboardVerticalOffset}
@@ -883,94 +927,65 @@ export function LoginScreen({
         <ScrollView
           automaticallyAdjustKeyboardInsets
           contentContainerStyle={[
-            styles.scrollContent,
-            loginLayout.compact ? styles.scrollContentCompact : null,
+            styles.flowScrollContent,
+            loginLayout.compact ? styles.flowScrollContentCompact : null,
           ]}
           keyboardDismissMode="interactive"
           keyboardShouldPersistTaps="handled"
           showsVerticalScrollIndicator={false}
         >
-          <View style={styles.cardFrame}>
-            <View style={[styles.card, loginLayout.compact ? styles.cardCompact : null]}>
-              <BlurView
-                intensity={30}
-                pointerEvents="none"
-                style={styles.cardBlur}
-                tint="systemMaterialDark"
-              />
-            <Pressable
-              accessibilityHint="Returns to the previous authentication step."
-              accessibilityLabel="Back"
-              accessibilityRole="button"
-              disabled={formBusy}
-              hitSlop={ICON_BUTTON_HIT_SLOP}
-              style={({ pressed }) => [
-                styles.backButton,
-                pressed && !formBusy ? styles.backButtonPressed : null,
-                formBusy ? styles.backButtonDisabled : null,
-              ]}
-              testID={uiTestIds.authBack}
-              onPress={handleBack}
-            >
-              <ArrowLeft color={authColors.text} size={20} strokeWidth={2} />
-            </Pressable>
-
+          <View style={styles.flowContent}>
             <AuthHeader {...headerState} />
 
             {view === 'mfa' ? (
-              <View style={styles.form}>
-                <View style={styles.field}>
-                  <View style={styles.labelRow}>
-                    <Text style={styles.label}>Login code</Text>
-                    <Pressable
-                      accessibilityLabel="Resend login code"
-                      accessibilityRole="button"
-                      disabled={formBusy || !challenge}
-                      style={({ pressed }) => [
-                        styles.inlineButton,
-                        pressed && !formBusy ? styles.inlineButtonPressed : null,
-                        formBusy || !challenge ? styles.inlineButtonDisabled : null,
+              <View style={styles.handoffForm}>
+                <View
+                  style={[
+                    styles.codeCellRow,
+                    challengeExpired || formBusy ? styles.inputShellDisabled : null,
+                  ]}
+                >
+                  {Array.from({ length: 6 }, (_, index) => (
+                    <View
+                      key={index}
+                      accessibilityElementsHidden
+                      accessible={false}
+                      style={[
+                        styles.codeCell,
+                        code[index] ? styles.codeCellFilled : null,
+                        focusedField === 'code' &&
+                        Math.min(code.length, 5) === index
+                          ? styles.codeCellFocused
+                          : null,
                       ]}
-                      testID={uiTestIds.loginResendCode}
-                      onPress={handleResendCode}
                     >
-                      <Text style={styles.inlineButtonText}>
-                        {resendingCode ? 'Sending...' : 'Resend code'}
-                      </Text>
-                    </Pressable>
-                  </View>
-                  <View
-                    style={[
-                      styles.inputShell,
-                      focusedField === 'code' ? styles.inputShellFocused : null,
-                      challengeExpired || formBusy ? styles.inputShellDisabled : null,
-                    ]}
-                  >
-                    <TextInput
-                      accessibilityHint="Enter the six-digit code sent by LunarChain."
-                      accessibilityLabel="LunarChain login code"
-                      autoComplete="one-time-code"
-                      editable={!challengeExpired && !formBusy}
-                      keyboardType="number-pad"
-                      placeholder="123456"
-                      placeholderTextColor={authColors.muted}
-                      returnKeyType="done"
-                      style={[styles.input, styles.codeInput]}
-                      testID={uiTestIds.loginCode}
-                      textContentType="oneTimeCode"
-                      value={code}
-                      onBlur={() => setFocusedField(null)}
-                      onChangeText={(value) => {
-                        setCode(sanitizeLoginCode(value));
-                        setMfaNotice('');
-                        if (!challengeExpired) {
-                          clearLoginError();
-                        }
-                      }}
-                      onFocus={() => setFocusedField('code')}
-                      onSubmitEditing={submitCode}
-                    />
-                  </View>
+                      <Text style={styles.codeCellText}>{code[index] || ''}</Text>
+                    </View>
+                  ))}
+                  <TextInput
+                    ref={codeInputRef}
+                    accessibilityHint="Enter the six-digit code sent by LunarChain."
+                    accessibilityLabel="LunarChain login code"
+                    autoComplete="one-time-code"
+                    caretHidden
+                    editable={!challengeExpired && !formBusy}
+                    keyboardType="number-pad"
+                    returnKeyType="done"
+                    style={styles.codeInputOverlay}
+                    testID={uiTestIds.loginCode}
+                    textContentType="oneTimeCode"
+                    value={code}
+                    onBlur={() => setFocusedField(null)}
+                    onChangeText={(value) => {
+                      setCode(sanitizeLoginCode(value));
+                      setMfaNotice('');
+                      if (!challengeExpired) {
+                        clearLoginError();
+                      }
+                    }}
+                    onFocus={() => setFocusedField('code')}
+                    onSubmitEditing={submitCode}
+                  />
                 </View>
 
                 {challengeState ? (
@@ -1013,22 +1028,42 @@ export function LoginScreen({
                   accessibilityState={{ disabled: primaryActionDisabled }}
                   disabled={primaryActionDisabled}
                   style={({ pressed }) => [
-                    styles.primaryButton,
+                    styles.handoffPrimaryButton,
                     pressed && !primaryActionDisabled
-                      ? styles.primaryButtonPressed
+                      ? styles.handoffPrimaryButtonPressed
                       : null,
-                    primaryActionDisabled ? styles.primaryButtonDisabled : null,
+                    primaryActionDisabled ? styles.handoffPrimaryButtonDisabled : null,
                   ]}
                   testID={uiTestIds.loginPrimaryAction}
                   onPress={submitCode}
                 >
                   {loading ? (
-                    <ActivityIndicator color={authColors.accentInk} />
+                    <ActivityIndicator color="#12141A" />
                   ) : null}
-                  <Text style={styles.primaryButtonText}>
+                  <Text style={styles.handoffPrimaryButtonText}>
                     {loading ? 'Verifying...' : 'Verify and continue'}
                   </Text>
                 </Pressable>
+
+                <View style={styles.flowLinkRow}>
+                  <Text style={styles.handoffFooterMutedText}>Didn't receive a code?</Text>
+                  <Pressable
+                    accessibilityLabel="Resend login code"
+                    accessibilityRole="button"
+                    disabled={formBusy || !challenge}
+                    style={({ pressed }) => [
+                      styles.handoffFooterButton,
+                      pressed && !formBusy ? styles.handoffFooterButtonPressed : null,
+                      formBusy || !challenge ? styles.handoffPrimaryButtonDisabled : null,
+                    ]}
+                    testID={uiTestIds.loginResendCode}
+                    onPress={handleResendCode}
+                  >
+                    <Text style={styles.handoffFooterLinkText}>
+                      {resendingCode ? 'Sending...' : 'Resend'}
+                    </Text>
+                  </Pressable>
+                </View>
 
                 <Pressable
                   accessibilityHint={secondaryChallengeAction?.accessibilityHint}
@@ -1036,14 +1071,14 @@ export function LoginScreen({
                   accessibilityRole="button"
                   disabled={formBusy}
                   style={({ pressed }) => [
-                    styles.secondaryButton,
-                    pressed && !formBusy ? styles.secondaryButtonPressed : null,
-                    formBusy ? styles.secondaryButtonDisabled : null,
+                    styles.flowSecondaryLink,
+                    pressed && !formBusy ? styles.handoffFooterButtonPressed : null,
+                    formBusy ? styles.handoffPrimaryButtonDisabled : null,
                   ]}
                   testID={uiTestIds.loginSecondaryAction}
                   onPress={backToCredentials}
                 >
-                  <Text style={styles.secondaryButtonText}>
+                  <Text style={styles.handoffFooterMutedText}>
                     {secondaryChallengeAction?.text}
                   </Text>
                 </Pressable>
@@ -1051,43 +1086,38 @@ export function LoginScreen({
             ) : null}
 
             {view === 'reset-request' ? (
-              <View style={styles.form} testID={uiTestIds.passwordResetRequest}>
-                <View style={styles.field}>
-                  <View style={styles.labelRow}>
-                    <Text style={styles.label}>Email</Text>
-                  </View>
-                  <View
-                    style={[
-                      styles.inputShell,
-                      focusedField === 'reset-email'
-                        ? styles.inputShellFocused
-                        : null,
-                      loading ? styles.inputShellDisabled : null,
-                    ]}
-                  >
-                    <TextInput
-                      accessibilityLabel="Password reset email"
-                      autoCapitalize="none"
-                      autoComplete="email"
-                      autoCorrect={false}
-                      editable={!loading}
-                      keyboardType="email-address"
-                      placeholder="you@example.com"
-                      placeholderTextColor={authColors.muted}
-                      returnKeyType="send"
-                      style={styles.input}
-                      testID={uiTestIds.passwordResetEmail}
-                      textContentType="emailAddress"
-                      value={resetEmail}
-                      onBlur={() => setFocusedField(null)}
-                      onChangeText={(value) => {
-                        setResetEmail(value);
-                        setResetError('');
-                      }}
-                      onFocus={() => setFocusedField('reset-email')}
-                      onSubmitEditing={submitResetRequest}
-                    />
-                  </View>
+              <View style={styles.handoffForm} testID={uiTestIds.passwordResetRequest}>
+                <View
+                  style={[
+                    styles.handoffInputShell,
+                    focusedField === 'reset-email'
+                      ? styles.handoffInputShellFocused
+                      : null,
+                    loading ? styles.inputShellDisabled : null,
+                  ]}
+                >
+                  <TextInput
+                    accessibilityLabel="Password reset email"
+                    autoCapitalize="none"
+                    autoComplete="email"
+                    autoCorrect={false}
+                    editable={!loading}
+                    keyboardType="email-address"
+                    placeholder="Email"
+                    placeholderTextColor="#7F838C"
+                    returnKeyType="send"
+                    style={styles.handoffInput}
+                    testID={uiTestIds.passwordResetEmail}
+                    textContentType="emailAddress"
+                    value={resetEmail}
+                    onBlur={() => setFocusedField(null)}
+                    onChangeText={(value) => {
+                      setResetEmail(value);
+                      setResetError('');
+                    }}
+                    onFocus={() => setFocusedField('reset-email')}
+                    onSubmitEditing={submitResetRequest}
+                  />
                 </View>
 
                 {resetError ? <StatusBox tone="danger">{resetError}</StatusBox> : null}
@@ -1098,90 +1128,90 @@ export function LoginScreen({
                   accessibilityState={{ disabled: resetRequestDisabled }}
                   disabled={resetRequestDisabled}
                   style={({ pressed }) => [
-                    styles.primaryButton,
+                    styles.handoffPrimaryButton,
                     pressed && !resetRequestDisabled
-                      ? styles.primaryButtonPressed
+                      ? styles.handoffPrimaryButtonPressed
                       : null,
-                    resetRequestDisabled ? styles.primaryButtonDisabled : null,
+                    resetRequestDisabled ? styles.handoffPrimaryButtonDisabled : null,
                   ]}
                   testID={uiTestIds.passwordResetSend}
                   onPress={submitResetRequest}
                 >
                   {loading ? (
-                    <ActivityIndicator color={authColors.accentInk} />
+                    <ActivityIndicator color="#12141A" />
                   ) : null}
-                  <Text style={styles.primaryButtonText}>
-                    {loading ? 'Sending code...' : 'Send verification code'}
+                  <Text style={styles.handoffPrimaryButtonText}>
+                    {loading ? 'Sending code...' : 'Send reset code'}
                   </Text>
+                </Pressable>
+
+                <Pressable
+                  accessibilityLabel="Back to sign in"
+                  accessibilityRole="button"
+                  disabled={loading}
+                  style={({ pressed }) => [
+                    styles.flowSecondaryLink,
+                    pressed && !loading ? styles.handoffFooterButtonPressed : null,
+                  ]}
+                  onPress={backToCredentials}
+                >
+                  <Text style={styles.handoffFooterLinkText}>Back to sign in</Text>
                 </Pressable>
               </View>
             ) : null}
 
             {view === 'reset-code' ? (
-              <View style={styles.form} testID={uiTestIds.passwordResetForm}>
+              <View style={styles.handoffForm} testID={uiTestIds.passwordResetForm}>
                 {resetNotice ? <StatusBox tone="notice">{resetNotice}</StatusBox> : null}
 
-                <View style={styles.field}>
-                  <View style={styles.labelRow}>
-                    <Text style={styles.label}>Email</Text>
-                  </View>
-                  <View style={[styles.inputShell, styles.inputShellDisabled]}>
-                    <TextInput
-                      accessibilityLabel="Password reset email"
-                      editable={false}
-                      style={styles.input}
-                      testID={uiTestIds.passwordResetEmail}
-                      value={resetEmail}
-                    />
-                  </View>
+                <View style={[styles.handoffInputShell, styles.inputShellDisabled]}>
+                  <TextInput
+                    accessibilityLabel="Password reset email"
+                    editable={false}
+                    style={styles.handoffInput}
+                    testID={uiTestIds.passwordResetEmail}
+                    value={resetEmail}
+                  />
                 </View>
 
-                <View style={styles.field}>
-                  <View style={styles.labelRow}>
-                    <Text style={styles.label}>Verification code</Text>
-                  </View>
-                  <View
-                    style={[
-                      styles.inputShell,
-                      focusedField === 'reset-code'
-                        ? styles.inputShellFocused
-                        : null,
-                      loading ? styles.inputShellDisabled : null,
-                    ]}
-                  >
-                    <TextInput
-                      ref={resetCodeInputRef}
-                      accessibilityLabel="Password reset verification code"
-                      autoComplete="one-time-code"
-                      editable={!loading}
-                      keyboardType="number-pad"
-                      placeholder="123456"
-                      placeholderTextColor={authColors.muted}
-                      returnKeyType="next"
-                      style={[styles.input, styles.codeInput]}
-                      testID={uiTestIds.passwordResetCode}
-                      textContentType="oneTimeCode"
-                      value={resetCode}
-                      onBlur={() => setFocusedField(null)}
-                      onChangeText={(value) => {
-                        setResetCode(sanitizeLoginCode(value));
-                        setResetError('');
-                      }}
-                      onFocus={() => setFocusedField('reset-code')}
-                      onSubmitEditing={() => newPasswordInputRef.current?.focus()}
-                    />
-                  </View>
+                <View
+                  style={[
+                    styles.handoffInputShell,
+                    focusedField === 'reset-code'
+                      ? styles.handoffInputShellFocused
+                      : null,
+                    loading ? styles.inputShellDisabled : null,
+                  ]}
+                >
+                  <TextInput
+                    ref={resetCodeInputRef}
+                    accessibilityLabel="Password reset verification code"
+                    autoComplete="one-time-code"
+                    editable={!loading}
+                    keyboardType="number-pad"
+                    placeholder="6-digit code"
+                    placeholderTextColor="#7F838C"
+                    returnKeyType="next"
+                    style={styles.handoffInput}
+                    testID={uiTestIds.passwordResetCode}
+                    textContentType="oneTimeCode"
+                    value={resetCode}
+                    onBlur={() => setFocusedField(null)}
+                    onChangeText={(value) => {
+                      setResetCode(sanitizeLoginCode(value));
+                      setResetError('');
+                    }}
+                    onFocus={() => setFocusedField('reset-code')}
+                    onSubmitEditing={() => newPasswordInputRef.current?.focus()}
+                  />
                 </View>
 
-                <View style={styles.field}>
-                  <View style={styles.labelRow}>
-                    <Text style={styles.label}>New password</Text>
-                  </View>
+                <View>
                   <View
                     style={[
-                      styles.inputShell,
+                      styles.handoffInputShell,
                       focusedField === 'reset-password'
-                        ? styles.inputShellFocused
+                        ? styles.handoffInputShellFocused
                         : null,
                       loading ? styles.inputShellDisabled : null,
                     ]}
@@ -1192,11 +1222,11 @@ export function LoginScreen({
                       autoCapitalize="none"
                       autoComplete="new-password"
                       editable={!loading}
-                      placeholder="Enter a strong password"
-                      placeholderTextColor={authColors.muted}
+                      placeholder="New password"
+                      placeholderTextColor="#7F838C"
                       returnKeyType="next"
                       secureTextEntry={!resetPasswordsVisible}
-                      style={styles.input}
+                      style={styles.handoffInput}
                       testID={uiTestIds.passwordResetNewPassword}
                       textContentType="newPassword"
                       value={newPassword}
@@ -1226,53 +1256,48 @@ export function LoginScreen({
                       onPress={() => setResetPasswordsVisible((value) => !value)}
                     >
                       {resetPasswordsVisible ? (
-                        <EyeOff color={authColors.accent} size={19} strokeWidth={2} />
+                        <EyeOff color="#7F838C" size={19} strokeWidth={1.8} />
                       ) : (
-                        <Eye color={authColors.accent} size={19} strokeWidth={2} />
+                        <Eye color="#7F838C" size={19} strokeWidth={1.8} />
                       )}
                     </Pressable>
                   </View>
-                  <Text style={styles.helperText}>
+                  <Text style={styles.flowHelperText}>
                     Use 8+ characters with uppercase, lowercase, a number and a symbol.
                   </Text>
                 </View>
 
-                <View style={styles.field}>
-                  <View style={styles.labelRow}>
-                    <Text style={styles.label}>Confirm password</Text>
-                  </View>
-                  <View
-                    style={[
-                      styles.inputShell,
-                      focusedField === 'reset-confirm'
-                        ? styles.inputShellFocused
-                        : null,
-                      loading ? styles.inputShellDisabled : null,
-                    ]}
-                  >
-                    <TextInput
-                      ref={confirmPasswordInputRef}
-                      accessibilityLabel="Confirm new LunarChain password"
-                      autoCapitalize="none"
-                      autoComplete="new-password"
-                      editable={!loading}
-                      placeholder="Confirm your new password"
-                      placeholderTextColor={authColors.muted}
-                      returnKeyType="done"
-                      secureTextEntry={!resetPasswordsVisible}
-                      style={styles.input}
-                      testID={uiTestIds.passwordResetConfirmPassword}
-                      textContentType="newPassword"
-                      value={confirmPassword}
-                      onBlur={() => setFocusedField(null)}
-                      onChangeText={(value) => {
-                        setConfirmPassword(value);
-                        setResetError('');
-                      }}
-                      onFocus={() => setFocusedField('reset-confirm')}
-                      onSubmitEditing={submitPasswordReset}
-                    />
-                  </View>
+                <View
+                  style={[
+                    styles.handoffInputShell,
+                    focusedField === 'reset-confirm'
+                      ? styles.handoffInputShellFocused
+                      : null,
+                    loading ? styles.inputShellDisabled : null,
+                  ]}
+                >
+                  <TextInput
+                    ref={confirmPasswordInputRef}
+                    accessibilityLabel="Confirm new LunarChain password"
+                    autoCapitalize="none"
+                    autoComplete="new-password"
+                    editable={!loading}
+                    placeholder="Confirm new password"
+                    placeholderTextColor="#7F838C"
+                    returnKeyType="done"
+                    secureTextEntry={!resetPasswordsVisible}
+                    style={styles.handoffInput}
+                    testID={uiTestIds.passwordResetConfirmPassword}
+                    textContentType="newPassword"
+                    value={confirmPassword}
+                    onBlur={() => setFocusedField(null)}
+                    onChangeText={(value) => {
+                      setConfirmPassword(value);
+                      setResetError('');
+                    }}
+                    onFocus={() => setFocusedField('reset-confirm')}
+                    onSubmitEditing={submitPasswordReset}
+                  />
                 </View>
 
                 {resetError ? <StatusBox tone="danger">{resetError}</StatusBox> : null}
@@ -1283,19 +1308,19 @@ export function LoginScreen({
                   accessibilityState={{ disabled: resetSubmitDisabled }}
                   disabled={resetSubmitDisabled}
                   style={({ pressed }) => [
-                    styles.primaryButton,
+                    styles.handoffPrimaryButton,
                     pressed && !resetSubmitDisabled
-                      ? styles.primaryButtonPressed
+                      ? styles.handoffPrimaryButtonPressed
                       : null,
-                    resetSubmitDisabled ? styles.primaryButtonDisabled : null,
+                    resetSubmitDisabled ? styles.handoffPrimaryButtonDisabled : null,
                   ]}
                   testID={uiTestIds.passwordResetSubmit}
                   onPress={submitPasswordReset}
                 >
                   {loading ? (
-                    <ActivityIndicator color={authColors.accentInk} />
+                    <ActivityIndicator color="#12141A" />
                   ) : null}
-                  <Text style={styles.primaryButtonText}>
+                  <Text style={styles.handoffPrimaryButtonText}>
                     {loading ? 'Resetting password...' : 'Reset password'}
                   </Text>
                 </Pressable>
@@ -1303,23 +1328,22 @@ export function LoginScreen({
             ) : null}
 
             {view === 'reset-success' ? (
-              <View style={styles.form} testID={uiTestIds.passwordResetSuccess}>
+              <View style={styles.handoffForm} testID={uiTestIds.passwordResetSuccess}>
                 <StatusBox tone="success">Password reset successfully.</StatusBox>
                 <Pressable
                   accessibilityLabel="Back to LunarChain sign in"
                   accessibilityRole="button"
                   style={({ pressed }) => [
-                    styles.primaryButton,
-                    pressed ? styles.primaryButtonPressed : null,
+                    styles.handoffPrimaryButton,
+                    pressed ? styles.handoffPrimaryButtonPressed : null,
                   ]}
                   testID={uiTestIds.passwordResetDone}
                   onPress={backToCredentials}
                 >
-                  <Text style={styles.primaryButtonText}>Back to sign in</Text>
+                  <Text style={styles.handoffPrimaryButtonText}>Back to sign in</Text>
                 </Pressable>
               </View>
             ) : null}
-            </View>
           </View>
         </ScrollView>
       </KeyboardAvoidingView>

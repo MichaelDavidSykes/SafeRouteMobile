@@ -14,7 +14,7 @@ const styleSource = readFileSync(
   'utf8'
 );
 
-describe('LunarChain Dusk authentication design', () => {
+describe('SafeRoute authentication design', () => {
   it('ports the final handoff tokens without changing semantic severity colors', () => {
     assert.equal(authColors.background, '#161B2E');
     assert.equal(authColors.text, '#F4F5FB');
@@ -27,17 +27,22 @@ describe('LunarChain Dusk authentication design', () => {
     assert.equal(authRadius.pill, 999);
   });
 
-  it('uses one Dusk primary action recipe and glass controls across every auth state', () => {
-    assert.match(styleSource, /card:[\s\S]*borderTopColor:\s*authColors\.glassTopEdge/);
-    assert.match(styleSource, /primaryButton:[\s\S]*backgroundColor:\s*authColors\.accent/);
-    assert.match(styleSource, /inputShell:[\s\S]*backgroundColor:\s*authColors\.input/);
+  it('uses the current unframed auth hierarchy across sign-in, MFA, and password reset', () => {
+    assert.match(styleSource, /handoffPrimaryButton:[\s\S]*backgroundColor:\s*'#FFFFFF'/);
+    assert.match(styleSource, /handoffPrimaryButton:[\s\S]*borderRadius:\s*15/);
+    assert.match(styleSource, /handoffInputShell:[\s\S]*minHeight:\s*54/);
+    assert.match(styleSource, /flowTitle:[\s\S]*fontSize:\s*25/);
+    assert.match(styleSource, /flowTitle:[\s\S]*textAlign:\s*'center'/);
+    assert.match(styleSource, /codeCell:[\s\S]*borderRadius:\s*14/);
     assert.match(styleSource, /letterSpacing:\s*0/);
     assert.match(loginSource, /<AuthBackdrop \/>/);
-    assert.match(loginSource, /<BlurView[\s\S]*intensity=\{30\}[\s\S]*style=\{styles\.cardBlur\}/);
-    assert.match(styleSource, /card:[\s\S]*overflow:\s*'hidden'/);
-    assert.match(styleSource, /inputShellFocused:[\s\S]*shadowRadius:\s*3/);
+    assert.doesNotMatch(loginSource, /BlurView|cardFrame|styles\.card/);
+    assert.doesNotMatch(styleSource, /flowTitle:[\s\S]*textTransform:\s*'uppercase'/);
+    assert.match(loginSource, /title:\s*'Reset password'/);
+    assert.match(loginSource, /title:\s*'Two-factor auth'/);
+    assert.match(loginSource, /Array\.from\(\{ length: 6 \}/);
     assert.match(loginSource, /Forgot password\?/);
-    assert.match(loginSource, /Resend code/);
+    assert.match(loginSource, /Didn't receive a code\?/);
     assert.match(loginSource, /Create a new password/);
     assert.match(loginSource, /Verify and continue/);
   });

@@ -504,6 +504,20 @@ export function LoginScreen({
     setView('register');
   };
 
+  const handleAccountAlreadyExists = (existingEmail: string) => {
+    setEmail(existingEmail);
+    setResetEmail(existingEmail);
+    setPassword('');
+    setErrorMessage('');
+    setAccountNotice(
+      invitation?.clientName
+        ? `An account already exists for this email. Sign in to join ${invitation.clientName}.`
+        : 'An account already exists for this email. Sign in instead.'
+    );
+    setView('credentials');
+    requestAnimationFrame(() => passwordInputRef.current?.focus());
+  };
+
   const submitResetRequest = async () => {
     const validationError = getPasswordResetRequestError(resetEmail);
     if (validationError) {
@@ -605,6 +619,7 @@ export function LoginScreen({
         }
         initialStep={view === 'register-verification' ? 'verification' : 'details'}
         previewMode={SAFEROUTE_PREVIEW_MODE_ENABLED}
+        onAccountExists={handleAccountAlreadyExists}
         onBack={backToCredentials}
         onVerified={(verifiedEmail) => {
           onInvitationConsumed?.();

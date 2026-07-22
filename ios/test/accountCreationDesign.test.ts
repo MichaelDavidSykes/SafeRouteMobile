@@ -60,4 +60,12 @@ describe('SafeRoute account creation handoff', () => {
     assert.match(createSource, /verifyAccountEmail\(email, cleanCode, invitationToken\)/);
     assert.match(loginSource, /invitationToken=\{invitation\?\.token\}/);
   });
+
+  it('returns an existing invited account to sign in without discarding the invitation', () => {
+    assert.match(createSource, /error instanceof AccountAlreadyExistsError/);
+    assert.match(createSource, /onAccountExists\(email\.trim\(\)\.toLowerCase\(\)\)/);
+    assert.match(loginSource, /onAccountExists=\{handleAccountAlreadyExists\}/);
+    assert.match(loginSource, /An account already exists for this email\. Sign in to join/);
+    assert.match(loginSource, /setView\('credentials'\)/);
+  });
 });

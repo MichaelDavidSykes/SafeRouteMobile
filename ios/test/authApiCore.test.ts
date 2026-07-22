@@ -3,8 +3,11 @@ import { describe, it } from 'node:test';
 
 import { ApiRequestError, ApiSessionExpiredError } from '../src/features/api/apiClientCore';
 import {
+  ACCOUNT_ALREADY_EXISTS_MESSAGE,
+  AccountAlreadyExistsError,
   assertAuthResponseOk,
   assertPublicAuthResponseOk,
+  isAccountAlreadyExistsResponse,
 } from '../src/features/auth/authApiCore';
 
 function jsonResponse(status: number, body: unknown): Response {
@@ -106,6 +109,44 @@ describe('LunarChain auth API core', () => {
         error instanceof ApiRequestError &&
         error.statusCode === 403 &&
         error.message === 'Account creation is invitation-only.'
+    );
+  });
+
+  it('classifies the stable duplicate-account conflict for an explicit sign-in handoff', async () => {
+    await assert.rejects(
+      () =>
+        assertPublicAuthResponseOk(
+          jsonResponse(409, {
+            detail: {
+              code: 'account_exists',
+              details: ACCOUNT_ALREADY_EXISTS_MESSAGE,
+              message: 'Account already exists',
+            },
+          }),
+          'Unable to create the account.'
+        ),
+      (error) =>
+        error instanceof AccountAlreadyExistsError &&
+        error.statusCode === 409 &&
+        error.message === ACCOUNT_ALREADY_EXISTS_MESSAGE
+    );
+  });
+
+  it('recognizes the prior duplicate-account response during a rolling backend deployment', () => {
+    assert.equal(
+      isAccountAlreadyExistsResponse(400, {
+        detail: {
+          details: 'A user with this email already exists',
+          message: 'User already exists',
+        },
+      }),
+      true
+    );
+    assert.equal(
+      isAccountAlreadyExistsResponse(400, {
+        detail: { details: 'The invitation is no longer available.' },
+      }),
+      false
     );
   });
 });

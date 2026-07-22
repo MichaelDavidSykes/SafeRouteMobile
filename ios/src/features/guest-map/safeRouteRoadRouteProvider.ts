@@ -14,6 +14,7 @@ import {
 } from './guestRoadRouteProvider';
 import {
   buildSafeRoutePreviewPayload,
+  buildPublicSafeRoutePreviewPayload,
   normalizeSafeRoutePreviewResponse,
   resolveSafeRoutePreviewRequestMode
 } from './safeRouteRoadRouteProviderCore';
@@ -64,12 +65,10 @@ export async function fetchSafeRouteRoadRoutePreview(
 
   if (requestMode.kind === 'public') {
     try {
-      const authenticatedPayload = buildSafeRoutePreviewPayload({
+      const publicPayload = buildPublicSafeRoutePreviewPayload({
         avoidRectangles,
-        clientId: 'public-mobile',
         stops: options.stops
       });
-      const { client_id: _clientId, ...publicPayload } = authenticatedPayload;
       const response = await fetchWithTimeout(
         `${LUNARCHAIN_API_BASE}/mobile/safe-route/route-preview`,
         {

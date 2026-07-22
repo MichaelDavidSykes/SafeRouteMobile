@@ -93,6 +93,27 @@ export function buildSafeRoutePreviewPayload({
   return payload;
 }
 
+export function buildPublicSafeRoutePreviewPayload({
+  avoidRectangles,
+  stops
+}: {
+  avoidRectangles: GuestRouteAvoidRectangle[];
+  stops: LatLng[];
+}) {
+  const workspacePayload = buildSafeRoutePreviewPayload({
+    avoidRectangles,
+    clientId: 'public-mobile',
+    stops
+  });
+
+  return {
+    ...(workspacePayload.avoid_rectangles
+      ? { avoid_rectangles: workspacePayload.avoid_rectangles }
+      : {}),
+    waypoints: workspacePayload.waypoints
+  };
+}
+
 export function normalizeSafeRoutePreviewResponse(
   payload: unknown,
   requestedStops: LatLng[],

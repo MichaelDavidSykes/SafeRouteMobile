@@ -3,6 +3,7 @@ import { describe, it } from 'node:test';
 
 import {
   buildSafeRoutePreviewPayload,
+  buildPublicSafeRoutePreviewPayload,
   normalizeSafeRoutePreviewResponse,
   resolveSafeRoutePreviewRequestMode
 } from '../src/features/guest-map/safeRouteRoadRouteProviderCore';
@@ -47,6 +48,25 @@ describe('SafeRoute road route provider', () => {
       client_id: 'tenant-1',
       include_road_metadata: true,
       include_route_alerts: true,
+      waypoints: [
+        { lat: -33.9249, lon: 18.4241, elevation_m: null },
+        { lat: -33.9696, lon: 18.5972, elevation_m: null }
+      ],
+      avoid_rectangles: [{
+        label: 'High risk',
+        min_lat: -33.95,
+        max_lat: -33.94,
+        min_lon: 18.48,
+        max_lon: 18.49
+      }]
+    });
+  });
+
+  it('uses the strict public endpoint schema without workspace-only flags', () => {
+    assert.deepEqual(buildPublicSafeRoutePreviewPayload({
+      stops,
+      avoidRectangles: [avoidRectangle]
+    }), {
       waypoints: [
         { lat: -33.9249, lon: 18.4241, elevation_m: null },
         { lat: -33.9696, lon: 18.5972, elevation_m: null }

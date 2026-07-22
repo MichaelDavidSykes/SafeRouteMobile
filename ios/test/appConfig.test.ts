@@ -125,6 +125,7 @@ describe('Expo production configuration', () => {
     assert.equal(expo.orientation, 'portrait');
     assert.equal(expo.userInterfaceStyle, 'light');
     assert.equal(expo.ios.bundleIdentifier, 'com.lunarchain.saferoute');
+    assert.deepEqual(expo.ios.associatedDomains, ['applinks:app.lunarchain.net']);
     assert.equal(expo.ios.supportsTablet, false);
     assert.equal(expo.ios.buildNumber, '1');
     assert.equal(expo.ios.config?.usesNonExemptEncryption, false);
@@ -332,6 +333,19 @@ describe('Expo production configuration', () => {
     );
   });
 
+  it('rejects non-canonical HTTPS origins for production API credentials', () => {
+    assert.throws(
+      () =>
+        loadExpoConfig({
+          SAFEROUTE_APP_ENV: 'production',
+          SAFEROUTE_PROD_API_URL: 'https://prod-api.lunarchain.net',
+          SAFEROUTE_IOS_BUILD_NUMBER: '42',
+          GOOGLE_MAPS_IOS_API_KEY: 'ios-key'
+        }),
+      /must be exactly https:\/\/api\.lunarchain\.net/
+    );
+  });
+
   it('requires an explicit iOS build number for production configuration', () => {
     assert.throws(
       () =>
@@ -482,7 +496,7 @@ describe('Expo production configuration', () => {
   it('normalizes release environment values before exposing runtime config', () => {
     const expo = loadExpoConfig({
       SAFEROUTE_APP_ENV: ' production ',
-      SAFEROUTE_PROD_API_URL: '  https://prod-api.lunarchain.net/  ',
+      SAFEROUTE_PROD_API_URL: '  https://api.lunarchain.net/  ',
       SAFEROUTE_API_VERSION: ' /v2/ ',
       SAFEROUTE_ENABLE_DEMO_DRIVE: ' TRUE ',
       SAFEROUTE_IOS_BUILD_NUMBER: '45.1',
@@ -490,7 +504,7 @@ describe('Expo production configuration', () => {
     });
 
     assert.equal(expo.extra.safeRouteEnvironment, 'production');
-    assert.equal(expo.extra.safeRouteApiUrl, 'https://prod-api.lunarchain.net');
+    assert.equal(expo.extra.safeRouteApiUrl, 'https://api.lunarchain.net');
     assert.equal(expo.extra.safeRouteApiVersion, 'v2');
     assert.equal(expo.extra.safeRouteDemoDriveEnabled, false);
     assert.equal(expo.ios.buildNumber, '45.1');

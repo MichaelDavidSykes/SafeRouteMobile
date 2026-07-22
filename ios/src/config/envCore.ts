@@ -101,7 +101,7 @@ function normalizeApiUrl(
 
   if (
     appEnvironment === PRODUCTION_ENVIRONMENT &&
-    !normalizedValue.toLowerCase().startsWith('https://')
+    normalizedValue !== DEFAULT_API_URL
   ) {
     return DEFAULT_API_URL;
   }

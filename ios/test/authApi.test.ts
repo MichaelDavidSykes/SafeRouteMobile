@@ -12,8 +12,11 @@ describe('LunarChain auth API requests', () => {
     assert.match(authApiSource, /\/auth\/resend-login-code/);
     assert.match(authApiSource, /\/auth\/request-password-reset/);
     assert.match(authApiSource, /\/auth\/reset-password/);
-    assert.match(authApiSource, /\/auth\/register/);
-    assert.match(authApiSource, /\/auth\/verify-code/);
+    assert.match(authApiSource, /\/auth\/mobile-register/);
+    assert.match(authApiSource, /\/auth\/mobile-verify-code/);
+    assert.match(authApiSource, /\/clients\/invitations\/resolve/);
+    assert.doesNotMatch(authApiSource, /\/auth\/register['"`]/);
+    assert.doesNotMatch(authApiSource, /\/auth\/verify-code['"`]/);
     assert.doesNotMatch(authApiSource, /\/auth\/login['"`]/);
     assert.match(authApiSource, /headers:\s*buildAuthContentHeaders\('application\/x-www-form-urlencoded'\)/);
     assert.match(authApiSource, /headers:\s*buildAuthContentHeaders\('application\/json'\)/);
@@ -23,13 +26,14 @@ describe('LunarChain auth API requests', () => {
     assert.doesNotMatch(authApiSource, /X-SafeRoute-Client|buildMobileClientHeaders|buildMobileAuthHeaders/);
   });
 
-  it('uses the same password-reset and MFA payload contracts as LunarChain web', () => {
+  it('uses shared password-reset/MFA contracts and invitation-bound native registration', () => {
     assert.match(authApiSource, /buildLoginCodePayload\(email, challengeToken, code\)/);
     assert.match(authApiSource, /buildLoginCodeResendPayload\(challenge\.email, challenge\.challengeToken\)/);
     assert.match(authApiSource, /buildPasswordResetRequestPayload\(email\)/);
     assert.match(authApiSource, /buildPasswordResetPayload\(email, code, newPassword\)/);
-    assert.match(authApiSource, /buildAccountRegistrationPayload\(\{ email, firstName, lastName, password \}\)/);
-    assert.match(authApiSource, /buildAccountVerificationPayload\(email, code\)/);
+    assert.match(authApiSource, /buildAccountRegistrationPayload\(\{/);
+    assert.match(authApiSource, /invitationToken,/);
+    assert.match(authApiSource, /buildAccountVerificationPayload\(email, code, invitationToken\)/);
     assert.match(authApiSource, /assertPublicAuthResponseOk/);
   });
 });

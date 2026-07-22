@@ -6,6 +6,11 @@ import type {
   PasswordLoginResult,
   TwoFactorChallenge,
 } from './authTypes';
+import {
+  createAccountInvitation,
+  type AccountInvitation,
+  type AccountInvitationPayload,
+} from './accountInvitation';
 import { assertAuthResponseOk, assertPublicAuthResponseOk } from './authApiCore';
 import {
   buildAccountRegistrationPayload,
@@ -139,33 +144,78 @@ export async function resetPassword(
   );
 }
 
+export async function resolveAccountInvitation(
+  invitationToken: string
+): Promise<AccountInvitation> {
+  const token = invitationToken.trim();
+  const response = await fetchAuthResponse(
+    `${LUNARCHAIN_API_BASE}/clients/invitations/resolve`,
+    {
+      method: 'POST',
+      headers: buildAuthContentHeaders('application/json'),
+      body: JSON.stringify({ token }),
+    }
+  );
+
+  const body = await assertPublicAuthResponseOk(
+    response,
+    'Unable to validate this invitation.'
+  );
+  const payload = (
+    body && typeof body === 'object' && 'data' in body
+      ? (body as { data?: AccountInvitationPayload }).data
+      : body
+  ) as AccountInvitationPayload | undefined;
+  const invitation = createAccountInvitation(token, payload || {});
+
+  if (!invitation.email || !invitation.clientId) {
+    throw new Error('The invitation response was incomplete. Request a new invitation.');
+  }
+
+  return invitation;
+}
+
 export async function registerAccount({
   email,
   firstName,
+  invitationToken,
   lastName,
   password,
 }: {
   email: string;
   firstName: string;
+  invitationToken: string;
   lastName: string;
   password: string;
 }): Promise<void> {
-  const response = await fetchAuthResponse(`${LUNARCHAIN_API_BASE}/auth/register`, {
+  const response = await fetchAuthResponse(`${LUNARCHAIN_API_BASE}/auth/mobile-register`, {
     method: 'POST',
     headers: buildAuthContentHeaders('application/json'),
     body: JSON.stringify(
-      buildAccountRegistrationPayload({ email, firstName, lastName, password })
+      buildAccountRegistrationPayload({
+        email,
+        firstName,
+        invitationToken,
+        lastName,
+        password,
+      })
     ),
   });
 
   await assertPublicAuthResponseOk(response, 'Unable to create the account.');
 }
 
-export async function verifyAccountEmail(email: string, code: string): Promise<void> {
-  const response = await fetchAuthResponse(`${LUNARCHAIN_API_BASE}/auth/verify-code`, {
+export async function verifyAccountEmail(
+  email: string,
+  code: string,
+  invitationToken: string
+): Promise<void> {
+  const response = await fetchAuthResponse(`${LUNARCHAIN_API_BASE}/auth/mobile-verify-code`, {
     method: 'POST',
     headers: buildAuthContentHeaders('application/json'),
-    body: JSON.stringify(buildAccountVerificationPayload(email, code)),
+    body: JSON.stringify(
+      buildAccountVerificationPayload(email, code, invitationToken)
+    ),
   });
 
   await assertPublicAuthResponseOk(

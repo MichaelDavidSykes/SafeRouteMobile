@@ -33,6 +33,8 @@ const ACCOUNT_CONNECTION_MESSAGE =
 export type CreateAccountInitialStep = 'details' | 'verification';
 
 interface CreateAccountScreenProps {
+  invitationClientName?: string;
+  invitationToken?: string;
   initialEmail?: string;
   initialStep?: CreateAccountInitialStep;
   previewMode?: boolean;
@@ -43,6 +45,8 @@ interface CreateAccountScreenProps {
 type AccountField = 'first-name' | 'last-name' | 'email' | 'password' | 'code' | null;
 
 export function CreateAccountScreen({
+  invitationClientName = '',
+  invitationToken = '',
   initialEmail = '',
   initialStep = 'details',
   previewMode = false,
@@ -69,6 +73,11 @@ export function CreateAccountScreen({
     () => getAccountPasswordRequirements(password),
     [password]
   );
+  const hasInvitation = invitationToken.trim().length >= 8;
+  const registrationDisabled = loading || (!previewMode && !hasInvitation);
+  const invitationRequiredMessage = !previewMode && !hasInvitation
+    ? 'Account creation is invitation-only. Open the invitation sent by your workspace admin.'
+    : '';
 
   const clearError = () => {
     if (errorMessage) {
@@ -77,6 +86,12 @@ export function CreateAccountScreen({
   };
 
   const submitRegistration = async () => {
+    if (!previewMode && !hasInvitation) {
+      setErrorMessage(invitationRequiredMessage);
+      AccessibilityInfo.announceForAccessibility(invitationRequiredMessage);
+      return;
+    }
+
     const validationError = getAccountRegistrationError({
       email,
       firstName,
@@ -93,7 +108,13 @@ export function CreateAccountScreen({
     setErrorMessage('');
     try {
       if (!previewMode) {
-        await registerAccount({ email, firstName, lastName, password });
+        await registerAccount({
+          email,
+          firstName,
+          invitationToken,
+          lastName,
+          password,
+        });
       }
       setEmail(email.trim().toLowerCase());
       setCode('');
@@ -125,7 +146,7 @@ export function CreateAccountScreen({
     setErrorMessage('');
     try {
       if (!previewMode) {
-        await verifyAccountEmail(email, cleanCode);
+        await verifyAccountEmail(email, cleanCode, invitationToken);
       }
       onVerified(email.trim().toLowerCase());
     } catch (error) {
@@ -196,7 +217,11 @@ export function CreateAccountScreen({
                   style={styles.logo}
                 />
                 <Text accessibilityRole="header" style={styles.title}>Create account</Text>
-                <Text style={styles.subtitle}>Set up your SafeRoute account</Text>
+                <Text style={styles.subtitle}>
+                  {invitationClientName
+                    ? `Join ${invitationClientName} with your SafeRoute account`
+                    : 'Set up your SafeRoute account'}
+                </Text>
               </View>
 
               <View style={styles.form} testID={uiTestIds.accountCreateForm}>
@@ -275,7 +300,7 @@ export function CreateAccountScreen({
                     autoCapitalize="none"
                     autoComplete="email"
                     autoCorrect={false}
-                    editable={!loading}
+                    editable={!loading && !hasInvitation}
                     keyboardType="email-address"
                     placeholder="Email"
                     placeholderTextColor="#7F838C"
@@ -362,17 +387,20 @@ export function CreateAccountScreen({
                   />
                 </View>
 
+                {invitationRequiredMessage && !errorMessage ? (
+                  <AccountError>{invitationRequiredMessage}</AccountError>
+                ) : null}
                 {errorMessage ? <AccountError>{errorMessage}</AccountError> : null}
 
                 <Pressable
                   accessibilityLabel="Create SafeRoute account"
                   accessibilityRole="button"
-                  accessibilityState={{ busy: loading, disabled: loading }}
-                  disabled={loading}
+                  accessibilityState={{ busy: loading, disabled: registrationDisabled }}
+                  disabled={registrationDisabled}
                   style={({ pressed }) => [
                     styles.primaryButton,
                     pressed && !loading ? styles.primaryButtonPressed : null,
-                    loading ? styles.primaryButtonDisabled : null,
+                    registrationDisabled ? styles.primaryButtonDisabled : null,
                   ]}
                   testID={uiTestIds.accountCreateSubmit}
                   onPress={() => void submitRegistration()}

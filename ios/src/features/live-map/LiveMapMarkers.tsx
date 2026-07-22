@@ -113,9 +113,9 @@ export function RiskOverlay({
       {shouldRenderRiskCoverage(zone) && polygonCoordinates.length > 2 ? (
         <Polygon
           coordinates={polygonCoordinates}
-          strokeColor="transparent"
-          fillColor={riskColors.fill}
-          strokeWidth={0}
+          strokeColor={selected ? riskColors.stroke : 'transparent'}
+          fillColor={selected ? riskColors.selectedFill : riskColors.fill}
+          strokeWidth={selected ? 2 : 0}
           testID={uiTestIds.liveMapRiskZoneArea(zone.id)}
           tappable={Boolean(onPress)}
           onPress={handlePress}
@@ -124,9 +124,9 @@ export function RiskOverlay({
         <TappableCircle
           center={zone.coordinate}
           radius={visibleRiskRadiusMeters(zone)}
-          strokeColor="transparent"
-          fillColor={riskColors.fill}
-          strokeWidth={0}
+          strokeColor={selected ? riskColors.stroke : 'transparent'}
+          fillColor={selected ? riskColors.selectedFill : riskColors.fill}
+          strokeWidth={selected ? 2 : 0}
           testID={uiTestIds.liveMapRiskZoneArea(zone.id)}
           tappable={Boolean(onPress)}
           onPress={handlePress}
@@ -216,7 +216,7 @@ function RiskMarker({
       anchor={{ x: 0.5, y: 0.5 }}
       testID={uiTestIds.liveMapRiskZone(zone.id)}
       tappable={Boolean(onPress)}
-      zIndex={selected || active ? 20 : 10}
+      zIndex={10}
       onPress={onPress}
     >
       <View
@@ -233,12 +233,20 @@ function RiskMarker({
             severityMarkerStyle(zone.severity)
           ]}
         >
+          <View
+            accessible={false}
+            style={[
+              styles.riskMarkerSelectionRing,
+              { borderColor: markerColor },
+              selected ? styles.riskMarkerSelectionRingVisible : null,
+            ]}
+          />
           <AlertTriangle
             accessibilityElementsHidden
             color={markerColor}
             fill={severityMarkerFill(zone.severity)}
             size={severityMarkerSize(zone.severity)}
-            strokeWidth={2}
+            strokeWidth={2.6}
           />
         </View>
       </View>
@@ -330,14 +338,26 @@ function severityMarkerSize(severity: RiskSeverity): number {
 
 function severityOverlayColors(severity: RiskSeverity) {
   if (severity === 'high') {
-    return { fill: 'rgba(229, 72, 77, 0.15)', stroke: colors.danger };
+    return {
+      fill: 'rgba(229, 72, 77, 0.15)',
+      selectedFill: 'rgba(229, 72, 77, 0.26)',
+      stroke: colors.danger,
+    };
   }
 
   if (severity === 'medium') {
-    return { fill: 'rgba(245, 165, 36, 0.10)', stroke: colors.amber };
+    return {
+      fill: 'rgba(245, 165, 36, 0.10)',
+      selectedFill: 'rgba(245, 165, 36, 0.22)',
+      stroke: colors.amber,
+    };
   }
 
-  return { fill: colors.infoSoft, stroke: colors.info };
+  return {
+    fill: colors.infoSoft,
+    selectedFill: 'rgba(126, 156, 191, 0.20)',
+    stroke: colors.info,
+  };
 }
 
 const styles = StyleSheet.create({
@@ -375,14 +395,14 @@ const styles = StyleSheet.create({
     backgroundColor: colors.surface
   },
   riskMarkerHitArea: {
-    width: 32,
-    height: 32,
+    width: 38,
+    height: 38,
     alignItems: 'center',
     justifyContent: 'center'
   },
   riskMarker: {
-    width: 26,
-    height: 26,
+    width: 34,
+    height: 34,
     alignItems: 'center',
     justifyContent: 'center',
     opacity: 0.78,
@@ -393,11 +413,23 @@ const styles = StyleSheet.create({
   },
   riskMarkerActive: {
     opacity: 0.92,
-    transform: [{ scale: 1.08 }]
   },
   riskMarkerSelected: {
     opacity: 1,
-    transform: [{ scale: 1.18 }]
+    shadowOpacity: 0.8,
+    shadowRadius: 7,
+  },
+  riskMarkerSelectionRing: {
+    position: 'absolute',
+    width: 32,
+    height: 32,
+    borderWidth: 2,
+    borderRadius: radius.pill,
+    backgroundColor: 'rgba(10, 12, 17, 0.72)',
+    opacity: 0,
+  },
+  riskMarkerSelectionRingVisible: {
+    opacity: 1,
   },
   riskMarkerHigh: {
     shadowColor: colors.danger
@@ -409,8 +441,8 @@ const styles = StyleSheet.create({
     shadowColor: colors.info
   },
   routeAlertMarkerHitArea: {
-    width: 28,
-    height: 28,
+    width: 38,
+    height: 38,
     alignItems: 'center',
     justifyContent: 'center'
   },

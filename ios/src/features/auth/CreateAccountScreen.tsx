@@ -23,6 +23,10 @@ import {
   getAccountVerificationError,
 } from './accountRegistrationState';
 import { registerAccount, verifyAccountEmail } from './authApi';
+import {
+  ACCOUNT_ALREADY_EXISTS_MESSAGE,
+  AccountAlreadyExistsError,
+} from './authApiCore';
 import { AuthBackdrop } from './AuthBackdrop';
 import { createAccountStyles as styles } from './CreateAccountScreen.styles';
 import { sanitizeLoginCode } from './twoFactorChallenge';
@@ -38,6 +42,7 @@ interface CreateAccountScreenProps {
   initialEmail?: string;
   initialStep?: CreateAccountInitialStep;
   previewMode?: boolean;
+  onAccountExists: (email: string) => void;
   onBack: () => void;
   onVerified: (email: string) => void;
 }
@@ -50,6 +55,7 @@ export function CreateAccountScreen({
   initialEmail = '',
   initialStep = 'details',
   previewMode = false,
+  onAccountExists,
   onBack,
   onVerified,
 }: CreateAccountScreenProps) {
@@ -121,6 +127,11 @@ export function CreateAccountScreen({
       setStep('verification');
       requestAnimationFrame(() => codeRef.current?.focus());
     } catch (error) {
+      if (error instanceof AccountAlreadyExistsError) {
+        AccessibilityInfo.announceForAccessibility(ACCOUNT_ALREADY_EXISTS_MESSAGE);
+        onAccountExists(email.trim().toLowerCase());
+        return;
+      }
       setErrorMessage(
         getUserFacingErrorMessage(
           error,

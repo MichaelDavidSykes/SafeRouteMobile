@@ -16,6 +16,8 @@ describe("SafeRoute dark map theme", () => {
       assert.match(mapSource, /customMapStyle=\{SAFE_ROUTE_DARK_MAP_STYLE\}/);
       assert.match(mapSource, /userInterfaceStyle="dark"/);
       assert.match(mapSource, /showsBuildings/);
+      assert.match(mapSource, /cameraZoomRange=\{SAFE_ROUTE_CAMERA_ZOOM_RANGE\}/);
+      assert.match(mapSource, /zoomEnabled/);
       assert.match(mapSource, /pitchEnabled/);
       assert.doesNotMatch(mapSource, /userInterfaceStyle="light"/);
       assert.match(mapSource, /SAFE_ROUTE_DARK_ROUTE_CASING/);
@@ -40,6 +42,10 @@ describe("SafeRoute dark map theme", () => {
     );
     assert.match(mapTheme, /SAFE_ROUTE_DARK_ROUTE_CASING/);
     assert.match(mapTheme, /SAFE_ROUTE_DARK_ROUTE_GLOW/);
+    assert.match(
+      mapTheme,
+      /SAFE_ROUTE_CAMERA_ZOOM_RANGE[\s\S]*maxCenterCoordinateDistance:\s*40_000_000/,
+    );
     assert.match(mapTheme, /SAFE_ROUTE_DARK_ROUTE_CASING\s*=\s*"#ffffff"/);
     assert.match(mapTheme, /SAFE_ROUTE_ROUTE_CASING_WIDTH\s*=\s*9/);
     assert.match(mapTheme, /SAFE_ROUTE_ROUTE_GLOW_WIDTH\s*=\s*7/);

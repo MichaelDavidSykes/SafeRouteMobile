@@ -382,6 +382,28 @@ describe('guest route planner helpers', () => {
     }), null);
   });
 
+  it('rejects the London route when it enters the local London Bridge high-risk area', () => {
+    const roadSnappedCoordinates = [
+      { latitude: 51.5074, longitude: -0.1278 },
+      { latitude: 51.5062, longitude: -0.0888 },
+      { latitude: 51.5053, longitude: -0.0553 }
+    ];
+
+    assert.equal(createGuestRoadSnappedRoutePlan({
+      origin: 'Current location',
+      destination: 'London City',
+      roadSnappedCoordinates,
+      riskZones: [
+        riskZone(
+          'london-bridge-high-risk',
+          'London Bridge–Borough High Street',
+          roadSnappedCoordinates[1],
+          900
+        )
+      ]
+    }), null);
+  });
+
   it('falls back to local preview geometry when provider route data is incomplete', () => {
     const route = createGuestRoutePlan({
       authenticated: true,

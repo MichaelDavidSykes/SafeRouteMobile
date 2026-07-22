@@ -578,6 +578,29 @@ describe('area risk API core', () => {
     assert.equal(critical.length, 1);
     assert.equal(critical[0].label, 'Critical district exclusion');
   });
+
+  it('hard-avoids a local London risk area while keeping a broad start area advisory', () => {
+    const londonBridge = {
+      ...createZone('high', 'London Bridge–Borough High Street', {
+        latitude: 51.506211,
+        longitude: -0.088819
+      }),
+      radiusMeters: 900
+    } satisfies RiskZone;
+    const westEnd = {
+      ...createZone('high', 'West End', {
+        latitude: 51.512899,
+        longitude: -0.125597
+      }),
+      radiusMeters: 1500
+    } satisfies RiskZone;
+
+    const rectangles = deriveRiskZoneAvoidRectangles([londonBridge, westEnd]);
+
+    assert.deepEqual(rectangles.map(({ label }) => label), [
+      'London Bridge–Borough High Street'
+    ]);
+  });
 });
 
 function createZone(

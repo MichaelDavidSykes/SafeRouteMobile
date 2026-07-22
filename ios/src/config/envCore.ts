@@ -9,6 +9,8 @@ export type SafeRoutePreviewInitialScreen =
   | 'guidance-suspended'
   | 'login'
   | 'login-code'
+  | 'reset-password'
+  | 'reset-password-code'
   | 'operations'
   | 'routes'
   | 'routes-empty'
@@ -129,6 +131,8 @@ function normalizePreviewInitialScreen(
     normalized === 'login' ||
     normalized === 'guidance-suspended' ||
     normalized === 'login-code' ||
+    normalized === 'reset-password' ||
+    normalized === 'reset-password-code' ||
     normalized === 'operations' ||
     normalized === 'routes-empty' ||
     normalized === 'session-expired' ||

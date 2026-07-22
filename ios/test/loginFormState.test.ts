@@ -20,9 +20,9 @@ describe('login form primary action state', () => {
       }),
       {
         accessibilityHint: 'Enter both email and password before signing in.',
-        accessibilityLabel: 'Sign in to LunarChain. Email and password required.',
+        accessibilityLabel: 'Log in to LunarChain. Email and password required.',
         disabled: true,
-        text: 'Sign in'
+        text: 'Log in'
       }
     );
 
@@ -109,14 +109,14 @@ describe('login form primary action state', () => {
   it('uses recovery-focused two-factor secondary action copy', () => {
     assert.deepEqual(getTwoFactorSecondaryActionState(false), {
       accessibilityHint: 'Returns to email and password sign-in.',
-      accessibilityLabel: 'Go back to LunarChain credentials',
-      text: 'Edit sign-in'
+      accessibilityLabel: 'Use a different LunarChain account',
+      text: 'Use a different account'
     });
 
     assert.deepEqual(getTwoFactorSecondaryActionState(true), {
-      accessibilityHint: 'Returns to credentials so you can request a fresh login code.',
-      accessibilityLabel: 'Request a fresh LunarChain login code',
-      text: 'Request code'
+      accessibilityHint: 'Returns to email and password sign-in. Sign in again to request a fresh code.',
+      accessibilityLabel: 'Return to LunarChain sign in',
+      text: 'Back to sign in'
     });
   });
 

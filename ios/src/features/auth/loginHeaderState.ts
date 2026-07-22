@@ -1,4 +1,5 @@
 export type LoginHeaderState = {
+  eyebrow: string;
   subtitle: string | null;
   subtitleAccessibilityLabel: string | null;
   title: string;
@@ -11,9 +12,9 @@ export type LoginHeaderStateInput = {
   compact: boolean;
 };
 
-const SIGN_IN_SUBTITLE = "Sync saved routes to the map.";
-const FALLBACK_CHALLENGE_SUBTITLE = "Enter the six-digit LunarChain login code.";
-export const LOGIN_CHALLENGE_SUBTITLE_MAX_LENGTH = 64;
+const SIGN_IN_SUBTITLE = "Use your LunarChain account to continue to SafeRoute.";
+const FALLBACK_CHALLENGE_SUBTITLE = "Enter the six-digit code sent to your account.";
+export const LOGIN_CHALLENGE_SUBTITLE_MAX_LENGTH = 96;
 
 export function createLoginHeaderState({
   challengeActive,
@@ -29,21 +30,23 @@ export function createLoginHeaderState({
     );
 
     return {
+      eyebrow: "Two-factor verification",
       subtitle: compactSubtitle,
       subtitleAccessibilityLabel:
         compactSubtitle === subtitle ? null : subtitle,
-      title: "Enter code",
+      title: "Enter your login code",
       titleAccessibilityLabel: "Enter LunarChain login code",
     };
   }
 
   return {
-    subtitle: compact ? null : SIGN_IN_SUBTITLE,
+    eyebrow: "Sign in",
+    subtitle: SIGN_IN_SUBTITLE,
     subtitleAccessibilityLabel: null,
-    title: "Sign in",
+    title: "Log in to LunarChain",
     titleAccessibilityLabel: compact
-      ? `Sign in. ${SIGN_IN_SUBTITLE}`
-      : "Sign in",
+      ? `Log in to LunarChain. ${SIGN_IN_SUBTITLE}`
+      : "Log in to LunarChain",
   };
 }
 

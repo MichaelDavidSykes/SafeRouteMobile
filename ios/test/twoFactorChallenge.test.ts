@@ -62,7 +62,7 @@ describe('two-factor challenge helpers', () => {
         },
         now
       ),
-      'Enter the 6-digit code sent by email.'
+      'We sent a 6-digit code to driver@example.com. Enter it to finish signing in.'
     );
 
     assert.equal(

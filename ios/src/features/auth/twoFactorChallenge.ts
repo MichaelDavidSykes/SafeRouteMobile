@@ -27,9 +27,13 @@ export function getTwoFactorSubtitle(challenge: TwoFactorChallenge, nowMs = Date
   }
 
   const method = formatChallengeMethod(challenge.method);
+  if (method === 'email' && challenge.email.trim()) {
+    return `We sent a 6-digit code to ${challenge.email.trim()}. Enter it to finish signing in.`;
+  }
+
   return method === 'verification'
-    ? 'Enter the 6-digit verification code.'
-    : `Enter the 6-digit code sent by ${method}.`;
+    ? 'Enter the 6-digit verification code to finish signing in.'
+    : `Enter the 6-digit code from your ${method} to finish signing in.`;
 }
 
 export function getTwoFactorExpiryDelayMs(expiresAt?: string, nowMs = Date.now()): number | null {

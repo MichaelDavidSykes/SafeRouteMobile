@@ -50,10 +50,9 @@ appId: host.exp.Exponent
     visible:
       id: "safe-route-login"
     timeout: 30000
-- assertVisible: "SafeRoute Mobile"
 - assertVisible: "Enter LunarChain login code"
-- assertVisible: "Enter the 6-digit code sent by email."
-- assertVisible: "6-digit code"
+- assertVisible: "We sent a 6-digit code to preview.operator@lunarchain.local. Enter it to finish signing in."
+- assertVisible: "123456"
 - assertVisible:
     id: "safe-route-login-code"
 - assertVisible: "Use the most recent code."
@@ -61,6 +60,8 @@ appId: host.exp.Exponent
     id: "safe-route-login-primary-action"
 - assertVisible:
     id: "safe-route-login-secondary-action"
+- assertVisible:
+    id: "safe-route-login-resend-code"
 - assertNotVisible:
     id: "safe-route-login-email"
 - assertNotVisible:

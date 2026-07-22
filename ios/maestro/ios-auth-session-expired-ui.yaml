@@ -50,8 +50,8 @@ appId: host.exp.Exponent
     visible:
       id: "safe-route-login"
     timeout: 30000
-- assertVisible: "SafeRoute Mobile"
-- assertVisible: "Sign in"
+- assertVisible: "Log in to LunarChain"
+- assertVisible: "Use your LunarChain account to continue to SafeRoute."
 - assertVisible: "Your LunarChain session expired. Sign in again."
 - assertVisible:
     id: "safe-route-login-email"

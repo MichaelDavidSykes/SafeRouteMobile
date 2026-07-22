@@ -14,25 +14,28 @@ describe("login header state", () => {
         compact: false,
       }),
       {
-        subtitle: "Sync saved routes to the map.",
+        eyebrow: "Sign in",
+        subtitle: "Use your LunarChain account to continue to SafeRoute.",
         subtitleAccessibilityLabel: null,
-        title: "Sign in",
-        titleAccessibilityLabel: "Sign in",
+        title: "Log in to LunarChain",
+        titleAccessibilityLabel: "Log in to LunarChain",
       },
     );
   });
 
-  it("hides secondary sign-in copy on compact iPhones but keeps it for VoiceOver", () => {
+  it("keeps essential sign-in context visible on compact iPhones", () => {
     assert.deepEqual(
       createLoginHeaderState({
         challengeActive: false,
         compact: true,
       }),
       {
-        subtitle: null,
+        eyebrow: "Sign in",
+        subtitle: "Use your LunarChain account to continue to SafeRoute.",
         subtitleAccessibilityLabel: null,
-        title: "Sign in",
-        titleAccessibilityLabel: "Sign in. Sync saved routes to the map.",
+        title: "Log in to LunarChain",
+        titleAccessibilityLabel:
+          "Log in to LunarChain. Use your LunarChain account to continue to SafeRoute.",
       },
     );
   });
@@ -45,9 +48,10 @@ describe("login header state", () => {
         compact: true,
       }),
       {
+        eyebrow: "Two-factor verification",
         subtitle: "Code sent to driver@example.com.",
         subtitleAccessibilityLabel: null,
-        title: "Enter code",
+        title: "Enter your login code",
         titleAccessibilityLabel: "Enter LunarChain login code",
       },
     );
@@ -61,9 +65,10 @@ describe("login header state", () => {
         compact: false,
       }),
       {
-        subtitle: "Enter the six-digit LunarChain login code.",
+        eyebrow: "Two-factor verification",
+        subtitle: "Enter the six-digit code sent to your account.",
         subtitleAccessibilityLabel: null,
-        title: "Enter code",
+        title: "Enter your login code",
         titleAccessibilityLabel: "Enter LunarChain login code",
       },
     );
@@ -71,7 +76,7 @@ describe("login header state", () => {
 
   it("bounds long two-factor subtitles while keeping full delivery context accessible", () => {
     const subtitle =
-      "Code sent to a.very.long.safe-route-operator.alias@example-security-operations.invalid.";
+      "We sent a code to a.very.long.safe-route-operator.alias@example-security-operations.invalid. Enter it to finish signing in.";
     const compactSubtitle = `${subtitle
       .slice(0, LOGIN_CHALLENGE_SUBTITLE_MAX_LENGTH - 1)
       .trimEnd()}…`;
@@ -83,9 +88,10 @@ describe("login header state", () => {
         compact: true,
       }),
       {
+        eyebrow: "Two-factor verification",
         subtitle: compactSubtitle,
         subtitleAccessibilityLabel: subtitle,
-        title: "Enter code",
+        title: "Enter your login code",
         titleAccessibilityLabel: "Enter LunarChain login code",
       },
     );

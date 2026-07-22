@@ -24,6 +24,41 @@ export function buildPasswordLoginBody(email: string, password: string): string 
   return formData.toString();
 }
 
+export function buildLoginCodePayload(
+  email: string,
+  challengeToken: string,
+  code: string
+) {
+  return {
+    challenge_token: challengeToken,
+    code: String(code || '').trim(),
+    email: normalizeEmail(email),
+  };
+}
+
+export function buildLoginCodeResendPayload(email: string, challengeToken: string) {
+  return {
+    challenge_token: challengeToken,
+    email: normalizeEmail(email),
+  };
+}
+
+export function buildPasswordResetRequestPayload(email: string) {
+  return { email: normalizeEmail(email) };
+}
+
+export function buildPasswordResetPayload(
+  email: string,
+  code: string,
+  newPassword: string
+) {
+  return {
+    code: String(code || '').trim(),
+    email: normalizeEmail(email),
+    new_password: newPassword,
+  };
+}
+
 export function unwrapAuthData(responseBody: unknown): AuthResponseData {
   const body = responseBody as { data?: AuthResponseData } | AuthResponseData | null | undefined;
   return ((body && 'data' in body ? body.data : body) || {}) as AuthResponseData;

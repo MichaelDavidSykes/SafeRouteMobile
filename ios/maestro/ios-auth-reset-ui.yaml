@@ -1,0 +1,76 @@
+appId: host.exp.Exponent
+---
+- stopApp
+- setLocation:
+    latitude: 51.5074
+    longitude: -0.1278
+- openLink: exp://localhost:8081
+- runFlow:
+    when:
+      visible: "Open"
+    commands:
+      - tapOn: "Open"
+- waitForAnimationToEnd:
+    timeout: 3000
+- openLink: exp://localhost:8081
+- runFlow:
+    when:
+      visible: "Open"
+    commands:
+      - tapOn: "Open"
+- waitForAnimationToEnd:
+    timeout: 10000
+- tapOn:
+    text: "Close"
+    optional: true
+- waitForAnimationToEnd:
+    timeout: 1000
+- extendedWaitUntil:
+    visible:
+      id: "saferoute-app-root"
+    timeout: 45000
+- extendedWaitUntil:
+    visible:
+      id: "safe-route-password-reset-form"
+    timeout: 30000
+- assertVisible: "Create a new LunarChain password"
+- assertVisible: "preview.operator@lunarchain.local"
+- assertVisible:
+    id: "safe-route-password-reset-code"
+- assertVisible:
+    id: "safe-route-password-reset-new-password"
+- assertVisible:
+    id: "safe-route-password-reset-confirm-password"
+- assertVisible:
+    id: "safe-route-password-reset-submit"
+- tapOn:
+    id: "safe-route-password-reset-code"
+- inputText: "123456"
+- tapOn:
+    id: "safe-route-password-reset-new-password"
+- inputText: "Strong!123"
+- tapOn:
+    id: "safe-route-password-reset-confirm-password"
+- inputText: "Strong!123"
+- assertVisible:
+    id: "safe-route-password-reset-submit"
+- hideKeyboard
+- tapOn:
+    id: "safe-route-auth-back"
+- extendedWaitUntil:
+    visible:
+      id: "safe-route-password-reset-request"
+    timeout: 10000
+- assertVisible: "Reset your LunarChain password"
+- assertVisible:
+    id: "safe-route-password-reset-email"
+- assertVisible:
+    id: "safe-route-password-reset-send"
+- tapOn:
+    id: "safe-route-auth-back"
+- extendedWaitUntil:
+    visible:
+      id: "safe-route-login-email"
+    timeout: 10000
+- assertVisible:
+    id: "safe-route-login-password"

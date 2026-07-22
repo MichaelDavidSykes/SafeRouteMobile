@@ -65,6 +65,8 @@ const authFlowSource = () =>
   readFileSync(join(process.cwd(), "maestro/ios-auth-ui.yaml"), "utf8");
 const authCodeFlowSource = () =>
   readFileSync(join(process.cwd(), "maestro/ios-auth-code-ui.yaml"), "utf8");
+const authResetFlowSource = () =>
+  readFileSync(join(process.cwd(), "maestro/ios-auth-reset-ui.yaml"), "utf8");
 const authSessionExpiredFlowSource = () =>
   readFileSync(
     join(process.cwd(), "maestro/ios-auth-session-expired-ui.yaml"),
@@ -533,9 +535,10 @@ describe("Maestro iOS preview smoke flow", () => {
     assert.match(flow, /SAFEROUTE_PREVIEW_INITIAL_SCREEN=login/);
     assert.match(flow, /Try again/);
     assert.match(flow, /id:\s*"safe-route-login"/);
-    assert.match(flow, /SafeRoute Mobile/);
+    assert.match(flow, /Log in to LunarChain/);
     assert.match(flow, /id:\s*"safe-route-login-email"/);
     assert.match(flow, /id:\s*"safe-route-login-password"/);
+    assert.match(flow, /id:\s*"safe-route-password-reset-open"/);
     assert.match(flow, /assertNotVisible:\s*"Cloudflare"/);
     assert.match(flow, /assertNotVisible:\s*"Turnstile"/);
     assert.match(flow, /id:\s*"safe-route-login-map-return"/);
@@ -569,11 +572,15 @@ describe("Maestro iOS preview smoke flow", () => {
     assert.match(flow, /without real credentials or OTP/);
     assert.match(flow, /visible:\s*"Try again"[\s\S]*tapOn:\s*"Try again"/);
     assert.match(flow, /assertVisible:\s*"Enter LunarChain login code"/);
-    assert.match(flow, /assertVisible:\s*"Enter the 6-digit code sent by email\."/);
+    assert.match(
+      flow,
+      /assertVisible:\s*"We sent a 6-digit code to preview\.operator@lunarchain\.local\. Enter it to finish signing in\."/,
+    );
     assert.match(flow, /id:\s*"safe-route-login-code"/);
     assert.match(flow, /assertVisible:\s*"Use the most recent code\."/);
     assert.match(flow, /id:\s*"safe-route-login-primary-action"/);
     assert.match(flow, /id:\s*"safe-route-login-secondary-action"/);
+    assert.match(flow, /id:\s*"safe-route-login-resend-code"/);
     assert.match(flow, /id:\s*"safe-route-login-map-return"/);
     assert.match(flow, /id:\s*"guest-map-primary-action"/);
     assert.match(appSource, /SAFEROUTE_PREVIEW_INITIAL_SCREEN === 'login-code'/);
@@ -589,6 +596,32 @@ describe("Maestro iOS preview smoke flow", () => {
     assert.ok(emailInputIndex > secondaryActionIndex);
     assert.ok(mapReturnIndex > emailInputIndex);
     assert.ok(guestMapIndex > mapReturnIndex);
+  });
+
+  it("opens the password-reset preview and returns through each auth step", () => {
+    const appSource = readFileSync(join(process.cwd(), "App.tsx"), "utf8");
+    const flow = authResetFlowSource();
+    const scripts = packageJson().scripts;
+
+    assert.equal(
+      scripts["start:maestro:ios:preview:reset-password-code"],
+      "SAFEROUTE_ENABLE_PREVIEW_MODE=true SAFEROUTE_PREVIEW_INITIAL_SCREEN=reset-password-code NODE_OPTIONS=--dns-result-order=ipv4first expo start --localhost --port 8081",
+    );
+    assert.equal(
+      scripts["test:maestro:ios:reset-password"],
+      "node scripts/run-maestro.mjs test maestro/ios-auth-reset-ui.yaml",
+    );
+    assert.match(flow, /id:\s*"safe-route-password-reset-form"/);
+    assert.match(flow, /id:\s*"safe-route-password-reset-code"/);
+    assert.match(flow, /id:\s*"safe-route-password-reset-new-password"/);
+    assert.match(flow, /id:\s*"safe-route-password-reset-confirm-password"/);
+    assert.match(flow, /inputText:\s*"123456"/);
+    assert.equal((flow.match(/inputText:\s*"Strong!123"/g) ?? []).length, 2);
+    assert.match(flow, /hideKeyboard/);
+    assert.match(flow, /id:\s*"safe-route-password-reset-request"/);
+    assert.match(flow, /id:\s*"safe-route-auth-back"/);
+    assert.match(appSource, /SAFEROUTE_PREVIEW_INITIAL_SCREEN === 'reset-password-code'/);
+    assert.match(appSource, /initialView=\{[\s\S]*'reset-code'/);
   });
 
   it("opens the session-expired preview directly on sign-in recovery copy", () => {

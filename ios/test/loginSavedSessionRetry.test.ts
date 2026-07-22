@@ -13,14 +13,17 @@ describe("saved session validation retry", () => {
 
     assert.match(source, /onRetrySavedSession\?: \(\) => void/);
     assert.match(source, /savedSessionRetrying\?: boolean/);
-    assert.match(source, /const formBusy = loading \|\| savedSessionRetrying/);
     assert.match(
       source,
-      /!challenge && onRetrySavedSession[\s\S]*accessibilityLabel=\{[\s\S]*Retry saved session verification[\s\S]*accessibilityHint="Checks the saved account before any workspace, route, or Calendar data is shown\."[\s\S]*busy: savedSessionRetrying[\s\S]*disabled: formBusy[\s\S]*testID=\{uiTestIds\.loginSavedSessionRetry\}[\s\S]*onPress=\{onRetrySavedSession\}/,
+      /const formBusy = loading \|\| resendingCode \|\| savedSessionRetrying/,
     );
     assert.match(
       source,
-      /const primaryActionDisabled =[\s\S]*primaryActionState\.disabled \|\| savedSessionRetrying[\s\S]*accessibilityState=\{\{ disabled: primaryActionDisabled \}\}[\s\S]*disabled=\{primaryActionDisabled\}/,
+      /onRetrySavedSession \? \([\s\S]*accessibilityHint="Checks the saved account before any workspace, route, or Calendar data is shown\."[\s\S]*Retry saved session verification[\s\S]*busy: savedSessionRetrying[\s\S]*disabled: formBusy[\s\S]*testID=\{uiTestIds\.loginSavedSessionRetry\}[\s\S]*onPress=\{onRetrySavedSession\}/,
+    );
+    assert.match(
+      source,
+      /const primaryActionDisabled =[\s\S]*primaryActionState\.disabled \|\| resendingCode \|\| savedSessionRetrying[\s\S]*accessibilityState=\{\{ disabled: primaryActionDisabled \}\}[\s\S]*disabled=\{primaryActionDisabled\}/,
     );
   });
 
@@ -31,9 +34,9 @@ describe("saved session validation retry", () => {
         styles,
       )?.[1] || "";
 
-    assert.match(button, /minHeight:\s*controlSizes\.secondary/);
-    assert.match(button, /borderRadius:\s*14/);
+    assert.match(button, /minHeight:\s*48/);
+    assert.match(button, /borderRadius:\s*authRadius\.pill/);
     assert.match(button, /flexDirection:\s*'row'/);
-    assert.match(styles, /savedSessionRetryButtonText:[\s\S]*maxWidth:\s*210/);
+    assert.match(styles, /savedSessionRetryButtonText:[\s\S]*maxWidth:\s*230/);
   });
 });

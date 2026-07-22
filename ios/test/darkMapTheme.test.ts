@@ -46,7 +46,7 @@ describe("SafeRoute dark map theme", () => {
     assert.match(mapTheme, /SAFE_ROUTE_ROUTE_CORE_WIDTH\s*=\s*5/);
   });
 
-  it("uses muted native iOS tiles while retaining pitch and 3D buildings", () => {
+  it("uses muted native iOS tiles with a flat home camera and optional pitch", () => {
     const guestMap = source("src/features/guest-map/GuestMapScreen.tsx");
     const liveMap = source("src/features/live-map/LiveMapCanvas.tsx");
     const mapTransport = source("src/features/api/mapTransportState.ts");
@@ -61,7 +61,8 @@ describe("SafeRoute dark map theme", () => {
       mapTransport,
       /platform === "ios" \? "mutedStandard" : "standard"/,
     );
-    assert.match(guestMap, /animateCamera\(\{ heading: 0, pitch: 38 \}/);
+    assert.match(guestMap, /animateCamera\(\{ heading: 0, pitch: 0 \}/);
+    assert.doesNotMatch(guestMap, /pitch: 38/);
     assert.match(guestMap, /rotateEnabled/);
   });
 

@@ -35,7 +35,7 @@ describe('SafeRoute runtime config', () => {
     assert.equal(config.lunarchainApiBase, 'https://api.example.test/api/v2');
   });
 
-  it('keeps production runtime API traffic on HTTPS even if packaged extra is unsafe', () => {
+  it('keeps production runtime API traffic on the canonical origin if packaged extra is unsafe', () => {
     const productionConfig = resolveSafeRouteRuntimeConfig({
       safeRouteApiUrl: ' http://api.example.test/// ',
       safeRouteEnvironment: 'production'
@@ -44,10 +44,18 @@ describe('SafeRoute runtime config', () => {
       safeRouteApiUrl: ' http://localhost:8000/// ',
       safeRouteEnvironment: 'development'
     });
+    const alternateHttpsProductionConfig = resolveSafeRouteRuntimeConfig({
+      safeRouteApiUrl: 'https://attacker.example',
+      safeRouteEnvironment: 'production'
+    });
 
     assert.equal(productionConfig.appEnvironment, 'production');
     assert.equal(productionConfig.lunarchainApiUrl, 'https://api.lunarchain.net');
     assert.equal(productionConfig.lunarchainApiBase, 'https://api.lunarchain.net/api/v1');
+    assert.equal(
+      alternateHttpsProductionConfig.lunarchainApiUrl,
+      'https://api.lunarchain.net'
+    );
     assert.equal(developmentConfig.lunarchainApiUrl, 'http://localhost:8000');
   });
 

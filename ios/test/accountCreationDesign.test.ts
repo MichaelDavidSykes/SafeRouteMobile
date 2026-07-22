@@ -51,4 +51,13 @@ describe('SafeRoute account creation handoff', () => {
     assert.match(loginSource, />Create account<\/Text>/);
     assert.match(loginSource, /setView\('register'\)/);
   });
+
+  it('keeps production account creation invitation-bound without weakening preview design checks', () => {
+    assert.match(createSource, /invitationToken/);
+    assert.match(createSource, /!previewMode && !hasInvitation/);
+    assert.match(createSource, /editable=\{!loading && !hasInvitation\}/);
+    assert.match(createSource, /registrationDisabled/);
+    assert.match(createSource, /verifyAccountEmail\(email, cleanCode, invitationToken\)/);
+    assert.match(loginSource, /invitationToken=\{invitation\?\.token\}/);
+  });
 });

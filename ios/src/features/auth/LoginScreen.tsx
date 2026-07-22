@@ -32,6 +32,7 @@ import {
 import { AuthBackdrop } from './AuthBackdrop';
 import { authColors } from './authDesign';
 import { CreateAccountScreen } from './CreateAccountScreen';
+import type { AccountInvitation } from './accountInvitation';
 import {
   resolveLoginCredentialDefaults,
   resolveLoginPasswordAutofillHints,
@@ -88,12 +89,14 @@ type FocusedField =
   | null;
 
 interface LoginScreenProps {
+  invitation?: AccountInvitation | null;
   initialChallenge?: TwoFactorChallenge | null;
   initialEmail?: string;
   initialView?: LoginInitialView;
   sessionMessage?: string;
   onAuthenticated: (session: AuthSession) => Promise<void> | void;
   onCancel?: () => void;
+  onInvitationConsumed?: () => void;
   onRetrySavedSession?: () => void;
   savedSessionRetrying?: boolean;
 }
@@ -187,19 +190,25 @@ function StatusBox({ accessibilityLabel, children, testID, tone }: StatusBoxProp
 }
 
 export function LoginScreen({
+  invitation = null,
   initialChallenge = null,
   initialEmail = '',
   initialView = 'credentials',
   onCancel,
   onAuthenticated,
+  onInvitationConsumed,
   onRetrySavedSession,
   savedSessionRetrying = false,
   sessionMessage,
 }: LoginScreenProps) {
   const initialLoginEmail =
-    initialChallenge?.email || initialEmail || loginCredentialDefaults.email;
+    initialChallenge?.email || invitation?.email || initialEmail || loginCredentialDefaults.email;
   const [view, setView] = useState<LoginView>(
-    initialChallenge ? 'mfa' : initialView
+    initialChallenge
+      ? 'mfa'
+      : invitation && !invitation.hasAccount
+        ? 'register'
+        : initialView
   );
   const [email, setEmail] = useState(initialLoginEmail);
   const [password, setPassword] = useState(loginCredentialDefaults.password);
@@ -313,6 +322,26 @@ export function LoginScreen({
   const formBusy = loading || resendingCode || savedSessionRetrying;
   const primaryActionDisabled =
     primaryActionState.disabled || resendingCode || savedSessionRetrying;
+
+  useEffect(() => {
+    if (!invitation) {
+      return;
+    }
+
+    setEmail(invitation.email);
+    setResetEmail(invitation.email);
+    setPassword('');
+    setCode('');
+    setChallenge(null);
+    setErrorMessage('');
+    setMfaNotice('');
+    setAccountNotice(
+      invitation.hasAccount && invitation.clientName
+        ? `Sign in to join ${invitation.clientName}.`
+        : ''
+    );
+    setView(invitation.hasAccount ? 'credentials' : 'register');
+  }, [invitation?.token]);
 
   useEffect(() => {
     if (!challenge?.expiresAt) {
@@ -567,6 +596,8 @@ export function LoginScreen({
   if (view === 'register' || view === 'register-verification') {
     return (
       <CreateAccountScreen
+        invitationClientName={invitation?.clientName}
+        invitationToken={invitation?.token}
         initialEmail={
           view === 'register-verification'
             ? initialEmail || 'preview.operator@lunarchain.local'
@@ -576,6 +607,7 @@ export function LoginScreen({
         previewMode={SAFEROUTE_PREVIEW_MODE_ENABLED}
         onBack={backToCredentials}
         onVerified={(verifiedEmail) => {
+          onInvitationConsumed?.();
           setEmail(verifiedEmail);
           setPassword('');
           setAccountNotice('Email verified. Sign in to continue.');

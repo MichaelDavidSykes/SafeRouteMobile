@@ -4,6 +4,7 @@ import {
   AccessibilityInfo,
   Alert,
   AppState,
+  Linking,
   Platform,
   StyleSheet,
   View,
@@ -16,7 +17,16 @@ import {
   SAFEROUTE_PREVIEW_MODE_ENABLED,
   SAFEROUTE_STORAGE_FAULT_CONTRACT_ENABLED,
 } from './src/config/env';
-import { getCurrentUser } from './src/features/auth/authApi';
+import { getCurrentUser, resolveAccountInvitation } from './src/features/auth/authApi';
+import {
+  extractInvitationTokenFromUrl,
+  type AccountInvitation,
+} from './src/features/auth/accountInvitation';
+import {
+  clearPendingAccountInvitationToken,
+  loadPendingAccountInvitationToken,
+  savePendingAccountInvitationToken,
+} from './src/features/auth/accountInvitationStorage';
 import { LoginScreen } from './src/features/auth/LoginScreen';
 import { prepareAuthenticatedSession } from './src/features/auth/authCompletion';
 import { getAuthSessionPrincipalId, hasMatchingAuthPrincipal } from './src/features/auth/authPrincipal';
@@ -258,6 +268,10 @@ function SafeRouteApp() {
     useState<ActiveNavigationSession | null>(null);
   const [sessionMessage, setSessionMessage] = useState('');
   const [authPrompt, setAuthPrompt] = useState('');
+  const [accountInvitation, setAccountInvitation] =
+    useState<AccountInvitation | null>(null);
+  const [invitationEntryActive, setInvitationEntryActive] = useState(false);
+  const [invitationStartupReady, setInvitationStartupReady] = useState(false);
   const [screen, setScreen] = useState<AppScreen>('guest-map');
   const [mapPlannerOpen, setMapPlannerOpen] = useState(false);
   const [operationsDetailOpen, setOperationsDetailOpen] = useState(false);
@@ -323,6 +337,7 @@ function SafeRouteApp() {
   const sessionExpiryHandledRef = useRef(false);
   const sessionRestoreStartedRef = useRef(false);
   const sessionRestoreGenerationRef = useRef(0);
+  const invitationRequestRevisionRef = useRef(0);
   const activeSessionExpiryHandlerRef =
     useRef<((identity: ActiveSessionExpiryIdentity) => void) | null>(null);
   const activeSessionExpiryMonitorRef =
@@ -426,6 +441,48 @@ function SafeRouteApp() {
   const workspaceForegroundRefreshDeferredRef = useRef(false);
   const authenticated = hasAuthenticatedSession(session);
   const sessionPrincipalId = getAuthSessionPrincipalId(session);
+
+  const handleAccountInvitationToken = useCallback(async (invitationToken: string) => {
+    const requestRevision = ++invitationRequestRevisionRef.current;
+    sessionRestoreGenerationRef.current += 1;
+    setInvitationEntryActive(true);
+    setAccountInvitation(null);
+    setAuthPrompt('Checking your invitation...');
+    setScreen('login');
+
+    try {
+      const invitation = await resolveAccountInvitation(invitationToken);
+      if (requestRevision !== invitationRequestRevisionRef.current) {
+        return true;
+      }
+      await savePendingAccountInvitationToken(invitation.token);
+      if (requestRevision !== invitationRequestRevisionRef.current) {
+        return true;
+      }
+      setAccountInvitation(invitation);
+      setAuthPrompt('');
+    } catch (error) {
+      if (requestRevision !== invitationRequestRevisionRef.current) {
+        return true;
+      }
+      const message = error instanceof Error && error.message.trim()
+        ? error.message.trim()
+        : 'This invitation is invalid or has expired.';
+      setAccountInvitation(null);
+      setAuthPrompt(message);
+      await clearPendingAccountInvitationToken().catch(() => undefined);
+    }
+
+    return true;
+  }, []);
+
+  const handleAccountInvitationUrl = useCallback(async (url: string) => {
+    const invitationToken = extractInvitationTokenFromUrl(url);
+    if (!invitationToken) {
+      return false;
+    }
+    return handleAccountInvitationToken(invitationToken);
+  }, [handleAccountInvitationToken]);
   if (freshWorkspaceAuthorizationRef.current.principalId !== sessionPrincipalId) {
     freshWorkspaceAuthorizationRef.current = {
       principalId: sessionPrincipalId,
@@ -718,6 +775,39 @@ function SafeRouteApp() {
     sessionPrincipalId,
     workspaceCatalogRetentionStoredAtMs,
   ]);
+
+  useEffect(() => {
+    let mounted = true;
+
+    const handleInitialUrl = async () => {
+      const initialUrl = await Linking.getInitialURL().catch(() => null);
+      let invitationHandled = false;
+      if (mounted && initialUrl) {
+        invitationHandled = await handleAccountInvitationUrl(initialUrl);
+      }
+      if (mounted && !invitationHandled) {
+        const storedInvitationToken = await loadPendingAccountInvitationToken()
+          .catch(() => '');
+        if (storedInvitationToken) {
+          await handleAccountInvitationToken(storedInvitationToken);
+        }
+      }
+      if (mounted) {
+        setInvitationStartupReady(true);
+      }
+    };
+
+    void handleInitialUrl();
+    const subscription = Linking.addEventListener('url', ({ url }) => {
+      void handleAccountInvitationUrl(url);
+    });
+
+    return () => {
+      mounted = false;
+      invitationRequestRevisionRef.current += 1;
+      subscription.remove();
+    };
+  }, [handleAccountInvitationToken, handleAccountInvitationUrl]);
 
   useEffect(() => {
     if (
@@ -1525,6 +1615,9 @@ function SafeRouteApp() {
         ? networkStatusRef.current
         : sessionRestoreNetworkStatus;
     if (
+      !invitationStartupReady ||
+      invitationEntryActive ||
+      Boolean(activeSessionTokenRef.current) ||
       sessionRestoreStartedRef.current ||
       restoreNetworkStatus === null
     ) {
@@ -2005,7 +2098,12 @@ function SafeRouteApp() {
     return () => {
       mounted = false;
     };
-  }, [sessionRestoreNetworkStatus, sessionRestoreRevision]);
+  }, [
+    invitationEntryActive,
+    invitationStartupReady,
+    sessionRestoreNetworkStatus,
+    sessionRestoreRevision,
+  ]);
 
   const handleRetrySavedSessionValidation = () => {
     if (savedSessionValidationRetrying) {
@@ -2131,6 +2229,10 @@ function SafeRouteApp() {
       setScreen('guest-map');
     }
     setSession(persistedSession);
+    invitationRequestRevisionRef.current += 1;
+    await clearPendingAccountInvitationToken().catch(() => undefined);
+    setAccountInvitation(null);
+    setInvitationEntryActive(false);
   };
 
   const handleSignOut = async () => {
@@ -4715,6 +4817,7 @@ function SafeRouteApp() {
         <StatusBar style={statusBarStyle} />
         {screen === 'login' ? (
           <LoginScreen
+            invitation={accountInvitation}
             initialChallenge={
               SAFEROUTE_PREVIEW_MODE_ENABLED && SAFEROUTE_PREVIEW_INITIAL_SCREEN === 'login-code'
                 ? createPreviewLoginCodeChallenge()
@@ -4744,6 +4847,11 @@ function SafeRouteApp() {
             }
             sessionMessage={authPrompt || sessionMessage}
             onAuthenticated={handleAuthenticated}
+            onInvitationConsumed={() => {
+              invitationRequestRevisionRef.current += 1;
+              setAccountInvitation(null);
+              void clearPendingAccountInvitationToken().catch(() => undefined);
+            }}
             onRetrySavedSession={
               savedSessionValidationRetryAvailable
                 ? handleRetrySavedSessionValidation
@@ -4751,6 +4859,10 @@ function SafeRouteApp() {
             }
             savedSessionRetrying={savedSessionValidationRetrying}
             onCancel={() => {
+              invitationRequestRevisionRef.current += 1;
+              setAccountInvitation(null);
+              setInvitationEntryActive(false);
+              void clearPendingAccountInvitationToken().catch(() => undefined);
               pendingFullAccessFeatureRef.current = null;
               setAuthPrompt('');
               setScreen('guest-map');

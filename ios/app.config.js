@@ -1,4 +1,5 @@
 const supportedEnvironments = ['development', 'staging', 'production'];
+const productionApiOrigin = 'https://api.lunarchain.net';
 const iosLocationPurposeCopy = 'Shows your position on the map and guides active SafeRoute trips.';
 const backgroundLocationPurposeCopy =
   'Keeps active SafeRoute guidance and safety monitoring running when the screen is locked.';
@@ -53,6 +54,19 @@ function assertProductionApiUrl(value) {
   if (isLocalOrLoopbackHost(parsedUrl.hostname)) {
     throw new Error('Production SafeRoute API URL must not point to localhost or loopback hosts.');
   }
+
+  if (
+    parsedUrl.origin !== productionApiOrigin ||
+    (parsedUrl.pathname !== '/' && parsedUrl.pathname !== '') ||
+    parsedUrl.search ||
+    parsedUrl.hash ||
+    parsedUrl.username ||
+    parsedUrl.password
+  ) {
+    throw new Error(
+      `Production SafeRoute API URL must be exactly ${productionApiOrigin}.`
+    );
+  }
 }
 
 function normalizeIosBuildNumber(value) {
@@ -78,6 +92,8 @@ function normalizePreviewInitialScreen(value, previewModeEnabled) {
     normalized === 'login' ||
     normalized === 'guidance-suspended' ||
     normalized === 'login-code' ||
+    normalized === 'register' ||
+    normalized === 'register-verification' ||
     normalized === 'reset-password' ||
     normalized === 'reset-password-code' ||
     normalized === 'operations' ||
@@ -127,9 +143,9 @@ if (sourceRevisionOverride && !/^[0-9a-f]{40}$/i.test(sourceRevisionOverride)) {
 }
 const productionApiUrlOverride = trimmedEnv('SAFEROUTE_PROD_API_URL');
 const apiUrls = {
-  development: firstConfiguredValue(trimmedEnv('SAFEROUTE_DEV_API_URL'), trimmedEnv('SAFEROUTE_API_URL'), 'https://api.lunarchain.net'),
-  staging: firstConfiguredValue(trimmedEnv('SAFEROUTE_STAGING_API_URL'), trimmedEnv('SAFEROUTE_API_URL'), 'https://api.lunarchain.net'),
-  production: firstConfiguredValue(productionApiUrlOverride, trimmedEnv('SAFEROUTE_API_URL'), 'https://api.lunarchain.net')
+  development: firstConfiguredValue(trimmedEnv('SAFEROUTE_DEV_API_URL'), trimmedEnv('SAFEROUTE_API_URL'), productionApiOrigin),
+  staging: firstConfiguredValue(trimmedEnv('SAFEROUTE_STAGING_API_URL'), trimmedEnv('SAFEROUTE_API_URL'), productionApiOrigin),
+  production: firstConfiguredValue(productionApiUrlOverride, trimmedEnv('SAFEROUTE_API_URL'), productionApiOrigin)
 };
 const safeRouteApiUrl = normalizeApiUrl(firstConfiguredValue(apiUrls[appEnvironment], apiUrls.development));
 const safeRouteApiVersion = normalizeApiVersion(trimmedEnv('SAFEROUTE_API_VERSION'));
@@ -186,6 +202,7 @@ module.exports = {
       supportsTablet: false,
       bundleIdentifier: 'com.lunarchain.saferoute',
       buildNumber: iosBuildNumber,
+      associatedDomains: ['applinks:app.lunarchain.net'],
       config: {
         usesNonExemptEncryption: false,
         ...(googleMapsIosApiKey

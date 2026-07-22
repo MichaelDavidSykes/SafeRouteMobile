@@ -10,6 +10,7 @@ interface AuthResponseData {
 export interface AccountRegistrationPayload {
   email: string;
   first_name: string;
+  invite_token: string;
   last_name: string;
   password: string;
   username: string;
@@ -70,11 +71,13 @@ export function buildPasswordResetPayload(
 export function buildAccountRegistrationPayload({
   email,
   firstName,
+  invitationToken,
   lastName,
   password,
 }: {
   email: string;
   firstName: string;
+  invitationToken: string;
   lastName: string;
   password: string;
 }): AccountRegistrationPayload {
@@ -83,16 +86,22 @@ export function buildAccountRegistrationPayload({
   return {
     email: normalizedEmail,
     first_name: firstName.trim(),
+    invite_token: invitationToken.trim(),
     last_name: lastName.trim(),
     password,
     username: normalizedEmail,
   };
 }
 
-export function buildAccountVerificationPayload(email: string, code: string) {
+export function buildAccountVerificationPayload(
+  email: string,
+  code: string,
+  invitationToken: string
+) {
   return {
     code: String(code || '').trim(),
     email: normalizeEmail(email),
+    invite_token: invitationToken.trim(),
   };
 }
 

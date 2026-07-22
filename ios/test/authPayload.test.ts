@@ -60,25 +60,35 @@ describe('LunarChain auth payload helpers', () => {
     );
   });
 
-  it('builds the same registration and verification payloads as LunarChain web', () => {
+  it('builds invitation-bound payloads for the native registration contract', () => {
     assert.deepEqual(
       buildAccountRegistrationPayload({
         email: ' Operator@Example.com ',
         firstName: ' Safe ',
+        invitationToken: ' secure-invitation-token ',
         lastName: ' Driver ',
         password: 'RouteSafe!42',
       }),
       {
         email: 'operator@example.com',
         first_name: 'Safe',
+        invite_token: 'secure-invitation-token',
         last_name: 'Driver',
         password: 'RouteSafe!42',
         username: 'operator@example.com',
       }
     );
     assert.deepEqual(
-      buildAccountVerificationPayload(' Operator@Example.com ', ' 123456 '),
-      { code: '123456', email: 'operator@example.com' }
+      buildAccountVerificationPayload(
+        ' Operator@Example.com ',
+        ' 123456 ',
+        ' secure-invitation-token '
+      ),
+      {
+        code: '123456',
+        email: 'operator@example.com',
+        invite_token: 'secure-invitation-token',
+      }
     );
   });
 

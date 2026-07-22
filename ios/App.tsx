@@ -1558,6 +1558,8 @@ function SafeRouteApp() {
       if (
         previewInitialScreen === 'login' ||
         previewInitialScreen === 'login-code' ||
+        previewInitialScreen === 'register' ||
+        previewInitialScreen === 'register-verification' ||
         previewInitialScreen === 'reset-password' ||
         previewInitialScreen === 'reset-password-code' ||
         previewInitialScreen === 'session-expired'
@@ -4720,18 +4722,25 @@ function SafeRouteApp() {
             }
             initialEmail={
               SAFEROUTE_PREVIEW_MODE_ENABLED &&
-              SAFEROUTE_PREVIEW_INITIAL_SCREEN === 'reset-password-code'
+              (SAFEROUTE_PREVIEW_INITIAL_SCREEN === 'reset-password-code' ||
+                SAFEROUTE_PREVIEW_INITIAL_SCREEN === 'register-verification')
                 ? 'preview.operator@lunarchain.local'
                 : undefined
             }
             initialView={
               SAFEROUTE_PREVIEW_MODE_ENABLED &&
-              SAFEROUTE_PREVIEW_INITIAL_SCREEN === 'reset-password'
-                ? 'reset-request'
+              SAFEROUTE_PREVIEW_INITIAL_SCREEN === 'register'
+                ? 'register'
                 : SAFEROUTE_PREVIEW_MODE_ENABLED &&
-                    SAFEROUTE_PREVIEW_INITIAL_SCREEN === 'reset-password-code'
-                  ? 'reset-code'
-                  : 'credentials'
+                    SAFEROUTE_PREVIEW_INITIAL_SCREEN === 'register-verification'
+                  ? 'register-verification'
+                  : SAFEROUTE_PREVIEW_MODE_ENABLED &&
+                      SAFEROUTE_PREVIEW_INITIAL_SCREEN === 'reset-password'
+                    ? 'reset-request'
+                    : SAFEROUTE_PREVIEW_MODE_ENABLED &&
+                        SAFEROUTE_PREVIEW_INITIAL_SCREEN === 'reset-password-code'
+                      ? 'reset-code'
+                      : 'credentials'
             }
             sessionMessage={authPrompt || sessionMessage}
             onAuthenticated={handleAuthenticated}

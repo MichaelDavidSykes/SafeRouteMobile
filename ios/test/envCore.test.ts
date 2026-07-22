@@ -219,6 +219,24 @@ describe('SafeRoute runtime config', () => {
       resolveSafeRouteRuntimeConfig({
         safeRouteEnvironment: 'development',
         safeRoutePreviewModeEnabled: true,
+        safeRoutePreviewInitialScreen: ' register '
+      }).previewInitialScreen,
+      'register'
+    );
+
+    assert.equal(
+      resolveSafeRouteRuntimeConfig({
+        safeRouteEnvironment: 'development',
+        safeRoutePreviewModeEnabled: true,
+        safeRoutePreviewInitialScreen: ' register-verification '
+      }).previewInitialScreen,
+      'register-verification'
+    );
+
+    assert.equal(
+      resolveSafeRouteRuntimeConfig({
+        safeRouteEnvironment: 'development',
+        safeRoutePreviewModeEnabled: true,
         safeRoutePreviewInitialScreen: ' routes-empty '
       }).previewInitialScreen,
       'routes-empty'

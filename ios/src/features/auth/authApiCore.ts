@@ -31,3 +31,17 @@ export async function assertAuthResponseOk(response: Response, fallbackMessage: 
 
   return body;
 }
+
+export async function assertPublicAuthResponseOk(
+  response: Response,
+  fallbackMessage: string
+): Promise<unknown> {
+  const body = await parseJsonResponse(response);
+  const message = getAuthErrorMessage(body, fallbackMessage);
+
+  if (!response.ok) {
+    throw new ApiRequestError(message, response.status);
+  }
+
+  return body;
+}

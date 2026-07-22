@@ -65,6 +65,8 @@ const authFlowSource = () =>
   readFileSync(join(process.cwd(), "maestro/ios-auth-ui.yaml"), "utf8");
 const authCodeFlowSource = () =>
   readFileSync(join(process.cwd(), "maestro/ios-auth-code-ui.yaml"), "utf8");
+const authRegisterFlowSource = () =>
+  readFileSync(join(process.cwd(), "maestro/ios-auth-register-ui.yaml"), "utf8");
 const authResetFlowSource = () =>
   readFileSync(join(process.cwd(), "maestro/ios-auth-reset-ui.yaml"), "utf8");
 const authSessionExpiredFlowSource = () =>
@@ -535,13 +537,43 @@ describe("Maestro iOS preview smoke flow", () => {
     assert.match(flow, /SAFEROUTE_PREVIEW_INITIAL_SCREEN=login/);
     assert.match(flow, /Try again/);
     assert.match(flow, /id:\s*"safe-route-login"/);
-    assert.match(flow, /Log in to LunarChain/);
+    assert.match(flow, /assertVisible:\s*"SafeRoute"/);
     assert.match(flow, /id:\s*"safe-route-login-email"/);
     assert.match(flow, /id:\s*"safe-route-login-password"/);
     assert.match(flow, /id:\s*"safe-route-password-reset-open"/);
+    assert.match(flow, /id:\s*"safe-route-login-create-account"/);
+    assert.match(flow, /id:\s*"safe-route-account-create"/);
+    assert.match(flow, /id:\s*"safe-route-account-create-sign-in"/);
     assert.match(flow, /assertNotVisible:\s*"Cloudflare"/);
     assert.match(flow, /assertNotVisible:\s*"Turnstile"/);
     assert.match(flow, /id:\s*"safe-route-login-map-return"/);
+  });
+
+  it("completes the create-account and verification preview without live account creation", () => {
+    const appSource = readFileSync(join(process.cwd(), "App.tsx"), "utf8");
+    const flow = authRegisterFlowSource();
+    const scripts = packageJson().scripts;
+
+    assert.equal(
+      scripts["start:maestro:ios:preview:register"],
+      "SAFEROUTE_ENABLE_PREVIEW_MODE=true SAFEROUTE_PREVIEW_INITIAL_SCREEN=register NODE_OPTIONS=--dns-result-order=ipv4first expo start --localhost --port 8081",
+    );
+    assert.equal(
+      scripts["test:maestro:ios:register"],
+      "node scripts/run-maestro.mjs test maestro/ios-auth-register-ui.yaml",
+    );
+    assert.match(flow, /id:\s*"safe-route-account-create"/);
+    assert.match(flow, /id:\s*"safe-route-account-create-first-name"/);
+    assert.match(flow, /id:\s*"safe-route-account-create-last-name"/);
+    assert.match(flow, /id:\s*"safe-route-account-create-email"/);
+    assert.match(flow, /id:\s*"safe-route-account-create-password"/);
+    assert.match(flow, /inputText:\s*"RouteSafe!42"/);
+    assert.match(flow, /id:\s*"safe-route-account-verify"/);
+    assert.match(flow, /id:\s*"safe-route-account-verify-code"/);
+    assert.match(flow, /inputText:\s*"123456"/);
+    assert.match(flow, /Email verified\. Sign in to continue\./);
+    assert.match(appSource, /previewInitialScreen === 'register'/);
+    assert.match(appSource, /SAFEROUTE_PREVIEW_INITIAL_SCREEN === 'register'/);
   });
 
   it("opens the login-code preview directly on the two-factor surface", () => {

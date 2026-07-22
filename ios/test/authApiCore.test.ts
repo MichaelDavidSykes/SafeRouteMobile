@@ -2,7 +2,10 @@ import assert from 'node:assert/strict';
 import { describe, it } from 'node:test';
 
 import { ApiRequestError, ApiSessionExpiredError } from '../src/features/api/apiClientCore';
-import { assertAuthResponseOk } from '../src/features/auth/authApiCore';
+import {
+  assertAuthResponseOk,
+  assertPublicAuthResponseOk,
+} from '../src/features/auth/authApiCore';
 
 function jsonResponse(status: number, body: unknown): Response {
   return new Response(JSON.stringify(body), {
@@ -86,5 +89,23 @@ describe('LunarChain auth API core', () => {
 
     const empty = new Response('', { status: 200 });
     assert.deepEqual(await assertAuthResponseOk(empty, 'fallback'), {});
+  });
+
+  it('keeps public registration policy failures as request errors', async () => {
+    await assert.rejects(
+      () =>
+        assertPublicAuthResponseOk(
+          jsonResponse(403, {
+            detail: {
+              details: 'Account creation is invitation-only.',
+            },
+          }),
+          'Unable to create the account.'
+        ),
+      (error) =>
+        error instanceof ApiRequestError &&
+        error.statusCode === 403 &&
+        error.message === 'Account creation is invitation-only.'
+    );
   });
 });

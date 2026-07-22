@@ -590,7 +590,7 @@ describe("rounded visual language", () => {
     assert.match(loginStylesSource, /letterSpacing:\s*0/);
   });
 
-  it("uses labeled Dusk inputs and familiar auth control icons", () => {
+  it("uses the handoff sign-in fields and familiar auth control icons", () => {
     const loginSource = readFileSync(
       join(process.cwd(), "src/features/auth/LoginScreen.tsx"),
       "utf8",
@@ -600,15 +600,18 @@ describe("rounded visual language", () => {
       "utf8",
     );
 
-    assert.match(loginSource, /<Text style=\{styles\.label\}>Email<\/Text>/);
-    assert.match(loginSource, /<Text style=\{styles\.label\}>Password<\/Text>/);
+    assert.match(loginSource, /placeholder="Email"/);
+    assert.match(loginSource, /placeholder="Password"/);
     assert.match(loginSource, /Forgot password\?/);
+    assert.match(loginSource, />Create account<\/Text>/);
     assert.match(loginSource, /ArrowLeft, Eye, EyeOff/);
     assert.match(loginSource, /testID=\{uiTestIds\.loginResendCode\}/);
     assert.match(loginSource, /testID=\{uiTestIds\.passwordResetForm\}/);
     assert.match(loginStylesSource, /card:[\s\S]*borderRadius:\s*authRadius\.card/);
     assert.match(loginStylesSource, /inputShell:[\s\S]*borderRadius:\s*authRadius\.row/);
     assert.match(loginStylesSource, /primaryButton:[\s\S]*borderRadius:\s*authRadius\.pill/);
+    assert.match(loginStylesSource, /handoffInputShell:[\s\S]*borderRadius:\s*15/);
+    assert.match(loginStylesSource, /handoffPrimaryButton:[\s\S]*backgroundColor:\s*'#FFFFFF'/);
     assert.match(loginStylesSource, /secondaryButton:[\s\S]*backgroundColor:\s*authColors\.glassQuiet/);
   });
 

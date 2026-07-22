@@ -743,6 +743,7 @@ export function LoginScreen({
 
               {onRetrySavedSession ? (
                 <Pressable
+                  accessibilityHint="Checks the saved account before any workspace, route, or Calendar data is shown."
                   accessibilityLabel={
                     savedSessionRetrying
                       ? 'Verifying saved session'

@@ -126,9 +126,11 @@ export type OperationsConvoyRouteOption = {
   manifestLabel: string;
   peopleLabels: string[];
   routeId: string | null;
+  scheduleAtMs: number | null;
   scheduleLabel: string;
   statusLabel: string;
   title: string;
+  vehicleIds: string[];
   vehicleLabels: string[];
 };
 
@@ -947,6 +949,8 @@ export function createConvoyRows(
             ? `${person.callsign || person.name} · ${toTitleLabel(person.role)}`
             : "Assigned person · details unavailable";
         });
+        const movementDate = resolveMovementDate(trip, assignment);
+        const scheduleAtMs = movementDateTime(movementDate);
         return {
           durationLabel:
             formatDuration(assignment.duration_minutes ?? trip.duration_minutes) ||
@@ -957,11 +961,12 @@ export function createConvoyRows(
           }),
           peopleLabels,
           routeId: route?.id || null,
-          scheduleLabel: formatMovementDate(
-            resolveMovementDate(trip, assignment),
-          ),
+          scheduleAtMs:
+            scheduleAtMs === Number.MAX_SAFE_INTEGER ? null : scheduleAtMs,
+          scheduleLabel: formatMovementDate(movementDate),
           statusLabel: toTitleLabel(assignment.status || trip.status),
           title: normalizeLabel(route?.name || assignment.route_id, "SafeRoute route"),
+          vehicleIds: unique(vehicleIds),
           vehicleLabels,
         };
       });
@@ -1036,7 +1041,16 @@ export function createConvoyRows(
           const seatLabel = `${vehicle.seat_count} ${pluralize("seat", vehicle.seat_count)}`;
           const vehicleStatusLabel = vehicle.is_active ? "Ready" : "Standby";
           const lead = vehicle.id === trip.lead_vehicle_id;
-          const nextEventLabel = `${scheduleLabel} · ${normalizeLabel(trip.name, "SafeRoute trip")}`;
+          const nextRoute = routeOptions
+            .filter((option) => option.vehicleIds.includes(vehicle.id))
+            .sort(
+              (left, right) =>
+                (left.scheduleAtMs ?? Number.MAX_SAFE_INTEGER) -
+                (right.scheduleAtMs ?? Number.MAX_SAFE_INTEGER),
+            )[0];
+          const nextEventLabel = nextRoute
+            ? `${nextRoute.scheduleLabel} · ${nextRoute.title}`
+            : "No planned trips";
 
           return {
             accessibilityLabel: `${vehicle.callsign}. ${modelLabel}. ${detailLabel}. ${roleLabel}. ${protectionLabel}. ${seatLabel}. ${registrationLabel}. ${vehicleStatusLabel}. Opens vehicle details.`,
@@ -1177,9 +1191,11 @@ function createFallbackConvoyRows(routes: SavedSafeRoutePlan[]): OperationsConvo
       manifestLabel: "Manifest unavailable until Operations syncs",
       peopleLabels: [],
       routeId: route.id,
+      scheduleAtMs: null,
       scheduleLabel: route.updatedAtLabel,
       statusLabel: toTitleLabel(route.status),
       title: normalizeLabel(route.name, "SafeRoute plan"),
+      vehicleIds: [],
       vehicleLabels: [],
     }));
     const metaLabel = `${routeCount} ${pluralize("route", routeCount)} · ${statusLabel}`;

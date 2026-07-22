@@ -1,6 +1,7 @@
 import type { RefObject } from "react";
 import { Platform, StyleSheet } from "react-native";
 import MapView, { Polyline, type LatLng } from "react-native-maps";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import type { PermissionStatus } from "./liveLocationState";
 import type { RouteRiskProximity } from "./routeRisk";
@@ -64,6 +65,7 @@ export function LiveMapCanvas({
   vehicleCoordinate,
   visibleRiskZones,
 }: LiveMapCanvasProps) {
+  const safeAreaInsets = useSafeAreaInsets();
   const routeCoordinates = routePlan.route.coordinates;
   const routeLinePresentation = resolveRouteLinePresentation({
     progressCoordinateCount: progressCoordinates.length,
@@ -178,7 +180,7 @@ export function LiveMapCanvas({
       </MapView>
       {selectedRiskZone ? (
         <LiveMapRiskDetailCallout
-          bottomInset={12}
+          bottomInset={safeAreaInsets.bottom + 12}
           mapRef={mapRef}
           proximity={selectedRiskProximity}
           zone={selectedRiskZone}

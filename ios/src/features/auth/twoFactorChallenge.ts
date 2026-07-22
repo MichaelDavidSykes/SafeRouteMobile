@@ -45,6 +45,21 @@ export function getTwoFactorExpiryDelayMs(expiresAt?: string, nowMs = Date.now()
   return Math.max(0, expiresAtMs - nowMs);
 }
 
+export function getTwoFactorRefreshDelayMs(
+  expiresAt?: string,
+  nowMs = Date.now(),
+): number | null {
+  const expiryDelayMs = getTwoFactorExpiryDelayMs(expiresAt, nowMs);
+  if (expiryDelayMs === null || expiryDelayMs === 0) {
+    return expiryDelayMs;
+  }
+
+  const minutesRemaining = Math.ceil(expiryDelayMs / 60000);
+  const nextMinuteBoundaryMs =
+    expiryDelayMs - (minutesRemaining - 1) * 60000;
+  return nextMinuteBoundaryMs + 50;
+}
+
 export function getTwoFactorChallengeState(challenge: TwoFactorChallenge, now = new Date()): TwoFactorChallengeState {
   const expiryDelayMs = getTwoFactorExpiryDelayMs(challenge.expiresAt, now.getTime());
 

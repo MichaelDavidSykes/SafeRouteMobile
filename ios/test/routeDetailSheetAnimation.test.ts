@@ -30,7 +30,15 @@ describe("saved route detail animation", () => {
     );
     assert.match(
       sheetSource,
-      /<Pressable[\s\S]*style=\{styles\.scrim\}[\s\S]*onPress=\{onClose\}[\s\S]*<AnimatedSafeAreaView/,
+      /<Pressable[\s\S]*style=\{styles\.scrim\}[\s\S]*onPress=\{dismissSheet\}[\s\S]*<AnimatedSafeAreaView/,
     );
+  });
+
+  it("makes the visible handle dismiss the sheet with a downward gesture", () => {
+    assert.match(sheetSource, /PanResponder\.create/);
+    assert.match(sheetSource, /shouldStartRiskDetailDismissGesture/);
+    assert.match(sheetSource, /shouldDismissRiskDetailGesture/);
+    assert.match(sheetSource, /\.\.\.dragResponder\.panHandlers/);
+    assert.match(sheetSource, /Animated\.timing\(sheetTranslateY/);
   });
 });

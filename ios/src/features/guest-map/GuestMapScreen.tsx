@@ -114,6 +114,7 @@ import {
   shouldRecenterGuestMap,
   type GuestMapCenteredLocation
 } from './guestMapLocation';
+import { createGuestMapRiskSummary } from './guestMapRiskSummary';
 
 const GUEST_ROUTE_PROVIDER_UI_TIMEOUT_MS = 15000;
 const GUEST_LOCATION_SEARCH_DEBOUNCE_MS = 320;
@@ -302,8 +303,6 @@ export function GuestMapScreen({
     destination,
     routePlotted
   });
-  const routeAlertCount = routePlan?.riskZones.length || 0;
-
   useEffect(() => {
     onPlannerVisibilityChange?.(!sheetCollapsed);
   }, [onPlannerVisibilityChange, sheetCollapsed]);
@@ -396,6 +395,10 @@ export function GuestMapScreen({
       routePlan?.riskZones || []
     ),
     [routePlan?.riskZones, viewportRisk.zones]
+  );
+  const riskSummary = useMemo(
+    () => createGuestMapRiskSummary(visibleRiskZones),
+    [visibleRiskZones],
   );
   routingClientIdRef.current = routingClientId;
   onSessionExpiredRef.current = onSessionExpired;
@@ -1664,15 +1667,15 @@ export function GuestMapScreen({
           <View style={styles.mapStatusStack}>
             <View
               accessible
-              accessibilityLabel={`${visibleRiskZones.length} risk areas and ${routeAlertCount} route alerts`}
+              accessibilityLabel={riskSummary.accessibilityLabel}
               accessibilityRole="summary"
               style={styles.riskSummary}
             >
               <View style={[styles.summaryDot, styles.summaryDotDanger]} />
-              <Text style={styles.riskSummaryText}>{visibleRiskZones.length} risk areas</Text>
+              <Text style={styles.riskSummaryText}>{riskSummary.riskAreaLabel}</Text>
               <View style={styles.summaryDivider} />
               <View style={[styles.summaryDot, styles.summaryDotAmber]} />
-              <Text style={styles.riskSummaryText}>{routeAlertCount} route alerts</Text>
+              <Text style={styles.riskSummaryText}>{riskSummary.routeAlertLabel}</Text>
             </View>
           {networkChecking || offline ? (
             <View
@@ -2129,7 +2132,8 @@ export function GuestMapScreen({
           </Animated.View>
         </View>
 
-        <Animated.View
+        {!selectedRiskZone ? (
+          <Animated.View
             accessibilityElementsHidden={!sheetCollapsed}
             importantForAccessibility={sheetCollapsed ? 'auto' : 'no-hide-descendants'}
             pointerEvents={sheetCollapsed ? 'auto' : 'none'}
@@ -2174,7 +2178,8 @@ export function GuestMapScreen({
                 </View>
               </View>
             </Pressable>
-        </Animated.View>
+          </Animated.View>
+        ) : null}
       </SafeAreaView>
       </KeyboardAvoidingView>
     </View>

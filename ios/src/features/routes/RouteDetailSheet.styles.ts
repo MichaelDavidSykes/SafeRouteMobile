@@ -22,12 +22,17 @@ export const routeDetailSheetStyles = StyleSheet.create({
     backgroundColor: colors.sheet,
   },
   handle: {
-    alignSelf: "center",
     width: 38,
     height: 5,
-    marginBottom: spacing.md,
     borderRadius: radius.pill,
     backgroundColor: colors.border,
+  },
+  handleTouch: {
+    height: 28,
+    alignItems: "center",
+    justifyContent: "flex-start",
+    paddingTop: 2,
+    marginBottom: spacing.xs,
   },
   content: {
     paddingBottom: spacing.lg,

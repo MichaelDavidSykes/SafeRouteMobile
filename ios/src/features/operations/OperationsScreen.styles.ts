@@ -1186,10 +1186,14 @@ export const operationsStyles = StyleSheet.create({
   detailGrabber: {
     width: 38,
     height: 5,
-    alignSelf: "center",
-    marginTop: spacing.xs,
     borderRadius: radius.pill,
     backgroundColor: colors.border,
+  },
+  detailGrabberTouch: {
+    height: 28,
+    alignItems: "center",
+    justifyContent: "flex-start",
+    paddingTop: spacing.xs,
   },
   detailSheetHeader: {
     flexDirection: "row",

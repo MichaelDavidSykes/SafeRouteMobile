@@ -1,9 +1,14 @@
 import { Bookmark, BusFront, CalendarDays, Map } from "lucide-react-native";
 import { Pressable, StyleSheet, Text, View } from "react-native";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { chrome, colors, typeScale } from "../theme";
 import { uiTestIds } from "../testing/uiTestIds";
-import { isAppTabDisabled, type AppTab } from "./appTabBarState";
+import {
+  isAppTabDisabled,
+  resolveAppTabBarLayout,
+  type AppTab,
+} from "./appTabBarState";
 
 export { isAppTabDisabled } from "./appTabBarState";
 export type { AppTab } from "./appTabBarState";
@@ -26,8 +31,17 @@ export function AppTabBar({
   authenticated,
   onSelect,
 }: AppTabBarProps) {
+  const safeAreaInsets = useSafeAreaInsets();
+  const layout = resolveAppTabBarLayout(safeAreaInsets.bottom);
+
   return (
-    <View testID={uiTestIds.appTabBar} style={styles.bar}>
+    <View
+      testID={uiTestIds.appTabBar}
+      style={[
+        styles.bar,
+        { height: layout.height, paddingBottom: layout.bottomInset },
+      ]}
+    >
       {tabs.map((tab) => {
         const selected = activeTab === tab.id;
         const disabled = isAppTabDisabled(tab.id, authenticated);
@@ -108,11 +122,9 @@ const styles = StyleSheet.create({
     bottom: 0,
     left: 0,
     zIndex: 100,
-    height: chrome.tabBarHeight,
     flexDirection: "row",
     alignItems: "flex-start",
     paddingTop: 8,
-    paddingBottom: chrome.tabBarBottomInset,
     borderTopWidth: 0.5,
     borderTopColor: colors.borderSoft,
     backgroundColor: "rgba(250, 250, 252, 0.94)",

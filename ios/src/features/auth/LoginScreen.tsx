@@ -35,7 +35,7 @@ import {
 import { resolveLoginViewportLayout } from './loginViewportLayout';
 import {
   getTwoFactorChallengeState,
-  getTwoFactorExpiryDelayMs,
+  getTwoFactorRefreshDelayMs,
   getTwoFactorSubtitle,
   sanitizeLoginCode
 } from './twoFactorChallenge';
@@ -77,7 +77,7 @@ export function LoginScreen({
   const [passwordVisible, setPasswordVisible] = useState(false);
   const [loading, setLoading] = useState(false);
   const [errorMessage, setErrorMessage] = useState('');
-  const [, refreshChallengeExpiry] = useState(0);
+  const [challengeClockRevision, refreshChallengeExpiry] = useState(0);
   const viewport = useWindowDimensions();
 
   const loginLayout = useMemo(
@@ -130,24 +130,18 @@ export function LoginScreen({
       return undefined;
     }
 
-    const expiryDelayMs = getTwoFactorExpiryDelayMs(challenge.expiresAt);
-    if (expiryDelayMs === null) {
-      return undefined;
-    }
-
-    if (expiryDelayMs === 0) {
-      refreshChallengeExpiry((value) => value + 1);
-      setErrorMessage('');
+    const refreshDelayMs = getTwoFactorRefreshDelayMs(challenge.expiresAt);
+    if (refreshDelayMs === null || refreshDelayMs === 0) {
       return undefined;
     }
 
     const timeout = setTimeout(() => {
       refreshChallengeExpiry((value) => value + 1);
       setErrorMessage('');
-    }, Math.min(expiryDelayMs + 250, 2147483647));
+    }, Math.min(refreshDelayMs, 2147483647));
 
     return () => clearTimeout(timeout);
-  }, [challenge?.expiresAt]);
+  }, [challenge?.expiresAt, challengeClockRevision]);
 
   const submitCredentials = async () => {
     if (!email.trim() || !password) {

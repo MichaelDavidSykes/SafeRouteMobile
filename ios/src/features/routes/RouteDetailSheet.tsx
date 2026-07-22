@@ -1,6 +1,6 @@
 import { useEffect, useRef } from "react";
 import { CarFront, Route as RouteIcon, UsersRound, X } from "lucide-react-native";
-import { Animated, Modal, Pressable, ScrollView, Text, useWindowDimensions, View } from "react-native";
+import { Animated, Easing, Modal, PanResponder, Pressable, ScrollView, Text, useWindowDimensions, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 
 import type { SavedSafeRoutePlan } from "../live-map/liveMapTypes";
@@ -10,6 +10,10 @@ import {
 } from "./routeCardPresentation";
 import { routeDetailSheetStyles as styles } from "./RouteDetailSheet.styles";
 import { colors } from "../../theme";
+import {
+  shouldDismissRiskDetailGesture,
+  shouldStartRiskDetailDismissGesture,
+} from "../live-map/riskDetailInteraction";
 
 const AnimatedSafeAreaView = Animated.createAnimatedComponent(SafeAreaView);
 
@@ -21,14 +25,13 @@ interface RouteDetailSheetProps {
 export function RouteDetailSheet({ onClose, route }: RouteDetailSheetProps) {
   const viewport = useWindowDimensions();
   const sheetTranslateY = useRef(new Animated.Value(viewport.height)).current;
+  const closingRef = useRef(false);
+  const onCloseRef = useRef(onClose);
+  const viewportHeightRef = useRef(viewport.height);
+  onCloseRef.current = onClose;
+  viewportHeightRef.current = viewport.height;
 
-  useEffect(() => {
-    if (!route) {
-      sheetTranslateY.setValue(viewport.height);
-      return;
-    }
-
-    sheetTranslateY.setValue(viewport.height);
+  const restoreSheet = () => {
     Animated.spring(sheetTranslateY, {
       damping: 24,
       mass: 0.9,
@@ -36,6 +39,61 @@ export function RouteDetailSheet({ onClose, route }: RouteDetailSheetProps) {
       toValue: 0,
       useNativeDriver: true,
     }).start();
+  };
+  const dismissSheet = () => {
+    if (closingRef.current) {
+      return;
+    }
+    closingRef.current = true;
+    Animated.timing(sheetTranslateY, {
+      duration: 210,
+      easing: Easing.out(Easing.cubic),
+      toValue: viewportHeightRef.current,
+      useNativeDriver: true,
+    }).start(({ finished }) => {
+      if (finished) {
+        onCloseRef.current();
+      } else {
+        closingRef.current = false;
+      }
+    });
+  };
+  const dragResponder = useRef(
+    PanResponder.create({
+      onMoveShouldSetPanResponder: (_, gesture) =>
+        shouldStartRiskDetailDismissGesture({
+          translationX: gesture.dx,
+          translationY: gesture.dy,
+        }),
+      onPanResponderMove: (_, gesture) => {
+        sheetTranslateY.setValue(Math.max(0, gesture.dy));
+      },
+      onPanResponderRelease: (_, gesture) => {
+        if (
+          shouldDismissRiskDetailGesture({
+            translationX: gesture.dx,
+            translationY: gesture.dy,
+            velocityY: gesture.vy,
+          })
+        ) {
+          dismissSheet();
+          return;
+        }
+        restoreSheet();
+      },
+      onPanResponderTerminate: restoreSheet,
+    }),
+  ).current;
+
+  useEffect(() => {
+    if (!route) {
+      sheetTranslateY.setValue(viewport.height);
+      return;
+    }
+
+    closingRef.current = false;
+    sheetTranslateY.setValue(viewport.height);
+    restoreSheet();
   }, [route, sheetTranslateY, viewport.height]);
 
   if (!route) {
@@ -73,30 +131,32 @@ export function RouteDetailSheet({ onClose, route }: RouteDetailSheetProps) {
       statusBarTranslucent
       transparent
       visible
-      onRequestClose={onClose}
+      onRequestClose={dismissSheet}
     >
       <View style={styles.overlay}>
         <Pressable
           accessibilityLabel="Close route details"
           accessibilityRole="button"
           style={styles.scrim}
-          onPress={onClose}
+          onPress={dismissSheet}
         />
         <AnimatedSafeAreaView
           accessibilityViewIsModal
           edges={["bottom"]}
-          onAccessibilityEscape={onClose}
+          onAccessibilityEscape={dismissSheet}
           style={[
             styles.sheet,
             { transform: [{ translateY: sheetTranslateY }] },
           ]}
           testID="safe-route-detail-sheet"
         >
-          <View
-            accessibilityElementsHidden
-            importantForAccessibility="no-hide-descendants"
-            style={styles.handle}
-          />
+          <View {...dragResponder.panHandlers} style={styles.handleTouch}>
+            <View
+              accessibilityElementsHidden
+              importantForAccessibility="no-hide-descendants"
+              style={styles.handle}
+            />
+          </View>
           <ScrollView
             bounces={false}
             contentContainerStyle={styles.content}
@@ -133,7 +193,7 @@ export function RouteDetailSheet({ onClose, route }: RouteDetailSheetProps) {
                   styles.closeButton,
                   pressed ? styles.closeButtonPressed : null,
                 ]}
-                onPress={onClose}
+                onPress={dismissSheet}
               >
                 <X accessibilityElementsHidden color={colors.muted} size={15} strokeWidth={2.2} />
               </Pressable>
@@ -184,7 +244,7 @@ export function RouteDetailSheet({ onClose, route }: RouteDetailSheetProps) {
               styles.doneButton,
               pressed ? styles.doneButtonPressed : null,
             ]}
-            onPress={onClose}
+            onPress={dismissSheet}
           >
             <Text numberOfLines={1} style={styles.doneButtonText}>
               Done

@@ -56,4 +56,13 @@ describe("convoy interaction contract", () => {
       /convoyExpandedContent:\s*\{[\s\S]*borderLeftColor: colors\.appleBlueSoft/,
     );
   });
+
+  it("makes Operations detail handles smoothly dismissible", () => {
+    assert.match(screen, /function OperationsDetailSheet/);
+    assert.match(screen, /PanResponder\.create/);
+    assert.match(screen, /shouldStartRiskDetailDismissGesture/);
+    assert.match(screen, /shouldDismissRiskDetailGesture/);
+    assert.match(screen, /\.\.\.dragResponder\.panHandlers/);
+    assert.match(screen, /Animated\.timing\(sheetTranslateY/);
+  });
 });

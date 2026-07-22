@@ -1079,10 +1079,12 @@ function SafeRouteApp() {
     message?: string,
     {
       evidenceSession: evidenceSessionOverride = null,
+      preserveSelectedRoute = false,
       publishCleanupFailure = true,
       workspaceHandoffFaultRequest = null,
     }: {
       evidenceSession?: ActiveNavigationSession | null;
+      preserveSelectedRoute?: boolean;
       publishCleanupFailure?: boolean;
       workspaceHandoffFaultRequest?: PendingWorkspaceHandoff | null;
     } = {},
@@ -1094,9 +1096,11 @@ function SafeRouteApp() {
     pendingNavigationRestoreRef.current = null;
     setPendingNavigationRestore(null);
     activeNavigationSessionRef.current = null;
-    selectedRouteRef.current = null;
     setActiveNavigationSession(null);
-    setSelectedRoute(null);
+    if (!preserveSelectedRoute) {
+      selectedRouteRef.current = null;
+      setSelectedRoute(null);
+    }
     const durableClearSucceeded = await performPersistedNavigationCleanup(
       evidenceSession,
       { workspaceHandoffFaultRequest },
@@ -1590,10 +1594,15 @@ function SafeRouteApp() {
 
     const restoreSession = async () => {
       const manualRetry = sessionRestoreRevision > 0;
+      const preserveUserRoutePreview =
+        currentScreenRef.current === 'route-preview' &&
+        Boolean(selectedRouteRef.current);
       if (!manualRetry) {
         setAuthPrompt('');
       }
-      setSelectedRoute(null);
+      if (!preserveUserRoutePreview) {
+        setSelectedRoute(null);
+      }
       setAvailableWorkspaces([]);
       activeWorkspaceRef.current = null;
       setActiveWorkspace(null);
@@ -1605,7 +1614,7 @@ function SafeRouteApp() {
       setNetworkAuthorizationReady(false);
       workspaceCatalogRetryingRef.current = false;
       setWorkspaceCatalogRetrying(false);
-      if (!manualRetry) {
+      if (!manualRetry && !preserveUserRoutePreview) {
         setScreen('guest-map');
       }
       let persistedNavigation: ActiveNavigationSession | null = null;
@@ -1946,7 +1955,10 @@ function SafeRouteApp() {
             const pendingFeature = takePendingFullAccessFeature();
             if (pendingFeature) {
               openAuthenticatedFeature(pendingFeature);
-            } else {
+            } else if (
+              currentScreenRef.current !== 'route-preview' ||
+              !selectedRouteRef.current
+            ) {
               setScreen('guest-map');
             }
           }
@@ -4155,7 +4167,9 @@ function SafeRouteApp() {
 
   const handleNavigationSessionChange = useCallback((nextSession: ActiveNavigationSession | null) => {
     if (!nextSession) {
-      void discardPersistedNavigation();
+      void discardPersistedNavigation(undefined, {
+        preserveSelectedRoute: true,
+      });
       return true;
     }
 

@@ -290,7 +290,8 @@ describe("rounded visual language", () => {
     for (const label of ["Map", "Routes", "Convoys", "Calendar"]) {
       assert.match(tabBarSource, new RegExp(`label: "${label}"`));
     }
-    assert.match(tabBarSource, /height:\s*chrome\.tabBarHeight/);
+    assert.match(tabBarSource, /useSafeAreaInsets\(\)/);
+    assert.match(tabBarSource, /height: layout\.height/);
     assert.match(tabBarSource, /accessibilityRole="tab"/);
   });
 
@@ -341,8 +342,8 @@ describe("rounded visual language", () => {
     assert.doesNotMatch(guestMapSource, /SafeRouteLogo/);
     assert.match(guestMapSource, /testID=\{uiTestIds\.guestMapPrimaryAction\}/);
     assert.match(guestMapSource, /styles\.riskSummary/);
-    assert.match(guestMapSource, /risk areas/);
-    assert.match(guestMapSource, /route alerts/);
+    assert.match(guestMapSource, /riskSummary\.riskAreaLabel/);
+    assert.match(guestMapSource, /riskSummary\.routeAlertLabel/);
     assert.match(guestMapSource, /uiTestIds\.guestMapLayerToggle/);
     assert.match(guestMapSource, /mapLayer === 'dark'/);
     assert.match(topBarBlock, /justifyContent:\s*["']space-between["']/);

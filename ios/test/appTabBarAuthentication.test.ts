@@ -5,6 +5,7 @@ import { describe, it } from 'node:test';
 
 import {
   isAppTabDisabled,
+  resolveAppTabBarLayout,
   type AppTab,
 } from '../src/components/appTabBarState';
 
@@ -16,6 +17,17 @@ describe('app tab bar authentication', () => {
       assert.equal(isAppTabDisabled(tab, false), true);
       assert.equal(isAppTabDisabled(tab, true), false);
     }
+  });
+
+  it('keeps the tab controls above the device home indicator', () => {
+    assert.deepEqual(resolveAppTabBarLayout(0), {
+      bottomInset: 26,
+      height: 86,
+    });
+    assert.deepEqual(resolveAppTabBarLayout(34), {
+      bottomInset: 34,
+      height: 94,
+    });
   });
 
   it('wires the disabled state into both the control and navigation boundary', () => {

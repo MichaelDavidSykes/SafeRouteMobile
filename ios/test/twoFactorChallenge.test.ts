@@ -4,6 +4,7 @@ import { describe, it } from 'node:test';
 import {
   getTwoFactorChallengeState,
   getTwoFactorExpiryDelayMs,
+  getTwoFactorRefreshDelayMs,
   getTwoFactorSubtitle,
   isTwoFactorChallengeExpired,
   sanitizeLoginCode
@@ -29,6 +30,25 @@ describe('two-factor challenge helpers', () => {
     assert.equal(getTwoFactorExpiryDelayMs('2026-07-07T10:00:30Z', now), 30000);
     assert.equal(getTwoFactorExpiryDelayMs('2026-07-07T09:59:00Z', now), 0);
     assert.equal(getTwoFactorExpiryDelayMs('not-a-date', now), null);
+  });
+
+  it('refreshes the visible countdown at each minute boundary', () => {
+    assert.equal(
+      getTwoFactorRefreshDelayMs('2026-07-07T10:10:00Z', now),
+      60050,
+    );
+    assert.equal(
+      getTwoFactorRefreshDelayMs('2026-07-07T10:09:30Z', now),
+      30050,
+    );
+    assert.equal(
+      getTwoFactorRefreshDelayMs('2026-07-07T10:00:30Z', now),
+      30050,
+    );
+    assert.equal(
+      getTwoFactorRefreshDelayMs('2026-07-07T09:59:00Z', now),
+      0,
+    );
   });
 
   it('uses production-friendly verification copy for fresh and expired challenges', () => {

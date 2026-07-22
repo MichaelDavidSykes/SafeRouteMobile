@@ -17,10 +17,12 @@ import {
   Easing,
   findNodeHandle,
   LayoutAnimation,
+  PanResponder,
   Pressable,
   RefreshControl,
   ScrollView,
   Text,
+  useWindowDimensions,
   View
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
@@ -63,6 +65,10 @@ import { WorkspaceAccessRefreshControl } from "../workspaces/WorkspaceAccessRefr
 import type { WorkspaceAccessIssue } from "../workspaces/workspaceAccessRefreshState";
 import { isWorkspaceForbiddenError } from "../workspaces/workspaceAccessRecovery";
 import { loadOperationsWorkspaceData } from "./operationsWorkspaceLoadCore";
+import {
+  shouldDismissRiskDetailGesture,
+  shouldStartRiskDetailDismissGesture,
+} from "../live-map/riskDetailInteraction";
 import {
   createCalendarRows,
   createConvoyRows,
@@ -469,14 +475,18 @@ export function OperationsScreen({
         return;
       }
 
-      loadedWorkspaceIdRef.current = null;
-      setLoadedWorkspaceId(null);
-      setRoutes([]);
-      setOperationsState(null);
-      setOfflineCalendarEntries([]);
-      setOperationsWarning(null);
-      setShowingOfflineCopy(false);
-      setOfflineCopyStoredAtMs(null);
+      const preserveVisibleResults =
+        refresh && loadedWorkspaceIdRef.current === requestWorkspaceId;
+      if (!preserveVisibleResults) {
+        loadedWorkspaceIdRef.current = null;
+        setLoadedWorkspaceId(null);
+        setRoutes([]);
+        setOperationsState(null);
+        setOfflineCalendarEntries([]);
+        setOperationsWarning(null);
+        setShowingOfflineCopy(false);
+        setOfflineCopyStoredAtMs(null);
+      }
 
       try {
         const result = await loadOperationsWorkspaceData({
@@ -1046,12 +1056,19 @@ export function OperationsScreen({
       activeWorkspaceIdRef.current === requestWorkspaceId &&
       activeTabRef.current === requestTab &&
       protectedRequestsAvailableRef.current;
+    const closeRouteDetail = () => {
+      setSelectedCalendarRowId(null);
+      setSelectedConvoyId(null);
+      setSelectedVehicle(null);
+      onConvoySelectionChange?.(null);
+    };
     try {
       const routeDetail = await fetchRouteDetail(accessToken, row.routeId);
       if (!requestOwnsWorkspace()) {
         return;
       }
       if (routeDetail.clientId !== requestWorkspaceId) {
+        closeRouteDetail();
         setErrorState({
           ...createRouteDetailErrorState(
             new Error("This route belongs to another workspace."),
@@ -1062,6 +1079,7 @@ export function OperationsScreen({
         return;
       }
       if (!hasUsableRoutePlan(routeDetail)) {
+        closeRouteDetail();
         setErrorState({
           ...createRouteDetailErrorState(
             new Error("The route map is not available yet. Refresh and try again."),
@@ -1089,6 +1107,7 @@ export function OperationsScreen({
         onWorkspaceUnavailable(requestWorkspaceId);
         return;
       }
+      closeRouteDetail();
       setErrorState({
         ...createRouteDetailErrorState(error, row.title),
         row,
@@ -1805,7 +1824,7 @@ export function OperationsScreen({
         </View>
       ) : null}
 
-      {offlineCalendarRemovalPresentation.status ? (
+      {activeTab === "calendar" && offlineCalendarRemovalPresentation.status ? (
         <View
           accessible
           accessibilityLabel={
@@ -1843,7 +1862,7 @@ export function OperationsScreen({
         </View>
       ) : null}
 
-      {offlineCalendarRemovalState === "retry" ? (
+      {activeTab === "calendar" && offlineCalendarRemovalState === "retry" ? (
         <Pressable
           accessibilityHint={
             offlineCalendarRemovalPresentation.actionAccessibilityHint ||
@@ -2666,6 +2685,10 @@ function OperationsVehicleDetail({
   onBack: () => void;
   vehicle: OperationsConvoyVehicle;
 }) {
+  const assignedRoutes = convoy.routeOptions.filter((route) =>
+    route.vehicleIds.includes(vehicle.id),
+  );
+
   return (
     <OperationsDetailSheet
       accessibilityLabel={`${vehicle.callsign} vehicle details`}
@@ -2688,7 +2711,7 @@ function OperationsVehicleDetail({
 
       <View style={styles.vehicleTripsSection}>
         <Text style={styles.convoyDetailSectionTitle}>Next planned trips</Text>
-        {convoy.routeOptions.length ? convoy.routeOptions.map((route, index) => (
+        {assignedRoutes.length ? assignedRoutes.map((route, index) => (
           <View key={`${route.routeId || route.title}-${index}`} style={styles.vehicleTripRow}>
             <View style={styles.vehicleTripDateTile}>
               <Text style={styles.vehicleTripDateText}>
@@ -2766,6 +2789,74 @@ function OperationsDetailSheet({
   testID: string;
   title: string;
 }) {
+  const viewport = useWindowDimensions();
+  const sheetTranslateY = useRef(new Animated.Value(viewport.height)).current;
+  const closingRef = useRef(false);
+  const onCloseRef = useRef(onClose);
+  const viewportHeightRef = useRef(viewport.height);
+  onCloseRef.current = onClose;
+  viewportHeightRef.current = viewport.height;
+
+  const restoreSheet = () => {
+    Animated.spring(sheetTranslateY, {
+      damping: 24,
+      mass: 0.9,
+      stiffness: 220,
+      toValue: 0,
+      useNativeDriver: true,
+    }).start();
+  };
+  const dismissSheet = () => {
+    if (closingRef.current) {
+      return;
+    }
+    closingRef.current = true;
+    Animated.timing(sheetTranslateY, {
+      duration: 210,
+      easing: Easing.out(Easing.cubic),
+      toValue: viewportHeightRef.current,
+      useNativeDriver: true,
+    }).start(({ finished }) => {
+      if (finished) {
+        onCloseRef.current();
+      } else {
+        closingRef.current = false;
+      }
+    });
+  };
+  const dragResponder = useRef(
+    PanResponder.create({
+      onMoveShouldSetPanResponder: (_, gesture) =>
+        shouldStartRiskDetailDismissGesture({
+          translationX: gesture.dx,
+          translationY: gesture.dy,
+        }),
+      onPanResponderMove: (_, gesture) => {
+        sheetTranslateY.setValue(Math.max(0, gesture.dy));
+      },
+      onPanResponderRelease: (_, gesture) => {
+        if (
+          shouldDismissRiskDetailGesture({
+            translationX: gesture.dx,
+            translationY: gesture.dy,
+            velocityY: gesture.vy,
+          })
+        ) {
+          dismissSheet();
+          return;
+        }
+        restoreSheet();
+      },
+      onPanResponderTerminate: restoreSheet,
+    }),
+  ).current;
+
+  useEffect(() => {
+    sheetTranslateY.setValue(viewportHeightRef.current);
+    restoreSheet();
+    return () => sheetTranslateY.stopAnimation();
+  }, [sheetTranslateY]);
+
   return (
     <View style={styles.detailOverlay}>
       <Pressable
@@ -2773,15 +2864,20 @@ function OperationsDetailSheet({
         accessibilityElementsHidden
         importantForAccessibility="no-hide-descendants"
         style={styles.detailScrim}
-        onPress={onClose}
+        onPress={dismissSheet}
       />
-      <View
+      <Animated.View
         accessibilityLabel={accessibilityLabel}
         accessibilityViewIsModal
         testID={testID}
-        style={styles.detailSheet}
+        style={[
+          styles.detailSheet,
+          { transform: [{ translateY: sheetTranslateY }] },
+        ]}
       >
-        <View style={styles.detailGrabber} />
+        <View {...dragResponder.panHandlers} style={styles.detailGrabberTouch}>
+          <View style={styles.detailGrabber} />
+        </View>
         <View style={styles.detailSheetHeader}>
           <View style={styles.detailHeaderIconTile}>{icon}</View>
           <View style={styles.detailSheetHeadingCopy}>
@@ -2811,7 +2907,7 @@ function OperationsDetailSheet({
               styles.detailClose,
               pressed ? styles.routeCardPressed : null,
             ]}
-            onPress={onClose}
+            onPress={dismissSheet}
           >
             <X accessibilityElementsHidden color={colors.muted} size={15} strokeWidth={2.2} />
           </Pressable>
@@ -2823,7 +2919,7 @@ function OperationsDetailSheet({
         >
           {children}
         </ScrollView>
-      </View>
+      </Animated.View>
     </View>
   );
 }

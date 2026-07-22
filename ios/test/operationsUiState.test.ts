@@ -154,7 +154,7 @@ describe("view-only operations UI state", () => {
     assert.equal(alpha.vehicles.length, 2);
     assert.equal(alpha.vehicles[0].lead, true);
     assert.match(alpha.vehicles[0].modelLabel, /Land Rover|Range Rover|Toyota|Mercedes|BMW/i);
-    assert.match(alpha.vehicles[0].nextEventLabel, /Airport transfer window/);
+    assert.match(alpha.vehicles[0].nextEventLabel, /City Airport transfer/);
     assert.equal(alpha.peopleLabels.length, 2);
     assert.match(alpha.accessibilityLabel, /Opens convoy details/);
   });
@@ -219,6 +219,48 @@ describe("view-only operations UI state", () => {
     assert.match(convoy.routeOptions[0].manifestLabel, /vehicles/);
     assert.ok(convoy.routeOptions[0].vehicleLabels.length > 0);
     assert.ok(convoy.routeOptions[0].peopleLabels.length > 0);
+  });
+
+  it("shows each vehicle only the routes assigned to it", () => {
+    const operationsState = loadPreviewOperationsState("preview-routes");
+    const firstTrip = operationsState.trips[0];
+    const firstAssignment = firstTrip.route_assignments[0];
+    const [firstVehicleId, secondVehicleId] = firstTrip.vehicle_ids;
+    const secondRoute = SAVED_ROUTE_PLANS[1];
+    assert.ok(firstVehicleId);
+    assert.ok(secondVehicleId);
+
+    const [convoy] = createConvoyRows(SAVED_ROUTE_PLANS, {
+      ...operationsState,
+      trips: [{
+        ...firstTrip,
+        route_ids: [firstAssignment.route_id, secondRoute.id],
+        route_assignments: [
+          {
+            ...firstAssignment,
+            vehicle_ids: [firstVehicleId],
+            movement_date: "2026-08-02T09:00:00.000Z",
+          },
+          {
+            ...firstAssignment,
+            route_id: secondRoute.id,
+            vehicle_ids: [secondVehicleId],
+            movement_date: "2026-08-01T09:00:00.000Z",
+          },
+        ],
+      }],
+    });
+
+    assert.deepEqual(convoy.routeOptions[0].vehicleIds, [firstVehicleId]);
+    assert.deepEqual(convoy.routeOptions[1].vehicleIds, [secondVehicleId]);
+    assert.match(
+      convoy.vehicles.find((vehicle) => vehicle.id === firstVehicleId)?.nextEventLabel || "",
+      new RegExp(SAVED_ROUTE_PLANS[0].name),
+    );
+    assert.match(
+      convoy.vehicles.find((vehicle) => vehicle.id === secondVehicleId)?.nextEventLabel || "",
+      new RegExp(secondRoute.name),
+    );
   });
 
   it("summarizes differing assignment schedules and durations without inventing a convoy-wide value", () => {

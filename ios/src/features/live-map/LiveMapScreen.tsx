@@ -1503,6 +1503,14 @@ export function LiveMapScreen({
     setSelectedRiskZoneId(null);
   };
 
+  const handleSetAlertsVisible = (updater: (visible: boolean) => boolean) => {
+    const nextVisible = updater(alertsVisible);
+    setAlertsVisible(nextVisible);
+    if (!nextVisible) {
+      setSelectedRiskZoneId(null);
+    }
+  };
+
   const handleMapPanDrag = () => {
     suspendDriveAlongCameraForMapReview();
   };
@@ -1559,7 +1567,7 @@ export function LiveMapScreen({
         returnAccessibilityLabel={returnAccessibilityLabel}
         returnLabel={returnLabel}
         routeContext={routeContext}
-        onSetAlertsVisible={setAlertsVisible}
+        onSetAlertsVisible={handleSetAlertsVisible}
         onStopRoute={handleStopRoute}
         primaryActionStatusReason={navigationAuthorizationRetryNotice}
         primaryDisabledReason={

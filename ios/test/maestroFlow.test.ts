@@ -603,7 +603,7 @@ describe("Maestro iOS preview smoke flow", () => {
     assert.match(flow, /SAFEROUTE_PREVIEW_INITIAL_SCREEN=login-code/);
     assert.match(flow, /without real credentials or OTP/);
     assert.match(flow, /visible:\s*"Try again"[\s\S]*tapOn:\s*"Try again"/);
-    assert.match(flow, /assertVisible:\s*"Enter LunarChain login code"/);
+    assert.match(flow, /assertVisible:\s*"Two-factor auth"/);
     assert.match(
       flow,
       /assertVisible:\s*"We sent a 6-digit code to preview\.operator@lunarchain\.local\. Enter it to finish signing in\."/,

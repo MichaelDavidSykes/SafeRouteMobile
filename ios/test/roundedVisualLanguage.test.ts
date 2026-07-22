@@ -565,7 +565,7 @@ describe("rounded visual language", () => {
     assert.match(calloutSource, /borderRadius:\s*radius\.sheet/);
   });
 
-  it("uses the LunarChain Dusk auth header without duplicate logo chrome", () => {
+  it("uses the current unframed auth hierarchy without duplicate logo chrome", () => {
     const loginSource = readFileSync(
       join(process.cwd(), "src/features/auth/LoginScreen.tsx"),
       "utf8",
@@ -585,8 +585,9 @@ describe("rounded visual language", () => {
     assert.match(loginHeaderStateSource, /title:\s*["']Log in to LunarChain["']/);
     assert.match(loginHeaderStateSource, /title:\s*["']Enter your login code["']/);
     assert.match(loginHeaderStateSource, /eyebrow:\s*["']Two-factor verification["']/);
-    assert.match(loginStylesSource, /eyebrow:[\s\S]*color:\s*authColors\.accent/);
-    assert.match(loginStylesSource, /title:[\s\S]*textTransform:\s*["']uppercase["']/);
+    assert.match(loginSource, /title:\s*'Two-factor auth'/);
+    assert.match(loginStylesSource, /flowTitle:[\s\S]*fontSize:\s*25/);
+    assert.doesNotMatch(loginStylesSource, /flowTitle:[\s\S]*textTransform:\s*["']uppercase["']/);
     assert.match(loginStylesSource, /letterSpacing:\s*0/);
   });
 
@@ -604,15 +605,13 @@ describe("rounded visual language", () => {
     assert.match(loginSource, /placeholder="Password"/);
     assert.match(loginSource, /Forgot password\?/);
     assert.match(loginSource, />Create account<\/Text>/);
-    assert.match(loginSource, /ArrowLeft, Eye, EyeOff/);
+    assert.match(loginSource, /ArrowLeft[\s\S]*Eye[\s\S]*EyeOff[\s\S]*LockKeyhole/);
     assert.match(loginSource, /testID=\{uiTestIds\.loginResendCode\}/);
     assert.match(loginSource, /testID=\{uiTestIds\.passwordResetForm\}/);
-    assert.match(loginStylesSource, /card:[\s\S]*borderRadius:\s*authRadius\.card/);
-    assert.match(loginStylesSource, /inputShell:[\s\S]*borderRadius:\s*authRadius\.row/);
-    assert.match(loginStylesSource, /primaryButton:[\s\S]*borderRadius:\s*authRadius\.pill/);
+    assert.doesNotMatch(loginSource, /BlurView|cardFrame|styles\.card/);
     assert.match(loginStylesSource, /handoffInputShell:[\s\S]*borderRadius:\s*15/);
     assert.match(loginStylesSource, /handoffPrimaryButton:[\s\S]*backgroundColor:\s*'#FFFFFF'/);
-    assert.match(loginStylesSource, /secondaryButton:[\s\S]*backgroundColor:\s*authColors\.glassQuiet/);
+    assert.match(loginStylesSource, /codeCellRow:[\s\S]*minHeight:\s*58/);
   });
 
   it("keeps live-map route headers free of brand-logo chrome", () => {

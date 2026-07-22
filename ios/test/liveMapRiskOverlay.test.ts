@@ -37,6 +37,22 @@ describe("live map risk overlay interactions", () => {
     assert.match(circleBlock, /onPress=\{handlePress\}/);
   });
 
+  it("keeps the alert triangle visible while highlighting the selected risk area", () => {
+    const source = markerSource();
+    const riskMarkerFunction =
+      /function RiskMarker[\s\S]*?export function VehicleMarker/.exec(source)?.[0] || "";
+
+    assert.match(source, /strokeColor=\{selected \? riskColors\.stroke : 'transparent'\}/);
+    assert.match(source, /fillColor=\{selected \? riskColors\.selectedFill : riskColors\.fill\}/);
+    assert.match(source, /strokeWidth=\{selected \? 2 : 0\}/);
+    assert.match(riskMarkerFunction, /zIndex=\{10\}/);
+    assert.match(riskMarkerFunction, /styles\.riskMarkerSelectionRing/);
+    assert.match(riskMarkerFunction, /selected \? styles\.riskMarkerSelectionRingVisible : null/);
+    assert.match(riskMarkerFunction, /<AlertTriangle[\s\S]*strokeWidth=\{2\.6\}/);
+    assert.doesNotMatch(riskMarkerFunction, /zIndex=\{selected \|\| active/);
+    assert.doesNotMatch(riskMarkerFunction, /selected\s*\?\s*<AlertTriangle/);
+  });
+
   it("exposes the live vehicle marker position to VoiceOver", () => {
     const source = markerSource();
     const vehicleMarkerFunction =
@@ -62,5 +78,4 @@ describe("live map risk overlay interactions", () => {
       /return demoDriveEnabled \? 'Route preview position' : 'Current position'/,
     );
   });
-
 });

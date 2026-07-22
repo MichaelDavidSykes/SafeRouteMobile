@@ -1226,11 +1226,11 @@ describe("rounded visual language", () => {
     assert.match(markerSource, /return 16/);
     assert.doesNotMatch(markerSource, /,\s*shadow,/);
     assert.doesNotMatch(markerSource, /shadow\.panel/);
-    assert.match(markerSource, /\briskMarkerHitArea:[\s\S]*width:\s*32/);
+    assert.match(markerSource, /\briskMarkerHitArea:[\s\S]*width:\s*38/);
     assert.doesNotMatch(markerSource, /Callout|showCallout/);
     assert.match(markerSource, /\bvehicleMarkerHeading:/);
     assert.match(markerSource, /borderRadius:\s*radius\.pill/);
-    assert.match(riskMarkerBlock, /width:\s*26/);
+    assert.match(riskMarkerBlock, /width:\s*34/);
     assert.match(vehicleMarkerBlock, /width:\s*30/);
     assert.match(markerSource, /strokeWidth=\{selected \|\| active \? 6 : 5\}/);
     assert.doesNotMatch(markerSource, /strokeWidth=\{selected \|\| active \? 14 : 11\}/);
@@ -1240,6 +1240,8 @@ describe("rounded visual language", () => {
       assert.match(markerBlock, /elevation:\s*0/);
     }
     assert.match(riskMarkerBlock, /shadowOpacity:\s*0\.45/);
+    assert.match(markerSource, /riskMarkerSelectionRing:[\s\S]*borderWidth:\s*2/);
+    assert.doesNotMatch(markerSource, /riskMarkerSelected:\s*\{[^}]*transform:/);
   });
 
   it("keeps live-map controls as familiar icon buttons", () => {

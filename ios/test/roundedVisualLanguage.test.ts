@@ -565,7 +565,7 @@ describe("rounded visual language", () => {
     assert.match(calloutSource, /borderRadius:\s*radius\.sheet/);
   });
 
-  it("keeps the login header logo-first without duplicate brand text", () => {
+  it("uses the LunarChain Dusk auth header without duplicate logo chrome", () => {
     const loginSource = readFileSync(
       join(process.cwd(), "src/features/auth/LoginScreen.tsx"),
       "utf8",
@@ -578,50 +578,19 @@ describe("rounded visual language", () => {
       join(process.cwd(), "src/features/auth/LoginScreen.styles.ts"),
       "utf8",
     );
-    const logoSource = readFileSync(
-      join(process.cwd(), "src/brand/SafeRouteLogo.tsx"),
-      "utf8",
-    );
-    const logoFrameBlock =
-      /logoFrame:\s*\{([\s\S]*?)\n  \},/.exec(logoSource)?.[1] || "";
 
-    assert.match(loginSource, /<SafeRouteLogo[\s\S]*accessibilityLabel="SafeRoute Mobile"/);
-    assert.match(loginSource, /imageSize=\{loginLayout\.compact \? 40 : 50\}/);
-    assert.match(loginSource, /size=\{loginLayout\.compact \? 52 : 64\}/);
-    assert.match(logoSource, /require\(["']\.\.\/\.\.\/assets\/icon\.png["']\)/);
-    assert.doesNotMatch(logoSource, /require\(["']\.\.\/\.\.\/assets\/logo-mark\.png["']\)/);
-    assert.match(logoSource, /resizeMode="contain"/);
-    assert.match(logoSource, /height:\s*resolvedImageSize/);
-    assert.match(logoSource, /width:\s*resolvedImageSize/);
-    assert.match(logoSource, /borderRadius:\s*Math\.max\(radius\.sm,\s*resolvedImageSize \/ 2\)/);
-    assert.match(logoSource, /borderRadius:\s*Math\.max\(radius\.sm,\s*size \/ 2\)/);
-    assert.match(logoFrameBlock, /borderColor:\s*colors\.glassBorder/);
-    assert.match(logoFrameBlock, /backgroundColor:\s*["']transparent["']/);
-    assert.match(logoFrameBlock, /shadowOpacity:\s*0/);
-    assert.match(logoFrameBlock, /shadowRadius:\s*0/);
-    assert.match(logoFrameBlock, /elevation:\s*0/);
-    assert.doesNotMatch(logoSource, /shadow\.panel/);
-    assert.doesNotMatch(logoSource, /,\s*shadow,/);
-    assert.doesNotMatch(loginSource, /\belevated\b/);
+    assert.match(loginSource, /<AuthBackdrop \/>/);
+    assert.doesNotMatch(loginSource, /SafeRouteLogo/);
     assert.match(loginSource, /createLoginHeaderState/);
-    assert.match(loginSource, /loginHeaderState\.titleAccessibilityLabel/);
-    assert.match(loginSource, /loginHeaderState\.subtitleAccessibilityLabel/);
-    assert.match(loginSource, /loginHeaderState\.subtitle \? \(/);
-    assert.match(loginSource, /loginHeaderState\.subtitle \? \([\s\S]*numberOfLines=\{2\}[\s\S]*\{loginHeaderState\.subtitle\}/);
-    assert.match(loginHeaderStateSource, /subtitle:\s*compact \? null : SIGN_IN_SUBTITLE/);
-    assert.match(loginHeaderStateSource, /LOGIN_CHALLENGE_SUBTITLE_MAX_LENGTH\s*=\s*64/);
-    assert.match(loginHeaderStateSource, /createCompactLoginHeaderCopy/);
-    assert.match(loginHeaderStateSource, /subtitleAccessibilityLabel/);
-    assert.match(loginHeaderStateSource, /title:\s*["']Enter code["']/);
-    assert.match(loginHeaderStateSource, /Sync saved routes to the map\./);
-    assert.doesNotMatch(loginSource, /Map first\. Save after sign-in\./);
-    assert.doesNotMatch(loginSource, /Save routes and sync live map context/);
-    assert.doesNotMatch(loginSource, /<Text style=\{styles\.eyebrow\}>SafeRoute Mobile<\/Text>/);
-    assert.doesNotMatch(loginSource, /styles\.eyebrow/);
-    assert.doesNotMatch(loginStylesSource, /\beyebrow:/);
+    assert.match(loginHeaderStateSource, /title:\s*["']Log in to LunarChain["']/);
+    assert.match(loginHeaderStateSource, /title:\s*["']Enter your login code["']/);
+    assert.match(loginHeaderStateSource, /eyebrow:\s*["']Two-factor verification["']/);
+    assert.match(loginStylesSource, /eyebrow:[\s\S]*color:\s*authColors\.accent/);
+    assert.match(loginStylesSource, /title:[\s\S]*textTransform:\s*["']uppercase["']/);
+    assert.match(loginStylesSource, /letterSpacing:\s*0/);
   });
 
-  it("keeps the login form placeholder-led without redundant field-label chrome", () => {
+  it("uses labeled Dusk inputs and familiar auth control icons", () => {
     const loginSource = readFileSync(
       join(process.cwd(), "src/features/auth/LoginScreen.tsx"),
       "utf8",
@@ -630,167 +599,17 @@ describe("rounded visual language", () => {
       join(process.cwd(), "src/features/auth/LoginScreen.styles.ts"),
       "utf8",
     );
-    const loginErrorStateSource = readFileSync(
-      join(process.cwd(), "src/features/auth/loginErrorState.ts"),
-      "utf8",
-    );
-    const loginNoticeStateSource = readFileSync(
-      join(process.cwd(), "src/features/auth/loginNoticeState.ts"),
-      "utf8",
-    );
-    const formCardBlock =
-      /formCard:\s*\{([\s\S]*?)\n  \},\n  formCardCompact:/.exec(
-        loginStylesSource,
-      )?.[1] || "";
-    const errorBoxBlock =
-      /errorBox:\s*\{([\s\S]*?)\n  \},\n  errorText:/.exec(
-        loginStylesSource,
-      )?.[1] || "";
-    const errorTextBlock =
-      /errorText:\s*\{([\s\S]*?)\n  \},\n  noticeBox:/.exec(
-        loginStylesSource,
-      )?.[1] || "";
-    const noticeBoxBlock =
-      /noticeBox:\s*\{([\s\S]*?)\n  \},\n  noticeText:/.exec(
-        loginStylesSource,
-      )?.[1] || "";
-    const noticeTextBlock =
-      /noticeText:\s*\{([\s\S]*?)\n  \},\n  challengeHintBox:/.exec(
-        loginStylesSource,
-      )?.[1] || "";
-    const challengeHintBoxBlock =
-      /challengeHintBox:\s*\{([\s\S]*?)\n  \},\n  challengeHintBoxDanger:/.exec(
-        loginStylesSource,
-      )?.[1] || "";
-    const challengeHintTextBlock =
-      /challengeHintText:\s*\{([\s\S]*?)\n  \},\n  challengeHintTextDanger:/.exec(
-        loginStylesSource,
-      )?.[1] || "";
 
-    assert.match(loginSource, /placeholder="Email"/);
-    assert.match(loginSource, /accessibilityLabel="LunarChain email"/);
-    assert.match(loginSource, /accessibilityLabel="LunarChain password"/);
-    assert.match(loginSource, /accessibilityLabel="LunarChain login code"/);
-    assert.match(loginSource, /testID=\{uiTestIds\.loginCode\}/);
-    assert.match(loginSource, /testID=\{uiTestIds\.loginSecondaryAction\}/);
-    assert.match(loginSource, /styles\.formCardCompact/);
-    assert.match(loginSource, /styles\.passwordToggle/);
-    assert.match(loginSource, /const PASSWORD_TOGGLE_HIT_SLOP = 8/);
-    assert.match(loginSource, /hitSlop=\{PASSWORD_TOGGLE_HIT_SLOP\}/);
-    assert.equal((loginSource.match(/hitSlop=\{PASSWORD_TOGGLE_HIT_SLOP\}/g) || []).length, 1);
-    assert.match(loginSource, /<Text numberOfLines=\{1\} style=\{styles\.passwordToggleText\}>/);
-    assert.match(loginSource, /passwordVisible \? 'Hide' : 'Show'/);
-    assert.match(loginSource, /createLoginErrorState/);
-    assert.match(loginSource, /loginErrorState\.message/);
-    assert.match(loginSource, /accessibilityLabel=\{loginErrorState\.accessibilityLabel \|\| undefined\}/);
-    assert.match(loginSource, /createLoginNoticeState/);
-    assert.match(loginSource, /loginNoticeState\.message/);
-    assert.match(loginSource, /accessibilityLabel=\{loginNoticeState\.accessibilityLabel \|\| undefined\}/);
-    assert.doesNotMatch(loginSource, /<Text style=\{styles\.noticeText\}>\{sessionMessage\}<\/Text>/);
-    assert.match(loginSource, /numberOfLines=\{2\}/);
-    assert.match(loginErrorStateSource, /LOGIN_ERROR_MESSAGE_MAX_LENGTH\s*=\s*84/);
-    assert.match(loginErrorStateSource, /createCompactLoginErrorText/);
-    assert.match(loginErrorStateSource, /completeLoginErrorSentence/);
-    assert.match(loginErrorStateSource, /\[\.!\?…\]\$/);
-    assert.match(loginErrorStateSource, /accessibilityLabel:\s*compactMessage === normalizedMessage \? null : normalizedMessage/);
-    assert.match(loginNoticeStateSource, /LOGIN_NOTICE_MESSAGE_MAX_LENGTH\s*=\s*72/);
-    assert.match(loginNoticeStateSource, /createCompactLoginNoticeText/);
-    assert.match(loginNoticeStateSource, /accessibilityLabel:\s*compactMessage === normalizedMessage \? null : normalizedMessage/);
-    assert.doesNotMatch(loginSource, /Ionicons/);
-    assert.doesNotMatch(loginSource, /name="mail"|name="lock-closed"|name="keypad"|name="alert-circle"|name="time"|name="timer"|eye-off|name="eye"/);
-    assert.doesNotMatch(loginSource, /<FieldLabel/);
-    assert.doesNotMatch(loginSource, /styles\.fieldLabel/);
-    assert.doesNotMatch(loginStylesSource, /\bfieldLabel:/);
-    assert.match(formCardBlock, /backgroundColor:\s*colors\.surface/);
-    assert.match(formCardBlock, /shadowOpacity:\s*0\.08/);
-    assert.match(formCardBlock, /elevation:\s*5/);
-    assert.doesNotMatch(formCardBlock, /shadow\.panel/);
-    assert.match(loginStylesSource, /formCardCompact:\s*\{[\s\S]*padding:\s*spacing\.md/);
-    assert.match(loginStylesSource, /passwordToggle:\s*\{[\s\S]*borderRadius:\s*12/);
-    assert.match(loginStylesSource, /passwordToggle:\s*\{[\s\S]*backgroundColor:\s*colors\.surfaceGlass/);
-    assert.match(loginStylesSource, /passwordToggleText:\s*\{[\s\S]*color:\s*colors\.appleBlue/);
-    assert.match(loginStylesSource, /passwordToggleText:\s*\{[\s\S]*maxWidth:\s*52/);
-    for (const statusBlock of [
-      errorBoxBlock,
-      noticeBoxBlock,
-      challengeHintBoxBlock,
-    ]) {
-      assert.match(statusBlock, /alignSelf:\s*['"]center['"]/);
-      assert.match(statusBlock, /maxWidth:\s*['"]100%['"]/);
-      assert.match(statusBlock, /minHeight:\s*controlSizes\.compact/);
-      assert.match(statusBlock, /alignItems:\s*['"]center['"]/);
-      assert.match(statusBlock, /paddingVertical:\s*spacing\.xs/);
-      assert.match(statusBlock, /borderRadius:\s*(?:14|radius\.pill)/);
-      assert.match(statusBlock, /borderWidth:\s*0\.5/);
-    }
-    assert.match(errorBoxBlock, /backgroundColor:\s*colors\.dangerSoft/);
-    assert.match(noticeBoxBlock, /backgroundColor:\s*colors\.amberSoft/);
-    assert.match(challengeHintBoxBlock, /backgroundColor:\s*colors\.surfaceGlass/);
-    assert.match(challengeHintBoxBlock, /borderColor:\s*colors\.borderSoft/);
-    assert.match(loginStylesSource, /challengeHintBoxDanger:\s*\{[\s\S]*backgroundColor:\s*colors\.dangerSoft/);
-    for (const statusTextBlock of [
-      errorTextBlock,
-      noticeTextBlock,
-      challengeHintTextBlock,
-    ]) {
-      assert.match(statusTextBlock, /lineHeight:\s*18/);
-      assert.match(statusTextBlock, /textAlign:\s*['"]center['"]/);
-    }
-    assert.match(loginSource, /<Text\s+numberOfLines=\{1\}\s+style=\{\[\s*styles\.challengeHintText/);
-    assert.match(challengeHintTextBlock, /flexShrink:\s*1/);
-  });
-
-  it("keeps auth secondary actions quiet and text-led", () => {
-    const loginSource = readFileSync(
-      join(process.cwd(), "src/features/auth/LoginScreen.tsx"),
-      "utf8",
-    );
-    const loginStylesSource = readFileSync(
-      join(process.cwd(), "src/features/auth/LoginScreen.styles.ts"),
-      "utf8",
-    );
-    const loginFormStateSource = readFileSync(
-      join(process.cwd(), "src/features/auth/loginFormState.ts"),
-      "utf8",
-    );
-    const secondaryButtonBlock =
-      /secondaryButton:\s*\{([\s\S]*?)\n  \},\n  secondaryButtonPressed:/.exec(
-        loginStylesSource,
-      )?.[1] || "";
-    const secondaryTextBlock =
-      /secondaryButtonText:\s*\{([\s\S]*?)\n  \}/.exec(loginStylesSource)?.[1] || "";
-    const primaryTextBlock =
-      /primaryButtonText:\s*\{([\s\S]*?)\n  \},\n  secondaryButton:/.exec(
-        loginStylesSource,
-      )?.[1] || "";
-
-    assert.match(loginSource, /<Text numberOfLines=\{1\} style=\{styles\.primaryButtonText\}>/);
-    assert.match(primaryTextBlock, /flexShrink:\s*1/);
-    assert.match(primaryTextBlock, /maxWidth:\s*220/);
-    assert.match(primaryTextBlock, /textAlign:\s*['"]center['"]/);
-    assert.match(loginSource, /styles\.secondaryButtonPressed/);
-    assert.match(loginSource, /const LOGIN_SECONDARY_ACTION_HIT_SLOP = 6/);
-    assert.match(loginSource, /hitSlop=\{LOGIN_SECONDARY_ACTION_HIT_SLOP\}/);
-    assert.equal((loginSource.match(/hitSlop=\{LOGIN_SECONDARY_ACTION_HIT_SLOP\}/g) || []).length, 2);
-    assert.match(secondaryButtonBlock, /alignSelf:\s*["']center["']/);
-    assert.match(secondaryButtonBlock, /backgroundColor:\s*["']transparent["']/);
-    assert.doesNotMatch(secondaryButtonBlock, /borderWidth/);
-    assert.doesNotMatch(secondaryButtonBlock, /borderColor/);
-    assert.match(loginStylesSource, /secondaryButtonPressed:\s*\{[\s\S]*colors\.appleBlueSoft/);
-    assert.match(secondaryTextBlock, /color:\s*colors\.appleBlue/);
-    assert.match(secondaryTextBlock, /flexShrink:\s*1/);
-    assert.match(secondaryTextBlock, /maxWidth:\s*180/);
-    assert.match(secondaryTextBlock, /textAlign:\s*['"]center['"]/);
-    assert.match(loginSource, /<Text numberOfLines=\{1\} style=\{styles\.secondaryButtonText\}>\{secondaryChallengeAction\?\.text\}<\/Text>/);
-    assert.match(loginSource, /<Text numberOfLines=\{1\} style=\{styles\.secondaryButtonText\}>\{mapReturnAction\.text\}<\/Text>/);
-    assert.match(loginSource, /getLoginMapReturnActionState/);
-    assert.match(loginSource, /mapReturnAction\.text/);
-    assert.match(loginFormStateSource, /text:\s*["']Edit sign-in["']/);
-    assert.match(loginFormStateSource, /text:\s*["']Request code["']/);
-    assert.match(loginFormStateSource, /text:\s*["']Map["']/);
-    assert.doesNotMatch(loginFormStateSource, /Back to credentials/);
-    assert.doesNotMatch(loginFormStateSource, /Request new code/);
-    assert.doesNotMatch(loginSource, /Back to map/);
+    assert.match(loginSource, /<Text style=\{styles\.label\}>Email<\/Text>/);
+    assert.match(loginSource, /<Text style=\{styles\.label\}>Password<\/Text>/);
+    assert.match(loginSource, /Forgot password\?/);
+    assert.match(loginSource, /ArrowLeft, Eye, EyeOff/);
+    assert.match(loginSource, /testID=\{uiTestIds\.loginResendCode\}/);
+    assert.match(loginSource, /testID=\{uiTestIds\.passwordResetForm\}/);
+    assert.match(loginStylesSource, /card:[\s\S]*borderRadius:\s*authRadius\.card/);
+    assert.match(loginStylesSource, /inputShell:[\s\S]*borderRadius:\s*authRadius\.row/);
+    assert.match(loginStylesSource, /primaryButton:[\s\S]*borderRadius:\s*authRadius\.pill/);
+    assert.match(loginStylesSource, /secondaryButton:[\s\S]*backgroundColor:\s*authColors\.glassQuiet/);
   });
 
   it("keeps live-map route headers free of brand-logo chrome", () => {

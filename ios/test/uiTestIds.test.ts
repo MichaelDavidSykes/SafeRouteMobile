@@ -107,6 +107,11 @@ describe("UI test identifiers", () => {
       "safe-route-login-saved-session-retry",
     );
     assert.equal(uiTestIds.loginMapReturn, "safe-route-login-map-return");
+    assert.equal(uiTestIds.loginResendCode, "safe-route-login-resend-code");
+    assert.equal(uiTestIds.passwordResetOpen, "safe-route-password-reset-open");
+    assert.equal(uiTestIds.passwordResetRequest, "safe-route-password-reset-request");
+    assert.equal(uiTestIds.passwordResetForm, "safe-route-password-reset-form");
+    assert.equal(uiTestIds.passwordResetSubmit, "safe-route-password-reset-submit");
     assert.equal(uiTestIds.operationsScreen, "safe-route-operations");
     assert.equal(uiTestIds.operationsMapReturn, "safe-route-operations-map-return");
     assert.equal(uiTestIds.operationsSignOut, "safe-route-operations-sign-out");

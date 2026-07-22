@@ -1558,6 +1558,8 @@ function SafeRouteApp() {
       if (
         previewInitialScreen === 'login' ||
         previewInitialScreen === 'login-code' ||
+        previewInitialScreen === 'reset-password' ||
+        previewInitialScreen === 'reset-password-code' ||
         previewInitialScreen === 'session-expired'
       ) {
         const previewSessionMessage =
@@ -4687,7 +4689,7 @@ function SafeRouteApp() {
       : session && isPreviewAccessToken(session.accessToken)
         ? PREVIEW_SESSION_NOTICE
         : sessionMessage;
-  const statusBarStyle = screen === 'guest-map' || screen === 'route-preview'
+  const statusBarStyle = screen === 'guest-map' || screen === 'route-preview' || screen === 'login'
     ? 'light'
     : 'dark';
   const activeAppTab: AppTab = screen === 'routes'
@@ -4715,6 +4717,21 @@ function SafeRouteApp() {
               SAFEROUTE_PREVIEW_MODE_ENABLED && SAFEROUTE_PREVIEW_INITIAL_SCREEN === 'login-code'
                 ? createPreviewLoginCodeChallenge()
                 : null
+            }
+            initialEmail={
+              SAFEROUTE_PREVIEW_MODE_ENABLED &&
+              SAFEROUTE_PREVIEW_INITIAL_SCREEN === 'reset-password-code'
+                ? 'preview.operator@lunarchain.local'
+                : undefined
+            }
+            initialView={
+              SAFEROUTE_PREVIEW_MODE_ENABLED &&
+              SAFEROUTE_PREVIEW_INITIAL_SCREEN === 'reset-password'
+                ? 'reset-request'
+                : SAFEROUTE_PREVIEW_MODE_ENABLED &&
+                    SAFEROUTE_PREVIEW_INITIAL_SCREEN === 'reset-password-code'
+                  ? 'reset-code'
+                  : 'credentials'
             }
             sessionMessage={authPrompt || sessionMessage}
             onAuthenticated={handleAuthenticated}

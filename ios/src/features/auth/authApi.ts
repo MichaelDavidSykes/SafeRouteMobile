@@ -1,8 +1,22 @@
 import { LUNARCHAIN_API_BASE } from '../../config/env';
 import { ApiSessionExpiredError, fetchWithTimeout, type SafeRouteRequestOptions } from '../api/apiClientCore';
-import type { AuthSession, AuthenticatedUser, PasswordLoginResult } from './authTypes';
+import type {
+  AuthSession,
+  AuthenticatedUser,
+  PasswordLoginResult,
+  TwoFactorChallenge,
+} from './authTypes';
 import { assertAuthResponseOk } from './authApiCore';
-import { buildAuthContentHeaders, buildPasswordLoginBody, normalizeEmail, unwrapAuthData } from './authPayload';
+import {
+  buildAuthContentHeaders,
+  buildLoginCodePayload,
+  buildLoginCodeResendPayload,
+  buildPasswordLoginBody,
+  buildPasswordResetPayload,
+  buildPasswordResetRequestPayload,
+  normalizeEmail,
+  unwrapAuthData,
+} from './authPayload';
 
 async function fetchAuthResponse(url: string, options: SafeRouteRequestOptions): Promise<Response> {
   return fetchWithTimeout(url, options);
@@ -54,11 +68,7 @@ export async function verifyLoginCode(email: string, challengeToken: string, cod
   const response = await fetchAuthResponse(`${LUNARCHAIN_API_BASE}/auth/verify-login-code`, {
     method: 'POST',
     headers: buildAuthContentHeaders('application/json'),
-    body: JSON.stringify({
-      email: normalizeEmail(email),
-      challenge_token: challengeToken,
-      code: String(code || '').trim()
-    })
+    body: JSON.stringify(buildLoginCodePayload(email, challengeToken, code))
   });
 
   const body = await assertAuthResponseOk(response, 'Unable to verify the login code.');
@@ -73,6 +83,58 @@ export async function verifyLoginCode(email: string, challengeToken: string, cod
     accessToken,
     email: normalizeEmail(payload.email || email)
   };
+}
+
+export async function resendLoginCode(
+  challenge: TwoFactorChallenge
+): Promise<TwoFactorChallenge> {
+  const response = await fetchAuthResponse(`${LUNARCHAIN_API_BASE}/auth/resend-login-code`, {
+    method: 'POST',
+    headers: buildAuthContentHeaders('application/json'),
+    body: JSON.stringify(
+      buildLoginCodeResendPayload(challenge.email, challenge.challengeToken)
+    ),
+  });
+
+  const body = await assertAuthResponseOk(response, 'Unable to resend the login code.');
+  const payload = unwrapAuthData(body);
+
+  return {
+    challengeToken: String(payload.challenge_token || challenge.challengeToken).trim(),
+    email: normalizeEmail(payload.email || challenge.email),
+    expiresAt: payload.expires_at || challenge.expiresAt,
+    method: payload.two_factor_method || challenge.method,
+  };
+}
+
+export async function requestPasswordReset(email: string): Promise<void> {
+  const response = await fetchAuthResponse(
+    `${LUNARCHAIN_API_BASE}/auth/request-password-reset`,
+    {
+      method: 'POST',
+      headers: buildAuthContentHeaders('application/json'),
+      body: JSON.stringify(buildPasswordResetRequestPayload(email)),
+    }
+  );
+
+  await assertAuthResponseOk(response, 'Unable to send a password reset code.');
+}
+
+export async function resetPassword(
+  email: string,
+  code: string,
+  newPassword: string
+): Promise<void> {
+  const response = await fetchAuthResponse(`${LUNARCHAIN_API_BASE}/auth/reset-password`, {
+    method: 'POST',
+    headers: buildAuthContentHeaders('application/json'),
+    body: JSON.stringify(buildPasswordResetPayload(email, code, newPassword)),
+  });
+
+  await assertAuthResponseOk(
+    response,
+    'Unable to reset the password. Check the verification code and try again.'
+  );
 }
 
 export async function getCurrentUser(accessToken: string): Promise<AuthenticatedUser> {

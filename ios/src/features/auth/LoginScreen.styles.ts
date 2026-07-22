@@ -1,258 +1,356 @@
 import { StyleSheet } from 'react-native';
 
-import { colors, controlSizes, radius, spacing, typeScale } from '../../theme';
+import { authColors, authRadius } from './authDesign';
 
 export const styles = StyleSheet.create({
   screen: {
     flex: 1,
-    backgroundColor: colors.control
+    backgroundColor: authColors.background,
   },
   keyboardShell: {
-    flex: 1
+    flex: 1,
   },
   scrollContent: {
     flexGrow: 1,
     justifyContent: 'center',
-    padding: spacing.lg
+    paddingHorizontal: 16,
+    paddingVertical: 28,
   },
   scrollContentCompact: {
     justifyContent: 'flex-start',
-    paddingTop: spacing.sm,
-    paddingBottom: spacing.lg
+    paddingHorizontal: 12,
+    paddingVertical: 20,
+  },
+  cardFrame: {
+    alignSelf: 'center',
+    width: '100%',
+    maxWidth: 448,
+    borderRadius: authRadius.card,
+    shadowColor: '#060812',
+    shadowOpacity: 0.45,
+    shadowRadius: 30,
+    shadowOffset: { width: 0, height: 18 },
+    elevation: 12,
+  },
+  card: {
+    width: '100%',
+    paddingHorizontal: 28,
+    paddingBottom: 24,
+    paddingTop: 28,
+    borderWidth: 1,
+    borderColor: authColors.glassBorder,
+    borderTopColor: authColors.glassTopEdge,
+    borderRadius: authRadius.card,
+    backgroundColor: authColors.glass,
+    overflow: 'hidden',
+  },
+  cardBlur: {
+    ...StyleSheet.absoluteFillObject,
+  },
+  cardCompact: {
+    paddingHorizontal: 20,
+    paddingBottom: 20,
+    paddingTop: 24,
+  },
+  backButton: {
+    position: 'absolute',
+    left: 16,
+    top: 16,
+    zIndex: 2,
+    width: 40,
+    height: 40,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderRadius: authRadius.pill,
+    backgroundColor: 'transparent',
+  },
+  backButtonPressed: {
+    backgroundColor: authColors.glassQuiet,
+  },
+  backButtonDisabled: {
+    opacity: 0.46,
   },
   header: {
-    alignItems: 'center',
-    marginBottom: spacing.lg
+    gap: 7,
+    marginBottom: 20,
+    paddingTop: 34,
   },
   headerCompact: {
-    marginBottom: spacing.md
+    marginBottom: 16,
+    paddingTop: 30,
   },
-  logoMark: {
-    marginBottom: spacing.md
-  },
-  logoMarkCompact: {
-    marginBottom: spacing.sm
+  eyebrow: {
+    color: authColors.accent,
+    fontFamily: 'Menlo',
+    fontSize: 11,
+    fontWeight: '700',
+    letterSpacing: 0,
+    lineHeight: 16,
+    textTransform: 'uppercase',
   },
   title: {
-    color: colors.ink,
+    maxWidth: '100%',
+    color: authColors.text,
     fontSize: 32,
     fontWeight: '800',
-    lineHeight: 37
+    letterSpacing: 0,
+    lineHeight: 37,
+    textTransform: 'uppercase',
   },
   titleCompact: {
-    fontSize: 30,
-    lineHeight: 34
+    fontSize: 27,
+    lineHeight: 32,
   },
   subtitle: {
-    maxWidth: 320,
-    marginTop: spacing.xs,
-    color: colors.muted,
-    fontSize: typeScale.md,
+    maxWidth: '100%',
+    color: authColors.muted,
+    fontSize: 15,
+    fontWeight: '500',
+    letterSpacing: 0,
+    lineHeight: 22,
+  },
+  form: {
+    gap: 16,
+  },
+  field: {
+    gap: 8,
+  },
+  labelRow: {
+    minHeight: 20,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: 12,
+  },
+  label: {
+    flexShrink: 1,
+    color: authColors.muted,
+    fontFamily: 'Menlo',
+    fontSize: 11,
+    fontWeight: '700',
+    letterSpacing: 0,
+    lineHeight: 16,
+    textTransform: 'uppercase',
+  },
+  inlineButton: {
+    minHeight: 44,
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingHorizontal: 4,
+    borderRadius: authRadius.row,
+  },
+  inlineButtonPressed: {
+    backgroundColor: authColors.accentTint,
+  },
+  inlineButtonDisabled: {
+    opacity: 0.46,
+  },
+  inlineButtonText: {
+    color: authColors.accent,
+    fontSize: 13,
     fontWeight: '600',
-    lineHeight: 21,
-    textAlign: 'center'
-  },
-  subtitleCompact: {
-    fontSize: typeScale.sm,
-    lineHeight: 19
-  },
-  formCard: {
-    gap: spacing.sm,
-    padding: spacing.lg,
-    borderWidth: 0.5,
-    borderColor: colors.borderSoft,
-    borderRadius: radius.sheet,
-    backgroundColor: colors.surface,
-    shadowColor: '#000000',
-    shadowOpacity: 0.08,
-    shadowRadius: 12,
-    shadowOffset: { width: 0, height: 6 },
-    elevation: 5
-  },
-  formCardCompact: {
-    gap: spacing.xs,
-    padding: spacing.md
+    letterSpacing: 0,
   },
   inputShell: {
+    minHeight: 50,
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 14,
+    borderWidth: 1,
+    borderColor: authColors.inputBorder,
+    borderRadius: authRadius.row,
+    backgroundColor: authColors.input,
+  },
+  inputShellFocused: {
+    borderColor: authColors.accentFocus,
+    shadowColor: authColors.accent,
+    shadowOpacity: 0.7,
+    shadowRadius: 3,
+    shadowOffset: { width: 0, height: 0 },
+  },
+  inputShellDisabled: {
+    opacity: 0.46,
+  },
+  input: {
+    minWidth: 0,
+    flex: 1,
+    color: authColors.text,
+    fontSize: 16,
+    fontWeight: '500',
+    letterSpacing: 0,
+    paddingVertical: 0,
+  },
+  codeInput: {
+    fontFamily: 'Menlo',
+    fontSize: 20,
+    fontWeight: '700',
+    letterSpacing: 0,
+  },
+  passwordToggle: {
+    width: 40,
+    height: 40,
+    marginRight: -8,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderRadius: authRadius.pill,
+  },
+  passwordTogglePressed: {
+    backgroundColor: authColors.accentTint,
+  },
+  passwordToggleDisabled: {
+    opacity: 0.46,
+  },
+  helperText: {
+    color: authColors.muted,
+    fontSize: 13,
+    fontWeight: '500',
+    letterSpacing: 0,
+    lineHeight: 19,
+  },
+  statusBox: {
+    minHeight: 44,
+    justifyContent: 'center',
+    paddingHorizontal: 14,
+    paddingVertical: 10,
+    borderWidth: 1,
+    borderRadius: authRadius.row,
+    backgroundColor: authColors.glassQuiet,
+  },
+  noticeBox: {
+    borderColor: authColors.warningBorder,
+    backgroundColor: authColors.warningSoft,
+  },
+  errorBox: {
+    borderColor: authColors.criticalBorder,
+    backgroundColor: authColors.criticalSoft,
+  },
+  successBox: {
+    borderColor: authColors.successBorder,
+    backgroundColor: authColors.successSoft,
+  },
+  statusText: {
+    color: authColors.muted,
+    fontSize: 13,
+    fontWeight: '600',
+    letterSpacing: 0,
+    lineHeight: 19,
+  },
+  noticeText: {
+    color: authColors.warning,
+  },
+  errorText: {
+    color: authColors.criticalText,
+  },
+  successText: {
+    color: authColors.success,
+  },
+  challengeHintBox: {
+    minHeight: 40,
+    justifyContent: 'center',
+    paddingHorizontal: 14,
+    paddingVertical: 8,
+    borderWidth: 1,
+    borderColor: authColors.glassBorder,
+    borderRadius: authRadius.row,
+    backgroundColor: authColors.glassQuiet,
+  },
+  challengeHintBoxDanger: {
+    borderColor: authColors.criticalBorder,
+    backgroundColor: authColors.criticalSoft,
+  },
+  challengeHintText: {
+    color: authColors.muted,
+    fontSize: 13,
+    fontWeight: '600',
+    letterSpacing: 0,
+    lineHeight: 19,
+  },
+  challengeHintTextDanger: {
+    color: authColors.criticalText,
+  },
+  primaryButton: {
     minHeight: 52,
     flexDirection: 'row',
     alignItems: 'center',
-    gap: spacing.sm,
-    paddingHorizontal: spacing.md,
-    borderWidth: 0.5,
-    borderColor: colors.borderSoft,
-    borderRadius: 14,
-    backgroundColor: colors.quiet
-  },
-  inputShellDisabled: {
-    opacity: 0.62
-  },
-  input: {
-    flex: 1,
-    color: colors.ink,
-    fontSize: typeScale.md,
-    fontWeight: '600'
-  },
-  passwordToggle: {
-    minHeight: 36,
-    minWidth: 56,
-    alignItems: 'center',
     justifyContent: 'center',
-    paddingHorizontal: spacing.md,
-    borderRadius: 12,
-    backgroundColor: colors.surfaceGlass
-  },
-  passwordTogglePressed: {
-    backgroundColor: colors.appleBlueSoft
-  },
-  passwordToggleDisabled: {
-    opacity: 0.6
-  },
-  passwordToggleText: {
-    color: colors.appleBlue,
-    fontSize: typeScale.sm,
-    fontWeight: '800',
-    maxWidth: 52,
-    textAlign: 'center'
-  },
-  errorBox: {
-    alignSelf: 'center',
-    maxWidth: '100%',
-    minHeight: controlSizes.compact,
-    alignItems: 'center',
-    justifyContent: 'center',
-    paddingHorizontal: spacing.md,
-    paddingVertical: spacing.xs,
-    borderWidth: 0.5,
-    borderColor: 'rgba(216, 74, 63, 0.18)',
-    borderRadius: 14,
-    backgroundColor: colors.dangerSoft
-  },
-  errorText: {
-    color: colors.dangerText,
-    fontSize: typeScale.sm,
-    fontWeight: '700',
-    lineHeight: 18,
-    textAlign: 'center'
-  },
-  noticeBox: {
-    alignSelf: 'center',
-    maxWidth: '100%',
-    minHeight: controlSizes.compact,
-    alignItems: 'center',
-    justifyContent: 'center',
-    paddingHorizontal: spacing.md,
-    paddingVertical: spacing.xs,
-    borderWidth: 0.5,
-    borderColor: 'rgba(243, 163, 43, 0.2)',
-    borderRadius: 14,
-    backgroundColor: colors.amberSoft
-  },
-  noticeText: {
-    color: colors.amberText,
-    fontSize: typeScale.sm,
-    fontWeight: '700',
-    lineHeight: 18,
-    textAlign: 'center'
-  },
-  challengeHintBox: {
-    alignSelf: 'center',
-    maxWidth: '100%',
-    minHeight: controlSizes.compact,
-    alignItems: 'center',
-    justifyContent: 'center',
-    paddingHorizontal: spacing.md,
-    paddingVertical: spacing.xs,
-    borderWidth: 0.5,
-    borderColor: colors.borderSoft,
-    borderRadius: radius.pill,
-    backgroundColor: colors.surfaceGlass
-  },
-  challengeHintBoxDanger: {
-    borderColor: 'rgba(216, 74, 63, 0.18)',
-    backgroundColor: colors.dangerSoft
-  },
-  challengeHintText: {
-    flexShrink: 1,
-    color: colors.muted,
-    fontSize: typeScale.sm,
-    fontWeight: '700',
-    lineHeight: 18,
-    textAlign: 'center'
-  },
-  challengeHintTextDanger: {
-    color: colors.dangerText
-  },
-  primaryButton: {
-    minHeight: controlSizes.primary,
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: spacing.sm,
-    borderRadius: 14,
-    backgroundColor: colors.appleBlue
+    gap: 10,
+    paddingHorizontal: 22,
+    borderRadius: authRadius.pill,
+    backgroundColor: authColors.accent,
+    shadowColor: authColors.accent,
+    shadowOpacity: 0.2,
+    shadowRadius: 14,
+    shadowOffset: { width: 0, height: 7 },
   },
   primaryButtonPressed: {
-    backgroundColor: colors.appleBluePressed,
-    transform: [{ scale: 0.985 }]
+    backgroundColor: authColors.accentPressed,
+    transform: [{ scale: 0.985 }],
   },
   primaryButtonDisabled: {
-    opacity: 0.68
+    opacity: 0.46,
+    shadowOpacity: 0,
   },
   primaryButtonText: {
     flexShrink: 1,
-    color: colors.surface,
-    fontSize: typeScale.md,
-    fontWeight: '800',
-    maxWidth: 220,
-    textAlign: 'center'
-  },
-  savedSessionRetryButton: {
-    minHeight: controlSizes.secondary,
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: spacing.sm,
-    paddingHorizontal: spacing.lg,
-    borderWidth: 0.5,
-    borderColor: colors.appleBlue,
-    borderRadius: 14,
-    backgroundColor: colors.appleBlueSoft
-  },
-  savedSessionRetryButtonPressed: {
-    backgroundColor: colors.surfaceGlass,
-    transform: [{ scale: 0.985 }]
-  },
-  savedSessionRetryButtonText: {
-    flexShrink: 1,
-    maxWidth: 210,
-    color: colors.appleBlue,
-    fontSize: typeScale.sm,
-    fontWeight: '800',
-    textAlign: 'center'
+    maxWidth: 260,
+    color: authColors.accentInk,
+    fontSize: 16,
+    fontWeight: '700',
+    letterSpacing: 0,
+    textAlign: 'center',
   },
   secondaryButton: {
-    minHeight: controlSizes.secondary,
-    alignSelf: 'center',
+    minHeight: 50,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    paddingHorizontal: spacing.lg,
-    borderRadius: 14,
-    backgroundColor: 'transparent'
+    gap: 10,
+    paddingHorizontal: 22,
+    borderWidth: 1,
+    borderColor: authColors.glassBorder,
+    borderTopColor: authColors.glassTopEdge,
+    borderRadius: authRadius.pill,
+    backgroundColor: authColors.glassQuiet,
   },
   secondaryButtonPressed: {
-    backgroundColor: colors.appleBlueSoft
+    backgroundColor: authColors.accentTint,
+    transform: [{ scale: 0.985 }],
   },
   secondaryButtonDisabled: {
-    opacity: 0.6
+    opacity: 0.46,
   },
   secondaryButtonText: {
     flexShrink: 1,
-    color: colors.appleBlue,
-    fontSize: typeScale.sm,
-    fontWeight: '800',
-    maxWidth: 180,
-    textAlign: 'center'
-  }
+    maxWidth: 260,
+    color: authColors.text,
+    fontSize: 15,
+    fontWeight: '600',
+    letterSpacing: 0,
+    textAlign: 'center',
+  },
+  savedSessionRetryButton: {
+    minHeight: 48,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 10,
+    paddingHorizontal: 20,
+    borderWidth: 1,
+    borderColor: authColors.accentBorder,
+    borderRadius: authRadius.pill,
+    backgroundColor: authColors.accentTint,
+  },
+  savedSessionRetryButtonPressed: {
+    backgroundColor: authColors.glassQuiet,
+    transform: [{ scale: 0.985 }],
+  },
+  savedSessionRetryButtonText: {
+    flexShrink: 1,
+    maxWidth: 230,
+    color: authColors.accent,
+    fontSize: 14,
+    fontWeight: '700',
+    letterSpacing: 0,
+    textAlign: 'center',
+  },
 });

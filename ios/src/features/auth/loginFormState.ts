@@ -46,9 +46,9 @@ export function getLoginPrimaryActionState({
         }
       : {
           accessibilityHint: 'Wait for LunarChain sign-in to finish.',
-          accessibilityLabel: 'Signing in to LunarChain',
+          accessibilityLabel: 'Logging in to LunarChain',
           disabled: true,
-          text: 'Signing in'
+          text: 'Logging in'
         };
   }
 
@@ -56,17 +56,17 @@ export function getLoginPrimaryActionState({
     if (!email.trim() || !password) {
       return {
         accessibilityHint: 'Enter both email and password before signing in.',
-        accessibilityLabel: 'Sign in to LunarChain. Email and password required.',
+        accessibilityLabel: 'Log in to LunarChain. Email and password required.',
         disabled: true,
-        text: 'Sign in'
+        text: 'Log in'
       };
     }
 
     return {
       accessibilityHint: 'Signs in with your LunarChain email and password.',
-      accessibilityLabel: 'Sign in to LunarChain',
+      accessibilityLabel: 'Log in to LunarChain',
       disabled: false,
-      text: 'Sign in'
+      text: 'Log in'
     };
   }
 
@@ -101,16 +101,16 @@ export function getTwoFactorSecondaryActionState(
 ): LoginSecondaryActionState {
   if (challengeExpired) {
     return {
-      accessibilityHint: 'Returns to credentials so you can request a fresh login code.',
-      accessibilityLabel: 'Request a fresh LunarChain login code',
-      text: 'Request code'
+      accessibilityHint: 'Returns to email and password sign-in. Sign in again to request a fresh code.',
+      accessibilityLabel: 'Return to LunarChain sign in',
+      text: 'Back to sign in'
     };
   }
 
   return {
     accessibilityHint: 'Returns to email and password sign-in.',
-    accessibilityLabel: 'Go back to LunarChain credentials',
-    text: 'Edit sign-in'
+    accessibilityLabel: 'Use a different LunarChain account',
+    text: 'Use a different account'
   };
 }
 

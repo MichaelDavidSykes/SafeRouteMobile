@@ -5,7 +5,11 @@ import { describe, it } from 'node:test';
 
 import {
   buildAuthContentHeaders,
+  buildLoginCodePayload,
+  buildLoginCodeResendPayload,
   buildPasswordLoginBody,
+  buildPasswordResetPayload,
+  buildPasswordResetRequestPayload,
   getAuthErrorMessage,
   normalizeEmail,
   unwrapAuthData
@@ -20,6 +24,38 @@ describe('LunarChain auth payload helpers', () => {
     const body = buildPasswordLoginBody(' user@example.com ', 'secret pass');
 
     assert.equal(body, 'username=user%40example.com&password=secret+pass');
+  });
+
+  it('builds the same MFA payloads as the LunarChain web client', () => {
+    assert.deepEqual(
+      buildLoginCodePayload(' Operator@Example.com ', 'challenge-1', ' 123456 '),
+      {
+        challenge_token: 'challenge-1',
+        code: '123456',
+        email: 'operator@example.com',
+      }
+    );
+    assert.deepEqual(
+      buildLoginCodeResendPayload(' Operator@Example.com ', 'challenge-1'),
+      {
+        challenge_token: 'challenge-1',
+        email: 'operator@example.com',
+      }
+    );
+  });
+
+  it('builds normalized password-reset request and completion payloads', () => {
+    assert.deepEqual(buildPasswordResetRequestPayload(' Operator@Example.com '), {
+      email: 'operator@example.com',
+    });
+    assert.deepEqual(
+      buildPasswordResetPayload(' Operator@Example.com ', ' 123456 ', 'Strong!123'),
+      {
+        code: '123456',
+        email: 'operator@example.com',
+        new_password: 'Strong!123',
+      }
+    );
   });
 
   it('builds content headers without a client-spoofing authentication bypass marker', () => {

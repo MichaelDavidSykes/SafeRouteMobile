@@ -118,6 +118,8 @@ describe('guest map interaction contract', () => {
   });
 
   it('supports a smooth collapsible route sheet and deliberate map long-press actions', () => {
+    assert.match(screen, /resolveGuestRouteSheetHeight\(viewport\.height\)/);
+    assert.doesNotMatch(screen, /viewport\.height\s*-\s*72/);
     assert.match(screen, /Animated\.spring\(sheetProgress/);
     assert.match(screen, /PanResponder\.create/);
     assert.match(screen, /testID=\{uiTestIds\.guestMapCollapsedSheet\}/);

@@ -115,6 +115,7 @@ import {
   type GuestMapCenteredLocation
 } from './guestMapLocation';
 import { createGuestMapRiskSummary } from './guestMapRiskSummary';
+import { resolveGuestRouteSheetHeight } from './guestMapSheetLayout';
 
 const GUEST_ROUTE_PROVIDER_UI_TIMEOUT_MS = 15000;
 const GUEST_LOCATION_SEARCH_DEBOUNCE_MS = 320;
@@ -289,10 +290,7 @@ export function GuestMapScreen({
     : null;
   const origin = routeDraft.origin.label;
   const destination = routeDraft.destination.label;
-  const routeSheetMaxHeight = Math.max(
-    420,
-    viewport.height - 72
-  );
+  const routeSheetMaxHeight = resolveGuestRouteSheetHeight(viewport.height);
   const activeDraftStop = activeInput
     ? findGuestRouteDraftStop(routeDraft, activeInput)
     : null;

@@ -1,6 +1,7 @@
 import type { LatLng } from "react-native-maps";
 
 import type { RiskSeverity, RiskZone, SavedSafeRoutePlan } from "./liveMapTypes";
+import { riskZoneToAvoidRectangles } from "./areaRiskApiCore";
 import type { NavigationLifecycle } from "./liveMapUiState";
 import {
   calculateCumulativeDistances,
@@ -150,8 +151,17 @@ export function routeRiskStartBlockedReason(
   routePlan: SavedSafeRoutePlan
 ): string | null {
   const audit = auditRouteRiskAvoidance(routePlan);
+  const requiredStops = routePlan.checkpoints.map(({ coordinate }) => coordinate);
+  const hardAvoidRiskZoneIds = new Set(
+    routePlan.riskZones
+      .filter((zone) => riskZoneRequiresHardAvoidance(zone, requiredStops))
+      .map(({ id }) => id)
+  );
   const [firstViolation] = audit.violations
-    .filter((violation) => violation.zone.severity === "high")
+    .filter((violation) =>
+      violation.zone.severity === "high" &&
+      hardAvoidRiskZoneIds.has(violation.zone.id)
+    )
     .sort((first, second) => {
       const severityDelta =
         severityPriority(second.zone.severity) - severityPriority(first.zone.severity);
@@ -164,6 +174,21 @@ export function routeRiskStartBlockedReason(
 
   const zoneTitle = normalizeRouteStartBlockedRiskTitle(firstViolation.zone.title);
   return `Route intersects ${zoneTitle}. Re-sync route in SafeRoute planner before starting guidance.`;
+}
+
+function riskZoneRequiresHardAvoidance(
+  zone: RiskZone,
+  requiredStops: LatLng[]
+): boolean {
+  const rectangles = riskZoneToAvoidRectangles(zone);
+  return rectangles.length > 0 && !rectangles.some((rectangle) =>
+    requiredStops.some((stop) =>
+      stop.latitude >= rectangle.min_lat &&
+      stop.latitude <= rectangle.max_lat &&
+      stop.longitude >= rectangle.min_lon &&
+      stop.longitude <= rectangle.max_lon
+    )
+  );
 }
 
 function normalizeRouteStartBlockedRiskTitle(title: string): string {

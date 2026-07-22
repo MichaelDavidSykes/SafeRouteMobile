@@ -341,6 +341,47 @@ describe('guest route planner helpers', () => {
     assert.equal(unsafeRoadPreview, null);
   });
 
+  it('accepts a constrained route through advisory zones that cannot be hard-avoided', () => {
+    const roadSnappedCoordinates = [
+      { latitude: 51.5074, longitude: -0.1278 },
+      { latitude: 51.5062, longitude: -0.0888 },
+      { latitude: 51.5053, longitude: -0.0553 }
+    ];
+    const roadPreview = createGuestRoadSnappedRoutePlan({
+      origin: 'Current location',
+      destination: 'London City',
+      roadSnappedCoordinates,
+      riskZones: [
+        riskZone('broad-advisory', 'West End', roadSnappedCoordinates[1], 1500),
+        riskZone('origin-advisory', 'Local start area', roadSnappedCoordinates[0], 500)
+      ]
+    });
+
+    assert.ok(roadPreview);
+    assert.deepEqual(roadPreview.route.coordinates, roadSnappedCoordinates);
+    assert.deepEqual(
+      roadPreview.riskZones.map(({ title }) => title),
+      ['West End', 'Local start area']
+    );
+  });
+
+  it('still rejects a road preview that enters an enforceable high-risk area', () => {
+    const roadSnappedCoordinates = [
+      { latitude: 51.5074, longitude: -0.1278 },
+      { latitude: 51.5062, longitude: -0.0888 },
+      { latitude: 51.5053, longitude: -0.0553 }
+    ];
+
+    assert.equal(createGuestRoadSnappedRoutePlan({
+      origin: 'Current location',
+      destination: 'London City',
+      roadSnappedCoordinates,
+      riskZones: [
+        riskZone('local-hard-avoid', 'Local hard avoid', roadSnappedCoordinates[1], 300)
+      ]
+    }), null);
+  });
+
   it('falls back to local preview geometry when provider route data is incomplete', () => {
     const route = createGuestRoutePlan({
       authenticated: true,
@@ -600,3 +641,23 @@ describe('guest route planner helpers', () => {
     );
   });
 });
+
+function riskZone(
+  id: string,
+  title: string,
+  coordinate: { latitude: number; longitude: number },
+  radiusMeters: number
+) {
+  return {
+    id,
+    title,
+    description: title,
+    severity: 'high' as const,
+    category: 'Area Risk',
+    coordinate,
+    radiusMeters,
+    markerColor: '#d84a3f',
+    strokeColor: 'rgba(216, 74, 63, 0.72)',
+    fillColor: 'rgba(216, 74, 63, 0.18)'
+  };
+}

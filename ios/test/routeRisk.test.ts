@@ -410,6 +410,41 @@ describe("SafeRoute risk-aware route behavior", () => {
     );
   });
 
+  it("keeps broad and required-stop high-risk areas advisory at route start", () => {
+    const routeCoordinates = [
+      { latitude: 51.5074, longitude: -0.1278 },
+      { latitude: 51.5062, longitude: -0.0888 },
+      { latitude: 51.5053, longitude: -0.0553 },
+    ];
+    const advisoryPlan = mapRouteDtoToSavedPlan({
+      id: "advisory-central-london-route",
+      name: "Advisory central London route",
+      route: { coordinates: routeCoordinates },
+      risk_overlays: [
+        {
+          id: "broad-west-end",
+          title: "West End",
+          severity: "high",
+          category: "area-risk",
+          shape: "circle",
+          coordinate: routeCoordinates[1],
+          radius_meters: 1500,
+        },
+        {
+          id: "origin-area",
+          title: "Origin area",
+          severity: "high",
+          category: "area-risk",
+          shape: "circle",
+          coordinate: routeCoordinates[0],
+          radius_meters: 500,
+        },
+      ],
+    });
+
+    assert.equal(routeRiskStartBlockedReason(advisoryPlan), null);
+  });
+
   it("keeps polygon risk alerts live as the convoy approaches mapped platform areas", () => {
     const routePlan = mapRouteDtoToSavedPlan({
       id: "polygon-alert-route",

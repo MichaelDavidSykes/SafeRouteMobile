@@ -9,6 +9,8 @@ export type SafeRoutePreviewInitialScreen =
   | 'guidance-suspended'
   | 'login'
   | 'login-code'
+  | 'register'
+  | 'register-verification'
   | 'reset-password'
   | 'reset-password-code'
   | 'operations'
@@ -131,6 +133,8 @@ function normalizePreviewInitialScreen(
     normalized === 'login' ||
     normalized === 'guidance-suspended' ||
     normalized === 'login-code' ||
+    normalized === 'register' ||
+    normalized === 'register-verification' ||
     normalized === 'reset-password' ||
     normalized === 'reset-password-code' ||
     normalized === 'operations' ||

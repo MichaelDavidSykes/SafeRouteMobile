@@ -4,6 +4,8 @@ import { join } from 'node:path';
 import { describe, it } from 'node:test';
 
 import {
+  buildAccountRegistrationPayload,
+  buildAccountVerificationPayload,
   buildAuthContentHeaders,
   buildLoginCodePayload,
   buildLoginCodeResendPayload,
@@ -55,6 +57,28 @@ describe('LunarChain auth payload helpers', () => {
         email: 'operator@example.com',
         new_password: 'Strong!123',
       }
+    );
+  });
+
+  it('builds the same registration and verification payloads as LunarChain web', () => {
+    assert.deepEqual(
+      buildAccountRegistrationPayload({
+        email: ' Operator@Example.com ',
+        firstName: ' Safe ',
+        lastName: ' Driver ',
+        password: 'RouteSafe!42',
+      }),
+      {
+        email: 'operator@example.com',
+        first_name: 'Safe',
+        last_name: 'Driver',
+        password: 'RouteSafe!42',
+        username: 'operator@example.com',
+      }
+    );
+    assert.deepEqual(
+      buildAccountVerificationPayload(' Operator@Example.com ', ' 123456 '),
+      { code: '123456', email: 'operator@example.com' }
     );
   });
 

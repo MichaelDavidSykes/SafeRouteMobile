@@ -6,8 +6,10 @@ import type {
   PasswordLoginResult,
   TwoFactorChallenge,
 } from './authTypes';
-import { assertAuthResponseOk } from './authApiCore';
+import { assertAuthResponseOk, assertPublicAuthResponseOk } from './authApiCore';
 import {
+  buildAccountRegistrationPayload,
+  buildAccountVerificationPayload,
   buildAuthContentHeaders,
   buildLoginCodePayload,
   buildLoginCodeResendPayload,
@@ -134,6 +136,41 @@ export async function resetPassword(
   await assertAuthResponseOk(
     response,
     'Unable to reset the password. Check the verification code and try again.'
+  );
+}
+
+export async function registerAccount({
+  email,
+  firstName,
+  lastName,
+  password,
+}: {
+  email: string;
+  firstName: string;
+  lastName: string;
+  password: string;
+}): Promise<void> {
+  const response = await fetchAuthResponse(`${LUNARCHAIN_API_BASE}/auth/register`, {
+    method: 'POST',
+    headers: buildAuthContentHeaders('application/json'),
+    body: JSON.stringify(
+      buildAccountRegistrationPayload({ email, firstName, lastName, password })
+    ),
+  });
+
+  await assertPublicAuthResponseOk(response, 'Unable to create the account.');
+}
+
+export async function verifyAccountEmail(email: string, code: string): Promise<void> {
+  const response = await fetchAuthResponse(`${LUNARCHAIN_API_BASE}/auth/verify-code`, {
+    method: 'POST',
+    headers: buildAuthContentHeaders('application/json'),
+    body: JSON.stringify(buildAccountVerificationPayload(email, code)),
+  });
+
+  await assertPublicAuthResponseOk(
+    response,
+    'Unable to verify the account. Check the verification code and try again.'
   );
 }
 

@@ -1,0 +1,79 @@
+appId: host.exp.Exponent
+---
+- stopApp
+- openLink: exp://localhost:8081
+- runFlow:
+    when:
+      visible: "Open"
+    commands:
+      - tapOn: "Open"
+- waitForAnimationToEnd:
+    timeout: 3000
+- openLink: exp://localhost:8081
+- runFlow:
+    when:
+      visible: "Open"
+    commands:
+      - tapOn: "Open"
+- waitForAnimationToEnd:
+    timeout: 10000
+- tapOn:
+    text: "Close"
+    optional: true
+- extendedWaitUntil:
+    visible:
+      id: "saferoute-app-root"
+    timeout: 45000
+- extendedWaitUntil:
+    visible:
+      id: "safe-route-account-create"
+    timeout: 30000
+- assertVisible: "Create account"
+- assertVisible: "Set up your SafeRoute account"
+- assertVisible:
+    id: "safe-route-account-create-first-name"
+- assertVisible:
+    id: "safe-route-account-create-last-name"
+- assertVisible:
+    id: "safe-route-account-create-email"
+- assertVisible:
+    id: "safe-route-account-create-password"
+- assertVisible:
+    id: "safe-route-account-create-requirement-length"
+- assertVisible:
+    id: "safe-route-account-create-requirement-letter-number"
+- assertVisible:
+    id: "safe-route-account-create-requirement-special"
+- tapOn:
+    id: "safe-route-account-create-first-name"
+- inputText: "Preview"
+- tapOn:
+    id: "safe-route-account-create-last-name"
+- inputText: "Operator"
+- tapOn:
+    id: "safe-route-account-create-email"
+- inputText: "preview.operator@lunarchain.local"
+- tapOn:
+    id: "safe-route-account-create-password"
+- inputText: "RouteSafe!42"
+- hideKeyboard
+- tapOn:
+    id: "safe-route-account-create-submit"
+- extendedWaitUntil:
+    visible:
+      id: "safe-route-account-verify"
+    timeout: 5000
+- assertVisible: "Verify your email"
+- tapOn:
+    id: "safe-route-account-verify-code"
+- inputText: "123456"
+- hideKeyboard
+- tapOn:
+    id: "safe-route-account-verify-submit"
+- extendedWaitUntil:
+    visible:
+      id: "safe-route-login"
+    timeout: 5000
+- assertVisible: "Email verified. Sign in to continue."
+- assertVisible:
+    id: "safe-route-login-create-account"

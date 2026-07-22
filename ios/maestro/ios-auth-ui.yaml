@@ -52,18 +52,34 @@ appId: host.exp.Exponent
     visible:
       id: "safe-route-login"
     timeout: 30000
-- assertVisible: "Log in to LunarChain"
-- assertVisible: "Use your LunarChain account to continue to SafeRoute."
+- assertVisible: "SafeRoute"
 - assertVisible:
     id: "safe-route-login-email"
 - assertVisible:
     id: "safe-route-login-password"
 - assertVisible:
     id: "safe-route-password-reset-open"
+- assertVisible:
+    id: "safe-route-login-create-account"
 - assertNotVisible: "Cloudflare"
 - assertNotVisible: "Turnstile"
 - assertVisible:
     id: "safe-route-login-map-return"
+- tapOn:
+    id: "safe-route-login-create-account"
+- extendedWaitUntil:
+    visible:
+      id: "safe-route-account-create"
+    timeout: 5000
+- assertVisible: "Create account"
+- assertVisible:
+    id: "safe-route-account-create-sign-in"
+- tapOn:
+    id: "safe-route-account-create-sign-in"
+- extendedWaitUntil:
+    visible:
+      id: "safe-route-login"
+    timeout: 5000
 - tapOn:
     id: "safe-route-login-map-return"
 - extendedWaitUntil:

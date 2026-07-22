@@ -1,59 +1,94 @@
 import { StyleSheet, View } from 'react-native';
-import Svg, { Circle, Defs, RadialGradient, Rect, Stop } from 'react-native-svg';
-
-import { authColors } from './authDesign';
-
-const STAR_FIELD = [
-  [7, 12, 0.36],
-  [17, 27, 0.18],
-  [23, 8, 0.24],
-  [31, 39, 0.3],
-  [39, 16, 0.2],
-  [47, 31, 0.32],
-  [55, 7, 0.2],
-  [63, 23, 0.28],
-  [72, 13, 0.34],
-  [81, 34, 0.2],
-  [89, 9, 0.26],
-  [95, 25, 0.18],
-  [11, 58, 0.18],
-  [27, 71, 0.22],
-  [44, 61, 0.16],
-  [68, 76, 0.2],
-  [86, 63, 0.18],
-  [94, 86, 0.16],
-] as const;
+import Svg, { Circle, Defs, G, Path, RadialGradient, Rect, Stop } from 'react-native-svg';
 
 export function AuthBackdrop() {
   return (
     <View accessible={false} pointerEvents="none" style={styles.backdrop}>
-      <Svg height="100%" preserveAspectRatio="none" width="100%">
+      <Svg
+        height="100%"
+        preserveAspectRatio="xMidYMid slice"
+        viewBox="0 0 402 874"
+        width="100%"
+      >
         <Defs>
-          <RadialGradient
-            id="auth-dusk"
-            cx="50%"
-            cy="-8%"
-            fx="50%"
-            fy="-8%"
-            rx="92%"
-            ry="78%"
-          >
-            <Stop offset="0" stopColor="#353955" />
-            <Stop offset="0.42" stopColor={authColors.backgroundSection} />
-            <Stop offset="1" stopColor={authColors.backgroundDeep} />
+          <RadialGradient id="auth-risk" cx="50%" cy="50%" r="50%">
+            <Stop offset="0" stopColor="#E5484D" stopOpacity={0.3} />
+            <Stop offset="0.6" stopColor="#E5484D" stopOpacity={0.12} />
+            <Stop offset="1" stopColor="#E5484D" stopOpacity={0} />
+          </RadialGradient>
+          <RadialGradient id="auth-vignette" cx="50%" cy="42%" r="78%">
+            <Stop offset="0" stopColor="#080A0F" stopOpacity={0} />
+            <Stop offset="0.48" stopColor="#080A0F" stopOpacity={0.08} />
+            <Stop offset="1" stopColor="#080A0F" stopOpacity={0.82} />
           </RadialGradient>
         </Defs>
-        <Rect fill="url(#auth-dusk)" height="100%" width="100%" />
-        {STAR_FIELD.map(([x, y, opacity], index) => (
-          <Circle
-            key={`${x}-${y}`}
-            cx={`${x}%`}
-            cy={`${y}%`}
-            fill={index % 4 === 0 ? authColors.accent : authColors.text}
-            opacity={opacity}
-            r={index % 3 === 0 ? 1.2 : 0.8}
+
+        <Rect fill="#0A0C11" height="874" width="402" />
+        <Circle cx="245" cy="470" fill="url(#auth-risk)" r="88" />
+        <Circle
+          cx="245"
+          cy="470"
+          fill="none"
+          r="88"
+          stroke="#E5484D"
+          strokeOpacity={0.4}
+          strokeWidth="1.5"
+        />
+        <G opacity={0.8} transform="translate(245 470)">
+          <Path
+            d="M0 -11 L11 9 L-11 9 Z"
+            fill="none"
+            stroke="#E5484D"
+            strokeLinejoin="round"
+            strokeWidth="2.4"
           />
-        ))}
+          <Path
+            d="M0 -3 V4 M0 6.5 V7"
+            stroke="#E5484D"
+            strokeLinecap="round"
+            strokeWidth="2.4"
+          />
+        </G>
+
+        <Path
+          d="M322 814 C250 724 132 662 118 500 C108 372 182 300 230 248 C272 204 298 168 310 120"
+          fill="none"
+          stroke="#5CA4FF"
+          strokeLinecap="round"
+          strokeOpacity={0.22}
+          strokeWidth="10"
+        />
+        <Path
+          d="M322 814 C250 724 132 662 118 500 C108 372 182 300 230 248 C272 204 298 168 310 120"
+          fill="none"
+          stroke="#FFFFFF"
+          strokeDasharray="1 16"
+          strokeLinecap="round"
+          strokeOpacity={0.5}
+          strokeWidth="1.5"
+        />
+
+        <Circle cx="322" cy="814" fill="#30B85A" r="9" stroke="#0A0C11" strokeWidth="3" />
+        <Circle
+          cx="322"
+          cy="814"
+          fill="none"
+          r="17"
+          stroke="#30B85A"
+          strokeOpacity={0.35}
+          strokeWidth="1.5"
+        />
+        <G transform="translate(310 120)">
+          <Path
+            d="M0 18 C0 18 13 4 13 -6 A13 13 0 1 0 -13 -6 C-13 4 0 18 0 18 Z"
+            fill="#5CA4FF"
+            stroke="#0A0C11"
+            strokeWidth="2.5"
+          />
+          <Circle cx="0" cy="-6" fill="#0A0C11" r="4.5" />
+        </G>
+
+        <Rect fill="url(#auth-vignette)" height="874" width="402" />
       </Svg>
     </View>
   );

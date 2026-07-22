@@ -2,6 +2,7 @@ import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import {
   AccessibilityInfo,
   ActivityIndicator,
+  Image,
   KeyboardAvoidingView,
   Platform,
   Pressable,
@@ -16,7 +17,10 @@ import { ArrowLeft, Eye, EyeOff } from 'lucide-react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { getUserFacingErrorMessage } from '../api/userFacingErrors';
-import { SAFEROUTE_CONNECTIVITY_CONTRACT_ENABLED } from '../../config/env';
+import {
+  SAFEROUTE_CONNECTIVITY_CONTRACT_ENABLED,
+  SAFEROUTE_PREVIEW_MODE_ENABLED,
+} from '../../config/env';
 import { uiTestIds } from '../../testing/uiTestIds';
 import {
   loginWithPassword,
@@ -27,6 +31,7 @@ import {
 } from './authApi';
 import { AuthBackdrop } from './AuthBackdrop';
 import { authColors } from './authDesign';
+import { CreateAccountScreen } from './CreateAccountScreen';
 import {
   resolveLoginCredentialDefaults,
   resolveLoginPasswordAutofillHints,
@@ -65,7 +70,12 @@ const LOGIN_CONNECTION_MESSAGE =
   'Unable to reach LunarChain. Check your connection and try again.';
 const ICON_BUTTON_HIT_SLOP = 8;
 
-export type LoginInitialView = 'credentials' | 'reset-request' | 'reset-code';
+export type LoginInitialView =
+  | 'credentials'
+  | 'register'
+  | 'register-verification'
+  | 'reset-request'
+  | 'reset-code';
 type LoginView = LoginInitialView | 'mfa' | 'reset-success';
 type FocusedField =
   | 'email'
@@ -202,6 +212,7 @@ export function LoginScreen({
   const [resendingCode, setResendingCode] = useState(false);
   const [errorMessage, setErrorMessage] = useState('');
   const [mfaNotice, setMfaNotice] = useState('');
+  const [accountNotice, setAccountNotice] = useState('');
   const [challengeClockRevision, refreshChallengeExpiry] = useState(0);
   const [resetEmail, setResetEmail] = useState(initialLoginEmail);
   const [resetCode, setResetCode] = useState('');
@@ -457,6 +468,13 @@ export function LoginScreen({
     setView('reset-request');
   };
 
+  const openCreateAccount = () => {
+    setAccountNotice('');
+    setErrorMessage('');
+    setPassword('');
+    setView('register');
+  };
+
   const submitResetRequest = async () => {
     const validationError = getPasswordResetRequestError(resetEmail);
     if (validationError) {
@@ -538,7 +556,6 @@ export function LoginScreen({
     backToCredentials();
   };
 
-  const showBackButton = view !== 'credentials' || Boolean(onCancel);
   const resetRequestDisabled =
     loading || Boolean(getPasswordResetRequestError(resetEmail));
   const resetSubmitDisabled =
@@ -546,6 +563,266 @@ export function LoginScreen({
     sanitizeLoginCode(resetCode).length !== 6 ||
     !newPassword ||
     !confirmPassword;
+
+  if (view === 'register' || view === 'register-verification') {
+    return (
+      <CreateAccountScreen
+        initialEmail={
+          view === 'register-verification'
+            ? initialEmail || 'preview.operator@lunarchain.local'
+            : email
+        }
+        initialStep={view === 'register-verification' ? 'verification' : 'details'}
+        previewMode={SAFEROUTE_PREVIEW_MODE_ENABLED}
+        onBack={backToCredentials}
+        onVerified={(verifiedEmail) => {
+          setEmail(verifiedEmail);
+          setPassword('');
+          setAccountNotice('Email verified. Sign in to continue.');
+          setView('credentials');
+        }}
+      />
+    );
+  }
+
+  if (view === 'credentials') {
+    return (
+      <SafeAreaView style={styles.screen} testID={uiTestIds.loginScreen}>
+        <AuthBackdrop />
+        {onCancel ? (
+          <Pressable
+            accessibilityHint={mapReturnAction.accessibilityHint}
+            accessibilityLabel={mapReturnAction.accessibilityLabel}
+            accessibilityRole="button"
+            disabled={formBusy}
+            hitSlop={ICON_BUTTON_HIT_SLOP}
+            style={({ pressed }) => [
+              styles.handoffBackButton,
+              pressed && !formBusy ? styles.handoffBackButtonPressed : null,
+              formBusy ? styles.backButtonDisabled : null,
+            ]}
+            testID={uiTestIds.loginMapReturn}
+            onPress={handleBack}
+          >
+            <ArrowLeft color="#FFFFFF" size={20} strokeWidth={2.4} />
+          </Pressable>
+        ) : null}
+        <KeyboardAvoidingView
+          behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+          keyboardVerticalOffset={loginLayout.keyboardVerticalOffset}
+          style={styles.keyboardShell}
+        >
+          <ScrollView
+            automaticallyAdjustKeyboardInsets
+            contentContainerStyle={[
+              styles.handoffScrollContent,
+              loginLayout.compact ? styles.handoffScrollContentCompact : null,
+            ]}
+            keyboardDismissMode="interactive"
+            keyboardShouldPersistTaps="handled"
+            showsVerticalScrollIndicator={false}
+          >
+            <View style={styles.handoffHeader}>
+              <Image
+                accessibilityIgnoresInvertColors
+                accessibilityLabel="SafeRoute"
+                source={require('../../../assets/logo-mark.png')}
+                style={styles.handoffLogo}
+              />
+              <Text accessibilityRole="header" style={styles.handoffBrand}>SafeRoute</Text>
+            </View>
+
+            <View style={styles.handoffForm}>
+              {loginNoticeState ? (
+                <StatusBox
+                  accessibilityLabel={loginNoticeState.accessibilityLabel || undefined}
+                  tone="notice"
+                  testID={uiTestIds.loginNotice}
+                >
+                  {loginNoticeState.message}
+                </StatusBox>
+              ) : null}
+              {accountNotice ? <StatusBox tone="success">{accountNotice}</StatusBox> : null}
+
+              <View
+                style={[
+                  styles.handoffInputShell,
+                  focusedField === 'email' ? styles.handoffInputShellFocused : null,
+                  formBusy ? styles.inputShellDisabled : null,
+                ]}
+              >
+                <TextInput
+                  accessibilityHint="Enter the email address for your LunarChain account."
+                  accessibilityLabel="LunarChain email"
+                  autoCapitalize="none"
+                  autoComplete="username"
+                  autoCorrect={false}
+                  editable={!formBusy}
+                  keyboardType="email-address"
+                  placeholder="Email"
+                  placeholderTextColor="#B0B0B5"
+                  returnKeyType="next"
+                  style={styles.handoffInput}
+                  testID={uiTestIds.loginEmail}
+                  textContentType="username"
+                  value={email}
+                  onBlur={() => setFocusedField(null)}
+                  onChangeText={(value) => {
+                    setEmail(value);
+                    setAccountNotice('');
+                    clearLoginError();
+                  }}
+                  onFocus={() => setFocusedField('email')}
+                  onSubmitEditing={() => passwordInputRef.current?.focus()}
+                />
+              </View>
+
+              <View
+                style={[
+                  styles.handoffInputShell,
+                  focusedField === 'password' ? styles.handoffInputShellFocused : null,
+                  formBusy ? styles.inputShellDisabled : null,
+                ]}
+              >
+                <TextInput
+                  {...passwordAutofillHints}
+                  ref={passwordInputRef}
+                  accessibilityHint="Enter your LunarChain account password."
+                  accessibilityLabel="LunarChain password"
+                  autoCapitalize="none"
+                  editable={!formBusy}
+                  placeholder="Password"
+                  placeholderTextColor="#B0B0B5"
+                  returnKeyType="go"
+                  secureTextEntry={
+                    !passwordVisible && !SAFEROUTE_CONNECTIVITY_CONTRACT_ENABLED
+                  }
+                  style={styles.handoffInput}
+                  testID={uiTestIds.loginPassword}
+                  value={password}
+                  onBlur={() => setFocusedField(null)}
+                  onChangeText={(value) => {
+                    setPassword(value);
+                    setAccountNotice('');
+                    clearLoginError();
+                  }}
+                  onFocus={() => setFocusedField('password')}
+                  onSubmitEditing={submitCredentials}
+                />
+                <Pressable
+                  accessibilityLabel={
+                    passwordVisible ? 'Hide LunarChain password' : 'Show LunarChain password'
+                  }
+                  accessibilityRole="button"
+                  accessibilityState={{ selected: passwordVisible }}
+                  disabled={formBusy}
+                  hitSlop={ICON_BUTTON_HIT_SLOP}
+                  style={({ pressed }) => [
+                    styles.passwordToggle,
+                    pressed && !formBusy ? styles.passwordTogglePressed : null,
+                    formBusy ? styles.passwordToggleDisabled : null,
+                  ]}
+                  onPress={() => setPasswordVisible((value) => !value)}
+                >
+                  {passwordVisible ? (
+                    <EyeOff color="#7F838C" size={19} strokeWidth={1.8} />
+                  ) : (
+                    <Eye color="#7F838C" size={19} strokeWidth={1.8} />
+                  )}
+                </Pressable>
+              </View>
+
+              {loginErrorState ? (
+                <StatusBox
+                  accessibilityLabel={loginErrorState.accessibilityLabel || undefined}
+                  tone="danger"
+                >
+                  {loginErrorState.message}
+                </StatusBox>
+              ) : null}
+
+              {onRetrySavedSession ? (
+                <Pressable
+                  accessibilityLabel={
+                    savedSessionRetrying
+                      ? 'Verifying saved session'
+                      : 'Retry saved session verification'
+                  }
+                  accessibilityRole="button"
+                  accessibilityState={{ busy: savedSessionRetrying, disabled: formBusy }}
+                  disabled={formBusy}
+                  style={({ pressed }) => [
+                    styles.savedSessionRetryButton,
+                    pressed && !formBusy ? styles.savedSessionRetryButtonPressed : null,
+                    formBusy ? styles.secondaryButtonDisabled : null,
+                  ]}
+                  testID={uiTestIds.loginSavedSessionRetry}
+                  onPress={onRetrySavedSession}
+                >
+                  {savedSessionRetrying ? <ActivityIndicator color="#5CB0FF" /> : null}
+                  <Text style={styles.savedSessionRetryButtonText}>
+                    {savedSessionRetrying ? 'Verifying...' : 'Retry saved session'}
+                  </Text>
+                </Pressable>
+              ) : null}
+
+              <Pressable
+                accessibilityHint={primaryActionState.accessibilityHint}
+                accessibilityLabel={primaryActionState.accessibilityLabel}
+                accessibilityRole="button"
+                accessibilityState={{ disabled: primaryActionDisabled }}
+                disabled={primaryActionDisabled}
+                style={({ pressed }) => [
+                  styles.handoffPrimaryButton,
+                  pressed && !primaryActionDisabled
+                    ? styles.handoffPrimaryButtonPressed
+                    : null,
+                  primaryActionDisabled ? styles.handoffPrimaryButtonDisabled : null,
+                ]}
+                testID={uiTestIds.loginPrimaryAction}
+                onPress={submitCredentials}
+              >
+                {loading ? <ActivityIndicator color="#12141A" /> : null}
+                <Text style={styles.handoffPrimaryButtonText}>
+                  {loading ? 'Signing in...' : 'Sign in'}
+                </Text>
+              </Pressable>
+
+              <View style={styles.handoffFooter}>
+                <Pressable
+                  accessibilityLabel="Forgot password"
+                  accessibilityRole="button"
+                  disabled={formBusy}
+                  style={({ pressed }) => [
+                    styles.handoffFooterButton,
+                    pressed && !formBusy ? styles.handoffFooterButtonPressed : null,
+                  ]}
+                  testID={uiTestIds.passwordResetOpen}
+                  onPress={openPasswordReset}
+                >
+                  <Text style={styles.handoffFooterMutedText}>Forgot password?</Text>
+                </Pressable>
+                <View style={styles.handoffFooterDot} />
+                <Pressable
+                  accessibilityLabel="Create account"
+                  accessibilityRole="button"
+                  disabled={formBusy}
+                  style={({ pressed }) => [
+                    styles.handoffFooterButton,
+                    pressed && !formBusy ? styles.handoffFooterButtonPressed : null,
+                  ]}
+                  testID={uiTestIds.loginCreateAccount}
+                  onPress={openCreateAccount}
+                >
+                  <Text style={styles.handoffFooterLinkText}>Create account</Text>
+                </Pressable>
+              </View>
+            </View>
+          </ScrollView>
+        </KeyboardAvoidingView>
+      </SafeAreaView>
+    );
+  }
 
   return (
     <SafeAreaView style={styles.screen} testID={uiTestIds.loginScreen}>
@@ -573,232 +850,24 @@ export function LoginScreen({
                 style={styles.cardBlur}
                 tint="systemMaterialDark"
               />
-            {showBackButton ? (
-              <Pressable
-                accessibilityHint={
-                  view === 'credentials'
-                    ? mapReturnAction.accessibilityHint
-                    : 'Returns to the previous authentication step.'
-                }
-                accessibilityLabel={
-                  view === 'credentials'
-                    ? mapReturnAction.accessibilityLabel
-                    : 'Back'
-                }
-                accessibilityRole="button"
-                disabled={formBusy}
-                hitSlop={ICON_BUTTON_HIT_SLOP}
-                style={({ pressed }) => [
-                  styles.backButton,
-                  pressed && !formBusy ? styles.backButtonPressed : null,
-                  formBusy ? styles.backButtonDisabled : null,
-                ]}
-                testID={
-                  view === 'credentials'
-                    ? uiTestIds.loginMapReturn
-                    : uiTestIds.authBack
-                }
-                onPress={handleBack}
-              >
-                <ArrowLeft color={authColors.text} size={20} strokeWidth={2} />
-              </Pressable>
-            ) : null}
+            <Pressable
+              accessibilityHint="Returns to the previous authentication step."
+              accessibilityLabel="Back"
+              accessibilityRole="button"
+              disabled={formBusy}
+              hitSlop={ICON_BUTTON_HIT_SLOP}
+              style={({ pressed }) => [
+                styles.backButton,
+                pressed && !formBusy ? styles.backButtonPressed : null,
+                formBusy ? styles.backButtonDisabled : null,
+              ]}
+              testID={uiTestIds.authBack}
+              onPress={handleBack}
+            >
+              <ArrowLeft color={authColors.text} size={20} strokeWidth={2} />
+            </Pressable>
 
             <AuthHeader {...headerState} />
-
-            {view === 'credentials' ? (
-              <View style={styles.form}>
-                {loginNoticeState ? (
-                  <StatusBox
-                    accessibilityLabel={loginNoticeState.accessibilityLabel || undefined}
-                    tone="notice"
-                    testID={uiTestIds.loginNotice}
-                  >
-                    {loginNoticeState.message}
-                  </StatusBox>
-                ) : null}
-
-                <View style={styles.field}>
-                  <View style={styles.labelRow}>
-                    <Text style={styles.label}>Email</Text>
-                  </View>
-                  <View
-                    style={[
-                      styles.inputShell,
-                      focusedField === 'email' ? styles.inputShellFocused : null,
-                      formBusy ? styles.inputShellDisabled : null,
-                    ]}
-                  >
-                    <TextInput
-                      accessibilityHint="Enter the email address for your LunarChain account."
-                      accessibilityLabel="LunarChain email"
-                      autoCapitalize="none"
-                      autoComplete="username"
-                      autoCorrect={false}
-                      editable={!formBusy}
-                      keyboardType="email-address"
-                      placeholder="you@example.com"
-                      placeholderTextColor={authColors.muted}
-                      returnKeyType="next"
-                      style={styles.input}
-                      testID={uiTestIds.loginEmail}
-                      textContentType="username"
-                      value={email}
-                      onBlur={() => setFocusedField(null)}
-                      onChangeText={(value) => {
-                        setEmail(value);
-                        clearLoginError();
-                      }}
-                      onFocus={() => setFocusedField('email')}
-                      onSubmitEditing={() => passwordInputRef.current?.focus()}
-                    />
-                  </View>
-                </View>
-
-                <View style={styles.field}>
-                  <View style={styles.labelRow}>
-                    <Text style={styles.label}>Password</Text>
-                    <Pressable
-                      accessibilityLabel="Forgot password"
-                      accessibilityRole="button"
-                      disabled={formBusy}
-                      style={({ pressed }) => [
-                        styles.inlineButton,
-                        pressed && !formBusy ? styles.inlineButtonPressed : null,
-                        formBusy ? styles.inlineButtonDisabled : null,
-                      ]}
-                      testID={uiTestIds.passwordResetOpen}
-                      onPress={openPasswordReset}
-                    >
-                      <Text style={styles.inlineButtonText}>Forgot password?</Text>
-                    </Pressable>
-                  </View>
-                  <View
-                    style={[
-                      styles.inputShell,
-                      focusedField === 'password' ? styles.inputShellFocused : null,
-                      formBusy ? styles.inputShellDisabled : null,
-                    ]}
-                  >
-                    <TextInput
-                      {...passwordAutofillHints}
-                      ref={passwordInputRef}
-                      accessibilityHint="Enter your LunarChain account password."
-                      accessibilityLabel="LunarChain password"
-                      autoCapitalize="none"
-                      editable={!formBusy}
-                      placeholder="Enter your password"
-                      placeholderTextColor={authColors.muted}
-                      returnKeyType="go"
-                      secureTextEntry={
-                        !passwordVisible && !SAFEROUTE_CONNECTIVITY_CONTRACT_ENABLED
-                      }
-                      style={styles.input}
-                      testID={uiTestIds.loginPassword}
-                      value={password}
-                      onBlur={() => setFocusedField(null)}
-                      onChangeText={(value) => {
-                        setPassword(value);
-                        clearLoginError();
-                      }}
-                      onFocus={() => setFocusedField('password')}
-                      onSubmitEditing={submitCredentials}
-                    />
-                    <Pressable
-                      accessibilityHint={
-                        passwordVisible
-                          ? 'Masks the password field.'
-                          : 'Reveals the password field for review.'
-                      }
-                      accessibilityLabel={
-                        passwordVisible
-                          ? 'Hide LunarChain password'
-                          : 'Show LunarChain password'
-                      }
-                      accessibilityRole="button"
-                      accessibilityState={{ selected: passwordVisible }}
-                      disabled={formBusy}
-                      hitSlop={ICON_BUTTON_HIT_SLOP}
-                      style={({ pressed }) => [
-                        styles.passwordToggle,
-                        pressed && !formBusy ? styles.passwordTogglePressed : null,
-                        formBusy ? styles.passwordToggleDisabled : null,
-                      ]}
-                      onPress={() => setPasswordVisible((value) => !value)}
-                    >
-                      {passwordVisible ? (
-                        <EyeOff color={authColors.accent} size={19} strokeWidth={2} />
-                      ) : (
-                        <Eye color={authColors.accent} size={19} strokeWidth={2} />
-                      )}
-                    </Pressable>
-                  </View>
-                </View>
-
-                {loginErrorState ? (
-                  <StatusBox
-                    accessibilityLabel={loginErrorState.accessibilityLabel || undefined}
-                    tone="danger"
-                  >
-                    {loginErrorState.message}
-                  </StatusBox>
-                ) : null}
-
-                {onRetrySavedSession ? (
-                  <Pressable
-                    accessibilityHint="Checks the saved account before any workspace, route, or Calendar data is shown."
-                    accessibilityLabel={
-                      savedSessionRetrying
-                        ? 'Verifying saved session'
-                        : 'Retry saved session verification'
-                    }
-                    accessibilityRole="button"
-                    accessibilityState={{ busy: savedSessionRetrying, disabled: formBusy }}
-                    disabled={formBusy}
-                    style={({ pressed }) => [
-                      styles.savedSessionRetryButton,
-                      pressed && !formBusy
-                        ? styles.savedSessionRetryButtonPressed
-                        : null,
-                      formBusy ? styles.secondaryButtonDisabled : null,
-                    ]}
-                    testID={uiTestIds.loginSavedSessionRetry}
-                    onPress={onRetrySavedSession}
-                  >
-                    {savedSessionRetrying ? (
-                      <ActivityIndicator color={authColors.accent} />
-                    ) : null}
-                    <Text style={styles.savedSessionRetryButtonText}>
-                      {savedSessionRetrying ? 'Verifying...' : 'Retry saved session'}
-                    </Text>
-                  </Pressable>
-                ) : null}
-
-                <Pressable
-                  accessibilityHint={primaryActionState.accessibilityHint}
-                  accessibilityLabel={primaryActionState.accessibilityLabel}
-                  accessibilityRole="button"
-                  accessibilityState={{ disabled: primaryActionDisabled }}
-                  disabled={primaryActionDisabled}
-                  style={({ pressed }) => [
-                    styles.primaryButton,
-                    pressed && !primaryActionDisabled
-                      ? styles.primaryButtonPressed
-                      : null,
-                    primaryActionDisabled ? styles.primaryButtonDisabled : null,
-                  ]}
-                  testID={uiTestIds.loginPrimaryAction}
-                  onPress={submitCredentials}
-                >
-                  {loading ? (
-                    <ActivityIndicator color={authColors.accentInk} />
-                  ) : null}
-                  <Text style={styles.primaryButtonText}>
-                    {primaryActionState.text}
-                  </Text>
-                </Pressable>
-              </View>
-            ) : null}
 
             {view === 'mfa' ? (
               <View style={styles.form}>

@@ -7,6 +7,14 @@ interface AuthResponseData {
   expires_at?: string;
 }
 
+export interface AccountRegistrationPayload {
+  email: string;
+  first_name: string;
+  last_name: string;
+  password: string;
+  username: string;
+}
+
 export function normalizeEmail(email: string): string {
   return String(email || '').trim().toLowerCase();
 }
@@ -56,6 +64,35 @@ export function buildPasswordResetPayload(
     code: String(code || '').trim(),
     email: normalizeEmail(email),
     new_password: newPassword,
+  };
+}
+
+export function buildAccountRegistrationPayload({
+  email,
+  firstName,
+  lastName,
+  password,
+}: {
+  email: string;
+  firstName: string;
+  lastName: string;
+  password: string;
+}): AccountRegistrationPayload {
+  const normalizedEmail = normalizeEmail(email);
+
+  return {
+    email: normalizedEmail,
+    first_name: firstName.trim(),
+    last_name: lastName.trim(),
+    password,
+    username: normalizedEmail,
+  };
+}
+
+export function buildAccountVerificationPayload(email: string, code: string) {
+  return {
+    code: String(code || '').trim(),
+    email: normalizeEmail(email),
   };
 }
 

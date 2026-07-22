@@ -31,6 +31,37 @@ export function reconcileUnavailableWorkspaceIds({
   return unavailable;
 }
 
+export async function findVerifiedRestoredWorkspaceIds({
+  freshWorkspaces,
+  unavailableWorkspaceIds,
+  verifyWorkspace,
+}: {
+  freshWorkspaces: SafeRouteWorkspace[];
+  unavailableWorkspaceIds: Iterable<string>;
+  verifyWorkspace: (workspaceId: string) => Promise<boolean>;
+}): Promise<string[]> {
+  const freshWorkspaceIds = new Set(
+    freshWorkspaces.map((workspace) => normalizeWorkspaceId(workspace?.id)).filter(Boolean),
+  );
+  const candidates = Array.from(
+    new Set(
+      Array.from(unavailableWorkspaceIds, normalizeWorkspaceId).filter(
+        (workspaceId) => workspaceId && freshWorkspaceIds.has(workspaceId),
+      ),
+    ),
+  );
+  const verificationResults = await Promise.all(
+    candidates.map(async (workspaceId) => ({
+      restored: await verifyWorkspace(workspaceId),
+      workspaceId,
+    })),
+  );
+
+  return verificationResults
+    .filter(({ restored }) => restored)
+    .map(({ workspaceId }) => workspaceId);
+}
+
 export function findRestoredWorkspaceIds(
   previousUnavailableWorkspaceIds: Iterable<string>,
   nextUnavailableWorkspaceIds: Iterable<string>,

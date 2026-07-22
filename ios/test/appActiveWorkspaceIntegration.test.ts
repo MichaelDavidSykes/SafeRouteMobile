@@ -394,14 +394,16 @@ describe("App active workspace integration", () => {
     );
   });
 
-  it("restores a denied membership only after an explicit fresh catalog retry", () => {
+  it("restores denied membership after explicit retry or scoped automatic verification", () => {
     const app = appSource();
 
     assert.match(app, /restoreUnavailableWorkspacesFromFreshCatalogRef = useRef\(false\)/);
     assert.match(app, /allowFreshWorkspaceRestoration[\s\S]*fetchSavedRoutes\(accessToken\)[\s\S]*normalizedCatalog[\s\S]*restoreUnavailableWorkspacesFromFreshCatalogRef\.current = false/);
     assert.match(app, /normalizedCatalog = normalizeWorkspaceCatalog\(result\.clients\)/);
     assert.match(app, /fetchSavedRoutes\(accessToken\)[\s\S]*!onlineRequestIsCurrent\(\)[\s\S]*return[\s\S]*reconcileUnavailableWorkspaceIds/);
-    assert.match(app, /reconcileUnavailableWorkspaceIds\(\{[\s\S]*allowFreshRestoration: allowFreshWorkspaceRestoration[\s\S]*freshWorkspaces: normalizedCatalog/);
+    assert.match(app, /verifiedRestoredWorkspaceIds = allowFreshWorkspaceRestoration[\s\S]*findVerifiedRestoredWorkspaceIds\(\{[\s\S]*fetchSavedRoutes\(accessToken, workspaceId\)[\s\S]*error instanceof ApiSessionExpiredError/);
+    assert.match(app, /findVerifiedRestoredWorkspaceIds\([\s\S]*!onlineRequestIsCurrent\(\)[\s\S]*return;[\s\S]*reconcileUnavailableWorkspaceIds/);
+    assert.match(app, /reconcileUnavailableWorkspaceIds\(\{[\s\S]*allowFreshRestoration:[\s\S]*allowFreshWorkspaceRestoration \|\|[\s\S]*verifiedRestoredWorkspaceIds\.length > 0[\s\S]*freshWorkspaces: allowFreshWorkspaceRestoration[\s\S]*normalizedCatalog\.filter/);
     assert.match(app, /previousUnavailableWorkspaceIds[\s\S]*workspaceAccessRestored = findRestoredWorkspaceIds\([\s\S]*previousUnavailableWorkspaceIds,[\s\S]*unavailableWorkspaceIds,[\s\S]*\)\.length > 0/);
     assert.match(app, /workspaceAccessRestored[\s\S]*Workspace access refreshed\./);
     assert.match(app, /catalogRetryWasRequested[\s\S]*Workspace access verified\./);

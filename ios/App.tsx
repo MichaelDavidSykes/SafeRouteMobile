@@ -164,6 +164,7 @@ import {
   resolveWorkspaceAccessRecovery
 } from './src/features/workspaces/workspaceAccessRecovery';
 import {
+  findVerifiedRestoredWorkspaceIds,
   findRestoredWorkspaceIds,
   reconcileUnavailableWorkspaceIds
 } from './src/features/workspaces/workspaceMembershipRevalidation';
@@ -2650,9 +2651,40 @@ function SafeRouteApp() {
         const previousUnavailableWorkspaceIds = new Set(
           unavailableWorkspaceIdsRef.current,
         );
+        // A full catalog can lag behind a workspace-scoped denial. Restore an
+        // automatic tombstone only after that exact workspace authorizes again.
+        const verifiedRestoredWorkspaceIds = allowFreshWorkspaceRestoration
+          ? []
+          : await findVerifiedRestoredWorkspaceIds({
+              freshWorkspaces: normalizedCatalog,
+              unavailableWorkspaceIds: previousUnavailableWorkspaceIds,
+              verifyWorkspace: async (workspaceId) => {
+                try {
+                  await fetchSavedRoutes(accessToken, workspaceId);
+                  return true;
+                } catch (error) {
+                  if (error instanceof ApiSessionExpiredError) {
+                    throw error;
+                  }
+                  return false;
+                }
+              },
+            });
+        if (!onlineRequestIsCurrent()) {
+          return;
+        }
+        const verifiedRestoredWorkspaceIdSet = new Set(
+          verifiedRestoredWorkspaceIds,
+        );
         const unavailableWorkspaceIds = reconcileUnavailableWorkspaceIds({
-          allowFreshRestoration: allowFreshWorkspaceRestoration,
-          freshWorkspaces: normalizedCatalog,
+          allowFreshRestoration:
+            allowFreshWorkspaceRestoration ||
+            verifiedRestoredWorkspaceIds.length > 0,
+          freshWorkspaces: allowFreshWorkspaceRestoration
+            ? normalizedCatalog
+            : normalizedCatalog.filter((workspace) =>
+                verifiedRestoredWorkspaceIdSet.has(workspace.id),
+              ),
           unavailableWorkspaceIds: unavailableWorkspaceIdsRef.current,
         });
         const pendingNavigation = pendingNavigationRestoreRef.current;

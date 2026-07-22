@@ -1119,7 +1119,7 @@ export function GuestMapScreen({
     setMapAction(null);
     setSelectedRiskZone(null);
     mapRef.current?.animateCamera(
-      { center: liveCoordinate },
+      { center: liveCoordinate, heading: 0, pitch: 0 },
       { duration: 450 }
     );
   };
@@ -1464,7 +1464,7 @@ export function GuestMapScreen({
         userInterfaceStyle="dark"
         onMapReady={() => {
           setMapReady(true);
-          mapRef.current?.animateCamera({ heading: 0, pitch: 38 }, { duration: 0 });
+          mapRef.current?.animateCamera({ heading: 0, pitch: 0 }, { duration: 0 });
         }}
         onLongPress={(event) => handleMapLongPress(event.nativeEvent.coordinate)}
         onPress={handleMapPress}

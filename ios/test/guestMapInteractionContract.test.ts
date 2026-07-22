@@ -55,7 +55,7 @@ describe('guest map interaction contract', () => {
     assert.doesNotMatch(screen, /currentLocationControlBottom = sheetProgress\.interpolate/);
     assert.match(
       screen,
-      /handleCenterCurrentLocation[\s\S]*!mapReady \|\| !liveCoordinate[\s\S]*userMovedMapRef\.current = false[\s\S]*animateCamera\([\s\S]*center: liveCoordinate/,
+      /handleCenterCurrentLocation[\s\S]*!mapReady \|\| !liveCoordinate[\s\S]*userMovedMapRef\.current = false[\s\S]*animateCamera\([\s\S]*center: liveCoordinate, heading: 0, pitch: 0/,
     );
     assert.match(styles, /currentLocationButton:[\s\S]*width: 46[\s\S]*height: 46/);
     assert.match(screen, /<Crosshair/);

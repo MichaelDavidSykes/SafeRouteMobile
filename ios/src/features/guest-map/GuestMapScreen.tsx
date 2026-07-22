@@ -32,7 +32,7 @@ import MapView, {
   type MapPressEvent,
   type Region,
 } from 'react-native-maps';
-import { SafeAreaView } from 'react-native-safe-area-context';
+import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { LUNARCHAIN_API_BASE, SAFEROUTE_PREVIEW_MODE_ENABLED } from '../../config/env';
 import { chrome, colors, spacing } from '../../theme';
@@ -194,6 +194,7 @@ export function GuestMapScreen({
   workspaceSwitchDisabled = false
 }: GuestMapScreenProps) {
   const viewport = useWindowDimensions();
+  const safeAreaInsets = useSafeAreaInsets();
   const {
     checking: networkChecking,
     offline,
@@ -1595,7 +1596,11 @@ export function GuestMapScreen({
         pointerEvents="box-none"
         style={styles.overlay}
       >
-      <SafeAreaView pointerEvents="box-none" style={styles.overlay}>
+      <SafeAreaView
+        edges={['top', 'right', 'left']}
+        pointerEvents="box-none"
+        style={styles.overlay}
+      >
         {sheetCollapsed && !selectedRiskZone ? (
         <View pointerEvents="box-none" style={styles.currentLocationControlDock}>
           <Pressable
@@ -1900,7 +1905,10 @@ export function GuestMapScreen({
             pointerEvents={sheetCollapsed ? 'none' : 'auto'}
             style={[
               styles.sheet,
-              { height: routeSheetMaxHeight },
+              {
+                height: routeSheetMaxHeight,
+                paddingBottom: spacing.lg + safeAreaInsets.bottom,
+              },
               {
                 opacity: sheetProgress.interpolate({
                   inputRange: [0, 0.72, 1],

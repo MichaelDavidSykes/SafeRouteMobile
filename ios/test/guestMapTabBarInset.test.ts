@@ -41,4 +41,20 @@ describe('guest map tab bar inset', () => {
     assert.ok(dockEnd > dockStart);
     assert.ok(collapsedSearch > dockEnd);
   });
+
+  it('docks the expanded planner below the hidden tab bar without exposing the map', () => {
+    const screenSource = readFileSync(
+      join(process.cwd(), 'src/features/guest-map/GuestMapScreen.tsx'),
+      'utf8',
+    );
+
+    assert.match(
+      screenSource,
+      /<SafeAreaView[\s\S]*edges=\{\['top', 'right', 'left'\]\}/,
+    );
+    assert.match(
+      screenSource,
+      /height: routeSheetMaxHeight,[\s\S]*paddingBottom: spacing\.lg \+ safeAreaInsets\.bottom/,
+    );
+  });
 });

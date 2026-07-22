@@ -1,6 +1,7 @@
 import type { LatLng, Region } from 'react-native-maps';
 
 import type { GuestRoadRoutePreview, GuestRouteAvoidRectangle } from '../guest-map/guestRoadRouteProvider';
+import { routeIntersectsAvoidRectangles } from '../guest-map/routeAvoidanceGeometry';
 import { deriveRiskZoneAvoidRectangles, mergeRiskZonesById } from './areaRiskApiCore';
 import type { RiskZone, RouteCheckpoint, SavedSafeRoutePlan } from './liveMapTypes';
 import { extractRemainingCheckpoints } from './liveRerouteState';
@@ -96,14 +97,15 @@ export function buildLiveRerouteAvoidRectangles(
   return deriveRiskZoneAvoidRectangles(rankedZones, {
     maxRectangles: 10,
     paddingMeters: 140
-  }).filter((rectangle) => !requiredStops.some((stop) => coordinateInsideRectangle(stop, rectangle)))
-    .map((rectangle) => ({
-      label: rectangle.label,
-      maxLatitude: rectangle.max_lat,
-      maxLongitude: rectangle.max_lon,
-      minLatitude: rectangle.min_lat,
-      minLongitude: rectangle.min_lon
-    }));
+  }).map((rectangle) => ({
+    label: rectangle.label,
+    maxLatitude: rectangle.max_lat,
+    maxLongitude: rectangle.max_lon,
+    minLatitude: rectangle.min_lat,
+    minLongitude: rectangle.min_lon
+  }))
+    .filter((rectangle) => routeIntersectsAvoidRectangles(routeCoordinates, [rectangle]))
+    .filter((rectangle) => !requiredStops.some((stop) => coordinateInsideRectangle(stop, rectangle)));
 }
 
 export function applyLiveReroutePreview({
@@ -189,12 +191,12 @@ function dedupeCoordinates(coordinates: LatLng[]): LatLng[] {
 
 function coordinateInsideRectangle(
   coordinate: LatLng,
-  rectangle: { max_lat: number; max_lon: number; min_lat: number; min_lon: number }
+  rectangle: GuestRouteAvoidRectangle
 ): boolean {
-  return coordinate.latitude >= rectangle.min_lat &&
-    coordinate.latitude <= rectangle.max_lat &&
-    coordinate.longitude >= rectangle.min_lon &&
-    coordinate.longitude <= rectangle.max_lon;
+  return coordinate.latitude >= rectangle.minLatitude &&
+    coordinate.latitude <= rectangle.maxLatitude &&
+    coordinate.longitude >= rectangle.minLongitude &&
+    coordinate.longitude <= rectangle.maxLongitude;
 }
 
 function isCoordinate(coordinate?: LatLng | null): coordinate is LatLng {

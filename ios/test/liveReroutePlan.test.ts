@@ -82,6 +82,29 @@ describe('live reroute plan integration', () => {
     assert.equal(rectangles[0].label, 'route-risk');
   });
 
+  it('submits only high-risk rectangles that the candidate route actually enters', () => {
+    const crossingRisk = riskZone(
+      'London Bridge–Borough High Street',
+      { latitude: -33.95, longitude: 18.50 },
+      900
+    );
+    const clearRisk = riskZone(
+      'Unrelated district',
+      { latitude: -33.86, longitude: 18.72 },
+      900
+    );
+
+    const rectangles = buildLiveRerouteAvoidRectangles(
+      [clearRisk, crossingRisk],
+      routePlan.route.coordinates,
+      [routePlan.checkpoints[0].coordinate, routePlan.checkpoints[2].coordinate]
+    );
+
+    assert.deepEqual(rectangles.map(({ label }) => label), [
+      'London Bridge–Borough High Street'
+    ]);
+  });
+
   it('does not let district-scale high risk block the Cape Town corridor while critical remains fail closed', () => {
     const origin = { latitude: -33.90876894132692, longitude: 18.420521374095387 };
     const destination = { latitude: -33.86984598482066, longitude: 18.5545751389195 };
@@ -114,7 +137,12 @@ describe('live reroute plan integration', () => {
 
     const rectangles = buildLiveRerouteAvoidRectangles(
       zones,
-      [origin, destination],
+      [
+        origin,
+        { latitude: -33.923, longitude: 18.417 },
+        { latitude: -33.894, longitude: 18.56 },
+        destination
+      ],
       [origin, destination]
     );
     const labels = rectangles.map((rectangle) => rectangle.label);

@@ -13,6 +13,7 @@ import { LiveMapRiskDetailCallout } from "./LiveMapRiskDetailCallout";
 import { resolveRouteLinePresentation } from "./routeLinePresentation";
 import { uiTestIds } from "../../testing/uiTestIds";
 import {
+  SAFE_ROUTE_CAMERA_ZOOM_RANGE,
   SAFE_ROUTE_DARK_MAP_STYLE,
   SAFE_ROUTE_DARK_ROUTE_CASING,
   SAFE_ROUTE_DARK_ROUTE_GLOW,
@@ -87,6 +88,7 @@ export function LiveMapCanvas({
       testID={uiTestIds.liveMapCanvas}
       style={StyleSheet.absoluteFill}
       initialRegion={routePlan.region}
+      cameraZoomRange={SAFE_ROUTE_CAMERA_ZOOM_RANGE}
       showsUserLocation={showNativeUserLocation}
       showsMyLocationButton={false}
       showsCompass={false}
@@ -95,6 +97,7 @@ export function LiveMapCanvas({
       showsIndoorLevelPicker={false}
       showsScale={false}
       showsTraffic={false}
+      zoomEnabled
       pitchEnabled
       rotateEnabled={
         activeNavigationState === "navigating" ||

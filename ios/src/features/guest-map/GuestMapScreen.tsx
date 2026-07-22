@@ -47,6 +47,7 @@ import { fetchAreaRiskAlongRoute } from '../live-map/routeRiskCorridorApi';
 import { buildLiveRerouteAvoidRectangles } from '../live-map/liveReroutePlan';
 import { useLiveLocation } from '../live-map/useLiveLocation';
 import {
+  SAFE_ROUTE_CAMERA_ZOOM_RANGE,
   SAFE_ROUTE_DARK_MAP_STYLE,
   SAFE_ROUTE_DARK_ROUTE_CASING,
   SAFE_ROUTE_DARK_ROUTE_GLOW,
@@ -1444,6 +1445,7 @@ export function GuestMapScreen({
         testID={uiTestIds.guestMapCanvas}
         style={styles.map}
         initialRegion={GUEST_MAP_REGION}
+        cameraZoomRange={SAFE_ROUTE_CAMERA_ZOOM_RANGE}
         showsBuildings
         showsCompass={false}
         showsIndoors={false}
@@ -1452,6 +1454,7 @@ export function GuestMapScreen({
         showsUserLocation={false}
         showsScale={false}
         showsTraffic={false}
+        zoomEnabled
         pitchEnabled
         rotateEnabled
         toolbarEnabled={false}

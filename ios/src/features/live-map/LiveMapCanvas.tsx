@@ -21,6 +21,7 @@ import {
   SAFE_ROUTE_ROUTE_GLOW_WIDTH,
 } from "../maps/safeRouteMapTheme";
 import { shouldRenderRouteCheckpointMarker } from "../maps/mapMarkerPresentation";
+import { SafeRouteDarkMapMask } from "../maps/SafeRouteDarkMapMask";
 import { resolveSafeRouteMapType } from "../api/mapTransportState";
 
 interface LiveMapCanvasProps {
@@ -114,6 +115,7 @@ export function LiveMapCanvas({
       onPanDrag={onPanDrag}
       onMapReady={onMapReady}
     >
+      {Platform.OS === "ios" ? <SafeRouteDarkMapMask /> : null}
       {routeCoordinates.length > 1 ? (
         <>
           <Polyline

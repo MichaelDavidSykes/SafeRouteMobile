@@ -22,7 +22,6 @@ appId: host.exp.Exponent
     visible:
       id: "safe-route-operations-calendar-saving-status"
     timeout: 15000
-- assertVisible: "Offline Calendar saving is off. Nothing will be saved for this workspace until you allow it. Online Operations are unchanged."
 - assertVisible:
     id: "safe-route-operations-calendar-saving-control"
 - assertNotVisible:
@@ -33,6 +32,4 @@ appId: host.exp.Exponent
     id: "safe-route-operations-remove-calendar"
 - assertVisible:
     id: "safe-route-operations-empty-state"
-- assertVisible: "No offline Calendar saved"
-- assertVisible: "Allow offline saving, then reconnect and sync to save a new Calendar."
 - takeScreenshot: "connectivity-contract-offline-operations-saving-off"

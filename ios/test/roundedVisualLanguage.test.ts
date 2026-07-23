@@ -398,6 +398,14 @@ describe("rounded visual language", () => {
       /waypointAction:\s*\{([\s\S]*?)\n  \},\n  waypointActionPressed:/.exec(
         guestMapStylesSource,
       )?.[1] || "";
+    const routeInputMarkerBlock =
+      /routeInputMarker:\s*\{([\s\S]*?)\n  \},\n  routeInputMarkerOrigin:/.exec(
+        guestMapStylesSource,
+      )?.[1] || "";
+    const waypointMarkerBlock =
+      /waypointMarker:\s*\{([\s\S]*?)\n  \},\n  waypointMarkerLabel:/.exec(
+        guestMapStylesSource,
+      )?.[1] || "";
     const primaryButtonTextBlock =
       /primaryButtonText:\s*\{([\s\S]*?)\n  \},\n  routePreview:/.exec(
         guestMapStylesSource,
@@ -417,6 +425,8 @@ describe("rounded visual language", () => {
     assert.match(guestMapSource, /overline="To"/);
     assert.match(guestMapSource, /tone="origin"/);
     assert.match(guestMapSource, /tone="destination"/);
+    assert.match(guestMapSource, /tone === 'origin'[\s\S]*<Crosshair[\s\S]*<MapPin/);
+    assert.match(guestMapSource, /styles\.waypointMarkerLabel[\s\S]*\{index \+ 1\}/);
     assert.match(guestMapSource, /ChevronUp/);
     assert.match(guestMapSource, /ChevronDown/);
     assert.match(guestMapSource, /Trash2/);
@@ -447,8 +457,14 @@ describe("rounded visual language", () => {
     assert.match(waypointActionBlock, /height:\s*34/);
     assert.match(waypointActionBlock, /alignItems:\s*['"]center['"]/);
     assert.match(waypointActionBlock, /borderRadius:\s*radius\.pill/);
-    assert.match(guestMapStylesSource, /routeInputMarkerOrigin:[\s\S]*colors\.safe/);
-    assert.match(guestMapStylesSource, /routeInputMarkerDestination:[\s\S]*colors\.appleBlue/);
+    assert.match(routeInputMarkerBlock, /width:\s*24/);
+    assert.match(routeInputMarkerBlock, /height:\s*24/);
+    assert.match(routeInputMarkerBlock, /alignItems:\s*['"]center['"]/);
+    assert.match(routeInputMarkerBlock, /justifyContent:\s*['"]center['"]/);
+    assert.match(waypointMarkerBlock, /width:\s*24/);
+    assert.match(waypointMarkerBlock, /marginRight:\s*spacing\.sm/);
+    assert.match(guestMapStylesSource, /routeInputMarkerOrigin:[\s\S]*colors\.safeSoft/);
+    assert.match(guestMapStylesSource, /routeInputMarkerDestination:[\s\S]*colors\.appleBlueSoft/);
   });
 
   it("upgrades guest route previews with road geometry without adding sheet chrome", () => {

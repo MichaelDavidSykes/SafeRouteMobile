@@ -2619,7 +2619,13 @@ function RouteInput({
             ? styles.routeInputMarkerOrigin
             : styles.routeInputMarkerDestination,
         ]}
-      />
+      >
+        {tone === 'origin' ? (
+          <Crosshair color={colors.safe} size={14} strokeWidth={2.3} />
+        ) : (
+          <MapPin color={colors.appleBlue} size={14} strokeWidth={2.3} />
+        )}
+      </View>
       <View style={styles.routeInputCopy}>
         <Text accessibilityElementsHidden style={styles.routeInputOverline}>{overline}</Text>
         <TextInput
@@ -2672,7 +2678,9 @@ function WaypointInput({
 }) {
   return (
     <View style={[styles.waypointRow, divided ? styles.inputRowDivider : null]}>
-      <View accessibilityElementsHidden style={styles.waypointMarker} />
+      <View accessibilityElementsHidden style={styles.waypointMarker}>
+        <Text style={styles.waypointMarkerLabel}>{index + 1}</Text>
+      </View>
       <TextInput
         ref={inputRef}
         accessibilityHint="Enter a place, address, or coordinate for this stop."

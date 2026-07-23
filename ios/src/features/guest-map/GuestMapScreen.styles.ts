@@ -356,7 +356,7 @@ export const guestMapStyles = StyleSheet.create({
     minHeight: 54,
     flexDirection: 'row',
     alignItems: 'center',
-    paddingLeft: spacing.sm,
+    paddingLeft: spacing.md,
     paddingRight: spacing.xs
   },
   waypointActions: {
@@ -416,24 +416,40 @@ export const guestMapStyles = StyleSheet.create({
     textTransform: 'uppercase'
   },
   routeInputMarker: {
-    width: 10,
-    height: 10,
+    width: 24,
+    height: 24,
     flexShrink: 0,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderWidth: 1,
     borderRadius: radius.pill
   },
   routeInputMarkerOrigin: {
-    backgroundColor: colors.safe
+    borderColor: colors.safe,
+    backgroundColor: colors.safeSoft
   },
   routeInputMarkerDestination: {
-    borderRadius: 3,
-    backgroundColor: colors.appleBlue
+    borderColor: colors.appleBlue,
+    backgroundColor: colors.appleBlueSoft
   },
   waypointMarker: {
-    width: 8,
-    height: 8,
+    width: 24,
+    height: 24,
     flexShrink: 0,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginRight: spacing.sm,
+    borderWidth: 1,
+    borderColor: colors.info,
     borderRadius: radius.pill,
-    backgroundColor: colors.info
+    backgroundColor: colors.infoSoft
+  },
+  waypointMarkerLabel: {
+    color: colors.infoText,
+    fontSize: 11,
+    fontWeight: '800',
+    lineHeight: 14,
+    textAlign: 'center'
   },
   searchResults: {
     maxHeight: 252,

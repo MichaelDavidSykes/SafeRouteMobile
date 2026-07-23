@@ -54,7 +54,11 @@ describe('guest map tab bar inset', () => {
     );
     assert.match(
       screenSource,
-      /height: routeSheetMaxHeight,[\s\S]*paddingBottom: spacing\.lg \+ safeAreaInsets\.bottom/,
+      /routeSheetBottomPadding = resolveGuestRouteSheetBottomPadding\([\s\S]*safeAreaInsets\.bottom[\s\S]*height: routeSheetMaxHeight,[\s\S]*paddingBottom: routeSheetBottomPadding/,
+    );
+    assert.doesNotMatch(
+      screenSource,
+      /paddingBottom: spacing\.lg \+ safeAreaInsets\.bottom/,
     );
   });
 });

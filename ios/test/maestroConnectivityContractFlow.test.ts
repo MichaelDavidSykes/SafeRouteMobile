@@ -305,7 +305,7 @@ describe("Maestro connectivity contract runtime", () => {
     );
     assert.match(
       offlineRelaunch,
-      /safe-route-operations-tab-convoy-management[\s\S]*Convoys unavailable offline[\s\S]*assertNotVisible/,
+      /safe-route-tab-convoys[\s\S]*Convoys unavailable offline[\s\S]*assertNotVisible:[\s\S]*safe-route-operations-convoy[\s\S]*safe-route-tab-calendar/,
     );
     assert.match(
       fixture,

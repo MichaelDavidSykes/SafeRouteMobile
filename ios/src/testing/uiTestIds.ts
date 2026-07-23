@@ -24,6 +24,7 @@ export const uiTestIds = {
     `guest-map-waypoint-${normalizeTestIdSegment(waypointId)}`,
   guestMapAddWaypoint: "guest-map-add-waypoint",
   guestMapSheetGrabber: "guest-map-sheet-grabber",
+  guestMapSheetClose: "guest-map-sheet-close",
   guestMapCollapsedSheet: "guest-map-collapsed-sheet",
   guestMapLongPressMenu: "guest-map-long-press-menu",
   guestMapLongPressAddWaypoint: "guest-map-long-press-add-waypoint",

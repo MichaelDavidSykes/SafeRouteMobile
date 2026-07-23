@@ -17,14 +17,14 @@ appId: host.exp.Exponent
     id: "guest-map-collapsed-sheet"
 - assertVisible: "Offline map. Saved route information remains available."
 - assertVisible: "Workspace, Guidance Operations"
-- scrollUntilVisible:
-    element:
-      id: "guest-map-gate-calendar"
-    direction: DOWN
-    timeout: 20000
-    speed: 40
 - tapOn:
-    id: "guest-map-gate-calendar"
+    id: "guest-map-sheet-close"
+- extendedWaitUntil:
+    visible:
+      id: "safe-route-tab-calendar"
+    timeout: 15000
+- tapOn:
+    id: "safe-route-tab-calendar"
 - extendedWaitUntil:
     visible:
       id: "safe-route-operations-route-movement-1-1"

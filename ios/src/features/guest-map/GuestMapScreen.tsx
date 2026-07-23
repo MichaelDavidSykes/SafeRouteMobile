@@ -2213,6 +2213,7 @@ export function GuestMapScreen({
                 <Pressable
                   accessibilityLabel="Close directions"
                   accessibilityRole="button"
+                  testID={uiTestIds.guestMapSheetClose}
                   style={({ pressed }) => [
                     styles.sheetCancel,
                     pressed ? styles.sheetCancelPressed : null,

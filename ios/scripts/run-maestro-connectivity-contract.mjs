@@ -243,7 +243,6 @@ async function main() {
       CONNECTIVITY_CONTRACT_PHASES.offlineRelaunch,
       CONNECTIVITY_CONTRACT_STATUSES.offline,
     );
-    terminateExpoGo(deviceId);
     await runFlow(
       CONNECTIVITY_CONTRACT_PHASES.offlineRelaunch,
       'cold relaunch the existing secure Calendar cache',

@@ -1,11 +1,10 @@
-import { Platform, StyleSheet } from "react-native";
+import { StyleSheet } from "react-native";
 
 import { colors, controlSizes, radius, spacing, typeScale } from "../../theme";
 
 export const styles = StyleSheet.create({
   topStack: {
     marginHorizontal: 12,
-    marginTop: Platform.OS === "android" ? spacing.lg : spacing.sm,
   },
   topRow: {
     flexDirection: "row",

@@ -1,5 +1,6 @@
 import { ChevronLeft } from "lucide-react-native";
-import { Pressable, Text, View } from "react-native";
+import { Platform, Pressable, Text, View } from "react-native";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import type { LiveMapOverlayLayout } from "./liveMapLayout";
 import type { SavedSafeRoutePlan } from "./liveMapTypes";
@@ -10,6 +11,7 @@ import {
 } from "./liveMapUiState";
 import { styles } from "./LiveMapRouteHeader.styles";
 import { uiTestIds } from "../../testing/uiTestIds";
+import { spacing } from "../../theme";
 
 const LIVE_ROUTE_RETURN_HIT_SLOP = 6;
 
@@ -30,12 +32,19 @@ export function LiveMapRouteHeader({
   onChangeRoute,
   returnAccessibilityLabel,
 }: LiveMapRouteHeaderProps) {
+  const insets = useSafeAreaInsets();
   const locationNoticePresentation =
     createLiveLocationNoticePresentation(locationNotice);
   const compactNavigation = shouldUseCompactRouteHeader(activeNavigationState);
+  const topInset = insets.top + (
+    Platform.OS === "android" ? spacing.lg : spacing.sm
+  );
 
   return (
-    <View pointerEvents="box-none" style={styles.topStack}>
+    <View
+      pointerEvents="box-none"
+      style={[styles.topStack, { marginTop: topInset }]}
+    >
       <View style={styles.topRow}>
         <Pressable
           accessibilityLabel={returnAccessibilityLabel}

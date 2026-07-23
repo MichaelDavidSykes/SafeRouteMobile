@@ -648,6 +648,11 @@ describe("rounded visual language", () => {
     assert.match(liveHeaderSource, /testID=\{uiTestIds\.liveMapReturn\}/);
     assert.match(liveHeaderSource, /styles\.backButton/);
     assert.match(liveHeaderSource, /accessibilityLabel=\{returnAccessibilityLabel\}/);
+    assert.match(liveHeaderSource, /useSafeAreaInsets\(\)/);
+    assert.match(
+      liveHeaderSource,
+      /const topInset = insets\.top \+ \([\s\S]*spacing\.sm[\s\S]*marginTop: topInset/,
+    );
     assert.match(liveHeaderStylesSource, /backButton:[\s\S]*width:\s*controlSizes\.icon/);
     assert.match(liveHeaderStylesSource, /backButton:[\s\S]*borderRadius:\s*radius\.pill/);
     assert.match(liveHeaderStylesSource, /backButton:[\s\S]*shadowOpacity:\s*0\.16/);

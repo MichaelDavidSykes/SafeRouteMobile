@@ -75,6 +75,10 @@ describe('Maestro workspace catalog recovery runtime', () => {
       reset,
       /id: "guest-map-primary-action"\n    retryTapIfNoChange: true\n    waitToSettleTimeoutMs: 1000\n- waitForAnimationToEnd:[\s\S]*id: "route-list-sign-out"\n- waitForAnimationToEnd:[\s\S]*visible:\n      id: "guest-map-primary-action"/,
     );
+    assert.match(
+      reset,
+      /visible:[\s\S]*id: "safe-route-workspace-selection-sign-out"[\s\S]*tapOn:[\s\S]*id: "safe-route-workspace-selection-sign-out"/,
+    );
   });
 
   it('runs cold failure, three duplicate-suppressed retries, and one fresh success', () => {
@@ -131,10 +135,17 @@ describe('Maestro workspace catalog recovery runtime', () => {
       seed,
       /visible: "Not Now"[\s\S]*text: "Not Now"[\s\S]*retryTapIfNoChange: true[\s\S]*waitForAnimationToEnd:[\s\S]*timeout: 3000[\s\S]*visible: "Not Now"[\s\S]*text: "Not Now"/,
     );
-    assert.match(seed, /visible:\n        id: "workspace-access-refresh"[\s\S]*notVisible:\n            id: "workspace-access-refresh"/);
     assert.match(
       seed,
-      /id: "guest-map-workspace-selector"[\s\S]*extendedWaitUntil:[\s\S]*id: "guest-map-workspace-66a1b2c3d4e5f60718293a40"[\s\S]*timeout: 10000[\s\S]*id: "guest-map-workspace-66a1b2c3d4e5f60718293a40"[\s\S]*id: "guest-map-primary-action"[\s\S]*id: "safe-route-picker"/,
+      /id: "safe-route-workspace-selection"[\s\S]*id: "safe-route-workspace-selection-66a1b2c3d4e5f60718293a40"[\s\S]*id: "safe-route-workspace-selection-continue"[\s\S]*notVisible:[\s\S]*id: "safe-route-workspace-selection"/,
+    );
+    assert.match(
+      seed,
+      /id: "safe-route-workspace-selection-66a1b2c3d4e5f60718293a40"[\s\S]*id: "safe-route-workspace-selection-continue"[\s\S]*id: "guest-map-primary-action"[\s\S]*id: "safe-route-picker"/,
+    );
+    assert.match(
+      seed,
+      /id: "safe-route-card-66b1b2c3d4e5f60718293b40-map"[\s\S]*id: "safe-route-live-map"[\s\S]*id: "safe-route-return"[\s\S]*retryTapIfNoChange: true/,
     );
   });
 

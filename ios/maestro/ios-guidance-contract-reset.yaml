@@ -8,6 +8,13 @@ appId: host.exp.Exponent
 - runFlow:
     when:
       visible:
+        id: "safe-route-workspace-selection-sign-out"
+    commands:
+      - tapOn:
+          id: "safe-route-workspace-selection-sign-out"
+- runFlow:
+    when:
+      visible:
         id: "safe-route-suspended-navigation"
     commands:
       - tapOn:

@@ -32,30 +32,27 @@ appId: host.exp.Exponent
           text: "Not Now"
           retryTapIfNoChange: true
           waitToSettleTimeoutMs: 1000
-- extendedWaitUntil:
-    visible:
-      id: "guest-map-workspace-selector"
-    timeout: 30000
 - runFlow:
     when:
       visible:
-        id: "workspace-access-refresh"
+        id: "safe-route-workspace-selection"
     commands:
+      - extendedWaitUntil:
+          visible:
+            id: "safe-route-workspace-selection-66a1b2c3d4e5f60718293a40"
+          timeout: 30000
       - tapOn:
-          id: "workspace-access-refresh"
-          waitToSettleTimeoutMs: 100
+          id: "safe-route-workspace-selection-66a1b2c3d4e5f60718293a40"
+      - tapOn:
+          id: "safe-route-workspace-selection-continue"
       - extendedWaitUntil:
           notVisible:
-            id: "workspace-access-refresh"
-          timeout: 15000
-- tapOn:
-    id: "guest-map-workspace-selector"
+            id: "safe-route-workspace-selection"
+          timeout: 30000
 - extendedWaitUntil:
     visible:
-      id: "guest-map-workspace-66a1b2c3d4e5f60718293a40"
-    timeout: 10000
-- tapOn:
-    id: "guest-map-workspace-66a1b2c3d4e5f60718293a40"
+      id: "guest-map-primary-action"
+    timeout: 30000
 - tapOn:
     id: "guest-map-primary-action"
 - extendedWaitUntil:
@@ -68,13 +65,15 @@ appId: host.exp.Exponent
     timeout: 30000
 - assertVisible: "^Cold restart verification v1.*"
 - tapOn:
-    id: "safe-route-card-66b1b2c3d4e5f60718293b40"
+    id: "safe-route-card-66b1b2c3d4e5f60718293b40-map"
 - extendedWaitUntil:
     visible:
       id: "safe-route-live-map"
     timeout: 20000
 - tapOn:
     id: "safe-route-return"
+    retryTapIfNoChange: true
+    waitToSettleTimeoutMs: 1000
 - extendedWaitUntil:
     visible:
       id: "safe-route-card-66b1b2c3d4e5f60718293b40"
@@ -83,9 +82,8 @@ appId: host.exp.Exponent
     id: "route-list-map-return"
 - extendedWaitUntil:
     visible:
-      id: "guest-map-workspace-selector"
+      id: "guest-map-collapsed-sheet"
     timeout: 15000
-- assertVisible: "Workspace, Guidance Operations"
 - assertNotVisible:
     id: "workspace-access-refresh"
 - takeScreenshot: "workspace-catalog-seeded"

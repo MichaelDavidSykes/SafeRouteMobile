@@ -1,6 +1,6 @@
 import type { ComponentProps, ComponentType } from 'react';
 import { AlertTriangle, MapPin } from 'lucide-react-native';
-import { StyleSheet, View } from 'react-native';
+import { Animated, StyleSheet, View } from 'react-native';
 import { Circle, Marker, Polygon, Polyline } from 'react-native-maps';
 
 import type { RiskSeverity, RiskZone, RouteCheckpoint } from './liveMapTypes';
@@ -16,6 +16,10 @@ import {
 import { uiTestIds } from '../../testing/uiTestIds';
 import { colors, radius } from '../../theme';
 import { SAFE_ROUTE_DARK_ROUTE_CASING } from '../maps/safeRouteMapTheme';
+import {
+  useLoopingPulse,
+  useReduceMotionEnabled,
+} from '../../motion/SafeRouteMotion';
 
 type TappableCircleProps = ComponentProps<typeof Circle> & {
   onPress?: () => void;
@@ -264,6 +268,27 @@ export function VehicleMarker({
   heading: number;
 }) {
   const markerTitle = demoDriveEnabled ? 'Route preview position' : 'Current position';
+  const reduceMotionEnabled = useReduceMotionEnabled();
+  const pulseProgress = useLoopingPulse({
+    duration: 2600,
+    enabled: !demoDriveEnabled,
+  });
+  const pulseStyle = {
+    opacity: reduceMotionEnabled
+      ? 0
+      : pulseProgress.interpolate({
+          inputRange: [0, 1],
+          outputRange: [0.55, 0],
+        }),
+    transform: [
+      {
+        scale: pulseProgress.interpolate({
+          inputRange: [0, 1],
+          outputRange: [1, 2.8],
+        }),
+      },
+    ],
+  };
 
   return (
     <Marker
@@ -278,6 +303,11 @@ export function VehicleMarker({
         accessibilityRole="image"
         style={styles.vehicleMarker}
       >
+        <Animated.View
+          accessibilityElementsHidden
+          pointerEvents="none"
+          style={[styles.vehicleMarkerPulse, pulseStyle]}
+        />
         <View style={styles.vehicleMarkerHeading} />
       </View>
     </Marker>
@@ -459,6 +489,13 @@ const styles = StyleSheet.create({
     shadowRadius: 0,
     shadowOffset: { width: 0, height: 0 },
     elevation: 0
+  },
+  vehicleMarkerPulse: {
+    position: 'absolute',
+    width: 30,
+    height: 30,
+    borderRadius: radius.pill,
+    backgroundColor: colors.appleBlue,
   },
   vehicleMarkerHeading: {
     width: 0,

@@ -1,15 +1,20 @@
-import { StyleSheet, View } from 'react-native';
+import { Animated, StyleSheet, View } from 'react-native';
 import Svg, { Circle, Defs, G, Path, RadialGradient, Rect, Stop } from 'react-native-svg';
 
+import { useEntranceProgress } from '../../motion/SafeRouteMotion';
+
+const AnimatedPath = Animated.createAnimatedComponent(Path);
+const AUTH_ROUTE_LENGTH = 1100;
+
 export function AuthBackdrop() {
+  const routeProgress = useEntranceProgress({
+    delay: 200,
+    duration: 1600
+  });
+
   return (
     <View accessible={false} pointerEvents="none" style={styles.backdrop}>
-      <Svg
-        height="100%"
-        preserveAspectRatio="xMidYMid slice"
-        viewBox="0 0 402 874"
-        width="100%"
-      >
+      <Svg height="100%" preserveAspectRatio="xMidYMid slice" viewBox="0 0 402 874" width="100%">
         <Defs>
           <RadialGradient id="auth-risk" cx="50%" cy="50%" r="50%">
             <Stop offset="0" stopColor="#E5484D" stopOpacity={0.3} />
@@ -42,19 +47,19 @@ export function AuthBackdrop() {
             strokeLinejoin="round"
             strokeWidth="2.4"
           />
-          <Path
-            d="M0 -3 V4 M0 6.5 V7"
-            stroke="#E5484D"
-            strokeLinecap="round"
-            strokeWidth="2.4"
-          />
+          <Path d="M0 -3 V4 M0 6.5 V7" stroke="#E5484D" strokeLinecap="round" strokeWidth="2.4" />
         </G>
 
-        <Path
+        <AnimatedPath
           d="M322 814 C250 724 132 662 118 500 C108 372 182 300 230 248 C272 204 298 168 310 120"
           fill="none"
           stroke="#5CA4FF"
           strokeLinecap="round"
+          strokeDasharray={AUTH_ROUTE_LENGTH}
+          strokeDashoffset={routeProgress.interpolate({
+            inputRange: [0, 1],
+            outputRange: [AUTH_ROUTE_LENGTH, 0]
+          })}
           strokeOpacity={0.22}
           strokeWidth="10"
         />
@@ -96,6 +101,6 @@ export function AuthBackdrop() {
 
 const styles = StyleSheet.create({
   backdrop: {
-    ...StyleSheet.absoluteFillObject,
-  },
+    ...StyleSheet.absoluteFillObject
+  }
 });

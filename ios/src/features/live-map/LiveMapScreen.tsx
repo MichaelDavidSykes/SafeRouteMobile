@@ -109,6 +109,7 @@ import {
   navigationStartAuthorizationNotice,
   runNavigationStartAuthorization,
 } from "./navigationStartAuthorizationGate";
+import { MotionEntrance } from "../../motion/SafeRouteMotion";
 
 interface LiveMapScreenProps {
   accessToken?: string | null;
@@ -650,6 +651,7 @@ export function LiveMapScreen({
         signal: controller.signal,
         stops: targets.stops,
         timeoutMs: 15_000,
+        travelMode: plan.travelMode ?? 'drive',
       });
       if (
         !requestIsCurrent() ||
@@ -695,6 +697,7 @@ export function LiveMapScreen({
             signal: controller.signal,
             stops: targets.stops,
             timeoutMs: 15_000,
+            travelMode: plan.travelMode ?? 'drive',
           });
       if (
         !requestIsCurrent() ||
@@ -1521,27 +1524,34 @@ export function LiveMapScreen({
 
   return (
     <View testID={uiTestIds.liveMapScreen} style={styles.screen}>
-      <LiveMapCanvas
-        activeNavigationState={activeNavigationState}
-        activeRiskZoneId={liveRiskAlert?.zone.id}
-        demoDriveActive={demoDriveActive}
-        heading={heading}
-        mapRef={mapRef}
-        onMapReady={fitRoute}
-        onMapPress={handleMapPress}
-        onPanDrag={handleMapPanDrag}
-        onDismissRiskDetail={handleDismissRiskDetail}
-        onRiskZonePress={handleRiskZonePress}
-        offline={!online}
-        permissionStatus={permissionStatus}
-        progressCoordinates={progressCoordinates}
-        routePlan={liveRoutePlan}
-        selectedRiskZoneId={selectedRiskZoneId}
-        selectedRiskZone={selectedRiskZone}
-        selectedRiskProximity={selectedRiskProximity}
-        vehicleCoordinate={vehicleCoordinate}
-        visibleRiskZones={visibleRiskZones}
-      />
+      <MotionEntrance
+        pointerEvents="box-none"
+        replayKey={liveRoutePlan.id}
+        style={styles.mapScene}
+        variant="scene"
+      >
+        <LiveMapCanvas
+          activeNavigationState={activeNavigationState}
+          activeRiskZoneId={liveRiskAlert?.zone.id}
+          demoDriveActive={demoDriveActive}
+          heading={heading}
+          mapRef={mapRef}
+          onMapReady={fitRoute}
+          onMapPress={handleMapPress}
+          onPanDrag={handleMapPanDrag}
+          onDismissRiskDetail={handleDismissRiskDetail}
+          onRiskZonePress={handleRiskZonePress}
+          offline={!online}
+          permissionStatus={permissionStatus}
+          progressCoordinates={progressCoordinates}
+          routePlan={liveRoutePlan}
+          selectedRiskZoneId={selectedRiskZoneId}
+          selectedRiskZone={selectedRiskZone}
+          selectedRiskProximity={selectedRiskProximity}
+          vehicleCoordinate={vehicleCoordinate}
+          visibleRiskZones={visibleRiskZones}
+        />
+      </MotionEntrance>
 
       <LiveMapOverlay
         activeNavigationState={activeNavigationState}
@@ -1599,5 +1609,8 @@ const styles = StyleSheet.create({
   screen: {
     flex: 1,
     backgroundColor: colors.mapFallback,
+  },
+  mapScene: {
+    ...StyleSheet.absoluteFillObject,
   },
 });

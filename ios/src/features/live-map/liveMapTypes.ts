@@ -3,6 +3,7 @@ import type { LatLng, Region } from 'react-native-maps';
 export type RiskSeverity = 'low' | 'medium' | 'high';
 export type RiskAvoidanceSeverity = 'high' | 'critical';
 export type SavedRouteStatus = 'ready' | 'in-progress' | 'planned';
+export type SafeRouteTravelMode = 'drive' | 'walk' | 'cycle' | 'transit';
 
 export interface RoutePath {
   id: string;
@@ -69,6 +70,7 @@ export interface SavedSafeRoutePlan {
   updatedAtLabel: string;
   origin: string;
   destination: string;
+  travelMode?: SafeRouteTravelMode;
   region: Region;
   route: RoutePath;
   riskZones: RiskZone[];

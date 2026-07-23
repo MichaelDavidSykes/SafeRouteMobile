@@ -40,7 +40,10 @@ describe("convoy interaction contract", () => {
   it("animates convoy expansion and uses circular header controls", () => {
     assert.match(screen, /LayoutAnimation\.configureNext/);
     assert.match(screen, /configureConvoyExpansionAnimation\(\)/);
-    assert.match(screen, /Animated\.timing\(progress/);
+    assert.match(
+      screen,
+      /useMotionValue\(expanded \? 1 : 0,[\s\S]*duration: CONVOY_CHEVRON_DURATION_MS/,
+    );
     assert.match(screen, /onPress=\{onOpenDetails\}[\s\S]*<Info/);
     assert.doesNotMatch(screen, /Convoy overview/);
     assert.match(

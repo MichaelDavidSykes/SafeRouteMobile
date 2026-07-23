@@ -389,7 +389,7 @@ describe("rounded visual language", () => {
       "utf8",
     );
     const inputStackBlock =
-      /inputStack:\s*\{([\s\S]*?)\n  \},\n  inputRow:/.exec(guestMapStylesSource)?.[1] || "";
+      /inputStack:\s*\{([\s\S]*?)\n  \},\n  travelModeSelector:/.exec(guestMapStylesSource)?.[1] || "";
     const inputRowBlock =
       /inputRow:\s*\{([\s\S]*?)\n  \},\n  waypointRow:/.exec(guestMapStylesSource)?.[1] || "";
     const inputRowDividerBlock =

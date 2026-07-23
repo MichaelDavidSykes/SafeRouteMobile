@@ -81,6 +81,54 @@ describe('SafeRoute road route provider', () => {
     });
   });
 
+  it('adds a non-driving travel mode to both route-preview contracts', () => {
+    assert.equal(buildSafeRoutePreviewPayload({
+      clientId: 'tenant-1',
+      stops,
+      avoidRectangles: [],
+      travelMode: 'cycle'
+    }).travel_mode, 'cycle');
+    assert.equal(buildPublicSafeRoutePreviewPayload({
+      stops,
+      avoidRectangles: [],
+      travelMode: 'walk'
+    }).travel_mode, 'walk');
+  });
+
+  it('requires a non-driving response to confirm the requested mode', () => {
+    const response = {
+      provider: 'tomtom',
+      snapped: true,
+      coordinates: [
+        { lat: -33.9249, lon: 18.4241 },
+        { lat: -33.9696, lon: 18.5972 }
+      ]
+    };
+
+    assert.equal(
+      normalizeSafeRoutePreviewResponse(response, stops, [], 'walk'),
+      null
+    );
+    assert.equal(
+      normalizeSafeRoutePreviewResponse(
+        { ...response, travel_mode: 'drive' },
+        stops,
+        [],
+        'cycle'
+      ),
+      null
+    );
+    assert.equal(
+      normalizeSafeRoutePreviewResponse(
+        { ...response, travel_mode: 'walk' },
+        stops,
+        [],
+        'walk'
+      )?.provider,
+      'tomtom'
+    );
+  });
+
   it('normalizes snapped provider geometry and metrics', () => {
     const result = normalizeSafeRoutePreviewResponse({
       provider: 'tomtom',

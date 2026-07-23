@@ -1,7 +1,8 @@
 import { Bookmark, BusFront, CalendarDays, Map } from "lucide-react-native";
-import { Pressable, StyleSheet, Text, View } from "react-native";
+import { Animated, Pressable, StyleSheet, Text, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
+import { useMotionValue } from "../motion/SafeRouteMotion";
 import { chrome, colors, typeScale } from "../theme";
 import { uiTestIds } from "../testing/uiTestIds";
 import {
@@ -46,37 +47,81 @@ export function AppTabBar({
         const selected = activeTab === tab.id;
         const disabled = isAppTabDisabled(tab.id, authenticated);
         return (
-          <Pressable
+          <AppTabItem
             key={tab.id}
-            accessibilityHint={disabled ? `Sign in to use ${tab.label}.` : undefined}
-            accessibilityLabel={tab.label}
-            accessibilityRole="tab"
-            accessibilityState={{ disabled, selected }}
             disabled={disabled}
-            hitSlop={4}
-            testID={uiTestIds.appTab(tab.id)}
-            style={({ pressed }) => [
-              styles.item,
-              disabled ? styles.itemDisabled : null,
-              pressed && !disabled ? styles.itemPressed : null,
-            ]}
+            label={tab.label}
+            selected={selected}
+            tab={tab.id}
             onPress={() => onSelect(tab.id)}
-          >
-            <TabGlyph disabled={disabled} selected={selected} tab={tab.id} />
-            <Text
-              numberOfLines={1}
-              style={[
-                styles.label,
-                selected ? styles.selected : null,
-                disabled ? styles.disabledLabel : null,
-              ]}
-            >
-              {tab.label}
-            </Text>
-          </Pressable>
+          />
         );
       })}
     </View>
+  );
+}
+
+function AppTabItem({
+  disabled,
+  label,
+  onPress,
+  selected,
+  tab,
+}: {
+  disabled: boolean;
+  label: string;
+  onPress: () => void;
+  selected: boolean;
+  tab: AppTab;
+}) {
+  const selectionProgress = useMotionValue(selected ? 1 : 0, {
+    spring: true,
+  });
+
+  return (
+    <Animated.View
+      style={[
+        { flex: 1 },
+        {
+          transform: [
+            {
+              translateY: selectionProgress.interpolate({
+                inputRange: [0, 1],
+                outputRange: [0, -3],
+              }),
+            },
+          ],
+        },
+      ]}
+    >
+      <Pressable
+        accessibilityHint={disabled ? `Sign in to use ${label}.` : undefined}
+        accessibilityLabel={label}
+        accessibilityRole="tab"
+        accessibilityState={{ disabled, selected }}
+        disabled={disabled}
+        hitSlop={4}
+        testID={uiTestIds.appTab(tab)}
+        style={({ pressed }) => [
+          styles.item,
+          disabled ? styles.itemDisabled : null,
+          pressed && !disabled ? styles.itemPressed : null,
+        ]}
+        onPress={onPress}
+      >
+        <TabGlyph disabled={disabled} selected={selected} tab={tab} />
+        <Text
+          numberOfLines={1}
+          style={[
+            styles.label,
+            selected ? styles.selected : null,
+            disabled ? styles.disabledLabel : null,
+          ]}
+        >
+          {label}
+        </Text>
+      </Pressable>
+    </Animated.View>
   );
 }
 

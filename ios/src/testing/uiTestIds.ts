@@ -14,6 +14,9 @@ export const uiTestIds = {
   guestMapPlotAction: "guest-map-plot-action",
   guestMapOriginInput: "guest-map-origin-input",
   guestMapDestinationInput: "guest-map-destination-input",
+  guestMapTravelModeSelector: "guest-map-travel-mode-selector",
+  guestMapTravelMode: (mode: string) =>
+    `guest-map-travel-mode-${normalizeTestIdSegment(mode)}`,
   guestMapWaypointInput: (waypointId: string) =>
     `guest-map-waypoint-${normalizeTestIdSegment(waypointId)}`,
   guestMapAddWaypoint: "guest-map-add-waypoint",

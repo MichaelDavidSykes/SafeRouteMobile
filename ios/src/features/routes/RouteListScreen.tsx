@@ -9,6 +9,7 @@ import {
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 
+import { MotionEntrance } from "../../motion/SafeRouteMotion";
 import { ApiSessionExpiredError } from "../api/apiClient";
 import type { SavedSafeRoutePlan } from "../live-map/liveMapTypes";
 import { fetchRouteDetail, fetchSavedRoutes } from "./routeApi";
@@ -749,46 +750,51 @@ export function RouteListScreen({
           : null,
       ]}
     >
-      <RouteListHeader
-        sessionNotice={sessionNotice}
-        userEmail={userEmail}
-        onBackToMap={onBackToMap}
-        onSignOut={onSignOut}
-      />
+      <MotionEntrance
+        replayKey={selectedClientId || "no-workspace"}
+        style={{ flex: 1 }}
+        variant="scene"
+      >
+        <RouteListHeader
+          sessionNotice={sessionNotice}
+          userEmail={userEmail}
+          onBackToMap={onBackToMap}
+          onSignOut={onSignOut}
+        />
 
-      <RouteListFilters
-        clientFilterOptions={clientFilterOptions}
-        query={query}
-        routeSummary={routeSummary}
-        showClientFilters={shouldShowClientFilters(clientFilterOptions)}
-        showSearch={showRouteSearch}
-        showSummary={!contentLoading && showRouteSummary}
-        workspaceAlternativeSelectionPending={
-          workspaceAlternativeSelectionPending
-        }
-        workspaceChangeEndsNavigation={workspaceChangeEndsNavigation}
-        workspaceCatalogLoading={workspaceCatalogLoading}
-        workspaceSelectionFailed={workspaceSelectionFailed}
-        workspaceSelectionPending={workspaceSelectionPending}
-        workspaceSwitchFailure={workspaceSwitchFailure}
-        workspaceAccessFocusTargetRef={workspaceAccessFocusTargetRef}
-        onChangeQuery={handleChangeQuery}
-        workspaceSwitchDisabled={workspaceSwitchDisabled}
-        onSelectClient={(clientId) => {
-          const workspace = availableWorkspaces.find((client) => client.id === clientId);
-          if (
-            !workspace ||
-            (
-              workspace.id === selectedClientId &&
-              !workspaceSelectionFailed &&
-              !workspaceAlternativeSelectionPending
-            )
-          ) {
-            return;
+        <RouteListFilters
+          clientFilterOptions={clientFilterOptions}
+          query={query}
+          routeSummary={routeSummary}
+          showClientFilters={shouldShowClientFilters(clientFilterOptions)}
+          showSearch={showRouteSearch}
+          showSummary={!contentLoading && showRouteSummary}
+          workspaceAlternativeSelectionPending={
+            workspaceAlternativeSelectionPending
           }
-          onWorkspaceChange(workspace);
-        }}
-      />
+          workspaceChangeEndsNavigation={workspaceChangeEndsNavigation}
+          workspaceCatalogLoading={workspaceCatalogLoading}
+          workspaceSelectionFailed={workspaceSelectionFailed}
+          workspaceSelectionPending={workspaceSelectionPending}
+          workspaceSwitchFailure={workspaceSwitchFailure}
+          workspaceAccessFocusTargetRef={workspaceAccessFocusTargetRef}
+          onChangeQuery={handleChangeQuery}
+          workspaceSwitchDisabled={workspaceSwitchDisabled}
+          onSelectClient={(clientId) => {
+            const workspace = availableWorkspaces.find((client) => client.id === clientId);
+            if (
+              !workspace ||
+              (
+                workspace.id === selectedClientId &&
+                !workspaceSelectionFailed &&
+                !workspaceAlternativeSelectionPending
+              )
+            ) {
+              return;
+            }
+            onWorkspaceChange(workspace);
+          }}
+        />
 
       {workspaceAccessRefreshAvailable ? (
         <WorkspaceAccessRefreshControl
@@ -932,6 +938,8 @@ export function RouteListScreen({
           ) : null}
         </ScrollView>
       )}
+
+      </MotionEntrance>
 
       <RouteDetailSheet
         route={selectedDetailRoute}

@@ -9,6 +9,7 @@ import type {
   RiskZone,
   RouteCheckpoint,
   RouteNavigationStep,
+  SafeRouteTravelMode,
   SavedSafeRoutePlan
 } from '../live-map/liveMapTypes';
 import { routeRiskStartBlockedReason } from '../live-map/routeRisk';
@@ -70,6 +71,7 @@ export type GuestRoutePlanOptions = {
   routeDistanceMeters?: number | null;
   routeDurationSeconds?: number | null;
   routeGuidanceSteps?: RouteNavigationStep[];
+  travelMode?: SafeRouteTravelMode;
 };
 
 export type GuestMapHomeCopy = {
@@ -335,7 +337,8 @@ export function createGuestRoutePlan({
   roadSnappedCoordinates,
   routeDistanceMeters,
   routeDurationSeconds,
-  routeGuidanceSteps
+  routeGuidanceSteps,
+  travelMode = 'drive',
 }: GuestRoutePlanOptions): SavedSafeRoutePlan {
   const originLabel = normalizeGuestRouteLabel(origin, 'Current location');
   const destinationLabel = normalizeGuestRouteLabel(destination, '');
@@ -388,6 +391,7 @@ export function createGuestRoutePlan({
     updatedAtLabel: hasRoadSnappedCoordinates ? 'Road preview' : 'Local preview',
     origin: originLabel,
     destination: destinationLabel,
+    travelMode,
     region: buildGuestRouteRegion(routeCoordinates),
     route: {
       id: `${normalizedPlanId}-path`,

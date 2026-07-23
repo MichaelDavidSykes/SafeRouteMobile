@@ -9,6 +9,7 @@ import {
   type SuspendedNavigationStatus,
 } from "./suspendedNavigationState";
 import type { NetworkAvailabilityStatus } from "../api/networkAvailabilityState";
+import { MotionEntrance } from "../../motion/SafeRouteMotion";
 
 export function SuspendedNavigationNotice({
   networkStatus,
@@ -33,10 +34,11 @@ export function SuspendedNavigationNotice({
   const retryDisabled = presentation.retryBusy || networkStatus !== "online";
 
   return (
-    <View
+    <MotionEntrance
       onLayout={(event) => onLayoutHeight?.(event.nativeEvent.layout.height)}
       style={[styles.notice, { top: insets.top + spacing.xs }]}
       testID={uiTestIds.suspendedNavigationNotice}
+      variant="chrome"
     >
       <View
         accessible
@@ -81,7 +83,7 @@ export function SuspendedNavigationNotice({
           <Text numberOfLines={1} style={styles.secondaryActionText}>End route</Text>
         </Pressable>
       </View>
-    </View>
+    </MotionEntrance>
   );
 }
 

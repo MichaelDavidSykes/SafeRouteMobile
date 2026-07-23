@@ -19,6 +19,7 @@ import { styles } from "./LiveMapOverlay.styles";
 import { LiveMapRouteHeader } from "./LiveMapRouteHeader";
 import { LiveMapRouteSummarySheet } from "./LiveMapRouteSummarySheet";
 import type { BackgroundNavigationPresentation } from "./backgroundNavigationState";
+import { MotionEntrance } from "../../motion/SafeRouteMotion";
 
 interface LiveMapOverlayProps {
   activeNavigationState: NavigationLifecycle;
@@ -83,27 +84,34 @@ export function LiveMapOverlay({
 }: LiveMapOverlayProps) {
   return (
     <SafeAreaView pointerEvents="box-none" style={styles.overlay}>
-      <LiveMapRouteHeader
-        activeNavigationState={activeNavigationState}
-        layout={layout}
-        locationNotice={locationNotice}
-        onChangeRoute={onChangeRoute}
-        returnAccessibilityLabel={returnAccessibilityLabel}
-        returnLabel={returnLabel}
-        routePlan={routePlan}
-        trackingLabel={trackingLabel}
-      />
+      <MotionEntrance
+        pointerEvents="box-none"
+        replayKey={routePlan.id}
+        style={styles.chromeEntrance}
+        variant="chrome"
+      >
+        <LiveMapRouteHeader
+          activeNavigationState={activeNavigationState}
+          layout={layout}
+          locationNotice={locationNotice}
+          onChangeRoute={onChangeRoute}
+          returnAccessibilityLabel={returnAccessibilityLabel}
+          returnLabel={returnLabel}
+          routePlan={routePlan}
+          trackingLabel={trackingLabel}
+        />
 
-      <LiveMapControls
-        activeNavigationState={activeNavigationState}
-        alertsVisible={alertsVisible}
-        hasVehicleCoordinate={hasVehicleCoordinate}
-        layout={layout}
-        onCenterVehicle={onCenterVehicle}
-        onFitRoute={onFitRoute}
-        onSetAlertsVisible={onSetAlertsVisible}
-        routeIntelCount={routePlan.riskZones.length}
-      />
+        <LiveMapControls
+          activeNavigationState={activeNavigationState}
+          alertsVisible={alertsVisible}
+          hasVehicleCoordinate={hasVehicleCoordinate}
+          layout={layout}
+          onCenterVehicle={onCenterVehicle}
+          onFitRoute={onFitRoute}
+          onSetAlertsVisible={onSetAlertsVisible}
+          routeIntelCount={routePlan.riskZones.length}
+        />
+      </MotionEntrance>
 
       {shouldShowGuidanceCard(activeNavigationState) ? (
         <LiveMapGuidanceCard
@@ -118,11 +126,18 @@ export function LiveMapOverlay({
       ) : null}
 
       {!selectedRiskZone && liveRiskAlert ? (
-        <LiveRouteRiskAlertCard
-          alert={liveRiskAlert}
-          layout={layout}
-          onPress={onOpenRiskAlert}
-        />
+        <MotionEntrance
+          pointerEvents="box-none"
+          replayKey={liveRiskAlert.zone.id}
+          style={styles.transientEntrance}
+          variant="sheet"
+        >
+          <LiveRouteRiskAlertCard
+            alert={liveRiskAlert}
+            layout={layout}
+            onPress={onOpenRiskAlert}
+          />
+        </MotionEntrance>
       ) : null}
 
       {!selectedRiskZone ? <LiveMapRouteSummarySheet

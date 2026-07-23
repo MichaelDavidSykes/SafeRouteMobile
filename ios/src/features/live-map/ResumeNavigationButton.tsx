@@ -3,6 +3,7 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { colors, radius, spacing, typeScale } from "../../theme";
 import { uiTestIds } from "../../testing/uiTestIds";
+import { MotionEntrance } from "../../motion/SafeRouteMotion";
 
 export function ResumeNavigationButton({
   onPress,
@@ -15,30 +16,37 @@ export function ResumeNavigationButton({
   const normalizedRouteName = routeName.trim() || "active route";
 
   return (
-    <Pressable
-      accessibilityHint="Returns to active SafeRoute guidance."
-      accessibilityLabel={`Resume route. ${normalizedRouteName}.`}
-      accessibilityRole="button"
-      testID={uiTestIds.liveMapResumeAction}
-      style={({ pressed }) => [
-        styles.button,
-        { top: insets.top + spacing.xs },
-        pressed ? styles.buttonPressed : null,
-      ]}
-      onPress={onPress}
+    <MotionEntrance
+      pointerEvents="box-none"
+      style={[styles.entrance, { top: insets.top + spacing.xs }]}
+      variant="chrome"
     >
-      <Text numberOfLines={1} style={styles.text}>
-        Resume route
-      </Text>
-    </Pressable>
+      <Pressable
+        accessibilityHint="Returns to active SafeRoute guidance."
+        accessibilityLabel={`Resume route. ${normalizedRouteName}.`}
+        accessibilityRole="button"
+        testID={uiTestIds.liveMapResumeAction}
+        style={({ pressed }) => [
+          styles.button,
+          pressed ? styles.buttonPressed : null,
+        ]}
+        onPress={onPress}
+      >
+        <Text numberOfLines={1} style={styles.text}>
+          Resume route
+        </Text>
+      </Pressable>
+    </MotionEntrance>
   );
 }
 
 const styles = StyleSheet.create({
-  button: {
+  entrance: {
     position: "absolute",
     alignSelf: "center",
     zIndex: 100,
+  },
+  button: {
     minHeight: 42,
     maxWidth: 180,
     alignItems: "center",

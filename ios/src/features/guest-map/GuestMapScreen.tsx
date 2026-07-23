@@ -1,13 +1,17 @@
 import { useCallback, useEffect, useMemo, useReducer, useRef, useState } from 'react';
 import {
+  Bike,
+  CarFront,
   ChevronDown,
   ChevronUp,
   Crosshair,
   Globe2,
   Map as MapIcon,
   MapPin,
+  PersonStanding,
   Plus,
   Search,
+  TrainFront,
   Trash2,
   UserRound,
 } from 'lucide-react-native';
@@ -35,9 +39,17 @@ import MapView, {
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { LUNARCHAIN_API_BASE, SAFEROUTE_PREVIEW_MODE_ENABLED } from '../../config/env';
+import {
+  MotionEntrance,
+  useLoopingPulse,
+  useMotionValue,
+} from '../../motion/SafeRouteMotion';
 import { chrome, colors, spacing } from '../../theme';
 import { uiTestIds } from '../../testing/uiTestIds';
-import type { SavedSafeRoutePlan } from '../live-map/liveMapTypes';
+import type {
+  SafeRouteTravelMode,
+  SavedSafeRoutePlan,
+} from '../live-map/liveMapTypes';
 import type { RiskZone } from '../live-map/liveMapTypes';
 import { RiskOverlay } from '../live-map/LiveMapMarkers';
 import { LiveMapRiskDetailCallout } from '../live-map/LiveMapRiskDetailCallout';
@@ -121,6 +133,10 @@ import {
   resolveGuestRouteSheetBottomPadding,
   resolveGuestRouteSheetHeight,
 } from './guestMapSheetLayout';
+import {
+  GUEST_TRAVEL_MODE_OPTIONS,
+  type GuestTravelModeOption,
+} from './guestTravelMode';
 
 const GUEST_ROUTE_PROVIDER_UI_TIMEOUT_MS = 15000;
 const GUEST_LOCATION_SEARCH_DEBOUNCE_MS = 320;
@@ -262,6 +278,7 @@ export function GuestMapScreen({
   const [workspaceMenuOpen, setWorkspaceMenuOpen] = useState(false);
   const [selectedRiskZone, setSelectedRiskZone] = useState<RiskZone | null>(null);
   const [routePlan, setRoutePlan] = useState<SavedSafeRoutePlan | null>(null);
+  const [travelMode, setTravelMode] = useState<SafeRouteTravelMode>('drive');
   const [routeResolutionPending, setRouteResolutionPending] = useState(false);
   const [roadPreviewPending, setRoadPreviewPending] = useState(false);
   const [riskAreaSavePending, setRiskAreaSavePending] = useState(false);
@@ -276,6 +293,9 @@ export function GuestMapScreen({
     ? { latitude: liveLocation.latitude, longitude: liveLocation.longitude }
     : null;
   const deviceHeadingDegrees = useDeviceHeading(permissionStatus === 'granted');
+  const currentLocationPulse = useLoopingPulse({
+    enabled: permissionStatus === 'granted' && Boolean(liveCoordinate),
+  });
   const routingClientId = authenticated ? activeWorkspace?.id || null : null;
   const routingClientIdRef = useRef(routingClientId);
   const workspaceSelectionRequired = authenticated && !routingClientId;
@@ -846,7 +866,8 @@ export function GuestMapScreen({
       originCoordinate: resolvedOriginCoordinate,
       destination: plottingDraft.destination.label,
       planId: routePlanId,
-      riskZones: viewportRisk.zones
+      riskZones: viewportRisk.zones,
+      travelMode,
     });
     // A straight checkpoint connector is useful as an internal request
     // scaffold, but it is never a drivable route. Keep navigation gated until
@@ -961,7 +982,8 @@ export function GuestMapScreen({
       avoidRectangles,
       signal: controller.signal,
       stops,
-      timeoutMs: GUEST_ROUTE_PROVIDER_UI_TIMEOUT_MS
+      timeoutMs: GUEST_ROUTE_PROVIDER_UI_TIMEOUT_MS,
+      travelMode: localRoutePlan.travelMode ?? 'drive',
     })
       .then(async (roadPreview) => {
         if (
@@ -1008,7 +1030,8 @@ export function GuestMapScreen({
               avoidRectangles: corridorAvoidRectangles,
               signal: controller.signal,
               stops,
-              timeoutMs: GUEST_ROUTE_PROVIDER_UI_TIMEOUT_MS
+              timeoutMs: GUEST_ROUTE_PROVIDER_UI_TIMEOUT_MS,
+              travelMode: localRoutePlan.travelMode ?? 'drive',
             });
             if (!riskAwarePreview) {
               return;
@@ -1053,7 +1076,8 @@ export function GuestMapScreen({
           roadSnappedCoordinates: finalRoadPreview.coordinates,
           routeDistanceMeters: finalRoadPreview.distanceMeters,
           routeDurationSeconds: finalRoadPreview.durationSeconds,
-          routeGuidanceSteps: finalRoadPreview.guidanceSteps
+          routeGuidanceSteps: finalRoadPreview.guidanceSteps,
+          travelMode: localRoutePlan.travelMode ?? 'drive',
         });
 
         if (roadRoutePlan) {
@@ -1110,6 +1134,16 @@ export function GuestMapScreen({
     }
 
     onOpenRoutePreview?.(routePlan);
+  };
+
+  const handleTravelModeChange = (nextMode: SafeRouteTravelMode) => {
+    if (nextMode === travelMode) {
+      return;
+    }
+    cancelRoadRouteUpgrade();
+    setTravelMode(nextMode);
+    setRoutePlan(null);
+    setRouteMessage('');
   };
 
   const handleCenterCurrentLocation = () => {
@@ -1507,7 +1541,23 @@ export function GuestMapScreen({
               style={styles.currentLocationMarker}
               testID={uiTestIds.guestMapCurrentLocationMarker}
             >
-              <View style={styles.currentLocationHalo} />
+              <Animated.View
+                style={[
+                  styles.currentLocationHalo,
+                  {
+                    opacity: currentLocationPulse.interpolate({
+                      inputRange: [0, 1],
+                      outputRange: [0.55, 0],
+                    }),
+                    transform: [{
+                      scale: currentLocationPulse.interpolate({
+                        inputRange: [0, 1],
+                        outputRange: [1, 2.8],
+                      }),
+                    }],
+                  },
+                ]}
+              />
               <View style={styles.currentLocationDot} />
             </View>
           </Marker>
@@ -1613,7 +1663,11 @@ export function GuestMapScreen({
         style={styles.overlay}
       >
         {sheetCollapsed && !selectedRiskZone ? (
-        <View pointerEvents="box-none" style={styles.currentLocationControlDock}>
+        <MotionEntrance
+          pointerEvents="box-none"
+          style={styles.currentLocationControlDock}
+          variant="scene"
+        >
           <Pressable
             accessibilityHint={`Switches to the ${mapLayer === 'dark' ? 'satellite' : 'dark'} map.`}
             accessibilityLabel={mapLayer === 'dark' ? 'Show satellite map' : 'Show dark map'}
@@ -1667,16 +1721,17 @@ export function GuestMapScreen({
           >
             <Crosshair accessibilityElementsHidden color={colors.appleBlue} size={21} strokeWidth={1.9} />
           </Pressable>
-        </View>
+        </MotionEntrance>
         ) : null}
 
-        <View
+        <MotionEntrance
           style={[
             styles.topBar,
             workspaceNavigationNoticeInset > 0
               ? { marginTop: workspaceNavigationNoticeInset }
               : null,
           ]}
+          variant="chrome"
         >
           <View style={styles.mapStatusStack}>
             <View
@@ -1823,13 +1878,15 @@ export function GuestMapScreen({
               {mapHomeCopy.primaryActionLabel}
             </Text>
           </Pressable>
-        </View>
+        </MotionEntrance>
 
         {mapAction ? (
-          <View
+          <MotionEntrance
             accessibilityLabel={`Map actions for ${mapAction.label}`}
+            replayKey={`${mapAction.coordinate.latitude}:${mapAction.coordinate.longitude}`}
             style={styles.mapActionMenu}
             testID={uiTestIds.guestMapLongPressMenu}
+            variant="sheet"
           >
             <View style={styles.mapActionCopy}>
               <Text numberOfLines={1} style={styles.mapActionTitle}>
@@ -1898,16 +1955,28 @@ export function GuestMapScreen({
                 <Text style={styles.mapActionButtonText}>Cancel</Text>
               </Pressable>
             </View>
-          </View>
+          </MotionEntrance>
         ) : null}
 
         {!sheetCollapsed ? (
-          <Pressable
-            accessibilityLabel="Close directions"
-            accessibilityRole="button"
-            style={styles.sheetScrim}
-            onPress={() => animateRouteSheet(true)}
-          />
+          <Animated.View
+            style={[
+              styles.sheetScrim,
+              {
+                opacity: sheetProgress.interpolate({
+                  inputRange: [0, 1],
+                  outputRange: [1, 0],
+                }),
+              },
+            ]}
+          >
+            <Pressable
+              accessibilityLabel="Close directions"
+              accessibilityRole="button"
+              style={styles.sheetScrimButton}
+              onPress={() => animateRouteSheet(true)}
+            />
+          </Animated.View>
         ) : null}
         <View pointerEvents="box-none" style={styles.sheetDock}>
           <Animated.View
@@ -2090,7 +2159,13 @@ export function GuestMapScreen({
                   onSelect={handleSelectLocation}
                 />
               ) : null}
+            </ScrollView>
 
+            <View style={styles.sheetFooter}>
+              <TravelModeSelector
+                selectedMode={travelMode}
+                onSelect={handleTravelModeChange}
+              />
               <Pressable
                 accessibilityLabel="Add another stop"
                 accessibilityRole="button"
@@ -2108,21 +2183,30 @@ export function GuestMapScreen({
               </Pressable>
 
               {routeMessage || sessionNoticeState || (locationErrorMessage && isCurrentLocationLabel(origin)) ? (
-                <Text
-                  accessibilityLabel={
-                    !routeMessage && sessionNoticeState?.accessibilityLabel
-                      ? sessionNoticeState.accessibilityLabel
-                      : undefined
+                <MotionEntrance
+                  replayKey={
+                    routeMessage ||
+                    sessionNoticeState?.message ||
+                    locationErrorMessage
                   }
-                  accessibilityRole={
-                    routeMessage || !sessionNoticeState
-                      ? 'alert'
-                      : sessionNoticeState.accessibilityRole
-                  }
-                  style={styles.routeMessage}
+                  variant="disclosure"
                 >
-                  {routeMessage || sessionNoticeState?.message || locationErrorMessage}
-                </Text>
+                  <Text
+                    accessibilityLabel={
+                      !routeMessage && sessionNoticeState?.accessibilityLabel
+                        ? sessionNoticeState.accessibilityLabel
+                        : undefined
+                    }
+                    accessibilityRole={
+                      routeMessage || !sessionNoticeState
+                        ? 'alert'
+                        : sessionNoticeState.accessibilityRole
+                    }
+                    style={styles.routeMessage}
+                  >
+                    {routeMessage || sessionNoticeState?.message || locationErrorMessage}
+                  </Text>
+                </MotionEntrance>
               ) : null}
 
               <Pressable
@@ -2144,32 +2228,36 @@ export function GuestMapScreen({
               >
                 <Text numberOfLines={1} style={styles.primaryButtonText}>{routeActionLabel}</Text>
               </Pressable>
-
-            </ScrollView>
+            </View>
           </Animated.View>
         </View>
 
         {!selectedRiskZone ? (
-          <Animated.View
+          <MotionEntrance
             accessibilityElementsHidden={!sheetCollapsed}
+            duration={360}
             importantForAccessibility={sheetCollapsed ? 'auto' : 'no-hide-descendants'}
             pointerEvents={sheetCollapsed ? 'auto' : 'none'}
-            style={[
-              styles.collapsedSheet,
-              {
-                opacity: sheetProgress.interpolate({
-                  inputRange: [0, 0.35, 1],
-                  outputRange: [0, 0, 1]
-                }),
-                transform: [{
-                  translateY: sheetProgress.interpolate({
-                    inputRange: [0, 1],
-                    outputRange: [18, 0]
-                  })
-                }]
-              }
-            ]}
+            style={styles.collapsedSheetDock}
+            variant="sheet"
           >
+            <Animated.View
+              style={[
+                styles.collapsedSheet,
+                {
+                  opacity: sheetProgress.interpolate({
+                    inputRange: [0, 0.35, 1],
+                    outputRange: [0, 0, 1]
+                  }),
+                  transform: [{
+                    translateY: sheetProgress.interpolate({
+                      inputRange: [0, 1],
+                      outputRange: [18, 0]
+                    })
+                  }]
+                }
+              ]}
+            >
             <Pressable
               accessibilityHint="Opens route planning, focuses the next stop, and shows the keyboard."
               accessibilityLabel="Search for the next stop"
@@ -2195,7 +2283,8 @@ export function GuestMapScreen({
                 </View>
               </View>
             </Pressable>
-          </Animated.View>
+            </Animated.View>
+          </MotionEntrance>
         ) : null}
       </SafeAreaView>
       </KeyboardAvoidingView>
@@ -2325,46 +2414,154 @@ function GuestWorkspaceSelector({
       </Pressable>
 
       {menuOpen && workspaces.length > 0 && !switchingDisabled ? (
-        <ScrollView
-          nestedScrollEnabled
-          contentContainerStyle={styles.workspaceMenuContent}
-          showsVerticalScrollIndicator={false}
-          style={styles.workspaceMenu}
-        >
-          {workspaces.map((workspace) => {
-            const selected = activeWorkspace?.id === workspace.id;
-            return (
-              <Pressable
-                key={workspace.id}
-                accessibilityHint={changeEndsNavigation && !selected
-                  ? `Asks to end active guidance before changing to ${workspace.name}.`
-                  : `Uses ${workspace.name} for routes and risk intelligence.`}
-                accessibilityLabel={`Use workspace ${workspace.name}${selected ? ', selected' : ''}`}
-                accessibilityRole="button"
-                accessibilityState={{ selected }}
-                testID={uiTestIds.guestMapWorkspaceOption(workspace.id)}
-                style={({ pressed }) => [
-                  styles.workspaceMenuItem,
-                  selected ? styles.workspaceMenuItemSelected : null,
-                  pressed ? styles.workspaceMenuItemPressed : null
-                ]}
-                onPress={() => onSelect(workspace)}
-              >
-                <Text
-                  numberOfLines={1}
-                  style={[
-                    styles.workspaceMenuItemText,
-                    selected ? styles.workspaceMenuItemTextSelected : null
+        <MotionEntrance variant="disclosure">
+          <ScrollView
+            nestedScrollEnabled
+            contentContainerStyle={styles.workspaceMenuContent}
+            showsVerticalScrollIndicator={false}
+            style={styles.workspaceMenu}
+          >
+            {workspaces.map((workspace) => {
+              const selected = activeWorkspace?.id === workspace.id;
+              return (
+                <Pressable
+                  key={workspace.id}
+                  accessibilityHint={changeEndsNavigation && !selected
+                    ? `Asks to end active guidance before changing to ${workspace.name}.`
+                    : `Uses ${workspace.name} for routes and risk intelligence.`}
+                  accessibilityLabel={`Use workspace ${workspace.name}${selected ? ', selected' : ''}`}
+                  accessibilityRole="button"
+                  accessibilityState={{ selected }}
+                  testID={uiTestIds.guestMapWorkspaceOption(workspace.id)}
+                  style={({ pressed }) => [
+                    styles.workspaceMenuItem,
+                    selected ? styles.workspaceMenuItemSelected : null,
+                    pressed ? styles.workspaceMenuItemPressed : null
                   ]}
+                  onPress={() => onSelect(workspace)}
                 >
-                  {workspace.name}
-                </Text>
-              </Pressable>
-            );
-          })}
-        </ScrollView>
+                  <Text
+                    numberOfLines={1}
+                    style={[
+                      styles.workspaceMenuItemText,
+                      selected ? styles.workspaceMenuItemTextSelected : null
+                    ]}
+                  >
+                    {workspace.name}
+                  </Text>
+                </Pressable>
+              );
+            })}
+          </ScrollView>
+        </MotionEntrance>
       ) : null}
     </View>
+  );
+}
+
+function TravelModeSelector({
+  onSelect,
+  selectedMode,
+}: {
+  onSelect: (mode: SafeRouteTravelMode) => void;
+  selectedMode: SafeRouteTravelMode;
+}) {
+  const [selectorWidth, setSelectorWidth] = useState(0);
+  const selectedIndex = GUEST_TRAVEL_MODE_OPTIONS.findIndex(
+    (option) => option.id === selectedMode,
+  );
+  const selectionProgress = useMotionValue(Math.max(0, selectedIndex), {
+    spring: true,
+  });
+  const segmentWidth = Math.max(0, selectorWidth - 6) /
+    GUEST_TRAVEL_MODE_OPTIONS.length;
+
+  return (
+    <MotionEntrance
+      accessibilityLabel="Travel mode"
+      accessibilityRole="tablist"
+      style={styles.travelModeSelector}
+      testID={uiTestIds.guestMapTravelModeSelector}
+      variant="scene"
+      onLayout={({ nativeEvent }) => {
+        setSelectorWidth(nativeEvent.layout.width);
+      }}
+    >
+      {segmentWidth > 0 ? (
+        <Animated.View
+          pointerEvents="none"
+          style={[
+            styles.travelModeSelection,
+            {
+              width: segmentWidth,
+              transform: [{
+                translateX: selectionProgress.interpolate({
+                  inputRange: [0, GUEST_TRAVEL_MODE_OPTIONS.length - 1],
+                  outputRange: [
+                    0,
+                    segmentWidth * (GUEST_TRAVEL_MODE_OPTIONS.length - 1),
+                  ],
+                }),
+              }],
+            },
+          ]}
+        />
+      ) : null}
+      {GUEST_TRAVEL_MODE_OPTIONS.map((option) => (
+        <TravelModeButton
+          key={option.id}
+          option={option}
+          selected={option.id === selectedMode}
+          onPress={() => onSelect(option.id)}
+        />
+      ))}
+    </MotionEntrance>
+  );
+}
+
+function TravelModeButton({
+  onPress,
+  option,
+  selected,
+}: {
+  onPress: () => void;
+  option: GuestTravelModeOption;
+  selected: boolean;
+}) {
+  const iconColor = selected ? colors.appleBlue : colors.muted;
+  const iconProps = {
+    accessibilityElementsHidden: true as const,
+    color: iconColor,
+    size: 18,
+    strokeWidth: 1.9,
+  };
+
+  return (
+    <Pressable
+      accessibilityLabel={option.accessibilityLabel}
+      accessibilityRole="tab"
+      accessibilityState={{ selected }}
+      testID={uiTestIds.guestMapTravelMode(option.id)}
+      style={({ pressed }) => [
+        styles.travelModeOption,
+        pressed ? styles.travelModeOptionPressed : null,
+      ]}
+      onPress={onPress}
+    >
+      {option.id === 'drive' ? <CarFront {...iconProps} /> : null}
+      {option.id === 'walk' ? <PersonStanding {...iconProps} /> : null}
+      {option.id === 'cycle' ? <Bike {...iconProps} /> : null}
+      {option.id === 'transit' ? <TrainFront {...iconProps} /> : null}
+      <Text
+        numberOfLines={1}
+        style={[
+          styles.travelModeLabel,
+          selected ? styles.travelModeLabelSelected : null,
+        ]}
+      >
+        {option.label}
+      </Text>
+    </Pressable>
   );
 }
 
@@ -2555,7 +2752,12 @@ function LocationSearchResults({
   }
 
   return (
-    <View style={styles.searchResults} testID={uiTestIds.guestMapSearchResults}>
+    <MotionEntrance
+      replayKey={`${pending}:${message}:${results.length}`}
+      style={styles.searchResults}
+      testID={uiTestIds.guestMapSearchResults}
+      variant="disclosure"
+    >
       {pending ? (
         <View
           accessible
@@ -2589,7 +2791,7 @@ function LocationSearchResults({
           {message}
         </Text>
       ) : null}
-    </View>
+    </MotionEntrance>
   );
 }
 

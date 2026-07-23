@@ -32,6 +32,7 @@ import {
   shouldUseCompactRouteSummary,
 } from "./routeSummaryPresentation";
 import type { BackgroundNavigationPresentation } from "./backgroundNavigationState";
+import { MotionEntrance } from "../../motion/SafeRouteMotion";
 
 const ROUTE_SUMMARY_ACTION_HIT_SLOP = 12;
 const ROUTE_SUMMARY_ACTION_PRESS_RETENTION_OFFSET = 20;
@@ -136,8 +137,10 @@ export function LiveMapRouteSummarySheet({
   });
 
   return (
-    <View
+    <MotionEntrance
+      replayKey={routePlan.id}
       testID={uiTestIds.liveMapRouteSummarySheet}
+      variant="sheet"
       style={[
         styles.bottomSheet,
         layout.isCompact ? styles.bottomSheetCompact : null,
@@ -216,7 +219,11 @@ export function LiveMapRouteSummarySheet({
       </View>
 
       {!compactRouteSummary && detailsVisible ? (
-        <View style={styles.detailsPanel}>
+        <MotionEntrance
+          replayKey={`${routePlan.id}:details`}
+          style={styles.detailsPanel}
+          variant="disclosure"
+        >
           {routeContext === "saved" ? (
             <View
               accessible
@@ -233,27 +240,32 @@ export function LiveMapRouteSummarySheet({
           <Text numberOfLines={2} style={styles.routeDescription}>
             {route.description || routeDetail.text}
           </Text>
-        </View>
+        </MotionEntrance>
       ) : null}
 
       {backgroundNavigationPresentation ? (
-        <Pressable
-          accessibilityLabel={backgroundNavigationPresentation.accessibilityLabel}
-          accessibilityRole="button"
-          testID={uiTestIds.liveMapBackgroundNavigationAction}
-          style={({ pressed }) => [
-            styles.continuityAction,
-            pressed ? styles.continuityActionPressed : null,
-          ]}
-          onPress={onEnableBackgroundNavigation}
+        <MotionEntrance
+          replayKey={backgroundNavigationPresentation.message}
+          variant="disclosure"
         >
-          <Text numberOfLines={1} style={styles.continuityMessage}>
-            {backgroundNavigationPresentation.message}
-          </Text>
-          <Text numberOfLines={1} style={styles.continuityActionText}>
-            {backgroundNavigationPresentation.actionLabel}
-          </Text>
-        </Pressable>
+          <Pressable
+            accessibilityLabel={backgroundNavigationPresentation.accessibilityLabel}
+            accessibilityRole="button"
+            testID={uiTestIds.liveMapBackgroundNavigationAction}
+            style={({ pressed }) => [
+              styles.continuityAction,
+              pressed ? styles.continuityActionPressed : null,
+            ]}
+            onPress={onEnableBackgroundNavigation}
+          >
+            <Text numberOfLines={1} style={styles.continuityMessage}>
+              {backgroundNavigationPresentation.message}
+            </Text>
+            <Text numberOfLines={1} style={styles.continuityActionText}>
+              {backgroundNavigationPresentation.actionLabel}
+            </Text>
+          </Pressable>
+        </MotionEntrance>
       ) : null}
 
       <View
@@ -332,7 +344,7 @@ export function LiveMapRouteSummarySheet({
           </Pressable>
         )}
       </View>
-    </View>
+    </MotionEntrance>
   );
 }
 

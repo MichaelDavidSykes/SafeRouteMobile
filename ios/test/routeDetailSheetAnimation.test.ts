@@ -30,7 +30,11 @@ describe("saved route detail animation", () => {
     );
     assert.match(
       sheetSource,
-      /<Pressable[\s\S]*style=\{styles\.scrim\}[\s\S]*onPress=\{dismissSheet\}[\s\S]*<AnimatedSafeAreaView/,
+      /<AnimatedPressable[\s\S]*style=\{\[styles\.scrim, \{ opacity: scrimOpacity \}\]\}[\s\S]*onPress=\{dismissSheet\}[\s\S]*<AnimatedSafeAreaView/,
+    );
+    assert.doesNotMatch(
+      sheetSource,
+      /styles\.scrim[\s\S]{0,100}transform:/,
     );
   });
 

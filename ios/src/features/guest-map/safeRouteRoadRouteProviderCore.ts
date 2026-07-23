@@ -7,6 +7,7 @@ import {
   type GuestRoadRoutePreview,
   type GuestRouteAvoidRectangle
 } from './guestRoadRouteProvider';
+import type { SafeRouteTravelMode } from '../live-map/liveMapTypes';
 import {
   normalizeRouteAvoidRectangles,
   routeIntersectsAvoidRectangles
@@ -23,6 +24,7 @@ type SafeRouteRoutePreviewPayload = {
   client_id: string;
   include_road_metadata: true;
   include_route_alerts: true;
+  travel_mode?: SafeRouteTravelMode;
   waypoints: Array<{
     elevation_m: null;
     lat: number;
@@ -64,11 +66,13 @@ export function resolveSafeRoutePreviewRequestMode({
 export function buildSafeRoutePreviewPayload({
   avoidRectangles,
   clientId,
-  stops
+  stops,
+  travelMode = 'drive',
 }: {
   avoidRectangles: GuestRouteAvoidRectangle[];
   clientId: string;
   stops: LatLng[];
+  travelMode?: SafeRouteTravelMode;
 }): SafeRouteRoutePreviewPayload {
   const payload: SafeRouteRoutePreviewPayload = {
     client_id: clientId.trim(),
@@ -80,6 +84,9 @@ export function buildSafeRoutePreviewPayload({
       lon: Number(stop.longitude.toFixed(6))
     }))
   };
+  if (travelMode !== 'drive') {
+    payload.travel_mode = travelMode;
+  }
   const normalizedAvoidRectangles = normalizeRouteAvoidRectangles(avoidRectangles);
   if (normalizedAvoidRectangles.length) {
     payload.avoid_rectangles = normalizedAvoidRectangles.map((rectangle) => ({
@@ -95,20 +102,26 @@ export function buildSafeRoutePreviewPayload({
 
 export function buildPublicSafeRoutePreviewPayload({
   avoidRectangles,
-  stops
+  stops,
+  travelMode = 'drive',
 }: {
   avoidRectangles: GuestRouteAvoidRectangle[];
   stops: LatLng[];
+  travelMode?: SafeRouteTravelMode;
 }) {
   const workspacePayload = buildSafeRoutePreviewPayload({
     avoidRectangles,
     clientId: 'public-mobile',
-    stops
+    stops,
+    travelMode,
   });
 
   return {
     ...(workspacePayload.avoid_rectangles
       ? { avoid_rectangles: workspacePayload.avoid_rectangles }
+      : {}),
+    ...(workspacePayload.travel_mode
+      ? { travel_mode: workspacePayload.travel_mode }
       : {}),
     waypoints: workspacePayload.waypoints
   };
@@ -117,12 +130,21 @@ export function buildPublicSafeRoutePreviewPayload({
 export function normalizeSafeRoutePreviewResponse(
   payload: unknown,
   requestedStops: LatLng[],
-  requestedAvoidRectangles: readonly GuestRouteAvoidRectangle[] = []
+  requestedAvoidRectangles: readonly GuestRouteAvoidRectangle[] = [],
+  requestedTravelMode: SafeRouteTravelMode = 'drive',
 ): GuestRoadRoutePreview | null {
   if (!payload || typeof payload !== 'object') {
     return null;
   }
   const record = payload as Record<string, unknown>;
+  const responseTravelMode = record.travel_mode ?? record.travelMode;
+  if (
+    (typeof responseTravelMode === 'string' &&
+      responseTravelMode !== requestedTravelMode) ||
+    (requestedTravelMode !== 'drive' && responseTravelMode !== requestedTravelMode)
+  ) {
+    return null;
+  }
   const provider = record.provider === 'tomtom' || record.provider === 'osrm'
     ? record.provider
     : null;

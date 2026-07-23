@@ -139,8 +139,20 @@ export const guestMapStyles = StyleSheet.create({
     left: 0,
     backgroundColor: 'rgba(0, 0, 0, 0.12)'
   },
+  sheetScrimButton: {
+    flex: 1,
+  },
   sheetScroll: {
+    flex: 1,
     maxHeight: 520
+  },
+  sheetFooter: {
+    position: 'relative',
+    zIndex: 2,
+    flexShrink: 0,
+    paddingTop: spacing.xs,
+    backgroundColor: colors.sheet,
+    elevation: 2,
   },
   sheetGrabberTouch: {
     // Keep the visible grabber understated while giving the drag affordance a
@@ -283,6 +295,55 @@ export const guestMapStyles = StyleSheet.create({
     borderColor: colors.glassBorder,
     borderRadius: 16,
     backgroundColor: colors.surface
+  },
+  travelModeSelector: {
+    position: 'relative',
+    minHeight: 42,
+    flexDirection: 'row',
+    alignItems: 'stretch',
+    marginTop: spacing.sm,
+    padding: 3,
+    borderRadius: 13,
+    backgroundColor: '#e7e7ec',
+  },
+  travelModeSelection: {
+    position: 'absolute',
+    zIndex: 0,
+    top: 3,
+    bottom: 3,
+    left: 3,
+    borderRadius: 9,
+    backgroundColor: colors.surface,
+    shadowColor: '#000000',
+    shadowOpacity: 0.16,
+    shadowRadius: 3,
+    shadowOffset: { width: 0, height: 1 },
+    elevation: 2,
+  },
+  travelModeOption: {
+    zIndex: 1,
+    minWidth: 0,
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 4,
+    paddingHorizontal: 2,
+    borderRadius: 9,
+  },
+  travelModeOptionPressed: {
+    opacity: 0.65,
+  },
+  travelModeLabel: {
+    minWidth: 0,
+    flexShrink: 1,
+    color: colors.muted,
+    fontSize: 10,
+    fontWeight: '600',
+  },
+  travelModeLabelSelected: {
+    color: colors.appleBlue,
+    fontWeight: '700',
   },
   inputRow: {
     minHeight: 64,
@@ -573,12 +634,15 @@ export const guestMapStyles = StyleSheet.create({
     fontWeight: '800',
     textAlign: 'center'
   },
-  collapsedSheet: {
+  collapsedSheetDock: {
     position: 'absolute',
     zIndex: 32,
     right: spacing.md,
     bottom: chrome.screenBottomInset,
     left: spacing.md,
+    elevation: 32
+  },
+  collapsedSheet: {
     overflow: 'hidden',
     borderWidth: 0.5,
     borderColor: colors.glassBorder,
@@ -587,8 +651,7 @@ export const guestMapStyles = StyleSheet.create({
     shadowColor: '#000000',
     shadowOpacity: 0.16,
     shadowRadius: 10,
-    shadowOffset: { width: 0, height: 5 },
-    elevation: 32
+    shadowOffset: { width: 0, height: 5 }
   },
   collapsedSheetButton: {
     minHeight: 64,

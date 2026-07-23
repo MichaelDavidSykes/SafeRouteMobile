@@ -15,7 +15,7 @@ describe('guest map tab bar inset', () => {
     assert.ok(chrome.screenBottomInset > chrome.tabBarHeight);
     assert.match(
       stylesSource,
-      /collapsedSheet:\s*\{[\s\S]*bottom: chrome\.screenBottomInset/,
+      /collapsedSheetDock:\s*\{[\s\S]*bottom: chrome\.screenBottomInset/,
     );
     assert.doesNotMatch(
       stylesSource,
@@ -33,7 +33,7 @@ describe('guest map tab bar inset', () => {
     );
     const dockEnd = screenSource.indexOf('</View>', dockStart);
     const collapsedSearch = screenSource.indexOf(
-      'styles.collapsedSheet,',
+      'styles.collapsedSheetDock',
       dockStart,
     );
 

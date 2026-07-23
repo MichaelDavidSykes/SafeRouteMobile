@@ -70,6 +70,12 @@ import {
   shouldStartRiskDetailDismissGesture,
 } from "../live-map/riskDetailInteraction";
 import {
+  MotionEntrance,
+  safeRouteMotion,
+  useMotionValue,
+  useReduceMotionEnabled,
+} from "../../motion/SafeRouteMotion";
+import {
   createCalendarRows,
   createConvoyRows,
   createOperationsEmptyState,
@@ -98,7 +104,10 @@ import {
 } from "./operationsUiState";
 
 const OPERATIONS_ERROR_ACTION_HIT_SLOP = 6;
-const CONVOY_EXPANSION_DURATION_MS = 240;
+const CONVOY_CHEVRON_DURATION_MS = 250;
+const CONVOY_EXPANSION_DURATION_MS = safeRouteMotion.disclosureDurationMs;
+const DETAIL_SHEET_ENTRANCE_OFFSET = 24;
+const AnimatedPressable = Animated.createAnimatedComponent(Pressable);
 const OFFLINE_CALENDAR_REMOVAL_RETRY_SCOPES = new Set<string>();
 const COMPACT_OFFLINE_SAVING_STATES = new Set<OperationsOfflineCalendarSavingState>([
   "allowed",
@@ -217,6 +226,7 @@ export function OperationsScreen({
     status: networkStatus,
   } = useNetworkAvailability();
   const protectedRequestsAvailable = online && workspaceAuthorizationFresh;
+  const reduceMotionEnabled = useReduceMotionEnabled();
   const selectedWorkspaceId = activeWorkspace?.id || null;
   const offlineCalendarRemovalScopeKey = JSON.stringify([
     cacheIdentity,
@@ -1476,6 +1486,11 @@ export function OperationsScreen({
           : null,
       ]}
     >
+      <MotionEntrance
+        replayKey={activeTab}
+        style={{ flex: 1 }}
+        variant="scene"
+      >
       <View style={styles.header}>
         <View style={styles.headerTopRow}>
           <View style={styles.headerCopy}>
@@ -2038,7 +2053,9 @@ export function OperationsScreen({
                       groupIndex={index}
                       row={row}
                       onToggle={() => {
-                        configureConvoyExpansionAnimation();
+                        if (!reduceMotionEnabled) {
+                          configureConvoyExpansionAnimation();
+                        }
                         setCollapsedConvoyIds((current) => {
                           const next = new Set(current);
                           if (next.has(row.id)) {
@@ -2083,6 +2100,8 @@ export function OperationsScreen({
           </ScrollView>
         )
       ) : null}
+
+      </MotionEntrance>
 
       {!workspaceState && !ownedErrorState && activeTab === "calendar" && selectedCalendarRow ? (
         <OperationsCalendarDetail
@@ -2285,10 +2304,6 @@ function OperationsCalendarCard({
 function configureConvoyExpansionAnimation() {
   LayoutAnimation.configureNext({
     duration: CONVOY_EXPANSION_DURATION_MS,
-    create: {
-      property: LayoutAnimation.Properties.opacity,
-      type: LayoutAnimation.Types.easeInEaseOut,
-    },
     update: {
       type: LayoutAnimation.Types.easeInEaseOut,
     },
@@ -2376,7 +2391,11 @@ function OperationsConvoyCard({
       </View>
 
       {expanded ? (
-        <View style={styles.convoyExpandedContent}>
+        <MotionEntrance
+          replayKey={row.id}
+          style={styles.convoyExpandedContent}
+          variant="disclosure"
+        >
           {row.vehicles.map((vehicle) => (
             <OperationsVehicleCard
               key={vehicle.id}
@@ -2391,23 +2410,16 @@ function OperationsConvoyCard({
               <Text style={styles.convoyMeta}>{row.manifestLabel}</Text>
             </View>
           ) : null}
-        </View>
+        </MotionEntrance>
       ) : null}
     </View>
   );
 }
 
 function ConvoyDisclosure({ expanded }: { expanded: boolean }) {
-  const progress = useRef(new Animated.Value(expanded ? 1 : 0)).current;
-
-  useEffect(() => {
-    Animated.timing(progress, {
-      duration: CONVOY_EXPANSION_DURATION_MS,
-      easing: Easing.out(Easing.cubic),
-      toValue: expanded ? 1 : 0,
-      useNativeDriver: true,
-    }).start();
-  }, [expanded, progress]);
+  const progress = useMotionValue(expanded ? 1 : 0, {
+    duration: CONVOY_CHEVRON_DURATION_MS,
+  });
 
   return (
     <Animated.View
@@ -2790,14 +2802,25 @@ function OperationsDetailSheet({
   title: string;
 }) {
   const viewport = useWindowDimensions();
-  const sheetTranslateY = useRef(new Animated.Value(viewport.height)).current;
+  const reduceMotionEnabled = useReduceMotionEnabled();
+  const sheetTranslateY = useRef(
+    new Animated.Value(DETAIL_SHEET_ENTRANCE_OFFSET),
+  ).current;
+  const sheetOpacity = useRef(new Animated.Value(0)).current;
+  const scrimOpacity = useRef(new Animated.Value(0)).current;
   const closingRef = useRef(false);
   const onCloseRef = useRef(onClose);
+  const reduceMotionEnabledRef = useRef(reduceMotionEnabled);
   const viewportHeightRef = useRef(viewport.height);
   onCloseRef.current = onClose;
+  reduceMotionEnabledRef.current = reduceMotionEnabled;
   viewportHeightRef.current = viewport.height;
 
   const restoreSheet = () => {
+    if (reduceMotionEnabledRef.current) {
+      sheetTranslateY.setValue(0);
+      return;
+    }
     Animated.spring(sheetTranslateY, {
       damping: 24,
       mass: 0.9,
@@ -2811,12 +2834,30 @@ function OperationsDetailSheet({
       return;
     }
     closingRef.current = true;
-    Animated.timing(sheetTranslateY, {
-      duration: 210,
-      easing: Easing.out(Easing.cubic),
-      toValue: viewportHeightRef.current,
-      useNativeDriver: true,
-    }).start(({ finished }) => {
+    if (reduceMotionEnabledRef.current) {
+      onCloseRef.current();
+      return;
+    }
+    Animated.parallel([
+      Animated.timing(sheetTranslateY, {
+        duration: 210,
+        easing: Easing.out(Easing.cubic),
+        toValue: viewportHeightRef.current,
+        useNativeDriver: true,
+      }),
+      Animated.timing(sheetOpacity, {
+        duration: 210,
+        easing: Easing.out(Easing.ease),
+        toValue: 0,
+        useNativeDriver: true,
+      }),
+      Animated.timing(scrimOpacity, {
+        duration: 210,
+        easing: Easing.out(Easing.ease),
+        toValue: 0,
+        useNativeDriver: true,
+      }),
+    ]).start(({ finished }) => {
       if (finished) {
         onCloseRef.current();
       } else {
@@ -2852,18 +2893,56 @@ function OperationsDetailSheet({
   ).current;
 
   useEffect(() => {
-    sheetTranslateY.setValue(viewportHeightRef.current);
-    restoreSheet();
-    return () => sheetTranslateY.stopAnimation();
-  }, [sheetTranslateY]);
+    closingRef.current = false;
+    if (reduceMotionEnabled) {
+      sheetTranslateY.setValue(0);
+      sheetOpacity.setValue(1);
+      scrimOpacity.setValue(1);
+    } else {
+      sheetTranslateY.setValue(DETAIL_SHEET_ENTRANCE_OFFSET);
+      sheetOpacity.setValue(0);
+      scrimOpacity.setValue(0);
+      Animated.parallel([
+        Animated.timing(sheetTranslateY, {
+          duration: safeRouteMotion.sheetDurationMs,
+          easing: Easing.bezier(0.2, 0.7, 0.2, 1),
+          toValue: 0,
+          useNativeDriver: true,
+        }),
+        Animated.timing(sheetOpacity, {
+          duration: safeRouteMotion.sheetDurationMs,
+          easing: Easing.bezier(0.2, 0.7, 0.2, 1),
+          toValue: 1,
+          useNativeDriver: true,
+        }),
+        Animated.timing(scrimOpacity, {
+          duration: safeRouteMotion.scrimDurationMs,
+          easing: Easing.out(Easing.ease),
+          toValue: 1,
+          useNativeDriver: true,
+        }),
+      ]).start();
+    }
+
+    return () => {
+      scrimOpacity.stopAnimation();
+      sheetOpacity.stopAnimation();
+      sheetTranslateY.stopAnimation();
+    };
+  }, [
+    reduceMotionEnabled,
+    scrimOpacity,
+    sheetOpacity,
+    sheetTranslateY,
+  ]);
 
   return (
     <View style={styles.detailOverlay}>
-      <Pressable
+      <AnimatedPressable
         accessible={false}
         accessibilityElementsHidden
         importantForAccessibility="no-hide-descendants"
-        style={styles.detailScrim}
+        style={[styles.detailScrim, { opacity: scrimOpacity }]}
         onPress={dismissSheet}
       />
       <Animated.View
@@ -2872,7 +2951,10 @@ function OperationsDetailSheet({
         testID={testID}
         style={[
           styles.detailSheet,
-          { transform: [{ translateY: sheetTranslateY }] },
+          {
+            opacity: sheetOpacity,
+            transform: [{ translateY: sheetTranslateY }],
+          },
         ]}
       >
         <View {...dragResponder.panHandlers} style={styles.detailGrabberTouch}>

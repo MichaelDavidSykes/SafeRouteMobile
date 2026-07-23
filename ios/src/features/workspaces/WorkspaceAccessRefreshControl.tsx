@@ -17,6 +17,7 @@ import {
   shouldStackWorkspaceAccessControl,
   type WorkspaceAccessIssue,
 } from "./workspaceAccessRefreshState";
+import { MotionEntrance } from "../../motion/SafeRouteMotion";
 
 export function WorkspaceAccessRefreshControl({
   accessRecoveryPending,
@@ -74,36 +75,38 @@ export function WorkspaceAccessRefreshControl({
   }, [catalogAgeNowMs, catalogStoredAtMs]);
 
   return (
-    <Pressable
-      accessible
-      accessibilityHint={state.accessibilityHint}
-      accessibilityLabel={state.accessibilityLabel}
-      accessibilityLiveRegion="polite"
-      accessibilityRole="button"
-      accessibilityState={{
-        busy: loading || networkChecking,
-        disabled,
-      }}
-      disabled={disabled}
-      testID={uiTestIds.workspaceAccessRefresh}
-      style={({ pressed }) => [
-        styles.control,
-        stacked ? styles.controlStacked : null,
-        pressed && !disabled ? styles.controlPressed : null,
-      ]}
-      onPress={onRefresh}
-    >
-      <View style={[styles.copy, stacked ? styles.copyStacked : null]}>
-        <Text style={styles.title}>{state.title}</Text>
-        <Text style={styles.detail}>{state.detail}</Text>
-      </View>
-      <View style={[styles.status, stacked ? styles.statusStacked : null]}>
-        {loading || networkChecking
-          ? <ActivityIndicator color={colors.appleBlue} size="small" />
-          : null}
-        <Text style={styles.action}>{state.actionLabel}</Text>
-      </View>
-    </Pressable>
+    <MotionEntrance variant="disclosure">
+      <Pressable
+        accessible
+        accessibilityHint={state.accessibilityHint}
+        accessibilityLabel={state.accessibilityLabel}
+        accessibilityLiveRegion="polite"
+        accessibilityRole="button"
+        accessibilityState={{
+          busy: loading || networkChecking,
+          disabled,
+        }}
+        disabled={disabled}
+        testID={uiTestIds.workspaceAccessRefresh}
+        style={({ pressed }) => [
+          styles.control,
+          stacked ? styles.controlStacked : null,
+          pressed && !disabled ? styles.controlPressed : null,
+        ]}
+        onPress={onRefresh}
+      >
+        <View style={[styles.copy, stacked ? styles.copyStacked : null]}>
+          <Text style={styles.title}>{state.title}</Text>
+          <Text style={styles.detail}>{state.detail}</Text>
+        </View>
+        <View style={[styles.status, stacked ? styles.statusStacked : null]}>
+          {loading || networkChecking
+            ? <ActivityIndicator color={colors.appleBlue} size="small" />
+            : null}
+          <Text style={styles.action}>{state.actionLabel}</Text>
+        </View>
+      </Pressable>
+    </MotionEntrance>
   );
 }
 

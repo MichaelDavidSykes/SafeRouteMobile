@@ -22,6 +22,7 @@ import {
   shouldDismissRiskDetailGesture,
   shouldStartRiskDetailDismissGesture,
 } from "./riskDetailInteraction";
+import { MotionEntrance } from "../../motion/SafeRouteMotion";
 
 export function LiveMapRiskDetailCallout({
   bottomInset = chrome.tabBarHeight + 18,
@@ -95,7 +96,12 @@ export function LiveMapRiskDetailCallout({
   const severityColor = resolveSeverityColor(presentation.tone);
 
   return (
-    <View pointerEvents="box-none" style={[StyleSheet.absoluteFill, styles.overlay]}>
+    <MotionEntrance
+      pointerEvents="box-none"
+      replayKey={zone.id}
+      style={[StyleSheet.absoluteFill, styles.overlay]}
+      variant="sheet"
+    >
       <Animated.View
         {...panResponder.panHandlers}
         accessible
@@ -179,7 +185,7 @@ export function LiveMapRiskDetailCallout({
           </Text>
         ) : null}
       </Animated.View>
-    </View>
+    </MotionEntrance>
   );
 }
 

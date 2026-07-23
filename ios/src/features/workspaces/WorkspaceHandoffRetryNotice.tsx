@@ -5,6 +5,7 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { colors, radius, spacing, typeScale } from "../../theme";
 import { uiTestIds } from "../../testing/uiTestIds";
 import { createWorkspaceHandoffRetryNoticeCopy } from "./workspaceHandoffRetryNoticeCopy";
+import { MotionEntrance } from "../../motion/SafeRouteMotion";
 
 export function WorkspaceHandoffRetryNotice({
   checkingAccess,
@@ -38,9 +39,10 @@ export function WorkspaceHandoffRetryNotice({
   });
 
   return (
-    <View
+    <MotionEntrance
       style={[styles.notice, { top: insets.top + spacing.xs }]}
       testID={uiTestIds.workspaceHandoffRetryNotice}
+      variant="chrome"
     >
       <View
         accessible
@@ -105,7 +107,7 @@ export function WorkspaceHandoffRetryNotice({
           </Pressable>
         </>
       ) : null}
-    </View>
+    </MotionEntrance>
   );
 }
 

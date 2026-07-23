@@ -1,7 +1,11 @@
 import type { LatLng } from 'react-native-maps';
 
 import { haversineDistanceMeters } from '../live-map/routeGeometry';
-import type { RiskZone, RouteNavigationStep } from '../live-map/liveMapTypes';
+import type {
+  RiskZone,
+  RouteNavigationStep,
+  SafeRouteTravelMode,
+} from '../live-map/liveMapTypes';
 import {
   normalizeRouteAvoidRectangles,
   routeIntersectsAvoidRectangles,
@@ -26,6 +30,7 @@ export type GuestRoadRoutePreviewOptions = {
   signal?: AbortSignal;
   stops: LatLng[];
   timeoutMs?: number;
+  travelMode?: SafeRouteTravelMode;
 };
 
 export type GuestRouteAvoidRectangle = RouteAvoidRectangle;
@@ -42,8 +47,14 @@ export async function fetchGuestRoadRoutePreview({
   request = fetch,
   signal,
   stops,
-  timeoutMs = GUEST_ROUTE_PROVIDER_TIMEOUT_MS
+  timeoutMs = GUEST_ROUTE_PROVIDER_TIMEOUT_MS,
+  travelMode = 'drive',
 }: GuestRoadRoutePreviewOptions): Promise<GuestRoadRoutePreview | null> {
+  // The public OSRM fallback is a driving-only service. Other modes must be
+  // fulfilled by the SafeRoute backend so the UI never mislabels a car route.
+  if (travelMode !== 'drive') {
+    return null;
+  }
   const routeStops = normalizeRouteStops(stops);
   if (routeStops.length < 2) {
     return null;

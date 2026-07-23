@@ -10,6 +10,7 @@ import type { NavigationLifecycle } from "./liveMapUiState";
 import type { RouteProgressSnapshot } from "./routeProgress";
 import { guidanceCardStyles as styles } from "./LiveMapGuidanceCard.styles";
 import { uiTestIds } from "../../testing/uiTestIds";
+import { MotionEntrance } from "../../motion/SafeRouteMotion";
 
 export interface LiveReroutePresentation {
   message: string;
@@ -55,10 +56,12 @@ export function LiveMapGuidanceCard({
     : accessibilityLabel;
 
   return (
-    <View
+    <MotionEntrance
       accessible={!reroutePresentation?.retryAvailable}
       accessibilityLabel={stateAwareAccessibilityLabel}
+      replayKey={`${state}:${reroutePresentation?.status || "guidance"}`}
       testID={uiTestIds.liveMapGuidanceState(state)}
+      variant="chrome"
       style={[
         styles.guidanceCard,
         { top: layout.guidanceTop },
@@ -124,7 +127,7 @@ export function LiveMapGuidanceCard({
           {presentation.distanceLabel}
         </Text>
       ) : null}
-    </View>
+    </MotionEntrance>
   );
 }
 

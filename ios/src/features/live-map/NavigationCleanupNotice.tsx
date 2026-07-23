@@ -4,6 +4,7 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { colors, radius, spacing, typeScale } from "../../theme";
 import { uiTestIds } from "../../testing/uiTestIds";
 import { createNavigationCleanupNoticeCopy } from "./navigationCleanupNoticeCopy";
+import { MotionEntrance } from "../../motion/SafeRouteMotion";
 
 export function NavigationCleanupNotice({
   checking,
@@ -19,11 +20,12 @@ export function NavigationCleanupNotice({
     createNavigationCleanupNoticeCopy({ checking, workspaceName });
 
   return (
-    <View
+    <MotionEntrance
       accessibilityLabel={`Guidance cleanup needed. ${accessibilityMessage}`}
       accessibilityRole="alert"
       style={[styles.notice, { top: insets.top + spacing.xs }]}
       testID={uiTestIds.navigationCleanupNotice}
+      variant="chrome"
     >
       <Text numberOfLines={1} style={styles.title}>
         Guidance cleanup needed
@@ -46,7 +48,7 @@ export function NavigationCleanupNotice({
       >
         <Text style={styles.actionText}>{checking ? "Removing…" : "Retry cleanup"}</Text>
       </Pressable>
-    </View>
+    </MotionEntrance>
   );
 }
 

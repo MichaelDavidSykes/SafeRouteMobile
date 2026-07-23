@@ -10,23 +10,21 @@ import {
   Text,
   TextInput,
   View,
-  useWindowDimensions,
+  useWindowDimensions
 } from 'react-native';
 import { ArrowLeft, Check, Eye, EyeOff, MailCheck } from 'lucide-react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
+import { MotionEntrance } from '../../motion/SafeRouteMotion';
 import { uiTestIds } from '../../testing/uiTestIds';
 import { getUserFacingErrorMessage } from '../api/userFacingErrors';
 import {
   getAccountPasswordRequirements,
   getAccountRegistrationError,
-  getAccountVerificationError,
+  getAccountVerificationError
 } from './accountRegistrationState';
 import { registerAccount, verifyAccountEmail } from './authApi';
-import {
-  ACCOUNT_ALREADY_EXISTS_MESSAGE,
-  AccountAlreadyExistsError,
-} from './authApiCore';
+import { ACCOUNT_ALREADY_EXISTS_MESSAGE, AccountAlreadyExistsError } from './authApiCore';
 import { AuthBackdrop } from './AuthBackdrop';
 import { createAccountStyles as styles } from './CreateAccountScreen.styles';
 import { sanitizeLoginCode } from './twoFactorChallenge';
@@ -57,7 +55,7 @@ export function CreateAccountScreen({
   previewMode = false,
   onAccountExists,
   onBack,
-  onVerified,
+  onVerified
 }: CreateAccountScreenProps) {
   const viewport = useWindowDimensions();
   const compact = viewport.height < 720 || viewport.width < 370;
@@ -75,15 +73,13 @@ export function CreateAccountScreen({
   const emailRef = useRef<TextInput>(null);
   const passwordRef = useRef<TextInput>(null);
   const codeRef = useRef<TextInput>(null);
-  const requirements = useMemo(
-    () => getAccountPasswordRequirements(password),
-    [password]
-  );
+  const requirements = useMemo(() => getAccountPasswordRequirements(password), [password]);
   const hasInvitation = invitationToken.trim().length >= 8;
   const registrationDisabled = loading || (!previewMode && !hasInvitation);
-  const invitationRequiredMessage = !previewMode && !hasInvitation
-    ? 'Account creation is invitation-only. Open the invitation sent by your workspace admin.'
-    : '';
+  const invitationRequiredMessage =
+    !previewMode && !hasInvitation
+      ? 'Account creation is invitation-only. Open the invitation sent by your workspace admin.'
+      : '';
 
   const clearError = () => {
     if (errorMessage) {
@@ -102,7 +98,7 @@ export function CreateAccountScreen({
       email,
       firstName,
       lastName,
-      password,
+      password
     });
     if (validationError) {
       setErrorMessage(validationError);
@@ -119,7 +115,7 @@ export function CreateAccountScreen({
           firstName,
           invitationToken,
           lastName,
-          password,
+          password
         });
       }
       setEmail(email.trim().toLowerCase());
@@ -196,7 +192,7 @@ export function CreateAccountScreen({
         style={({ pressed }) => [
           styles.backButton,
           pressed && !loading ? styles.backButtonPressed : null,
-          loading ? styles.backButtonDisabled : null,
+          loading ? styles.backButtonDisabled : null
         ]}
         testID={uiTestIds.accountCreateBack}
         onPress={handleBack}
@@ -212,7 +208,7 @@ export function CreateAccountScreen({
           automaticallyAdjustKeyboardInsets
           contentContainerStyle={[
             styles.scrollContent,
-            compact ? styles.scrollContentCompact : null,
+            compact ? styles.scrollContentCompact : null
           ]}
           keyboardDismissMode="interactive"
           keyboardShouldPersistTaps="handled"
@@ -220,29 +216,36 @@ export function CreateAccountScreen({
         >
           {step === 'details' ? (
             <>
-              <View style={[styles.header, compact ? styles.headerCompact : null]}>
+              <MotionEntrance
+                delay={0}
+                replayKey={step}
+                style={[styles.header, compact ? styles.headerCompact : null]}
+                variant="auth"
+              >
                 <Image
                   accessibilityIgnoresInvertColors
                   accessibilityLabel="SafeRoute"
                   source={require('../../../assets/logo-mark.png')}
                   style={styles.logo}
                 />
-                <Text accessibilityRole="header" style={styles.title}>Create account</Text>
+                <Text accessibilityRole="header" style={styles.title}>
+                  Create account
+                </Text>
                 <Text style={styles.subtitle}>
                   {invitationClientName
                     ? `Join ${invitationClientName} with your SafeRoute account`
                     : 'Set up your SafeRoute account'}
                 </Text>
-              </View>
+              </MotionEntrance>
 
               <View style={styles.form} testID={uiTestIds.accountCreateForm}>
-                <View style={styles.nameRow}>
+                <MotionEntrance delay={60} replayKey={step} style={styles.nameRow} variant="auth">
                   <View
                     style={[
                       styles.inputShell,
                       styles.nameField,
                       focusedField === 'first-name' ? styles.inputShellFocused : null,
-                      loading ? styles.inputShellDisabled : null,
+                      loading ? styles.inputShellDisabled : null
                     ]}
                   >
                     <TextInput
@@ -271,7 +274,7 @@ export function CreateAccountScreen({
                       styles.inputShell,
                       styles.nameField,
                       focusedField === 'last-name' ? styles.inputShellFocused : null,
-                      loading ? styles.inputShellDisabled : null,
+                      loading ? styles.inputShellDisabled : null
                     ]}
                   >
                     <TextInput
@@ -296,14 +299,17 @@ export function CreateAccountScreen({
                       onSubmitEditing={() => emailRef.current?.focus()}
                     />
                   </View>
-                </View>
+                </MotionEntrance>
 
-                <View
+                <MotionEntrance
+                  delay={60}
+                  replayKey={step}
                   style={[
                     styles.inputShell,
                     focusedField === 'email' ? styles.inputShellFocused : null,
-                    loading ? styles.inputShellDisabled : null,
+                    loading ? styles.inputShellDisabled : null
                   ]}
+                  variant="auth"
                 >
                   <TextInput
                     ref={emailRef}
@@ -328,14 +334,17 @@ export function CreateAccountScreen({
                     onFocus={() => setFocusedField('email')}
                     onSubmitEditing={() => passwordRef.current?.focus()}
                   />
-                </View>
+                </MotionEntrance>
 
-                <View
+                <MotionEntrance
+                  delay={60}
+                  replayKey={step}
                   style={[
                     styles.inputShell,
                     focusedField === 'password' ? styles.inputShellFocused : null,
-                    loading ? styles.inputShellDisabled : null,
+                    loading ? styles.inputShellDisabled : null
                   ]}
+                  variant="auth"
                 >
                   <TextInput
                     ref={passwordRef}
@@ -367,7 +376,7 @@ export function CreateAccountScreen({
                     disabled={loading}
                     style={({ pressed }) => [
                       styles.passwordToggle,
-                      pressed && !loading ? styles.passwordTogglePressed : null,
+                      pressed && !loading ? styles.passwordTogglePressed : null
                     ]}
                     testID={uiTestIds.accountCreatePasswordToggle}
                     onPress={() => setPasswordVisible((visible) => !visible)}
@@ -378,9 +387,15 @@ export function CreateAccountScreen({
                       <Eye color="#7F838C" size={19} strokeWidth={1.8} />
                     )}
                   </Pressable>
-                </View>
+                </MotionEntrance>
 
-                <View accessibilityLabel="Password requirements" style={styles.requirements}>
+                <MotionEntrance
+                  accessibilityLabel="Password requirements"
+                  delay={100}
+                  replayKey={step}
+                  style={styles.requirements}
+                  variant="auth"
+                >
                   <PasswordRequirement
                     label="At least 8 characters"
                     met={requirements.length}
@@ -396,33 +411,44 @@ export function CreateAccountScreen({
                     met={requirements.special}
                     testID={uiTestIds.accountCreateRequirementSpecial}
                   />
-                </View>
+                </MotionEntrance>
 
                 {invitationRequiredMessage && !errorMessage ? (
-                  <AccountError>{invitationRequiredMessage}</AccountError>
+                  <MotionEntrance delay={100} replayKey={step} variant="auth">
+                    <AccountError>{invitationRequiredMessage}</AccountError>
+                  </MotionEntrance>
                 ) : null}
-                {errorMessage ? <AccountError>{errorMessage}</AccountError> : null}
+                {errorMessage ? (
+                  <MotionEntrance delay={100} replayKey={step} variant="auth">
+                    <AccountError>{errorMessage}</AccountError>
+                  </MotionEntrance>
+                ) : null}
 
-                <Pressable
-                  accessibilityLabel="Create SafeRoute account"
-                  accessibilityRole="button"
-                  accessibilityState={{ busy: loading, disabled: registrationDisabled }}
-                  disabled={registrationDisabled}
-                  style={({ pressed }) => [
-                    styles.primaryButton,
-                    pressed && !loading ? styles.primaryButtonPressed : null,
-                    registrationDisabled ? styles.primaryButtonDisabled : null,
-                  ]}
-                  testID={uiTestIds.accountCreateSubmit}
-                  onPress={() => void submitRegistration()}
-                >
-                  {loading ? <ActivityIndicator color="#12141A" /> : null}
-                  <Text style={styles.primaryButtonText}>
-                    {loading ? 'Creating account...' : 'Create account'}
-                  </Text>
-                </Pressable>
+                <MotionEntrance delay={140} replayKey={step} variant="auth">
+                  <Pressable
+                    accessibilityLabel="Create SafeRoute account"
+                    accessibilityRole="button"
+                    accessibilityState={{
+                      busy: loading,
+                      disabled: registrationDisabled
+                    }}
+                    disabled={registrationDisabled}
+                    style={({ pressed }) => [
+                      styles.primaryButton,
+                      pressed && !loading ? styles.primaryButtonPressed : null,
+                      registrationDisabled ? styles.primaryButtonDisabled : null
+                    ]}
+                    testID={uiTestIds.accountCreateSubmit}
+                    onPress={() => void submitRegistration()}
+                  >
+                    {loading ? <ActivityIndicator color="#12141A" /> : null}
+                    <Text style={styles.primaryButtonText}>
+                      {loading ? 'Creating account...' : 'Create account'}
+                    </Text>
+                  </Pressable>
+                </MotionEntrance>
 
-                <View style={styles.footer}>
+                <MotionEntrance delay={200} replayKey={step} style={styles.footer} variant="auth">
                   <Text style={styles.footerText}>Already have an account?</Text>
                   <Pressable
                     accessibilityLabel="Sign in"
@@ -430,34 +456,44 @@ export function CreateAccountScreen({
                     disabled={loading}
                     style={({ pressed }) => [
                       styles.footerButton,
-                      pressed ? styles.footerButtonPressed : null,
+                      pressed ? styles.footerButtonPressed : null
                     ]}
                     testID={uiTestIds.accountCreateSignIn}
                     onPress={onBack}
                   >
                     <Text style={styles.footerButtonText}>Sign in</Text>
                   </Pressable>
-                </View>
+                </MotionEntrance>
               </View>
             </>
           ) : (
             <View testID={uiTestIds.accountVerifyScreen}>
-              <View style={[styles.header, compact ? styles.headerCompact : null]}>
+              <MotionEntrance
+                delay={0}
+                replayKey={step}
+                style={[styles.header, compact ? styles.headerCompact : null]}
+                variant="auth"
+              >
                 <View style={styles.verificationIcon}>
                   <MailCheck color="#5CA4FF" size={28} strokeWidth={1.8} />
                 </View>
-                <Text accessibilityRole="header" style={styles.title}>Verify your email</Text>
+                <Text accessibilityRole="header" style={styles.title}>
+                  Verify your email
+                </Text>
                 <Text style={styles.subtitle}>
                   Enter the 6-digit code sent to {email || 'your email'}.
                 </Text>
-              </View>
+              </MotionEntrance>
               <View style={styles.form}>
-                <View
+                <MotionEntrance
+                  delay={60}
+                  replayKey={step}
                   style={[
                     styles.inputShell,
                     focusedField === 'code' ? styles.inputShellFocused : null,
-                    loading ? styles.inputShellDisabled : null,
+                    loading ? styles.inputShellDisabled : null
                   ]}
+                  variant="auth"
                 >
                   <TextInput
                     ref={codeRef}
@@ -481,26 +517,32 @@ export function CreateAccountScreen({
                     onFocus={() => setFocusedField('code')}
                     onSubmitEditing={() => void submitVerification()}
                   />
-                </View>
-                {errorMessage ? <AccountError>{errorMessage}</AccountError> : null}
-                <Pressable
-                  accessibilityLabel="Verify email"
-                  accessibilityRole="button"
-                  accessibilityState={{ busy: loading, disabled: loading }}
-                  disabled={loading}
-                  style={({ pressed }) => [
-                    styles.primaryButton,
-                    pressed && !loading ? styles.primaryButtonPressed : null,
-                    loading ? styles.primaryButtonDisabled : null,
-                  ]}
-                  testID={uiTestIds.accountVerifySubmit}
-                  onPress={() => void submitVerification()}
-                >
-                  {loading ? <ActivityIndicator color="#12141A" /> : null}
-                  <Text style={styles.primaryButtonText}>
-                    {loading ? 'Verifying...' : 'Verify email'}
-                  </Text>
-                </Pressable>
+                </MotionEntrance>
+                {errorMessage ? (
+                  <MotionEntrance delay={60} replayKey={step} variant="auth">
+                    <AccountError>{errorMessage}</AccountError>
+                  </MotionEntrance>
+                ) : null}
+                <MotionEntrance delay={120} replayKey={step} variant="auth">
+                  <Pressable
+                    accessibilityLabel="Verify email"
+                    accessibilityRole="button"
+                    accessibilityState={{ busy: loading, disabled: loading }}
+                    disabled={loading}
+                    style={({ pressed }) => [
+                      styles.primaryButton,
+                      pressed && !loading ? styles.primaryButtonPressed : null,
+                      loading ? styles.primaryButtonDisabled : null
+                    ]}
+                    testID={uiTestIds.accountVerifySubmit}
+                    onPress={() => void submitVerification()}
+                  >
+                    {loading ? <ActivityIndicator color="#12141A" /> : null}
+                    <Text style={styles.primaryButtonText}>
+                      {loading ? 'Verifying...' : 'Verify email'}
+                    </Text>
+                  </Pressable>
+                </MotionEntrance>
               </View>
             </View>
           )}
@@ -513,7 +555,7 @@ export function CreateAccountScreen({
 function PasswordRequirement({
   label,
   met,
-  testID,
+  testID
 }: {
   label: string;
   met: boolean;
@@ -528,9 +570,7 @@ function PasswordRequirement({
       <View style={[styles.requirementIcon, met ? styles.requirementIconMet : null]}>
         <Check color={met ? '#0A0C11' : 'rgba(255,255,255,0.25)'} size={11} strokeWidth={2.4} />
       </View>
-      <Text style={[styles.requirementText, met ? styles.requirementTextMet : null]}>
-        {label}
-      </Text>
+      <Text style={[styles.requirementText, met ? styles.requirementTextMet : null]}>{label}</Text>
     </View>
   );
 }

@@ -30,7 +30,10 @@ const SAFE_ROUTE_PREVIEW_TIMEOUT_MS = 8000;
 export async function fetchSafeRouteRoadRoutePreview(
   options: SafeRouteRoadRoutePreviewOptions
 ): Promise<GuestRoadRoutePreview | null> {
-  const requestMode = resolveSafeRoutePreviewRequestMode(options);
+  const travelMode = options.travelMode ?? 'drive';
+  const requestMode = travelMode === 'drive'
+    ? resolveSafeRoutePreviewRequestMode(options)
+    : { kind: 'public' as const };
   const avoidRectangles = normalizeRouteAvoidRectangles(options.avoidRectangles || []);
 
   if (requestMode.kind === 'invalid') {
@@ -48,7 +51,8 @@ export async function fetchSafeRouteRoadRoutePreview(
         body: JSON.stringify(buildSafeRoutePreviewPayload({
           avoidRectangles,
           clientId: requestMode.clientId,
-          stops: options.stops
+          stops: options.stops,
+          travelMode,
         })),
         method: 'POST',
         signal: options.signal,
@@ -58,7 +62,8 @@ export async function fetchSafeRouteRoadRoutePreview(
     const normalized = normalizeSafeRoutePreviewResponse(
       response,
       options.stops,
-      avoidRectangles
+      avoidRectangles,
+      travelMode,
     );
     return normalized;
   }
@@ -67,7 +72,8 @@ export async function fetchSafeRouteRoadRoutePreview(
     try {
       const publicPayload = buildPublicSafeRoutePreviewPayload({
         avoidRectangles,
-        stops: options.stops
+        stops: options.stops,
+        travelMode,
       });
       const response = await fetchWithTimeout(
         `${LUNARCHAIN_API_BASE}/mobile/safe-route/route-preview`,
@@ -89,7 +95,8 @@ export async function fetchSafeRouteRoadRoutePreview(
       const normalized = normalizeSafeRoutePreviewResponse(
         unwrapApiEnvelope<unknown>(body),
         options.stops,
-        avoidRectangles
+        avoidRectangles,
+        travelMode,
       );
       if (normalized || avoidRectangles.length || !SAFEROUTE_PREVIEW_MODE_ENABLED) {
         return normalized;
@@ -106,6 +113,7 @@ export async function fetchSafeRouteRoadRoutePreview(
     request: options.request,
     signal: options.signal,
     stops: options.stops,
-    timeoutMs: options.timeoutMs
+    timeoutMs: options.timeoutMs,
+    travelMode,
   });
 }

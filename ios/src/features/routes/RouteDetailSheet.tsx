@@ -14,8 +14,14 @@ import {
   shouldDismissRiskDetailGesture,
   shouldStartRiskDetailDismissGesture,
 } from "../live-map/riskDetailInteraction";
+import {
+  safeRouteMotion,
+  useReduceMotionEnabled,
+} from "../../motion/SafeRouteMotion";
 
 const AnimatedSafeAreaView = Animated.createAnimatedComponent(SafeAreaView);
+const AnimatedPressable = Animated.createAnimatedComponent(Pressable);
+const SHEET_ENTRANCE_OFFSET = 24;
 
 interface RouteDetailSheetProps {
   onClose: () => void;
@@ -24,14 +30,23 @@ interface RouteDetailSheetProps {
 
 export function RouteDetailSheet({ onClose, route }: RouteDetailSheetProps) {
   const viewport = useWindowDimensions();
-  const sheetTranslateY = useRef(new Animated.Value(viewport.height)).current;
+  const reduceMotionEnabled = useReduceMotionEnabled();
+  const sheetTranslateY = useRef(new Animated.Value(SHEET_ENTRANCE_OFFSET)).current;
+  const sheetOpacity = useRef(new Animated.Value(0)).current;
+  const scrimOpacity = useRef(new Animated.Value(0)).current;
   const closingRef = useRef(false);
   const onCloseRef = useRef(onClose);
+  const reduceMotionEnabledRef = useRef(reduceMotionEnabled);
   const viewportHeightRef = useRef(viewport.height);
   onCloseRef.current = onClose;
+  reduceMotionEnabledRef.current = reduceMotionEnabled;
   viewportHeightRef.current = viewport.height;
 
   const restoreSheet = () => {
+    if (reduceMotionEnabledRef.current) {
+      sheetTranslateY.setValue(0);
+      return;
+    }
     Animated.spring(sheetTranslateY, {
       damping: 24,
       mass: 0.9,
@@ -45,12 +60,30 @@ export function RouteDetailSheet({ onClose, route }: RouteDetailSheetProps) {
       return;
     }
     closingRef.current = true;
-    Animated.timing(sheetTranslateY, {
-      duration: 210,
-      easing: Easing.out(Easing.cubic),
-      toValue: viewportHeightRef.current,
-      useNativeDriver: true,
-    }).start(({ finished }) => {
+    if (reduceMotionEnabledRef.current) {
+      onCloseRef.current();
+      return;
+    }
+    Animated.parallel([
+      Animated.timing(sheetTranslateY, {
+        duration: 210,
+        easing: Easing.out(Easing.cubic),
+        toValue: viewportHeightRef.current,
+        useNativeDriver: true,
+      }),
+      Animated.timing(sheetOpacity, {
+        duration: 210,
+        easing: Easing.out(Easing.ease),
+        toValue: 0,
+        useNativeDriver: true,
+      }),
+      Animated.timing(scrimOpacity, {
+        duration: 210,
+        easing: Easing.out(Easing.ease),
+        toValue: 0,
+        useNativeDriver: true,
+      }),
+    ]).start(({ finished }) => {
       if (finished) {
         onCloseRef.current();
       } else {
@@ -87,14 +120,50 @@ export function RouteDetailSheet({ onClose, route }: RouteDetailSheetProps) {
 
   useEffect(() => {
     if (!route) {
-      sheetTranslateY.setValue(viewport.height);
+      sheetTranslateY.setValue(SHEET_ENTRANCE_OFFSET);
+      sheetOpacity.setValue(0);
+      scrimOpacity.setValue(0);
       return;
     }
 
     closingRef.current = false;
-    sheetTranslateY.setValue(viewport.height);
-    restoreSheet();
-  }, [route, sheetTranslateY, viewport.height]);
+    if (reduceMotionEnabled) {
+      sheetTranslateY.setValue(0);
+      sheetOpacity.setValue(1);
+      scrimOpacity.setValue(1);
+      return;
+    }
+
+    sheetTranslateY.setValue(SHEET_ENTRANCE_OFFSET);
+    sheetOpacity.setValue(0);
+    scrimOpacity.setValue(0);
+    Animated.parallel([
+      Animated.timing(sheetTranslateY, {
+        duration: safeRouteMotion.sheetDurationMs,
+        easing: Easing.bezier(0.2, 0.7, 0.2, 1),
+        toValue: 0,
+        useNativeDriver: true,
+      }),
+      Animated.timing(sheetOpacity, {
+        duration: safeRouteMotion.sheetDurationMs,
+        easing: Easing.bezier(0.2, 0.7, 0.2, 1),
+        toValue: 1,
+        useNativeDriver: true,
+      }),
+      Animated.timing(scrimOpacity, {
+        duration: safeRouteMotion.scrimDurationMs,
+        easing: Easing.out(Easing.ease),
+        toValue: 1,
+        useNativeDriver: true,
+      }),
+    ]).start();
+  }, [
+    reduceMotionEnabled,
+    route,
+    scrimOpacity,
+    sheetOpacity,
+    sheetTranslateY,
+  ]);
 
   if (!route) {
     return null;
@@ -134,10 +203,10 @@ export function RouteDetailSheet({ onClose, route }: RouteDetailSheetProps) {
       onRequestClose={dismissSheet}
     >
       <View style={styles.overlay}>
-        <Pressable
+        <AnimatedPressable
           accessibilityLabel="Close route details"
           accessibilityRole="button"
-          style={styles.scrim}
+          style={[styles.scrim, { opacity: scrimOpacity }]}
           onPress={dismissSheet}
         />
         <AnimatedSafeAreaView
@@ -146,7 +215,10 @@ export function RouteDetailSheet({ onClose, route }: RouteDetailSheetProps) {
           onAccessibilityEscape={dismissSheet}
           style={[
             styles.sheet,
-            { transform: [{ translateY: sheetTranslateY }] },
+            {
+              opacity: sheetOpacity,
+              transform: [{ translateY: sheetTranslateY }],
+            },
           ]}
           testID="safe-route-detail-sheet"
         >

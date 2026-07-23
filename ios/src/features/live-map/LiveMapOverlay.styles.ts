@@ -7,6 +7,12 @@ export const styles = StyleSheet.create({
     flex: 1,
     pointerEvents: "box-none",
   },
+  chromeEntrance: {
+    ...StyleSheet.absoluteFillObject,
+  },
+  transientEntrance: {
+    ...StyleSheet.absoluteFillObject,
+  },
   mapControls: {
     position: "absolute",
     right: spacing.md,

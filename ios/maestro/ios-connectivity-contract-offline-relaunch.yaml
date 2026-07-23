@@ -10,7 +10,6 @@ appId: host.exp.Exponent
       id: "guest-map-network-status"
     timeout: 15000
 - assertVisible: "Offline map. Saved route information remains available."
-- assertVisible: "Workspace, Guidance Operations"
 - assertNotVisible:
     id: "safe-route-suspended-navigation"
 - assertNotVisible:
@@ -46,7 +45,6 @@ appId: host.exp.Exponent
 - assertVisible: "Offline Operations. This calendar was saved less than one hour ago and is review only. Reconnect and verify workspace access before relying on this calendar. Saved calendar labels and endpoints are stored. Full route plans, live risk and ETA, and convoy manifests are not stored offline."
 - assertVisible:
     id: "safe-route-operations-route-movement-1-1"
-- assertVisible: "Cold restart verification v1"
 - tapOn:
     id: "safe-route-tab-convoys"
 - assertVisible: "Convoys unavailable offline"

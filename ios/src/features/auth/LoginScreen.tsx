@@ -14,7 +14,7 @@ import {
   useWindowDimensions
 } from 'react-native';
 import { ArrowLeft, CircleCheck, Eye, EyeOff, LockKeyhole, MailCheck } from 'lucide-react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
+import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { getUserFacingErrorMessage } from '../api/userFacingErrors';
 import {
@@ -243,6 +243,7 @@ export function LoginScreen({
   savedSessionRetrying = false,
   sessionMessage
 }: LoginScreenProps) {
+  const safeAreaInsets = useSafeAreaInsets();
   const initialLoginEmail =
     initialChallenge?.email || invitation?.email || initialEmail || loginCredentialDefaults.email;
   const [view, setView] = useState<LoginView>(
@@ -672,6 +673,7 @@ export function LoginScreen({
             hitSlop={ICON_BUTTON_HIT_SLOP}
             style={({ pressed }) => [
               styles.handoffBackButton,
+              { top: safeAreaInsets.top + 12 },
               pressed && !formBusy ? styles.handoffBackButtonPressed : null,
               formBusy ? styles.handoffPrimaryButtonDisabled : null
             ]}
@@ -939,6 +941,7 @@ export function LoginScreen({
         hitSlop={ICON_BUTTON_HIT_SLOP}
         style={({ pressed }) => [
           styles.handoffBackButton,
+          { top: safeAreaInsets.top + 12 },
           pressed && !formBusy ? styles.handoffBackButtonPressed : null,
           formBusy ? styles.handoffPrimaryButtonDisabled : null
         ]}

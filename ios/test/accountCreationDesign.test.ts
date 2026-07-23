@@ -36,7 +36,8 @@ describe('SafeRoute account creation handoff', () => {
   });
 
   it('uses the handoff sizing, white action, and route-around-risk backdrop', () => {
-    assert.match(createStyles, /backButton:[\s\S]*top:\s*24/);
+    assert.match(createSource, /useSafeAreaInsets/);
+    assert.match(createSource, /top:\s*safeAreaInsets\.top \+ 12/);
     assert.match(createStyles, /inputShell:[\s\S]*minHeight:\s*52/);
     assert.match(createStyles, /inputShell:[\s\S]*borderRadius:\s*14/);
     assert.match(createStyles, /primaryButton:[\s\S]*minHeight:\s*54/);

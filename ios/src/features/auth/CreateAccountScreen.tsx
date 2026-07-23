@@ -13,7 +13,7 @@ import {
   useWindowDimensions
 } from 'react-native';
 import { ArrowLeft, Check, Eye, EyeOff, MailCheck } from 'lucide-react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
+import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { MotionEntrance } from '../../motion/SafeRouteMotion';
 import { uiTestIds } from '../../testing/uiTestIds';
@@ -57,6 +57,7 @@ export function CreateAccountScreen({
   onBack,
   onVerified
 }: CreateAccountScreenProps) {
+  const safeAreaInsets = useSafeAreaInsets();
   const viewport = useWindowDimensions();
   const compact = viewport.height < 720 || viewport.width < 370;
   const [step, setStep] = useState<CreateAccountInitialStep>(initialStep);
@@ -191,6 +192,7 @@ export function CreateAccountScreen({
         disabled={loading}
         style={({ pressed }) => [
           styles.backButton,
+          { top: safeAreaInsets.top + 12 },
           pressed && !loading ? styles.backButtonPressed : null,
           loading ? styles.backButtonDisabled : null
         ]}

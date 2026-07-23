@@ -13,7 +13,6 @@ export const styles = StyleSheet.create({
   handoffBackButton: {
     position: 'absolute',
     left: 16,
-    top: 14,
     zIndex: 3,
     width: 44,
     height: 44,

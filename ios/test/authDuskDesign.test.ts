@@ -28,6 +28,8 @@ describe('SafeRoute authentication design', () => {
   });
 
   it('uses the current unframed auth hierarchy across sign-in, MFA, and password reset', () => {
+    assert.match(loginSource, /useSafeAreaInsets/);
+    assert.match(loginSource, /top:\s*safeAreaInsets\.top \+ 12/g);
     assert.match(styleSource, /handoffPrimaryButton:[\s\S]*backgroundColor:\s*'#FFFFFF'/);
     assert.match(styleSource, /handoffPrimaryButton:[\s\S]*borderRadius:\s*15/);
     assert.match(styleSource, /handoffInputShell:[\s\S]*minHeight:\s*54/);

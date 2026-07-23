@@ -106,6 +106,7 @@ describe('route risk corridor loading', () => {
       assert.equal(url.searchParams.get('refresh'), 'false');
       assert.equal(url.searchParams.get('read_only'), 'true');
       assert.equal(url.searchParams.get('client_id'), 'tenant-1');
+      assert.equal(url.searchParams.get('max_records'), '160');
       assert.equal(
         (init.headers as Record<string, string>)[AREA_RISK_CAPABILITY_HEADER],
         MOBILE_AREA_RISK_CAPABILITY

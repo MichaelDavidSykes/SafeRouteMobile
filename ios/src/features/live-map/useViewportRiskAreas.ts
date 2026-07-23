@@ -15,6 +15,7 @@ import {
   type AreaRiskViewportRequest
 } from './areaRiskApiCore';
 import type { RiskZone } from './liveMapTypes';
+import { useWorkspaceRiskAreas } from './useWorkspaceRiskAreas';
 import {
   cacheViewportRiskZones,
   canCacheViewportRiskFeed,
@@ -55,6 +56,14 @@ export function useViewportRiskAreas({
   onWorkspaceUnavailable?: (workspaceId: string) => void;
   region: Region;
 }) {
+  const workspaceRisk = useWorkspaceRiskAreas({
+    accessToken,
+    clientId,
+    enabled,
+    onSessionExpired,
+    onWorkspaceUnavailable,
+    region
+  });
   const cacheRef = useRef<ViewportRiskCache>(new Map());
   const accessSessionIdentityRef = useRef({
     identity: 0,
@@ -592,11 +601,15 @@ export function useViewportRiskAreas({
     retryRevision
   ]);
 
-  const retry = useCallback(() => {
+  const retryProviderRisk = useCallback(() => {
     if (readBlockedUntilMs <= Date.now()) {
       setRetryRevision((revision) => revision + 1);
     }
   }, [readBlockedUntilMs]);
+  const retry = useCallback(() => {
+    retryProviderRisk();
+    workspaceRisk.retry();
+  }, [retryProviderRisk, workspaceRisk.retry]);
   const research = useCallback(() => {
     if (
       researchAvailable
@@ -607,15 +620,24 @@ export function useViewportRiskAreas({
     }
   }, [readBlockedUntilMs, researchAvailable, researchBlockedUntilMs]);
 
+  const providerZones = cacheScopeContextRef.current === cacheScopeContext ? zones : [];
+  const visibleZones = mergeRiskZonesById(providerZones, workspaceRisk.zones);
+  const workspacePartial = Boolean(workspaceRisk.errorMessage);
+
   return {
-    coverageState,
-    errorMessage,
-    loading,
+    coverageState: workspacePartial && coverageState !== 'failed'
+      ? 'partial' as const
+      : coverageState,
+    errorMessage: errorMessage || workspaceRisk.errorMessage,
+    loading: loading || workspaceRisk.loading,
     research,
     researchAvailable,
     retry,
-    retryAvailable: readBlockedUntilMs <= Date.now(),
-    statusMessage,
-    zones: cacheScopeContextRef.current === cacheScopeContext ? zones : []
+    retryAvailable:
+      readBlockedUntilMs <= Date.now() || workspacePartial,
+    statusMessage: workspacePartial && providerZones.length
+      ? 'Generated risks remain visible while shared workspace risks are unavailable.'
+      : statusMessage,
+    zones: visibleZones
   };
 }

@@ -6,6 +6,7 @@ import {
   getAreaRiskRetryableReadFailure,
   type AreaRiskRegionFetchOptions
 } from './areaRiskApiTransportCore';
+import { MAX_AREA_RISK_RECORDS } from './areaRiskApiCore';
 import type { RiskZone } from './liveMapTypes';
 import {
   buildRouteRiskCorridorRegions,
@@ -42,8 +43,14 @@ export async function fetchAreaRiskAlongRoute(
         fetchAreaRiskForRegion(region, {
           ...fetchOptions,
           intent: 'read',
-          detailMaxRecords: Math.min(80, fetchOptions.detailMaxRecords ?? 80),
-          regionalMaxRecords: Math.min(60, fetchOptions.regionalMaxRecords ?? 60)
+          detailMaxRecords: Math.min(
+            MAX_AREA_RISK_RECORDS,
+            fetchOptions.detailMaxRecords ?? MAX_AREA_RISK_RECORDS
+          ),
+          regionalMaxRecords: Math.min(
+            MAX_AREA_RISK_RECORDS,
+            fetchOptions.regionalMaxRecords ?? MAX_AREA_RISK_RECORDS
+          )
         }).then((feed) => {
           if (feed.retryableReadFailure) {
             throw new AreaRiskRetryableReadError(

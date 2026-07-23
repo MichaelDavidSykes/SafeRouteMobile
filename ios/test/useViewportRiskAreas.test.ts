@@ -24,6 +24,9 @@ describe('viewport risk hook integration contract', () => {
     assert.match(source, /getCachedViewportRiskZones/);
     assert.match(source, /cacheViewportRiskZones/);
     assert.match(source, /Promise\.allSettled/);
+    assert.match(source, /useWorkspaceRiskAreas/);
+    assert.match(source, /mergeRiskZonesById\(providerZones, workspaceRisk\.zones\)/);
+    assert.match(source, /workspaceRisk\.retry\(\)/);
     assert.match(source, /resolveViewportRiskDisplayZones/);
     assert.match(source, /resolveCompletedViewportRiskZones/);
     assert.match(source, /resolveUnavailableViewportRiskZones/);
@@ -85,7 +88,7 @@ describe('viewport risk hook integration contract', () => {
     assert.match(source, /const retainedZones = cacheScopeChanged \? \[\] : zonesRef\.current/);
     assert.match(
       source,
-      /zones: cacheScopeContextRef\.current === cacheScopeContext \? zones : \[\]/,
+      /const providerZones = cacheScopeContextRef\.current === cacheScopeContext \? zones : \[\]/,
     );
   });
 });

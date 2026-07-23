@@ -5,6 +5,7 @@ import {
   AREA_RISK_QUERY_COORDINATE_DECIMALS,
   AREA_RISK_RESEARCH_ENDPOINT_PATH,
   AREA_RISK_RESPONSE_BOUNDS_EPSILON,
+  AREA_RISK_VIEWPORT_PADDING_RATIO,
   areaRiskItemIntersectsBounds,
   areaRiskResponseBoundsMatchRequest,
   approximateMapZoom,
@@ -27,6 +28,7 @@ import type { RiskZone } from '../src/features/live-map/liveMapTypes';
 
 describe('area risk API core', () => {
   it('keeps regional risk coverage visible and creates a stable padded detail request', () => {
+    assert.equal(AREA_RISK_VIEWPORT_PADDING_RATIO, 0.45);
     assert.ok(approximateMapZoom({ longitudeDelta: 2 }) < 8);
     const regionalRequests = regionToAreaRiskViewportRequests({
       latitude: 51.5,
@@ -36,8 +38,8 @@ describe('area risk API core', () => {
     });
     assert.equal(regionalRequests.length, 1);
     assert.equal(regionalRequests[0].scope, 'regional');
-    assert.equal(regionalRequests[0].maxRecords, 120);
-    assert.equal(regionalRequests[0].bbox, '50.50000,-2.00000,52.50000,2.00000');
+    assert.equal(regionalRequests[0].maxRecords, 160);
+    assert.equal(regionalRequests[0].bbox, '50.50000,-2.50000,52.50000,2.00000');
 
     const requests = regionToAreaRiskViewportRequests({
       latitude: 51.5,
@@ -48,7 +50,7 @@ describe('area risk API core', () => {
 
     assert.equal(requests.length, 1);
     assert.equal(requests[0].scope, 'detail');
-    assert.equal(requests[0].maxRecords, 100);
+    assert.equal(requests[0].maxRecords, 160);
     assert.equal(requests[0].bbox, '51.40000,-0.20000,51.60000,0.00000');
 
     const nearbyRequests = regionToAreaRiskViewportRequests({
@@ -70,7 +72,7 @@ describe('area risk API core', () => {
 
     assert.equal(requests.length, 1);
     assert.equal(requests[0].scope, 'global');
-    assert.equal(requests[0].maxRecords, 120);
+    assert.equal(requests[0].maxRecords, 160);
     assert.equal(requests[0].bbox, '-85.00000,-180.00000,85.00000,180.00000');
     const url = new URL(buildAreaRiskViewportPath(requests[0]), 'https://example.test');
     assert.equal(url.searchParams.has('bbox'), false);

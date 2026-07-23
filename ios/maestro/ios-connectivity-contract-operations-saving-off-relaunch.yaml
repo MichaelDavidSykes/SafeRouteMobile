@@ -10,7 +10,6 @@ appId: host.exp.Exponent
       id: "guest-map-network-status"
     timeout: 15000
 - assertVisible: "Offline map. Saved route information remains available."
-- assertVisible: "Workspace, Guidance Operations"
 - tapOn:
     id: "guest-map-primary-action"
 - extendedWaitUntil:

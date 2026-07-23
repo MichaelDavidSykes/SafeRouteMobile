@@ -21,6 +21,14 @@ describe('guest map interaction contract', () => {
     assert.match(screen, /useReducer\(\s*guestRouteDraftReducer/);
     assert.match(screen, /routeDraft\.waypoints\.map/);
     assert.match(screen, /testID=\{uiTestIds\.guestMapAddWaypoint\}/);
+    assert.match(
+      screen,
+      /<View style=\{styles\.inputStack\}>[\s\S]*testID=\{uiTestIds\.guestMapAddWaypoint\}[\s\S]*<\/ScrollView>\s*<View style=\{styles\.sheetFooter\}>\s*<TravelModeSelector/,
+    );
+    assert.equal(
+      (screen.match(/testID=\{uiTestIds\.guestMapAddWaypoint\}/g) || []).length,
+      1,
+    );
     assert.match(screen, /KeyboardAvoidingView/);
     assert.match(screen, /keyboardDismissMode="interactive"/);
     assert.match(screen, /keyboardShouldPersistTaps="handled"/);

@@ -2159,13 +2159,7 @@ export function GuestMapScreen({
                   onSelect={handleSelectLocation}
                 />
               ) : null}
-            </ScrollView>
 
-            <View style={styles.sheetFooter}>
-              <TravelModeSelector
-                selectedMode={travelMode}
-                onSelect={handleTravelModeChange}
-              />
               <Pressable
                 accessibilityLabel="Add another stop"
                 accessibilityRole="button"
@@ -2181,6 +2175,13 @@ export function GuestMapScreen({
                 <Plus accessibilityElementsHidden color={colors.appleBlue} size={17} strokeWidth={2.1} />
                 <Text style={styles.addStopButtonText}>Add stop</Text>
               </Pressable>
+            </ScrollView>
+
+            <View style={styles.sheetFooter}>
+              <TravelModeSelector
+                selectedMode={travelMode}
+                onSelect={handleTravelModeChange}
+              />
 
               {routeMessage || sessionNoticeState || (locationErrorMessage && isCurrentLocationLabel(origin)) ? (
                 <MotionEntrance

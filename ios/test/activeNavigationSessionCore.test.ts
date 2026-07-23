@@ -403,6 +403,36 @@ describe("active navigation session", () => {
     );
   });
 
+  it("rejects an unverified persisted backend guidance stamp", () => {
+    const routePlan = SAVED_ROUTE_PLANS[0];
+    assert.equal(
+      normalizeActiveNavigationSession(
+        session({
+          routePlan: {
+            ...routePlan,
+            route: {
+              ...routePlan.route,
+              navigationStepSource: "backend",
+              navigationSteps: [
+                {
+                  coordinate: routePlan.route.coordinates[0],
+                  distanceAlongMeters: 0,
+                  distanceMeters: 10,
+                  durationSeconds: 2,
+                  id: "backend-step",
+                  instruction: "Continue",
+                  maneuverType: "straight",
+                },
+              ],
+            },
+          },
+        }),
+        nowMs,
+      ),
+      null,
+    );
+  });
+
   it("restores route progress but not a stale last-known vehicle position", () => {
     const restored = normalizeActiveNavigationSession(
       session({

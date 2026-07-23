@@ -19,6 +19,7 @@ import {
   resolveSafeRoutePreviewRequestMode
 } from './safeRouteRoadRouteProviderCore';
 import { normalizeRouteAvoidRectangles } from './routeAvoidanceGeometry';
+import { hasEnabledSafeRoutePreference } from './routePreferences';
 
 export type SafeRouteRoadRoutePreviewOptions = GuestRoadRoutePreviewOptions & {
   accessToken?: string | null;
@@ -53,6 +54,7 @@ export async function fetchSafeRouteRoadRoutePreview(
           clientId: requestMode.clientId,
           stops: options.stops,
           travelMode,
+          preferences: options.preferences,
         })),
         method: 'POST',
         signal: options.signal,
@@ -64,6 +66,7 @@ export async function fetchSafeRouteRoadRoutePreview(
       options.stops,
       avoidRectangles,
       travelMode,
+      options.preferences,
     );
     return normalized;
   }
@@ -74,6 +77,7 @@ export async function fetchSafeRouteRoadRoutePreview(
         avoidRectangles,
         stops: options.stops,
         travelMode,
+        preferences: options.preferences,
       });
       const response = await fetchWithTimeout(
         `${LUNARCHAIN_API_BASE}/mobile/safe-route/route-preview`,
@@ -97,12 +101,24 @@ export async function fetchSafeRouteRoadRoutePreview(
         options.stops,
         avoidRectangles,
         travelMode,
+        options.preferences,
       );
-      if (normalized || avoidRectangles.length || !SAFEROUTE_PREVIEW_MODE_ENABLED) {
+      if (
+        normalized ||
+        avoidRectangles.length ||
+        (options.preferences &&
+          hasEnabledSafeRoutePreference(options.preferences)) ||
+        !SAFEROUTE_PREVIEW_MODE_ENABLED
+      ) {
         return normalized;
       }
     } catch {
-      if (avoidRectangles.length || !SAFEROUTE_PREVIEW_MODE_ENABLED) {
+      if (
+        avoidRectangles.length ||
+        (options.preferences &&
+          hasEnabledSafeRoutePreference(options.preferences)) ||
+        !SAFEROUTE_PREVIEW_MODE_ENABLED
+      ) {
         return null;
       }
     }

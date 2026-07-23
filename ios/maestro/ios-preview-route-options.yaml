@@ -1,0 +1,63 @@
+appId: host.exp.Exponent
+---
+- stopApp
+- setLocation:
+    latitude: 51.5074
+    longitude: -0.1278
+- openLink: exp://localhost:8081
+- waitForAnimationToEnd:
+    timeout: 3000
+- openLink: exp://localhost:8081
+- waitForAnimationToEnd:
+    timeout: 10000
+- runFlow:
+    when:
+      visible: "Allow While Using App"
+    commands:
+      - tapOn: "Allow While Using App"
+- extendedWaitUntil:
+    visible:
+      id: "saferoute-app-root"
+    timeout: 45000
+- runFlow:
+    when:
+      visible:
+        id: "safe-route-return"
+    commands:
+      - tapOn:
+          id: "safe-route-return"
+- runFlow:
+    when:
+      visible:
+        id: "safe-route-operations-map-return"
+    commands:
+      - tapOn:
+          id: "safe-route-operations-map-return"
+- tapOn:
+    id: "safe-route-tab-map"
+- runFlow:
+    when:
+      visible:
+        id: "guest-map-collapsed-sheet"
+    commands:
+      - tapOn:
+          id: "guest-map-collapsed-sheet"
+- extendedWaitUntil:
+    visible:
+      id: "guest-map-route-options"
+    timeout: 15000
+- tapOn:
+    id: "guest-map-route-options"
+- assertVisible:
+    id: "guest-map-route-preference-avoidtolls"
+- assertVisible:
+    id: "guest-map-route-preference-avoidmotorways"
+- assertVisible:
+    id: "guest-map-route-preference-avoidferries"
+- assertVisible:
+    id: "guest-map-route-preference-avoidunpavedroads"
+- tapOn:
+    id: "guest-map-route-preference-avoidtolls"
+- assertVisible:
+    id: "guest-map-route-options"
+- takeScreenshot: "route-options-expanded"

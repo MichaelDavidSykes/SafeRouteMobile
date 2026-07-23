@@ -72,6 +72,31 @@ export const guidanceCardStyles = StyleSheet.create({
   guidanceDistanceCompact: {
     fontSize: typeScale.md,
   },
+  guidanceActions: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+  },
+  guidanceAudioButton: {
+    width: 44,
+    height: 44,
+    alignItems: "center",
+    justifyContent: "center",
+    borderWidth: 0.5,
+    borderColor: colors.glassBorder,
+    borderRadius: radius.pill,
+    backgroundColor: colors.surface,
+  },
+  guidanceAudioButtonActive: {
+    borderColor: "rgba(255, 255, 255, 0.84)",
+    backgroundColor: colors.appleBlue,
+  },
+  guidanceAudioButtonDisabled: {
+    opacity: 0.54,
+  },
+  guidanceAudioButtonPressed: {
+    transform: [{ scale: 0.97 }],
+  },
   rerouteButton: {
     minWidth: 66,
     minHeight: 44,

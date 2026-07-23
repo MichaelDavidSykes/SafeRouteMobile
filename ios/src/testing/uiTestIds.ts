@@ -17,6 +17,9 @@ export const uiTestIds = {
   guestMapTravelModeSelector: "guest-map-travel-mode-selector",
   guestMapTravelMode: (mode: string) =>
     `guest-map-travel-mode-${normalizeTestIdSegment(mode)}`,
+  guestMapRouteOptions: "guest-map-route-options",
+  guestMapRoutePreference: (preference: string) =>
+    `guest-map-route-preference-${normalizeTestIdSegment(preference)}`,
   guestMapWaypointInput: (waypointId: string) =>
     `guest-map-waypoint-${normalizeTestIdSegment(waypointId)}`,
   guestMapAddWaypoint: "guest-map-add-waypoint",
@@ -34,7 +37,11 @@ export const uiTestIds = {
   guestMapSearchResults: "guest-map-search-results",
   guestMapSearchResult: (resultId: string) =>
     `guest-map-search-${normalizeTestIdSegment(resultId)}`,
+  guestMapManagePlace: (resultId: string) =>
+    `guest-map-manage-place-${normalizeTestIdSegment(resultId)}`,
   guestMapRoutePreview: "guest-map-route-preview",
+  guestMapRouteAlternative: (index: number) =>
+    `guest-map-route-alternative-${Math.max(1, Math.floor(index))}`,
   guestMapGateAction: (feature: string) =>
     `guest-map-gate-${normalizeTestIdSegment(feature)}`,
   loginScreen: "safe-route-login",
@@ -148,6 +155,7 @@ export const uiTestIds = {
   liveMapJourney: (routeId: string) =>
     `safe-route-journey-${normalizeTestIdSegment(routeId)}`,
   liveMapSavedRouteDetails: "safe-route-saved-details",
+  liveMapShareRoute: "safe-route-share-route",
   liveMapRemainingMetrics: "safe-route-remaining-metrics",
   liveMapGuidanceState: (state: string) =>
     `safe-route-guidance-${normalizeTestIdSegment(state)}`,

@@ -9,7 +9,6 @@ const readyReleaseInputs = {
   firebaseCliAvailable: true,
   firebaseIosAppId: '1:1234567890:ios:abcdef',
   firebaseProjectId: 'lunarchain-prod',
-  googleMapsIosApiKey: 'ios-key',
   iosArtifactExists: true,
   iosArtifactPath: '/tmp/SafeRoute.ipa',
   iosBuildNumber: '56',
@@ -35,7 +34,6 @@ describe('Firebase iOS distribution readiness', () => {
         'release-notes-missing',
         'production-env-missing',
         'production-api-url-missing',
-        'google-maps-ios-key-missing',
         'ios-build-number-missing'
       ]
     );
@@ -49,7 +47,6 @@ describe('Firebase iOS distribution readiness', () => {
       firebaseCliAvailable: true,
       firebaseIosAppId: '  1:1234567890:ios:abcdef  ',
       firebaseProjectId: '  lunarchain-prod  ',
-      googleMapsIosApiKey: '  ios-key  ',
       iosArtifactExists: true,
       iosArtifactPath: '  /tmp/SafeRoute.ipa  ',
       iosBuildNumber: '  56.1  ',
@@ -63,7 +60,6 @@ describe('Firebase iOS distribution readiness', () => {
       appEnvironment: 'production',
       firebaseIosAppId: '1:1234567890:ios:abcdef',
       firebaseProjectId: 'lunarchain-prod',
-      googleMapsIosApiKeyConfigured: true,
       iosArtifactPath: '/tmp/SafeRoute.ipa',
       iosBuildNumber: '56.1',
       productionApiUrl: 'https://api.lunarchain.net',
@@ -86,7 +82,6 @@ describe('Firebase iOS distribution readiness', () => {
     const result = resolveFirebaseIosDistributionReadiness({
       ...readyReleaseInputs,
       appEnvironment: 'staging',
-      googleMapsIosApiKey: ' ',
       iosBuildNumber: '2026.07.08.1',
       productionApiUrl: 'http://api.lunarchain.net'
     });
@@ -95,7 +90,6 @@ describe('Firebase iOS distribution readiness', () => {
     assert.deepEqual(result.blockers.map((blocker) => blocker.code), [
       'production-env-missing',
       'production-api-url-insecure',
-      'google-maps-ios-key-missing',
       'ios-build-number-invalid'
     ]);
     assert.equal(result.distributionCommand, null);

@@ -151,7 +151,16 @@ export function applyLiveReroutePreview({
       description: 'Updated from your live position around mapped risk areas.',
       nextInstruction: 'Continue on updated SafeRoute',
       nextDistance: formatDistance(preview.distanceMeters ?? measureDistance(preview.coordinates)),
-      navigationSteps: preview.guidanceSteps ?? []
+      navigationSteps: preview.guidanceSteps ?? [],
+      ...(preview.guidanceSteps?.length
+        ? {
+            navigationStepRevision: routeId,
+            navigationStepSource: 'backend' as const,
+          }
+        : {
+            navigationStepRevision: undefined,
+            navigationStepSource: undefined,
+          })
     }
   };
 }

@@ -5016,6 +5016,7 @@ function SafeRouteApp() {
             authenticated={authenticated}
             availableWorkspaces={availableWorkspaces}
             mapLayer={mapLayer}
+            placesScopeId={sessionPrincipalId || 'guest'}
             onOpenFullAccessFeature={openFullAccessFeature}
             onMapLayerChange={setMapLayer}
             onPlannerVisibilityChange={setMapPlannerOpen}

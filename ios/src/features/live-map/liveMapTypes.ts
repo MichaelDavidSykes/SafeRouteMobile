@@ -20,6 +20,8 @@ export interface RoutePath {
   nextDistance: string;
   coordinates: LatLng[];
   navigationSteps?: RouteNavigationStep[];
+  navigationStepRevision?: string;
+  navigationStepSource?: 'backend';
 }
 
 export interface RouteNavigationStep {

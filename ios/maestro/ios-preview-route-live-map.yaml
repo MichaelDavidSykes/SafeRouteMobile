@@ -28,18 +28,6 @@ appId: host.exp.Exponent
 # out in iOS before app assertions, making the smoke fail before SafeRoute could
 # render. If Expo Go stays on its home screen, the app-root wait below records
 # the actual handoff blocker instead of adding another deep-link failure mode.
-# Expo Go's first-run developer-menu tutorial and follow-on dev-menu sheet are
-# not always exposed in XCUITest's accessibility tree. Coordinate taps dismiss
-# that Expo chrome without adding conditional hierarchy polls, which are flaky
-# on the local simulator.
-- tapOn:
-    point: "50%,92%"
-- waitForAnimationToEnd:
-    timeout: 3000
-- tapOn:
-    point: "91%,49%"
-- waitForAnimationToEnd:
-    timeout: 5000
 # Expo Go may request foreground location before the React tree settles. Accept
 # the prompt here so the app root/live-map probes are not hidden behind iOS
 # system chrome during no-build smoke runs.
@@ -74,13 +62,28 @@ appId: host.exp.Exponent
           waitToSettleTimeoutMs: 1000
       - waitForAnimationToEnd:
           timeout: 3000
+- tapOn:
+    id: "safe-route-tab-map"
+- waitForAnimationToEnd:
+    timeout: 3000
 - runFlow:
     when:
       visible:
-        id: "guest-map-primary-action"
+        id: "guest-map-collapsed-sheet"
     commands:
-      - assertVisible:
-          id: "guest-map-primary-action"
+      - tapOn:
+          point: "50%,85%"
+          retryTapIfNoChange: true
+          waitToSettleTimeoutMs: 1000
+- extendedWaitUntil:
+    visible:
+      id: "guest-map-destination-input"
+    timeout: 10000
+- runFlow:
+    when:
+      visible:
+        id: "guest-map-destination-input"
+    commands:
       - assertVisible:
           id: "guest-map-destination-input"
       - tapOn:

@@ -308,14 +308,14 @@ describe("Maestro iOS preview smoke flow", () => {
 
   it("plots a guest route before opening the live map", () => {
     const flow = previewFlowSource();
-    const guestGateIndex = flow.indexOf('id: "guest-map-primary-action"');
+    const guestGateIndex = flow.indexOf('id: "guest-map-collapsed-sheet"');
     const destinationInputIndex = flow.indexOf('id: "guest-map-destination-input"');
     const plotActionIndex = flow.indexOf('id: "guest-map-plot-action"');
     const routePreviewIndex = flow.indexOf('id: "guest-map-route-preview"');
     const liveMapIndex = flow.indexOf('id: "safe-route-live-map"');
     const firstConditionalIndex = flow.indexOf("- runFlow:");
 
-    assert.match(flow, /when:\s*\n\s+visible:\s*\n\s+id:\s*"guest-map-primary-action"/);
+    assert.match(flow, /when:\s*\n\s+visible:\s*\n\s+id:\s*"guest-map-collapsed-sheet"/);
     assert.match(flow, /tapOn:\s*\n\s+id:\s*"guest-map-destination-input"/);
     assert.match(flow, /inputText:\s*"51\.5053, 0\.0553"/);
     assert.match(flow, /id:\s*"guest-map-search-coordinate-51-505300-0-055300"/);

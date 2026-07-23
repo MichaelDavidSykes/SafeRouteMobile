@@ -46,8 +46,10 @@ describe('SafeRoute road route provider', () => {
       avoidRectangles: [{ ...avoidRectangle, label: ' High risk ' }]
     }), {
       client_id: 'tenant-1',
+      include_alternatives: true,
       include_road_metadata: true,
       include_route_alerts: true,
+      target_alternative_count: 3,
       waypoints: [
         { lat: -33.9249, lon: 18.4241, elevation_m: null },
         { lat: -33.9696, lon: 18.5972, elevation_m: null }
@@ -67,6 +69,8 @@ describe('SafeRoute road route provider', () => {
       stops,
       avoidRectangles: [avoidRectangle]
     }), {
+      include_alternatives: true,
+      target_alternative_count: 3,
       waypoints: [
         { lat: -33.9249, lon: 18.4241, elevation_m: null },
         { lat: -33.9696, lon: 18.5972, elevation_m: null }
@@ -93,6 +97,46 @@ describe('SafeRoute road route provider', () => {
       avoidRectangles: [],
       travelMode: 'walk'
     }).travel_mode, 'walk');
+  });
+
+  it('adds only enabled provider-enforced route preferences', () => {
+    const preferences = {
+      avoidFerries: false,
+      avoidMotorways: true,
+      avoidTolls: true,
+      avoidUnpavedRoads: false
+    };
+    assert.deepEqual(buildSafeRoutePreviewPayload({
+      clientId: 'tenant-1',
+      stops,
+      avoidRectangles: [],
+      preferences
+    }).preferences, {
+      avoid_ferries: false,
+      avoid_motorways: true,
+      avoid_tolls: true,
+      avoid_unpaved_roads: false
+    });
+    assert.deepEqual(buildPublicSafeRoutePreviewPayload({
+      stops,
+      avoidRectangles: [],
+      preferences
+    }).preferences, {
+      avoid_ferries: false,
+      avoid_motorways: true,
+      avoid_tolls: true,
+      avoid_unpaved_roads: false
+    });
+    assert.equal(buildPublicSafeRoutePreviewPayload({
+      stops,
+      avoidRectangles: [],
+      preferences: {
+        avoidFerries: false,
+        avoidMotorways: false,
+        avoidTolls: false,
+        avoidUnpavedRoads: false
+      }
+    }).preferences, undefined);
   });
 
   it('requires a non-driving response to confirm the requested mode', () => {
@@ -127,6 +171,48 @@ describe('SafeRoute road route provider', () => {
       )?.provider,
       'tomtom'
     );
+  });
+
+  it('rejects routes that do not prove enabled preferences were applied', () => {
+    const response = {
+      provider: 'tomtom',
+      snapped: true,
+      coordinates: [
+        { lat: -33.9249, lon: 18.4241 },
+        { lat: -33.9696, lon: 18.5972 }
+      ]
+    };
+    const preferences = {
+      avoidFerries: false,
+      avoidMotorways: true,
+      avoidTolls: true,
+      avoidUnpavedRoads: false
+    };
+
+    assert.equal(
+      normalizeSafeRoutePreviewResponse(
+        response,
+        stops,
+        [],
+        'drive',
+        preferences
+      ),
+      null
+    );
+    assert.ok(normalizeSafeRoutePreviewResponse(
+      {
+        ...response,
+        route_preferences: {
+          requested: ['tollRoads', 'motorways'],
+          applied: ['tollRoads', 'motorways'],
+          provider: 'tomtom'
+        }
+      },
+      stops,
+      [],
+      'drive',
+      preferences
+    ));
   });
 
   it('normalizes snapped provider geometry and metrics', () => {
@@ -197,6 +283,61 @@ describe('SafeRoute road route provider', () => {
     assert.equal(result?.routeAlerts?.[0].routeSegmentCoordinates?.length, 2);
     assert.equal(result?.routeAlerts?.[1].category, 'Structure Exposure');
     assert.equal(result?.routeAlerts?.[1].connectorCoordinates?.length, 2);
+  });
+
+  it('accepts only complete, distinct, backend-guided alternatives', () => {
+    const result = normalizeSafeRoutePreviewResponse({
+      provider: 'tomtom',
+      snapped: true,
+      distance_meters: 17000,
+      duration_seconds: 1800,
+      guidance_steps: [{
+        id: 'primary-step',
+        instruction: 'Continue',
+        distance_along_meters: 0,
+        coordinate: { lat: -33.9249, lon: 18.4241 }
+      }],
+      coordinates: [
+        { lat: -33.9249, lon: 18.4241 },
+        { lat: -33.94, lon: 18.52 },
+        { lat: -33.9696, lon: 18.5972 }
+      ],
+      alternatives: [
+        {
+          provider: 'tomtom',
+          snapped: true,
+          distance_meters: 18100,
+          duration_seconds: 1920,
+          guidance_steps: [{
+            id: 'alternative-step',
+            instruction: 'Bear left',
+            distance_along_meters: 500,
+            coordinate: { lat: -33.93, lon: 18.55 }
+          }],
+          coordinates: [
+            { lat: -33.9249, lon: 18.4241 },
+            { lat: -33.93, lon: 18.55 },
+            { lat: -33.9696, lon: 18.5972 }
+          ]
+        },
+        {
+          provider: 'tomtom',
+          snapped: true,
+          coordinates: [
+            { lat: -33.9249, lon: 18.4241 },
+            { lat: -33.92, lon: 18.54 },
+            { lat: -33.9696, lon: 18.5972 }
+          ]
+        }
+      ]
+    }, stops);
+
+    assert.equal(result?.alternatives?.length, 1);
+    assert.equal(result?.alternatives?.[0].distanceMeters, 18100);
+    assert.equal(
+      result?.alternatives?.[0].guidanceSteps[0].instruction,
+      'Bear left',
+    );
   });
 
   it('rejects manual, unsnapped, endpoint-mismatched, and unconstrained responses', () => {

@@ -33,9 +33,12 @@ interface LiveMapOverlayProps {
   onChangeRoute: () => void;
   onFitRoute: () => void;
   onPrimaryAction: () => void;
+  onRepeatSpokenGuidance: () => void;
+  onShareRoute: () => void;
   onRetryReroute: () => void;
   onSetAlertsVisible: (updater: (value: boolean) => boolean) => void;
   onStopRoute: () => void;
+  onToggleSpokenGuidance: () => void;
   primaryActionStatusReason?: string | null;
   primaryDisabledReason?: string | null;
   progress: RouteProgressSnapshot | null;
@@ -48,7 +51,11 @@ interface LiveMapOverlayProps {
   returnLabel: string;
   routeContext: "guest" | "saved";
   routePlan: SavedSafeRoutePlan;
+  sharePending?: boolean;
   selectedRiskZone: RiskZone | null;
+  spokenGuidanceAvailable: boolean;
+  spokenGuidanceCanRepeat: boolean;
+  spokenGuidanceMuted: boolean;
   trackingLabel: string;
 }
 
@@ -64,9 +71,12 @@ export function LiveMapOverlay({
   onChangeRoute,
   onFitRoute,
   onPrimaryAction,
+  onRepeatSpokenGuidance,
+  onShareRoute,
   onRetryReroute,
   onSetAlertsVisible,
   onStopRoute,
+  onToggleSpokenGuidance,
   primaryActionStatusReason,
   primaryDisabledReason,
   progress,
@@ -79,7 +89,11 @@ export function LiveMapOverlay({
   returnLabel,
   routeContext,
   routePlan,
+  sharePending,
   selectedRiskZone,
+  spokenGuidanceAvailable,
+  spokenGuidanceCanRepeat,
+  spokenGuidanceMuted,
   trackingLabel,
 }: LiveMapOverlayProps) {
   return (
@@ -120,8 +134,13 @@ export function LiveMapOverlay({
           progress={progress}
           reroutePresentation={reroutePresentation}
           riskAdvisory={riskAdvisory}
+          spokenGuidanceAvailable={spokenGuidanceAvailable}
+          spokenGuidanceCanRepeat={spokenGuidanceCanRepeat}
+          spokenGuidanceMuted={spokenGuidanceMuted}
           state={activeNavigationState}
+          onRepeatSpokenGuidance={onRepeatSpokenGuidance}
           onRetryReroute={onRetryReroute}
+          onToggleSpokenGuidance={onToggleSpokenGuidance}
         />
       ) : null}
 
@@ -153,7 +172,9 @@ export function LiveMapOverlay({
         primaryDisabledReason={primaryDisabledReason}
         onEnableBackgroundNavigation={onEnableBackgroundNavigation}
         onPrimaryAction={onPrimaryAction}
+        onShareRoute={onShareRoute}
         onStopRoute={onStopRoute}
+        sharePending={sharePending}
       /> : null}
     </SafeAreaView>
   );

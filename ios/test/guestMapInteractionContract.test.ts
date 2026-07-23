@@ -23,7 +23,7 @@ describe('guest map interaction contract', () => {
     assert.match(screen, /testID=\{uiTestIds\.guestMapAddWaypoint\}/);
     assert.match(
       screen,
-      /<View style=\{styles\.inputStack\}>[\s\S]*testID=\{uiTestIds\.guestMapAddWaypoint\}[\s\S]*<\/ScrollView>\s*<View style=\{styles\.sheetFooter\}>\s*<TravelModeSelector/,
+      /<View style=\{styles\.inputStack\}>[\s\S]*testID=\{uiTestIds\.guestMapAddWaypoint\}[\s\S]*<\/ScrollView>\s*<View style=\{styles\.sheetFooter\}>[\s\S]*<TravelModeSelector/,
     );
     assert.equal(
       (screen.match(/testID=\{uiTestIds\.guestMapAddWaypoint\}/g) || []).length,
@@ -47,8 +47,9 @@ describe('guest map interaction contract', () => {
     );
     assert.match(
       screen,
-      /createGuestRoadSnappedRoutePlan\(\{[\s\S]*planId: localRoutePlan\.id/,
+      /createGuestRoadSnappedRoutePlan\(\{[\s\S]*planId: index === 0[\s\S]*localRoutePlan\.id/,
     );
+    assert.match(screen, /`\$\{localRoutePlan\.id\}-alternative-\$\{index\}`/);
     assert.equal(
       (screen.match(/createGuestRoutePlanId\(\)/g) || []).length,
       1,

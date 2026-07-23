@@ -57,6 +57,8 @@ appId: host.exp.Exponent
     commands:
       - tapOn:
           id: "safe-route-operations-map-return"
+- tapOn:
+    id: "safe-route-tab-map"
 - extendedWaitUntil:
     visible:
       id: "safe-route-risk-zone-generated-area-risk-safe-route-area-risk-philippi-east-33b347150ca4712272"

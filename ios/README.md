@@ -61,7 +61,7 @@ For iOS production readiness, confirm:
 - `SAFEROUTE_APP_ENV=production` is used for release artifacts
 - `SAFEROUTE_IOS_BUILD_NUMBER` is set and incremented for every signed iOS artifact
 - `SAFEROUTE_PROD_API_URL` is set to the hosted HTTPS API, not a generic/local fallback
-- `GOOGLE_MAPS_IOS_API_KEY` is set in the release environment
+- The native Apple Maps provider is used on iOS; no Google Maps iOS key is required
 - Firebase App Distribution has a project, iOS app id, authenticated CLI, tester group, and an already-produced `.ipa` artifact before distribution
 
 ## Environment
@@ -77,10 +77,9 @@ SAFEROUTE_ENABLE_DEMO_DRIVE=true
 SAFEROUTE_ENABLE_PREVIEW_MODE=false
 SAFEROUTE_IOS_BUILD_NUMBER=1
 GOOGLE_MAPS_ANDROID_API_KEY=...
-GOOGLE_MAPS_IOS_API_KEY=...
 ```
 
-`SAFEROUTE_APP_ENV` must be `development`, `staging`, or `production`. The map works in Expo Go for early iteration. Production iOS config now fails fast unless `SAFEROUTE_PROD_API_URL` is explicitly set to a valid hosted HTTPS URL, `GOOGLE_MAPS_IOS_API_KEY` is present, and `SAFEROUTE_IOS_BUILD_NUMBER` is explicitly set to a valid App Store/TestFlight build number. Production releases intentionally do not accept a generic `SAFEROUTE_API_URL`, `localhost`, or `127.0.0.1` fallback.
+`SAFEROUTE_APP_ENV` must be `development`, `staging`, or `production`. The map works in Expo Go for early iteration. Production iOS config fails fast unless `SAFEROUTE_PROD_API_URL` is explicitly set to a valid hosted HTTPS URL and `SAFEROUTE_IOS_BUILD_NUMBER` is explicitly set to a valid App Store/TestFlight build number. Production releases intentionally do not accept a generic `SAFEROUTE_API_URL`, `localhost`, or `127.0.0.1` fallback.
 
 Foreground route planning and live-location smoke tests work in Expo Go. Release-equivalent background testing requires an installed development, preview, or production build: Expo Go does not provide Android background location, and its iOS Simulator support is only a limited development aid. During a live route, the compact **Keep active** action requests background access only after foreground guidance is already running.
 
@@ -97,7 +96,7 @@ Set `SAFEROUTE_ENABLE_PREVIEW_MODE=true` only in non-production simulator/dev ru
 - Location permission copy is concise and map-first: "Shows your position on the map and guides active SafeRoute trips."
 - Background location copy is purpose-specific: "Keeps active SafeRoute guidance and safety monitoring running when the screen is locked."
 - The Expo location plugin enables iOS `location` background mode plus Android foreground-service/background-location permissions for installed builds.
-- Production runtime config should set `SAFEROUTE_APP_ENV=production`, `SAFEROUTE_PROD_API_URL` for the hosted API URL/version, an incremented `SAFEROUTE_IOS_BUILD_NUMBER`, and `GOOGLE_MAPS_IOS_API_KEY` through the build environment.
+- Production runtime config should set `SAFEROUTE_APP_ENV=production`, `SAFEROUTE_PROD_API_URL` for the hosted API URL/version, and an incremented `SAFEROUTE_IOS_BUILD_NUMBER`.
 - Demo drive is intended for development/preview only; the production app config disables it even if `SAFEROUTE_ENABLE_DEMO_DRIVE` is set.
 - Preview mode is intended for simulator/dev authenticated UI smoke only; production config disables it even if `SAFEROUTE_ENABLE_PREVIEW_MODE` is set.
 - Firebase App Distribution still needs a valid iOS build artifact plus Firebase auth/project/app id before distribution.

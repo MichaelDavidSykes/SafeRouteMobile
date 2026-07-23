@@ -4,6 +4,7 @@ import { haversineDistanceMeters } from '../live-map/routeGeometry';
 import { normalizeRouteNavigationSteps } from '../live-map/routeGuidance';
 import { mapMobileRiskOverlays } from '../routes/routeMapper';
 import {
+  type GuestRoadRouteAlternative,
   type GuestRoadRoutePreview,
   type GuestRouteAvoidRectangle
 } from './guestRoadRouteProvider';
@@ -12,6 +13,13 @@ import {
   normalizeRouteAvoidRectangles,
   routeIntersectsAvoidRectangles
 } from './routeAvoidanceGeometry';
+import {
+  hasEnabledSafeRoutePreference,
+  safeRoutePreferencesMatchApiEvidence,
+  toSafeRoutePreferencesApi,
+  type SafeRouteRoutePreferences,
+  type SafeRouteRoutePreferencesApi,
+} from './routePreferences';
 
 type SafeRouteRoutePreviewPayload = {
   avoid_rectangles?: Array<{
@@ -22,8 +30,11 @@ type SafeRouteRoutePreviewPayload = {
     min_lon: number;
   }>;
   client_id: string;
+  include_alternatives: true;
   include_road_metadata: true;
   include_route_alerts: true;
+  preferences?: SafeRouteRoutePreferencesApi;
+  target_alternative_count: 3;
   travel_mode?: SafeRouteTravelMode;
   waypoints: Array<{
     elevation_m: null;
@@ -68,16 +79,20 @@ export function buildSafeRoutePreviewPayload({
   clientId,
   stops,
   travelMode = 'drive',
+  preferences,
 }: {
   avoidRectangles: GuestRouteAvoidRectangle[];
   clientId: string;
   stops: LatLng[];
   travelMode?: SafeRouteTravelMode;
+  preferences?: SafeRouteRoutePreferences;
 }): SafeRouteRoutePreviewPayload {
   const payload: SafeRouteRoutePreviewPayload = {
     client_id: clientId.trim(),
+    include_alternatives: true,
     include_road_metadata: true,
     include_route_alerts: true,
+    target_alternative_count: 3,
     waypoints: stops.map((stop) => ({
       elevation_m: null,
       lat: Number(stop.latitude.toFixed(6)),
@@ -86,6 +101,9 @@ export function buildSafeRoutePreviewPayload({
   };
   if (travelMode !== 'drive') {
     payload.travel_mode = travelMode;
+  }
+  if (preferences && hasEnabledSafeRoutePreference(preferences)) {
+    payload.preferences = toSafeRoutePreferencesApi(preferences);
   }
   const normalizedAvoidRectangles = normalizeRouteAvoidRectangles(avoidRectangles);
   if (normalizedAvoidRectangles.length) {
@@ -104,16 +122,19 @@ export function buildPublicSafeRoutePreviewPayload({
   avoidRectangles,
   stops,
   travelMode = 'drive',
+  preferences,
 }: {
   avoidRectangles: GuestRouteAvoidRectangle[];
   stops: LatLng[];
   travelMode?: SafeRouteTravelMode;
+  preferences?: SafeRouteRoutePreferences;
 }) {
   const workspacePayload = buildSafeRoutePreviewPayload({
     avoidRectangles,
     clientId: 'public-mobile',
     stops,
     travelMode,
+    preferences,
   });
 
   return {
@@ -123,6 +144,11 @@ export function buildPublicSafeRoutePreviewPayload({
     ...(workspacePayload.travel_mode
       ? { travel_mode: workspacePayload.travel_mode }
       : {}),
+    ...(workspacePayload.preferences
+      ? { preferences: workspacePayload.preferences }
+      : {}),
+    include_alternatives: true,
+    target_alternative_count: 3,
     waypoints: workspacePayload.waypoints
   };
 }
@@ -132,6 +158,7 @@ export function normalizeSafeRoutePreviewResponse(
   requestedStops: LatLng[],
   requestedAvoidRectangles: readonly GuestRouteAvoidRectangle[] = [],
   requestedTravelMode: SafeRouteTravelMode = 'drive',
+  requestedPreferences?: SafeRouteRoutePreferences,
 ): GuestRoadRoutePreview | null {
   if (!payload || typeof payload !== 'object') {
     return null;
@@ -149,6 +176,15 @@ export function normalizeSafeRoutePreviewResponse(
     ? record.provider
     : null;
   if (!provider || record.snapped !== true) {
+    return null;
+  }
+  if (
+    requestedPreferences &&
+    !safeRoutePreferencesMatchApiEvidence(
+      requestedPreferences,
+      record.route_preferences ?? record.routePreferences,
+    )
+  ) {
     return null;
   }
 
@@ -194,8 +230,22 @@ export function normalizeSafeRoutePreviewResponse(
   ) ?? (distanceMeters > 0
     ? distanceMeters / SAFE_ROUTE_FALLBACK_SPEED_METERS_PER_SECOND
     : null);
+  const alternatives = normalizeCompleteRouteAlternatives(
+    record.alternatives,
+    {
+      primaryCoordinates: withEndpointConnectors,
+      requestedAvoidRectangles: avoidRectangles,
+      requestedStops: stops,
+      requestedTravelMode,
+      responseTravelMode,
+      routePreferencesEvidence:
+        record.route_preferences ?? record.routePreferences,
+      requestedPreferences,
+    },
+  );
 
   return {
+    alternatives,
     coordinates: withEndpointConnectors,
     distanceMeters,
     durationSeconds,
@@ -208,6 +258,92 @@ export function normalizeSafeRoutePreviewResponse(
       record.route_alerts ?? record.routeAlerts
     )
   };
+}
+
+function normalizeCompleteRouteAlternatives(
+  value: unknown,
+  {
+    primaryCoordinates,
+    requestedAvoidRectangles,
+    requestedStops,
+    requestedTravelMode,
+    responseTravelMode,
+    routePreferencesEvidence,
+    requestedPreferences,
+  }: {
+    primaryCoordinates: LatLng[];
+    requestedAvoidRectangles: GuestRouteAvoidRectangle[];
+    requestedStops: LatLng[];
+    requestedTravelMode: SafeRouteTravelMode;
+    responseTravelMode: unknown;
+    routePreferencesEvidence: unknown;
+    requestedPreferences?: SafeRouteRoutePreferences;
+  },
+): GuestRoadRouteAlternative[] {
+  if (!Array.isArray(value)) {
+    return [];
+  }
+  const signatures = new Set([routeCoordinateSignature(primaryCoordinates)]);
+  const alternatives: GuestRoadRouteAlternative[] = [];
+  for (const item of value.slice(0, 3)) {
+    if (!item || typeof item !== 'object') {
+      continue;
+    }
+    const record = item as Record<string, unknown>;
+    const explicitDistance = normalizePositiveNumber(
+      record.distance_meters ?? record.distanceMeters ?? record.distance,
+    );
+    const explicitDuration = normalizePositiveNumber(
+      record.duration_seconds ?? record.durationSeconds ?? record.duration,
+    );
+    const guidanceSteps = normalizeRouteNavigationSteps(
+      record.guidance_steps ?? record.guidanceSteps,
+    );
+    if (
+      explicitDistance === null ||
+      explicitDuration === null ||
+      !guidanceSteps.length
+    ) {
+      continue;
+    }
+    const normalized = normalizeSafeRoutePreviewResponse(
+      {
+        ...record,
+        alternatives: undefined,
+        route_preferences: routePreferencesEvidence,
+        travel_mode: responseTravelMode ?? requestedTravelMode,
+      },
+      requestedStops,
+      requestedAvoidRectangles,
+      requestedTravelMode,
+      requestedPreferences,
+    );
+    if (!normalized) {
+      continue;
+    }
+    const signature = routeCoordinateSignature(normalized.coordinates);
+    if (!signature || signatures.has(signature)) {
+      continue;
+    }
+    signatures.add(signature);
+    alternatives.push({
+      coordinates: normalized.coordinates,
+      distanceMeters: explicitDistance,
+      durationSeconds: explicitDuration,
+      guidanceSteps,
+      provider: normalized.provider,
+      snapped: true,
+    });
+  }
+  return alternatives;
+}
+
+function routeCoordinateSignature(coordinates: LatLng[]): string {
+  return coordinates
+    .map((coordinate) => (
+      `${coordinate.latitude.toFixed(5)},${coordinate.longitude.toFixed(5)}`
+    ))
+    .join('|');
 }
 
 function normalizeProviderCoordinates(value: unknown): LatLng[] {

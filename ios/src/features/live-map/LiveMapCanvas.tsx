@@ -97,7 +97,7 @@ export function LiveMapCanvas({
       showsIndoors={false}
       showsIndoorLevelPicker={false}
       showsScale={false}
-      showsTraffic={false}
+      showsTraffic={!offline && routePlan.travelMode === "drive"}
       zoomEnabled
       pitchEnabled
       rotateEnabled={

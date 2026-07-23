@@ -6,10 +6,7 @@ import type {
   RouteCheckpoint,
   SavedSafeRoutePlan
 } from '../live-map/liveMapTypes';
-import {
-  deriveRouteNavigationSteps,
-  normalizeRouteNavigationSteps
-} from '../live-map/routeGuidance';
+import { normalizeRouteNavigationSteps } from '../live-map/routeGuidance';
 import {
   clampNumber,
   formatDistance,
@@ -165,6 +162,9 @@ export function mapRouteDtoToSavedPlan(dto: MobileSafeRouteDto): SavedSafeRouteP
   const safeScore = clampNumber(route.risk_score ?? 0, 0, 100);
   const riskLevel = normalizeRiskLevel(route.risk_level, safeScore);
   const color = normalizeRouteColor(route.color, riskLevel);
+  const navigationSteps = normalizeRouteNavigationSteps(
+    route.guidance_steps ?? route.navigation_steps
+  );
 
   return {
     id: cleanText(dto.id, 'safe-route-plan'),
@@ -193,14 +193,18 @@ export function mapRouteDtoToSavedPlan(dto: MobileSafeRouteDto): SavedSafeRouteP
       nextInstruction: cleanText(route.next_instruction, 'Continue on saved route'),
       nextDistance: formatDistance(toFiniteNumber(route.next_distance_meters, 0)),
       coordinates,
-      navigationSteps: (() => {
-        const providerSteps = normalizeRouteNavigationSteps(
-          route.guidance_steps ?? route.navigation_steps
-        );
-        return providerSteps.length
-          ? providerSteps
-          : deriveRouteNavigationSteps(coordinates);
-      })()
+      navigationSteps,
+      ...(navigationSteps.length
+        ? {
+            navigationStepRevision: firstCleanText(
+              dto.updated_at,
+              route.id,
+              dto.id,
+              'backend-route',
+            ),
+            navigationStepSource: 'backend' as const,
+          }
+        : {})
     },
     riskZones: mapRiskOverlays(dto),
     checkpoints: mapCheckpoints(

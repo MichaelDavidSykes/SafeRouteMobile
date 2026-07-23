@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { List } from "lucide-react-native";
+import { List, Share2 } from "lucide-react-native";
 import { Pressable, Text, View } from "react-native";
 
 import type { LiveMapOverlayLayout } from "./liveMapLayout";
@@ -43,6 +43,7 @@ interface LiveMapRouteSummarySheetProps {
   navigationState: NavigationLifecycle;
   onEnableBackgroundNavigation: () => void;
   onPrimaryAction: () => void;
+  onShareRoute: () => void;
   onStopRoute: () => void;
   primaryActionStatusReason?: string | null;
   primaryDisabledReason?: string | null;
@@ -50,6 +51,7 @@ interface LiveMapRouteSummarySheetProps {
   route: RoutePath;
   routeContext: "guest" | "saved";
   routePlan: SavedSafeRoutePlan;
+  sharePending?: boolean;
   trackingLabel: string;
 }
 
@@ -59,6 +61,7 @@ export function LiveMapRouteSummarySheet({
   navigationState,
   onEnableBackgroundNavigation,
   onPrimaryAction,
+  onShareRoute,
   onStopRoute,
   primaryActionStatusReason,
   primaryDisabledReason,
@@ -66,6 +69,7 @@ export function LiveMapRouteSummarySheet({
   route,
   routeContext,
   routePlan,
+  sharePending = false,
   trackingLabel,
 }: LiveMapRouteSummarySheetProps) {
   const [detailsVisible, setDetailsVisible] = useState(false);
@@ -323,25 +327,43 @@ export function LiveMapRouteSummarySheet({
             </Text>
           </Pressable>
         ) : (
-          <Pressable
-            accessibilityLabel={
-              routeContext === "saved"
-                ? savedRouteContext.accessibilityLabel
-                : "Route details"
-            }
-            accessibilityRole="button"
-            accessibilityState={{ expanded: detailsVisible }}
-            hitSlop={ROUTE_SUMMARY_ACTION_HIT_SLOP}
-            testID={uiTestIds.liveMapSavedRouteDetails}
-            style={({ pressed }) => [
-              styles.detailsButton,
-              detailsVisible ? styles.detailsButtonActive : null,
-              pressed ? styles.detailsButtonPressed : null,
-            ]}
-            onPress={() => setDetailsVisible((visible) => !visible)}
-          >
-            <List accessibilityElementsHidden color="#0a84ff" size={22} strokeWidth={2.1} />
-          </Pressable>
+          <>
+            <Pressable
+              accessibilityLabel={sharePending ? "Preparing route share" : "Share route"}
+              accessibilityRole="button"
+              accessibilityState={{ busy: sharePending, disabled: sharePending }}
+              disabled={sharePending}
+              hitSlop={ROUTE_SUMMARY_ACTION_HIT_SLOP}
+              testID={uiTestIds.liveMapShareRoute}
+              style={({ pressed }) => [
+                styles.detailsButton,
+                sharePending ? styles.detailsButtonDisabled : null,
+                pressed && !sharePending ? styles.detailsButtonPressed : null,
+              ]}
+              onPress={onShareRoute}
+            >
+              <Share2 accessibilityElementsHidden color="#0a84ff" size={21} strokeWidth={2.1} />
+            </Pressable>
+            <Pressable
+              accessibilityLabel={
+                routeContext === "saved"
+                  ? savedRouteContext.accessibilityLabel
+                  : "Route details"
+              }
+              accessibilityRole="button"
+              accessibilityState={{ expanded: detailsVisible }}
+              hitSlop={ROUTE_SUMMARY_ACTION_HIT_SLOP}
+              testID={uiTestIds.liveMapSavedRouteDetails}
+              style={({ pressed }) => [
+                styles.detailsButton,
+                detailsVisible ? styles.detailsButtonActive : null,
+                pressed ? styles.detailsButtonPressed : null,
+              ]}
+              onPress={() => setDetailsVisible((visible) => !visible)}
+            >
+              <List accessibilityElementsHidden color="#0a84ff" size={22} strokeWidth={2.1} />
+            </Pressable>
+          </>
         )}
       </View>
     </MotionEntrance>

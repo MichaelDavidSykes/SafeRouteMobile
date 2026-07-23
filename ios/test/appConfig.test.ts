@@ -295,16 +295,14 @@ describe('Expo production configuration', () => {
     );
   });
 
-  it('requires an iOS Google Maps key for production configuration', () => {
-    assert.throws(
-      () =>
-        loadExpoConfig({
-          SAFEROUTE_APP_ENV: 'production',
-          SAFEROUTE_PROD_API_URL: 'https://api.lunarchain.net',
-          SAFEROUTE_IOS_BUILD_NUMBER: '42'
-        }),
-      /GOOGLE_MAPS_IOS_API_KEY is required/
-    );
+  it('uses the native Apple map provider without requiring a Google iOS key', () => {
+    const config = loadExpoConfig({
+      SAFEROUTE_APP_ENV: 'production',
+      SAFEROUTE_PROD_API_URL: 'https://api.lunarchain.net',
+      SAFEROUTE_IOS_BUILD_NUMBER: '42'
+    });
+
+    assert.equal(config.ios.config?.googleMapsApiKey, undefined);
   });
 
   it('requires HTTPS for the production API URL', () => {
@@ -473,7 +471,7 @@ describe('Expo production configuration', () => {
     assert.equal(productionExpo.extra.safeRoutePreviewInitialScreen, 'guest-map');
   });
 
-  it('passes trimmed production map credentials through SDK 54 platform config', () => {
+  it('keeps iOS on Apple Maps while passing Android map credentials', () => {
     const expo = loadExpoConfig({
       SAFEROUTE_APP_ENV: 'production',
       SAFEROUTE_PROD_API_URL: 'https://api.lunarchain.net',
@@ -486,7 +484,7 @@ describe('Expo production configuration', () => {
     assert.equal(expo.extra.safeRouteDemoDriveEnabled, false);
     assert.equal(expo.ios.buildNumber, '44');
     assert.equal(expo.ios.config?.usesNonExemptEncryption, false);
-    assert.equal(expo.ios.config?.googleMapsApiKey, 'ios-key');
+    assert.equal(expo.ios.config?.googleMapsApiKey, undefined);
     assert.equal(expo.android.config?.googleMaps?.apiKey, 'android-key');
     assert.ok(!expo.plugins.some((plugin) =>
       (Array.isArray(plugin) ? plugin[0] : plugin) === 'react-native-maps'

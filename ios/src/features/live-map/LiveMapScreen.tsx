@@ -1,6 +1,8 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import {
+  Alert,
   Platform,
+  Share,
   StyleSheet,
   View,
   useWindowDimensions,
@@ -110,6 +112,15 @@ import {
   runNavigationStartAuthorization,
 } from "./navigationStartAuthorizationGate";
 import { MotionEntrance } from "../../motion/SafeRouteMotion";
+import {
+  createRouteShareMessage,
+  prepareSavedRouteShare,
+} from "../routes/routeShare";
+import {
+  normalizeBackendManeuverBatch,
+  SpokenGuidanceController,
+} from "./spoken-guidance";
+import { createExpoSpokenGuidanceAudioDriver } from "./spoken-guidance/expoSpokenGuidanceAudio";
 
 interface LiveMapScreenProps {
   accessToken?: string | null;
@@ -179,6 +190,12 @@ export function LiveMapScreen({
   const persistedEvidenceNavigationIdRef = useRef<string | null>(null);
   const prestartEvidenceRouteIdRef = useRef<string | null>(null);
   const navigationAuthorizationGateRef = useRef(createNavigationStartAuthorizationGate());
+  const spokenGuidanceControllerRef = useRef<SpokenGuidanceController | null>(null);
+  if (!spokenGuidanceControllerRef.current) {
+    spokenGuidanceControllerRef.current = new SpokenGuidanceController({
+      audio: createExpoSpokenGuidanceAudioDriver(),
+    });
+  }
   const navigationStartBlockedReasonRef = useRef<string | null>(null);
   const onAuthorizeNavigationStartRef = useRef(onAuthorizeNavigationStart);
   const onNavigationSessionChangeRef = useRef(onNavigationSessionChange);
@@ -217,6 +234,10 @@ export function LiveMapScreen({
   const [navigationAuthorizationPending, setNavigationAuthorizationPending] = useState(false);
   const [navigationAuthorizationNotice, setNavigationAuthorizationNotice] =
     useState<string | null>(null);
+  const [sharePending, setSharePending] = useState(false);
+  const [spokenGuidanceSnapshot, setSpokenGuidanceSnapshot] = useState(
+    () => spokenGuidanceControllerRef.current!.getSnapshot(),
+  );
   const [routeStep, setRouteStep] = useState(0);
   const [activeRoutePlan, setActiveRoutePlan] = useState(
     resumedNavigationSession?.routePlan || routePlan,
@@ -389,6 +410,20 @@ export function LiveMapScreen({
   const activeNavigationState = resolveActiveNavigationState(
     navigationState,
     progress,
+  );
+  const backendManeuverBatch = useMemo(
+    () => normalizeBackendManeuverBatch({
+      maneuvers: liveRoutePlan.route.navigationSteps,
+      routeId: liveRoutePlan.route.id,
+      routeRevision: liveRoutePlan.route.navigationStepRevision,
+      source: liveRoutePlan.route.navigationStepSource,
+    }),
+    [
+      liveRoutePlan.route.id,
+      liveRoutePlan.route.navigationStepRevision,
+      liveRoutePlan.route.navigationStepSource,
+      liveRoutePlan.route.navigationSteps,
+    ],
   );
   const backgroundNavigationPresentation =
     createBackgroundNavigationPresentation({
@@ -787,6 +822,37 @@ export function LiveMapScreen({
       (!activeRoutePlan.clientId || workspaceAuthorizationFresh) &&
       (navigationState === "navigating" || navigationState === "off-route"),
   );
+
+  useEffect(() => {
+    let current = true;
+    const controller = spokenGuidanceControllerRef.current!;
+    const update = controller.update({
+      active:
+        activeNavigationState === "navigating" ||
+        activeNavigationState === "off-route",
+      batch: backendManeuverBatch,
+      speedMetersPerSecond,
+      travelledDistanceMeters: progress?.travelledDistanceMeters ?? 0,
+    });
+    setSpokenGuidanceSnapshot(controller.getSnapshot());
+    void update.finally(() => {
+      if (current) {
+        setSpokenGuidanceSnapshot(controller.getSnapshot());
+      }
+    });
+    return () => {
+      current = false;
+    };
+  }, [
+    activeNavigationState,
+    backendManeuverBatch,
+    progress?.travelledDistanceMeters,
+    speedMetersPerSecond,
+  ]);
+
+  useEffect(() => () => {
+    void spokenGuidanceControllerRef.current?.dispose();
+  }, []);
 
   useEffect(() => () => {
     activeRerouteRequestRef.current?.abort();
@@ -1488,6 +1554,57 @@ export function LiveMapScreen({
     fitRoute();
   };
 
+  const handleShareRoute = async () => {
+    if (sharePending) {
+      return;
+    }
+
+    setSharePending(true);
+    try {
+      const shareUrl =
+        routeContext === "saved" && accessToken
+          ? await prepareSavedRouteShare(accessToken, liveRoutePlan.id)
+          : null;
+      await Share.share({
+        message: createRouteShareMessage(liveRoutePlan, shareUrl),
+        ...(shareUrl ? { url: shareUrl } : {}),
+      });
+    } catch (error) {
+      const sessionExpiry = getRequestSessionExpiry({
+        authenticated: Boolean(accessToken && onSessionExpired),
+        error,
+        handled: false,
+        requestActive: true,
+      });
+      if (sessionExpiry) {
+        onSessionExpired?.(sessionExpiry.message);
+      } else {
+        Alert.alert(
+          "Route could not be shared",
+          error instanceof Error
+            ? error.message
+            : "Try sharing the route again.",
+        );
+      }
+    } finally {
+      setSharePending(false);
+    }
+  };
+
+  const handleToggleSpokenGuidance = () => {
+    const controller = spokenGuidanceControllerRef.current!;
+    void controller
+      .setMuted(!controller.getSnapshot().muted)
+      .then(setSpokenGuidanceSnapshot);
+  };
+
+  const handleRepeatSpokenGuidance = () => {
+    const controller = spokenGuidanceControllerRef.current!;
+    void controller.repeat().finally(() => {
+      setSpokenGuidanceSnapshot(controller.getSnapshot());
+    });
+  };
+
   const handleRiskZonePress = (zone: RiskZone) => {
     setSelectedRiskZoneId(zone.id);
     setAlertsVisible(true);
@@ -1573,12 +1690,17 @@ export function LiveMapScreen({
         onFitRoute={fitRouteFromControl}
         onOpenRiskAlert={handleOpenRiskAlert}
         onPrimaryAction={handlePrimaryNavigationAction}
+        onRepeatSpokenGuidance={handleRepeatSpokenGuidance}
+        onShareRoute={() => {
+          void handleShareRoute();
+        }}
         onRetryReroute={handleRetryReroute}
         returnAccessibilityLabel={returnAccessibilityLabel}
         returnLabel={returnLabel}
         routeContext={routeContext}
         onSetAlertsVisible={handleSetAlertsVisible}
         onStopRoute={handleStopRoute}
+        onToggleSpokenGuidance={handleToggleSpokenGuidance}
         primaryActionStatusReason={navigationAuthorizationRetryNotice}
         primaryDisabledReason={
           navigationAuthorizationPending
@@ -1590,7 +1712,11 @@ export function LiveMapScreen({
         riskAdvisory={riskAdvisory}
         reroutePresentation={reroutePresentation}
         routePlan={liveRoutePlan}
+        sharePending={sharePending}
         selectedRiskZone={selectedRiskZone}
+        spokenGuidanceAvailable={Boolean(backendManeuverBatch?.maneuvers.length)}
+        spokenGuidanceCanRepeat={spokenGuidanceSnapshot.canRepeat}
+        spokenGuidanceMuted={spokenGuidanceSnapshot.muted}
         trackingLabel={
           networkChecking
             ? "Checking connection"

@@ -416,7 +416,11 @@ export function createGuestRoutePlan({
       nextDistance: 'Preview',
       coordinates: routeCoordinates,
       ...(routeGuidanceSteps?.length
-        ? { navigationSteps: [...routeGuidanceSteps] }
+        ? {
+            navigationSteps: [...routeGuidanceSteps],
+            navigationStepRevision: normalizedPlanId,
+            navigationStepSource: 'backend' as const,
+          }
         : {})
     },
     riskZones: riskZones

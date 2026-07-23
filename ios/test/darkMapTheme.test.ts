@@ -86,6 +86,20 @@ describe("SafeRoute dark map theme", () => {
     assert.match(guestMap, /rotateEnabled/);
   });
 
+  it("shows live native traffic only for online driving routes", () => {
+    const guestMap = source("src/features/guest-map/GuestMapScreen.tsx");
+    const liveMap = source("src/features/live-map/LiveMapCanvas.tsx");
+
+    assert.match(
+      guestMap,
+      /showsTraffic=\{online && travelMode === 'drive'\}/,
+    );
+    assert.match(
+      liveMap,
+      /showsTraffic=\{!offline && routePlan\.travelMode === "drive"\}/,
+    );
+  });
+
   it("keeps every production map free of forced light map styling", () => {
     const productionSources = [
       source("src/features/guest-map/GuestMapScreen.tsx"),

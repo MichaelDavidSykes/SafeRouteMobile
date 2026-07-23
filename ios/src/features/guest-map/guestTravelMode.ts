@@ -22,17 +22,12 @@ export const GUEST_TRAVEL_MODE_OPTIONS: readonly GuestTravelModeOption[] = [
     id: 'cycle',
     label: 'Cycle',
   },
-  {
-    accessibilityLabel: 'Public transport route',
-    id: 'transit',
-    label: 'Transit',
-  },
 ];
 
 export function normalizeSafeRouteTravelMode(
   value: unknown,
 ): SafeRouteTravelMode {
-  return value === 'walk' || value === 'cycle' || value === 'transit'
+  return value === 'walk' || value === 'cycle'
     ? value
     : 'drive';
 }

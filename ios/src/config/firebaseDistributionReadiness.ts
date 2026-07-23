@@ -11,7 +11,6 @@ export type FirebaseDistributionBlockerCode =
   | 'production-api-url-invalid'
   | 'production-api-url-insecure'
   | 'production-api-url-local'
-  | 'google-maps-ios-key-missing'
   | 'ios-build-number-missing'
   | 'ios-build-number-invalid';
 
@@ -26,7 +25,6 @@ export type FirebaseIosDistributionInputs = {
   firebaseAuthenticated?: boolean;
   firebaseProjectId?: string | null;
   firebaseIosAppId?: string | null;
-  googleMapsIosApiKey?: string | null;
   iosArtifactPath?: string | null;
   iosArtifactExists?: boolean;
   iosBuildNumber?: string | null;
@@ -42,7 +40,6 @@ export type FirebaseIosDistributionReadiness = {
     appEnvironment: string | null;
     firebaseProjectId: string | null;
     firebaseIosAppId: string | null;
-    googleMapsIosApiKeyConfigured: boolean;
     iosArtifactPath: string | null;
     iosBuildNumber: string | null;
     productionApiUrl: string | null;
@@ -142,7 +139,6 @@ export function resolveFirebaseIosDistributionReadiness(
     appEnvironment: normalizeEnvironment(inputs.appEnvironment),
     firebaseProjectId: normalizeText(inputs.firebaseProjectId),
     firebaseIosAppId: normalizeText(inputs.firebaseIosAppId),
-    googleMapsIosApiKeyConfigured: Boolean(normalizeText(inputs.googleMapsIosApiKey)),
     iosArtifactPath: normalizeText(inputs.iosArtifactPath),
     iosBuildNumber: normalizeText(inputs.iosBuildNumber),
     productionApiUrl: normalizeApiUrl(inputs.productionApiUrl),
@@ -235,13 +231,6 @@ export function resolveFirebaseIosDistributionReadiness(
         });
       }
     }
-  }
-
-  if (!normalized.googleMapsIosApiKeyConfigured) {
-    blockers.push({
-      code: 'google-maps-ios-key-missing',
-      message: 'Set GOOGLE_MAPS_IOS_API_KEY in the release environment before producing the iOS artifact.'
-    });
   }
 
   if (!normalized.iosBuildNumber) {

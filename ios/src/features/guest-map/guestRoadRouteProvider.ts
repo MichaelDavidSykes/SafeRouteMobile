@@ -11,10 +11,21 @@ import {
   routeIntersectsAvoidRectangles,
   type RouteAvoidRectangle
 } from './routeAvoidanceGeometry';
+import type { SafeRouteRoutePreferences } from './routePreferences';
 
 export type GuestRoadRouteProvider = 'osrm' | 'tomtom';
 
+export type GuestRoadRouteAlternative = {
+  coordinates: LatLng[];
+  distanceMeters: number;
+  durationSeconds: number;
+  guidanceSteps: RouteNavigationStep[];
+  provider: GuestRoadRouteProvider;
+  snapped: true;
+};
+
 export type GuestRoadRoutePreview = {
+  alternatives?: GuestRoadRouteAlternative[];
   coordinates: LatLng[];
   distanceMeters: number | null;
   durationSeconds: number | null;
@@ -31,6 +42,7 @@ export type GuestRoadRoutePreviewOptions = {
   stops: LatLng[];
   timeoutMs?: number;
   travelMode?: SafeRouteTravelMode;
+  preferences?: SafeRouteRoutePreferences;
 };
 
 export type GuestRouteAvoidRectangle = RouteAvoidRectangle;

@@ -152,7 +152,6 @@ const safeRouteApiVersion = normalizeApiVersion(trimmedEnv('SAFEROUTE_API_VERSIO
 const iosBuildNumberOverride = trimmedEnv('SAFEROUTE_IOS_BUILD_NUMBER');
 const iosBuildNumber = normalizeIosBuildNumber(iosBuildNumberOverride);
 const googleMapsAndroidApiKey = trimmedEnv('GOOGLE_MAPS_ANDROID_API_KEY');
-const googleMapsIosApiKey = trimmedEnv('GOOGLE_MAPS_IOS_API_KEY');
 const safeRouteGuidanceContractEvidenceEnabled =
   appEnvironment === 'development' &&
   enableGuidanceContractEvidenceOverride?.toLowerCase() === 'true' &&
@@ -173,10 +172,6 @@ if (appEnvironment === 'production') {
   }
 
   assertProductionApiUrl(safeRouteApiUrl);
-
-  if (!googleMapsIosApiKey) {
-    throw new Error('GOOGLE_MAPS_IOS_API_KEY is required for production iOS builds.');
-  }
 
   if (!iosBuildNumberOverride) {
     throw new Error('SAFEROUTE_IOS_BUILD_NUMBER is required for production iOS builds.');
@@ -204,12 +199,7 @@ module.exports = {
       buildNumber: iosBuildNumber,
       associatedDomains: ['applinks:app.lunarchain.net'],
       config: {
-        usesNonExemptEncryption: false,
-        ...(googleMapsIosApiKey
-          ? {
-              googleMapsApiKey: googleMapsIosApiKey
-            }
-          : {})
+        usesNonExemptEncryption: false
       },
       infoPlist: {
         NSLocationAlwaysAndWhenInUseUsageDescription: backgroundLocationPurposeCopy,

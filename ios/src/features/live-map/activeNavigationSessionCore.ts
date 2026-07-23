@@ -15,6 +15,7 @@ const ACTIVE_NAVIGATION_FUTURE_TOLERANCE_MS = 5 * 60 * 1000;
 const MAX_ROUTE_COORDINATES = 20_000;
 const MAX_RISK_ZONES = 5_000;
 const MAX_CHECKPOINTS = 100;
+const MAX_BACKEND_GUIDANCE_REVISION_LENGTH = 160;
 
 export type PersistedNavigationLifecycle = Extract<
   NavigationLifecycle,
@@ -455,7 +456,8 @@ function normalizeStoredRoutePlan(value: unknown): SavedSafeRoutePlan | null {
       !isStoredNavigationSteps(
         route.navigationSteps,
         calculatePolylineDistanceMeters(routeCoordinates),
-      ))
+      )) ||
+    !isStoredBackendGuidanceStamp(route)
   ) {
     return null;
   }
@@ -669,6 +671,28 @@ function isStoredNavigationSteps(
     previousDistanceAlongMeters = distanceAlongMeters;
     return valid;
   });
+}
+
+function isStoredBackendGuidanceStamp(
+  route: Record<string, unknown>,
+): boolean {
+  if (
+    route.navigationStepSource === undefined &&
+    route.navigationStepRevision === undefined
+  ) {
+    return true;
+  }
+  const revision = typeof route.navigationStepRevision === "string"
+    ? route.navigationStepRevision.trim()
+    : "";
+  return (
+    route.navigationStepSource === "backend" &&
+    revision.length > 0 &&
+    revision.length <= MAX_BACKEND_GUIDANCE_REVISION_LENGTH &&
+    !/[\u0000-\u001f\u007f]/.test(revision) &&
+    Array.isArray(route.navigationSteps) &&
+    route.navigationSteps.length > 0
+  );
 }
 
 function isOptionalCoordinateArray(

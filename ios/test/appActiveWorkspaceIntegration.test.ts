@@ -1018,7 +1018,7 @@ describe("App active workspace integration", () => {
     );
     assert.match(
       guestMap,
-      /createGuestRoadSnappedRoutePlan\(\{[\s\S]*planId: localRoutePlan\.id/,
+      /createGuestRoadSnappedRoutePlan\(\{[\s\S]*planId: index === 0[\s\S]*localRoutePlan\.id/,
     );
     assert.match(
       app,

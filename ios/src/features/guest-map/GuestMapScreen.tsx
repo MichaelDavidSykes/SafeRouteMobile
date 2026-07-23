@@ -1,22 +1,28 @@
 import { useCallback, useEffect, useMemo, useReducer, useRef, useState } from 'react';
 import {
   Bike,
+  BriefcaseBusiness,
   CarFront,
   ChevronDown,
   ChevronUp,
+  Clock3,
   Crosshair,
+  Ellipsis,
   Globe2,
+  House,
   Map as MapIcon,
   MapPin,
   PersonStanding,
   Plus,
   Search,
-  TrainFront,
+  SlidersHorizontal,
+  Star,
   Trash2,
   UserRound,
 } from 'lucide-react-native';
 import {
   ActivityIndicator,
+  Alert,
   Animated,
   Keyboard,
   KeyboardAvoidingView,
@@ -24,6 +30,7 @@ import {
   Platform,
   Pressable,
   ScrollView,
+  Switch,
   Text,
   TextInput,
   useWindowDimensions,
@@ -82,6 +89,13 @@ import { isCurrentWorkspaceAuthorizationEpoch } from '../workspaces/workspaceFor
 import { WorkspaceAccessRefreshControl } from '../workspaces/WorkspaceAccessRefreshControl';
 import type { WorkspaceAccessIssue } from '../workspaces/workspaceAccessRefreshState';
 import {
+  persistentPlacesStore,
+  type PersistentPlaceInput,
+  type PersistentPlacesRecord,
+  type PersistentRecentDestination,
+  type PersistentSavedPlace,
+} from '../places/persistentPlacesStore';
+import {
   GUEST_MAP_REGION,
   GUEST_ROUTE_LABEL_MAX_LENGTH,
   createGuestMapHomeCopy,
@@ -137,6 +151,13 @@ import {
   GUEST_TRAVEL_MODE_OPTIONS,
   type GuestTravelModeOption,
 } from './guestTravelMode';
+import {
+  countEnabledSafeRoutePreferences,
+  DEFAULT_SAFE_ROUTE_PREFERENCES,
+  SAFE_ROUTE_PREFERENCE_OPTIONS,
+  type SafeRouteRoutePreferences,
+} from './routePreferences';
+import { routePreferencesStore } from './routePreferencesStore';
 
 const GUEST_ROUTE_PROVIDER_UI_TIMEOUT_MS = 15000;
 const GUEST_LOCATION_SEARCH_DEBOUNCE_MS = 320;
@@ -146,6 +167,12 @@ const GUEST_WAYPOINT_ACTION_HIT_SLOP = 6;
 type GuestRoadRoutePreviewFetcher = (
   options: GuestRoadRoutePreviewOptions
 ) => Promise<GuestRoadRoutePreview | null>;
+
+type LocationSearchShortcut = {
+  id: string;
+  kind: 'home' | 'work' | 'favourite' | 'recent';
+  result: GuestLocationSearchResult;
+};
 
 interface GuestMapScreenProps {
   accessToken?: string | null;
@@ -157,6 +184,7 @@ interface GuestMapScreenProps {
   onOpenFullAccessFeature: (feature: GuestFullAccessFeature) => void;
   onPlannerVisibilityChange?: (open: boolean) => void;
   onOpenRoutePreview?: (routePlan: SavedSafeRoutePlan) => void;
+  placesScopeId?: string | null;
   onSessionExpired?: (message?: string) => void;
   onWorkspaceUnavailable?: (workspaceId: string) => void;
   onRetryWorkspaceCatalog?: () => void;
@@ -191,6 +219,7 @@ export function GuestMapScreen({
   onOpenFullAccessFeature,
   onPlannerVisibilityChange,
   onOpenRoutePreview,
+  placesScopeId,
   onSessionExpired,
   onWorkspaceUnavailable,
   onRetryWorkspaceCatalog,
@@ -260,6 +289,7 @@ export function GuestMapScreen({
   const [locationSearchResults, setLocationSearchResults] = useState<GuestLocationSearchResult[]>([]);
   const [locationSearchPending, setLocationSearchPending] = useState(false);
   const [locationSearchMessage, setLocationSearchMessage] = useState('');
+  const [persistentPlaces, setPersistentPlaces] = useState<PersistentPlacesRecord | null>(null);
   const [sheetCollapsed, setSheetCollapsed] = useState(true);
   const handleWorkspaceAccessFocusTarget = useCallback(
     (target: View | null) => {
@@ -278,7 +308,11 @@ export function GuestMapScreen({
   const [workspaceMenuOpen, setWorkspaceMenuOpen] = useState(false);
   const [selectedRiskZone, setSelectedRiskZone] = useState<RiskZone | null>(null);
   const [routePlan, setRoutePlan] = useState<SavedSafeRoutePlan | null>(null);
+  const [routeAlternatives, setRouteAlternatives] = useState<SavedSafeRoutePlan[]>([]);
   const [travelMode, setTravelMode] = useState<SafeRouteTravelMode>('drive');
+  const [routeOptionsOpen, setRouteOptionsOpen] = useState(false);
+  const [routePreferences, setRoutePreferences] =
+    useState<SafeRouteRoutePreferences>(DEFAULT_SAFE_ROUTE_PREFERENCES);
   const [routeResolutionPending, setRouteResolutionPending] = useState(false);
   const [roadPreviewPending, setRoadPreviewPending] = useState(false);
   const [riskAreaSavePending, setRiskAreaSavePending] = useState(false);
@@ -297,6 +331,8 @@ export function GuestMapScreen({
     enabled: permissionStatus === 'granted' && Boolean(liveCoordinate),
   });
   const routingClientId = authenticated ? activeWorkspace?.id || null : null;
+  const resolvedPlacesScopeId =
+    placesScopeId?.trim() || (authenticated ? 'signed-in' : 'guest');
   const routingClientIdRef = useRef(routingClientId);
   const workspaceSelectionRequired = authenticated && !routingClientId;
   const workspaceAuthorizationRequired =
@@ -323,6 +359,13 @@ export function GuestMapScreen({
   const activeDraftStop = activeInput
     ? findGuestRouteDraftStop(routeDraft, activeInput)
     : null;
+  const locationSearchShortcuts = useMemo(
+    () => createLocationSearchShortcuts(
+      persistentPlaces,
+      activeDraftStop?.label || '',
+    ),
+    [activeDraftStop?.label, persistentPlaces],
+  );
   const routePlotted = Boolean(routePlan);
   const mapHomeCopy = createGuestMapHomeCopy(authenticated);
   const showSheetSubtitle = shouldShowGuestMapSubtitle(routePlotted);
@@ -333,6 +376,30 @@ export function GuestMapScreen({
   useEffect(() => {
     onPlannerVisibilityChange?.(!sheetCollapsed);
   }, [onPlannerVisibilityChange, sheetCollapsed]);
+  useEffect(() => {
+    let active = true;
+    setPersistentPlaces(null);
+    void persistentPlacesStore.load(resolvedPlacesScopeId).then((record) => {
+      if (active) {
+        setPersistentPlaces(record);
+      }
+    });
+    return () => {
+      active = false;
+    };
+  }, [resolvedPlacesScopeId]);
+  useEffect(() => {
+    let active = true;
+    setRoutePreferences(DEFAULT_SAFE_ROUTE_PREFERENCES);
+    void routePreferencesStore.load(resolvedPlacesScopeId).then((preferences) => {
+      if (active) {
+        setRoutePreferences(preferences);
+      }
+    });
+    return () => {
+      active = false;
+    };
+  }, [resolvedPlacesScopeId]);
   const routeActionDisabled =
     !online ||
     routeAction.disabled ||
@@ -714,6 +781,7 @@ export function GuestMapScreen({
     setSelectedRiskZone(null);
     setMapAction(null);
     setRoutePlan(null);
+    setRouteAlternatives([]);
     setRouteMessage('');
   };
 
@@ -874,6 +942,7 @@ export function GuestMapScreen({
     // an authoritative provider returns road-snapped geometry.
     animateRouteSheet(true);
     setRoutePlan(null);
+    setRouteAlternatives([]);
     upgradeGuestRouteWithRoadPreview(localRoutePlan);
   };
 
@@ -977,9 +1046,11 @@ export function GuestMapScreen({
       localRoutePlan.route.coordinates,
       stops
     );
+    const routePreferencesSnapshot = routePreferences;
 
     void routePreviewFetcher({
       avoidRectangles,
+      preferences: routePreferencesSnapshot,
       signal: controller.signal,
       stops,
       timeoutMs: GUEST_ROUTE_PROVIDER_UI_TIMEOUT_MS,
@@ -1028,6 +1099,7 @@ export function GuestMapScreen({
           ) {
             const riskAwarePreview = await routePreviewFetcher({
               avoidRectangles: corridorAvoidRectangles,
+              preferences: routePreferencesSnapshot,
               signal: controller.signal,
               stops,
               timeoutMs: GUEST_ROUTE_PROVIDER_UI_TIMEOUT_MS,
@@ -1064,28 +1136,45 @@ export function GuestMapScreen({
           return;
         }
 
-        const roadRoutePlan = createGuestRoadSnappedRoutePlan({
-          authenticated: authenticatedSnapshot,
-          checkpoints: checkpointsSnapshot,
-          destination: destinationSnapshot,
-          destinationCoordinate: destinationCoordinateSnapshot,
-          origin: originSnapshot,
-          originCoordinate: originCoordinateSnapshot,
-          planId: localRoutePlan.id,
-          riskZones: finalRiskZones,
-          roadSnappedCoordinates: finalRoadPreview.coordinates,
-          routeDistanceMeters: finalRoadPreview.distanceMeters,
-          routeDurationSeconds: finalRoadPreview.durationSeconds,
-          routeGuidanceSteps: finalRoadPreview.guidanceSteps,
-          travelMode: localRoutePlan.travelMode ?? 'drive',
-        });
+        const roadRoutePlans = [
+          finalRoadPreview,
+          ...(finalRoadPreview.alternatives || []),
+        ].map((preview, index) => {
+          const plan = createGuestRoadSnappedRoutePlan({
+            authenticated: authenticatedSnapshot,
+            checkpoints: checkpointsSnapshot,
+            destination: destinationSnapshot,
+            destinationCoordinate: destinationCoordinateSnapshot,
+            origin: originSnapshot,
+            originCoordinate: originCoordinateSnapshot,
+            planId: index === 0
+              ? localRoutePlan.id
+              : `${localRoutePlan.id}-alternative-${index}`,
+            riskZones: finalRiskZones,
+            roadSnappedCoordinates: preview.coordinates,
+            routeDistanceMeters: preview.distanceMeters,
+            routeDurationSeconds: preview.durationSeconds,
+            routeGuidanceSteps: preview.guidanceSteps,
+            travelMode: localRoutePlan.travelMode ?? 'drive',
+          });
+          if (plan) {
+            plan.route.label = index === 0
+              ? 'Primary route'
+              : `Alternative ${index}`;
+          }
+          return plan;
+        }).filter((plan): plan is SavedSafeRoutePlan => Boolean(plan));
+        const [roadRoutePlan] = roadRoutePlans;
 
         if (roadRoutePlan) {
           if (requestWorkspaceId) {
-            roadRoutePlan.clientId = requestWorkspaceId;
+            roadRoutePlans.forEach((plan) => {
+              plan.clientId = requestWorkspaceId;
+            });
           }
           acceptedRoadPreview = true;
           setRoutePlan(roadRoutePlan);
+          setRouteAlternatives(roadRoutePlans);
           openPendingPreview(roadRoutePlan);
         }
       })
@@ -1110,6 +1199,7 @@ export function GuestMapScreen({
           if (!acceptedRoadPreview && !sessionExpiryHandled && !workspaceUnavailableHandled) {
             pendingOpenPreviewRef.current = false;
             setRoutePlan(null);
+            setRouteAlternatives([]);
             setRouteMessage('A road-snapped safe route is unavailable. Retry in a moment.');
             animateRouteSheet(false);
           }
@@ -1143,7 +1233,26 @@ export function GuestMapScreen({
     cancelRoadRouteUpgrade();
     setTravelMode(nextMode);
     setRoutePlan(null);
+    setRouteAlternatives([]);
     setRouteMessage('');
+  };
+
+  const handleRoutePreferenceChange = (
+    preference: keyof SafeRouteRoutePreferences,
+    enabled: boolean,
+  ) => {
+    cancelRoadRouteUpgrade();
+    const nextPreferences = {
+      ...routePreferences,
+      [preference]: enabled,
+    };
+    setRoutePreferences(nextPreferences);
+    setRoutePlan(null);
+    setRouteAlternatives([]);
+    setRouteMessage('');
+    void routePreferencesStore
+      .save(resolvedPlacesScopeId, nextPreferences)
+      .catch(() => undefined);
   };
 
   const handleCenterCurrentLocation = () => {
@@ -1178,6 +1287,7 @@ export function GuestMapScreen({
       type: 'stop/edit'
     });
     setRoutePlan(null);
+    setRouteAlternatives([]);
     setRouteMessage('');
   };
 
@@ -1189,6 +1299,7 @@ export function GuestMapScreen({
         type: 'origin/use-current-location'
       });
       setRoutePlan(null);
+      setRouteAlternatives([]);
       setRouteMessage('');
       return;
     }
@@ -1204,6 +1315,7 @@ export function GuestMapScreen({
     if (!activeInput) {
       return;
     }
+    const selectedStopId = activeInput;
     cancelRoadRouteUpgrade();
     dispatchRouteDraft({
       selection: {
@@ -1214,6 +1326,7 @@ export function GuestMapScreen({
       type: 'stop/select'
     });
     setRoutePlan(null);
+    setRouteAlternatives([]);
     setRouteMessage('');
     setLocationSearchResults([]);
     setLocationSearchMessage('');
@@ -1222,6 +1335,59 @@ export function GuestMapScreen({
     const nextRegion = regionAroundCoordinate(result.coordinate);
     setMapRegion(nextRegion);
     mapRef.current?.animateToRegion(nextRegion, 500);
+    if (selectedStopId === GUEST_ROUTE_DRAFT_DESTINATION_ID) {
+      void persistentPlacesStore
+        .recordRecentDestination(
+          resolvedPlacesScopeId,
+          toPersistentPlaceInput(result),
+        )
+        .then(setPersistentPlaces)
+        .catch(() => undefined);
+    }
+  };
+
+  const handleManageLocation = (result: GuestLocationSearchResult) => {
+    const favourite = findMatchingFavourite(persistentPlaces, result);
+    const updatePlaces = (
+      operation: () => Promise<PersistentPlacesRecord>,
+    ) => {
+      void operation().then(setPersistentPlaces).catch(() => {
+        Alert.alert(
+          'Place not saved',
+          'SafeRoute could not update your saved places on this device.',
+        );
+      });
+    };
+    const input = toPersistentPlaceInput(result);
+    Alert.alert(result.label, result.displayName, [
+      {
+        text: 'Set as Home',
+        onPress: () => updatePlaces(
+          () => persistentPlacesStore.setHome(resolvedPlacesScopeId, input),
+        ),
+      },
+      {
+        text: 'Set as Work',
+        onPress: () => updatePlaces(
+          () => persistentPlacesStore.setWork(resolvedPlacesScopeId, input),
+        ),
+      },
+      {
+        text: favourite ? 'Remove Favourite' : 'Add Favourite',
+        onPress: () => updatePlaces(
+          () => favourite
+            ? persistentPlacesStore.removeFavourite(
+                resolvedPlacesScopeId,
+                favourite.id,
+              )
+            : persistentPlacesStore.saveFavourite(
+                resolvedPlacesScopeId,
+                input,
+              ),
+        ),
+      },
+      { text: 'Cancel', style: 'cancel' },
+    ]);
   };
 
   const handleAddWaypoint = () => {
@@ -1235,6 +1401,7 @@ export function GuestMapScreen({
     dispatchRouteDraft({ type: 'waypoint/add' });
     cancelRoadRouteUpgrade();
     setRoutePlan(null);
+    setRouteAlternatives([]);
     setRouteMessage('');
     animateRouteSheet(false);
     if (waypointId) {
@@ -1249,6 +1416,7 @@ export function GuestMapScreen({
     }
     cancelRoadRouteUpgrade();
     setRoutePlan(null);
+    setRouteAlternatives([]);
     setRouteMessage('');
   };
 
@@ -1256,6 +1424,7 @@ export function GuestMapScreen({
     dispatchRouteDraft({ type: 'waypoint/reorder', waypointId, toIndex });
     cancelRoadRouteUpgrade();
     setRoutePlan(null);
+    setRouteAlternatives([]);
     setRouteMessage('');
   };
 
@@ -1353,6 +1522,7 @@ export function GuestMapScreen({
     }
     cancelRoadRouteUpgrade();
     setRoutePlan(null);
+    setRouteAlternatives([]);
     setRouteMessage(
       mapSelectionSetsDestination
         ? 'Destination set. Plot the route when ready.'
@@ -1494,7 +1664,7 @@ export function GuestMapScreen({
         showsMyLocationButton={false}
         showsUserLocation={false}
         showsScale={false}
-        showsTraffic={false}
+        showsTraffic={online && travelMode === 'drive'}
         zoomEnabled
         pitchEnabled
         rotateEnabled
@@ -1562,6 +1732,20 @@ export function GuestMapScreen({
             </View>
           </Marker>
         ) : null}
+        {routePlan ? routeAlternatives
+          .filter((candidate) => candidate.id !== routePlan.id)
+          .map((candidate) => (
+            <Polyline
+              key={candidate.id}
+              coordinates={candidate.route.coordinates}
+              strokeColor="rgba(174, 174, 178, 0.84)"
+              strokeWidth={SAFE_ROUTE_ROUTE_CORE_WIDTH}
+              lineCap="round"
+              lineJoin="round"
+              tappable
+              onPress={() => setRoutePlan(candidate)}
+            />
+          )) : null}
         {routePlan ? (
           <>
             <Polyline
@@ -2156,6 +2340,8 @@ export function GuestMapScreen({
                   message={locationSearchMessage}
                   pending={locationSearchPending}
                   results={locationSearchResults}
+                  shortcuts={locationSearchShortcuts}
+                  onManage={handleManageLocation}
                   onSelect={handleSelectLocation}
                 />
               ) : null}
@@ -2178,9 +2364,22 @@ export function GuestMapScreen({
             </ScrollView>
 
             <View style={styles.sheetFooter}>
+              {routePlan && routeAlternatives.length > 1 ? (
+                <RouteAlternativeSelector
+                  routes={routeAlternatives}
+                  selectedRouteId={routePlan.id}
+                  onSelect={setRoutePlan}
+                />
+              ) : null}
               <TravelModeSelector
                 selectedMode={travelMode}
                 onSelect={handleTravelModeChange}
+              />
+              <RouteOptionsPanel
+                expanded={routeOptionsOpen}
+                preferences={routePreferences}
+                onExpandedChange={setRouteOptionsOpen}
+                onPreferenceChange={handleRoutePreferenceChange}
               />
 
               {routeMessage || sessionNoticeState || (locationErrorMessage && isCurrentLocationLabel(origin)) ? (
@@ -2460,6 +2659,63 @@ function GuestWorkspaceSelector({
   );
 }
 
+function RouteAlternativeSelector({
+  onSelect,
+  routes,
+  selectedRouteId,
+}: {
+  onSelect: (route: SavedSafeRoutePlan) => void;
+  routes: SavedSafeRoutePlan[];
+  selectedRouteId: string;
+}) {
+  return (
+    <MotionEntrance
+      replayKey={routes.map((route) => route.id).join(':')}
+      style={styles.routeAlternativeSelector}
+      variant="disclosure"
+    >
+      {routes.slice(0, 4).map((route, index) => {
+        const selected = route.id === selectedRouteId;
+        return (
+          <Pressable
+            key={route.id}
+            accessibilityHint="Shows this backend route option on the map."
+            accessibilityLabel={`Route ${index + 1}, ${route.route.eta}, ${route.route.distance}`}
+            accessibilityRole="button"
+            accessibilityState={{ selected }}
+            testID={uiTestIds.guestMapRouteAlternative(index + 1)}
+            style={({ pressed }) => [
+              styles.routeAlternativeOption,
+              selected ? styles.routeAlternativeOptionSelected : null,
+              pressed ? styles.routeAlternativeOptionPressed : null,
+            ]}
+            onPress={() => onSelect(route)}
+          >
+            <Text
+              numberOfLines={1}
+              style={[
+                styles.routeAlternativeTitle,
+                selected ? styles.routeAlternativeTitleSelected : null,
+              ]}
+            >
+              Route {index + 1}
+            </Text>
+            <Text
+              numberOfLines={1}
+              style={[
+                styles.routeAlternativeMetric,
+                selected ? styles.routeAlternativeMetricSelected : null,
+              ]}
+            >
+              {route.route.eta}
+            </Text>
+          </Pressable>
+        );
+      })}
+    </MotionEntrance>
+  );
+}
+
 function TravelModeSelector({
   onSelect,
   selectedMode,
@@ -2552,7 +2808,6 @@ function TravelModeButton({
       {option.id === 'drive' ? <CarFront {...iconProps} /> : null}
       {option.id === 'walk' ? <PersonStanding {...iconProps} /> : null}
       {option.id === 'cycle' ? <Bike {...iconProps} /> : null}
-      {option.id === 'transit' ? <TrainFront {...iconProps} /> : null}
       <Text
         numberOfLines={1}
         style={[
@@ -2563,6 +2818,100 @@ function TravelModeButton({
         {option.label}
       </Text>
     </Pressable>
+  );
+}
+
+function RouteOptionsPanel({
+  expanded,
+  onExpandedChange,
+  onPreferenceChange,
+  preferences,
+}: {
+  expanded: boolean;
+  onExpandedChange: (expanded: boolean) => void;
+  onPreferenceChange: (
+    preference: keyof SafeRouteRoutePreferences,
+    enabled: boolean,
+  ) => void;
+  preferences: SafeRouteRoutePreferences;
+}) {
+  const enabledCount = countEnabledSafeRoutePreferences(preferences);
+  return (
+    <View style={styles.routeOptions}>
+      <Pressable
+        accessibilityHint="Shows provider-enforced route avoidance settings."
+        accessibilityLabel={`Route options, ${enabledCount} enabled`}
+        accessibilityRole="button"
+        accessibilityState={{ expanded }}
+        testID={uiTestIds.guestMapRouteOptions}
+        style={({ pressed }) => [
+          styles.routeOptionsHeader,
+          pressed ? styles.routeOptionsHeaderPressed : null,
+        ]}
+        onPress={() => onExpandedChange(!expanded)}
+      >
+        <SlidersHorizontal
+          accessibilityElementsHidden
+          color={colors.appleBlue}
+          size={17}
+          strokeWidth={2}
+        />
+        <Text style={styles.routeOptionsTitle}>Route options</Text>
+        <Text style={styles.routeOptionsCount}>
+          {enabledCount ? `${enabledCount} on` : 'Standard'}
+        </Text>
+        {expanded ? (
+          <ChevronUp
+            accessibilityElementsHidden
+            color={colors.muted}
+            size={17}
+            strokeWidth={2}
+          />
+        ) : (
+          <ChevronDown
+            accessibilityElementsHidden
+            color={colors.muted}
+            size={17}
+            strokeWidth={2}
+          />
+        )}
+      </Pressable>
+      {expanded ? (
+        <MotionEntrance
+          replayKey="route-options-expanded"
+          style={styles.routeOptionsGrid}
+          variant="disclosure"
+        >
+          {SAFE_ROUTE_PREFERENCE_OPTIONS.map((option) => (
+            <Pressable
+              key={option.id}
+              accessibilityLabel={`Avoid ${option.label.toLowerCase()}`}
+              accessibilityRole="switch"
+              accessibilityState={{ checked: preferences[option.id] }}
+              testID={uiTestIds.guestMapRoutePreference(option.id)}
+              style={({ pressed }) => [
+                styles.routePreference,
+                pressed ? styles.routePreferencePressed : null,
+              ]}
+              onPress={() =>
+                onPreferenceChange(option.id, !preferences[option.id])
+              }
+            >
+              <Text numberOfLines={1} style={styles.routePreferenceLabel}>
+                {option.label}
+              </Text>
+              <Switch
+                accessibilityElementsHidden
+                pointerEvents="none"
+                ios_backgroundColor="#c8c8cc"
+                trackColor={{ false: '#c8c8cc', true: colors.appleBlue }}
+                value={preferences[option.id]}
+              />
+            </Pressable>
+          ))}
+        </MotionEntrance>
+      ) : null}
+    </View>
   );
 }
 
@@ -2747,26 +3096,44 @@ function WaypointInput({
 
 function LocationSearchResults({
   message,
+  onManage,
   onSelect,
   pending,
-  results
+  results,
+  shortcuts,
 }: {
   message: string;
+  onManage: (result: GuestLocationSearchResult) => void;
   onSelect: (result: GuestLocationSearchResult) => void;
   pending: boolean;
   results: GuestLocationSearchResult[];
+  shortcuts: LocationSearchShortcut[];
 }) {
-  if (!pending && !message && !results.length) {
+  if (!pending && !message && !results.length && !shortcuts.length) {
     return null;
   }
 
   return (
     <MotionEntrance
-      replayKey={`${pending}:${message}:${results.length}`}
+      replayKey={`${pending}:${message}:${results.length}:${shortcuts.length}`}
       style={styles.searchResults}
       testID={uiTestIds.guestMapSearchResults}
       variant="disclosure"
     >
+      {shortcuts.length ? (
+        <>
+          <Text style={styles.searchSectionLabel}>Saved places</Text>
+          {shortcuts.map((shortcut) => (
+            <LocationSearchResultRow
+              key={shortcut.id}
+              icon={shortcut.kind}
+              result={shortcut.result}
+              onManage={onManage}
+              onSelect={onSelect}
+            />
+          ))}
+        </>
+      ) : null}
       {pending ? (
         <View
           accessible
@@ -2778,22 +3145,16 @@ function LocationSearchResults({
           <Text style={styles.searchStateText}>Searching nearby…</Text>
         </View>
       ) : null}
+      {!pending && results.length ? (
+        <Text style={styles.searchSectionLabel}>Search results</Text>
+      ) : null}
       {!pending ? results.map((result) => (
-        <Pressable
+        <LocationSearchResultRow
           key={result.id}
-          accessibilityHint="Selects this place for the active route field."
-          accessibilityLabel={result.displayName}
-          accessibilityRole="button"
-          testID={uiTestIds.guestMapSearchResult(result.id)}
-          style={({ pressed }) => [
-            styles.searchResultRow,
-            pressed ? styles.searchResultRowPressed : null
-          ]}
-          onPress={() => onSelect(result)}
-        >
-          <Text numberOfLines={1} style={styles.searchResultTitle}>{result.label}</Text>
-          <Text numberOfLines={1} style={styles.searchResultSubtitle}>{result.displayName}</Text>
-        </Pressable>
+          result={result}
+          onManage={onManage}
+          onSelect={onSelect}
+        />
       )) : null}
       {!pending && message ? (
         <Text accessible accessibilityLiveRegion="polite" style={styles.searchStateText}>
@@ -2802,6 +3163,173 @@ function LocationSearchResults({
       ) : null}
     </MotionEntrance>
   );
+}
+
+function LocationSearchResultRow({
+  icon,
+  onManage,
+  onSelect,
+  result,
+}: {
+  icon?: LocationSearchShortcut['kind'];
+  onManage: (result: GuestLocationSearchResult) => void;
+  onSelect: (result: GuestLocationSearchResult) => void;
+  result: GuestLocationSearchResult;
+}) {
+  const ShortcutIcon = icon === 'home'
+    ? House
+    : icon === 'work'
+      ? BriefcaseBusiness
+      : icon === 'recent'
+        ? Clock3
+        : Star;
+  return (
+    <View style={styles.searchResultRow}>
+      {icon ? (
+        <ShortcutIcon
+          accessibilityElementsHidden
+          color={colors.appleBlue}
+          size={17}
+          strokeWidth={2}
+        />
+      ) : (
+        <MapPin
+          accessibilityElementsHidden
+          color={colors.muted}
+          size={17}
+          strokeWidth={2}
+        />
+      )}
+      <Pressable
+        accessibilityHint="Selects this place for the active route field."
+        accessibilityLabel={result.displayName}
+        accessibilityRole="button"
+        testID={uiTestIds.guestMapSearchResult(result.id)}
+        style={({ pressed }) => [
+          styles.searchResultSelection,
+          pressed ? styles.searchResultRowPressed : null,
+        ]}
+        onPress={() => onSelect(result)}
+      >
+        <Text numberOfLines={1} style={styles.searchResultTitle}>{result.label}</Text>
+        <Text numberOfLines={1} style={styles.searchResultSubtitle}>{result.displayName}</Text>
+      </Pressable>
+      <Pressable
+        accessibilityHint="Opens Home, Work, and favourite options."
+        accessibilityLabel={`Manage ${result.label}`}
+        accessibilityRole="button"
+        hitSlop={6}
+        testID={uiTestIds.guestMapManagePlace(result.id)}
+        style={({ pressed }) => [
+          styles.searchResultManage,
+          pressed ? styles.searchResultManagePressed : null,
+        ]}
+        onPress={() => onManage(result)}
+      >
+        <Ellipsis
+          accessibilityElementsHidden
+          color={colors.muted}
+          size={19}
+          strokeWidth={2.2}
+        />
+      </Pressable>
+    </View>
+  );
+}
+
+function createLocationSearchShortcuts(
+  record: PersistentPlacesRecord | null,
+  queryValue: string,
+): LocationSearchShortcut[] {
+  if (!record) {
+    return [];
+  }
+  const query = queryValue.trim().toLowerCase();
+  const candidates: Array<{
+    kind: LocationSearchShortcut['kind'];
+    place: PersistentSavedPlace | PersistentRecentDestination;
+  }> = [
+    ...(record.home ? [{ kind: 'home' as const, place: record.home }] : []),
+    ...(record.work ? [{ kind: 'work' as const, place: record.work }] : []),
+    ...record.favourites.map((place) => ({
+      kind: 'favourite' as const,
+      place,
+    })),
+    ...record.recents.map((place) => ({
+      kind: 'recent' as const,
+      place,
+    })),
+  ];
+  const used = new Set<string>();
+  return candidates
+    .filter(({ place }) => (
+      query.length < GUEST_LOCATION_SEARCH_MIN_LENGTH ||
+      `${place.label} ${place.displayName}`.toLowerCase().includes(query)
+    ))
+    .filter(({ place }) => {
+      const key = persistentPlaceMatchKey(place);
+      if (used.has(key)) {
+        return false;
+      }
+      used.add(key);
+      return true;
+    })
+    .slice(0, 7)
+    .map(({ kind, place }) => ({
+      id: `${kind}-${place.id}`,
+      kind,
+      result: {
+        category: place.category,
+        coordinate: place.coordinate,
+        displayName: place.displayName,
+        id: place.sourceId || place.id,
+        label: kind === 'home'
+          ? 'Home'
+          : kind === 'work'
+            ? 'Work'
+            : place.label,
+      },
+    }));
+}
+
+function toPersistentPlaceInput(
+  result: GuestLocationSearchResult,
+): PersistentPlaceInput {
+  return {
+    category: result.category,
+    coordinate: result.coordinate,
+    displayName: result.displayName,
+    label: result.label,
+    sourceId: result.id,
+  };
+}
+
+function findMatchingFavourite(
+  record: PersistentPlacesRecord | null,
+  result: GuestLocationSearchResult,
+): PersistentSavedPlace | null {
+  if (!record) {
+    return null;
+  }
+  return record.favourites.find(
+    (candidate) => (
+      candidate.sourceId === result.id ||
+      coordinatesMatch(candidate.coordinate, result.coordinate, 0.00001)
+    ),
+  ) || null;
+}
+
+function persistentPlaceMatchKey(place: {
+  coordinate: LatLng;
+  sourceId?: string | null;
+}): string {
+  if (place.sourceId?.trim()) {
+    return `source:${place.sourceId.trim()}`;
+  }
+  return [
+    place.coordinate.latitude.toFixed(5),
+    place.coordinate.longitude.toFixed(5),
+  ].join(':');
 }
 
 function isCurrentLocationLabel(value: string): boolean {

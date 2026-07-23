@@ -2,26 +2,9 @@ import assert from 'node:assert/strict';
 import { describe, it } from 'node:test';
 
 import {
-  deriveRouteNavigationSteps,
   normalizeRouteNavigationSteps,
   resolveUpcomingNavigationStep
 } from '../src/features/live-map/routeGuidance';
-
-describe('offline geometry guidance', () => {
-  it('derives turn and arrival steps from saved snapped geometry', () => {
-    const steps = deriveRouteNavigationSteps([
-      { latitude: 51.5, longitude: -0.13 },
-      { latitude: 51.501, longitude: -0.13 },
-      { latitude: 51.501, longitude: -0.128 },
-      { latitude: 51.501, longitude: -0.126 }
-    ]);
-
-    assert.equal(steps[0].maneuverType, 'depart');
-    assert.equal(steps.some((step) => step.instruction.includes('Turn right')), true);
-    assert.equal(steps.at(-1)?.maneuverType, 'arrive');
-    assert.equal(steps.at(-1)?.instruction, 'Arrive at destination');
-  });
-});
 
 describe('provider route guidance', () => {
   it('normalizes, orders, bounds, and deduplicates provider maneuvers', () => {

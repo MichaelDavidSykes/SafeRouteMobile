@@ -12,7 +12,7 @@ const motionSource = readFileSync(
 );
 
 describe('guest map design motion', () => {
-  it('renders all four travel modes with a moving selection plate', () => {
+  it('renders every supported travel mode with a moving selection plate', () => {
     assert.match(guestMapSource, /GUEST_TRAVEL_MODE_OPTIONS/);
     assert.match(guestMapSource, /guestMapTravelModeSelector/);
     assert.match(guestMapSource, /useMotionValue\(Math\.max\(0, selectedIndex\)/);
@@ -20,7 +20,10 @@ describe('guest map design motion', () => {
     assert.match(guestMapSource, /<CarFront/);
     assert.match(guestMapSource, /<PersonStanding/);
     assert.match(guestMapSource, /<Bike/);
-    assert.match(guestMapSource, /<TrainFront/);
+    assert.doesNotMatch(guestMapSource, /<TrainFront/);
+    assert.match(guestMapSource, /<RouteOptionsPanel/);
+    assert.match(guestMapSource, /SAFE_ROUTE_PREFERENCE_OPTIONS/);
+    assert.match(guestMapSource, /accessibilityRole="switch"/);
   });
 
   it('preserves the selected mode through planning and risk-aware retries', () => {

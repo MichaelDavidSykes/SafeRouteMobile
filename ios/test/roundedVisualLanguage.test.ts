@@ -389,7 +389,7 @@ describe("rounded visual language", () => {
       "utf8",
     );
     const inputStackBlock =
-      /inputStack:\s*\{([\s\S]*?)\n  \},\n  travelModeSelector:/.exec(guestMapStylesSource)?.[1] || "";
+      /inputStack:\s*\{([\s\S]*?)\n  \},\n  routeAlternativeSelector:/.exec(guestMapStylesSource)?.[1] || "";
     const inputRowBlock =
       /inputRow:\s*\{([\s\S]*?)\n  \},\n  waypointRow:/.exec(guestMapStylesSource)?.[1] || "";
     const inputRowDividerBlock =
@@ -491,9 +491,10 @@ describe("rounded visual language", () => {
     assert.match(guestMapSource, /A road-snapped safe route is unavailable/);
     assert.match(guestMapSource, /GUEST_ROUTE_PROVIDER_UI_TIMEOUT_MS\s*=\s*15000/);
     assert.match(guestMapSource, /timeoutMs:\s*GUEST_ROUTE_PROVIDER_UI_TIMEOUT_MS/);
-    assert.match(guestMapSource, /roadSnappedCoordinates:\s*finalRoadPreview\.coordinates/);
-    assert.match(guestMapSource, /routeDistanceMeters:\s*finalRoadPreview\.distanceMeters/);
-    assert.match(guestMapSource, /routeDurationSeconds:\s*finalRoadPreview\.durationSeconds/);
+    assert.match(guestMapSource, /finalRoadPreview,[\s\S]*\.\.\.\(finalRoadPreview\.alternatives \|\| \[\]\)/);
+    assert.match(guestMapSource, /roadSnappedCoordinates:\s*preview\.coordinates/);
+    assert.match(guestMapSource, /routeDistanceMeters:\s*preview\.distanceMeters/);
+    assert.match(guestMapSource, /routeDurationSeconds:\s*preview\.durationSeconds/);
     assert.doesNotMatch(guestMapSource, /roadPreviewLoading|roadPreviewStatus/);
     assert.match(guestMapSource, /accessibilityLabel="Searching nearby places"/);
   });

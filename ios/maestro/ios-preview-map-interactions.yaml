@@ -54,6 +54,15 @@ appId: host.exp.Exponent
     commands:
       - tapOn:
           id: "safe-route-operations-map-return"
+- tapOn:
+    id: "safe-route-tab-map"
+- runFlow:
+    when:
+      visible:
+        id: "guest-map-collapsed-sheet"
+    commands:
+      - tapOn:
+          id: "guest-map-collapsed-sheet"
 - extendedWaitUntil:
     visible:
       id: "guest-map-add-waypoint"

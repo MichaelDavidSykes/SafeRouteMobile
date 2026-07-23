@@ -324,6 +324,9 @@ export const routeSummaryStyles = StyleSheet.create({
   detailsButtonPressed: {
     transform: [{ scale: 0.96 }],
   },
+  detailsButtonDisabled: {
+    opacity: 0.5,
+  },
   detailsGlyph: {
     width: 22,
     height: 18,

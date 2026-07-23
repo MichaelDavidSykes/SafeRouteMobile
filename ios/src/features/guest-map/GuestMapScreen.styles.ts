@@ -296,6 +296,53 @@ export const guestMapStyles = StyleSheet.create({
     borderRadius: 16,
     backgroundColor: colors.surface
   },
+  routeAlternativeSelector: {
+    minHeight: 48,
+    flexDirection: 'row',
+    alignItems: 'stretch',
+    gap: 4,
+    marginTop: spacing.sm,
+    padding: 3,
+    borderRadius: 13,
+    backgroundColor: '#e7e7ec',
+  },
+  routeAlternativeOption: {
+    minWidth: 0,
+    flex: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingHorizontal: 4,
+    borderRadius: 9,
+  },
+  routeAlternativeOptionSelected: {
+    backgroundColor: colors.surface,
+    shadowColor: '#000000',
+    shadowOpacity: 0.14,
+    shadowRadius: 3,
+    shadowOffset: { width: 0, height: 1 },
+    elevation: 2,
+  },
+  routeAlternativeOptionPressed: {
+    opacity: 0.68,
+  },
+  routeAlternativeTitle: {
+    color: colors.muted,
+    fontSize: 11,
+    fontWeight: '700',
+  },
+  routeAlternativeTitleSelected: {
+    color: colors.ink,
+  },
+  routeAlternativeMetric: {
+    marginTop: 1,
+    color: colors.muted,
+    fontSize: 10,
+    fontWeight: '600',
+  },
+  routeAlternativeMetricSelected: {
+    color: colors.appleBlue,
+    fontWeight: '800',
+  },
   travelModeSelector: {
     position: 'relative',
     minHeight: 42,
@@ -344,6 +391,56 @@ export const guestMapStyles = StyleSheet.create({
   travelModeLabelSelected: {
     color: colors.appleBlue,
     fontWeight: '700',
+  },
+  routeOptions: {
+    marginTop: spacing.xs,
+    borderTopWidth: 0.5,
+    borderTopColor: colors.glassBorder,
+  },
+  routeOptionsHeader: {
+    minHeight: 44,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    paddingHorizontal: spacing.xs,
+  },
+  routeOptionsHeaderPressed: {
+    opacity: 0.62,
+  },
+  routeOptionsTitle: {
+    flex: 1,
+    color: colors.ink,
+    fontSize: 13,
+    fontWeight: '700',
+  },
+  routeOptionsCount: {
+    color: colors.muted,
+    fontSize: 11,
+    fontWeight: '600',
+  },
+  routeOptionsGrid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    paddingBottom: spacing.xs,
+  },
+  routePreference: {
+    width: '50%',
+    minHeight: 42,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    paddingLeft: spacing.xs,
+    paddingRight: 2,
+  },
+  routePreferencePressed: {
+    opacity: 0.65,
+  },
+  routePreferenceLabel: {
+    minWidth: 0,
+    flex: 1,
+    color: colors.ink,
+    fontSize: 11,
+    fontWeight: '600',
   },
   inputRow: {
     minHeight: 64,
@@ -474,16 +571,44 @@ export const guestMapStyles = StyleSheet.create({
     fontSize: typeScale.sm,
     fontWeight: '600'
   },
+  searchSectionLabel: {
+    paddingHorizontal: spacing.md,
+    paddingTop: spacing.sm,
+    paddingBottom: 4,
+    color: colors.muted,
+    fontSize: 11,
+    fontWeight: '800',
+    textTransform: 'uppercase'
+  },
   searchResultRow: {
     minHeight: 52,
-    justifyContent: 'center',
-    paddingHorizontal: spacing.md,
-    paddingVertical: spacing.xs,
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingLeft: spacing.md,
     borderBottomWidth: 0.5,
     borderBottomColor: colors.borderSoft
   },
+  searchResultSelection: {
+    minWidth: 0,
+    minHeight: 52,
+    flex: 1,
+    justifyContent: 'center',
+    marginLeft: spacing.sm,
+    paddingVertical: spacing.xs,
+  },
   searchResultRowPressed: {
     backgroundColor: colors.appleBlueSoft
+  },
+  searchResultManage: {
+    width: 44,
+    height: 44,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginHorizontal: 2,
+    borderRadius: radius.pill,
+  },
+  searchResultManagePressed: {
+    backgroundColor: colors.control,
   },
   searchResultTitle: {
     color: colors.ink,

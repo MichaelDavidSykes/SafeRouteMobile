@@ -62,6 +62,8 @@ describe('SafeRoute mobile DTO mapper', () => {
     assert.equal(plan.route.distance, '8.0 km');
     assert.equal(plan.clientId, 'client-1');
     assert.equal(plan.route.navigationSteps?.[0].instruction, 'Turn left onto Airport Road');
+    assert.equal(plan.route.navigationStepSource, 'backend');
+    assert.ok(plan.route.navigationStepRevision);
     assert.equal(plan.riskZones[0].severity, 'high');
     assert.equal(plan.riskZones[0].avoidanceSeverity, 'critical');
     assert.equal(plan.checkpoints.length, 2);
@@ -137,7 +139,7 @@ describe('SafeRoute mobile DTO mapper', () => {
     assert.equal(plan.checkpoints[1].caption, 'Secure stop');
   });
 
-  it('preserves provider-snapped route geometry instead of collapsing to endpoint waypoints', () => {
+  it('preserves provider-snapped geometry without inventing client-side maneuvers', () => {
     const snappedGeometry = [
       { latitude: 51.5, longitude: -0.1 },
       { latitude: 51.502, longitude: -0.091 },
@@ -163,8 +165,9 @@ describe('SafeRoute mobile DTO mapper', () => {
 
     assert.equal(plan.route.coordinates.length, snappedGeometry.length);
     assert.deepEqual(plan.route.coordinates, snappedGeometry);
-    assert.equal(plan.route.navigationSteps?.[0].maneuverType, 'depart');
-    assert.equal(plan.route.navigationSteps?.at(-1)?.maneuverType, 'arrive');
+    assert.deepEqual(plan.route.navigationSteps, []);
+    assert.equal(plan.route.navigationStepSource, undefined);
+    assert.equal(plan.route.navigationStepRevision, undefined);
   });
 
   it('falls back safely when route geometry is missing', () => {

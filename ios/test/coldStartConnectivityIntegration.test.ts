@@ -164,7 +164,7 @@ describe("cold-start connectivity integration", () => {
 
     assert.match(
       guest,
-      /mapType=\{resolveSafeRouteMapType\(\{[\s\S]*online,[\s\S]*platform: Platform\.OS/,
+      /const nativeMapType = resolveSafeRouteMapType\(\{[\s\S]*online,[\s\S]*platform: Platform\.OS,[\s\S]*mapType=\{nativeMapType\}/,
     );
     assert.match(
       liveCanvas,

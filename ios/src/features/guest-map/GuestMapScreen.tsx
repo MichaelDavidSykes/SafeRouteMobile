@@ -80,7 +80,10 @@ import { SafeRouteDarkMapMask } from '../maps/SafeRouteDarkMapMask';
 import { useDeviceHeading } from '../maps/useDeviceHeading';
 import { isPreviewAccessToken } from '../auth/previewSession';
 import { createSessionNoticeState } from '../auth/sessionNoticeState';
-import { resolveSafeRouteMapType } from '../api/mapTransportState';
+import {
+  resolveSafeRouteMapInterfaceStyle,
+  resolveSafeRouteMapType,
+} from '../api/mapTransportState';
 import { useNetworkAvailability } from '../api/useNetworkAvailability';
 import { getRequestSessionExpiry } from '../api/sessionExpiry';
 import type { SafeRouteWorkspace } from '../workspaces/activeWorkspace';
@@ -369,6 +372,15 @@ export function GuestMapScreen({
   const routePlotted = Boolean(routePlan);
   const mapHomeCopy = createGuestMapHomeCopy(authenticated);
   const showSheetSubtitle = shouldShowGuestMapSubtitle(routePlotted);
+  const nativeMapType = resolveSafeRouteMapType({
+    layer: mapLayer,
+    online,
+    platform: Platform.OS,
+  });
+  const mapInterfaceStyle = resolveSafeRouteMapInterfaceStyle({
+    layer: mapLayer,
+    online,
+  });
   const routeAction = createGuestRouteActionState({
     destination,
     routePlotted
@@ -1652,10 +1664,11 @@ export function GuestMapScreen({
   return (
     <View style={styles.screen}>
       <MapView
+        key={`guest-map-${nativeMapType}`}
         ref={mapRef}
         testID={uiTestIds.guestMapCanvas}
         style={styles.map}
-        initialRegion={GUEST_MAP_REGION}
+        initialRegion={mapRegion}
         cameraZoomRange={SAFE_ROUTE_CAMERA_ZOOM_RANGE}
         showsBuildings
         showsCompass={false}
@@ -1670,12 +1683,8 @@ export function GuestMapScreen({
         rotateEnabled
         toolbarEnabled={false}
         customMapStyle={SAFE_ROUTE_DARK_MAP_STYLE}
-        mapType={resolveSafeRouteMapType({
-          layer: mapLayer,
-          online,
-          platform: Platform.OS,
-        })}
-        userInterfaceStyle="dark"
+        mapType={nativeMapType}
+        userInterfaceStyle={mapInterfaceStyle}
         onMapReady={() => {
           setMapReady(true);
           mapRef.current?.animateCamera({ heading: 0, pitch: 0 }, { duration: 0 });
@@ -1687,7 +1696,9 @@ export function GuestMapScreen({
         }}
         onRegionChangeComplete={handleMapRegionChangeComplete}
       >
-        {mapLayer === 'dark' && Platform.OS === 'ios' ? <SafeRouteDarkMapMask /> : null}
+        {(mapLayer === 'dark' || !online) && Platform.OS === 'ios'
+          ? <SafeRouteDarkMapMask />
+          : null}
         {visibleRiskZones.map((zone) => (
           <RiskOverlay
             key={zone.id}
@@ -1856,11 +1867,14 @@ export function GuestMapScreen({
             accessibilityHint={`Switches to the ${mapLayer === 'dark' ? 'satellite' : 'dark'} map.`}
             accessibilityLabel={mapLayer === 'dark' ? 'Show satellite map' : 'Show dark map'}
             accessibilityRole="button"
+            accessibilityState={{ disabled: !online }}
+            disabled={!online}
             testID={uiTestIds.guestMapLayerToggle}
             style={({ pressed }) => [
               styles.currentLocationButton,
               styles.layerButton,
-              pressed ? styles.currentLocationButtonPressed : null,
+              !online ? styles.currentLocationButtonDisabled : null,
+              pressed && online ? styles.currentLocationButtonPressed : null,
             ]}
             onPress={() => onMapLayerChange?.(mapLayer === 'dark' ? 'satellite' : 'dark')}
           >

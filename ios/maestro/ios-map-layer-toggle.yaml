@@ -1,0 +1,54 @@
+appId: host.exp.Exponent
+---
+- openLink: exp://localhost:8081
+- runFlow:
+    when:
+      visible: "Open"
+    commands:
+      - tapOn: "Open"
+- extendedWaitUntil:
+    visible:
+      id: "saferoute-app-root"
+    timeout: 45000
+- runFlow:
+    when:
+      visible:
+        id: "safe-route-return"
+    commands:
+      - tapOn:
+          id: "safe-route-return"
+- runFlow:
+    when:
+      visible:
+        id: "safe-route-operations-map-return"
+    commands:
+      - tapOn:
+          id: "safe-route-operations-map-return"
+- tapOn:
+    id: "safe-route-tab-map"
+- extendedWaitUntil:
+    visible:
+      id: "guest-map-layer-toggle"
+    timeout: 15000
+- runFlow:
+    when:
+      visible: "Show dark map"
+    commands:
+      - tapOn:
+          id: "guest-map-layer-toggle"
+- assertVisible: "Show satellite map"
+- tapOn:
+    id: "guest-map-layer-toggle"
+- extendedWaitUntil:
+    visible: "Show dark map"
+    timeout: 15000
+- tapOn:
+    id: "guest-map-layer-toggle"
+- extendedWaitUntil:
+    visible: "Show satellite map"
+    timeout: 15000
+- tapOn:
+    id: "guest-map-layer-toggle"
+- extendedWaitUntil:
+    visible: "Show dark map"
+    timeout: 15000

@@ -15,20 +15,20 @@ describe("SafeRoute dark map theme", () => {
 
     for (const mapSource of [guestMap, liveMap]) {
       assert.match(mapSource, /customMapStyle=\{SAFE_ROUTE_DARK_MAP_STYLE\}/);
-      assert.match(mapSource, /userInterfaceStyle="dark"/);
       assert.match(mapSource, /showsBuildings/);
       assert.match(mapSource, /cameraZoomRange=\{SAFE_ROUTE_CAMERA_ZOOM_RANGE\}/);
       assert.match(mapSource, /zoomEnabled/);
       assert.match(mapSource, /pitchEnabled/);
-      assert.doesNotMatch(mapSource, /userInterfaceStyle="light"/);
       assert.match(mapSource, /SAFE_ROUTE_DARK_ROUTE_CASING/);
       assert.match(mapSource, /SAFE_ROUTE_DARK_ROUTE_GLOW/);
       assert.match(mapSource, /SAFE_ROUTE_ROUTE_CASING_WIDTH/);
       assert.match(mapSource, /SAFE_ROUTE_ROUTE_GLOW_WIDTH/);
     }
+    assert.match(guestMap, /userInterfaceStyle=\{mapInterfaceStyle\}/);
+    assert.match(liveMap, /userInterfaceStyle="dark"/);
     assert.match(
       guestMap,
-      /mapLayer === 'dark' && Platform\.OS === 'ios' \? <SafeRouteDarkMapMask \/>/,
+      /\(mapLayer === 'dark' \|\| !online\) && Platform\.OS === 'ios'/,
     );
     assert.match(
       liveMap,
@@ -81,9 +81,15 @@ describe("SafeRoute dark map theme", () => {
       mapTransport,
       /platform === "ios" \? "mutedStandard" : "standard"/,
     );
+    assert.match(
+      mapTransport,
+      /platform === "ios" \? "hybrid" : "satellite"/,
+    );
     assert.match(guestMap, /animateCamera\(\{ heading: 0, pitch: 0 \}/);
     assert.doesNotMatch(guestMap, /pitch: 38/);
     assert.match(guestMap, /rotateEnabled/);
+    assert.match(guestMap, /key=\{`guest-map-\$\{nativeMapType\}`\}/);
+    assert.match(guestMap, /initialRegion=\{mapRegion\}/);
   });
 
   it("shows live native traffic only for online driving routes", () => {
@@ -100,13 +106,14 @@ describe("SafeRoute dark map theme", () => {
     );
   });
 
-  it("keeps every production map free of forced light map styling", () => {
-    const productionSources = [
-      source("src/features/guest-map/GuestMapScreen.tsx"),
-      source("src/features/live-map/LiveMapCanvas.tsx"),
-    ];
+  it("uses light map styling only for online satellite imagery", () => {
+    const guestMap = source("src/features/guest-map/GuestMapScreen.tsx");
+    const liveMap = source("src/features/live-map/LiveMapCanvas.tsx");
+    const mapTransport = source("src/features/api/mapTransportState.ts");
 
-    assert.ok(productionSources.every((mapSource) => !mapSource.includes('userInterfaceStyle="light"')));
+    assert.match(guestMap, /resolveSafeRouteMapInterfaceStyle/);
+    assert.match(mapTransport, /online && layer === "satellite" \? "light" : "dark"/);
+    assert.doesNotMatch(liveMap, /userInterfaceStyle="light"/);
   });
 
   it("uses light status-bar content only while a dark map is visible", () => {

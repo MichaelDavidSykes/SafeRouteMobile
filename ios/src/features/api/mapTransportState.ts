@@ -1,4 +1,11 @@
-export type SafeRouteMapType = "mutedStandard" | "none" | "satellite" | "standard";
+export type SafeRouteMapType =
+  | "hybrid"
+  | "mutedStandard"
+  | "none"
+  | "satellite"
+  | "standard";
+
+export type SafeRouteMapInterfaceStyle = "dark" | "light";
 
 export function resolveSafeRouteMapType({
   layer = "dark",
@@ -13,7 +20,17 @@ export function resolveSafeRouteMapType({
     return "none";
   }
   if (layer === "satellite") {
-    return "satellite";
+    return platform === "ios" ? "hybrid" : "satellite";
   }
   return platform === "ios" ? "mutedStandard" : "standard";
+}
+
+export function resolveSafeRouteMapInterfaceStyle({
+  layer = "dark",
+  online,
+}: {
+  layer?: "dark" | "satellite";
+  online: boolean;
+}): SafeRouteMapInterfaceStyle {
+  return online && layer === "satellite" ? "light" : "dark";
 }

@@ -63,6 +63,7 @@
     "start:maestro:ios:preview:guidance-suspended": "SAFEROUTE_ENABLE_PREVIEW_MODE=true SAFEROUTE_PREVIEW_INITIAL_SCREEN=guidance-suspended NODE_OPTIONS=--dns-result-order=ipv4first expo start --localhost --port 8081",
     "test:maestro:ios:operations": "node scripts/run-maestro.mjs test maestro/ios-preview-operations.yaml",
     "test:maestro:ios:map-interactions": "node scripts/run-maestro.mjs test maestro/ios-preview-map-interactions.yaml",
+    "test:maestro:ios:map-layer": "node scripts/run-maestro.mjs test maestro/ios-map-layer-toggle.yaml",
     "test:maestro:ios:route-options": "node scripts/run-maestro.mjs test maestro/ios-preview-route-options.yaml",
     "test:maestro:ios:risk-areas": "node scripts/run-maestro.mjs test maestro/ios-preview-risk-areas.yaml",
     "test:maestro:ios:auth": "node scripts/run-maestro.mjs test maestro/ios-auth-ui.yaml",

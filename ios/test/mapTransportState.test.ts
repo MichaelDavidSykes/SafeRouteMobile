@@ -1,7 +1,10 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 
-import { resolveSafeRouteMapType } from "../src/features/api/mapTransportState";
+import {
+  resolveSafeRouteMapInterfaceStyle,
+  resolveSafeRouteMapType,
+} from "../src/features/api/mapTransportState";
 
 describe("map transport state", () => {
   it("disables native map downloads until the shared network state is online", () => {
@@ -27,6 +30,14 @@ describe("map transport state", () => {
         online: true,
         platform: "ios",
       }),
+      "hybrid",
+    );
+    assert.equal(
+      resolveSafeRouteMapType({
+        layer: "satellite",
+        online: true,
+        platform: "android",
+      }),
       "satellite",
     );
     assert.equal(
@@ -36,6 +47,30 @@ describe("map transport state", () => {
         platform: "ios",
       }),
       "none",
+    );
+  });
+
+  it("uses a light native presentation only for available satellite imagery", () => {
+    assert.equal(
+      resolveSafeRouteMapInterfaceStyle({
+        layer: "satellite",
+        online: true,
+      }),
+      "light",
+    );
+    assert.equal(
+      resolveSafeRouteMapInterfaceStyle({
+        layer: "satellite",
+        online: false,
+      }),
+      "dark",
+    );
+    assert.equal(
+      resolveSafeRouteMapInterfaceStyle({
+        layer: "dark",
+        online: true,
+      }),
+      "dark",
     );
   });
 });

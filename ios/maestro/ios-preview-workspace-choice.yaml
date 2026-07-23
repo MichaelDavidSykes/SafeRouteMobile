@@ -41,39 +41,28 @@ appId: host.exp.Exponent
     visible:
       id: "saferoute-app-root"
     timeout: 45000
-- runFlow:
-    when:
-      visible:
-        id: "safe-route-return"
-    commands:
-      - tapOn:
-          id: "safe-route-return"
-          waitToSettleTimeoutMs: 1000
-- runFlow:
-    when:
-      visible:
-        id: "safe-route-picker"
-    commands:
-      - tapOn:
-          id: "route-list-map-return"
-          waitToSettleTimeoutMs: 1000
 - extendedWaitUntil:
-    visible: "Workspace, Choose workspace"
+    visible:
+      id: "safe-route-workspace-selection"
     timeout: 30000
+- assertVisible: "Choose your workspace"
+- assertVisible: "Central Operations"
+- assertVisible: "West Corridor"
+- assertVisible:
+    id: "safe-route-workspace-selection-continue"
+- tapOn:
+    id: "safe-route-workspace-selection-preview-west"
+    waitToSettleTimeoutMs: 1000
+- tapOn:
+    id: "safe-route-workspace-selection-continue"
+    waitToSettleTimeoutMs: 1000
+- extendedWaitUntil:
+    visible: "Workspace, West Corridor"
+    timeout: 20000
+- assertNotVisible:
+    id: "safe-route-workspace-selection"
 - assertVisible:
     id: "guest-map-workspace-selector"
-- assertVisible: "Choose workspace"
-- tapOn:
-    id: "guest-map-workspace-selector"
-    waitToSettleTimeoutMs: 1000
-- assertVisible:
-    id: "guest-map-workspace-preview-routes"
-- assertVisible:
-    id: "guest-map-workspace-preview-west"
-- tapOn:
-    id: "guest-map-workspace-preview-west"
-    waitToSettleTimeoutMs: 1000
-- assertVisible: "Workspace, West Corridor"
 - tapOn:
     id: "guest-map-primary-action"
     waitToSettleTimeoutMs: 1000

@@ -31,6 +31,13 @@ export const uiTestIds = {
   guestMapRiskLoadingStatus: "guest-map-risk-loading-status",
   guestMapRiskResearch: "guest-map-risk-research",
   workspaceAccessRefresh: "workspace-access-refresh",
+  workspaceSelectionScreen: "safe-route-workspace-selection",
+  workspaceSelectionState: "safe-route-workspace-selection-state",
+  workspaceSelectionContinue: "safe-route-workspace-selection-continue",
+  workspaceSelectionRetry: "safe-route-workspace-selection-retry",
+  workspaceSelectionSignOut: "safe-route-workspace-selection-sign-out",
+  workspaceSelectionOption: (workspaceId: string) =>
+    `safe-route-workspace-selection-${normalizeTestIdSegment(workspaceId)}`,
   guestMapWorkspaceSelector: "guest-map-workspace-selector",
   guestMapWorkspaceOption: (workspaceId: string) =>
     `guest-map-workspace-${normalizeTestIdSegment(workspaceId)}`,

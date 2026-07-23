@@ -225,9 +225,10 @@ describe("Maestro iOS preview smoke flow", () => {
   it("requires an explicit first workspace choice before cross-surface access", () => {
     const flow = workspaceChoiceFlowSource();
     const scripts = packageJson().scripts;
-    const choiceIndex = flow.indexOf('visible: "Workspace, Choose workspace"');
-    const centralIndex = flow.indexOf('id: "guest-map-workspace-preview-routes"');
-    const westIndex = flow.indexOf('id: "guest-map-workspace-preview-west"');
+    const choiceIndex = flow.indexOf('id: "safe-route-workspace-selection"');
+    const centralIndex = flow.indexOf('assertVisible: "Central Operations"');
+    const westIndex = flow.indexOf('id: "safe-route-workspace-selection-preview-west"');
+    const continueIndex = flow.indexOf('id: "safe-route-workspace-selection-continue"', westIndex);
     const savedIndex = flow.indexOf('id: "safe-route-picker"', westIndex);
     const operationsIndex = flow.indexOf('id: "safe-route-operations"', savedIndex);
 
@@ -242,8 +243,10 @@ describe("Maestro iOS preview smoke flow", () => {
     assert.ok(choiceIndex >= 0);
     assert.ok(centralIndex > choiceIndex);
     assert.ok(westIndex > centralIndex);
-    assert.ok(savedIndex > westIndex);
+    assert.ok(continueIndex > westIndex);
+    assert.ok(savedIndex > continueIndex);
     assert.ok(operationsIndex > savedIndex);
+    assert.match(flow, /assertNotVisible:\s*\n\s+id: "safe-route-workspace-selection"/);
     assert.match(flow, /assertVisible: "Workspace, West Corridor"/);
     assert.match(flow, /assertNotVisible:\s*\n\s+id: "safe-route-card-sr-city-airport-alpha"/);
   });
@@ -516,7 +519,10 @@ describe("Maestro iOS preview smoke flow", () => {
   it("keeps restored preview sessions on the requested preview initial screen", () => {
     const appSource = readFileSync(join(process.cwd(), "App.tsx"), "utf8");
 
-    assert.match(appSource, /SAFEROUTE_PREVIEW_MODE_ENABLED && isPreviewAccessToken\(storedSession\.accessToken\)/);
+    assert.match(
+      appSource,
+      /storedSessionAvailableForRetry = Boolean\(storedSession\);[\s\S]*if \(SAFEROUTE_PREVIEW_MODE_ENABLED\) \{[\s\S]*enablePreviewSession\(\);[\s\S]*return;/,
+    );
     assert.match(appSource, /const previewInitialScreen = SAFEROUTE_PREVIEW_INITIAL_SCREEN/);
     assert.match(appSource, /screenForAuthenticatedPreview\(previewInitialScreen\)/);
   });

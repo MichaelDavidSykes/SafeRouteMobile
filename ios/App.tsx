@@ -147,6 +147,7 @@ import {
   type WorkspaceHandoffAlternativeReason,
 } from './src/features/workspaces/workspaceHandoffContinuation';
 import { WorkspaceHandoffRetryNotice } from './src/features/workspaces/WorkspaceHandoffRetryNotice';
+import { WorkspaceSelectionScreen } from './src/features/workspaces/WorkspaceSelectionScreen';
 import { runDurableWorkspaceSelectionAttempt } from './src/features/workspaces/workspaceSelectionAttempt';
 import {
   loadOfflineWorkspaceContext,
@@ -287,6 +288,7 @@ function SafeRouteApp() {
     useState<string | null>(null);
   const [availableWorkspaces, setAvailableWorkspaces] = useState<SafeRouteWorkspace[]>([]);
   const [activeWorkspace, setActiveWorkspace] = useState<SafeRouteWorkspace | null>(null);
+  const [workspaceSelectionFlowActive, setWorkspaceSelectionFlowActive] = useState(false);
   const [workspaceCatalogLoading, setWorkspaceCatalogLoading] = useState(false);
   const [workspaceCatalogError, setWorkspaceCatalogError] = useState('');
   const [workspaceCatalogStoredAtMs, setWorkspaceCatalogStoredAtMs] =
@@ -436,6 +438,7 @@ function SafeRouteApp() {
     name: '',
   });
   const workspaceSelectionRequestRevisionRef = useRef(0);
+  const workspaceSelectionFlowTargetRef = useRef('');
   const workspaceSelectionPendingRef = useRef(false);
   const workspaceSelectionSavingMessageRef = useRef<string | null>(null);
   const workspaceCatalogRefreshDeferredRef = useRef(false);
@@ -1668,25 +1671,43 @@ function SafeRouteApp() {
         return true;
       }
 
-      setAuthPrompt('');
-      unavailableWorkspaceIdsRef.current.clear();
-      setWorkspaceCatalogLoading(true);
-      workspaceCatalogRetryingRef.current = false;
-      setWorkspaceCatalogRetrying(false);
-      if (previewInitialScreen === 'guidance-suspended') {
-        stagePendingNavigationRestore(createPreviewSuspendedNavigationSession());
-        setSessionMessage('Restoring your saved route…');
-      }
-      setSession(createPreviewAuthSession());
-      if (previewInitialScreen !== 'guidance-suspended') {
-        setSessionMessage(PREVIEW_SESSION_NOTICE);
-      }
-      const pendingFeature = takePendingFullAccessFeature();
-      if (pendingFeature) {
-        openAuthenticatedFeature(pendingFeature);
-      } else {
-        setScreen(screenForAuthenticatedPreview(previewInitialScreen));
-      }
+      const previewSession = createPreviewAuthSession();
+      void (async () => {
+        const operationsCacheActivated =
+          await tryActivateOfflineOperationsPrincipal(
+            getAuthSessionPrincipalId(previewSession),
+          ).catch(() => false);
+        if (!restoreIsCurrent()) {
+          return;
+        }
+
+        setOfflineCalendarCleanupStatus(
+          operationsCacheActivated ? 'idle' : 'failed',
+        );
+        setAuthPrompt('');
+        unavailableWorkspaceIdsRef.current.clear();
+        setWorkspaceCatalogLoading(true);
+        workspaceCatalogRetryingRef.current = false;
+        setWorkspaceCatalogRetrying(false);
+        workspaceSelectionFlowTargetRef.current = '';
+        setWorkspaceSelectionFlowActive(
+          previewInitialScreen === 'workspace-choice',
+        );
+        if (previewInitialScreen === 'guidance-suspended') {
+          stagePendingNavigationRestore(createPreviewSuspendedNavigationSession());
+          setSessionMessage('Restoring your saved route…');
+        }
+        setSession(previewSession);
+        if (previewInitialScreen !== 'guidance-suspended') {
+          setSessionMessage(PREVIEW_SESSION_NOTICE);
+        }
+        const pendingFeature = takePendingFullAccessFeature();
+        if (pendingFeature) {
+          openAuthenticatedFeature(pendingFeature);
+        } else {
+          setScreen(screenForAuthenticatedPreview(previewInitialScreen));
+        }
+      })();
       return true;
     };
 
@@ -1701,6 +1722,8 @@ function SafeRouteApp() {
       if (!preserveUserRoutePreview) {
         setSelectedRoute(null);
       }
+      workspaceSelectionFlowTargetRef.current = '';
+      setWorkspaceSelectionFlowActive(false);
       setAvailableWorkspaces([]);
       activeWorkspaceRef.current = null;
       setActiveWorkspace(null);
@@ -1781,6 +1804,11 @@ function SafeRouteApp() {
         }
         storedSessionAvailableForRetry = Boolean(storedSession);
 
+        if (SAFEROUTE_PREVIEW_MODE_ENABLED) {
+          enablePreviewSession();
+          return;
+        }
+
         if (!storedSession) {
           setSavedSessionValidationRetryAvailable(false);
           const principalChangeRevocationObserved =
@@ -1829,11 +1857,6 @@ function SafeRouteApp() {
             }
             enablePreviewSession();
           }
-          return;
-        }
-
-        if (SAFEROUTE_PREVIEW_MODE_ENABLED && isPreviewAccessToken(storedSession.accessToken)) {
-          enablePreviewSession();
           return;
         }
 
@@ -2116,6 +2139,8 @@ function SafeRouteApp() {
 
   const handleAuthenticated = async (nextSession: AuthSession) => {
     sessionRestoreGenerationRef.current += 1;
+    workspaceSelectionFlowTargetRef.current = '';
+    setWorkspaceSelectionFlowActive(false);
     clearPendingWorkspaceHandoff(undefined, {
       discardDeferredCatalogRefresh: true,
     });
@@ -2196,14 +2221,19 @@ function SafeRouteApp() {
     sessionExpiryHandledRef.current = false;
     const pendingFeature = takePendingFullAccessFeature();
     const persistedNavigation = await loadActiveNavigationSession();
+    const restoringMatchingWorkspaceNavigation = Boolean(
+      persistedNavigation?.accessScope.kind === 'workspace' &&
+      hasMatchingAuthPrincipal(
+        persistedNavigation.accessScope.principalId,
+        persistedSession,
+      ),
+    );
+    setWorkspaceSelectionFlowActive(!restoringMatchingWorkspaceNavigation);
     if (!persistedNavigation) {
       await stopBackgroundNavigation();
     }
     if (persistedNavigation?.accessScope.kind === 'workspace') {
-      if (hasMatchingAuthPrincipal(
-        persistedNavigation.accessScope.principalId,
-        persistedSession,
-      )) {
+      if (restoringMatchingWorkspaceNavigation) {
         stagePendingNavigationRestore(persistedNavigation);
         setSessionMessage('Restoring your saved route…');
         await stopBackgroundNavigation();
@@ -2238,6 +2268,8 @@ function SafeRouteApp() {
 
   const handleSignOut = async () => {
     const signingOutPrincipalId = activeSessionPrincipalIdRef.current;
+    workspaceSelectionFlowTargetRef.current = '';
+    setWorkspaceSelectionFlowActive(false);
     clearPendingWorkspaceHandoff(undefined, {
       discardDeferredCatalogRefresh: true,
     });
@@ -2342,6 +2374,8 @@ function SafeRouteApp() {
     clearPendingWorkspaceSelectionRetry();
     workspaceHandoffPendingRef.current = false;
     setWorkspaceHandoffPending(false);
+    workspaceSelectionFlowTargetRef.current = '';
+    setWorkspaceSelectionFlowActive(false);
     workspaceRequestRevisionRef.current += 1;
     unavailableWorkspaceIdsRef.current.clear();
     sessionExpiryHandledRef.current = true;
@@ -3529,6 +3563,51 @@ function SafeRouteApp() {
       }
     })();
   }, [workspaceSelectionStatus]);
+
+  const handleWorkspaceSelectionFlowContinue = useCallback((
+    workspace: SafeRouteWorkspace,
+  ) => {
+    if (
+      !workspaceSelectionFlowActive ||
+      workspaceCatalogBusyRef.current ||
+      workspaceSelectionPendingRef.current
+    ) {
+      return;
+    }
+    const target = findWorkspace(availableWorkspacesRef.current, workspace.id);
+    if (!target) {
+      return;
+    }
+
+    workspaceSelectionFlowTargetRef.current = target.id;
+    if (activeWorkspaceRef.current?.id === target.id) {
+      workspaceSelectionFlowTargetRef.current = '';
+      setWorkspaceSelectionFlowActive(false);
+      return;
+    }
+    handleActiveWorkspaceChange(target);
+  }, [handleActiveWorkspaceChange, workspaceSelectionFlowActive]);
+
+  useEffect(() => {
+    const targetId = workspaceSelectionFlowTargetRef.current;
+    if (
+      !workspaceSelectionFlowActive ||
+      !targetId ||
+      workspaceSelectionPending ||
+      workspaceSelectionFailed ||
+      activeWorkspace?.id !== targetId
+    ) {
+      return;
+    }
+
+    workspaceSelectionFlowTargetRef.current = '';
+    setWorkspaceSelectionFlowActive(false);
+  }, [
+    activeWorkspace?.id,
+    workspaceSelectionFailed,
+    workspaceSelectionFlowActive,
+    workspaceSelectionPending,
+  ]);
 
   const continuePendingWorkspaceHandoff = useCallback((
     request: PendingWorkspaceHandoff,
@@ -4825,7 +4904,15 @@ function SafeRouteApp() {
       : session && isPreviewAccessToken(session.accessToken)
         ? PREVIEW_SESSION_NOTICE
         : sessionMessage;
-  const statusBarStyle = screen === 'guest-map' || screen === 'route-preview' || screen === 'login'
+  const workspaceSelectionFlowVisible = Boolean(
+    authenticated &&
+    session &&
+    workspaceSelectionFlowActive &&
+    !activeNavigationSession &&
+    !pendingNavigationRestore,
+  );
+  const statusBarStyle = workspaceSelectionFlowVisible ||
+    screen === 'guest-map' || screen === 'route-preview' || screen === 'login'
     ? 'light'
     : 'dark';
   const activeAppTab: AppTab = screen === 'routes'
@@ -4838,6 +4925,7 @@ function SafeRouteApp() {
           : 'routes'
       : 'map';
   const showAppTabBar =
+    !workspaceSelectionFlowVisible &&
     screen !== 'login' &&
     screen !== 'route-preview' &&
     !operationsDetailOpen &&
@@ -4899,6 +4987,23 @@ function SafeRouteApp() {
               setAuthPrompt('');
               setScreen('guest-map');
             }}
+          />
+        ) : workspaceSelectionFlowVisible && session ? (
+          <WorkspaceSelectionScreen
+            activeWorkspace={activeWorkspace}
+            errorMessage={
+              workspaceSelectionFailed ? sessionMessage : workspaceCatalogError
+            }
+            loading={workspaceCatalogBusy}
+            onContinue={handleWorkspaceSelectionFlowContinue}
+            onRetry={handleRetryWorkspaceCatalog}
+            onSignOut={() => {
+              void handleSignOut();
+            }}
+            saving={workspaceSelectionPending}
+            selectionFailed={workspaceSelectionFailed}
+            userEmail={session.user?.email || session.email}
+            workspaces={availableWorkspaces}
           />
         ) : screen === 'route-preview' && selectedRoute ? (
           <LiveMapScreen
@@ -5107,6 +5212,7 @@ function SafeRouteApp() {
         ) : null}
         {offlineCalendarCleanupStatus !== 'idle' &&
         navigationCleanupStatus === 'idle' &&
+        !workspaceSelectionFlowVisible &&
         !workspaceHandoffSelectionNoticeVisible ? (
           <OfflineCalendarCleanupNotice
             checking={offlineCalendarCleanupStatus === 'checking'}

@@ -248,9 +248,17 @@ function readProviderWarnings(feed: Record<string, unknown>): string[] {
     .map((warning) => cleanOptionalText(warning, 240).toLowerCase())
     .filter((warning) =>
       warning
-      && !warning.includes('no generated area-risk zones are available')
+      && !isInformationalGeneratedRiskAbsence(warning)
     )
     .sort();
+}
+
+function isInformationalGeneratedRiskAbsence(warning: string): boolean {
+  return warning.startsWith('no generated ')
+    && (
+      warning.includes('area-risk zones are available')
+      || warning.includes('query-risk areas are available')
+    );
 }
 
 function failedAuthority(

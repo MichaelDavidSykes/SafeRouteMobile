@@ -83,6 +83,17 @@ describe('area-risk feed authority', () => {
     }), { clientId: 'tenant-1' }).state, 'partial');
   });
 
+  it('does not downgrade current primary coverage when an optional generated feed is empty', () => {
+    const result = classifyAreaRiskFeedAuthority(standardFeed({
+      providerErrors: [
+        'No generated ThreatScape query-risk areas are available for this map view yet.'
+      ]
+    }), { clientId: 'tenant-1' });
+
+    assert.equal(result.state, 'current');
+    assert.equal(result.error, null);
+  });
+
   it('accepts external fallback only with exact non-tenant external privacy', () => {
     const valid = classifyAreaRiskFeedAuthority(standardFeed({
       privacy: {

@@ -88,20 +88,27 @@ appId: host.exp.Exponent
           id: "guest-map-destination-input"
       - tapOn:
           id: "guest-map-destination-input"
-      - inputText: "51.5053, 0.0553"
+      - inputText: "51.5100, -0.0900"
       - extendedWaitUntil:
           visible:
-            id: "guest-map-search-coordinate-51-505300-0-055300"
+            id: "guest-map-search-coordinate-51-510000-0-090000"
           timeout: 10000
       - tapOn:
-          id: "guest-map-search-coordinate-51-505300-0-055300"
+          id: "guest-map-search-coordinate-51-510000-0-090000"
       - tapOn:
           id: "guest-map-plot-action"
           waitToSettleTimeoutMs: 1000
       - extendedWaitUntil:
           visible:
-            id: "guest-map-route-preview"
+            id: "guest-map-collapsed-sheet"
           timeout: 30000
+      - tapOn:
+          id: "guest-map-collapsed-sheet"
+          waitToSettleTimeoutMs: 1000
+      - extendedWaitUntil:
+          visible:
+            id: "guest-map-route-preview"
+          timeout: 10000
       - assertVisible:
           id: "guest-map-plot-action"
       - tapOn:

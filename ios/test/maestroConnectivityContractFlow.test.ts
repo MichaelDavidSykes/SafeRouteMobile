@@ -223,7 +223,7 @@ describe("Maestro connectivity contract runtime", () => {
     );
     assert.match(
       operationsAllowSaving,
-      /guest-map-gate-calendar[\s\S]*Offline Calendar saving is off[\s\S]*safe-route-operations-route-66e1b2c3d4e5f60718293e40-66b1b2c3d4e5f60718293b40-0[\s\S]*safe-route-operations-calendar-saving-control[\s\S]*Offline options[\s\S]*safe-route-operations-map-return/,
+      /guest-map-gate-calendar[\s\S]*Offline Calendar saving is off[\s\S]*safe-route-operations-route-66e1b2c3d4e5f60718293e40-66b1b2c3d4e5f60718293b40-0[\s\S]*safe-route-operations-calendar-saving-control[\s\S]*Offline options[\s\S]*safe-route-tab-map[\s\S]*guest-map-collapsed-sheet[\s\S]*guest-map-workspace-selector/,
     );
     assert.match(
       runner,
@@ -231,7 +231,7 @@ describe("Maestro connectivity contract runtime", () => {
     );
     assert.match(
       operationsDisabledOnline,
-      /Offline Calendar saving is off[\s\S]*safe-route-operations-route-66e1b2c3d4e5f60718293e40-66b1b2c3d4e5f60718293b40-0[\s\S]*assertNotVisible:[\s\S]*safe-route-operations-offline-notice[\s\S]*safe-route-operations-map-return/,
+      /Offline Calendar saving is off[\s\S]*safe-route-operations-route-66e1b2c3d4e5f60718293e40-66b1b2c3d4e5f60718293b40-0[\s\S]*assertNotVisible:[\s\S]*safe-route-operations-offline-notice[\s\S]*safe-route-tab-map[\s\S]*guest-map-collapsed-sheet[\s\S]*guest-map-workspace-selector/,
     );
     assert.match(
       operationsResavedRelaunch,
@@ -247,7 +247,19 @@ describe("Maestro connectivity contract runtime", () => {
     );
     assert.match(
       seedJourney,
-      /guest-map-gate-calendar[\s\S]*safe-route-operations-route-66e1b2c3d4e5f60718293e40-66b1b2c3d4e5f60718293b40-0[\s\S]*safe-route-operations-map-return/,
+      /guest-map-gate-calendar[\s\S]*safe-route-operations-route-66e1b2c3d4e5f60718293e40-66b1b2c3d4e5f60718293b40-0[\s\S]*safe-route-tab-map[\s\S]*safe-route-card-66b1b2c3d4e5f60718293b40-map/,
+    );
+    assert.doesNotMatch(
+      [
+        seedJourney,
+        offlineRelaunch,
+        operationsRemovalRelaunch,
+        operationsSavingOffRelaunch,
+        operationsAllowSaving,
+        operationsDisabledOnline,
+        online,
+      ].join("\n"),
+      /route-list-map-return|safe-route-operations-map-return/,
     );
     assert.match(
       seed,

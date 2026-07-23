@@ -32,7 +32,7 @@ appId: host.exp.Exponent
 - tapOn:
     id: "safe-route-operations-tab-calendar"
 - tapOn:
-    id: "safe-route-operations-map-return"
+    id: "safe-route-tab-map"
 - extendedWaitUntil:
     visible:
       id: "guest-map-primary-action"
@@ -48,7 +48,7 @@ appId: host.exp.Exponent
       id: "safe-route-card-66b1b2c3d4e5f60718293b40"
     timeout: 30000
 - tapOn:
-    id: "safe-route-card-66b1b2c3d4e5f60718293b40"
+    id: "safe-route-card-66b1b2c3d4e5f60718293b40-map"
 - extendedWaitUntil:
     visible:
       id: "safe-route-live-map"

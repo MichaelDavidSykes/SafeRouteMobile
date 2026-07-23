@@ -6,6 +6,12 @@ appId: host.exp.Exponent
     timeout: 30000
 - extendedWaitUntil:
     visible:
+      id: "guest-map-collapsed-sheet"
+    timeout: 15000
+- tapOn:
+    id: "guest-map-collapsed-sheet"
+- extendedWaitUntil:
+    visible:
       id: "guest-map-workspace-selector"
       enabled: true
     timeout: 30000

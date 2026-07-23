@@ -79,10 +79,16 @@ appId: host.exp.Exponent
       id: "safe-route-card-66b1b2c3d4e5f60718293b40"
     timeout: 20000
 - tapOn:
-    id: "route-list-map-return"
+    id: "safe-route-tab-map"
 - extendedWaitUntil:
     visible:
       id: "guest-map-collapsed-sheet"
+    timeout: 15000
+- tapOn:
+    id: "guest-map-collapsed-sheet"
+- extendedWaitUntil:
+    visible:
+      id: "guest-map-workspace-selector"
     timeout: 15000
 - assertNotVisible:
     id: "workspace-access-refresh"

@@ -1,7 +1,7 @@
 appId: host.exp.Exponent
 ---
 - tapOn:
-    id: "safe-route-operations-map-return"
+    id: "safe-route-tab-map"
 - extendedWaitUntil:
     visible:
       id: "guest-map-network-status"

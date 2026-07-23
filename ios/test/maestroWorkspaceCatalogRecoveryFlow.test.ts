@@ -147,6 +147,11 @@ describe('Maestro workspace catalog recovery runtime', () => {
       seed,
       /id: "safe-route-card-66b1b2c3d4e5f60718293b40-map"[\s\S]*id: "safe-route-live-map"[\s\S]*id: "safe-route-return"[\s\S]*retryTapIfNoChange: true/,
     );
+    assert.match(
+      seed,
+      /id: "safe-route-tab-map"[\s\S]*id: "guest-map-collapsed-sheet"[\s\S]*id: "guest-map-workspace-selector"/,
+    );
+    assert.doesNotMatch(seed, /route-list-map-return/);
   });
 
   it('keeps the same accessible busy and repeated-failure control on every surface', () => {

@@ -9,6 +9,12 @@ appId: host.exp.Exponent
     visible:
       id: "guest-map-network-status"
     timeout: 15000
+- extendedWaitUntil:
+    visible:
+      id: "guest-map-collapsed-sheet"
+    timeout: 15000
+- tapOn:
+    id: "guest-map-collapsed-sheet"
 - assertVisible: "Offline map. Saved route information remains available."
 - assertVisible: "Workspace, Guidance Operations"
 - scrollUntilVisible:

@@ -24,7 +24,7 @@ export const createAccountStyles = StyleSheet.create({
   backButton: {
     position: 'absolute',
     left: 16,
-    top: 14,
+    top: 24,
     zIndex: 3,
     width: 44,
     height: 44,

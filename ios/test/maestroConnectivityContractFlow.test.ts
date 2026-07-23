@@ -78,6 +78,12 @@ describe("Maestro connectivity contract runtime", () => {
       /expectedSourceRevision: sourceRevision/,
     );
     assert.match(runner, /MAESTRO_RETRIES: '0'/);
+    assert.equal(
+      packageJson.scripts[
+        "test:maestro:ios:connectivity-contract:offline-calendar-opt-out"
+      ],
+      "SAFEROUTE_CONNECTIVITY_CONTRACT_SLICE=offline-calendar-opt-out node scripts/run-maestro-connectivity-contract.mjs",
+    );
   });
 
   it("proves offline continuity, reconnect authorization, and inactive-session revocation", () => {
@@ -204,6 +210,10 @@ describe("Maestro connectivity contract runtime", () => {
     assert.match(
       runner,
       /captureAccessibilityHierarchy\('offline-operations-calendar'[\s\S]*flows\.operationsStopCalendarSaving[\s\S]*offline-operations-calendar-saving-off[\s\S]*terminateExpoGo\(deviceId\)[\s\S]*flows\.operationsSavingOffRelaunch[\s\S]*offline-operations-calendar-saving-off-relaunch[\s\S]*flows\.operationsReturnMap[\s\S]*CONNECTIVITY_CONTRACT_PHASES\.reconnectChecking/,
+    );
+    assert.match(
+      runner,
+      /OFFLINE_CALENDAR_OPT_OUT_SLICE[\s\S]*cold relaunch the existing secure Calendar cache[\s\S]*cancel once, then stop exact-scope offline Calendar saves[\s\S]*cold relaunch with exact-scope offline Calendar saving still off/,
     );
     assert.match(
       operationsRemoveCalendar,

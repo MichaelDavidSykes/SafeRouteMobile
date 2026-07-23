@@ -81,6 +81,7 @@
     "test:maestro:ios:connectivity-contract:calendar-auth-cleanup": "SAFEROUTE_CONNECTIVITY_CONTRACT_SLICE=calendar-auth-cleanup node scripts/run-maestro-connectivity-contract.mjs",
     "test:maestro:ios:connectivity-contract:calendar-principal-change": "SAFEROUTE_CONNECTIVITY_CONTRACT_SLICE=calendar-principal-change node scripts/run-maestro-connectivity-contract.mjs",
     "test:maestro:ios:connectivity-contract:calendar-workspace-denial": "SAFEROUTE_CONNECTIVITY_CONTRACT_SLICE=calendar-workspace-denial node scripts/run-maestro-connectivity-contract.mjs",
+    "test:maestro:ios:connectivity-contract:offline-calendar-opt-out": "SAFEROUTE_CONNECTIVITY_CONTRACT_SLICE=offline-calendar-opt-out node scripts/run-maestro-connectivity-contract.mjs",
     "test:maestro:ios:connectivity-contract:workspace-handoff-retry": "SAFEROUTE_CONNECTIVITY_CONTRACT_SLICE=workspace-handoff-retry node scripts/run-maestro-connectivity-contract.mjs",
     "test:maestro:ios:connectivity-contract:workspace-handoff-keep": "SAFEROUTE_CONNECTIVITY_CONTRACT_SLICE=workspace-handoff-keep node scripts/run-maestro-connectivity-contract.mjs",
     "test:maestro:ios:workspace-catalog-recovery": "node scripts/run-maestro-workspace-catalog-recovery.mjs",

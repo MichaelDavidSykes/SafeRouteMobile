@@ -59,6 +59,7 @@ const EXPO_GO_BUNDLE_ID = 'host.exp.Exponent';
 const CALENDAR_AUTH_CLEANUP_SLICE = 'calendar-auth-cleanup';
 const CALENDAR_PRINCIPAL_CHANGE_SLICE = 'calendar-principal-change';
 const CALENDAR_WORKSPACE_DENIAL_SLICE = 'calendar-workspace-denial';
+const OFFLINE_CALENDAR_OPT_OUT_SLICE = 'offline-calendar-opt-out';
 const WORKSPACE_HANDOFF_KEEP_SLICE = 'workspace-handoff-keep';
 const WORKSPACE_HANDOFF_RETRY_SLICE = 'workspace-handoff-retry';
 const connectivityContractSlice = String(
@@ -186,6 +187,7 @@ async function main() {
         CALENDAR_AUTH_CLEANUP_SLICE,
         CALENDAR_PRINCIPAL_CHANGE_SLICE,
         CALENDAR_WORKSPACE_DENIAL_SLICE,
+        OFFLINE_CALENDAR_OPT_OUT_SLICE,
         WORKSPACE_HANDOFF_KEEP_SLICE,
         WORKSPACE_HANDOFF_RETRY_SLICE,
       ].includes(connectivityContractSlice),
@@ -236,6 +238,33 @@ async function main() {
     CONNECTIVITY_CONTRACT_STATUSES.online,
   );
   await startApi();
+  if (connectivityContractSlice === OFFLINE_CALENDAR_OPT_OUT_SLICE) {
+    setControl(
+      CONNECTIVITY_CONTRACT_PHASES.offlineRelaunch,
+      CONNECTIVITY_CONTRACT_STATUSES.offline,
+    );
+    terminateExpoGo(deviceId);
+    await runFlow(
+      CONNECTIVITY_CONTRACT_PHASES.offlineRelaunch,
+      'cold relaunch the existing secure Calendar cache',
+      flows.offlineRelaunch,
+    );
+    await runFlow(
+      CONNECTIVITY_CONTRACT_PHASES.offlineRelaunch,
+      'cancel once, then stop exact-scope offline Calendar saves',
+      flows.operationsStopCalendarSaving,
+    );
+    terminateExpoGo(deviceId);
+    await runFlow(
+      CONNECTIVITY_CONTRACT_PHASES.offlineRelaunch,
+      'cold relaunch with exact-scope offline Calendar saving still off',
+      flows.operationsSavingOffRelaunch,
+    );
+    await assertProductTrafficQuiet([
+      CONNECTIVITY_CONTRACT_PHASES.offlineRelaunch,
+    ], 1_000);
+    return;
+  }
   await runFlow(CONNECTIVITY_CONTRACT_PHASES.seed, 'reset signed-out SafeRoute state', flows.reset);
   await runFlow(CONNECTIVITY_CONTRACT_PHASES.seed, 'seed principal/workspace/Saved caches', flows.seed);
   if (

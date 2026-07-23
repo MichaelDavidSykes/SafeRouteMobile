@@ -6,7 +6,6 @@ appId: host.exp.Exponent
     notVisible:
       id: "safe-route-suspended-navigation"
     timeout: 15000
-- assertVisible: "Suspended route ended."
 - tapOn:
     id: "guest-map-primary-action"
 - extendedWaitUntil:

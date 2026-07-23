@@ -87,7 +87,7 @@ describe("Maestro connectivity contract runtime", () => {
     const seedJourney = read(
       "maestro/ios-connectivity-contract-seed-journey.yaml",
     );
-    const seed = read("maestro/ios-workspace-catalog-recovery-seed.yaml");
+    const seed = read("maestro/ios-connectivity-contract-seed.yaml");
     const offline = read("maestro/ios-connectivity-contract-offline-end.yaml");
     const offlineObserve = read(
       "maestro/ios-connectivity-contract-offline-observe.yaml",
@@ -245,6 +245,8 @@ describe("Maestro connectivity contract runtime", () => {
       seedJourney,
       /setLocation:[\s\S]*safe-route-primary-action"[\s\S]*enabled: true/,
     );
+    assert.doesNotMatch(seedJourney, /ios-open-expo-project/);
+    assert.doesNotMatch(seed, /stopApp/);
     assert.match(
       seedJourney,
       /guest-map-gate-calendar[\s\S]*safe-route-operations-route-66e1b2c3d4e5f60718293e40-66b1b2c3d4e5f60718293b40-0[\s\S]*safe-route-tab-map[\s\S]*safe-route-card-66b1b2c3d4e5f60718293b40-map/,

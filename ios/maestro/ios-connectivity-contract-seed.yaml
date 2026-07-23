@@ -1,0 +1,95 @@
+appId: host.exp.Exponent
+---
+- tapOn:
+    id: "guest-map-primary-action"
+- extendedWaitUntil:
+    visible:
+      id: "safe-route-login"
+    timeout: 15000
+- scrollUntilVisible:
+    element:
+      id: "safe-route-login-primary-action"
+    direction: DOWN
+    timeout: 10000
+    speed: 40
+- tapOn:
+    id: "safe-route-login-primary-action"
+- runFlow:
+    when:
+      visible: "Not Now"
+    commands:
+      - tapOn:
+          text: "Not Now"
+          retryTapIfNoChange: true
+          waitToSettleTimeoutMs: 1000
+- waitForAnimationToEnd:
+    timeout: 3000
+- runFlow:
+    when:
+      visible: "Not Now"
+    commands:
+      - tapOn:
+          text: "Not Now"
+          retryTapIfNoChange: true
+          waitToSettleTimeoutMs: 1000
+- runFlow:
+    when:
+      visible:
+        id: "safe-route-workspace-selection"
+    commands:
+      - extendedWaitUntil:
+          visible:
+            id: "safe-route-workspace-selection-66a1b2c3d4e5f60718293a40"
+          timeout: 30000
+      - tapOn:
+          id: "safe-route-workspace-selection-66a1b2c3d4e5f60718293a40"
+      - tapOn:
+          id: "safe-route-workspace-selection-continue"
+      - extendedWaitUntil:
+          notVisible:
+            id: "safe-route-workspace-selection"
+          timeout: 30000
+- extendedWaitUntil:
+    visible:
+      id: "guest-map-primary-action"
+    timeout: 30000
+- tapOn:
+    id: "guest-map-primary-action"
+- extendedWaitUntil:
+    visible:
+      id: "safe-route-picker"
+    timeout: 15000
+- extendedWaitUntil:
+    visible:
+      id: "safe-route-card-66b1b2c3d4e5f60718293b40"
+    timeout: 30000
+- assertVisible: "^Cold restart verification v1.*"
+- tapOn:
+    id: "safe-route-card-66b1b2c3d4e5f60718293b40-map"
+- extendedWaitUntil:
+    visible:
+      id: "safe-route-live-map"
+    timeout: 20000
+- tapOn:
+    id: "safe-route-return"
+    retryTapIfNoChange: true
+    waitToSettleTimeoutMs: 1000
+- extendedWaitUntil:
+    visible:
+      id: "safe-route-card-66b1b2c3d4e5f60718293b40"
+    timeout: 20000
+- tapOn:
+    id: "safe-route-tab-map"
+- extendedWaitUntil:
+    visible:
+      id: "guest-map-collapsed-sheet"
+    timeout: 15000
+- tapOn:
+    id: "guest-map-collapsed-sheet"
+- extendedWaitUntil:
+    visible:
+      id: "guest-map-workspace-selector"
+    timeout: 15000
+- assertNotVisible:
+    id: "workspace-access-refresh"
+- takeScreenshot: "connectivity-contract-catalog-seeded"

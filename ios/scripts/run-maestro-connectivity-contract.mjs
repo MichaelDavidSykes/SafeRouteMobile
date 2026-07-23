@@ -133,7 +133,7 @@ const flows = Object.freeze({
   online: 'maestro/ios-connectivity-contract-online.yaml',
   reconnectChecking: 'maestro/ios-connectivity-contract-reconnect-checking.yaml',
   reset: 'maestro/ios-guidance-contract-reset.yaml',
-  seed: 'maestro/ios-workspace-catalog-recovery-seed.yaml',
+  seed: 'maestro/ios-connectivity-contract-seed.yaml',
   seedJourney: 'maestro/ios-connectivity-contract-seed-journey.yaml',
   workspaceHandoffCleanupFailure:
     'maestro/ios-connectivity-contract-workspace-handoff-cleanup-failure.yaml',

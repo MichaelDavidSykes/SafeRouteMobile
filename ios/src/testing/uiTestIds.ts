@@ -102,6 +102,7 @@ export const uiTestIds = {
   routeListWorkspaceOption: (workspaceId: string) =>
     `safe-route-workspace-${normalizeTestIdSegment(workspaceId)}`,
   operationsScreen: "safe-route-operations",
+  operationsLoading: "safe-route-operations-loading",
   operationsMapReturn: "safe-route-operations-map-return",
   operationsSignOut: "safe-route-operations-sign-out",
   operationsWorkspaceSelector: "safe-route-operations-workspace-selector",
@@ -129,6 +130,9 @@ export const uiTestIds = {
     `safe-route-operations-workspace-${normalizeTestIdSegment(workspaceId)}`,
   operationsConvoyCard: (convoyId: string) =>
     `safe-route-operations-convoy-${normalizeTestIdSegment(convoyId)}`,
+  operationsCalendarDetail: "safe-route-operations-calendar-detail",
+  operationsCalendarDetailDone: "safe-route-operations-calendar-detail-done",
+  operationsCalendarDetailMap: "safe-route-operations-calendar-detail-map",
   operationsConvoyDetail: "safe-route-operations-convoy-detail",
   operationsConvoyDetailBack: "safe-route-operations-convoy-detail-back",
   operationsConvoyRoute: (routeId: string) =>

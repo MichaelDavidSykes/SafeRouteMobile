@@ -38,35 +38,38 @@ describe("Maestro iOS preview operations flow", () => {
 
   it("covers planned, calendar, and convoy read-only drill-downs", () => {
     const flow = operationsFlowSource();
-    const plannedGateIndex = flow.indexOf('id: "guest-map-gate-planned-trips"');
     const operationsIndex = flow.indexOf('id: "safe-route-operations"');
-    const calendarTabIndex = flow.indexOf('id: "safe-route-operations-tab-calendar"');
-    const convoyTabIndex = flow.indexOf('id: "safe-route-operations-tab-convoy-management"');
-    const mapReturnIndex = flow.indexOf('id: "safe-route-operations-map-return"');
-    const calendarGateIndex = flow.indexOf('id: "guest-map-gate-calendar"');
+    const calendarTabIndex = flow.indexOf('id: "safe-route-tab-calendar"');
+    const convoyTabIndex = flow.indexOf('id: "safe-route-tab-convoys"');
+    const mapTabIndex = flow.indexOf('id: "safe-route-tab-map"');
 
-    assert.match(flow, /id: "guest-map-gate-planned-trips"/);
-    assert.match(flow, /id: "guest-map-gate-calendar"/);
-    assert.match(flow, /id: "guest-map-gate-convoy-management"/);
+    assert.match(flow, /id: "safe-route-tab-routes"/);
+    assert.match(flow, /id: "safe-route-tab-calendar"/);
+    assert.match(flow, /id: "safe-route-tab-convoys"/);
+    assert.match(flow, /id: "safe-route-tab-map"/);
     assert.match(flow, /assertVisible: "Planned routes"/);
     assert.match(flow, /assertVisible: "Calendar"/);
     assert.match(flow, /assertVisible: "Convoys"/);
     assert.match(flow, /id: "safe-route-operations-route-trip-airport-transfer-sr-city-airport-alpha-0"/);
     assert.match(flow, /id: "safe-route-operations-route-trip-docklands-low-profile-sr-docklands-low-profile-0"/);
+    assert.match(flow, /id: "safe-route-operations-calendar-detail"/);
+    assert.match(flow, /id: "safe-route-operations-calendar-detail-map"/);
     assert.match(flow, /id: "safe-route-operations-convoy-trip-airport-transfer"/);
     assert.match(flow, /id: "safe-route-operations-convoy-trip-docklands-low-profile"/);
     assert.match(flow, /id: "safe-route-operations-convoy-detail"/);
     assert.match(flow, /id: "safe-route-operations-convoy-route-sr-city-airport-alpha-0"/);
+    assert.match(
+      flow,
+      /safe-route-operations-vehicle-vehicle-alpha-lead[\s\S]*safe-route-operations-vehicle-detail[\s\S]*waitForAnimationToEnd:[\s\S]*safe-route-operations-vehicle-detail-done[\s\S]*safe-route-operations-vehicle-vehicle-alpha-support[\s\S]*safe-route-operations-vehicle-detail/,
+    );
     assert.match(flow, /id: "safe-route-live-map"/);
     assert.match(flow, /id: "safe-route-map-view"/);
     assert.match(flow, /id: "safe-route-return"/);
     assert.match(flow, /assertNotVisible:\s+id: "safe-route-login"/);
     assert.doesNotMatch(flow, /Edit|Save schedule|Create convoy|Delete/);
-    assert.ok(plannedGateIndex >= 0);
     assert.ok(operationsIndex >= 0);
     assert.ok(calendarTabIndex > operationsIndex);
     assert.ok(convoyTabIndex > calendarTabIndex);
-    assert.ok(mapReturnIndex > convoyTabIndex);
-    assert.ok(calendarGateIndex > mapReturnIndex);
+    assert.ok(mapTabIndex > convoyTabIndex);
   });
 });

@@ -147,8 +147,8 @@ describe("Maestro iOS preview smoke flow", () => {
     const scripts = packageJson().scripts;
     const appRootIndex = flow.indexOf('id: "saferoute-app-root"');
     const operationsIndex = flow.indexOf('id: "safe-route-operations"');
-    const firstMapReturnIndex = flow.indexOf('id: "safe-route-operations-map-return"');
-    const firstGuestGateIndex = flow.indexOf('id: "guest-map-gate-calendar"');
+    const firstMapTabIndex = flow.indexOf('id: "safe-route-tab-map"');
+    const firstCollapsedMapIndex = flow.indexOf('id: "guest-map-collapsed-sheet"');
 
     assert.equal(
       scripts["prestart:maestro:ios:preview:operations"],
@@ -167,8 +167,8 @@ describe("Maestro iOS preview smoke flow", () => {
     assert.match(flow, /extendedWaitUntil:\s*\n\s+visible:\s*\n\s+id:\s*"safe-route-operations"/);
     assert.ok(appRootIndex >= 0);
     assert.ok(operationsIndex > appRootIndex);
-    assert.ok(firstMapReturnIndex > operationsIndex);
-    assert.ok(firstGuestGateIndex > firstMapReturnIndex);
+    assert.ok(firstMapTabIndex > operationsIndex);
+    assert.ok(firstCollapsedMapIndex > firstMapTabIndex);
   });
 
   it("keeps one selected workspace across Map, Saved, and Operations", () => {

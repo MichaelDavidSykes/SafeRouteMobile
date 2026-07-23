@@ -269,6 +269,10 @@ export function OperationsScreen({
   const operationsListRef = useRef<ScrollView | null>(null);
   const convoyDetailHeadingRef = useRef<Text | null>(null);
   const calendarDetailHeadingRef = useRef<Text | null>(null);
+  const onSessionExpiredRef = useRef(onSessionExpired);
+  const onWorkspaceUnavailableRef = useRef(onWorkspaceUnavailable);
+  onSessionExpiredRef.current = onSessionExpired;
+  onWorkspaceUnavailableRef.current = onWorkspaceUnavailable;
   const offlineCalendarRemovalRevisionRef = useRef(0);
   const offlineCalendarSavingRevisionRef = useRef(0);
   const offlineCalendarSavingPendingRef = useRef<{
@@ -522,7 +526,7 @@ export function OperationsScreen({
           setOfflineCalendarRemovalState("idle");
           setErrorState(null);
           setClientMenuOpen(false);
-          onWorkspaceUnavailable(requestWorkspaceId);
+          onWorkspaceUnavailableRef.current(requestWorkspaceId);
           return;
         }
         if (result.status === "loaded") {
@@ -623,7 +627,7 @@ export function OperationsScreen({
           return;
         }
         if (error instanceof ApiSessionExpiredError) {
-          onSessionExpired(error.message);
+          onSessionExpiredRef.current(error.message);
           return;
         }
         const cacheResult = await loadOfflineOperationsSnapshotIfAllowed(
@@ -662,8 +666,6 @@ export function OperationsScreen({
       networkChecking,
       networkStatus,
       online,
-      onSessionExpired,
-      onWorkspaceUnavailable,
       selectedWorkspaceId,
       protectedRequestsAvailable,
       workspaceAuthorizationFresh,
@@ -692,6 +694,7 @@ export function OperationsScreen({
     setErrorState(null);
     setSelectedConvoyId(null);
     setSelectedCalendarRowId(null);
+    setSelectedVehicle(null);
     setCollapsedConvoyIds(new Set());
     onConvoySelectionChange?.(null);
     setDetailLoadingId(null);
@@ -1990,6 +1993,7 @@ export function OperationsScreen({
               accessible
               accessibilityLabel={loadingLabel}
               accessibilityRole="progressbar"
+              testID={uiTestIds.operationsLoading}
               style={styles.loadingCard}
             >
               <ActivityIndicator color={colors.appleBlue} />
@@ -2516,12 +2520,13 @@ function OperationsCalendarDetail({
   return (
     <OperationsDetailSheet
       accessibilityLabel={`${row.title} movement details`}
+      closeTestID={uiTestIds.operationsCalendarDetailDone}
       eyebrow="MOVEMENT DETAILS"
       headingRef={headingRef}
       icon={<RouteIcon accessibilityElementsHidden color={colors.appleBlue} size={28} strokeWidth={1.9} />}
       statusLabel={row.statusLabel}
       subtitle={`${dateLabel} · ${timeLabel}`}
-      testID="safe-route-operations-calendar-detail"
+      testID={uiTestIds.operationsCalendarDetail}
       title={row.title}
       onClose={onBack}
     >
@@ -2545,6 +2550,7 @@ function OperationsCalendarDetail({
         accessibilityRole="button"
         accessibilityState={{ busy: loading, disabled: mapDisabled }}
         disabled={mapDisabled}
+        testID={uiTestIds.operationsCalendarDetailMap}
         style={({ pressed }) => [
           styles.sheetMapAction,
           mapDisabled ? styles.sheetMapActionDisabled : null,

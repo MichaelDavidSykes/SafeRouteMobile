@@ -37,6 +37,31 @@ describe("convoy interaction contract", () => {
     assert.doesNotMatch(vehiclePress, /onConvoySelectionChange/);
   });
 
+  it("does not reload Operations when a parent detail callback changes identity", () => {
+    assert.match(screen, /const onSessionExpiredRef = useRef\(onSessionExpired\)/);
+    assert.match(
+      screen,
+      /const onWorkspaceUnavailableRef = useRef\(onWorkspaceUnavailable\)/,
+    );
+    assert.match(
+      screen,
+      /onWorkspaceUnavailableRef\.current\(requestWorkspaceId\)/,
+    );
+    assert.match(screen, /onSessionExpiredRef\.current\(error\.message\)/);
+
+    const loadOperations =
+      /const loadOperations = useCallback\([\s\S]*?\n\s*\]\n\s*\);/.exec(screen)?.[0] || "";
+    assert.doesNotMatch(loadOperations, /\n\s*onSessionExpired,/);
+    assert.doesNotMatch(loadOperations, /\n\s*onWorkspaceUnavailable,/);
+  });
+
+  it("clears a selected vehicle when workspace ownership changes", () => {
+    const workspaceChange =
+      /const previousSelectedWorkspaceIdRef[\s\S]*?\}, \[selectedWorkspaceId\]\);/.exec(screen)?.[0] || "";
+
+    assert.match(workspaceChange, /setSelectedVehicle\(null\)/);
+  });
+
   it("animates convoy expansion and uses circular header controls", () => {
     assert.match(screen, /LayoutAnimation\.configureNext/);
     assert.match(screen, /configureConvoyExpansionAnimation\(\)/);

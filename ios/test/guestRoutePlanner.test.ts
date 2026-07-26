@@ -145,10 +145,10 @@ describe('guest route planner helpers', () => {
         routePlotted: true
       }),
       {
-        accessibilityHint: 'Opens this plotted route to London City Airport in the live map preview.',
-        accessibilityLabel: 'Open route preview to London City Airport',
+        accessibilityHint: 'Opens this plotted route to London City Airport, ready to start live guidance.',
+        accessibilityLabel: 'Open route to London City Airport and start guidance',
         disabled: false,
-        label: 'Preview map'
+        label: 'Start route'
       }
     );
 

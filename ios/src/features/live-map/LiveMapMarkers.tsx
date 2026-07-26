@@ -18,6 +18,7 @@ import { colors, radius } from '../../theme';
 import { SAFE_ROUTE_DARK_ROUTE_CASING } from '../maps/safeRouteMapTheme';
 import {
   useLoopingPulse,
+  useMotionValue,
   useReduceMotionEnabled,
 } from '../../motion/SafeRouteMotion';
 
@@ -117,9 +118,9 @@ export function RiskOverlay({
       {shouldRenderRiskCoverage(zone) && polygonCoordinates.length > 2 ? (
         <Polygon
           coordinates={polygonCoordinates}
-          strokeColor={selected ? riskColors.stroke : 'transparent'}
+          strokeColor={selected ? riskColors.selectionStroke : 'transparent'}
           fillColor={selected ? riskColors.selectedFill : riskColors.fill}
-          strokeWidth={selected ? 2 : 0}
+          strokeWidth={selected ? 1 : 0}
           testID={uiTestIds.liveMapRiskZoneArea(zone.id)}
           tappable={Boolean(onPress)}
           onPress={handlePress}
@@ -128,9 +129,9 @@ export function RiskOverlay({
         <TappableCircle
           center={zone.coordinate}
           radius={visibleRiskRadiusMeters(zone)}
-          strokeColor={selected ? riskColors.stroke : 'transparent'}
+          strokeColor={selected ? riskColors.selectionStroke : 'transparent'}
           fillColor={selected ? riskColors.selectedFill : riskColors.fill}
-          strokeWidth={selected ? 2 : 0}
+          strokeWidth={selected ? 1 : 0}
           testID={uiTestIds.liveMapRiskZoneArea(zone.id)}
           tappable={Boolean(onPress)}
           onPress={handlePress}
@@ -212,7 +213,11 @@ function RiskMarker({
   routeAlert: boolean;
   zone: RiskZone;
 }) {
-  const markerColor = severityMarkerColor(zone.severity);
+  const riskColors = severityOverlayColors(zone.severity);
+  const markerColor = riskColors.stroke;
+  const selectionProgress = useMotionValue(selected ? 1 : 0, {
+    spring: true,
+  });
 
   return (
     <Marker
@@ -237,12 +242,21 @@ function RiskMarker({
             severityMarkerStyle(zone.severity)
           ]}
         >
-          <View
+          <Animated.View
             accessible={false}
             style={[
               styles.riskMarkerSelectionRing,
-              { borderColor: markerColor },
-              selected ? styles.riskMarkerSelectionRingVisible : null,
+              {
+                backgroundColor: riskColors.selectionHalo,
+                borderColor: riskColors.selectionStroke,
+                opacity: selectionProgress,
+                transform: [{
+                  scale: selectionProgress.interpolate({
+                    inputRange: [0, 1],
+                    outputRange: [0.82, 1],
+                  }),
+                }],
+              },
             ]}
           />
           <AlertTriangle
@@ -330,18 +344,6 @@ function severityMarkerStyle(severity: RiskSeverity) {
   return styles.riskMarkerLow;
 }
 
-function severityMarkerColor(severity: RiskSeverity): string {
-  if (severity === 'high') {
-    return colors.danger;
-  }
-
-  if (severity === 'medium') {
-    return colors.amber;
-  }
-
-  return colors.info;
-}
-
 function severityMarkerFill(severity: RiskSeverity): string {
   if (severity === 'high') {
     return 'rgba(229, 72, 77, 0.24)';
@@ -370,7 +372,9 @@ function severityOverlayColors(severity: RiskSeverity) {
   if (severity === 'high') {
     return {
       fill: 'rgba(229, 72, 77, 0.15)',
-      selectedFill: 'rgba(229, 72, 77, 0.26)',
+      selectedFill: 'rgba(229, 72, 77, 0.20)',
+      selectionHalo: 'rgba(229, 72, 77, 0.13)',
+      selectionStroke: 'rgba(255, 132, 136, 0.94)',
       stroke: colors.danger,
     };
   }
@@ -378,14 +382,18 @@ function severityOverlayColors(severity: RiskSeverity) {
   if (severity === 'medium') {
     return {
       fill: 'rgba(245, 165, 36, 0.10)',
-      selectedFill: 'rgba(245, 165, 36, 0.22)',
+      selectedFill: 'rgba(245, 165, 36, 0.16)',
+      selectionHalo: 'rgba(245, 165, 36, 0.12)',
+      selectionStroke: 'rgba(255, 197, 92, 0.94)',
       stroke: colors.amber,
     };
   }
 
   return {
     fill: colors.infoSoft,
-    selectedFill: 'rgba(126, 156, 191, 0.20)',
+    selectedFill: 'rgba(126, 156, 191, 0.16)',
+    selectionHalo: 'rgba(126, 156, 191, 0.12)',
+    selectionStroke: 'rgba(177, 207, 239, 0.94)',
     stroke: colors.info,
   };
 }
@@ -446,20 +454,15 @@ const styles = StyleSheet.create({
   },
   riskMarkerSelected: {
     opacity: 1,
-    shadowOpacity: 0.8,
-    shadowRadius: 7,
+    shadowOpacity: 0.48,
+    shadowRadius: 8,
   },
   riskMarkerSelectionRing: {
     position: 'absolute',
-    width: 32,
-    height: 32,
-    borderWidth: 2,
+    width: 30,
+    height: 30,
+    borderWidth: 1,
     borderRadius: radius.pill,
-    backgroundColor: 'rgba(10, 12, 17, 0.72)',
-    opacity: 0,
-  },
-  riskMarkerSelectionRingVisible: {
-    opacity: 1,
   },
   riskMarkerHigh: {
     shadowColor: colors.danger

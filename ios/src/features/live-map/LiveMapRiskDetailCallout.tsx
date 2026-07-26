@@ -1,4 +1,4 @@
-import { useRef, type RefObject } from "react";
+import { useEffect, useRef, type ReactNode, type RefObject } from "react";
 import { AlertTriangle, X } from "lucide-react-native";
 import {
   Animated,
@@ -7,6 +7,8 @@ import {
   StyleSheet,
   Text,
   View,
+  type StyleProp,
+  type ViewStyle,
 } from "react-native";
 import MapView from "react-native-maps";
 
@@ -22,7 +24,13 @@ import {
   shouldDismissRiskDetailGesture,
   shouldStartRiskDetailDismissGesture,
 } from "./riskDetailInteraction";
-import { MotionEntrance } from "../../motion/SafeRouteMotion";
+import {
+  MotionEntrance,
+  safeRouteEasing,
+  safeRouteMotion,
+  safeRouteSpring,
+  useReduceMotionEnabled,
+} from "../../motion/SafeRouteMotion";
 
 export function LiveMapRiskDetailCallout({
   bottomInset = chrome.tabBarHeight + 18,
@@ -36,9 +44,150 @@ export function LiveMapRiskDetailCallout({
   proximity?: RouteRiskProximity | null;
   zone: RiskZone;
 }) {
+  const presentation = createRiskZoneDetailPresentation({
+    proximity: proximity || null,
+    zone,
+  });
+  const areaLabel = createRiskAreaChipLabel(zone);
+  const severityColor = resolveSeverityColor(presentation.tone);
+
+  return (
+    <LiveMapDetailCallout
+      accessibilityLabel={presentation.accessibilityLabel}
+      bottomInset={bottomInset}
+      dismissAccessibilityLabel="Close risk details"
+      dismissTestID={uiTestIds.liveMapRiskDetailDismiss}
+      groupedAccessibility
+      icon={(
+        <AlertTriangle
+          accessibilityElementsHidden
+          color={severityColor}
+          size={22}
+          strokeWidth={2}
+        />
+      )}
+      iconTileStyle={severityIconTileStyle(presentation.tone)}
+      onDismiss={onDismiss}
+      replayKey={zone.id}
+      subtitle={zone.category || "Risk area"}
+      testID={uiTestIds.liveMapRiskDetail}
+      title={presentation.title}
+    >
+      <View style={styles.chipRow}>
+        <View
+          style={[
+            styles.chip,
+            severityChipStyle(presentation.tone),
+          ]}
+        >
+          <View style={[styles.severityDot, { backgroundColor: severityColor }]} />
+          <Text
+            numberOfLines={1}
+            style={[
+              styles.chipText,
+              severityTextStyle(presentation.tone),
+            ]}
+          >
+            {createSeverityChipLabel(presentation.tone)}
+          </Text>
+        </View>
+        <View style={[styles.chip, styles.areaChip]}>
+          <Text numberOfLines={1} style={styles.areaChipText}>
+            {areaLabel}
+          </Text>
+        </View>
+      </View>
+
+      <Text style={styles.body}>{presentation.body}</Text>
+
+      {proximity ? (
+        <Text numberOfLines={1} style={styles.clearance}>
+          {presentation.clearanceLabel}
+        </Text>
+      ) : null}
+    </LiveMapDetailCallout>
+  );
+}
+
+export function LiveMapDetailCallout({
+  accessibilityLabel,
+  bottomInset = chrome.tabBarHeight + 18,
+  children,
+  dismissAccessibilityLabel,
+  dismissTestID,
+  groupedAccessibility = false,
+  icon,
+  iconTileStyle,
+  onDismiss,
+  replayKey,
+  subtitle,
+  testID,
+  title,
+}: {
+  accessibilityLabel: string;
+  bottomInset?: number;
+  children?: ReactNode;
+  dismissAccessibilityLabel: string;
+  dismissTestID?: string;
+  groupedAccessibility?: boolean;
+  icon: ReactNode;
+  iconTileStyle?: StyleProp<ViewStyle>;
+  onDismiss: () => void;
+  replayKey: string;
+  subtitle: string;
+  testID?: string;
+  title: string;
+}) {
   const translateY = useRef(new Animated.Value(0)).current;
+  const dismissProgress = useRef(new Animated.Value(0)).current;
+  const dismissingRef = useRef(false);
+  const reduceMotionEnabled = useReduceMotionEnabled();
+  const reduceMotionEnabledRef = useRef(reduceMotionEnabled);
+  reduceMotionEnabledRef.current = reduceMotionEnabled;
   const onDismissRef = useRef(onDismiss);
   onDismissRef.current = onDismiss;
+  const dismissAnimationRef = useRef<(translateTo: number) => void>(
+    () => undefined,
+  );
+  dismissAnimationRef.current = (translateTo) => {
+    if (dismissingRef.current) {
+      return;
+    }
+    dismissingRef.current = true;
+    translateY.stopAnimation();
+    dismissProgress.stopAnimation();
+    if (reduceMotionEnabledRef.current) {
+      onDismissRef.current();
+      return;
+    }
+    Animated.parallel([
+      Animated.timing(translateY, {
+        duration: safeRouteMotion.sheetExitDurationMs,
+        easing: safeRouteEasing.exit,
+        toValue: translateTo,
+        useNativeDriver: true,
+      }),
+      Animated.timing(dismissProgress, {
+        duration: safeRouteMotion.sheetExitDurationMs,
+        easing: safeRouteEasing.exit,
+        toValue: 1,
+        useNativeDriver: true,
+      }),
+    ]).start(({ finished }) => {
+      if (finished) {
+        onDismissRef.current();
+      } else {
+        dismissingRef.current = false;
+      }
+    });
+  };
+
+  useEffect(() => {
+    dismissingRef.current = false;
+    translateY.setValue(0);
+    dismissProgress.setValue(0);
+  }, [dismissProgress, replayKey, translateY]);
+
   const panResponder = useRef(
     PanResponder.create({
       onMoveShouldSetPanResponder: (_, gestureState) =>
@@ -57,133 +206,86 @@ export function LiveMapRiskDetailCallout({
             velocityY: gestureState.vy,
           })
         ) {
-          Animated.timing(translateY, {
-            duration: 160,
-            toValue: 320,
-            useNativeDriver: true,
-          }).start(({ finished }) => {
-            if (finished) {
-              onDismissRef.current();
-            }
-          });
+          dismissAnimationRef.current(320);
           return;
         }
 
+        translateY.stopAnimation();
         Animated.spring(translateY, {
-          damping: 22,
-          mass: 0.7,
-          stiffness: 240,
+          ...safeRouteSpring,
           toValue: 0,
           useNativeDriver: true,
         }).start();
       },
       onPanResponderTerminate: () => {
+        translateY.stopAnimation();
         Animated.spring(translateY, {
-          damping: 22,
-          mass: 0.7,
-          stiffness: 240,
+          ...safeRouteSpring,
           toValue: 0,
           useNativeDriver: true,
         }).start();
       },
     }),
   ).current;
-  const presentation = createRiskZoneDetailPresentation({
-    proximity: proximity || null,
-    zone,
-  });
-  const areaLabel = createRiskAreaChipLabel(zone);
-  const severityColor = resolveSeverityColor(presentation.tone);
 
   return (
     <MotionEntrance
       pointerEvents="box-none"
-      replayKey={zone.id}
+      replayKey={replayKey}
       style={[StyleSheet.absoluteFill, styles.overlay]}
       variant="sheet"
     >
       <Animated.View
         {...panResponder.panHandlers}
-        accessible
-        accessibilityLabel={presentation.accessibilityLabel}
-        testID={uiTestIds.liveMapRiskDetail}
+        accessible={groupedAccessibility}
+        accessibilityLabel={groupedAccessibility ? accessibilityLabel : undefined}
+        testID={testID}
         style={[
           styles.card,
-          { bottom: bottomInset, transform: [{ translateY }] },
+          {
+            bottom: bottomInset,
+            opacity: dismissProgress.interpolate({
+              inputRange: [0, 1],
+              outputRange: [1, 0],
+            }),
+            transform: [{ translateY }],
+          },
         ]}
       >
         <View accessibilityElementsHidden style={styles.dragHandleDock}>
           <View style={styles.dragHandle} />
         </View>
         <View style={styles.titleRow}>
-          <View
-            style={[
-              styles.iconTile,
-              severityIconTileStyle(presentation.tone),
-            ]}
-          >
-            <AlertTriangle
-              accessibilityElementsHidden
-              color={severityColor}
-              size={22}
-              strokeWidth={2}
-            />
+          <View style={[styles.iconTile, iconTileStyle]}>
+            {icon}
           </View>
-          <View style={styles.titleCopy}>
+          <View
+            accessible={!groupedAccessibility}
+            accessibilityLabel={!groupedAccessibility ? accessibilityLabel : undefined}
+            style={styles.titleCopy}
+          >
             <Text numberOfLines={2} style={styles.title}>
-              {presentation.title}
+              {title}
             </Text>
             <Text numberOfLines={1} style={styles.category}>
-              {zone.category || "Risk area"}
+              {subtitle}
             </Text>
           </View>
           <Pressable
-            accessibilityLabel="Close risk details"
+            accessibilityLabel={dismissAccessibilityLabel}
             accessibilityRole="button"
             hitSlop={8}
-            testID={uiTestIds.liveMapRiskDetailDismiss}
+            testID={dismissTestID}
             style={({ pressed }) => [
               styles.dismiss,
               pressed ? styles.dismissPressed : null,
             ]}
-            onPress={onDismiss}
+            onPress={() => dismissAnimationRef.current(36)}
           >
             <X accessibilityElementsHidden color={colors.muted} size={14} strokeWidth={2.2} />
           </Pressable>
         </View>
-
-        <View style={styles.chipRow}>
-          <View
-            style={[
-              styles.chip,
-              severityChipStyle(presentation.tone),
-            ]}
-          >
-            <View style={[styles.severityDot, { backgroundColor: severityColor }]} />
-            <Text
-              numberOfLines={1}
-              style={[
-                styles.chipText,
-                severityTextStyle(presentation.tone),
-              ]}
-            >
-              {createSeverityChipLabel(presentation.tone)}
-            </Text>
-          </View>
-          <View style={[styles.chip, styles.areaChip]}>
-            <Text numberOfLines={1} style={styles.areaChipText}>
-              {areaLabel}
-            </Text>
-          </View>
-        </View>
-
-        <Text style={styles.body}>{presentation.body}</Text>
-
-        {proximity ? (
-          <Text numberOfLines={1} style={styles.clearance}>
-            {presentation.clearanceLabel}
-          </Text>
-        ) : null}
+        {children}
       </Animated.View>
     </MotionEntrance>
   );

@@ -574,7 +574,8 @@ describe("rounded visual language", () => {
     assert.match(guestMapSource, /onDismiss=\{\(\) => setSelectedRiskZone\(null\)\}/);
     assert.doesNotMatch(guestMapSource, /function GuestRiskDetail/);
     assert.match(calloutSource, /testID=\{uiTestIds\.liveMapRiskDetail\}/);
-    assert.match(calloutSource, /testID=\{uiTestIds\.liveMapRiskDetailDismiss\}/);
+    assert.match(calloutSource, /dismissTestID=\{uiTestIds\.liveMapRiskDetailDismiss\}/);
+    assert.match(calloutSource, /testID=\{dismissTestID\}/);
     assert.match(calloutSource, /createSeverityChipLabel/);
     assert.match(calloutSource, /createRiskAreaChipLabel/);
     assert.match(calloutSource, /bottomInset = chrome\.tabBarHeight \+ 18/);
@@ -1228,15 +1229,15 @@ describe("rounded visual language", () => {
       "utf8",
     );
     const checkpointMarkerBlock =
-      /checkpointMarker:\s*\{([\s\S]*?)\n  \},\n  checkpointMarkerOrigin:/.exec(
+      /checkpointMarker:\s*\{([\s\S]*?)\r?\n  \},\r?\n  checkpointMarkerOrigin:/.exec(
         markerSource,
       )?.[1] || "";
     const riskMarkerBlock =
-      /riskMarker:\s*\{([\s\S]*?)\n  \},\n  riskMarkerActive:/.exec(
+      /riskMarker:\s*\{([\s\S]*?)\r?\n  \},\r?\n  riskMarkerActive:/.exec(
         markerSource,
       )?.[1] || "";
     const vehicleMarkerBlock =
-      /vehicleMarker:\s*\{([\s\S]*?)\n  \},\n  vehicleMarkerHeading:/.exec(
+      /vehicleMarker:\s*\{([\s\S]*?)\r?\n  \},\r?\n  vehicleMarkerHeading:/.exec(
         markerSource,
       )?.[1] || "";
 
@@ -1262,7 +1263,9 @@ describe("rounded visual language", () => {
       assert.match(markerBlock, /elevation:\s*0/);
     }
     assert.match(riskMarkerBlock, /shadowOpacity:\s*0\.45/);
-    assert.match(markerSource, /riskMarkerSelectionRing:[\s\S]*borderWidth:\s*2/);
+    assert.match(markerSource, /riskMarkerSelectionRing:[\s\S]*borderWidth:\s*1/);
+    assert.match(markerSource, /selectionStroke:\s*'rgba\(/);
+    assert.doesNotMatch(markerSource, /backgroundColor:\s*'rgba\(10, 12, 17, 0\.72\)'/);
     assert.doesNotMatch(markerSource, /riskMarkerSelected:\s*\{[^}]*transform:/);
   });
 

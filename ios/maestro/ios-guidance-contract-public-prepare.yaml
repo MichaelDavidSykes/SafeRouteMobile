@@ -14,6 +14,12 @@ appId: host.exp.Exponent
     id: "guest-map-plot-action"
 - extendedWaitUntil:
     visible:
+      id: "guest-map-travel-mode-selector"
+    timeout: 10000
+- tapOn:
+    id: "guest-map-travel-mode-drive"
+- extendedWaitUntil:
+    visible:
       id: "guest-map-route-preview"
     timeout: 30000
 - extendedWaitUntil:

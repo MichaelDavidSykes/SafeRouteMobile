@@ -26,7 +26,7 @@ function readPngMetadata(path: string): PngMetadata {
 
 describe('iOS app artwork assets', () => {
   it('keeps the App Store icon at the expected opaque PNG size', () => {
-    assert.deepEqual(readPngMetadata('assets/icon.png'), {
+    assert.deepEqual(readPngMetadata('assets/icon-approved.png'), {
       width: 1024,
       height: 1024,
       bitDepth: 8,
@@ -35,7 +35,7 @@ describe('iOS app artwork assets', () => {
   });
 
   it('keeps the adaptive icon source at the expected high-resolution PNG size', () => {
-    assert.deepEqual(readPngMetadata('assets/adaptive-icon.png'), {
+    assert.deepEqual(readPngMetadata('assets/adaptive-icon-approved.png'), {
       width: 1024,
       height: 1024,
       bitDepth: 8,
@@ -44,7 +44,7 @@ describe('iOS app artwork assets', () => {
   });
 
   it('keeps the iOS launch splash artwork at the expected tall-phone PNG size', () => {
-    assert.deepEqual(readPngMetadata('assets/splash.png'), {
+    assert.deepEqual(readPngMetadata('assets/splash-approved.png'), {
       width: 1242,
       height: 2436,
       bitDepth: 8,
@@ -53,7 +53,7 @@ describe('iOS app artwork assets', () => {
   });
 
   it('keeps the in-app SafeRoute logo mark square for rounded UI containers', () => {
-    assert.deepEqual(readPngMetadata('assets/logo-mark.png'), {
+    assert.deepEqual(readPngMetadata('assets/logo-mark-approved.png'), {
       width: 512,
       height: 512,
       bitDepth: 8,

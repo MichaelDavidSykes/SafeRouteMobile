@@ -227,7 +227,7 @@ export function CreateAccountScreen({
                 <Image
                   accessibilityIgnoresInvertColors
                   accessibilityLabel="SafeRoute"
-                  source={require('../../../assets/logo-mark.png')}
+                  source={require('../../../assets/logo-mark-approved.png')}
                   style={styles.logo}
                 />
                 <Text accessibilityRole="header" style={styles.title}>

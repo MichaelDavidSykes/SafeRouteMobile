@@ -42,15 +42,21 @@ describe("live map risk overlay interactions", () => {
     const riskMarkerFunction =
       /function RiskMarker[\s\S]*?export function VehicleMarker/.exec(source)?.[0] || "";
 
-    assert.match(source, /strokeColor=\{selected \? riskColors\.stroke : 'transparent'\}/);
+    assert.match(source, /strokeColor=\{selected \? riskColors\.selectionStroke : 'transparent'\}/);
     assert.match(source, /fillColor=\{selected \? riskColors\.selectedFill : riskColors\.fill\}/);
-    assert.match(source, /strokeWidth=\{selected \? 2 : 0\}/);
+    assert.match(source, /strokeWidth=\{selected \? 1 : 0\}/);
     assert.match(riskMarkerFunction, /zIndex=\{10\}/);
+    assert.match(riskMarkerFunction, /useMotionValue\(selected \? 1 : 0,[\s\S]*spring: true/);
     assert.match(riskMarkerFunction, /styles\.riskMarkerSelectionRing/);
-    assert.match(riskMarkerFunction, /selected \? styles\.riskMarkerSelectionRingVisible : null/);
+    assert.match(
+      riskMarkerFunction,
+      /backgroundColor: riskColors\.selectionHalo[\s\S]*borderColor: riskColors\.selectionStroke[\s\S]*opacity: selectionProgress/,
+    );
+    assert.doesNotMatch(riskMarkerFunction, /riskMarkerSelectionRingVisible/);
     assert.match(riskMarkerFunction, /<AlertTriangle[\s\S]*strokeWidth=\{2\.6\}/);
     assert.doesNotMatch(riskMarkerFunction, /zIndex=\{selected \|\| active/);
     assert.doesNotMatch(riskMarkerFunction, /selected\s*\?\s*<AlertTriangle/);
+    assert.doesNotMatch(source, /rgba\(10, 12, 17, 0\.72\)/);
   });
 
   it("exposes the live vehicle marker position to VoiceOver", () => {

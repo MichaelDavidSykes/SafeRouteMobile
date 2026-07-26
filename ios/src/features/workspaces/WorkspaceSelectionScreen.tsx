@@ -80,7 +80,7 @@ export function WorkspaceSelectionScreen({
           <View accessible accessibilityLabel="SafeRoute" style={styles.brand}>
             <Image
               accessibilityIgnoresInvertColors
-              source={require('../../../assets/logo-mark.png')}
+              source={require('../../../assets/logo-mark-approved.png')}
               style={styles.logo}
             />
             <Text style={styles.brandName}>SafeRoute</Text>

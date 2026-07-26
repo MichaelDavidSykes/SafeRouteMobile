@@ -29,9 +29,9 @@ describe('guest map tab bar inset', () => {
       'utf8',
     );
     const dockStart = screenSource.indexOf(
-      '<View pointerEvents="box-none" style={styles.sheetDock}>',
+      'styles.sheetDock,',
     );
-    const dockEnd = screenSource.indexOf('</View>', dockStart);
+    const dockEnd = screenSource.indexOf('</Animated.View>', dockStart);
     const collapsedSearch = screenSource.indexOf(
       'styles.collapsedSheetDock',
       dockStart,

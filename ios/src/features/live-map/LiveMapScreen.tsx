@@ -361,12 +361,15 @@ export function LiveMapScreen({
   };
   const viewportRisk = useViewportRiskAreas({
     accessToken: liveApiAccessToken,
+    cacheScopeId: principalId,
     clientId: activeRoutePlan.clientId,
     enabled:
-      online &&
       (!activeRoutePlan.clientId || workspaceAuthorizationFresh),
     onSessionExpired,
     onWorkspaceUnavailable: onWorkspaceUnavailable ? closeRouteForWorkspaceLoss : undefined,
+    refreshEnabled:
+      online &&
+      (!activeRoutePlan.clientId || workspaceAuthorizationFresh),
     region: liveRiskRegion,
   });
   const liveRoutePlan = useMemo<SavedSafeRoutePlan>(

@@ -187,11 +187,11 @@ module.exports = {
     userInterfaceStyle: 'light',
     scheme: 'saferoute',
     jsEngine: 'hermes',
-    icon: './assets/icon.png',
+    icon: './assets/icon-approved.png',
     splash: {
-      image: './assets/splash.png',
+      image: './assets/splash-approved.png',
       resizeMode: 'contain',
-      backgroundColor: '#f2f2f7'
+      backgroundColor: '#f7f7f5'
     },
     ios: {
       supportsTablet: false,
@@ -220,8 +220,8 @@ module.exports = {
           }
         : {}),
       adaptiveIcon: {
-        foregroundImage: './assets/adaptive-icon.png',
-        backgroundColor: '#000000'
+        foregroundImage: './assets/adaptive-icon-approved.png',
+        backgroundColor: '#f7f7f5'
       }
     },
     plugins: [

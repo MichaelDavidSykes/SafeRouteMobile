@@ -124,6 +124,14 @@ export const guestMapStyles = StyleSheet.create({
     shadowOffset: { width: 0, height: -6 },
     elevation: 18
   },
+  sheetKeyboardCornerFill: {
+    position: 'absolute',
+    right: 0,
+    bottom: -28,
+    left: 0,
+    height: 30,
+    backgroundColor: colors.sheet,
+  },
   sheetDock: {
     position: 'relative',
     zIndex: 31,
@@ -146,6 +154,9 @@ export const guestMapStyles = StyleSheet.create({
     flex: 1,
     maxHeight: 520
   },
+  sheetScrollContentSearching: {
+    paddingBottom: spacing.md,
+  },
   sheetFooter: {
     position: 'relative',
     zIndex: 2,
@@ -153,6 +164,14 @@ export const guestMapStyles = StyleSheet.create({
     paddingTop: spacing.xs,
     backgroundColor: colors.sheet,
     elevation: 2,
+  },
+  routeChoiceLabel: {
+    marginTop: spacing.sm,
+    marginBottom: spacing.xs,
+    color: colors.muted,
+    fontSize: typeScale.xs,
+    fontWeight: '700',
+    textAlign: 'center',
   },
   sheetGrabberTouch: {
     // Keep the visible grabber understated while giving the drag affordance a
@@ -231,6 +250,14 @@ export const guestMapStyles = StyleSheet.create({
   },
   workspaceSelectorPressed: {
     backgroundColor: colors.appleBlueSoft
+  },
+  workspaceSelectorContent: {
+    minWidth: 0,
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: spacing.sm,
   },
   workspaceSelectorCopy: {
     flex: 1,
@@ -380,6 +407,9 @@ export const guestMapStyles = StyleSheet.create({
   },
   travelModeOptionPressed: {
     opacity: 0.65,
+  },
+  travelModeOptionDisabled: {
+    opacity: 0.45,
   },
   travelModeLabel: {
     minWidth: 0,
@@ -549,8 +579,9 @@ export const guestMapStyles = StyleSheet.create({
     textAlign: 'center'
   },
   searchResults: {
-    maxHeight: 252,
-    marginTop: spacing.xs,
+    maxHeight: 280,
+    marginTop: spacing.sm,
+    marginBottom: spacing.sm,
     overflow: 'hidden',
     borderWidth: 0.5,
     borderColor: colors.glassBorder,
@@ -647,54 +678,50 @@ export const guestMapStyles = StyleSheet.create({
     fontSize: typeScale.sm,
     fontWeight: '800'
   },
-  mapActionMenu: {
-    position: 'absolute',
-    zIndex: 20,
-    elevation: 20,
-    right: spacing.md,
-    bottom: 250,
-    left: spacing.md,
-    padding: spacing.md,
-    borderWidth: 0.5,
-    borderColor: colors.glassBorder,
-    borderRadius: radius.xl,
-    backgroundColor: colors.surfaceTranslucent
+  mapActionIconTile: {
+    backgroundColor: colors.appleBlueSoft
   },
-  mapActionCopy: {
-    minWidth: 0
-  },
-  mapActionTitle: {
-    color: colors.ink,
-    fontSize: typeScale.sm,
-    fontWeight: '800'
-  },
-  mapActionSubtitle: {
-    marginTop: 2,
-    color: colors.muted,
-    fontSize: typeScale.xs,
-    fontWeight: '600'
+  mapActionBody: {
+    marginTop: 13,
+    color: colors.inkSoft,
+    fontSize: 13.5,
+    lineHeight: 20
   },
   mapActionButtons: {
     flexDirection: 'row',
-    gap: spacing.xs,
-    marginTop: spacing.sm
+    gap: spacing.sm,
+    marginTop: spacing.md
   },
   mapActionButton: {
     minHeight: controlSizes.secondary,
     flex: 1,
     alignItems: 'center',
     justifyContent: 'center',
-    paddingHorizontal: spacing.xs,
-    borderRadius: radius.pill,
+    paddingHorizontal: spacing.sm,
+    borderRadius: radius.pill
+  },
+  mapActionPrimaryButton: {
+    backgroundColor: colors.appleBlue
+  },
+  mapActionSecondaryButton: {
     backgroundColor: colors.control
   },
+  mapActionButtonDisabled: {
+    opacity: 0.45
+  },
   mapActionButtonPressed: {
-    backgroundColor: colors.appleBlueSoft,
+    opacity: 0.82,
     transform: [{ scale: 0.985 }]
   },
-  mapActionButtonText: {
+  mapActionPrimaryButtonText: {
+    color: colors.surface,
+    fontSize: typeScale.sm,
+    fontWeight: '800',
+    textAlign: 'center'
+  },
+  mapActionSecondaryButtonText: {
     color: colors.ink,
-    fontSize: typeScale.xs,
+    fontSize: typeScale.sm,
     fontWeight: '800',
     textAlign: 'center'
   },

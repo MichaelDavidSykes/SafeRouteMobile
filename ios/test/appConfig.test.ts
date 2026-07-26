@@ -129,11 +129,11 @@ describe('Expo production configuration', () => {
     assert.equal(expo.ios.supportsTablet, false);
     assert.equal(expo.ios.buildNumber, '1');
     assert.equal(expo.ios.config?.usesNonExemptEncryption, false);
-    assert.equal(expo.icon, './assets/icon.png');
+    assert.equal(expo.icon, './assets/icon-approved.png');
     assert.deepEqual(expo.splash, {
-      image: './assets/splash.png',
+      image: './assets/splash-approved.png',
       resizeMode: 'contain',
-      backgroundColor: '#f2f2f7'
+      backgroundColor: '#f7f7f5'
     });
   });
 

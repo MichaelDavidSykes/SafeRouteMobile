@@ -595,7 +595,7 @@ describe("App active workspace integration", () => {
     assert.match(guest, /sessionNoticeState\.accessibilityRole/);
     assert.match(
       guest,
-      /enabled:[\s\S]*online &&[\s\S]*!workspaceSelectionPending &&[\s\S]*!workspaceSelectionRequired &&[\s\S]*!workspaceAuthorizationRequired/,
+      /refreshEnabled:[\s\S]*online &&[\s\S]*!workspaceSelectionPending &&[\s\S]*!workspaceSelectionRequired &&[\s\S]*!workspaceAuthorizationRequired/,
     );
     assert.match(
       guest,

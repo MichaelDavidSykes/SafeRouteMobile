@@ -16,9 +16,16 @@ import {
 } from './areaRiskApiCore';
 import type { RiskZone } from './liveMapTypes';
 import { useWorkspaceRiskAreas } from './useWorkspaceRiskAreas';
+import { viewportRiskPersistentCache } from './viewportRiskPersistentCache';
+import {
+  VIEWPORT_RISK_PERSISTENT_MAX_AGE_MS,
+  mergeViewportRiskCaches,
+  normalizeViewportRiskCacheScopeId
+} from './viewportRiskPersistentCacheCore';
 import {
   cacheViewportRiskZones,
   canCacheViewportRiskFeed,
+  collectFreshViewportRiskZonesForRequests,
   getCachedViewportRiskZones,
   isAreaRiskFeedFailed,
   isAreaRiskFeedMissing,
@@ -43,25 +50,40 @@ const VIEWPORT_RISK_DEFAULT_COOLDOWN_SECONDS = 30;
 
 export function useViewportRiskAreas({
   accessToken,
+  cacheScopeId,
   clientId,
   enabled = true,
   onSessionExpired,
   onWorkspaceUnavailable,
+  refreshEnabled = true,
   region
 }: {
   accessToken?: string | null;
+  cacheScopeId?: string | null;
   clientId?: string | null;
   enabled?: boolean;
   onSessionExpired?: (message?: string) => void;
   onWorkspaceUnavailable?: (workspaceId: string) => void;
+  refreshEnabled?: boolean;
   region: Region;
 }) {
+  const normalizedAccessToken = String(accessToken || '').trim();
+  const normalizedClientId = String(clientId || '').trim();
+  const normalizedCacheScopeId = normalizeViewportRiskCacheScopeId(
+    cacheScopeId
+  ) || (
+    normalizedAccessToken && normalizedClientId
+      ? `workspace:${normalizedClientId}`
+      : 'guest'
+  );
   const workspaceRisk = useWorkspaceRiskAreas({
     accessToken,
+    cacheScopeId: normalizedCacheScopeId,
     clientId,
     enabled,
     onSessionExpired,
     onWorkspaceUnavailable,
+    refreshEnabled,
     region
   });
   const cacheRef = useRef<ViewportRiskCache>(new Map());
@@ -81,6 +103,7 @@ export function useViewportRiskAreas({
   const onWorkspaceUnavailableRef = useRef(onWorkspaceUnavailable);
   const pollStateRef = useRef({ attempts: 0, context: '' });
   const unavailableRetryStateRef = useRef({ attempts: 0, context: '' });
+  const persistentCacheLoadRevisionRef = useRef(0);
   const requestRevisionRef = useRef(0);
   const requestsRef = useRef<AreaRiskViewportRequest[]>([]);
   const zonesRef = useRef<RiskZone[]>([]);
@@ -95,8 +118,7 @@ export function useViewportRiskAreas({
   const [recoveryRevision, setRecoveryRevision] = useState(0);
   const [researchBlockedUntilMs, setResearchBlockedUntilMs] = useState(0);
   const [readBlockedUntilMs, setReadBlockedUntilMs] = useState(0);
-  const normalizedAccessToken = String(accessToken || '').trim();
-  const normalizedClientId = String(clientId || '').trim();
+  const [persistentCacheRevision, setPersistentCacheRevision] = useState(0);
   if (accessSessionIdentityRef.current.token !== normalizedAccessToken) {
     accessSessionIdentityRef.current = {
       identity: accessSessionIdentityRef.current.identity + 1,
@@ -125,9 +147,11 @@ export function useViewportRiskAreas({
   const accessContext = normalizedAccessToken && normalizedClientId
     ? `tenant:${normalizedClientId}:session-${accessSessionIdentityRef.current.identity}`
     : 'public';
-  const cacheScopeContext = `${enabled ? 'enabled' : 'disabled'}|${accessContext}`;
+  const cacheScopeContext =
+    `${enabled ? 'enabled' : 'disabled'}|${normalizedCacheScopeId}|${accessContext}`;
   const displayContext = `${cacheScopeContext}|${requestSignature}`;
   const researchAvailable = enabled
+    && refreshEnabled
     && researchBlockedUntilMs <= Date.now()
     && readBlockedUntilMs <= Date.now()
     && requests.length > 0
@@ -139,6 +163,7 @@ export function useViewportRiskAreas({
     accessToken,
     clientId,
     enabled,
+    refreshEnabled,
     requestSignature
   });
   const previousEligibility = requestEligibilityRef.current;
@@ -146,6 +171,7 @@ export function useViewportRiskAreas({
     previousEligibility.accessToken !== accessToken
     || previousEligibility.clientId !== clientId
     || previousEligibility.enabled !== enabled
+    || previousEligibility.refreshEnabled !== refreshEnabled
     || previousEligibility.requestSignature !== requestSignature
   ) {
     requestEligibilityEpochRef.current += 1;
@@ -153,6 +179,7 @@ export function useViewportRiskAreas({
       accessToken,
       clientId,
       enabled,
+      refreshEnabled,
       requestSignature
     };
   }
@@ -161,6 +188,38 @@ export function useViewportRiskAreas({
   clientIdRef.current = clientId;
   onSessionExpiredRef.current = onSessionExpired;
   onWorkspaceUnavailableRef.current = onWorkspaceUnavailable;
+
+  useEffect(() => {
+    const loadRevision = persistentCacheLoadRevisionRef.current + 1;
+    persistentCacheLoadRevisionRef.current = loadRevision;
+    let active = true;
+    if (!enabled) {
+      return () => {
+        active = false;
+      };
+    }
+
+    void viewportRiskPersistentCache.load(normalizedCacheScopeId).then(
+      (restoredCache) => {
+        if (
+          !active
+          || persistentCacheLoadRevisionRef.current !== loadRevision
+          || !restoredCache.size
+        ) {
+          return;
+        }
+        cacheRef.current = mergeViewportRiskCaches(
+          cacheRef.current,
+          restoredCache
+        );
+        setPersistentCacheRevision((revision) => revision + 1);
+      }
+    );
+
+    return () => {
+      active = false;
+    };
+  }, [enabled, normalizedCacheScopeId]);
 
   useEffect(() => {
     const remainingMs = researchBlockedUntilMs - Date.now();
@@ -205,6 +264,7 @@ export function useViewportRiskAreas({
       !controller.signal.aborted
       && requestRevisionRef.current === revision
       && requestEligibilityRef.current.enabled
+      && requestEligibilityRef.current.refreshEnabled
       && requestEligibilityEpochRef.current === requestEligibilityEpoch;
     let followupTimer: ReturnType<typeof setTimeout> | null = null;
 
@@ -253,37 +313,80 @@ export function useViewportRiskAreas({
 
     const cachedZones: RiskZone[][] = [];
     const requestsToLoad: AreaRiskViewportRequest[] = [];
+    let cachedRequestCount = 0;
     for (const request of activeRequests) {
-      const cached = getCachedViewportRiskZones(cacheRef.current, request);
+      const cached = getCachedViewportRiskZones(cacheRef.current, request, {
+        ttlMs: VIEWPORT_RISK_PERSISTENT_MAX_AGE_MS
+      });
       if (cached) {
+        cachedRequestCount += 1;
         cachedZones.push(cached);
       }
-      if (bypassCache || !cached) {
-        requestsToLoad.push(request);
-      }
+      requestsToLoad.push(request);
     }
 
-    if (!requestsToLoad.length) {
-      const nextZones = mergeRiskZonesById(...cachedZones);
-      setZones(nextZones);
+    const nearbyCachedResult = collectFreshViewportRiskZonesForRequests(
+      cacheRef.current,
+      activeRequests,
+      {
+        ttlMs: VIEWPORT_RISK_PERSISTENT_MAX_AGE_MS
+      }
+    );
+    const cachedResult = mergeRiskZonesById(
+      ...cachedZones,
+      nearbyCachedResult
+    );
+    const hasCompleteCachedCoverage =
+      cachedRequestCount === activeRequests.length;
+    const retainedZones = cacheScopeChanged ? [] : zonesRef.current;
+    if (!refreshEnabled) {
+      const offlineZones = resolveViewportRiskDisplayZones(
+        retainedZones,
+        cachedResult,
+        false
+      );
+      setZones(offlineZones);
       setLoading(false);
       setErrorMessage('');
-      setStatusMessage(nextZones.length ? 'Cached risk coverage.' : 'No cached risks in this map view.');
-      setCoverageState('cached');
+      setStatusMessage(
+        hasCompleteCachedCoverage
+          ? (
+            offlineZones.length
+              ? 'Cached risks are available while SafeRoute is offline.'
+              : 'Cached coverage is available while SafeRoute is offline.'
+          )
+          : (
+            offlineZones.length
+              ? 'Previously loaded risks remain visible while SafeRoute is offline.'
+              : ''
+          )
+      );
+      setCoverageState(
+        hasCompleteCachedCoverage
+          ? 'cached'
+          : (offlineZones.length ? 'stale' : 'idle')
+      );
       return () => controller.abort();
     }
-
-    const cachedResult = mergeRiskZonesById(...cachedZones);
-    const retainedZones = cacheScopeChanged ? [] : zonesRef.current;
     setZones(resolveViewportRiskDisplayZones(retainedZones, cachedResult, false));
-    setLoading(true);
+    setLoading(!hasCompleteCachedCoverage);
     setErrorMessage('');
     setStatusMessage(
-      researchRequested
-        ? 'Requesting risk research…'
-        : (recoveryRequested ? 'Retrying risk areas…' : 'Loading risk areas…')
+      hasCompleteCachedCoverage
+        ? (
+          cachedResult.length
+            ? 'Cached risks are visible while SafeRoute checks for updates.'
+            : 'Cached coverage is visible while SafeRoute checks for updates.'
+        )
+        : (
+          researchRequested
+            ? 'Requesting risk research…'
+            : (recoveryRequested
+              ? 'Retrying risk areas…'
+              : 'Loading risk areas…')
+        )
     );
-    setCoverageState('loading');
+    setCoverageState(hasCompleteCachedCoverage ? 'cached' : 'loading');
     const timer = setTimeout(() => {
       if (!requestIsCurrent()) {
         return;
@@ -385,7 +488,13 @@ export function useViewportRiskAreas({
           if (canCacheViewportRiskFeed(feed, {
             requireTenantResearch: Boolean(request.clientId)
           })) {
-            cacheViewportRiskZones(cacheRef.current, request, feed.zones);
+            cacheViewportRiskZones(cacheRef.current, request, feed.zones, {
+              ttlMs: VIEWPORT_RISK_PERSISTENT_MAX_AGE_MS
+            });
+            void viewportRiskPersistentCache.save(
+              normalizedCacheScopeId,
+              cacheRef.current
+            ).catch(() => undefined);
           }
           if (feed.readError && !feed.zones.length) {
             failedRequestCount += 1;
@@ -432,6 +541,9 @@ export function useViewportRiskAreas({
             requestRevisionRef.current += 1;
             controller.abort();
             cacheRef.current.clear();
+            void viewportRiskPersistentCache.clear(
+              normalizedCacheScopeId
+            ).catch(() => undefined);
             setZones([]);
             setLoading(false);
             setErrorMessage('');
@@ -470,7 +582,7 @@ export function useViewportRiskAreas({
         const replacementZones = resolveCompletedViewportRiskZones(
           cachedResult,
           mergeRiskZonesById(...receivedZones),
-          bypassCache
+          true
         );
         const visibleZones = resolveViewportRiskDisplayZones(
           unavailableRequestCount > 0
@@ -594,8 +706,11 @@ export function useViewportRiskAreas({
     cacheScopeContext,
     displayContext,
     enabled,
+    normalizedCacheScopeId,
     pollRevision,
+    persistentCacheRevision,
     recoveryRevision,
+    refreshEnabled,
     researchRevision,
     requestSignature,
     retryRevision

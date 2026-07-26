@@ -118,7 +118,7 @@ function AuthHeader({
       <Image
         accessibilityIgnoresInvertColors
         accessibilityLabel="SafeRoute"
-        source={require('../../../assets/logo-mark.png')}
+        source={require('../../../assets/logo-mark-approved.png')}
         style={styles.flowLogo}
       />
     ) : (
@@ -707,7 +707,7 @@ export function LoginScreen({
               <Image
                 accessibilityIgnoresInvertColors
                 accessibilityLabel="SafeRoute"
-                source={require('../../../assets/logo-mark.png')}
+                source={require('../../../assets/logo-mark-approved.png')}
                 style={styles.handoffLogo}
               />
               <Text accessibilityRole="header" style={styles.handoffBrand}>

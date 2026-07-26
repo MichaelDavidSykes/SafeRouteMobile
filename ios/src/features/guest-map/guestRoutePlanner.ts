@@ -227,10 +227,10 @@ export function createGuestRouteActionState({
 
   if (routePlotted) {
     return {
-      accessibilityHint: `Opens this plotted route to ${destinationLabel} in the live map preview.`,
-      accessibilityLabel: `Open route preview to ${destinationLabel}`,
+      accessibilityHint: `Opens this plotted route to ${destinationLabel}, ready to start live guidance.`,
+      accessibilityLabel: `Open route to ${destinationLabel} and start guidance`,
       disabled: false,
-      label: 'Preview map'
+      label: 'Start route'
     };
   }
 

@@ -82,7 +82,7 @@ describe("authenticated Map workspace recovery integration", () => {
     );
     assert.match(
       live,
-      /useViewportRiskAreas\(\{[\s\S]*enabled:[\s\S]*online &&[\s\S]*\(!activeRoutePlan\.clientId \|\| workspaceAuthorizationFresh\)/,
+      /useViewportRiskAreas\(\{[\s\S]*refreshEnabled:[\s\S]*online &&[\s\S]*\(!activeRoutePlan\.clientId \|\| workspaceAuthorizationFresh\)/,
     );
     assert.match(
       live,

@@ -37,6 +37,20 @@ describe('viewport risk hook integration contract', () => {
     assert.doesNotMatch(source, /regionalMaxRecords:\s*60/);
   });
 
+  it('restores cached risks first and revalidates them in the background', () => {
+    assert.match(source, /viewportRiskPersistentCache\.load/);
+    assert.match(source, /mergeViewportRiskCaches/);
+    assert.match(source, /collectFreshViewportRiskZonesForRequests/);
+    assert.match(source, /VIEWPORT_RISK_PERSISTENT_MAX_AGE_MS/);
+    assert.match(source, /cachedRequestCount === activeRequests\.length/);
+    assert.match(source, /Cached risks are visible while SafeRoute checks for updates/);
+    assert.match(source, /Cached risks are available while SafeRoute is offline/);
+    assert.match(source, /if \(!refreshEnabled\)/);
+    assert.match(source, /requestsToLoad\.push\(request\)/);
+    assert.match(source, /viewportRiskPersistentCache\.save/);
+    assert.match(source, /resolveCompletedViewportRiskZones\([\s\S]*true/);
+  });
+
   it('exposes explicit research, strict poll, empty, partial, stale, and retry states', () => {
     assert.match(source, /intent:\s*researchRequested \? 'research' : 'read'/);
     assert.match(source, /researchAvailable/);
@@ -68,7 +82,7 @@ describe('viewport risk hook integration contract', () => {
     assert.match(stateSource, /Risk areas could not be updated/);
     assert.match(stateSource, /Risk coverage is temporarily unavailable/);
     assert.match(source, /Risk areas are waiting for a valid map view\./);
-    assert.match(source, /\bretry,\n/);
+    assert.match(source, /\bretry,\r?\n/);
     assert.match(source, /research,/);
   });
 

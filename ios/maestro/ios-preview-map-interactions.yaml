@@ -130,5 +130,12 @@ appId: host.exp.Exponent
     waitToSettleTimeoutMs: 1000
 - extendedWaitUntil:
     visible:
+      id: "guest-map-travel-mode-selector"
+    timeout: 10000
+- tapOn:
+    id: "guest-map-travel-mode-drive"
+    waitToSettleTimeoutMs: 1000
+- extendedWaitUntil:
+    visible:
       id: "guest-map-route-preview"
     timeout: 30000

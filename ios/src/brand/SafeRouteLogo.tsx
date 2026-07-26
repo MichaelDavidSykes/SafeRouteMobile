@@ -12,7 +12,7 @@ import { colors, radius } from "../theme";
 // Use the opaque app artwork here rather than the alpha-only logo mask. The
 // latter can decode as an empty image in Expo Go on iOS, leaving only the
 // black frame visible on the sign-in screen.
-const safeRouteLogoMark = require("../../assets/icon.png");
+const safeRouteLogoMark = require("../../assets/icon-approved.png");
 
 interface SafeRouteLogoProps {
   accessibilityLabel?: string;

@@ -8,6 +8,7 @@ import {
   cacheViewportRiskZones,
   canCacheViewportRiskFeed,
   collectFreshViewportRiskZones,
+  collectFreshViewportRiskZonesForRequests,
   getCachedViewportRiskZones,
   isAreaRiskFeedMissing,
   isAreaRiskFeedFailed,
@@ -440,6 +441,49 @@ describe('viewport risk state', () => {
 
     assert.deepEqual(zones.map((zone) => zone.id), ['shared', 'unique']);
     assert.equal(zones[0].severity, 'high');
+  });
+
+  it('reuses only spatially relevant cached zones for a nearby viewport', () => {
+    const cache: ViewportRiskCache = new Map();
+    const nearbyRequest = createRequest();
+    const farRequest = createRequest({
+      bbox: '40.00000,10.00000,40.10000,10.10000',
+      minLat: 40,
+      maxLat: 40.1,
+      minLon: 10,
+      maxLon: 10.1
+    });
+    const farZone = createZone('far', 'high');
+    farZone.coordinate = { latitude: 40.05, longitude: 10.05 };
+    cacheViewportRiskZones(
+      cache,
+      nearbyRequest,
+      [createZone('nearby', 'medium')],
+      { now: 100 }
+    );
+    cacheViewportRiskZones(cache, farRequest, [farZone], { now: 200 });
+
+    const visible = collectFreshViewportRiskZonesForRequests(
+      cache,
+      [createRequest({
+        bbox: '51.49000,-0.16000,51.56000,-0.04000',
+        minLat: 51.49,
+        maxLat: 51.56,
+        minLon: -0.16,
+        maxLon: -0.04
+      })],
+      { now: 300 }
+    );
+
+    assert.deepEqual(visible.map((zone) => zone.id), ['nearby']);
+    assert.equal(
+      cache.get(viewportRiskCacheKey(nearbyRequest))?.lastAccessedAt,
+      300
+    );
+    assert.equal(
+      cache.get(viewportRiskCacheKey(farRequest))?.lastAccessedAt,
+      200
+    );
   });
 });
 

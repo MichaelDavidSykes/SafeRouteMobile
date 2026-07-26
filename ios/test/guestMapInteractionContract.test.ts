@@ -12,6 +12,10 @@ describe('guest map interaction contract', () => {
     join(process.cwd(), 'src/features/guest-map/GuestMapScreen.styles.ts'),
     'utf8'
   );
+  const mapDetailCallout = readFileSync(
+    join(process.cwd(), 'src/features/live-map/LiveMapRiskDetailCallout.tsx'),
+    'utf8'
+  );
   const deviceHeadingHook = readFileSync(
     join(process.cwd(), 'src/features/maps/useDeviceHeading.ts'),
     'utf8'
@@ -23,13 +27,61 @@ describe('guest map interaction contract', () => {
     assert.match(screen, /testID=\{uiTestIds\.guestMapAddWaypoint\}/);
     assert.match(
       screen,
-      /<View style=\{styles\.inputStack\}>[\s\S]*testID=\{uiTestIds\.guestMapAddWaypoint\}[\s\S]*<\/ScrollView>\s*<View style=\{styles\.sheetFooter\}>[\s\S]*<TravelModeSelector/,
+      /const searchStageActive = Boolean\(activeInput\);[\s\S]*const showRouteFooter =[\s\S]*!searchStageActive/,
+    );
+    assert.match(
+      screen,
+      /\{!searchStageActive \? \(\s*<Pressable[\s\S]*testID=\{uiTestIds\.guestMapAddWaypoint\}/,
+    );
+    assert.match(
+      screen,
+      /configureNextSafeRouteLayoutAnimation\(duration, options\)[\s\S]*GUEST_SEARCH_STAGE_TRANSITION_MS/,
+    );
+    assert.match(
+      screen,
+      /useKeyboardTranslateY\(\{[\s\S]*reduceMotionEnabled[\s\S]*viewportHeight: viewport\.height/,
+    );
+    assert.match(
+      screen,
+      /duration=\{GUEST_SEARCH_STAGE_TRANSITION_MS\}[\s\S]*testID=\{uiTestIds\.guestMapSearchResults\}[\s\S]*variant="scrim"/,
+    );
+    assert.doesNotMatch(
+      screen,
+      /replayKey=\{`\$\{pending\}:\$\{message\}:\$\{results\.length\}:\$\{shortcuts\.length\}`\}/,
+    );
+    assert.match(
+      screen,
+      /\{showRouteFooter \? \([\s\S]*routeChoicesOpen && !routePlan[\s\S]*Choose travel mode to plot[\s\S]*<TravelModeSelector/,
+    );
+    assert.match(
+      screen,
+      /handlePresentRouteChoices[\s\S]*setRouteChoicesOpen\(true\)/,
+    );
+    assert.match(
+      screen,
+      /handleTravelModeChange[\s\S]*setTravelMode\(nextMode\)[\s\S]*handlePlotRoute\(nextMode\)/,
     );
     assert.equal(
       (screen.match(/testID=\{uiTestIds\.guestMapAddWaypoint\}/g) || []).length,
       1,
     );
-    assert.match(screen, /KeyboardAvoidingView/);
+    assert.match(
+      screen,
+      /<KeyboardAvoidingView[\s\S]*behavior="height"[\s\S]*enabled=\{Platform\.OS !== 'ios'\}/,
+    );
+    assert.match(
+      screen,
+      /styles\.sheetDock[\s\S]*transform: \[\{ translateY: keyboardTranslateY \}\]/,
+    );
+    assert.match(screen, /styles\.sheetKeyboardCornerFill/);
+    assert.match(
+      styles,
+      /sheetKeyboardCornerFill:[\s\S]*bottom: -28[\s\S]*backgroundColor: colors\.sheet/,
+    );
+    assert.match(
+      styles,
+      /searchResults:[\s\S]*maxHeight: 280[\s\S]*marginTop: spacing\.sm[\s\S]*marginBottom: spacing\.sm/,
+    );
     assert.match(screen, /keyboardDismissMode="interactive"/);
     assert.match(screen, /keyboardShouldPersistTaps="handled"/);
     assert.match(screen, /mapGuestRouteDraftToCheckpoints/);
@@ -72,11 +124,25 @@ describe('guest map interaction contract', () => {
   });
 
   it('shows the handoff blue location dot without a directional triangle', () => {
+    const plottedRouteIndex = screen.indexOf(
+      'coordinates={routePlan.route.coordinates}',
+    );
+    const currentLocationMarkerIndex = screen.indexOf(
+      'testID={uiTestIds.guestMapCurrentLocationMarker}',
+    );
+
     assert.match(screen, /useDeviceHeading\(permissionStatus === 'granted'\)/);
     assert.match(deviceHeadingHook, /Location\.watchHeadingAsync\(/);
     assert.match(deviceHeadingHook, /subscription\?\.remove\(\)/);
     assert.match(screen, /showsUserLocation=\{false\}/);
     assert.match(screen, /testID=\{uiTestIds\.guestMapCurrentLocationMarker\}/);
+    assert.match(screen, /currentLocationVisible && liveCoordinate \? \(/);
+    assert.match(
+      screen,
+      /liveCoordinate && isCurrentLocationLabel\(origin\)[\s\S]*fitToCoordinates\(routeFitCoordinates/,
+    );
+    assert.match(screen, /title="Current location"[\s\S]*zIndex=\{100\}/);
+    assert.ok(currentLocationMarkerIndex > plottedRouteIndex);
     assert.match(screen, /onRegionChangeComplete=\{handleMapRegionChangeComplete\}/);
     assert.doesNotMatch(screen, /deviceHeadingScreenRotation|currentLocationDirectionBorder|currentLocationDirectionFill/);
     assert.match(screen, /createDeviceHeadingAccessibilityLabel\(deviceHeadingDegrees\)/);
@@ -95,7 +161,7 @@ describe('guest map interaction contract', () => {
     );
     assert.match(
       screen,
-      /enabled:[\s\S]*online &&[\s\S]*!workspaceSelectionPending/,
+      /refreshEnabled:[\s\S]*online &&[\s\S]*!workspaceSelectionPending/,
     );
     assert.match(screen, /Saving workspace…/);
     assert.match(screen, /Wait while the workspace choice is saved/);
@@ -129,11 +195,30 @@ describe('guest map interaction contract', () => {
   it('supports a smooth collapsible route sheet and deliberate map long-press actions', () => {
     assert.match(screen, /resolveGuestRouteSheetHeight\(viewport\.height\)/);
     assert.doesNotMatch(screen, /viewport\.height\s*-\s*72/);
-    assert.match(screen, /Animated\.spring\(sheetProgress/);
+    assert.match(screen, /Animated\.timing\(sheetProgress/);
+    assert.match(screen, /safeRouteEasing\.settled/);
+    assert.match(
+      screen,
+      /handleCollapsedLocationSearch[\s\S]*transitionActiveInput\(nextStopId\)[\s\S]*animateRouteSheet\([\s\S]*scheduleRouteStopInputFocus\(nextStopId\)/,
+    );
+    assert.match(screen, /outputRange: \[0, 24\]/);
+    assert.doesNotMatch(screen, /outputRange: \[0, 620\]/);
     assert.match(screen, /PanResponder\.create/);
     assert.match(screen, /testID=\{uiTestIds\.guestMapCollapsedSheet\}/);
     assert.match(screen, /onLongPress=\{\(event\) => handleMapLongPress/);
     assert.match(screen, /testID=\{uiTestIds\.guestMapLongPressMenu\}/);
+    assert.match(
+      screen,
+      /<LiveMapDetailCallout[\s\S]*testID=\{uiTestIds\.guestMapLongPressMenu\}/,
+    );
+    assert.match(
+      mapDetailCallout,
+      /<LiveMapDetailCallout[\s\S]*testID=\{uiTestIds\.liveMapRiskDetail\}/,
+    );
+    assert.match(screen, /sheetCollapsed && !selectedRiskZone && !mapAction/);
+    assert.match(screen, /\{!selectedRiskZone && !mapAction \? \(/);
+    assert.doesNotMatch(styles, /mapActionMenu:/);
+    assert.match(styles, /mapActionIconTile:[\s\S]*backgroundColor: colors\.appleBlueSoft/);
     assert.match(screen, />Add stop<\/Text>/);
     assert.match(screen, /Add risk area/);
     assert.match(screen, /handleMapLongPress[\s\S]*animateRouteSheet\(true\)/);
@@ -141,8 +226,23 @@ describe('guest map interaction contract', () => {
     assert.doesNotMatch(screen, /Ionicons|MaterialIcons|FontAwesome/);
   });
 
+  it('keeps a plotted route start action available while location search is open', () => {
+    assert.match(
+      screen,
+      /const showRouteFooter =\s*routePlotted \|\|[\s\S]*!searchStageActive/,
+    );
+    assert.match(
+      screen,
+      /!searchStageActive && routePlan && routeAlternatives\.length > 1/,
+    );
+    assert.match(
+      screen,
+      /showRouteFooter \? \([\s\S]*testID=\{uiTestIds\.guestMapPlotAction\}[\s\S]*onPress=\{routePlan \? handleOpenPreview : handlePresentRouteChoices\}/,
+    );
+  });
+
   it('collapses accepted route plots and reopens only when road routing fails', () => {
-    const plotStart = screen.indexOf('const handlePlotRoute = async () => {');
+    const plotStart = screen.indexOf('const handlePlotRoute = async (');
     const roadUpgradeStart = screen.indexOf(
       'const upgradeGuestRouteWithRoadPreview =',
       plotStart,
@@ -199,7 +299,7 @@ describe('guest map interaction contract', () => {
     assert.match(screen, /handleCollapsedLocationSearch/);
     assert.match(
       screen,
-      /resolveGuestRouteDraftNextStopInputId\(routeDraft\)[\s\S]*animateRouteSheet\(false\)[\s\S]*focusRouteStopInput\(nextStopId\)/
+      /resolveGuestRouteDraftNextStopInputId\(routeDraft\)[\s\S]*transitionActiveInput\(nextStopId\)[\s\S]*animateRouteSheet\([\s\S]*false[\s\S]*scheduleRouteStopInputFocus\(nextStopId\)/
     );
     assert.match(screen, /routeInputRefs\.current\.get\(stopId\)\?\.focus\(\)/);
     assert.doesNotMatch(screen, />Expand<\/Text>/);

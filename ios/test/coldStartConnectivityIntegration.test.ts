@@ -172,7 +172,7 @@ describe("cold-start connectivity integration", () => {
     );
     assert.match(
       guest,
-      /enabled:[\s\S]*online &&[\s\S]*!workspaceSelectionRequired/,
+      /refreshEnabled:[\s\S]*online &&[\s\S]*!workspaceSelectionRequired/,
     );
     assert.match(
       guest,
@@ -200,7 +200,7 @@ describe("cold-start connectivity integration", () => {
     );
     assert.match(
       live,
-      /enabled:[\s\S]*online &&[\s\S]*workspaceAuthorizationFresh/,
+      /refreshEnabled:[\s\S]*online &&[\s\S]*workspaceAuthorizationFresh/,
     );
     assert.match(
       live,

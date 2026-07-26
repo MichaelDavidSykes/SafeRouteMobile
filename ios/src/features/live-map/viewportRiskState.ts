@@ -1,4 +1,5 @@
 import {
+  areaRiskItemIntersectsBounds,
   areaRiskViewportRequestKey,
   mergeRiskZonesById,
   type AreaRiskCacheKeyOptions,
@@ -409,6 +410,57 @@ export function collectFreshViewportRiskZones(
 ): RiskZone[] {
   pruneViewportRiskCache(cache, { now, ttlMs, maxEntries: VIEWPORT_RISK_CACHE_MAX_ENTRIES });
   return mergeRiskZonesById(...Array.from(cache.values()).map((entry) => entry.zones));
+}
+
+export function collectFreshViewportRiskZonesForRequests(
+  cache: ViewportRiskCache,
+  requests: readonly AreaRiskViewportRequest[],
+  {
+    limit = VIEWPORT_RISK_CACHE_MAX_ENTRIES * 10,
+    now = Date.now(),
+    ttlMs = VIEWPORT_RISK_CACHE_TTL_MS
+  }: Pick<ViewportRiskCachePruneOptions, 'now' | 'ttlMs'> & {
+    limit?: number;
+  } = {}
+): RiskZone[] {
+  pruneViewportRiskCache(cache, {
+    maxEntries: VIEWPORT_RISK_CACHE_MAX_ENTRIES,
+    now,
+    ttlMs
+  });
+  if (!requests.length) {
+    return [];
+  }
+
+  const matchingZones: RiskZone[][] = [];
+  for (const entry of cache.values()) {
+    const visibleZones = entry.zones.filter((zone) =>
+      requests.some((request) =>
+        areaRiskItemIntersectsBounds({
+          ...zone,
+          coordinates:
+            zone.polygonCoordinates?.length
+              ? zone.polygonCoordinates
+              : zone.routeSegmentCoordinates
+        }, {
+          south: request.minLat,
+          west: request.minLon,
+          north: request.maxLat,
+          east: request.maxLon
+        })
+      )
+    );
+    if (visibleZones.length) {
+      entry.lastAccessedAt = now;
+      matchingZones.push(visibleZones);
+    }
+  }
+
+  const safeLimit = Math.max(
+    0,
+    Math.trunc(Number.isFinite(limit) ? limit : VIEWPORT_RISK_CACHE_MAX_ENTRIES * 10)
+  );
+  return mergeRiskZonesById(...matchingZones).slice(0, safeLimit);
 }
 
 export function pruneViewportRiskCache(

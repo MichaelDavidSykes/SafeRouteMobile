@@ -575,13 +575,13 @@ function isStoredCoordinate(value: unknown): boolean {
     return false;
   }
 
-  const latitude = Number(value.latitude);
-  const longitude = Number(value.longitude);
+  const latitude = value.latitude;
+  const longitude = value.longitude;
   return (
-    Number.isFinite(latitude) &&
+    isFiniteNumber(latitude) &&
     latitude >= -90 &&
     latitude <= 90 &&
-    Number.isFinite(longitude) &&
+    isFiniteNumber(longitude) &&
     longitude >= -180 &&
     longitude <= 180
   );
@@ -655,14 +655,16 @@ function isStoredNavigationSteps(
       return false;
     }
 
-    const distanceAlongMeters = Number(step.distanceAlongMeters);
+    const distanceAlongMeters = step.distanceAlongMeters;
+    if (!isFiniteNumber(distanceAlongMeters)) {
+      return false;
+    }
     const valid =
       typeof step.id === "string" &&
       typeof step.instruction === "string" &&
       typeof step.maneuverType === "string" &&
       isOptionalNullableString(step.modifier) &&
       isOptionalNullableString(step.roadName) &&
-      Number.isFinite(distanceAlongMeters) &&
       distanceAlongMeters >= previousDistanceAlongMeters &&
       distanceAlongMeters <= routeDistanceMeters + 1_000 &&
       isOptionalNullableNonNegativeNumber(step.distanceMeters) &&
@@ -767,8 +769,10 @@ function utf8ByteLength(value: string): number {
   return byteLength;
 }
 
-function isFiniteNumber(value: unknown): boolean {
-  return Number.isFinite(Number(value));
+// Persisted route data crosses a native map boundary; reject numeric-looking
+// strings instead of passing them through under a false number type.
+function isFiniteNumber(value: unknown): value is number {
+  return typeof value === "number" && Number.isFinite(value);
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {

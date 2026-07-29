@@ -51,6 +51,7 @@ export function RouteDetailSheet({ onClose, route }: RouteDetailSheetProps) {
     }
     Animated.spring(sheetTranslateY, {
       damping: 24,
+      isInteraction: false,
       mass: 0.9,
       stiffness: 220,
       toValue: 0,
@@ -75,18 +76,21 @@ export function RouteDetailSheet({ onClose, route }: RouteDetailSheetProps) {
       Animated.timing(sheetTranslateY, {
         duration: 210,
         easing: Easing.out(Easing.cubic),
+        isInteraction: false,
         toValue: viewportHeightRef.current,
         useNativeDriver: true,
       }),
       Animated.timing(sheetOpacity, {
         duration: 210,
         easing: Easing.out(Easing.ease),
+        isInteraction: false,
         toValue: 0,
         useNativeDriver: true,
       }),
       Animated.timing(scrimOpacity, {
         duration: 210,
         easing: Easing.out(Easing.ease),
+        isInteraction: false,
         toValue: 0,
         useNativeDriver: true,
       }),
@@ -153,18 +157,21 @@ export function RouteDetailSheet({ onClose, route }: RouteDetailSheetProps) {
         Animated.timing(sheetTranslateY, {
           duration: safeRouteMotion.sheetDurationMs,
           easing: Easing.bezier(0.2, 0.7, 0.2, 1),
+          isInteraction: false,
           toValue: 0,
           useNativeDriver: true,
         }),
         Animated.timing(sheetOpacity, {
           duration: safeRouteMotion.sheetDurationMs,
           easing: Easing.bezier(0.2, 0.7, 0.2, 1),
+          isInteraction: false,
           toValue: 1,
           useNativeDriver: true,
         }),
         Animated.timing(scrimOpacity, {
           duration: safeRouteMotion.scrimDurationMs,
           easing: Easing.out(Easing.ease),
+          isInteraction: false,
           toValue: 1,
           useNativeDriver: true,
         }),

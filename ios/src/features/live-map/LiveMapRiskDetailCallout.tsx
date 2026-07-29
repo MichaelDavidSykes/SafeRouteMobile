@@ -167,12 +167,14 @@ export function LiveMapDetailCallout({
       Animated.timing(translateY, {
         duration: safeRouteMotion.sheetExitDurationMs,
         easing: safeRouteEasing.exit,
+        isInteraction: false,
         toValue: translateTo,
         useNativeDriver: true,
       }),
       Animated.timing(dismissProgress, {
         duration: safeRouteMotion.sheetExitDurationMs,
         easing: safeRouteEasing.exit,
+        isInteraction: false,
         toValue: 1,
         useNativeDriver: true,
       }),
@@ -228,6 +230,7 @@ export function LiveMapDetailCallout({
         translateY.stopAnimation();
         Animated.spring(translateY, {
           ...safeRouteSpring,
+          isInteraction: false,
           toValue: 0,
           useNativeDriver: true,
         }).start();
@@ -236,6 +239,7 @@ export function LiveMapDetailCallout({
         translateY.stopAnimation();
         Animated.spring(translateY, {
           ...safeRouteSpring,
+          isInteraction: false,
           toValue: 0,
           useNativeDriver: true,
         }).start();

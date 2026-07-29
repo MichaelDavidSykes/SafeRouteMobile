@@ -619,6 +619,7 @@ export function GuestMapScreen({
       easing: collapsed
         ? safeRouteEasing.exit
         : safeRouteEasing.settled,
+      isInteraction: false,
       toValue: collapsed ? 1 : 0,
       useNativeDriver: true
     }).start(({ finished }) => {

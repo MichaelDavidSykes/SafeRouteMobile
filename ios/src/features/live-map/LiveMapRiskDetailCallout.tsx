@@ -140,6 +140,7 @@ export function LiveMapDetailCallout({
 }) {
   const translateY = useRef(new Animated.Value(0)).current;
   const dismissProgress = useRef(new Animated.Value(0)).current;
+  const dismissAnimationRevisionRef = useRef(0);
   const dismissingRef = useRef(false);
   const reduceMotionEnabled = useReduceMotionEnabled();
   const reduceMotionEnabledRef = useRef(reduceMotionEnabled);
@@ -156,6 +157,8 @@ export function LiveMapDetailCallout({
     dismissingRef.current = true;
     translateY.stopAnimation();
     dismissProgress.stopAnimation();
+    const animationRevision = dismissAnimationRevisionRef.current + 1;
+    dismissAnimationRevisionRef.current = animationRevision;
     if (reduceMotionEnabledRef.current) {
       onDismissRef.current();
       return;
@@ -174,6 +177,9 @@ export function LiveMapDetailCallout({
         useNativeDriver: true,
       }),
     ]).start(({ finished }) => {
+      if (dismissAnimationRevisionRef.current !== animationRevision) {
+        return;
+      }
       if (finished) {
         onDismissRef.current();
       } else {
@@ -183,9 +189,18 @@ export function LiveMapDetailCallout({
   };
 
   useEffect(() => {
+    dismissAnimationRevisionRef.current += 1;
+    translateY.stopAnimation();
+    dismissProgress.stopAnimation();
     dismissingRef.current = false;
     translateY.setValue(0);
     dismissProgress.setValue(0);
+
+    return () => {
+      dismissAnimationRevisionRef.current += 1;
+      translateY.stopAnimation();
+      dismissProgress.stopAnimation();
+    };
   }, [dismissProgress, replayKey, translateY]);
 
   const panResponder = useRef(

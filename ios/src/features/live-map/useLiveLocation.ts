@@ -363,16 +363,19 @@ export function useLiveLocation({
       return false;
     }
 
-    if (mountedRef.current) {
-      setBackgroundStatus('requesting');
-    }
     if (
       !backgroundRouteId ||
       !backgroundAccessScope ||
       !backgroundNavigationInstanceId
     ) {
+      if (mountedRef.current) {
+        setBackgroundStatus('error');
+      }
       await stopBackgroundNavigation();
       return false;
+    }
+    if (mountedRef.current) {
+      setBackgroundStatus('requesting');
     }
     const nextResult = await requestAndStartBackgroundNavigation({
       accessScope: backgroundAccessScope,

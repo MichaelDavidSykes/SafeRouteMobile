@@ -221,6 +221,7 @@ export function useKeyboardTranslateY({
       Animated.timing(translateY, {
         duration,
         easing: safeRouteEasing.settled,
+        isInteraction: false,
         toValue: -keyboardOverlap,
         useNativeDriver: true,
       }).start();
@@ -282,6 +283,7 @@ export function useEntranceProgress({
       delay,
       duration,
       easing: safeRouteEasing.settled,
+      isInteraction: false,
       toValue: 1,
       useNativeDriver: true,
     });
@@ -389,12 +391,14 @@ export function useMotionValue(
     const animation = spring
       ? Animated.spring(animatedValue, {
           ...safeRouteSpring,
+          isInteraction: false,
           toValue: value,
           useNativeDriver: true,
         })
       : Animated.timing(animatedValue, {
           duration,
           easing: safeRouteEasing.settled,
+          isInteraction: false,
           toValue: value,
           useNativeDriver: true,
         });

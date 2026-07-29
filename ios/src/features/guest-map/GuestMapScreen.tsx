@@ -56,7 +56,7 @@ import {
   useMotionValue,
   useReduceMotionEnabled,
 } from '../../motion/SafeRouteMotion';
-import { chrome, colors, spacing } from '../../theme';
+import { colors } from '../../theme';
 import { uiTestIds } from '../../testing/uiTestIds';
 import type {
   SafeRouteTravelMode,
@@ -625,10 +625,6 @@ export function GuestMapScreen({
       pendingInputFocusFrameRef.current = null;
       routeInputRefs.current.get(stopId)?.focus();
     });
-  };
-  const focusRouteStopInput = (stopId: string) => {
-    transitionActiveInput(stopId);
-    scheduleRouteStopInputFocus(stopId);
   };
   const handleCollapsedLocationSearch = () => {
     const nextStopId = resolveGuestRouteDraftNextStopInputId(routeDraft);

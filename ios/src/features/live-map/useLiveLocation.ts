@@ -222,6 +222,27 @@ export function useLiveLocation({
       }
     };
 
+    void startTracking().catch(() => {
+      if (!mounted) {
+        return;
+      }
+
+      setErrorMessage(LIVE_LOCATION_UNAVAILABLE_MESSAGE);
+    });
+
+    return () => {
+      mounted = false;
+      subscription?.remove();
+    };
+  }, [
+    acceptLocationObject,
+    navigationActive,
+    permissionRequested
+  ]);
+
+  useEffect(() => {
+    let mounted = true;
+
     const restoreBackgroundLocation = async () => {
       if (
         !backgroundRouteId ||
@@ -233,7 +254,7 @@ export function useLiveLocation({
       const backgroundLocation = await loadBackgroundNavigationLocation(
         backgroundRouteId,
         backgroundAccessScope,
-        backgroundNavigationInstanceId || "",
+        backgroundNavigationInstanceId,
       );
       if (mounted && backgroundLocation) {
         acceptReliableSample(backgroundLocation);
@@ -241,46 +262,37 @@ export function useLiveLocation({
     };
 
     const appStateSubscription = AppState.addEventListener('change', (nextState) => {
-      if (nextState === 'active') {
-        void restoreBackgroundLocation();
-        // A denied user may have returned from system settings, so refresh
-        // native permission state even before tracking has been requested.
-        if (
-          manageBackgroundNavigation &&
-          navigationActiveRef.current
-        ) {
-          void inspectBackgroundNavigation().then((nextResult) => {
-            if (mounted) {
-              setBackgroundStatus(nextResult.status);
-            }
-          });
-        }
-      }
-    });
-
-    void startTracking().catch(() => {
-      if (!mounted) {
+      if (nextState !== 'active') {
         return;
       }
 
-      setErrorMessage(LIVE_LOCATION_UNAVAILABLE_MESSAGE);
+      void restoreBackgroundLocation();
+      // A denied user may have returned from system settings, so refresh
+      // native permission state even before tracking has been requested.
+      if (
+        manageBackgroundNavigation &&
+        navigationActiveRef.current
+      ) {
+        void inspectBackgroundNavigation().then((nextResult) => {
+          if (mounted) {
+            setBackgroundStatus(nextResult.status);
+          }
+        });
+      }
     });
+
     void restoreBackgroundLocation();
 
     return () => {
       mounted = false;
-      subscription?.remove();
       appStateSubscription.remove();
     };
   }, [
-    acceptLocationObject,
     acceptReliableSample,
     backgroundAccessScope,
     backgroundNavigationInstanceId,
     backgroundRouteId,
-    manageBackgroundNavigation,
-    navigationActive,
-    permissionRequested
+    manageBackgroundNavigation
   ]);
 
   useEffect(() => {

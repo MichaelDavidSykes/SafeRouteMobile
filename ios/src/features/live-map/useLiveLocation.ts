@@ -359,7 +359,13 @@ export function useLiveLocation({
     }
 
     if (backgroundStatus === 'denied') {
-      await Linking.openSettings();
+      try {
+        await Linking.openSettings();
+      } catch {
+        if (mountedRef.current) {
+          setBackgroundStatus('error');
+        }
+      }
       return false;
     }
 

@@ -110,7 +110,11 @@ export function useWorkspaceRiskAreas({
         setAllZones(snapshot.zones);
         setLoadedContext(requestContext);
       }
-      setLoading(false);
+      // Cached data can render immediately while refresh continues. Without a
+      // cache, keep progress visible until the fresh request actually settles.
+      if (snapshot || !refreshEnabled) {
+        setLoading(false);
+      }
       if (snapshot && refreshFailed) {
         setErrorMessage(
           'Shared workspace risk areas could not be refreshed. Last-confirmed markers remain visible.'

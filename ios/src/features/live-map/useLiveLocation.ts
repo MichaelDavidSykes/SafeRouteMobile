@@ -243,10 +243,11 @@ export function useLiveLocation({
     const appStateSubscription = AppState.addEventListener('change', (nextState) => {
       if (nextState === 'active') {
         void restoreBackgroundLocation();
+        // A denied user may have returned from system settings, so refresh
+        // native permission state even before tracking has been requested.
         if (
           manageBackgroundNavigation &&
-          navigationActiveRef.current &&
-          backgroundTrackingRequested
+          navigationActiveRef.current
         ) {
           void inspectBackgroundNavigation().then((nextResult) => {
             if (mounted) {
@@ -277,7 +278,6 @@ export function useLiveLocation({
     backgroundAccessScope,
     backgroundNavigationInstanceId,
     backgroundRouteId,
-    backgroundTrackingRequested,
     manageBackgroundNavigation,
     navigationActive,
     permissionRequested

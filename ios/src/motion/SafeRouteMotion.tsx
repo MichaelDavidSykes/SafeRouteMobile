@@ -14,7 +14,7 @@ import {
   useEffect,
   useMemo,
   useRef,
-  useState,
+  useSyncExternalStore,
   type PropsWithChildren,
 } from 'react';
 
@@ -128,28 +128,63 @@ const entranceSpecs: Record<EntranceVariant, EntranceSpec> = {
   },
 };
 
-export function useReduceMotionEnabled(): boolean {
-  const [reduceMotionEnabled, setReduceMotionEnabled] = useState(false);
+type ReduceMotionListener = () => void;
 
-  useEffect(() => {
-    let active = true;
-    void AccessibilityInfo.isReduceMotionEnabled().then((enabled) => {
-      if (active) {
-        setReduceMotionEnabled(enabled);
+const reduceMotionListeners = new Set<ReduceMotionListener>();
+let reduceMotionSnapshot = false;
+let reduceMotionSubscription: { remove: () => void } | null = null;
+
+function updateReduceMotionSnapshot(enabled: boolean): void {
+  if (reduceMotionSnapshot === enabled) {
+    return;
+  }
+
+  reduceMotionSnapshot = enabled;
+  reduceMotionListeners.forEach((listener) => listener());
+}
+
+function startReduceMotionObserver(): void {
+  if (reduceMotionSubscription) {
+    return;
+  }
+
+  const subscription = AccessibilityInfo.addEventListener(
+    'reduceMotionChanged',
+    updateReduceMotionSnapshot,
+  );
+  reduceMotionSubscription = subscription;
+  void AccessibilityInfo.isReduceMotionEnabled()
+    .then((enabled) => {
+      if (reduceMotionSubscription === subscription) {
+        updateReduceMotionSnapshot(enabled);
       }
-    });
-    const subscription = AccessibilityInfo.addEventListener(
-      'reduceMotionChanged',
-      setReduceMotionEnabled,
-    );
+    })
+    .catch(() => undefined);
+}
 
-    return () => {
-      active = false;
-      subscription.remove();
-    };
-  }, []);
+function subscribeToReduceMotion(listener: ReduceMotionListener): () => void {
+  reduceMotionListeners.add(listener);
+  startReduceMotionObserver();
 
-  return reduceMotionEnabled;
+  return () => {
+    reduceMotionListeners.delete(listener);
+    if (reduceMotionListeners.size === 0) {
+      reduceMotionSubscription?.remove();
+      reduceMotionSubscription = null;
+    }
+  };
+}
+
+function getReduceMotionSnapshot(): boolean {
+  return reduceMotionSnapshot;
+}
+
+export function useReduceMotionEnabled(): boolean {
+  return useSyncExternalStore(
+    subscribeToReduceMotion,
+    getReduceMotionSnapshot,
+    getReduceMotionSnapshot,
+  );
 }
 
 export function useKeyboardTranslateY({

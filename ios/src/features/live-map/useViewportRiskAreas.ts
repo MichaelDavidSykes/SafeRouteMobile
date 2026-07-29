@@ -92,6 +92,7 @@ export function useViewportRiskAreas({
     token: String(accessToken || '').trim()
   });
   const cacheScopeContextRef = useRef('');
+  const cacheStorageScopeRef = useRef('');
   const clientIdRef = useRef(clientId);
   const displayContextRef = useRef('');
   const handledPollRevisionRef = useRef(0);
@@ -147,8 +148,12 @@ export function useViewportRiskAreas({
   const accessContext = normalizedAccessToken && normalizedClientId
     ? `tenant:${normalizedClientId}:session-${accessSessionIdentityRef.current.identity}`
     : 'public';
+  // Session changes invalidate in-flight requests, but a workspace-scoped
+  // cache remains valid across token refreshes and should stay visible.
+  const cacheStorageScope =
+    `${enabled ? 'enabled' : 'disabled'}|${normalizedCacheScopeId}`;
   const cacheScopeContext =
-    `${enabled ? 'enabled' : 'disabled'}|${normalizedCacheScopeId}|${accessContext}`;
+    `${cacheStorageScope}|${accessContext}`;
   const displayContext = `${cacheScopeContext}|${requestSignature}`;
   const researchAvailable = enabled
     && refreshEnabled
@@ -269,11 +274,12 @@ export function useViewportRiskAreas({
     let followupTimer: ReturnType<typeof setTimeout> | null = null;
 
     const contextChanged = displayContextRef.current !== displayContext;
-    const cacheScopeChanged = cacheScopeContextRef.current !== cacheScopeContext;
+    const cacheScopeChanged = cacheStorageScopeRef.current !== cacheStorageScope;
     if (contextChanged) {
       displayContextRef.current = displayContext;
+      cacheScopeContextRef.current = cacheScopeContext;
       if (cacheScopeChanged) {
-        cacheScopeContextRef.current = cacheScopeContext;
+        cacheStorageScopeRef.current = cacheStorageScope;
         cacheRef.current.clear();
         zonesRef.current = [];
         setZones([]);
@@ -704,6 +710,7 @@ export function useViewportRiskAreas({
   }, [
     accessToken,
     cacheScopeContext,
+    cacheStorageScope,
     displayContext,
     enabled,
     normalizedCacheScopeId,

@@ -353,6 +353,7 @@ export function useLoopingPulse({
       Animated.timing(progress, {
         duration,
         easing: Easing.out(Easing.ease),
+        isInteraction: false,
         toValue: 1,
         useNativeDriver: true,
       }),

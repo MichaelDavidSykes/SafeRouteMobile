@@ -360,6 +360,14 @@ export function GuestMapScreen({
   const liveCoordinate = liveLocation
     ? { latitude: liveLocation.latitude, longitude: liveLocation.longitude }
     : null;
+  const locationSearchBiasRef = useRef({
+    center: liveCoordinate,
+    region: mapRegion,
+  });
+  locationSearchBiasRef.current = {
+    center: liveCoordinate,
+    region: mapRegion,
+  };
   const currentLocationVisible =
     Boolean(liveCoordinate) && permissionStatus !== 'denied';
   const deviceHeadingDegrees = useDeviceHeading(permissionStatus === 'granted');
@@ -767,10 +775,7 @@ export function GuestMapScreen({
       }
       setLocationSearchPending(true);
       void searchGuestLocations(query, {
-        bias: {
-          center: liveCoordinate,
-          region: mapRegion
-        },
+        bias: locationSearchBiasRef.current,
         serviceBaseUrl: LUNARCHAIN_API_BASE,
         signal: controller.signal
       }).then((results) => {
@@ -798,12 +803,6 @@ export function GuestMapScreen({
     activeInput,
     activeDraftStop?.label,
     activeDraftStop?.resolution.type,
-    liveCoordinate?.latitude,
-    liveCoordinate?.longitude,
-    mapRegion.latitude,
-    mapRegion.longitude,
-    mapRegion.latitudeDelta,
-    mapRegion.longitudeDelta,
     networkChecking,
     online,
   ]);

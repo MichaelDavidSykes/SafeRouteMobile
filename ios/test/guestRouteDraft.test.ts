@@ -16,6 +16,7 @@ import {
   guestRouteDraftReducer,
   hasUnresolvedGuestRouteDraftInput,
   mapGuestRouteDraftToCheckpoints,
+  mapGuestRouteDraftToResolvedCheckpoints,
   removeGuestRouteWaypoint,
   reorderGuestRouteWaypoint,
   resolveGuestRouteDraftNextStopInputId,
@@ -119,6 +120,7 @@ describe('guest route draft state', () => {
       destinationSelection.coordinate
     );
     assert.equal(canExportGuestRouteDraft(selected), true);
+    assert.equal(selected.selectedStopId, GUEST_ROUTE_DRAFT_DESTINATION_ID);
 
     const edited = editGuestRouteDraftStop(
       selected,
@@ -268,6 +270,10 @@ describe('guest route draft state', () => {
     assert.equal(canExportGuestRouteDraft(draft), false);
     assert.equal(exportGuestRouteDraftCoordinates(draft), null);
     assert.equal(mapGuestRouteDraftToCheckpoints(draft), null);
+    assert.deepEqual(
+      mapGuestRouteDraftToResolvedCheckpoints(draft).map((checkpoint) => checkpoint.id),
+      [GUEST_ROUTE_DRAFT_ORIGIN_ID, GUEST_ROUTE_DRAFT_DESTINATION_ID]
+    );
   });
 
   it('focuses the next unresolved stop and otherwise returns to the destination', () => {

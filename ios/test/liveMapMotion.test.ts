@@ -35,8 +35,13 @@ describe("live map design motion", () => {
     assert.match(guidance, /variant="chrome"/);
     assert.match(
       riskDetail,
-      /replayKey=\{zone\.id\}[\s\S]*variant="sheet"[\s\S]*Animated\.View[\s\S]*panResponder\.panHandlers/,
+      /replayKey=\{zone\.id\}[\s\S]*variant="sheet"[\s\S]*Animated\.View[\s\S]*cardPanResponder\.panHandlers/,
     );
+    assert.match(riskDetail, /safeRouteMotion\.disclosureDurationMs/);
+    assert.match(riskDetail, /handlePanResponder\.panHandlers/);
+    assert.match(riskDetail, /height:\s*expanded \? expandedPanelHeight : 0/);
+    assert.doesNotMatch(riskDetail, /useNativeDriver:\s*false/);
+    assert.doesNotMatch(riskDetail, /maxHeight:\s*expandProgress\.interpolate/);
     assert.match(
       summary,
       /replayKey=\{routePlan\.id\}[\s\S]*testID=\{uiTestIds\.liveMapRouteSummarySheet\}[\s\S]*variant="sheet"/,

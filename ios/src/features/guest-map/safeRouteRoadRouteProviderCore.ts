@@ -34,7 +34,7 @@ type SafeRouteRoutePreviewPayload = {
   include_road_metadata: true;
   include_route_alerts: true;
   preferences?: SafeRouteRoutePreferencesApi;
-  target_alternative_count: 3;
+  target_alternative_count: 2;
   travel_mode?: SafeRouteTravelMode;
   waypoints: Array<{
     elevation_m: null;
@@ -92,7 +92,7 @@ export function buildSafeRoutePreviewPayload({
     include_alternatives: true,
     include_road_metadata: true,
     include_route_alerts: true,
-    target_alternative_count: 3,
+    target_alternative_count: 2,
     waypoints: stops.map((stop) => ({
       elevation_m: null,
       lat: Number(stop.latitude.toFixed(6)),
@@ -148,7 +148,7 @@ export function buildPublicSafeRoutePreviewPayload({
       ? { preferences: workspacePayload.preferences }
       : {}),
     include_alternatives: true,
-    target_alternative_count: 3,
+    target_alternative_count: 2,
     waypoints: workspacePayload.waypoints
   };
 }
@@ -285,7 +285,7 @@ function normalizeCompleteRouteAlternatives(
   }
   const signatures = new Set([routeCoordinateSignature(primaryCoordinates)]);
   const alternatives: GuestRoadRouteAlternative[] = [];
-  for (const item of value.slice(0, 3)) {
+  for (const item of value.slice(0, 2)) {
     if (!item || typeof item !== 'object') {
       continue;
     }

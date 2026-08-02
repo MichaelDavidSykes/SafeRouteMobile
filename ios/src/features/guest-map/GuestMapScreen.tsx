@@ -1,4 +1,11 @@
-import { useCallback, useEffect, useMemo, useReducer, useRef, useState } from 'react';
+import {
+  useCallback,
+  useEffect,
+  useMemo,
+  useReducer,
+  useRef,
+  useState,
+} from 'react';
 import {
   Bike,
   BriefcaseBusiness,
@@ -12,6 +19,7 @@ import {
   House,
   Map as MapIcon,
   MapPin,
+  Navigation,
   PersonStanding,
   Plus,
   Search,
@@ -52,40 +60,37 @@ import {
   safeRouteEasing,
   safeRouteMotion,
   useKeyboardTranslateY,
-  useLoopingPulse,
-  useMotionValue,
   useReduceMotionEnabled,
 } from '../../motion/SafeRouteMotion';
 import { colors } from '../../theme';
 import { uiTestIds } from '../../testing/uiTestIds';
 import type {
+  RouteCheckpoint,
   SafeRouteTravelMode,
   SavedSafeRoutePlan,
 } from '../live-map/liveMapTypes';
 import type { RiskZone } from '../live-map/liveMapTypes';
-import { RiskOverlay } from '../live-map/LiveMapMarkers';
+import { CheckpointMarker, RiskOverlay } from '../live-map/LiveMapMarkers';
 import {
   LiveMapDetailCallout,
   LiveMapRiskDetailCallout,
 } from '../live-map/LiveMapRiskDetailCallout';
 import { useViewportRiskAreas } from '../live-map/useViewportRiskAreas';
-import { mergeRiskZonesById } from '../live-map/areaRiskApiCore';
+import {
+  areaRiskItemIntersectsBounds,
+  mergeRiskZonesById,
+} from '../live-map/areaRiskApiCore';
 import { fetchAreaRiskAlongRoute } from '../live-map/routeRiskCorridorApi';
-import { buildLiveRerouteAvoidRectangles } from '../live-map/liveReroutePlan';
+import { buildRouteOptionAvoidRectangles } from '../live-map/liveReroutePlan';
+import { routeRiskStartBlockedReason } from '../live-map/routeRisk';
 import { useLiveLocation } from '../live-map/useLiveLocation';
 import {
   SAFE_ROUTE_CAMERA_ZOOM_RANGE,
   SAFE_ROUTE_DARK_MAP_STYLE,
-  SAFE_ROUTE_DARK_ROUTE_CASING,
-  SAFE_ROUTE_DARK_ROUTE_GLOW,
-  SAFE_ROUTE_ROUTE_CASING_WIDTH,
   SAFE_ROUTE_ROUTE_CORE_WIDTH,
-  SAFE_ROUTE_ROUTE_GLOW_WIDTH
 } from '../maps/safeRouteMapTheme';
-import { createDeviceHeadingAccessibilityLabel } from '../maps/deviceHeading';
 import { shouldRenderRouteCheckpointMarker } from '../maps/mapMarkerPresentation';
 import { SafeRouteDarkMapMask } from '../maps/SafeRouteDarkMapMask';
-import { useDeviceHeading } from '../maps/useDeviceHeading';
 import { isPreviewAccessToken } from '../auth/previewSession';
 import { createSessionNoticeState } from '../auth/sessionNoticeState';
 import {
@@ -116,6 +121,7 @@ import {
   createGuestRoutePlanId,
   createGuestRoutePlan,
   createGuestRoutePreviewState,
+  resolveGuestCollapsedRouteCardState,
   resolveGuestRoadPreviewStops,
   shouldShowGuestMapSubtitle,
   type GuestFullAccessFeature
@@ -142,6 +148,7 @@ import {
   getGuestRouteDraftUnresolvedStopIds,
   guestRouteDraftReducer,
   mapGuestRouteDraftToCheckpoints,
+  mapGuestRouteDraftToResolvedCheckpoints,
   resolveGuestRouteDraftNextStopInputId,
   resolveGuestRouteDraftStopCoordinate,
   setGuestRouteCurrentLocation,
@@ -155,13 +162,16 @@ import {
 } from './guestMapLocation';
 import { createGuestMapRiskSummary } from './guestMapRiskSummary';
 import {
+  regionForGuestSelectedLocation,
   resolveGuestRouteSheetBottomPadding,
   resolveGuestRouteSheetHeight,
 } from './guestMapSheetLayout';
 import {
   GUEST_TRAVEL_MODE_OPTIONS,
+  getGuestTravelModeRouteLabel,
   type GuestTravelModeOption,
 } from './guestTravelMode';
+import { createGuestMapRouteRenderSession } from './guestMapRoutePresentation';
 import {
   countEnabledSafeRoutePreferences,
   DEFAULT_SAFE_ROUTE_PREFERENCES,
@@ -175,6 +185,15 @@ const GUEST_LOCATION_SEARCH_DEBOUNCE_MS = 320;
 const GUEST_LOCATION_SEARCH_MIN_LENGTH = 2;
 const GUEST_SEARCH_STAGE_TRANSITION_MS = safeRouteMotion.scrimDurationMs;
 const GUEST_WAYPOINT_ACTION_HIT_SLOP = 6;
+const GUEST_MAP_MAX_RENDERED_RISK_ZONES = 80;
+const GUEST_ROUTE_SHEET_DRAG_DISTANCE = 120;
+const GUEST_ROUTE_SHEET_MIN_SETTLE_DURATION_MS = 110;
+const GUEST_MAP_MAX_ROUTE_COORDINATES = 1200;
+const GUEST_MAP_MAX_ROUTE_FIT_COORDINATES = 420;
+const GUEST_MAP_ALTERNATIVE_ROUTE_COLORS = [
+  'rgba(91, 174, 255, 0.88)',
+  'rgba(111, 132, 186, 0.88)',
+] as const;
 
 type GuestRoadRoutePreviewFetcher = (
   options: GuestRoadRoutePreviewOptions
@@ -290,6 +309,9 @@ export function GuestMapScreen({
     workspaceAuthorizationEpochRef.current += 1;
   }
   const sheetProgress = useRef(new Animated.Value(1)).current;
+  const sheetAnimationRevisionRef = useRef(0);
+  const sheetGestureProgressRef = useRef(1);
+  const sheetGestureStartProgressRef = useRef(1);
   const sheetGestureActionRef = useRef<(collapsed: boolean) => void>(() => undefined);
   const routeInputRefs = useRef(new Map<string, TextInput>());
   const pendingInputFocusFrameRef = useRef<number | null>(null);
@@ -315,8 +337,11 @@ export function GuestMapScreen({
       configureNextSafeRouteLayoutAnimation(duration, options);
     }
   };
-  const transitionActiveInput = (nextInput: string | null) => {
-    if (Boolean(activeInput) !== Boolean(nextInput)) {
+  const transitionActiveInput = (
+    nextInput: string | null,
+    { animate = !sheetCollapsed }: { animate?: boolean } = {},
+  ) => {
+    if (animate && Boolean(activeInput) !== Boolean(nextInput)) {
       animateNextMapLayout(GUEST_SEARCH_STAGE_TRANSITION_MS, {
         animateCreate: !nextInput,
         animateDelete: Boolean(nextInput),
@@ -335,7 +360,7 @@ export function GuestMapScreen({
     label: string;
     pending: boolean;
   } | null>(null);
-  const [mapReady, setMapReady] = useState(false);
+  const [readyMapSessionKey, setReadyMapSessionKey] = useState<string | null>(null);
   const [mapRegion, setMapRegion] = useState<Region>(GUEST_MAP_REGION);
   const [routeMessage, setRouteMessage] = useState('');
   const [workspaceMenuOpen, setWorkspaceMenuOpen] = useState(false);
@@ -343,7 +368,6 @@ export function GuestMapScreen({
   const [routePlan, setRoutePlan] = useState<SavedSafeRoutePlan | null>(null);
   const [routeAlternatives, setRouteAlternatives] = useState<SavedSafeRoutePlan[]>([]);
   const [travelMode, setTravelMode] = useState<SafeRouteTravelMode>('drive');
-  const [routeChoicesOpen, setRouteChoicesOpen] = useState(false);
   const [routeOptionsOpen, setRouteOptionsOpen] = useState(false);
   const [routePreferences, setRoutePreferences] =
     useState<SafeRouteRoutePreferences>(DEFAULT_SAFE_ROUTE_PREFERENCES);
@@ -370,10 +394,6 @@ export function GuestMapScreen({
   };
   const currentLocationVisible =
     Boolean(liveCoordinate) && permissionStatus !== 'denied';
-  const deviceHeadingDegrees = useDeviceHeading(permissionStatus === 'granted');
-  const currentLocationPulse = useLoopingPulse({
-    enabled: currentLocationVisible,
-  });
   const routingClientId = authenticated ? activeWorkspace?.id || null : null;
   const resolvedPlacesScopeId =
     placesScopeId?.trim() || (authenticated ? 'signed-in' : 'guest');
@@ -418,6 +438,10 @@ export function GuestMapScreen({
   const routeDraftReady =
     getGuestRouteDraftUnresolvedStopIds(routeDraft).length === 0;
   const searchStageActive = Boolean(activeInput);
+  const draftCheckpointMarkers = useMemo(
+    () => routePlan ? [] : mapGuestRouteDraftToResolvedCheckpoints(routeDraft),
+    [routeDraft, routePlan],
+  );
   const showRouteFooter =
     routePlotted ||
     (
@@ -443,6 +467,11 @@ export function GuestMapScreen({
   const routeAction = createGuestRouteActionState({
     destination,
     routePlotted
+  });
+  const travelModeRouteLabel = getGuestTravelModeRouteLabel(travelMode);
+  const collapsedRouteCardState = resolveGuestCollapsedRouteCardState({
+    roadPreviewPending,
+    routePlotted,
   });
   useEffect(() => {
     onPlannerVisibilityChange?.(!sheetCollapsed);
@@ -471,16 +500,25 @@ export function GuestMapScreen({
       active = false;
     };
   }, [resolvedPlacesScopeId]);
-  const routeActionDisabled =
-    !online ||
+  const routeContextDisabled =
     routeAction.disabled ||
     routeResolutionPending ||
     roadPreviewPending ||
     workspaceSelectionPending ||
     workspaceSelectionRequired ||
     workspaceAuthorizationRequired;
+  const routePlanningDisabled = !online || routeContextDisabled;
+  const routeActionDisabled = routePlan
+    ? routeContextDisabled
+    : routePlanningDisabled;
   const stagedRouteActionDisabled =
     routeActionDisabled || (!routePlan && !routeDraftReady);
+  const stagedRouteActionBusy =
+    routeResolutionPending ||
+    roadPreviewPending ||
+    workspaceSelectionPending ||
+    (networkChecking && !routePlan) ||
+    (workspaceAuthorizationRequired && workspaceCatalogLoading);
   const workspaceBlockingActionLabel = workspaceCatalogLoading
     ? 'Loading workspace…'
     : workspaceCatalogError
@@ -494,9 +532,9 @@ export function GuestMapScreen({
       ? 'Finding safest route…'
     : workspaceSelectionPending
       ? 'Saving workspace…'
-    : networkChecking
+    : networkChecking && !routePlan
       ? 'Checking connection…'
-    : offline
+    : offline && !routePlan
       ? 'Offline'
     : workspaceSelectionRequired
       ? workspaceBlockingActionLabel
@@ -505,9 +543,9 @@ export function GuestMapScreen({
           ? 'Checking workspace…'
           : 'Verify workspace access'
       : routeAction.label;
-  const routeActionAccessibilityLabel = networkChecking
+  const routeActionAccessibilityLabel = networkChecking && !routePlan
     ? 'Checking connection before plotting this route'
-    : offline
+    : offline && !routePlan
       ? 'Reconnect before plotting this route'
     : workspaceSelectionPending
       ? 'Saving the workspace before plotting this route'
@@ -518,7 +556,7 @@ export function GuestMapScreen({
         ? 'Checking workspace access before plotting this route'
         : 'Verify workspace access before plotting this route'
     : routeAction.accessibilityLabel;
-  const routeActionAccessibilityHint = !online
+  const routeActionAccessibilityHint = !online && !routePlan
     ? 'Wait for a connection before requesting a road-snapped route.'
     : workspaceSelectionPending
       ? 'Wait for the workspace change to finish before plotting this route.'
@@ -536,15 +574,11 @@ export function GuestMapScreen({
   const stagedRouteActionAccessibilityLabel =
     !routePlan && !routeDraftReady
       ? 'Select both locations before plotting a route'
-      : routePlan || routeActionDisabled
-        ? routeActionAccessibilityLabel
-        : 'Choose a travel mode for this route';
+      : routeActionAccessibilityLabel;
   const stagedRouteActionAccessibilityHint =
     !routePlan && !routeDraftReady
       ? 'Choose a start point, destination, and every added stop from the search results.'
-      : routePlan || routeActionDisabled
-        ? routeActionAccessibilityHint
-        : 'Shows driving, walking, and cycling choices. Selecting one plots the route.';
+      : routeActionAccessibilityHint;
   const mapSelectionSetsDestination = shouldUseGuestMapSelectionAsDestination(routeDraft);
   const canAddMapRoutePoint =
     mapSelectionSetsDestination || canAddGuestRouteWaypoint(routeDraft);
@@ -582,6 +616,46 @@ export function GuestMapScreen({
     ),
     [routePlan?.riskZones, viewportRisk.zones]
   );
+  const routeRenderSession = useMemo(
+    () => createGuestMapRouteRenderSession({
+      alternativeColors: GUEST_MAP_ALTERNATIVE_ROUTE_COLORS,
+      alternativeStrokeWidth: SAFE_ROUTE_ROUTE_CORE_WIDTH,
+      maxFitCoordinates: GUEST_MAP_MAX_ROUTE_FIT_COORDINATES,
+      maxRenderedRiskZones: GUEST_MAP_MAX_RENDERED_RISK_ZONES,
+      maxRouteCoordinates: GUEST_MAP_MAX_ROUTE_COORDINATES,
+      routes: routeAlternatives,
+      selectedColor: colors.routePrimary,
+      selectedRoute: routePlan,
+      selectedStrokeWidth: SAFE_ROUTE_ROUTE_CORE_WIDTH + 2,
+    }),
+    [routeAlternatives, routePlan],
+  );
+  const routeMapCoordinates = routeRenderSession.selectedCoordinates;
+  const routeFitCoordinates = routeRenderSession.fitCoordinates;
+  const routeCollectionRevision = routeRenderSession.collectionRevision;
+  const renderedRiskZones = useMemo(
+    () => routePlan
+      ? routeRenderSession.riskZones
+      : resolveGuestMapRenderedRiskZones({
+          mapRegion,
+          selectedRiskZoneId: selectedRiskZone?.id,
+          zones: visibleRiskZones,
+        }),
+    [
+      mapRegion.latitude,
+      mapRegion.longitude,
+      mapRegion.latitudeDelta,
+      mapRegion.longitudeDelta,
+      routeCollectionRevision,
+      routePlan,
+      selectedRiskZone?.id,
+      visibleRiskZones,
+    ],
+  );
+  const mapRenderSessionKey = `guest-map-${nativeMapType}-${
+    routeCollectionRevision || 'browse'
+  }`;
+  const mapReady = readyMapSessionKey === mapRenderSessionKey;
   const riskSummary = useMemo(
     () => createGuestMapRiskSummary(visibleRiskZones),
     [visibleRiskZones],
@@ -601,31 +675,57 @@ export function GuestMapScreen({
     onComplete?: () => void,
   ) => {
     cancelPendingRouteInputFocus();
+    const animationRevision = sheetAnimationRevisionRef.current + 1;
+    sheetAnimationRevisionRef.current = animationRevision;
+    const targetProgress = collapsed ? 1 : 0;
     setSheetCollapsed(collapsed);
     if (collapsed) {
       Keyboard.dismiss();
-      transitionActiveInput(null);
+      transitionActiveInput(null, { animate: false });
     }
-    sheetProgress.stopAnimation();
     if (reduceMotionEnabled) {
-      sheetProgress.setValue(collapsed ? 1 : 0);
+      sheetProgress.stopAnimation();
+      sheetGestureProgressRef.current = targetProgress;
+      sheetProgress.setValue(targetProgress);
       onComplete?.();
       return;
     }
-    Animated.timing(sheetProgress, {
-      duration: collapsed
-        ? safeRouteMotion.sheetExitDurationMs
-        : safeRouteMotion.sheetDurationMs,
-      easing: collapsed
-        ? safeRouteEasing.exit
-        : safeRouteEasing.settled,
-      isInteraction: false,
-      toValue: collapsed ? 1 : 0,
-      useNativeDriver: true
-    }).start(({ finished }) => {
-      if (finished) {
-        onComplete?.();
+    sheetProgress.stopAnimation((currentProgress) => {
+      if (sheetAnimationRevisionRef.current !== animationRevision) {
+        return;
       }
+      const boundedProgress = Math.max(0, Math.min(1, currentProgress));
+      sheetGestureProgressRef.current = boundedProgress;
+      const remainingDistance = Math.abs(targetProgress - boundedProgress);
+      if (remainingDistance < 0.001) {
+        sheetGestureProgressRef.current = targetProgress;
+        sheetProgress.setValue(targetProgress);
+        onComplete?.();
+        return;
+      }
+      const fullDuration = collapsed
+        ? safeRouteMotion.sheetExitDurationMs
+        : safeRouteMotion.sheetDurationMs;
+      Animated.timing(sheetProgress, {
+        duration: Math.max(
+          GUEST_ROUTE_SHEET_MIN_SETTLE_DURATION_MS,
+          Math.round(fullDuration * remainingDistance),
+        ),
+        easing: collapsed
+          ? safeRouteEasing.exit
+          : safeRouteEasing.settled,
+        isInteraction: false,
+        toValue: targetProgress,
+        useNativeDriver: true
+      }).start(({ finished }) => {
+        if (
+          finished
+          && sheetAnimationRevisionRef.current === animationRevision
+        ) {
+          sheetGestureProgressRef.current = targetProgress;
+          onComplete?.();
+        }
+      });
     });
   };
   const scheduleRouteStopInputFocus = (stopId: string) => {
@@ -637,23 +737,52 @@ export function GuestMapScreen({
   };
   const handleCollapsedLocationSearch = () => {
     const nextStopId = resolveGuestRouteDraftNextStopInputId(routeDraft);
-    transitionActiveInput(nextStopId);
+    transitionActiveInput(nextStopId, { animate: false });
     animateRouteSheet(false);
     scheduleRouteStopInputFocus(nextStopId);
+  };
+  const handleCollapsedRouteEdit = () => {
+    Keyboard.dismiss();
+    transitionActiveInput(null);
+    animateRouteSheet(false);
   };
   sheetGestureActionRef.current = animateRouteSheet;
   const sheetPanResponder = useMemo(
     () => PanResponder.create({
-      onMoveShouldSetPanResponder: (_, gesture) => Math.abs(gesture.dy) > 8,
+      onMoveShouldSetPanResponder: (_, gesture) =>
+        Math.abs(gesture.dy) > 5
+        && Math.abs(gesture.dy) > Math.abs(gesture.dx),
+      onPanResponderGrant: () => {
+        sheetAnimationRevisionRef.current += 1;
+        sheetProgress.stopAnimation((currentProgress) => {
+          const boundedProgress = Math.max(0, Math.min(1, currentProgress));
+          sheetGestureProgressRef.current = boundedProgress;
+          sheetGestureStartProgressRef.current = boundedProgress;
+        });
+      },
+      onPanResponderMove: (_, gesture) => {
+        const nextProgress = Math.max(
+          0,
+          Math.min(
+            1,
+            sheetGestureStartProgressRef.current
+              + gesture.dy / GUEST_ROUTE_SHEET_DRAG_DISTANCE,
+          ),
+        );
+        sheetGestureProgressRef.current = nextProgress;
+        sheetProgress.setValue(nextProgress);
+      },
       onPanResponderRelease: (_, gesture) => {
-        if (gesture.dy > 28 || gesture.vy > 0.45) {
-          sheetGestureActionRef.current(true);
-        } else if (gesture.dy < -20 || gesture.vy < -0.35) {
-          sheetGestureActionRef.current(false);
-        }
-      }
+        const projectedProgress =
+          sheetGestureProgressRef.current + gesture.vy * 0.16;
+        sheetGestureActionRef.current(projectedProgress >= 0.42);
+      },
+      onPanResponderTerminate: () => {
+        sheetGestureActionRef.current(false);
+      },
+      onPanResponderTerminationRequest: () => false,
     }),
-    []
+    [sheetProgress]
   );
 
   useEffect(() => {
@@ -809,17 +938,20 @@ export function GuestMapScreen({
   ]);
 
   useEffect(() => {
-    if (!routePlan?.route.coordinates.length) {
+    if (
+      !mapReady ||
+      routeFitCoordinates.length < 2
+    ) {
       return;
     }
 
     const timer = setTimeout(() => {
-      const routeFitCoordinates =
+      const coordinatesToFit =
         liveCoordinate && isCurrentLocationLabel(origin)
-          ? [liveCoordinate, ...routePlan.route.coordinates]
-          : routePlan.route.coordinates;
-      mapRef.current?.fitToCoordinates(routeFitCoordinates, {
-        animated: true,
+          ? [liveCoordinate, ...routeFitCoordinates]
+          : routeFitCoordinates;
+      mapRef.current?.fitToCoordinates(coordinatesToFit, {
+        animated: false,
         edgePadding: {
           bottom: 360,
           left: 42,
@@ -830,7 +962,7 @@ export function GuestMapScreen({
     }, 120);
 
     return () => clearTimeout(timer);
-  }, [routePlan]);
+  }, [mapReady, mapRenderSessionKey, routeCollectionRevision]);
 
   useEffect(() => () => {
     cancelRoadRouteUpgrade();
@@ -924,7 +1056,7 @@ export function GuestMapScreen({
   const handlePlotRoute = async (
     requestedTravelMode: SafeRouteTravelMode = travelMode,
   ) => {
-    if (routeActionDisabled) {
+    if (routePlanningDisabled) {
       return;
     }
     const plotWorkspaceId = routingClientId;
@@ -1052,10 +1184,20 @@ export function GuestMapScreen({
     upgradeGuestRouteWithRoadPreview(localRoutePlan);
   };
 
+  const showRoutePlotFailure = (requestedMode: SafeRouteTravelMode) => {
+    const requestedModeLabel = getGuestTravelModeRouteLabel(requestedMode);
+    animateNextMapLayout(safeRouteMotion.disclosureDurationMs);
+    setRouteMessage(
+      `We couldn't plot the ${requestedModeLabel} route. Tap Plot Route to retry.`,
+    );
+    animateRouteSheet(false);
+  };
+
   const upgradeGuestRouteWithRoadPreview = (localRoutePlan: SavedSafeRoutePlan) => {
     const stops = resolveRoadPreviewStops(localRoutePlan);
 
     if (!stops || !onlineRef.current) {
+      showRoutePlotFailure(localRoutePlan.travelMode ?? 'drive');
       return;
     }
 
@@ -1085,6 +1227,13 @@ export function GuestMapScreen({
         requestEpoch: requestAuthorizationEpoch,
         requestWorkspaceId,
       });
+    const requestOwnsState = () =>
+      roadRouteRequestIdRef.current === requestId &&
+      routingClientIdRef.current === requestWorkspaceId;
+    const requestIsCurrent = () =>
+      !controller.signal.aborted &&
+      requestOwnsState() &&
+      requestAuthorizationIsCurrent();
     let acceptedRoadPreview = false;
     let sessionExpiryHandled = false;
     let workspaceUnavailableHandled = false;
@@ -1094,11 +1243,7 @@ export function GuestMapScreen({
         authenticated: Boolean(routingAccessToken && onSessionExpired),
         error,
         handled: sessionExpiryHandled,
-        requestActive:
-          !controller.signal.aborted &&
-          roadRouteRequestIdRef.current === requestId &&
-          routingClientIdRef.current === requestWorkspaceId &&
-          requestAuthorizationIsCurrent()
+        requestActive: requestIsCurrent(),
       });
       if (!sessionExpiry) {
         return false;
@@ -1115,10 +1260,7 @@ export function GuestMapScreen({
         error,
         handled: workspaceUnavailableHandled,
         requestActive:
-          !controller.signal.aborted &&
-          roadRouteRequestIdRef.current === requestId &&
-          routingClientIdRef.current === requestWorkspaceId &&
-          requestAuthorizationIsCurrent() &&
+          requestIsCurrent() &&
           Boolean(onWorkspaceUnavailableRef.current),
         workspaceId: requestWorkspaceId
       });
@@ -1140,6 +1282,60 @@ export function GuestMapScreen({
       onOpenRoutePreview?.(nextRoutePlan);
     };
 
+    const publishRoadPreview = (
+      preview: GuestRoadRoutePreview,
+      riskZones: RiskZone[],
+    ): boolean => {
+      const roadRoutePlans = [
+        preview,
+        ...(preview.alternatives || []),
+      ].slice(0, 3).map((routePreview, index) => {
+        const routePlanOptions = {
+          authenticated: authenticatedSnapshot,
+          checkpoints: checkpointsSnapshot,
+          destination: destinationSnapshot,
+          destinationCoordinate: destinationCoordinateSnapshot,
+          origin: originSnapshot,
+          originCoordinate: originCoordinateSnapshot,
+          planId: index === 0
+            ? localRoutePlan.id
+            : `${localRoutePlan.id}-alternative-${index}`,
+          riskZones,
+          roadSnappedCoordinates: routePreview.coordinates,
+          routeDistanceMeters: routePreview.distanceMeters,
+          routeDurationSeconds: routePreview.durationSeconds,
+          routeGuidanceSteps: routePreview.guidanceSteps,
+          travelMode: localRoutePlan.travelMode ?? 'drive',
+        };
+        return createGuestRoutePlan(routePlanOptions);
+      }).filter((plan) => plan.updatedAtLabel === 'Road preview');
+      const safeRoadRoutePlans = roadRoutePlans.filter(
+        (plan) => !routeRiskStartBlockedReason(plan),
+      );
+      const acceptedRoutePlans = safeRoadRoutePlans.slice(0, 3);
+      acceptedRoutePlans.forEach((plan, index) => {
+        plan.route.label = index === 0
+          ? 'Primary route'
+          : `Alternative ${index}`;
+      });
+      const [roadRoutePlan] = acceptedRoutePlans;
+
+      if (!roadRoutePlan) {
+        return false;
+      }
+      if (requestWorkspaceId) {
+        acceptedRoutePlans.forEach((plan) => {
+          plan.clientId = requestWorkspaceId;
+        });
+      }
+      acceptedRoadPreview = true;
+      setRoutePlan(roadRoutePlan);
+      setRouteAlternatives(acceptedRoutePlans);
+      setRouteMessage('');
+      openPendingPreview(roadRoutePlan);
+      return true;
+    };
+
     const routePreviewFetcher = roadRoutePreviewFetcher || ((options: GuestRoadRoutePreviewOptions) =>
       fetchSafeRouteRoadRoutePreview({
         ...options,
@@ -1147,7 +1343,7 @@ export function GuestMapScreen({
         clientId: requestWorkspaceId
       }));
 
-    const avoidRectangles = buildLiveRerouteAvoidRectangles(
+    const avoidRectangles = buildRouteOptionAvoidRectangles(
       riskZonesSnapshot,
       localRoutePlan.route.coordinates,
       stops
@@ -1163,18 +1359,15 @@ export function GuestMapScreen({
       travelMode: localRoutePlan.travelMode ?? 'drive',
     })
       .then(async (roadPreview) => {
-        if (
-          !roadPreview ||
-          controller.signal.aborted ||
-          roadRouteRequestIdRef.current !== requestId ||
-          routingClientIdRef.current !== requestWorkspaceId ||
-          !requestAuthorizationIsCurrent()
-        ) {
+        if (!roadPreview || !requestIsCurrent()) {
           return;
         }
 
         let finalRoadPreview = roadPreview;
-        let finalRiskZones = riskZonesSnapshot;
+        let finalRiskZones = mergeRiskZonesById(
+          riskZonesSnapshot,
+          roadPreview.routeAlerts || [],
+        );
         try {
           const corridorRiskZones = await fetchAreaRiskAlongRoute(
             roadPreview.coordinates,
@@ -1186,18 +1379,18 @@ export function GuestMapScreen({
               timeoutMs: 9000
             }
           );
-          if (
-            controller.signal.aborted ||
-            roadRouteRequestIdRef.current !== requestId ||
-            routingClientIdRef.current !== requestWorkspaceId ||
-            !requestAuthorizationIsCurrent()
-          ) {
+          if (!requestIsCurrent()) {
             return;
           }
           finalRiskZones = mergeRiskZonesById(riskZonesSnapshot, corridorRiskZones);
-          const corridorAvoidRectangles = buildLiveRerouteAvoidRectangles(
+          const corridorAvoidRectangles = buildRouteOptionAvoidRectangles(
             finalRiskZones,
-            roadPreview.coordinates,
+            [
+              roadPreview.coordinates,
+              ...(roadPreview.alternatives || []).map(
+                (alternative) => alternative.coordinates,
+              ),
+            ],
             stops
           );
           if (
@@ -1211,10 +1404,31 @@ export function GuestMapScreen({
               timeoutMs: GUEST_ROUTE_PROVIDER_UI_TIMEOUT_MS,
               travelMode: localRoutePlan.travelMode ?? 'drive',
             });
-            if (!riskAwarePreview) {
+            const riskAwareRoutePlan = riskAwarePreview
+              ? createGuestRoadSnappedRoutePlan({
+                  authenticated: authenticatedSnapshot,
+                  checkpoints: checkpointsSnapshot,
+                  destination: destinationSnapshot,
+                  destinationCoordinate: destinationCoordinateSnapshot,
+                  origin: originSnapshot,
+                  originCoordinate: originCoordinateSnapshot,
+                  planId: localRoutePlan.id,
+                  riskZones: finalRiskZones,
+                  roadSnappedCoordinates: riskAwarePreview.coordinates,
+                  routeDistanceMeters: riskAwarePreview.distanceMeters,
+                  routeDurationSeconds: riskAwarePreview.durationSeconds,
+                  routeGuidanceSteps: riskAwarePreview.guidanceSteps,
+                  travelMode: localRoutePlan.travelMode ?? 'drive',
+                })
+              : null;
+            if (
+              riskAwarePreview &&
+              riskAwareRoutePlan
+            ) {
+              finalRoadPreview = riskAwarePreview;
+            } else {
               return;
             }
-            finalRoadPreview = riskAwarePreview;
           }
         } catch (error) {
           if (handleRouteSessionExpiry(error)) {
@@ -1223,9 +1437,9 @@ export function GuestMapScreen({
           if (handleRouteWorkspaceUnavailable(error)) {
             return;
           }
-          if (!SAFEROUTE_PREVIEW_MODE_ENABLED) {
-            return;
-          }
+          // Without corridor intelligence the client cannot prove that every
+          // displayed route avoids hard-exclusion risk areas.
+          return;
         }
 
         finalRiskZones = mergeRiskZonesById(
@@ -1233,56 +1447,10 @@ export function GuestMapScreen({
           finalRoadPreview.routeAlerts || []
         );
 
-        if (
-          controller.signal.aborted ||
-          roadRouteRequestIdRef.current !== requestId ||
-          routingClientIdRef.current !== requestWorkspaceId ||
-          !requestAuthorizationIsCurrent()
-        ) {
+        if (!requestIsCurrent()) {
           return;
         }
-
-        const roadRoutePlans = [
-          finalRoadPreview,
-          ...(finalRoadPreview.alternatives || []),
-        ].map((preview, index) => {
-          const plan = createGuestRoadSnappedRoutePlan({
-            authenticated: authenticatedSnapshot,
-            checkpoints: checkpointsSnapshot,
-            destination: destinationSnapshot,
-            destinationCoordinate: destinationCoordinateSnapshot,
-            origin: originSnapshot,
-            originCoordinate: originCoordinateSnapshot,
-            planId: index === 0
-              ? localRoutePlan.id
-              : `${localRoutePlan.id}-alternative-${index}`,
-            riskZones: finalRiskZones,
-            roadSnappedCoordinates: preview.coordinates,
-            routeDistanceMeters: preview.distanceMeters,
-            routeDurationSeconds: preview.durationSeconds,
-            routeGuidanceSteps: preview.guidanceSteps,
-            travelMode: localRoutePlan.travelMode ?? 'drive',
-          });
-          if (plan) {
-            plan.route.label = index === 0
-              ? 'Primary route'
-              : `Alternative ${index}`;
-          }
-          return plan;
-        }).filter((plan): plan is SavedSafeRoutePlan => Boolean(plan));
-        const [roadRoutePlan] = roadRoutePlans;
-
-        if (roadRoutePlan) {
-          if (requestWorkspaceId) {
-            roadRoutePlans.forEach((plan) => {
-              plan.clientId = requestWorkspaceId;
-            });
-          }
-          acceptedRoadPreview = true;
-          setRoutePlan(roadRoutePlan);
-          setRouteAlternatives(roadRoutePlans);
-          openPendingPreview(roadRoutePlan);
-        }
+        publishRoadPreview(finalRoadPreview, finalRiskZones);
       })
       .catch((error) => {
         if (handleRouteSessionExpiry(error)) {
@@ -1295,19 +1463,14 @@ export function GuestMapScreen({
         // connectors as drivable road geometry.
       })
       .finally(() => {
-        if (
-          roadRouteRequestIdRef.current === requestId &&
-          routingClientIdRef.current === requestWorkspaceId &&
-          requestAuthorizationIsCurrent()
-        ) {
+        if (requestOwnsState() && requestAuthorizationIsCurrent()) {
           activeRoadRouteRequestRef.current = null;
           setRoadPreviewPending(false);
           if (!acceptedRoadPreview && !sessionExpiryHandled && !workspaceUnavailableHandled) {
             pendingOpenPreviewRef.current = false;
             setRoutePlan(null);
             setRouteAlternatives([]);
-            setRouteMessage('A road-snapped safe route is unavailable. Retry in a moment.');
-            animateRouteSheet(false);
+            showRoutePlotFailure(localRoutePlan.travelMode ?? 'drive');
           }
         }
       });
@@ -1332,31 +1495,38 @@ export function GuestMapScreen({
     onOpenRoutePreview?.(routePlan);
   };
 
-  const handlePresentRouteChoices = () => {
-    if (routeActionDisabled || !routeDraftReady) {
-      return;
-    }
-
-    Keyboard.dismiss();
-    transitionActiveInput(null);
-    setRouteMessage('');
-    animateNextMapLayout(safeRouteMotion.disclosureDurationMs);
-    setRouteChoicesOpen(true);
-  };
-
-  const handleTravelModeChange = (nextMode: SafeRouteTravelMode) => {
-    if (routeActionDisabled) {
+  const plotTravelMode = (nextMode: SafeRouteTravelMode) => {
+    if (routePlanningDisabled) {
       return;
     }
 
     cancelRoadRouteUpgrade();
     setTravelMode(nextMode);
     animateNextMapLayout(safeRouteMotion.disclosureDurationMs);
-    setRouteChoicesOpen(false);
     setRoutePlan(null);
     setRouteAlternatives([]);
     setRouteMessage('');
     void handlePlotRoute(nextMode);
+  };
+
+  const handlePlotRouteAction = () => {
+    if (!routeDraftReady) {
+      return;
+    }
+
+    plotTravelMode(travelMode);
+  };
+
+  const handleTravelModeChange = (nextMode: SafeRouteTravelMode) => {
+    plotTravelMode(nextMode);
+  };
+
+  const handleRouteAlternativeSelect = (nextRoutePlan: SavedSafeRoutePlan) => {
+    if (nextRoutePlan.id === routePlan?.id) {
+      return;
+    }
+    setRoutePlan(nextRoutePlan);
+    setRouteMessage('');
   };
 
   const handleRoutePreferenceChange = (
@@ -1403,7 +1573,6 @@ export function GuestMapScreen({
 
   const handleStopChange = (stopId: string, value: string) => {
     cancelRoadRouteUpgrade();
-    setRouteChoicesOpen(false);
     dispatchRouteDraft({
       label: value,
       stopId,
@@ -1417,7 +1586,6 @@ export function GuestMapScreen({
   const handleOriginChange = (value: string) => {
     if (isCurrentLocationLabel(value)) {
       cancelRoadRouteUpgrade();
-      setRouteChoicesOpen(false);
       dispatchRouteDraft({
         label: value,
         type: 'origin/use-current-location'
@@ -1441,7 +1609,6 @@ export function GuestMapScreen({
     }
     const selectedStopId = activeInput;
     cancelRoadRouteUpgrade();
-    setRouteChoicesOpen(false);
     dispatchRouteDraft({
       selection: {
         coordinate: result.coordinate,
@@ -1457,7 +1624,7 @@ export function GuestMapScreen({
     setLocationSearchMessage('');
     transitionActiveInput(null);
     Keyboard.dismiss();
-    const nextRegion = regionAroundCoordinate(result.coordinate);
+    const nextRegion = regionForGuestSelectedLocation(result.coordinate);
     setMapRegion(nextRegion);
     mapRef.current?.animateToRegion(nextRegion, 500);
     if (selectedStopId === GUEST_ROUTE_DRAFT_DESTINATION_ID) {
@@ -1525,7 +1692,6 @@ export function GuestMapScreen({
     )?.id;
     dispatchRouteDraft({ type: 'waypoint/add' });
     cancelRoadRouteUpgrade();
-    setRouteChoicesOpen(false);
     setRoutePlan(null);
     setRouteAlternatives([]);
     setRouteMessage('');
@@ -1541,7 +1707,6 @@ export function GuestMapScreen({
       transitionActiveInput(null);
     }
     cancelRoadRouteUpgrade();
-    setRouteChoicesOpen(false);
     setRoutePlan(null);
     setRouteAlternatives([]);
     setRouteMessage('');
@@ -1550,7 +1715,6 @@ export function GuestMapScreen({
   const handleReorderWaypoint = (waypointId: string, toIndex: number) => {
     dispatchRouteDraft({ type: 'waypoint/reorder', waypointId, toIndex });
     cancelRoadRouteUpgrade();
-    setRouteChoicesOpen(false);
     setRoutePlan(null);
     setRouteAlternatives([]);
     setRouteMessage('');
@@ -1649,7 +1813,6 @@ export function GuestMapScreen({
       });
     }
     cancelRoadRouteUpgrade();
-    setRouteChoicesOpen(false);
     setRoutePlan(null);
     setRouteAlternatives([]);
     setRouteMessage(
@@ -1781,18 +1944,18 @@ export function GuestMapScreen({
   return (
     <View style={styles.screen}>
       <MapView
-        key={`guest-map-${nativeMapType}`}
+        key={mapRenderSessionKey}
         ref={mapRef}
         testID={uiTestIds.guestMapCanvas}
         style={styles.map}
-        initialRegion={mapRegion}
+        initialRegion={routeRenderSession.initialRegion || mapRegion}
         cameraZoomRange={SAFE_ROUTE_CAMERA_ZOOM_RANGE}
         showsBuildings
         showsCompass={false}
         showsIndoors={false}
         showsIndoorLevelPicker={false}
         showsMyLocationButton={false}
-        showsUserLocation={false}
+        showsUserLocation={currentLocationVisible}
         showsScale={false}
         showsTraffic={online && travelMode === 'drive'}
         zoomEnabled
@@ -1803,7 +1966,7 @@ export function GuestMapScreen({
         mapType={nativeMapType}
         userInterfaceStyle={mapInterfaceStyle}
         onMapReady={() => {
-          setMapReady(true);
+          setReadyMapSessionKey(mapRenderSessionKey);
           mapRef.current?.animateCamera({ heading: 0, pitch: 0 }, { duration: 0 });
         }}
         onLongPress={(event) => handleMapLongPress(event.nativeEvent.coordinate)}
@@ -1816,130 +1979,51 @@ export function GuestMapScreen({
         {(mapLayer === 'dark' || !online) && Platform.OS === 'ios'
           ? <SafeRouteDarkMapMask />
           : null}
-        {visibleRiskZones.map((zone) => (
+        {routePlan ? routeRenderSession.lines.map((line) => (
+          <Polyline
+            key={line.plan.id}
+            coordinates={line.coordinates}
+            strokeColor={line.strokeColor}
+            strokeWidth={line.strokeWidth}
+            lineCap="round"
+            lineJoin="round"
+            tappable={!line.selected}
+            zIndex={line.zIndex}
+            onPress={() => handleRouteAlternativeSelect(line.plan)}
+          />
+        )) : null}
+        {renderedRiskZones.map((zone) => (
           <RiskOverlay
             key={zone.id}
-            routeCoordinates={routePlan?.route.coordinates}
+            routeCoordinates={routeMapCoordinates}
             selected={selectedRiskZone?.id === zone.id}
             zone={zone}
             onPress={handleSelectRiskZone}
           />
         ))}
-        {routePlan ? routeAlternatives
-          .filter((candidate) => candidate.id !== routePlan.id)
-          .map((candidate) => (
-            <Polyline
-              key={candidate.id}
-              coordinates={candidate.route.coordinates}
-              strokeColor="rgba(174, 174, 178, 0.84)"
-              strokeWidth={SAFE_ROUTE_ROUTE_CORE_WIDTH}
-              lineCap="round"
-              lineJoin="round"
-              tappable
-              onPress={() => setRoutePlan(candidate)}
-            />
-          )) : null}
+        {!routePlan ? draftCheckpointMarkers.filter((checkpoint) =>
+          shouldRenderRouteCheckpointMarker({
+            checkpoint,
+            liveCoordinate,
+            nativeUserLocationVisible: currentLocationVisible
+          })
+        ).map((checkpoint) => (
+          <GuestDraftCheckpointMarker
+            checkpoint={checkpoint}
+            key={checkpoint.id}
+            selected={checkpoint.id === routeDraft.selectedStopId}
+          />
+        )) : null}
         {routePlan ? (
-          <>
-            <Polyline
-              coordinates={routePlan.route.coordinates}
-              strokeColor={SAFE_ROUTE_DARK_ROUTE_CASING}
-              strokeWidth={SAFE_ROUTE_ROUTE_CASING_WIDTH}
-              lineCap="round"
-              lineJoin="round"
-            />
-            <Polyline
-              coordinates={routePlan.route.coordinates}
-              strokeColor={SAFE_ROUTE_DARK_ROUTE_GLOW}
-              strokeWidth={SAFE_ROUTE_ROUTE_GLOW_WIDTH}
-              lineCap="round"
-              lineJoin="round"
-            />
-            <Polyline
-              coordinates={routePlan.route.coordinates}
-              strokeColor={colors.routePrimary}
-              strokeWidth={SAFE_ROUTE_ROUTE_CORE_WIDTH}
-              lineCap="round"
-              lineJoin="round"
-            />
-            {routePlan.checkpoints.filter((checkpoint) =>
-              shouldRenderRouteCheckpointMarker({
-                checkpoint,
-                liveCoordinate,
-                nativeUserLocationVisible: currentLocationVisible
-              })
-            ).map((checkpoint) => (
-              <Marker
-                key={checkpoint.id}
-                coordinate={checkpoint.coordinate}
-                title={checkpoint.caption}
-                description={checkpointKindLabel(checkpoint.kind)}
-                anchor={{ x: 0.5, y: 0.5 }}
-              >
-                <View
-                  accessibilityLabel={`${checkpointKindLabel(checkpoint.kind)}: ${checkpoint.caption}`}
-                  accessibilityRole="image"
-                  style={styles.markerHitArea}
-                >
-                  {checkpoint.kind === 'destination' ? (
-                    <MapPin
-                      accessibilityElementsHidden
-                      color={colors.appleBlue}
-                      fill={colors.appleBlue}
-                      size={27}
-                      strokeWidth={1.8}
-                    />
-                  ) : (
-                    <View
-                      style={[
-                        styles.marker,
-                        checkpoint.kind === 'origin'
-                          ? styles.markerOrigin
-                          : styles.markerWaypoint
-                      ]}
-                    >
-                      <View style={styles.markerCore} />
-                    </View>
-                  )}
-                </View>
-              </Marker>
-            ))}
-          </>
-        ) : null}
-        {currentLocationVisible && liveCoordinate ? (
-          <Marker
-            coordinate={liveCoordinate}
-            anchor={{ x: 0.5, y: 0.5 }}
-            title="Current location"
-            zIndex={100}
-          >
-            <View
-              accessible
-              accessibilityLabel={createDeviceHeadingAccessibilityLabel(deviceHeadingDegrees)}
-              accessibilityRole="image"
-              style={styles.currentLocationMarker}
-              testID={uiTestIds.guestMapCurrentLocationMarker}
-            >
-              <Animated.View
-                style={[
-                  styles.currentLocationHalo,
-                  {
-                    opacity: currentLocationPulse.interpolate({
-                      inputRange: [0, 1],
-                      outputRange: [0.55, 0],
-                    }),
-                    transform: [{
-                      scale: currentLocationPulse.interpolate({
-                        inputRange: [0, 1],
-                        outputRange: [1, 2.8],
-                      }),
-                    }],
-                  },
-                ]}
-              />
-              <View style={styles.currentLocationDot} />
-            </View>
-          </Marker>
+          routePlan.checkpoints.filter((checkpoint) =>
+            shouldRenderRouteCheckpointMarker({
+              checkpoint,
+              liveCoordinate,
+              nativeUserLocationVisible: false
+            })
+          ).map((checkpoint) => (
+            <CheckpointMarker key={checkpoint.id} checkpoint={checkpoint} />
+          ))
         ) : null}
         {mapAction ? (
           <Marker
@@ -2058,11 +2142,26 @@ export function GuestMapScreen({
         pointerEvents="box-none"
         style={styles.overlay}
       >
-        {sheetCollapsed && !selectedRiskZone && !mapAction ? (
-        <MotionEntrance
-          pointerEvents="box-none"
-          style={styles.currentLocationControlDock}
-          variant="scene"
+        {!selectedRiskZone && !mapAction ? (
+        <Animated.View
+          accessibilityElementsHidden={!sheetCollapsed}
+          importantForAccessibility={sheetCollapsed ? 'auto' : 'no-hide-descendants'}
+          pointerEvents={sheetCollapsed ? 'box-none' : 'none'}
+          style={[
+            styles.currentLocationControlDock,
+            {
+              opacity: sheetProgress.interpolate({
+                inputRange: [0, 0.64, 1],
+                outputRange: [0, 0, 1],
+              }),
+              transform: [{
+                translateY: sheetProgress.interpolate({
+                  inputRange: [0, 1],
+                  outputRange: [10, 0],
+                }),
+              }],
+            },
+          ]}
         >
           <Pressable
             accessibilityHint={`Switches to the ${mapLayer === 'dark' ? 'satellite' : 'dark'} map.`}
@@ -2120,7 +2219,7 @@ export function GuestMapScreen({
           >
             <Crosshair accessibilityElementsHidden color={colors.appleBlue} size={21} strokeWidth={1.9} />
           </Pressable>
-        </MotionEntrance>
+        </Animated.View>
         ) : null}
 
         <MotionEntrance
@@ -2486,7 +2585,7 @@ export function GuestMapScreen({
                   onChangeText={handleDestinationChange}
                   onFocus={() => transitionActiveInput(GUEST_ROUTE_DRAFT_DESTINATION_ID)}
                   onSubmitEditing={
-                    routePlan ? handleOpenPreview : handlePresentRouteChoices
+                    routePlan ? handleOpenPreview : handlePlotRouteAction
                   }
                 />
               </View>
@@ -2527,11 +2626,25 @@ export function GuestMapScreen({
                 <RouteAlternativeSelector
                   routes={routeAlternatives}
                   selectedRouteId={routePlan.id}
-                  onSelect={setRoutePlan}
+                  onSelect={handleRouteAlternativeSelect}
                 />
               ) : null}
-              {routeChoicesOpen && !routePlan ? (
-                <View>
+              {!searchStageActive && routePlan ? (
+                <MotionEntrance
+                  replayKey={`ready-${travelMode}`}
+                  variant="disclosure"
+                >
+                  <Text accessibilityRole="header" style={styles.routeChoiceLabel}>
+                    Change travel mode
+                  </Text>
+                  <Text style={styles.routeChoiceHelper}>
+                    Tap a mode to plot its route immediately.
+                  </Text>
+                  <TravelModeSelector
+                    disabled={routePlanningDisabled}
+                    selectedMode={travelMode}
+                    onSelect={handleTravelModeChange}
+                  />
                   <RouteOptionsPanel
                     expanded={routeOptionsOpen}
                     preferences={routePreferences}
@@ -2541,15 +2654,7 @@ export function GuestMapScreen({
                     }}
                     onPreferenceChange={handleRoutePreferenceChange}
                   />
-                  <Text accessibilityRole="header" style={styles.routeChoiceLabel}>
-                    Choose travel mode to plot
-                  </Text>
-                  <TravelModeSelector
-                    disabled={routeActionDisabled}
-                    selectedMode={travelMode}
-                    onSelect={handleTravelModeChange}
-                  />
-                </View>
+                </MotionEntrance>
               ) : null}
 
               {!searchStageActive && (
@@ -2583,13 +2688,12 @@ export function GuestMapScreen({
                 </MotionEntrance>
               ) : null}
 
-              {!routeChoicesOpen || routePlan ? (
               <Pressable
                 accessibilityHint={stagedRouteActionAccessibilityHint}
                 accessibilityLabel={stagedRouteActionAccessibilityLabel}
                 accessibilityRole="button"
                 accessibilityState={{
-                  busy: workspaceAuthorizationRequired && workspaceCatalogLoading,
+                  busy: stagedRouteActionBusy,
                   disabled: stagedRouteActionDisabled,
                 }}
                 disabled={stagedRouteActionDisabled}
@@ -2599,13 +2703,25 @@ export function GuestMapScreen({
                   stagedRouteActionDisabled ? styles.primaryButtonDisabled : null,
                   pressed && !stagedRouteActionDisabled ? styles.primaryButtonPressed : null
                 ]}
-                onPress={routePlan ? handleOpenPreview : handlePresentRouteChoices}
+                onPress={routePlan ? handleOpenPreview : handlePlotRouteAction}
               >
+                {stagedRouteActionBusy ? (
+                  <ActivityIndicator
+                    color={stagedRouteActionDisabled ? colors.inkSoft : colors.surface}
+                    size="small"
+                  />
+                ) : routePlan ? (
+                  <Navigation
+                    accessibilityElementsHidden
+                    color={colors.surface}
+                    size={18}
+                    strokeWidth={2.3}
+                  />
+                ) : null}
                 <Text numberOfLines={1} style={styles.primaryButtonText}>
                   {stagedRouteActionLabel}
                 </Text>
               </Pressable>
-              ) : null}
             </View>
             ) : null}
           </Animated.View>
@@ -2637,31 +2753,134 @@ export function GuestMapScreen({
                 }
               ]}
             >
-            <Pressable
-              accessibilityHint="Opens route planning, focuses the next stop, and shows the keyboard."
-              accessibilityLabel="Search for the next stop"
-              accessibilityRole="button"
-              testID={uiTestIds.guestMapCollapsedSheet}
-              style={({ pressed }) => [
-                styles.collapsedSheetButton,
-                pressed ? styles.collapsedSheetPressed : null
-              ]}
-              onPress={handleCollapsedLocationSearch}
+            <MotionEntrance
+              duration={safeRouteMotion.disclosureDurationMs}
+              replayKey={collapsedRouteCardState}
+              variant="sheet"
             >
-              <View style={styles.collapsedSheetCopy}>
-                <Search accessibilityElementsHidden color={colors.muted} size={20} strokeWidth={2.2} />
+            {collapsedRouteCardState === 'finding' ? (
+              <View
+                accessible
+                accessibilityLabel={`Finding the safest ${travelModeRouteLabel} route. Checking roads and nearby risk areas.`}
+                accessibilityLiveRegion="polite"
+                accessibilityRole="progressbar"
+                style={styles.collapsedRouteStatus}
+                testID={uiTestIds.guestMapCollapsedRouteStatus}
+              >
+                <ActivityIndicator color={colors.appleBlue} size="small" />
                 <View style={styles.collapsedSearchCopy}>
-                <Text numberOfLines={1} style={styles.collapsedSheetTitle}>
-                  Search for a location
-                </Text>
-                <Text numberOfLines={1} style={styles.collapsedSheetSubtitle}>
-                  {destination
-                    ? `Current route to ${destination}`
-                    : `From ${origin || 'current location'}`}
-                </Text>
+                  <Text numberOfLines={1} style={styles.collapsedRouteReadyLabel}>
+                    Finding {travelModeRouteLabel} route
+                  </Text>
+                  <Text numberOfLines={1} style={styles.collapsedSheetSubtitle}>
+                    Checking roads and nearby risk areas
+                  </Text>
                 </View>
               </View>
-            </Pressable>
+            ) : routePlan ? (
+              <View style={styles.collapsedRouteActions}>
+                <Pressable
+                  accessibilityHint="Opens the plotted route so its locations and travel mode can be reviewed."
+                  accessibilityLabel={`Review route to ${destination || 'destination'}`}
+                  accessibilityRole="button"
+                  testID={uiTestIds.guestMapCollapsedSheet}
+                  style={({ pressed }) => [
+                    styles.collapsedRouteSummaryButton,
+                    pressed ? styles.collapsedSheetPressed : null,
+                  ]}
+                  onPress={handleCollapsedRouteEdit}
+                >
+                  <View style={styles.collapsedSheetCopy}>
+                    <CarFront
+                      accessibilityElementsHidden
+                      color={colors.appleBlue}
+                      size={21}
+                      strokeWidth={2.2}
+                    />
+                    <View style={styles.collapsedSearchCopy}>
+                      <Text numberOfLines={1} style={styles.collapsedRouteReadyLabel}>
+                        Route ready
+                      </Text>
+                      <Text numberOfLines={1} style={styles.collapsedSheetSubtitle}>
+                        {travelModeRouteLabel[0]?.toUpperCase()}
+                        {travelModeRouteLabel.slice(1)} to {destination || 'destination'}
+                      </Text>
+                    </View>
+                  </View>
+                </Pressable>
+                <Pressable
+                  accessibilityHint={stagedRouteActionAccessibilityHint}
+                  accessibilityLabel={stagedRouteActionAccessibilityLabel}
+                  accessibilityRole="button"
+                  accessibilityState={{
+                    busy: stagedRouteActionBusy,
+                    disabled: stagedRouteActionDisabled,
+                  }}
+                  disabled={stagedRouteActionDisabled}
+                  testID={uiTestIds.guestMapCollapsedStartRoute}
+                  style={({ pressed }) => [
+                    styles.collapsedRouteStartButton,
+                    stagedRouteActionDisabled
+                      ? styles.collapsedRouteStartButtonDisabled
+                      : null,
+                    pressed && !stagedRouteActionDisabled
+                      ? styles.collapsedRouteStartButtonPressed
+                      : null,
+                  ]}
+                  onPress={handleOpenPreview}
+                >
+                  {stagedRouteActionBusy ? (
+                    <ActivityIndicator
+                      color={stagedRouteActionDisabled ? colors.inkSoft : colors.surface}
+                      size="small"
+                    />
+                  ) : (
+                    <Navigation
+                      accessibilityElementsHidden
+                      color={colors.surface}
+                      size={18}
+                      strokeWidth={2.3}
+                    />
+                  )}
+                  <Text
+                    numberOfLines={2}
+                    style={[
+                      styles.collapsedRouteStartButtonText,
+                      stagedRouteActionDisabled
+                        ? styles.collapsedRouteStartButtonTextDisabled
+                        : null,
+                    ]}
+                  >
+                    {stagedRouteActionLabel}
+                  </Text>
+                </Pressable>
+              </View>
+            ) : (
+              <Pressable
+                accessibilityHint="Opens route planning, focuses the next stop, and shows the keyboard."
+                accessibilityLabel="Search for the next stop"
+                accessibilityRole="button"
+                testID={uiTestIds.guestMapCollapsedSheet}
+                style={({ pressed }) => [
+                  styles.collapsedSheetButton,
+                  pressed ? styles.collapsedSheetPressed : null
+                ]}
+                onPress={handleCollapsedLocationSearch}
+              >
+                <View style={styles.collapsedSheetCopy}>
+                  <Search accessibilityElementsHidden color={colors.muted} size={20} strokeWidth={2.2} />
+                  <View style={styles.collapsedSearchCopy}>
+                  <Text numberOfLines={1} style={styles.collapsedSheetTitle}>
+                    Search for a location
+                  </Text>
+                  <Text numberOfLines={1} style={styles.collapsedSheetSubtitle}>
+                    From {origin || 'current location'}
+                  </Text>
+                  </View>
+                </View>
+              </Pressable>
+            )}
+            </MotionEntrance>
             </Animated.View>
           </MotionEntrance>
         ) : null}
@@ -2817,35 +3036,40 @@ function GuestWorkspaceSelector({
             showsVerticalScrollIndicator={false}
             style={styles.workspaceMenu}
           >
-            {workspaces.map((workspace) => {
+            {workspaces.map((workspace, index) => {
               const selected = activeWorkspace?.id === workspace.id;
               return (
-                <Pressable
+                <MotionEntrance
                   key={workspace.id}
-                  accessibilityHint={changeEndsNavigation && !selected
-                    ? `Asks to end active guidance before changing to ${workspace.name}.`
-                    : `Uses ${workspace.name} for routes and risk intelligence.`}
-                  accessibilityLabel={`Use workspace ${workspace.name}${selected ? ', selected' : ''}`}
-                  accessibilityRole="button"
-                  accessibilityState={{ selected }}
-                  testID={uiTestIds.guestMapWorkspaceOption(workspace.id)}
-                  style={({ pressed }) => [
-                    styles.workspaceMenuItem,
-                    selected ? styles.workspaceMenuItemSelected : null,
-                    pressed ? styles.workspaceMenuItemPressed : null
-                  ]}
-                  onPress={() => onSelect(workspace)}
+                  delay={Math.min(index * 32, 128)}
+                  variant="list"
                 >
-                  <Text
-                    numberOfLines={1}
-                    style={[
-                      styles.workspaceMenuItemText,
-                      selected ? styles.workspaceMenuItemTextSelected : null
+                  <Pressable
+                    accessibilityHint={changeEndsNavigation && !selected
+                      ? `Asks to end active guidance before changing to ${workspace.name}.`
+                      : `Uses ${workspace.name} for routes and risk intelligence.`}
+                    accessibilityLabel={`Use workspace ${workspace.name}${selected ? ', selected' : ''}`}
+                    accessibilityRole="button"
+                    accessibilityState={{ selected }}
+                    testID={uiTestIds.guestMapWorkspaceOption(workspace.id)}
+                    style={({ pressed }) => [
+                      styles.workspaceMenuItem,
+                      selected ? styles.workspaceMenuItemSelected : null,
+                      pressed ? styles.workspaceMenuItemPressed : null
                     ]}
+                    onPress={() => onSelect(workspace)}
                   >
-                    {workspace.name}
-                  </Text>
-                </Pressable>
+                    <Text
+                      numberOfLines={1}
+                      style={[
+                        styles.workspaceMenuItemText,
+                        selected ? styles.workspaceMenuItemTextSelected : null
+                      ]}
+                    >
+                      {workspace.name}
+                    </Text>
+                  </Pressable>
+                </MotionEntrance>
               );
             })}
           </ScrollView>
@@ -2870,7 +3094,7 @@ function RouteAlternativeSelector({
       style={styles.routeAlternativeSelector}
       variant="disclosure"
     >
-      {routes.slice(0, 4).map((route, index) => {
+      {routes.slice(0, 3).map((route, index) => {
         const selected = route.id === selectedRouteId;
         return (
           <Pressable
@@ -2894,7 +3118,7 @@ function RouteAlternativeSelector({
                 selected ? styles.routeAlternativeTitleSelected : null,
               ]}
             >
-              Route {index + 1}
+                {index === 0 ? 'Primary' : `Alt ${index}`}
             </Text>
             <Text
               numberOfLines={1}
@@ -2921,47 +3145,13 @@ function TravelModeSelector({
   onSelect: (mode: SafeRouteTravelMode) => void;
   selectedMode: SafeRouteTravelMode;
 }) {
-  const [selectorWidth, setSelectorWidth] = useState(0);
-  const selectedIndex = GUEST_TRAVEL_MODE_OPTIONS.findIndex(
-    (option) => option.id === selectedMode,
-  );
-  const selectionProgress = useMotionValue(Math.max(0, selectedIndex), {
-    spring: true,
-  });
-  const segmentWidth = Math.max(0, selectorWidth - 6) /
-    GUEST_TRAVEL_MODE_OPTIONS.length;
-
   return (
     <View
-      accessibilityLabel="Travel mode"
-      accessibilityRole="tablist"
+      accessibilityLabel="Plot route by travel mode"
       accessibilityState={{ disabled }}
       style={styles.travelModeSelector}
       testID={uiTestIds.guestMapTravelModeSelector}
-      onLayout={({ nativeEvent }) => {
-        setSelectorWidth(nativeEvent.layout.width);
-      }}
     >
-      {segmentWidth > 0 ? (
-        <Animated.View
-          pointerEvents="none"
-          style={[
-            styles.travelModeSelection,
-            {
-              width: segmentWidth,
-              transform: [{
-                translateX: selectionProgress.interpolate({
-                  inputRange: [0, GUEST_TRAVEL_MODE_OPTIONS.length - 1],
-                  outputRange: [
-                    0,
-                    segmentWidth * (GUEST_TRAVEL_MODE_OPTIONS.length - 1),
-                  ],
-                }),
-              }],
-            },
-          ]}
-        />
-      ) : null}
       {GUEST_TRAVEL_MODE_OPTIONS.map((option) => (
         <TravelModeButton
           key={option.id}
@@ -2997,12 +3187,14 @@ function TravelModeButton({
   return (
     <Pressable
       accessibilityLabel={option.accessibilityLabel}
-      accessibilityRole="tab"
+      accessibilityHint="Plots this travel mode immediately."
+      accessibilityRole="button"
       accessibilityState={{ disabled, selected }}
       disabled={disabled}
       testID={uiTestIds.guestMapTravelMode(option.id)}
       style={({ pressed }) => [
         styles.travelModeOption,
+        selected ? styles.travelModeOptionSelected : null,
         disabled ? styles.travelModeOptionDisabled : null,
         pressed ? styles.travelModeOptionPressed : null,
       ]}
@@ -3311,18 +3503,10 @@ function LocationSearchResults({
   if (!pending && !message && !results.length && !shortcuts.length) {
     return null;
   }
-  const replayKey = pending
-    ? 'location-search-pending'
-    : results.length
-      ? `location-search-results:${results.map((result) => result.id).join(':')}`
-      : message
-        ? `location-search-message:${message}`
-        : `location-search-shortcuts:${shortcuts.map((shortcut) => shortcut.id).join(':')}`;
 
   return (
     <MotionEntrance
       duration={GUEST_SEARCH_STAGE_TRANSITION_MS}
-      replayKey={replayKey}
       style={styles.searchResults}
       testID={uiTestIds.guestMapSearchResults}
       variant="scrim"
@@ -3330,8 +3514,9 @@ function LocationSearchResults({
       {shortcuts.length ? (
         <>
           <Text style={styles.searchSectionLabel}>Saved places</Text>
-          {shortcuts.map((shortcut) => (
+          {shortcuts.map((shortcut, index) => (
             <LocationSearchResultRow
+              delay={Math.min(index * 32, 128)}
               key={shortcut.id}
               icon={shortcut.kind}
               result={shortcut.result}
@@ -3355,8 +3540,9 @@ function LocationSearchResults({
       {!pending && results.length ? (
         <Text style={styles.searchSectionLabel}>Search results</Text>
       ) : null}
-      {!pending ? results.map((result) => (
+      {!pending ? results.map((result, index) => (
         <LocationSearchResultRow
+          delay={Math.min(index * 32, 128)}
           key={result.id}
           result={result}
           onManage={onManage}
@@ -3373,11 +3559,13 @@ function LocationSearchResults({
 }
 
 function LocationSearchResultRow({
+  delay,
   icon,
   onManage,
   onSelect,
   result,
 }: {
+  delay: number;
   icon?: LocationSearchShortcut['kind'];
   onManage: (result: GuestLocationSearchResult) => void;
   onSelect: (result: GuestLocationSearchResult) => void;
@@ -3391,56 +3579,58 @@ function LocationSearchResultRow({
         ? Clock3
         : Star;
   return (
-    <View style={styles.searchResultRow}>
-      {icon ? (
-        <ShortcutIcon
-          accessibilityElementsHidden
-          color={colors.appleBlue}
-          size={17}
-          strokeWidth={2}
-        />
-      ) : (
-        <MapPin
-          accessibilityElementsHidden
-          color={colors.muted}
-          size={17}
-          strokeWidth={2}
-        />
-      )}
-      <Pressable
-        accessibilityHint="Selects this place for the active route field."
-        accessibilityLabel={result.displayName}
-        accessibilityRole="button"
-        testID={uiTestIds.guestMapSearchResult(result.id)}
-        style={({ pressed }) => [
-          styles.searchResultSelection,
-          pressed ? styles.searchResultRowPressed : null,
-        ]}
-        onPress={() => onSelect(result)}
-      >
-        <Text numberOfLines={1} style={styles.searchResultTitle}>{result.label}</Text>
-        <Text numberOfLines={1} style={styles.searchResultSubtitle}>{result.displayName}</Text>
-      </Pressable>
-      <Pressable
-        accessibilityHint="Opens Home, Work, and favourite options."
-        accessibilityLabel={`Manage ${result.label}`}
-        accessibilityRole="button"
-        hitSlop={6}
-        testID={uiTestIds.guestMapManagePlace(result.id)}
-        style={({ pressed }) => [
-          styles.searchResultManage,
-          pressed ? styles.searchResultManagePressed : null,
-        ]}
-        onPress={() => onManage(result)}
-      >
-        <Ellipsis
-          accessibilityElementsHidden
-          color={colors.muted}
-          size={19}
-          strokeWidth={2.2}
-        />
-      </Pressable>
-    </View>
+    <MotionEntrance delay={delay} variant="list">
+      <View style={styles.searchResultRow}>
+        {icon ? (
+          <ShortcutIcon
+            accessibilityElementsHidden
+            color={colors.appleBlue}
+            size={17}
+            strokeWidth={2}
+          />
+        ) : (
+          <MapPin
+            accessibilityElementsHidden
+            color={colors.muted}
+            size={17}
+            strokeWidth={2}
+          />
+        )}
+        <Pressable
+          accessibilityHint="Selects this place for the active route field."
+          accessibilityLabel={result.displayName}
+          accessibilityRole="button"
+          testID={uiTestIds.guestMapSearchResult(result.id)}
+          style={({ pressed }) => [
+            styles.searchResultSelection,
+            pressed ? styles.searchResultRowPressed : null,
+          ]}
+          onPress={() => onSelect(result)}
+        >
+          <Text numberOfLines={1} style={styles.searchResultTitle}>{result.label}</Text>
+          <Text numberOfLines={1} style={styles.searchResultSubtitle}>{result.displayName}</Text>
+        </Pressable>
+        <Pressable
+          accessibilityHint="Opens Home, Work, and favourite options."
+          accessibilityLabel={`Manage ${result.label}`}
+          accessibilityRole="button"
+          hitSlop={6}
+          testID={uiTestIds.guestMapManagePlace(result.id)}
+          style={({ pressed }) => [
+            styles.searchResultManage,
+            pressed ? styles.searchResultManagePressed : null,
+          ]}
+          onPress={() => onManage(result)}
+        >
+          <Ellipsis
+            accessibilityElementsHidden
+            color={colors.muted}
+            size={19}
+            strokeWidth={2.2}
+          />
+        </Pressable>
+      </View>
+    </MotionEntrance>
   );
 }
 
@@ -3539,6 +3729,67 @@ function persistentPlaceMatchKey(place: {
   ].join(':');
 }
 
+function resolveGuestMapRenderedRiskZones({
+  mapRegion,
+  selectedRiskZoneId,
+  zones,
+}: {
+  mapRegion: Region;
+  selectedRiskZoneId?: string;
+  zones: RiskZone[];
+}): RiskZone[] {
+  const halfLatitudeDelta = Math.max(0.005, mapRegion.latitudeDelta / 2);
+  const halfLongitudeDelta = Math.max(0.005, mapRegion.longitudeDelta / 2);
+  const bounds = {
+    south: Math.max(-90, mapRegion.latitude - halfLatitudeDelta),
+    west: Math.max(-180, mapRegion.longitude - halfLongitudeDelta),
+    north: Math.min(90, mapRegion.latitude + halfLatitudeDelta),
+    east: Math.min(180, mapRegion.longitude + halfLongitudeDelta),
+  };
+
+  return zones
+    .filter((zone) =>
+      zone.id === selectedRiskZoneId ||
+      areaRiskItemIntersectsBounds({
+        ...zone,
+        coordinates:
+          zone.polygonCoordinates?.length
+            ? zone.polygonCoordinates
+            : zone.routeSegmentCoordinates,
+      }, bounds)
+    )
+    .sort((left, right) => {
+      const selectedPriority =
+        Number(right.id === selectedRiskZoneId) -
+        Number(left.id === selectedRiskZoneId);
+      if (selectedPriority) {
+        return selectedPriority;
+      }
+      const severityPriority =
+        guestRiskSeverityPriority(right.severity) -
+        guestRiskSeverityPriority(left.severity);
+      if (severityPriority) {
+        return severityPriority;
+      }
+      return guestRiskDistanceFromMapCenter(left, mapRegion) -
+        guestRiskDistanceFromMapCenter(right, mapRegion);
+    })
+    .slice(0, GUEST_MAP_MAX_RENDERED_RISK_ZONES);
+}
+
+function guestRiskSeverityPriority(severity: RiskZone['severity']): number {
+  if (severity === 'high') {
+    return 3;
+  }
+  return severity === 'medium' ? 2 : 1;
+}
+
+function guestRiskDistanceFromMapCenter(zone: RiskZone, region: Region): number {
+  const latitudeDelta = zone.coordinate.latitude - region.latitude;
+  const longitudeDelta = zone.coordinate.longitude - region.longitude;
+  return latitudeDelta * latitudeDelta + longitudeDelta * longitudeDelta;
+}
+
 function isCurrentLocationLabel(value: string): boolean {
   return value.trim().toLowerCase() === 'current location';
 }
@@ -3567,6 +3818,55 @@ function checkpointKindLabel(kind: 'origin' | 'waypoint' | 'destination'): strin
     return 'Route start';
   }
   return kind === 'waypoint' ? 'Route stop' : 'Destination';
+}
+
+function GuestDraftCheckpointMarker({
+  checkpoint,
+  selected,
+}: {
+  checkpoint: RouteCheckpoint;
+  selected: boolean;
+}) {
+  return (
+    <Marker
+      coordinate={checkpoint.coordinate}
+      title={checkpoint.caption}
+      description={checkpointKindLabel(checkpoint.kind)}
+      anchor={checkpoint.kind === 'destination'
+        ? { x: 0.5, y: 0.88 }
+        : { x: 0.5, y: 0.5 }}
+      zIndex={selected ? 92 : 88}
+    >
+      <View
+        accessibilityLabel={`Selected ${checkpointKindLabel(checkpoint.kind).toLowerCase()}: ${checkpoint.caption}`}
+        accessibilityRole="image"
+        style={styles.markerHitArea}
+      >
+        {selected ? <View style={styles.markerSelectionHalo} /> : null}
+        {checkpoint.kind === 'destination' ? (
+          <MapPin
+            accessibilityElementsHidden
+            color={colors.appleBlue}
+            fill={colors.appleBlue}
+            size={28}
+            strokeWidth={1.8}
+          />
+        ) : (
+          <View
+            style={[
+              styles.marker,
+              checkpoint.kind === 'origin'
+                ? styles.markerOrigin
+                : styles.markerWaypoint,
+              selected ? styles.markerSelected : null,
+            ]}
+          >
+            <View style={styles.markerCore} />
+          </View>
+        )}
+      </View>
+    </Marker>
+  );
 }
 
 function regionAroundCoordinate(coordinate: LatLng): Region {

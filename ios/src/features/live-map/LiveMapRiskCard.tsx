@@ -24,6 +24,10 @@ export function LiveRouteRiskAlertCard({
 }: LiveRouteRiskAlertCardProps) {
   const presentation = createLiveRouteRiskAlertPresentation(alert);
   const areaLabel = createAlertAreaLabel(alert);
+  const tone: RiskCardTone =
+    alert.zone.avoidanceSeverity === "critical"
+      ? "critical"
+      : presentation.tone;
 
   return (
     <Pressable
@@ -37,7 +41,7 @@ export function LiveRouteRiskAlertCard({
           bottom: resolveRiskCardBottom(layout),
         },
         layout.isCompact ? styles.riskCardCompact : null,
-        riskCardToneStyle(presentation.tone),
+        riskCardToneStyle(tone),
         pressed ? styles.riskCardPressed : null,
       ]}
       onPress={onPress}
@@ -45,7 +49,7 @@ export function LiveRouteRiskAlertCard({
       <View
         style={[
           styles.riskIconTile,
-          riskIconTileToneStyle(presentation.tone),
+          riskIconTileToneStyle(tone),
         ]}
       >
         <AlertTriangle
@@ -73,14 +77,14 @@ export function LiveRouteRiskAlertCard({
           <View
             style={[
               styles.riskChip,
-              riskChipToneStyle(presentation.tone),
+              riskChipToneStyle(tone),
             ]}
           >
             <Text
               numberOfLines={1}
-              style={[styles.riskChipText, riskTextToneStyle(presentation.tone)]}
+              style={[styles.riskChipText, riskTextToneStyle(tone)]}
             >
-              {riskSeverityLabel(presentation.tone)}
+              {riskSeverityLabel(tone)}
             </Text>
           </View>
           <View style={[styles.riskChip, styles.riskAreaChip]}>
@@ -98,12 +102,14 @@ function resolveRiskCardBottom(layout: LiveMapOverlayLayout): number {
   return layout.isCompact ? 128 : 136;
 }
 
-function riskCardToneStyle(tone: "low" | "medium" | "high") {
-  if (tone === "high") {
+type RiskCardTone = "low" | "medium" | "high" | "critical";
+
+function riskCardToneStyle(tone: RiskCardTone) {
+  if (tone === "critical") {
     return styles.riskCardHigh;
   }
 
-  if (tone === "medium") {
+  if (tone === "high" || tone === "medium") {
     return styles.riskCardMedium;
   }
 
@@ -125,7 +131,11 @@ function createAlertAreaLabel(alert: LiveRouteRiskAlert): string {
   return `${formatDistance(alert.proximity.radiusMeters)} radius`;
 }
 
-function riskSeverityLabel(tone: "low" | "medium" | "high"): string {
+function riskSeverityLabel(tone: RiskCardTone): string {
+  if (tone === "critical") {
+    return "Critical risk";
+  }
+
   if (tone === "high") {
     return "High risk";
   }
@@ -137,48 +147,48 @@ function riskSeverityLabel(tone: "low" | "medium" | "high"): string {
   return "Low risk";
 }
 
-function riskIconTileToneStyle(tone: "low" | "medium" | "high") {
-  if (tone === "high") {
+function riskIconTileToneStyle(tone: RiskCardTone) {
+  if (tone === "critical") {
     return styles.riskIconTileHigh;
   }
 
-  if (tone === "medium") {
+  if (tone === "high" || tone === "medium") {
     return styles.riskIconTileMedium;
   }
 
   return styles.riskIconTileLow;
 }
 
-function riskChipToneStyle(tone: "low" | "medium" | "high") {
-  if (tone === "high") {
+function riskChipToneStyle(tone: RiskCardTone) {
+  if (tone === "critical") {
     return styles.riskChipHigh;
   }
 
-  if (tone === "medium") {
+  if (tone === "high" || tone === "medium") {
     return styles.riskChipMedium;
   }
 
   return styles.riskChipLow;
 }
 
-function riskTextToneStyle(tone: "low" | "medium" | "high") {
-  if (tone === "high") {
+function riskTextToneStyle(tone: RiskCardTone) {
+  if (tone === "critical") {
     return styles.riskTextHigh;
   }
 
-  if (tone === "medium") {
+  if (tone === "high" || tone === "medium") {
     return styles.riskTextMedium;
   }
 
   return styles.riskTextLow;
 }
 
-function riskToneColor(tone: "low" | "medium" | "high"): string {
-  if (tone === "high") {
+function riskToneColor(tone: RiskCardTone): string {
+  if (tone === "critical") {
     return colors.danger;
   }
 
-  if (tone === "medium") {
+  if (tone === "high" || tone === "medium") {
     return colors.amber;
   }
 

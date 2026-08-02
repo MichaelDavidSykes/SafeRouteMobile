@@ -1,6 +1,11 @@
 import type { Region } from 'react-native-maps';
 
-import type { RiskSeverity, RiskZone } from './liveMapTypes';
+import type {
+  RiskEscalationIndicator,
+  RiskLinkedEntity,
+  RiskSeverity,
+  RiskZone
+} from './liveMapTypes';
 import type { AreaRiskFeedAuthority } from './areaRiskAuthority';
 import {
   areaRiskSafetyWarning,
@@ -177,10 +182,15 @@ const severityColors: Record<RiskSeverity, { fill: string; marker: string; strok
     fill: 'rgba(243, 163, 43, 0.18)'
   },
   high: {
-    marker: '#d84a3f',
-    stroke: 'rgba(216, 74, 63, 0.72)',
-    fill: 'rgba(216, 74, 63, 0.18)'
+    marker: '#df7a16',
+    stroke: 'rgba(223, 122, 22, 0.78)',
+    fill: 'rgba(223, 122, 22, 0.2)'
   }
+};
+const criticalSeverityColors = {
+  marker: '#d84a3f',
+  stroke: 'rgba(216, 74, 63, 0.82)',
+  fill: 'rgba(216, 74, 63, 0.22)'
 };
 
 export function approximateMapZoom(region: Pick<Region, 'longitudeDelta'>): number {
@@ -887,7 +897,9 @@ function normalizeAreaRiskItem(value: unknown, index: number, feedSource: string
 
   const severity = normalizeSeverity(item.severity, item.riskScore ?? item.risk_score);
   const avoidanceSeverity = normalizeAvoidanceSeverity(item.severity);
-  const colors = severityColors[severity];
+  const colors = avoidanceSeverity === 'critical'
+    ? criticalSeverityColors
+    : severityColors[severity];
   const radiusMeters = normalizeRadius(item.radiusM ?? item.radius_m ?? item.radiusMeters);
   const coordinates = normalizeCoordinates(
     item.polygonCoordinates ??
@@ -911,9 +923,48 @@ function normalizeAreaRiskItem(value: unknown, index: number, feedSource: string
 
   const title = cleanText(item.label ?? item.title ?? item.name, `Area safety signal ${index + 1}`, 120);
   const source = cleanOptionalText(item.riskAreaSourceLabel ?? item.source, 160) ?? feedSource;
+  const sourceDescription = cleanOptionalText(
+    item.riskAreaSourceDescription ??
+      item.risk_area_source_description ??
+      item.sourceDescription ??
+      item.source_description,
+    600
+  );
+  const sourceTypeValue =
+    item.riskAreaSourceType ??
+    item.risk_area_source_type ??
+    item.sourceType ??
+    item.source_type ??
+    item.riskAreaSource;
+  const sourceTypeCandidate = cleanOptionalText(sourceTypeValue, 80);
+  const sourceType = sourceTypeCandidate &&
+    !normalizePublicSourceUrl(sourceTypeCandidate)
+    ? sourceTypeCandidate
+    : null;
+  const riskScoreValue = finiteNumber(item.riskScore ?? item.risk_score);
+  const riskScore = riskScoreValue === null
+    ? null
+    : Math.round(clamp(riskScoreValue, 0, 100));
+  const sourceUrl = normalizePublicSourceUrl(
+    item.sourceUrl ?? item.source_url ?? item.riskAreaSource
+  );
+  const sourceUrls = uniquePublicSourceUrls(
+    item.sourceUrls ?? item.source_urls,
+    sourceUrl
+  );
+  const confidence = cleanOptionalText(item.confidence, 80);
+  const evidenceCount = nonNegativeIntegerOrNull(
+    item.evidenceCount ?? item.evidence_count
+  );
+  const escalationIndicators = normalizeEscalationIndicators(
+    item.escalationIndicators ?? item.escalation_indicators
+  );
+  const linkedEntities = normalizeLinkedEntities(
+    item.linkedEntities ?? item.linked_entities
+  );
   const rawDescription = cleanOptionalText(item.notes ?? item.description ?? item.summary, 1000);
   const description = cleanText(
-    [rawDescription, source ? `Source: ${source}.` : null].filter(Boolean).join(' '),
+    rawDescription,
     'LunarChain area-risk intelligence.',
     1200
   );
@@ -937,7 +988,43 @@ function normalizeAreaRiskItem(value: unknown, index: number, feedSource: string
     radiusMeters,
     markerColor: colors.marker,
     strokeColor: colors.stroke,
-    fillColor: colors.fill
+    fillColor: colors.fill,
+    ...(riskScore !== null ? { riskScore } : {}),
+    ...(confidence ? { confidence } : {}),
+    ...(source ? { source } : {}),
+    ...(sourceDescription ? { sourceDescription } : {}),
+    ...(sourceType ? { sourceType } : {}),
+    ...(sourceUrl ? { sourceUrl } : {}),
+    ...(sourceUrls.length ? { sourceUrls } : {}),
+    ...(evidenceCount !== null ? { evidenceCount } : {}),
+    ...(escalationIndicators.length ? { escalationIndicators } : {}),
+    ...(linkedEntities.length ? { linkedEntities } : {}),
+    ...optionalTextField(
+      'lastVerifiedAt',
+      item.lastVerifiedAt ?? item.last_verified_at,
+      80
+    ),
+    ...optionalTextField('validUntil', item.validUntil ?? item.valid_until, 80),
+    ...optionalTextField('sourceQuery', item.sourceQuery ?? item.source_query, 500),
+    ...optionalTextField('queryRelation', item.queryRelation ?? item.query_relation, 160),
+    ...optionalTextField('riskTheme', item.riskTheme ?? item.risk_theme, 160),
+    ...optionalTextField(
+      'expectedActivity',
+      item.expectedActivity ?? item.expected_activity,
+      600
+    ),
+    ...optionalTextListField(
+      'recommendedActions',
+      item.recommendedActions ?? item.recommended_actions,
+      8,
+      300
+    ),
+    ...optionalTextListField(
+      'relatedAreas',
+      item.relatedAreas ?? item.related_areas,
+      8,
+      180
+    )
   };
 }
 
@@ -945,7 +1032,12 @@ function mergeRiskZone(primary: RiskZone, incoming: RiskZone): RiskZone {
   const severity = severityRank(incoming.severity) > severityRank(primary.severity)
     ? incoming.severity
     : primary.severity;
-  const colors = severityColors[severity];
+  const criticalAvoidance =
+    primary.avoidanceSeverity === 'critical' ||
+    incoming.avoidanceSeverity === 'critical';
+  const colors = criticalAvoidance
+    ? criticalSeverityColors
+    : severityColors[severity];
   const primaryPolygon = primary.polygonCoordinates ?? [];
   const incomingPolygon = incoming.polygonCoordinates ?? [];
   const polygonCoordinates = incomingPolygon.length > primaryPolygon.length
@@ -958,7 +1050,7 @@ function mergeRiskZone(primary: RiskZone, incoming: RiskZone): RiskZone {
       ? primary.description
       : incoming.description,
     severity,
-    ...(primary.avoidanceSeverity === 'critical' || incoming.avoidanceSeverity === 'critical'
+    ...(criticalAvoidance
       ? { avoidanceSeverity: 'critical' as const }
       : {}),
     polygonCoordinates: polygonCoordinates.length >= 3 ? [...polygonCoordinates] : undefined,
@@ -966,7 +1058,31 @@ function mergeRiskZone(primary: RiskZone, incoming: RiskZone): RiskZone {
     radiusMeters: Math.max(primary.radiusMeters, incoming.radiusMeters),
     markerColor: colors.marker,
     strokeColor: colors.stroke,
-    fillColor: colors.fill
+    fillColor: colors.fill,
+    riskScore: primary.riskScore ?? incoming.riskScore,
+    confidence: primary.confidence ?? incoming.confidence,
+    source: primary.source ?? incoming.source,
+    sourceDescription: primary.sourceDescription ?? incoming.sourceDescription,
+    sourceType: primary.sourceType ?? incoming.sourceType,
+    sourceUrl: primary.sourceUrl ?? incoming.sourceUrl,
+    sourceUrls: mergeTextLists(primary.sourceUrls, incoming.sourceUrls),
+    evidenceCount: primary.evidenceCount ?? incoming.evidenceCount,
+    escalationIndicators: preferLongerList(
+      primary.escalationIndicators,
+      incoming.escalationIndicators
+    ),
+    linkedEntities: preferLongerList(primary.linkedEntities, incoming.linkedEntities),
+    lastVerifiedAt: primary.lastVerifiedAt ?? incoming.lastVerifiedAt,
+    validUntil: primary.validUntil ?? incoming.validUntil,
+    sourceQuery: primary.sourceQuery ?? incoming.sourceQuery,
+    queryRelation: primary.queryRelation ?? incoming.queryRelation,
+    riskTheme: primary.riskTheme ?? incoming.riskTheme,
+    expectedActivity: primary.expectedActivity ?? incoming.expectedActivity,
+    recommendedActions: mergeTextLists(
+      primary.recommendedActions,
+      incoming.recommendedActions
+    ),
+    relatedAreas: mergeTextLists(primary.relatedAreas, incoming.relatedAreas)
   };
 }
 
@@ -987,7 +1103,25 @@ function cloneRiskZone(zone: RiskZone): RiskZone {
   return {
     ...zone,
     coordinate: { ...zone.coordinate },
-    polygonCoordinates: zone.polygonCoordinates?.map((coordinate) => ({ ...coordinate }))
+    polygonCoordinates: zone.polygonCoordinates?.map((coordinate) => ({ ...coordinate })),
+    ...(zone.sourceUrls ? { sourceUrls: [...zone.sourceUrls] } : {}),
+    ...(zone.escalationIndicators
+      ? {
+          escalationIndicators: zone.escalationIndicators.map((indicator) => ({
+            ...indicator,
+            ...(indicator.matchedTerms
+              ? { matchedTerms: [...indicator.matchedTerms] }
+              : {})
+          }))
+        }
+      : {}),
+    ...(zone.linkedEntities
+      ? { linkedEntities: zone.linkedEntities.map((entity) => ({ ...entity })) }
+      : {}),
+    ...(zone.recommendedActions
+      ? { recommendedActions: [...zone.recommendedActions] }
+      : {}),
+    ...(zone.relatedAreas ? { relatedAreas: [...zone.relatedAreas] } : {})
   };
 }
 
@@ -1399,6 +1533,157 @@ function asRecord(value: unknown): Record<string, unknown> | null {
 
 function asArray(value: unknown): unknown[] {
   return Array.isArray(value) ? value : [];
+}
+
+function optionalTextField(
+  key:
+    | 'expectedActivity'
+    | 'lastVerifiedAt'
+    | 'queryRelation'
+    | 'riskTheme'
+    | 'sourceQuery'
+    | 'validUntil',
+  value: unknown,
+  maxLength: number
+): Partial<RiskZone> {
+  const text = cleanOptionalText(value, maxLength);
+  return text ? { [key]: text } : {};
+}
+
+function optionalTextListField(
+  key: 'recommendedActions' | 'relatedAreas',
+  value: unknown,
+  maxItems: number,
+  maxLength: number
+): Partial<RiskZone> {
+  const items = normalizeTextList(value, maxItems, maxLength);
+  return items.length ? { [key]: items } : {};
+}
+
+function normalizeTextList(
+  value: unknown,
+  maxItems: number,
+  maxLength: number
+): string[] {
+  const values = Array.isArray(value) ? value : (value === undefined ? [] : [value]);
+  const normalized = values
+    .map((candidate) => {
+      const record = asRecord(candidate);
+      return cleanOptionalText(
+        record?.label ?? record?.name ?? record?.title ?? candidate,
+        maxLength
+      );
+    })
+    .filter((candidate): candidate is string => Boolean(candidate));
+  return Array.from(new Map(
+    normalized.map((candidate) => [candidate.toLowerCase(), candidate])
+  ).values()).slice(0, maxItems);
+}
+
+function normalizeEscalationIndicators(value: unknown): RiskEscalationIndicator[] {
+  return asArray(value).flatMap((candidate) => {
+    const record = asRecord(candidate);
+    const label = cleanOptionalText(
+      record?.label ?? record?.title ?? record?.category,
+      180
+    );
+    if (!record || !label) {
+      return [];
+    }
+    const evidenceCount = nonNegativeIntegerOrNull(
+      record.evidenceCount ?? record.evidence_count
+    );
+    const matchedTerms = normalizeTextList(
+      record.matchedTerms ?? record.matched_terms,
+      8,
+      80
+    );
+    return [{
+      label,
+      ...optionalIndicatorTextField('id', record.id, 160),
+      ...optionalIndicatorTextField('category', record.category, 100),
+      ...optionalIndicatorTextField('confidence', record.confidence, 80),
+      ...(evidenceCount !== null ? { evidenceCount } : {}),
+      ...(matchedTerms.length ? { matchedTerms } : {}),
+      ...optionalIndicatorTextField('snippet', record.snippet, 500)
+    }];
+  }).slice(0, 12);
+}
+
+function optionalIndicatorTextField(
+  key: 'category' | 'confidence' | 'id' | 'snippet',
+  value: unknown,
+  maxLength: number
+): Partial<RiskEscalationIndicator> {
+  const text = cleanOptionalText(value, maxLength);
+  return text ? { [key]: text } : {};
+}
+
+function normalizeLinkedEntities(value: unknown): RiskLinkedEntity[] {
+  return asArray(value).flatMap((candidate) => {
+    const record = asRecord(candidate);
+    const label = cleanOptionalText(record?.label ?? record?.name ?? record?.title, 180);
+    if (!record || !label) {
+      return [];
+    }
+    return [{
+      label,
+      ...optionalEntityTextField('id', record.id, 160),
+      ...optionalEntityTextField('relation', record.relation, 120),
+      ...optionalEntityTextField('source', record.source, 160),
+      ...optionalEntityTextField('type', record.type, 100)
+    }];
+  }).slice(0, 16);
+}
+
+function optionalEntityTextField(
+  key: 'id' | 'relation' | 'source' | 'type',
+  value: unknown,
+  maxLength: number
+): Partial<RiskLinkedEntity> {
+  const text = cleanOptionalText(value, maxLength);
+  return text ? { [key]: text } : {};
+}
+
+function normalizePublicSourceUrl(value: unknown): string | null {
+  const text = cleanOptionalText(value, 1200);
+  if (!text) {
+    return null;
+  }
+  try {
+    const url = new URL(text);
+    return url.protocol === 'https:' || url.protocol === 'http:' ? url.toString() : null;
+  } catch {
+    return null;
+  }
+}
+
+function uniquePublicSourceUrls(value: unknown, primary: string | null): string[] {
+  const urls = [
+    ...(primary ? [primary] : []),
+    ...asArray(value)
+      .map(normalizePublicSourceUrl)
+      .filter((url): url is string => Boolean(url))
+  ];
+  return Array.from(new Set(urls)).slice(0, 20);
+}
+
+function mergeTextLists(
+  primary: readonly string[] | undefined,
+  incoming: readonly string[] | undefined
+): string[] | undefined {
+  const merged = Array.from(new Set([...(primary ?? []), ...(incoming ?? [])]));
+  return merged.length ? merged : undefined;
+}
+
+function preferLongerList<T>(
+  primary: readonly T[] | undefined,
+  incoming: readonly T[] | undefined
+): T[] | undefined {
+  const preferred = (incoming?.length ?? 0) > (primary?.length ?? 0)
+    ? incoming
+    : primary;
+  return preferred?.length ? [...preferred] : undefined;
 }
 
 function cleanText(value: unknown, fallback: string, maxLength: number): string {

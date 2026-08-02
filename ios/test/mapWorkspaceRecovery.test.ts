@@ -27,7 +27,10 @@ describe("authenticated Map workspace recovery integration", () => {
     assert.match(guest, /recoverWorkspaceAccessRef\.current = \(workspaceId\) => \{[\s\S]*clearWorkspaceScopedMapState\(\);[\s\S]*onWorkspaceUnavailableRef\.current\?\.\(workspaceId\)/);
     assert.match(guest, /useViewportRiskAreas\(\{[\s\S]*onWorkspaceUnavailable: onWorkspaceUnavailable[\s\S]*recoverWorkspaceAccessRef\.current\(workspaceId\)/);
     assert.match(guest, /workspaceUnavailableHandled = true;[\s\S]*recoverWorkspaceAccessRef\.current\(unavailableWorkspaceId\)/);
-    assert.match(guest, /catch \(error\) \{[\s\S]*handleRouteSessionExpiry\(error\)[\s\S]*handleRouteWorkspaceUnavailable\(error\)[\s\S]*SAFEROUTE_PREVIEW_MODE_ENABLED/);
+    assert.match(
+      guest,
+      /catch \(error\) \{[\s\S]*handleRouteSessionExpiry\(error\)[\s\S]*handleRouteWorkspaceUnavailable\(error\)[\s\S]*hosted, road-snapped route has already been published/,
+    );
     assert.match(guest, /createGuestRiskArea\([\s\S]*getRequestSessionExpiry\([\s\S]*getRequestUnavailableWorkspaceId\([\s\S]*recoverWorkspaceAccessRef\.current\(unavailableWorkspaceId\)/);
     assert.match(guest, /!acceptedRoadPreview && !sessionExpiryHandled && !workspaceUnavailableHandled/);
   });

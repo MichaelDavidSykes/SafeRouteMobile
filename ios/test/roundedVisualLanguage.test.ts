@@ -488,13 +488,16 @@ describe("rounded visual language", () => {
     assert.match(guestMapSource, /openPendingPreview\(roadRoutePlan\)/);
     assert.doesNotMatch(guestMapSource, /openPendingPreview\(localRoutePlan\)/);
     assert.doesNotMatch(guestMapSource, /setRoutePlan\(SAFEROUTE_PREVIEW_MODE_ENABLED\s*\?\s*localRoutePlan/);
-    assert.match(guestMapSource, /A road-snapped safe route is unavailable/);
+    assert.match(guestMapSource, /We couldn't plot the \$\{requestedModeLabel\} route/);
     assert.match(guestMapSource, /GUEST_ROUTE_PROVIDER_UI_TIMEOUT_MS\s*=\s*15000/);
     assert.match(guestMapSource, /timeoutMs:\s*GUEST_ROUTE_PROVIDER_UI_TIMEOUT_MS/);
-    assert.match(guestMapSource, /finalRoadPreview,[\s\S]*\.\.\.\(finalRoadPreview\.alternatives \|\| \[\]\)/);
-    assert.match(guestMapSource, /roadSnappedCoordinates:\s*preview\.coordinates/);
-    assert.match(guestMapSource, /routeDistanceMeters:\s*preview\.distanceMeters/);
-    assert.match(guestMapSource, /routeDurationSeconds:\s*preview\.durationSeconds/);
+    assert.match(
+      guestMapSource,
+      /publishRoadPreview[\s\S]*preview,[\s\S]*\.\.\.\(preview\.alternatives \|\| \[\]\)/,
+    );
+    assert.match(guestMapSource, /roadSnappedCoordinates:\s*routePreview\.coordinates/);
+    assert.match(guestMapSource, /routeDistanceMeters:\s*routePreview\.distanceMeters/);
+    assert.match(guestMapSource, /routeDurationSeconds:\s*routePreview\.durationSeconds/);
     assert.doesNotMatch(guestMapSource, /roadPreviewLoading|roadPreviewStatus/);
     assert.match(guestMapSource, /accessibilityLabel="Searching nearby places"/);
   });

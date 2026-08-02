@@ -100,10 +100,7 @@ export function LiveMapCanvas({
       showsTraffic={!offline && routePlan.travelMode === "drive"}
       zoomEnabled
       pitchEnabled
-      rotateEnabled={
-        activeNavigationState === "navigating" ||
-        activeNavigationState === "off-route"
-      }
+      rotateEnabled
       toolbarEnabled={false}
       customMapStyle={SAFE_ROUTE_DARK_MAP_STYLE}
       mapType={resolveSafeRouteMapType({
@@ -124,6 +121,7 @@ export function LiveMapCanvas({
             strokeWidth={SAFE_ROUTE_ROUTE_CASING_WIDTH}
             lineCap="round"
             lineJoin="round"
+            zIndex={20}
           />
           <Polyline
             coordinates={routeCoordinates}
@@ -131,6 +129,7 @@ export function LiveMapCanvas({
             strokeWidth={SAFE_ROUTE_ROUTE_GLOW_WIDTH}
             lineCap="round"
             lineJoin="round"
+            zIndex={21}
           />
           <Polyline
             coordinates={routeCoordinates}
@@ -138,6 +137,7 @@ export function LiveMapCanvas({
             strokeWidth={routeLinePresentation.remainingStrokeWidth}
             lineCap="round"
             lineJoin="round"
+            zIndex={22}
           />
         </>
       ) : null}
@@ -149,6 +149,7 @@ export function LiveMapCanvas({
           strokeWidth={routeLinePresentation.completedStrokeWidth}
           lineCap="round"
           lineJoin="round"
+          zIndex={23}
         />
       ) : null}
 

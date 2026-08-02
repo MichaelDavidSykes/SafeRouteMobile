@@ -19,7 +19,7 @@ export const colors = {
   appleBluePressed: '#0071e3',
   appleBlueSoft: 'rgba(10, 132, 255, 0.14)',
   routePrimary: '#0a84ff',
-  routeRemaining: 'rgba(10, 132, 255, 0.28)',
+  routeRemaining: '#0a84ff',
   routeCompleted: '#005ecb',
   safe: '#30b85a',
   safeSoft: 'rgba(48, 184, 90, 0.12)',

@@ -17,6 +17,7 @@ import {
 const LIVE_RISK_REGION_DELTA = 0.12;
 const CHECKPOINT_COMPLETION_BUFFER_METERS = 35;
 const REROUTE_STOP_DEDUPE_METERS = 5;
+const ROUTE_OPTION_AVOIDANCE_PADDING_METERS = 140;
 
 export interface LiveRerouteTargets {
   remainingCheckpoints: RouteCheckpoint[];
@@ -106,6 +107,66 @@ export function buildLiveRerouteAvoidRectangles(
   }))
     .filter((rectangle) => routeIntersectsAvoidRectangles(routeCoordinates, [rectangle]))
     .filter((rectangle) => !requiredStops.some((stop) => coordinateInsideRectangle(stop, rectangle)));
+}
+
+export function buildRouteOptionAvoidRectangles(
+  riskZones: RiskZone[],
+  candidateRouteCoordinates: LatLng[] | LatLng[][],
+  requiredStops: LatLng[]
+): GuestRouteAvoidRectangle[] {
+  const candidateRoutes = normalizeCandidateRoutes(candidateRouteCoordinates);
+  const rankedZones = riskZones
+    .map((zone) => ({
+      proximity: nearestRouteProximity(candidateRoutes, zone),
+      zone,
+    }))
+    .filter(({ proximity }) =>
+      Boolean(
+        proximity &&
+        proximity.clearanceMeters <= ROUTE_OPTION_AVOIDANCE_PADDING_METERS,
+      )
+    )
+    .sort((left, right) =>
+      (left.proximity?.routeDistanceMeters ?? Number.POSITIVE_INFINITY) -
+      (right.proximity?.routeDistanceMeters ?? Number.POSITIVE_INFINITY)
+    )
+    .map(({ zone }) => zone);
+  return deriveRiskZoneAvoidRectangles(rankedZones, {
+    maxRectangles: 10,
+    paddingMeters: ROUTE_OPTION_AVOIDANCE_PADDING_METERS,
+  }).map((rectangle) => ({
+    label: rectangle.label,
+    maxLatitude: rectangle.max_lat,
+    maxLongitude: rectangle.max_lon,
+    minLatitude: rectangle.min_lat,
+    minLongitude: rectangle.min_lon,
+  })).filter((rectangle) =>
+    !requiredStops.some((stop) => coordinateInsideRectangle(stop, rectangle))
+  );
+}
+
+function normalizeCandidateRoutes(
+  coordinates: LatLng[] | LatLng[][],
+): LatLng[][] {
+  if (!coordinates.length) {
+    return [];
+  }
+  const routes = Array.isArray(coordinates[0])
+    ? coordinates as LatLng[][]
+    : [coordinates as LatLng[]];
+  return routes.filter((route) => route.length >= 2);
+}
+
+function nearestRouteProximity(
+  routes: LatLng[][],
+  zone: RiskZone,
+) {
+  return routes
+    .map((route) => calculateRiskZoneRouteProximity(route, zone))
+    .filter((proximity): proximity is NonNullable<typeof proximity> =>
+      Boolean(proximity)
+    )
+    .sort((left, right) => left.clearanceMeters - right.clearanceMeters)[0] ?? null;
 }
 
 export function applyLiveReroutePreview({

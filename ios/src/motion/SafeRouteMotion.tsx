@@ -32,15 +32,21 @@ export const safeRouteMotion = {
 
 const settledCurve = Easing.bezier(0.2, 0.7, 0.2, 1);
 const exitCurve = Easing.bezier(0.4, 0, 1, 1);
+const keyboardCurve = Easing.bezier(0.17, 0.59, 0.4, 0.77);
 
 export const safeRouteEasing = {
   exit: exitCurve,
+  keyboard: keyboardCurve,
   settled: settledCurve,
 } as const;
 
 export const safeRouteSpring = {
   damping: 22,
+  isInteraction: false,
   mass: 0.7,
+  overshootClamping: true,
+  restDisplacementThreshold: 0.001,
+  restSpeedThreshold: 0.001,
   stiffness: 240,
 } as const;
 
@@ -82,6 +88,7 @@ type EntranceVariant =
   | 'auth'
   | 'chrome'
   | 'disclosure'
+  | 'list'
   | 'scene'
   | 'scrim'
   | 'sheet';
@@ -114,6 +121,10 @@ const entranceSpecs: Record<EntranceVariant, EntranceSpec> = {
     duration: safeRouteMotion.disclosureDurationMs,
     translateY: -8,
   },
+  list: {
+    duration: 280,
+    translateY: 8,
+  },
   scene: {
     duration: safeRouteMotion.sceneDurationMs,
     translateY: 12,
@@ -132,46 +143,52 @@ type ReduceMotionListener = () => void;
 
 const reduceMotionListeners = new Set<ReduceMotionListener>();
 let reduceMotionSnapshot = false;
-let reduceMotionSubscription: { remove: () => void } | null = null;
+let reduceMotionSubscription:
+  | ReturnType<typeof AccessibilityInfo.addEventListener>
+  | null = null;
+let reduceMotionRequestRevision = 0;
 
-function updateReduceMotionSnapshot(enabled: boolean): void {
+function publishReduceMotionSnapshot(enabled: boolean): void {
   if (reduceMotionSnapshot === enabled) {
     return;
   }
-
   reduceMotionSnapshot = enabled;
   reduceMotionListeners.forEach((listener) => listener());
 }
 
-function startReduceMotionObserver(): void {
+function startReduceMotionObservation(): void {
   if (reduceMotionSubscription) {
     return;
   }
-
-  const subscription = AccessibilityInfo.addEventListener(
-    'reduceMotionChanged',
-    updateReduceMotionSnapshot,
-  );
-  reduceMotionSubscription = subscription;
+  const requestRevision = reduceMotionRequestRevision + 1;
+  reduceMotionRequestRevision = requestRevision;
   void AccessibilityInfo.isReduceMotionEnabled()
     .then((enabled) => {
-      if (reduceMotionSubscription === subscription) {
-        updateReduceMotionSnapshot(enabled);
+      if (
+        reduceMotionRequestRevision === requestRevision
+        && reduceMotionListeners.size > 0
+      ) {
+        publishReduceMotionSnapshot(enabled);
       }
     })
     .catch(() => undefined);
+  reduceMotionSubscription = AccessibilityInfo.addEventListener(
+    'reduceMotionChanged',
+    publishReduceMotionSnapshot,
+  );
 }
 
 function subscribeToReduceMotion(listener: ReduceMotionListener): () => void {
   reduceMotionListeners.add(listener);
-  startReduceMotionObserver();
-
+  startReduceMotionObservation();
   return () => {
     reduceMotionListeners.delete(listener);
-    if (reduceMotionListeners.size === 0) {
-      reduceMotionSubscription?.remove();
-      reduceMotionSubscription = null;
+    if (reduceMotionListeners.size > 0) {
+      return;
     }
+    reduceMotionRequestRevision += 1;
+    reduceMotionSubscription?.remove();
+    reduceMotionSubscription = null;
   };
 }
 
@@ -218,9 +235,10 @@ export function useKeyboardTranslateY({
         translateY.setValue(-keyboardOverlap);
         return;
       }
+      Keyboard.scheduleLayoutAnimation(event);
       Animated.timing(translateY, {
         duration,
-        easing: safeRouteEasing.settled,
+        easing: safeRouteEasing.keyboard,
         isInteraction: false,
         toValue: -keyboardOverlap,
         useNativeDriver: true,

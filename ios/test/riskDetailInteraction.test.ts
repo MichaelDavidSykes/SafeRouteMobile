@@ -4,8 +4,10 @@ import { join } from "node:path";
 import { describe, it } from "node:test";
 
 import {
+  resolveRiskDetailSheetGesture,
   shouldDismissRiskDetailGesture,
   shouldStartRiskDetailDismissGesture,
+  shouldStartRiskDetailSheetGesture,
 } from "../src/features/live-map/riskDetailInteraction";
 
 describe("risk detail interaction", () => {
@@ -59,6 +61,45 @@ describe("risk detail interaction", () => {
     );
   });
 
+  it("moves through expanded, summary, then dismissed sheet stages", () => {
+    assert.equal(
+      shouldStartRiskDetailSheetGesture({
+        translationX: 2,
+        translationY: -18,
+      }),
+      true,
+    );
+    assert.equal(
+      resolveRiskDetailSheetGesture("default", {
+        translationX: 0,
+        translationY: -64,
+      }),
+      "expand",
+    );
+    assert.equal(
+      resolveRiskDetailSheetGesture("expanded", {
+        translationX: 0,
+        translationY: 64,
+      }),
+      "collapse",
+    );
+    assert.equal(
+      resolveRiskDetailSheetGesture("default", {
+        translationX: 0,
+        translationY: 76,
+      }),
+      "dismiss",
+    );
+    assert.equal(
+      resolveRiskDetailSheetGesture("expanded", {
+        translationX: 0,
+        translationY: 20,
+        velocityY: 0.1,
+      }),
+      "restore",
+    );
+  });
+
   it("keeps risk details open during map pans in both map modes", () => {
     const guestMap = readFileSync(
       join(process.cwd(), "src/features/guest-map/GuestMapScreen.tsx"),
@@ -87,5 +128,6 @@ describe("risk detail interaction", () => {
     assert.match(canvas, /onPress=\{onMapPress\}/);
     assert.match(callout, /PanResponder\.create/);
     assert.match(callout, /shouldDismissRiskDetailGesture/);
+    assert.match(callout, /resolveRiskDetailSheetGesture/);
   });
 });

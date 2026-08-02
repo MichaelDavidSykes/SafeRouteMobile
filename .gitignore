@@ -1,0 +1,8 @@
+# Local Expo, tunnel, emulator, and Maestro validation artifacts
+/*.log
+/.maestro-*.xml
+/emulator-*.png
+/expo-go*-qr.png
+
+# Unused generated logo iterations; approved app assets remain tracked.
+/ios/assets/logo-mark-modern-v*.png

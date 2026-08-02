@@ -14,7 +14,6 @@ import {
   ActivityIndicator,
   Alert,
   Animated,
-  Easing,
   findNodeHandle,
   LayoutAnimation,
   PanResponder,
@@ -71,7 +70,9 @@ import {
 } from "../live-map/riskDetailInteraction";
 import {
   MotionEntrance,
+  safeRouteEasing,
   safeRouteMotion,
+  safeRouteSpring,
   useMotionValue,
   useReduceMotionEnabled,
 } from "../../motion/SafeRouteMotion";
@@ -2828,10 +2829,7 @@ function OperationsDetailSheet({
       return;
     }
     Animated.spring(sheetTranslateY, {
-      damping: 24,
-      isInteraction: false,
-      mass: 0.9,
-      stiffness: 220,
+      ...safeRouteSpring,
       toValue: 0,
       useNativeDriver: true,
     }).start();
@@ -2847,22 +2845,22 @@ function OperationsDetailSheet({
     }
     Animated.parallel([
       Animated.timing(sheetTranslateY, {
-        duration: 210,
-        easing: Easing.out(Easing.cubic),
+        duration: safeRouteMotion.sheetExitDurationMs,
+        easing: safeRouteEasing.exit,
         isInteraction: false,
         toValue: viewportHeightRef.current,
         useNativeDriver: true,
       }),
       Animated.timing(sheetOpacity, {
-        duration: 210,
-        easing: Easing.out(Easing.ease),
+        duration: safeRouteMotion.sheetExitDurationMs,
+        easing: safeRouteEasing.exit,
         isInteraction: false,
         toValue: 0,
         useNativeDriver: true,
       }),
       Animated.timing(scrimOpacity, {
-        duration: 210,
-        easing: Easing.out(Easing.ease),
+        duration: safeRouteMotion.sheetExitDurationMs,
+        easing: safeRouteEasing.exit,
         isInteraction: false,
         toValue: 0,
         useNativeDriver: true,
@@ -2915,21 +2913,21 @@ function OperationsDetailSheet({
       Animated.parallel([
         Animated.timing(sheetTranslateY, {
           duration: safeRouteMotion.sheetDurationMs,
-          easing: Easing.bezier(0.2, 0.7, 0.2, 1),
+          easing: safeRouteEasing.settled,
           isInteraction: false,
           toValue: 0,
           useNativeDriver: true,
         }),
         Animated.timing(sheetOpacity, {
           duration: safeRouteMotion.sheetDurationMs,
-          easing: Easing.bezier(0.2, 0.7, 0.2, 1),
+          easing: safeRouteEasing.settled,
           isInteraction: false,
           toValue: 1,
           useNativeDriver: true,
         }),
         Animated.timing(scrimOpacity, {
           duration: safeRouteMotion.scrimDurationMs,
-          easing: Easing.out(Easing.ease),
+          easing: safeRouteEasing.settled,
           isInteraction: false,
           toValue: 1,
           useNativeDriver: true,

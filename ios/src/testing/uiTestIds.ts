@@ -26,6 +26,8 @@ export const uiTestIds = {
   guestMapSheetGrabber: "guest-map-sheet-grabber",
   guestMapSheetClose: "guest-map-sheet-close",
   guestMapCollapsedSheet: "guest-map-collapsed-sheet",
+  guestMapCollapsedRouteStatus: "guest-map-collapsed-route-status",
+  guestMapCollapsedStartRoute: "guest-map-collapsed-start-route",
   guestMapLongPressMenu: "guest-map-long-press-menu",
   guestMapLongPressAddWaypoint: "guest-map-long-press-add-waypoint",
   guestMapLongPressAddRisk: "guest-map-long-press-add-risk",
@@ -178,6 +180,7 @@ export const uiTestIds = {
   liveMapRerouteRetry: "safe-route-reroute-retry",
   liveMapRiskAlert: "safe-route-risk-alert",
   liveMapRiskDetail: "safe-route-risk-detail",
+  liveMapRiskDetailExpanded: "safe-route-risk-detail-expanded",
   liveMapRiskDetailDismiss: "safe-route-risk-detail-dismiss",
   liveMapRiskZoneArea: (riskZoneId: string) =>
     `safe-route-risk-area-${normalizeTestIdSegment(riskZoneId)}`,

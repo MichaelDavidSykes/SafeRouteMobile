@@ -4,6 +4,7 @@ import { describe, it } from 'node:test';
 import {
   applyLiveReroutePreview,
   buildLiveRerouteAvoidRectangles,
+  buildRouteOptionAvoidRectangles,
   buildLiveRerouteTargets,
   createLiveRiskRegion
 } from '../src/features/live-map/liveReroutePlan';
@@ -80,6 +81,66 @@ describe('live reroute plan integration', () => {
 
     assert.equal(rectangles.length, 1);
     assert.equal(rectangles[0].label, 'route-risk');
+  });
+
+  it('constrains only risk areas close to a real candidate route', () => {
+    const route = [
+      { latitude: 51.507198, longitude: -0.127598 },
+      { latitude: 51.51, longitude: -0.09 },
+    ];
+    const nearbyButClearRisk = riskZone(
+      'liverpool-street',
+      { latitude: 51.517853, longitude: -0.081602 },
+      650,
+    );
+
+    assert.deepEqual(
+      buildRouteOptionAvoidRectangles(
+        [nearbyButClearRisk],
+        route,
+        [route[0], route[1]],
+      ),
+      [],
+    );
+
+    const intersectingRisk = riskZone(
+      'route-risk',
+      { latitude: 51.5085, longitude: -0.11 },
+      200,
+    );
+    assert.equal(
+      buildRouteOptionAvoidRectangles(
+        [intersectingRisk],
+        route,
+        [route[0], route[1]],
+      ).length,
+      1,
+    );
+  });
+
+  it('does not treat gaps between alternative routes as route segments', () => {
+    const firstRoute = [
+      { latitude: 0, longitude: 0 },
+      { latitude: 0, longitude: 1 },
+    ];
+    const secondRoute = [
+      { latitude: 1, longitude: 0 },
+      { latitude: 1, longitude: 1 },
+    ];
+    const gapRisk = riskZone(
+      'gap-risk',
+      { latitude: 0.5, longitude: 0.5 },
+      100,
+    );
+
+    assert.deepEqual(
+      buildRouteOptionAvoidRectangles(
+        [gapRisk],
+        [firstRoute, secondRoute],
+        [firstRoute[0], secondRoute.at(-1)!],
+      ),
+      [],
+    );
   });
 
   it('submits only high-risk rectangles that the candidate route actually enters', () => {

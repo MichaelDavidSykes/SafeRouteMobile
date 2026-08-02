@@ -1390,7 +1390,7 @@ export function GuestMapScreen({
               ...(roadPreview.alternatives || []).map(
                 (alternative) => alternative.coordinates,
               ),
-            ].flat(),
+            ],
             stops
           );
           if (

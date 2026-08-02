@@ -52,6 +52,42 @@ export interface RiskZone {
   markerColor: string;
   strokeColor: string;
   fillColor: string;
+  riskScore?: number;
+  confidence?: string;
+  source?: string;
+  sourceDescription?: string;
+  sourceType?: string;
+  sourceUrl?: string;
+  sourceUrls?: string[];
+  evidenceCount?: number;
+  escalationIndicators?: RiskEscalationIndicator[];
+  linkedEntities?: RiskLinkedEntity[];
+  lastVerifiedAt?: string;
+  validUntil?: string;
+  sourceQuery?: string;
+  queryRelation?: string;
+  riskTheme?: string;
+  expectedActivity?: string;
+  recommendedActions?: string[];
+  relatedAreas?: string[];
+}
+
+export interface RiskEscalationIndicator {
+  id?: string;
+  label: string;
+  category?: string;
+  confidence?: string;
+  evidenceCount?: number;
+  matchedTerms?: string[];
+  snippet?: string;
+}
+
+export interface RiskLinkedEntity {
+  id?: string;
+  label: string;
+  relation?: string;
+  source?: string;
+  type?: string;
 }
 
 export interface RouteCheckpoint {

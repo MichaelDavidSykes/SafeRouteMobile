@@ -51,15 +51,27 @@ describe('guest map interaction contract', () => {
     );
     assert.match(
       screen,
-      /\{showRouteFooter \? \([\s\S]*routeChoicesOpen && !routePlan[\s\S]*Choose travel mode to plot[\s\S]*<TravelModeSelector/,
+      /\{showRouteFooter \? \([\s\S]*\(routeChoicesOpen \|\| routePlan\)[\s\S]*Choose a travel mode[\s\S]*Tap a mode to plot its route immediately\.[\s\S]*<TravelModeSelector/,
     );
     assert.match(
       screen,
-      /handlePresentRouteChoices[\s\S]*setRouteChoicesOpen\(true\)/,
+      /plotTravelMode[\s\S]*setTravelMode\(nextMode\)[\s\S]*handlePlotRoute\(nextMode\)[\s\S]*handlePlotRouteAction[\s\S]*plotTravelMode\(travelMode\)[\s\S]*handleTravelModeChange[\s\S]*plotTravelMode\(nextMode\)/,
     );
     assert.match(
       screen,
-      /handleTravelModeChange[\s\S]*setTravelMode\(nextMode\)[\s\S]*handlePlotRoute\(nextMode\)/,
+      /Tap a mode to plot its route immediately\.[\s\S]*<TravelModeSelector/,
+    );
+    assert.match(
+      screen,
+      /\(routeChoicesOpen \|\| routePlan\)[\s\S]*Plot another travel mode/,
+    );
+    assert.match(
+      screen,
+      /reopenRouteModeChoices[\s\S]*couldn't plot the \$\{requestedModeLabel\} route[\s\S]*setRouteChoicesOpen\(true\)/,
+    );
+    assert.match(
+      screen,
+      /accessibilityLabel=\{option\.accessibilityLabel\}[\s\S]*accessibilityRole="button"[\s\S]*onPress=\{onPress\}/,
     );
     assert.equal(
       (screen.match(/testID=\{uiTestIds\.guestMapAddWaypoint\}/g) || []).length,
@@ -237,7 +249,43 @@ describe('guest map interaction contract', () => {
     );
     assert.match(
       screen,
-      /showRouteFooter \? \([\s\S]*testID=\{uiTestIds\.guestMapPlotAction\}[\s\S]*onPress=\{routePlan \? handleOpenPreview : handlePresentRouteChoices\}/,
+      /showRouteFooter \? \([\s\S]*testID=\{uiTestIds\.guestMapPlotAction\}[\s\S]*onPress=\{routePlan \? handleOpenPreview : handlePlotRouteAction\}/,
+    );
+    assert.match(
+      screen,
+      /const handleCollapsedRouteEdit =[\s\S]*animateRouteSheet\(false\)/,
+    );
+    assert.match(
+      screen,
+      /routePlan \? \([\s\S]*Route ready[\s\S]*testID=\{uiTestIds\.guestMapCollapsedStartRoute\}[\s\S]*onPress=\{handleOpenPreview\}/,
+    );
+    assert.match(
+      screen,
+      /testID=\{uiTestIds\.guestMapCollapsedStartRoute\}[\s\S]*\{stagedRouteActionLabel\}/,
+    );
+    assert.match(
+      styles,
+      /collapsedRouteStartButton:[\s\S]*minHeight:\s*64[\s\S]*backgroundColor:\s*colors\.appleBlue/,
+    );
+    assert.match(
+      screen,
+      /resolveGuestCollapsedRouteCardState\(\{[\s\S]*roadPreviewPending,[\s\S]*routePlotted,[\s\S]*\}\)/,
+    );
+    assert.match(
+      screen,
+      /replayKey=\{collapsedRouteCardState\}[\s\S]*collapsedRouteCardState === 'finding'[\s\S]*guestMapCollapsedRouteStatus[\s\S]*Finding \{travelModeRouteLabel\} route/,
+    );
+    assert.match(
+      screen,
+      /guestMapCollapsedStartRoute[\s\S]*<Navigation[\s\S]*\{stagedRouteActionLabel\}/,
+    );
+    assert.match(
+      styles,
+      /collapsedSheetButton:[\s\S]*minHeight:\s*76[\s\S]*collapsedRouteActions:[\s\S]*minHeight:\s*76[\s\S]*collapsedRouteStatus:[\s\S]*minHeight:\s*76/,
+    );
+    assert.match(
+      styles,
+      /currentLocationControlDock:[\s\S]*bottom:\s*chrome\.screenBottomInset \+ 76 \+ spacing\.sm/,
     );
   });
 
@@ -259,7 +307,16 @@ describe('guest map interaction contract', () => {
     );
     assert.match(
       screen,
-      /!acceptedRoadPreview && !sessionExpiryHandled && !workspaceUnavailableHandled[\s\S]*setRouteMessage\('A road-snapped safe route is unavailable\. Retry in a moment\.'\);[\s\S]*animateRouteSheet\(false\)/,
+      /!acceptedRoadPreview && !sessionExpiryHandled && !workspaceUnavailableHandled[\s\S]*reopenRouteModeChoices\(localRoutePlan\.travelMode \?\? 'drive'\)/,
+    );
+    assert.ok(
+      screen.indexOf('publishRoadPreview(roadPreview, finalRiskZones)') <
+        screen.indexOf('fetchAreaRiskAlongRoute('),
+      'The first provider-snapped route must be published before corridor enrichment.',
+    );
+    assert.match(
+      screen,
+      /catch \(error\) \{[\s\S]*handleRouteSessionExpiry\(error\)[\s\S]*handleRouteWorkspaceUnavailable\(error\)[\s\S]*hosted, road-snapped route has already been published/,
     );
   });
 

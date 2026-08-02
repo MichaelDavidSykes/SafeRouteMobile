@@ -242,6 +242,22 @@ export function createGuestRouteActionState({
   };
 }
 
+export type GuestCollapsedRouteCardState = 'finding' | 'ready' | 'search';
+
+export function resolveGuestCollapsedRouteCardState({
+  roadPreviewPending,
+  routePlotted,
+}: {
+  roadPreviewPending: boolean;
+  routePlotted: boolean;
+}): GuestCollapsedRouteCardState {
+  if (roadPreviewPending) {
+    return 'finding';
+  }
+
+  return routePlotted ? 'ready' : 'search';
+}
+
 export function shouldShowGuestMapSubtitle(routePlotted: boolean): boolean {
   return !routePlotted;
 }

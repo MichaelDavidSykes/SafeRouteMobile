@@ -108,6 +108,39 @@ export function buildLiveRerouteAvoidRectangles(
     .filter((rectangle) => !requiredStops.some((stop) => coordinateInsideRectangle(stop, rectangle)));
 }
 
+export function buildRouteOptionAvoidRectangles(
+  riskZones: RiskZone[],
+  candidateRouteCoordinates: LatLng[],
+  requiredStops: LatLng[]
+): GuestRouteAvoidRectangle[] {
+  const rankedZones = [...riskZones].sort((left, right) => {
+    const leftProximity = calculateRiskZoneRouteProximity(
+      candidateRouteCoordinates,
+      left,
+    );
+    const rightProximity = calculateRiskZoneRouteProximity(
+      candidateRouteCoordinates,
+      right,
+    );
+    return (
+      (leftProximity?.routeDistanceMeters ?? Number.POSITIVE_INFINITY) -
+      (rightProximity?.routeDistanceMeters ?? Number.POSITIVE_INFINITY)
+    );
+  });
+  return deriveRiskZoneAvoidRectangles(rankedZones, {
+    maxRectangles: 10,
+    paddingMeters: 140,
+  }).map((rectangle) => ({
+    label: rectangle.label,
+    maxLatitude: rectangle.max_lat,
+    maxLongitude: rectangle.max_lon,
+    minLatitude: rectangle.min_lat,
+    minLongitude: rectangle.min_lon,
+  })).filter((rectangle) =>
+    !requiredStops.some((stop) => coordinateInsideRectangle(stop, rectangle))
+  );
+}
+
 export function applyLiveReroutePreview({
   currentCoordinate,
   preview,

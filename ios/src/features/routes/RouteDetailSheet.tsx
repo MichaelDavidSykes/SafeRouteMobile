@@ -1,6 +1,6 @@
 import { useEffect, useRef } from "react";
 import { CarFront, Route as RouteIcon, UsersRound, X } from "lucide-react-native";
-import { Animated, Easing, Modal, PanResponder, Pressable, ScrollView, Text, useWindowDimensions, View } from "react-native";
+import { Animated, Modal, PanResponder, Pressable, ScrollView, Text, useWindowDimensions, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 
 import type { SavedSafeRoutePlan } from "../live-map/liveMapTypes";
@@ -15,7 +15,9 @@ import {
   shouldStartRiskDetailDismissGesture,
 } from "../live-map/riskDetailInteraction";
 import {
+  safeRouteEasing,
   safeRouteMotion,
+  safeRouteSpring,
   useReduceMotionEnabled,
 } from "../../motion/SafeRouteMotion";
 
@@ -34,6 +36,7 @@ export function RouteDetailSheet({ onClose, route }: RouteDetailSheetProps) {
   const sheetTranslateY = useRef(new Animated.Value(SHEET_ENTRANCE_OFFSET)).current;
   const sheetOpacity = useRef(new Animated.Value(0)).current;
   const scrimOpacity = useRef(new Animated.Value(0)).current;
+  const animationRevisionRef = useRef(0);
   const closingRef = useRef(false);
   const onCloseRef = useRef(onClose);
   const reduceMotionEnabledRef = useRef(reduceMotionEnabled);
@@ -43,14 +46,13 @@ export function RouteDetailSheet({ onClose, route }: RouteDetailSheetProps) {
   viewportHeightRef.current = viewport.height;
 
   const restoreSheet = () => {
+    sheetTranslateY.stopAnimation();
     if (reduceMotionEnabledRef.current) {
       sheetTranslateY.setValue(0);
       return;
     }
     Animated.spring(sheetTranslateY, {
-      damping: 24,
-      mass: 0.9,
-      stiffness: 220,
+      ...safeRouteSpring,
       toValue: 0,
       useNativeDriver: true,
     }).start();
@@ -60,30 +62,41 @@ export function RouteDetailSheet({ onClose, route }: RouteDetailSheetProps) {
       return;
     }
     closingRef.current = true;
+    const animationRevision = animationRevisionRef.current + 1;
+    animationRevisionRef.current = animationRevision;
+    sheetTranslateY.stopAnimation();
+    sheetOpacity.stopAnimation();
+    scrimOpacity.stopAnimation();
     if (reduceMotionEnabledRef.current) {
       onCloseRef.current();
       return;
     }
     Animated.parallel([
       Animated.timing(sheetTranslateY, {
-        duration: 210,
-        easing: Easing.out(Easing.cubic),
+        duration: safeRouteMotion.sheetExitDurationMs,
+        easing: safeRouteEasing.exit,
+        isInteraction: false,
         toValue: viewportHeightRef.current,
         useNativeDriver: true,
       }),
       Animated.timing(sheetOpacity, {
-        duration: 210,
-        easing: Easing.out(Easing.ease),
+        duration: safeRouteMotion.sheetExitDurationMs,
+        easing: safeRouteEasing.exit,
+        isInteraction: false,
         toValue: 0,
         useNativeDriver: true,
       }),
       Animated.timing(scrimOpacity, {
-        duration: 210,
-        easing: Easing.out(Easing.ease),
+        duration: safeRouteMotion.sheetExitDurationMs,
+        easing: safeRouteEasing.exit,
+        isInteraction: false,
         toValue: 0,
         useNativeDriver: true,
       }),
     ]).start(({ finished }) => {
+      if (animationRevisionRef.current !== animationRevision) {
+        return;
+      }
       if (finished) {
         onCloseRef.current();
       } else {
@@ -117,49 +130,64 @@ export function RouteDetailSheet({ onClose, route }: RouteDetailSheetProps) {
       onPanResponderTerminate: restoreSheet,
     }),
   ).current;
+  const routeAnimationKey = route?.id || null;
 
   useEffect(() => {
-    if (!route) {
+    animationRevisionRef.current += 1;
+    sheetTranslateY.stopAnimation();
+    sheetOpacity.stopAnimation();
+    scrimOpacity.stopAnimation();
+    closingRef.current = false;
+
+    let entranceAnimation: Animated.CompositeAnimation | null = null;
+    if (!routeAnimationKey) {
       sheetTranslateY.setValue(SHEET_ENTRANCE_OFFSET);
       sheetOpacity.setValue(0);
       scrimOpacity.setValue(0);
-      return;
-    }
-
-    closingRef.current = false;
-    if (reduceMotionEnabled) {
+    } else if (reduceMotionEnabled) {
       sheetTranslateY.setValue(0);
       sheetOpacity.setValue(1);
       scrimOpacity.setValue(1);
-      return;
+    } else {
+      sheetTranslateY.setValue(SHEET_ENTRANCE_OFFSET);
+      sheetOpacity.setValue(0);
+      scrimOpacity.setValue(0);
+      entranceAnimation = Animated.parallel([
+        Animated.timing(sheetTranslateY, {
+          duration: safeRouteMotion.sheetDurationMs,
+          easing: safeRouteEasing.settled,
+          isInteraction: false,
+          toValue: 0,
+          useNativeDriver: true,
+        }),
+        Animated.timing(sheetOpacity, {
+          duration: safeRouteMotion.sheetDurationMs,
+          easing: safeRouteEasing.settled,
+          isInteraction: false,
+          toValue: 1,
+          useNativeDriver: true,
+        }),
+        Animated.timing(scrimOpacity, {
+          duration: safeRouteMotion.scrimDurationMs,
+          easing: safeRouteEasing.settled,
+          isInteraction: false,
+          toValue: 1,
+          useNativeDriver: true,
+        }),
+      ]);
+      entranceAnimation.start();
     }
 
-    sheetTranslateY.setValue(SHEET_ENTRANCE_OFFSET);
-    sheetOpacity.setValue(0);
-    scrimOpacity.setValue(0);
-    Animated.parallel([
-      Animated.timing(sheetTranslateY, {
-        duration: safeRouteMotion.sheetDurationMs,
-        easing: Easing.bezier(0.2, 0.7, 0.2, 1),
-        toValue: 0,
-        useNativeDriver: true,
-      }),
-      Animated.timing(sheetOpacity, {
-        duration: safeRouteMotion.sheetDurationMs,
-        easing: Easing.bezier(0.2, 0.7, 0.2, 1),
-        toValue: 1,
-        useNativeDriver: true,
-      }),
-      Animated.timing(scrimOpacity, {
-        duration: safeRouteMotion.scrimDurationMs,
-        easing: Easing.out(Easing.ease),
-        toValue: 1,
-        useNativeDriver: true,
-      }),
-    ]).start();
+    return () => {
+      animationRevisionRef.current += 1;
+      entranceAnimation?.stop();
+      sheetTranslateY.stopAnimation();
+      sheetOpacity.stopAnimation();
+      scrimOpacity.stopAnimation();
+    };
   }, [
     reduceMotionEnabled,
-    route,
+    routeAnimationKey,
     scrimOpacity,
     sheetOpacity,
     sheetTranslateY,

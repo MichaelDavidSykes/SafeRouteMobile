@@ -577,7 +577,11 @@ describe("App active workspace integration", () => {
     assert.match(guest, /routeActionDisabled =[\s\S]*workspaceAuthorizationRequired/);
     assert.match(guest, /Verify workspace access before plotting this route/);
     assert.match(guest, /Checking workspace access before plotting this route/);
-    assert.match(guest, /busy: workspaceAuthorizationRequired && workspaceCatalogLoading/);
+    assert.match(
+      guest,
+      /stagedRouteActionBusy =[\s\S]*workspaceAuthorizationRequired && workspaceCatalogLoading/,
+    );
+    assert.match(guest, /busy: stagedRouteActionBusy/);
     assert.match(
       guest,
       /riskAreaAuthorizationRequired =[\s\S]*workspaceSelectionPending[\s\S]*workspaceSelectionRequired \|\|[\s\S]*workspaceAuthorizationRequired/,

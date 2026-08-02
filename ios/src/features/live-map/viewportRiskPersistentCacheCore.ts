@@ -306,10 +306,12 @@ function normalizePersistedRiskZone(value: unknown): RiskZone | null {
   const polygonCoordinates = normalizeCoordinateList(
     candidate.polygonCoordinates
   );
+  const intelligence = normalizePersistedRiskIntelligence(candidate);
   if (
     routeSegmentCoordinates === null
     || connectorCoordinates === null
     || polygonCoordinates === null
+    || intelligence === null
     || (
       candidate.shape !== undefined
       && (
@@ -340,8 +342,244 @@ function normalizePersistedRiskZone(value: unknown): RiskZone | null {
     radiusMeters,
     markerColor: candidate.markerColor,
     strokeColor: candidate.strokeColor,
-    fillColor: candidate.fillColor
+    fillColor: candidate.fillColor,
+    ...intelligence
   };
+}
+
+function normalizePersistedRiskIntelligence(
+  candidate: Partial<RiskZone>
+): Partial<RiskZone> | null {
+  const riskScore = optionalBoundedNumber(candidate.riskScore, 0, 100);
+  const evidenceCount = optionalBoundedInteger(candidate.evidenceCount, 0, 1_000_000);
+  const confidence = optionalBoundedString(candidate.confidence, 80);
+  const source = optionalBoundedString(candidate.source, 200);
+  const sourceDescription = optionalBoundedString(candidate.sourceDescription, 600);
+  const sourceType = optionalBoundedString(candidate.sourceType, 80);
+  const sourceUrl = optionalPublicUrl(candidate.sourceUrl, 1200);
+  const sourceUrls = optionalStringList(candidate.sourceUrls, 20, 1200, true);
+  const lastVerifiedAt = optionalBoundedString(candidate.lastVerifiedAt, 80);
+  const validUntil = optionalBoundedString(candidate.validUntil, 80);
+  const sourceQuery = optionalBoundedString(candidate.sourceQuery, 500);
+  const queryRelation = optionalBoundedString(candidate.queryRelation, 160);
+  const riskTheme = optionalBoundedString(candidate.riskTheme, 160);
+  const expectedActivity = optionalBoundedString(candidate.expectedActivity, 600);
+  const recommendedActions = optionalStringList(
+    candidate.recommendedActions,
+    8,
+    300
+  );
+  const relatedAreas = optionalStringList(candidate.relatedAreas, 8, 180);
+  const escalationIndicators = normalizePersistedEscalationIndicators(
+    candidate.escalationIndicators
+  );
+  const linkedEntities = normalizePersistedLinkedEntities(candidate.linkedEntities);
+  if (
+    riskScore === null
+    || evidenceCount === null
+    || confidence === null
+    || source === null
+    || sourceDescription === null
+    || sourceType === null
+    || sourceUrl === null
+    || sourceUrls === null
+    || lastVerifiedAt === null
+    || validUntil === null
+    || sourceQuery === null
+    || queryRelation === null
+    || riskTheme === null
+    || expectedActivity === null
+    || recommendedActions === null
+    || relatedAreas === null
+    || escalationIndicators === null
+    || linkedEntities === null
+  ) {
+    return null;
+  }
+
+  return {
+    ...(riskScore !== undefined ? { riskScore } : {}),
+    ...(evidenceCount !== undefined ? { evidenceCount } : {}),
+    ...(confidence !== undefined ? { confidence } : {}),
+    ...(source !== undefined ? { source } : {}),
+    ...(sourceDescription !== undefined ? { sourceDescription } : {}),
+    ...(sourceType !== undefined ? { sourceType } : {}),
+    ...(sourceUrl !== undefined ? { sourceUrl } : {}),
+    ...(sourceUrls !== undefined ? { sourceUrls } : {}),
+    ...(lastVerifiedAt !== undefined ? { lastVerifiedAt } : {}),
+    ...(validUntil !== undefined ? { validUntil } : {}),
+    ...(sourceQuery !== undefined ? { sourceQuery } : {}),
+    ...(queryRelation !== undefined ? { queryRelation } : {}),
+    ...(riskTheme !== undefined ? { riskTheme } : {}),
+    ...(expectedActivity !== undefined ? { expectedActivity } : {}),
+    ...(recommendedActions !== undefined ? { recommendedActions } : {}),
+    ...(relatedAreas !== undefined ? { relatedAreas } : {}),
+    ...(escalationIndicators !== undefined ? { escalationIndicators } : {}),
+    ...(linkedEntities !== undefined ? { linkedEntities } : {})
+  };
+}
+
+function normalizePersistedEscalationIndicators(
+  value: RiskZone['escalationIndicators'] | undefined
+): RiskZone['escalationIndicators'] | null {
+  if (value === undefined) {
+    return undefined;
+  }
+  if (!Array.isArray(value) || value.length > 12) {
+    return null;
+  }
+  const normalized = value.map((candidate) => {
+    if (!candidate || typeof candidate !== 'object') {
+      return null;
+    }
+    const label = requiredBoundedString(candidate.label, 180);
+    const id = optionalBoundedString(candidate.id, 160);
+    const category = optionalBoundedString(candidate.category, 100);
+    const confidence = optionalBoundedString(candidate.confidence, 80);
+    const evidenceCount = optionalBoundedInteger(candidate.evidenceCount, 0, 1_000_000);
+    const matchedTerms = optionalStringList(candidate.matchedTerms, 8, 80);
+    const snippet = optionalBoundedString(candidate.snippet, 500);
+    if (
+      !label
+      || id === null
+      || category === null
+      || confidence === null
+      || evidenceCount === null
+      || matchedTerms === null
+      || snippet === null
+    ) {
+      return null;
+    }
+    return {
+      label,
+      ...(id !== undefined ? { id } : {}),
+      ...(category !== undefined ? { category } : {}),
+      ...(confidence !== undefined ? { confidence } : {}),
+      ...(evidenceCount !== undefined ? { evidenceCount } : {}),
+      ...(matchedTerms !== undefined ? { matchedTerms } : {}),
+      ...(snippet !== undefined ? { snippet } : {})
+    };
+  });
+  return normalized.some((candidate) => candidate === null)
+    ? null
+    : normalized as NonNullable<RiskZone['escalationIndicators']>;
+}
+
+function normalizePersistedLinkedEntities(
+  value: RiskZone['linkedEntities'] | undefined
+): RiskZone['linkedEntities'] | null {
+  if (value === undefined) {
+    return undefined;
+  }
+  if (!Array.isArray(value) || value.length > 16) {
+    return null;
+  }
+  const normalized = value.map((candidate) => {
+    if (!candidate || typeof candidate !== 'object') {
+      return null;
+    }
+    const label = requiredBoundedString(candidate.label, 180);
+    const id = optionalBoundedString(candidate.id, 160);
+    const relation = optionalBoundedString(candidate.relation, 120);
+    const source = optionalBoundedString(candidate.source, 160);
+    const type = optionalBoundedString(candidate.type, 100);
+    if (!label || id === null || relation === null || source === null || type === null) {
+      return null;
+    }
+    return {
+      label,
+      ...(id !== undefined ? { id } : {}),
+      ...(relation !== undefined ? { relation } : {}),
+      ...(source !== undefined ? { source } : {}),
+      ...(type !== undefined ? { type } : {})
+    };
+  });
+  return normalized.some((candidate) => candidate === null)
+    ? null
+    : normalized as NonNullable<RiskZone['linkedEntities']>;
+}
+
+function optionalBoundedString(
+  value: unknown,
+  maxLength: number
+): string | undefined | null {
+  if (value === undefined) {
+    return undefined;
+  }
+  return requiredBoundedString(value, maxLength);
+}
+
+function requiredBoundedString(value: unknown, maxLength: number): string | null {
+  return typeof value === 'string' && Boolean(value.trim()) && value.length <= maxLength
+    ? value
+    : null;
+}
+
+function optionalPublicUrl(
+  value: unknown,
+  maxLength: number
+): string | undefined | null {
+  const text = optionalBoundedString(value, maxLength);
+  if (text === undefined || text === null) {
+    return text;
+  }
+  try {
+    const url = new URL(text);
+    return url.protocol === 'https:' || url.protocol === 'http:' ? url.toString() : null;
+  } catch {
+    return null;
+  }
+}
+
+function optionalStringList(
+  value: unknown,
+  maxItems: number,
+  maxLength: number,
+  urlsOnly = false
+): string[] | undefined | null {
+  if (value === undefined) {
+    return undefined;
+  }
+  if (
+    !Array.isArray(value)
+    || value.length > maxItems
+    || value.some((item) => {
+      if (!requiredBoundedString(item, maxLength)) {
+        return true;
+      }
+      return urlsOnly && optionalPublicUrl(item, maxLength) === null;
+    })
+  ) {
+    return null;
+  }
+  return [...value] as string[];
+}
+
+function optionalBoundedNumber(
+  value: unknown,
+  minimum: number,
+  maximum: number
+): number | undefined | null {
+  if (value === undefined) {
+    return undefined;
+  }
+  return typeof value === 'number'
+    && Number.isFinite(value)
+    && value >= minimum
+    && value <= maximum
+    ? value
+    : null;
+}
+
+function optionalBoundedInteger(
+  value: unknown,
+  minimum: number,
+  maximum: number
+): number | undefined | null {
+  const number = optionalBoundedNumber(value, minimum, maximum);
+  return number === undefined || number === null || Number.isInteger(number)
+    ? number
+    : null;
 }
 
 function normalizeCoordinateList(value: unknown): RiskZone['polygonCoordinates'] | null {

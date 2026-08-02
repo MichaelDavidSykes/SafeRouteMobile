@@ -190,61 +190,66 @@ export function WorkspaceSelectionScreen({
                   {workspaces.map((workspace, index) => {
                     const selected = workspace.id === selectedWorkspaceId;
                     return (
-                      <Pressable
+                      <MotionEntrance
                         key={workspace.id}
-                        accessibilityHint={`Uses ${workspace.name} for SafeRoute.`}
-                        accessibilityLabel={workspace.name}
-                        accessibilityRole="radio"
-                        accessibilityState={{ disabled: busy, selected }}
-                        disabled={busy}
-                        testID={uiTestIds.workspaceSelectionOption(workspace.id)}
-                        style={({ pressed }) => [
-                          styles.workspaceRow,
-                          index === workspaces.length - 1
-                            ? styles.workspaceRowLast
-                            : null,
-                          selected ? styles.workspaceRowSelected : null,
-                          pressed ? styles.workspaceRowPressed : null,
-                        ]}
-                        onPress={() => setSelectedWorkspaceId(workspace.id)}
+                        delay={Math.min(index * 38, 152)}
+                        variant="list"
                       >
-                        <View
-                          style={[
-                            styles.workspaceIcon,
-                            selected ? styles.workspaceIconSelected : null,
+                        <Pressable
+                          accessibilityHint={`Uses ${workspace.name} for SafeRoute.`}
+                          accessibilityLabel={workspace.name}
+                          accessibilityRole="radio"
+                          accessibilityState={{ disabled: busy, selected }}
+                          disabled={busy}
+                          testID={uiTestIds.workspaceSelectionOption(workspace.id)}
+                          style={({ pressed }) => [
+                            styles.workspaceRow,
+                            index === workspaces.length - 1
+                              ? styles.workspaceRowLast
+                              : null,
+                            selected ? styles.workspaceRowSelected : null,
+                            pressed ? styles.workspaceRowPressed : null,
                           ]}
+                          onPress={() => setSelectedWorkspaceId(workspace.id)}
                         >
-                          <Building2
-                            color={selected ? '#7CC0FF' : '#AEB3BF'}
-                            size={21}
-                            strokeWidth={2}
-                          />
-                        </View>
-                        <View style={styles.workspaceCopy}>
-                          <Text
-                            numberOfLines={2}
+                          <View
                             style={[
-                              styles.workspaceName,
-                              selected ? styles.workspaceNameSelected : null,
+                              styles.workspaceIcon,
+                              selected ? styles.workspaceIconSelected : null,
                             ]}
                           >
-                            {workspace.name}
-                          </Text>
-                          <Text numberOfLines={1} style={styles.workspaceHint}>
-                            Routes, risk areas and operations
-                          </Text>
-                        </View>
-                        <View
-                          style={[
-                            styles.selectionControl,
-                            selected ? styles.selectionControlSelected : null,
-                          ]}
-                        >
-                          {selected ? (
-                            <Check color="#FFFFFF" size={15} strokeWidth={2.8} />
-                          ) : null}
-                        </View>
-                      </Pressable>
+                            <Building2
+                              color={selected ? '#7CC0FF' : '#AEB3BF'}
+                              size={21}
+                              strokeWidth={2}
+                            />
+                          </View>
+                          <View style={styles.workspaceCopy}>
+                            <Text
+                              numberOfLines={2}
+                              style={[
+                                styles.workspaceName,
+                                selected ? styles.workspaceNameSelected : null,
+                              ]}
+                            >
+                              {workspace.name}
+                            </Text>
+                            <Text numberOfLines={1} style={styles.workspaceHint}>
+                              Routes, risk areas and operations
+                            </Text>
+                          </View>
+                          <View
+                            style={[
+                              styles.selectionControl,
+                              selected ? styles.selectionControlSelected : null,
+                            ]}
+                          >
+                            {selected ? (
+                              <Check color="#FFFFFF" size={15} strokeWidth={2.8} />
+                            ) : null}
+                          </View>
+                        </Pressable>
+                      </MotionEntrance>
                     );
                   })}
                 </View>

@@ -194,7 +194,13 @@ export function selectGuestRouteDraftLocation(
   stopId: string,
   selection: GuestRouteDraftLocationSelection
 ): GuestRouteDraft {
-  return setGuestRouteDraftStop(draft, stopId, selection);
+  const selected = setGuestRouteDraftStop(draft, stopId, selection);
+  return selected === draft
+    ? draft
+    : {
+        ...selected,
+        selectedStopId: stopId
+      };
 }
 
 export function setSelectedGuestRouteDraftStop(
@@ -398,6 +404,30 @@ export function mapGuestRouteDraftToCheckpoints(
           ? 'B'
           : String(index)
   }));
+}
+
+export function mapGuestRouteDraftToResolvedCheckpoints(
+  draft: GuestRouteDraft
+): RouteCheckpoint[] {
+  return getOrderedGuestRouteDraftStops(draft).flatMap((stop, index) => {
+    const coordinate = resolveGuestRouteDraftStopCoordinate(draft, stop.id);
+    if (!coordinate || !hasInput(stop.label)) {
+      return [];
+    }
+
+    return [{
+      caption: normalizeCaption(stop.label),
+      coordinate,
+      id: stop.id,
+      kind: stop.kind,
+      label:
+        stop.kind === 'origin'
+          ? 'A'
+          : stop.kind === 'destination'
+            ? 'B'
+            : String(index)
+    }];
+  });
 }
 
 export function guestRouteDraftReducer(

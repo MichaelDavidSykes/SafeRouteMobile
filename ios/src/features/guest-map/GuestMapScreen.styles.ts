@@ -79,7 +79,7 @@ export const guestMapStyles = StyleSheet.create({
     zIndex: 24,
     elevation: 24,
     right: 14,
-    bottom: 186,
+    bottom: chrome.screenBottomInset + 76 + spacing.sm,
     alignItems: 'flex-end',
     gap: spacing.sm,
   },
@@ -167,10 +167,18 @@ export const guestMapStyles = StyleSheet.create({
   },
   routeChoiceLabel: {
     marginTop: spacing.sm,
-    marginBottom: spacing.xs,
+    marginBottom: 2,
     color: colors.muted,
     fontSize: typeScale.xs,
     fontWeight: '700',
+    textAlign: 'center',
+  },
+  routeChoiceHelper: {
+    marginBottom: spacing.xs,
+    color: colors.inkSoft,
+    fontSize: typeScale.sm,
+    fontWeight: '600',
+    lineHeight: 18,
     textAlign: 'center',
   },
   sheetGrabberTouch: {
@@ -371,8 +379,7 @@ export const guestMapStyles = StyleSheet.create({
     fontWeight: '800',
   },
   travelModeSelector: {
-    position: 'relative',
-    minHeight: 42,
+    minHeight: 52,
     flexDirection: 'row',
     alignItems: 'stretch',
     marginTop: spacing.sm,
@@ -380,13 +387,7 @@ export const guestMapStyles = StyleSheet.create({
     borderRadius: 13,
     backgroundColor: '#e7e7ec',
   },
-  travelModeSelection: {
-    position: 'absolute',
-    zIndex: 0,
-    top: 3,
-    bottom: 3,
-    left: 3,
-    borderRadius: 9,
+  travelModeOptionSelected: {
     backgroundColor: colors.surface,
     shadowColor: '#000000',
     shadowOpacity: 0.16,
@@ -395,14 +396,13 @@ export const guestMapStyles = StyleSheet.create({
     elevation: 2,
   },
   travelModeOption: {
-    zIndex: 1,
     minWidth: 0,
     flex: 1,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
     gap: 4,
-    paddingHorizontal: 2,
+    paddingHorizontal: spacing.xs,
     borderRadius: 9,
   },
   travelModeOptionPressed: {
@@ -415,8 +415,8 @@ export const guestMapStyles = StyleSheet.create({
     minWidth: 0,
     flexShrink: 1,
     color: colors.muted,
-    fontSize: 10,
-    fontWeight: '600',
+    fontSize: typeScale.sm,
+    fontWeight: '700',
   },
   travelModeLabelSelected: {
     color: colors.appleBlue,
@@ -822,12 +822,73 @@ export const guestMapStyles = StyleSheet.create({
     shadowOffset: { width: 0, height: 5 }
   },
   collapsedSheetButton: {
-    minHeight: 64,
+    minHeight: 76,
     flexDirection: 'row',
     alignItems: 'center',
     gap: 13,
     paddingHorizontal: 18,
     paddingVertical: 13
+  },
+  collapsedRouteActions: {
+    minHeight: 76,
+    flexDirection: 'row',
+    alignItems: 'stretch',
+    gap: spacing.sm,
+    padding: spacing.xs,
+  },
+  collapsedRouteStatus: {
+    minHeight: 76,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 13,
+    paddingHorizontal: 18,
+    paddingVertical: spacing.sm,
+  },
+  collapsedRouteSummaryButton: {
+    minWidth: 0,
+    minHeight: 64,
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: spacing.sm,
+    borderRadius: radius.sm,
+  },
+  collapsedRouteReadyLabel: {
+    color: colors.ink,
+    fontSize: typeScale.md,
+    fontWeight: '800',
+  },
+  collapsedRouteStartButton: {
+    width: 136,
+    minHeight: 64,
+    flexShrink: 0,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: spacing.xs,
+    paddingHorizontal: spacing.sm,
+    borderRadius: radius.sm,
+    backgroundColor: colors.appleBlue,
+  },
+  collapsedRouteStartButtonDisabled: {
+    borderWidth: 0.5,
+    borderColor: colors.borderSoft,
+    backgroundColor: colors.controlStrong,
+  },
+  collapsedRouteStartButtonPressed: {
+    backgroundColor: colors.appleBluePressed,
+    transform: [{ scale: 0.98 }],
+  },
+  collapsedRouteStartButtonText: {
+    maxWidth: '100%',
+    color: colors.surface,
+    fontSize: typeScale.md,
+    fontWeight: '900',
+    lineHeight: 19,
+    textAlign: 'center',
+  },
+  collapsedRouteStartButtonTextDisabled: {
+    color: colors.inkSoft,
   },
   collapsedSheetPressed: {
     backgroundColor: colors.appleBlueSoft
@@ -914,6 +975,15 @@ export const guestMapStyles = StyleSheet.create({
     backgroundColor: colors.appleBlue,
     borderColor: colors.surface,
     borderRadius: radius.pill
+  },
+  markerSelectionHalo: {
+    position: 'absolute',
+    width: 32,
+    height: 32,
+    borderWidth: 2,
+    borderColor: 'rgba(0, 122, 255, 0.28)',
+    borderRadius: radius.pill,
+    backgroundColor: 'rgba(0, 122, 255, 0.10)'
   },
   markerCore: {
     width: 5,

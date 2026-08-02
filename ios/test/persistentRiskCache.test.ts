@@ -27,7 +27,27 @@ describe('persistent risk cache', () => {
   it('restores a defensive, principal-scoped viewport snapshot', () => {
     const cache: ViewportRiskCache = new Map();
     const request = createRequest();
-    cacheViewportRiskZones(cache, request, [createZone('cached')], {
+    const richZone: RiskZone = {
+      ...createZone('cached'),
+      riskScore: 84,
+      confidence: 'analyst-reviewed',
+      evidenceCount: 15,
+      source: 'Regional public intelligence',
+      sourceUrl: 'https://example.com/risk/cached',
+      sourceUrls: ['https://example.com/risk/cached'],
+      sourceDescription: 'A source description retained for offline details.',
+      sourceType: 'custom',
+      lastVerifiedAt: '2026-07-08T12:00:00Z',
+      escalationIndicators: [{
+        label: 'Road closures reported',
+        evidenceCount: 4
+      }],
+      linkedEntities: [{
+        label: 'Central Station',
+        relation: 'nearby'
+      }]
+    };
+    cacheViewportRiskZones(cache, request, [richZone], {
       now: 1000
     });
 
@@ -39,6 +59,14 @@ describe('persistent risk cache', () => {
     assert.equal(
       restored.get(viewportRiskCacheKey(request))?.zones[0].id,
       'cached'
+    );
+    assert.equal(
+      restored.get(viewportRiskCacheKey(request))?.zones[0].riskScore,
+      84
+    );
+    assert.equal(
+      restored.get(viewportRiskCacheKey(request))?.zones[0].escalationIndicators?.[0].label,
+      'Road closures reported'
     );
     restored.get(viewportRiskCacheKey(request))!.zones[0].coordinate.latitude = 0;
     assert.equal(

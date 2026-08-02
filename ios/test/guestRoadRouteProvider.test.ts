@@ -8,10 +8,11 @@ import {
 
 describe('guest road route provider', () => {
   it('builds OSRM URLs with longitude-latitude waypoint order and full GeoJSON geometry', () => {
-    const url = buildOsrmRouteUrl([
+    const routeStops = [
       { latitude: 51.5115, longitude: -0.1478 },
       { latitude: 51.5053, longitude: 0.0553 }
-    ]);
+    ];
+    const url = buildOsrmRouteUrl(routeStops);
 
     assert.ok(
       url.startsWith('https://router.project-osrm.org/route/v1/driving/-0.1478,51.5115;0.0553,51.5053?')
@@ -20,6 +21,16 @@ describe('guest road route provider', () => {
     assert.match(url, /overview=full/);
     assert.match(url, /steps=false/);
     assert.match(url, /alternatives=true/);
+    assert.ok(
+      buildOsrmRouteUrl(routeStops, 'walk').startsWith(
+        'https://routing.openstreetmap.de/routed-foot/route/v1/driving/',
+      ),
+    );
+    assert.ok(
+      buildOsrmRouteUrl(routeStops, 'cycle').startsWith(
+        'https://routing.openstreetmap.de/routed-bike/route/v1/driving/',
+      ),
+    );
   });
 
   it('normalizes provider-snapped geometry and preserves exact requested endpoints for markers', async () => {

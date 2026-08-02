@@ -3,7 +3,12 @@ import { AlertTriangle, MapPin } from 'lucide-react-native';
 import { Animated, StyleSheet, View } from 'react-native';
 import { Circle, Marker, Polygon, Polyline } from 'react-native-maps';
 
-import type { RiskSeverity, RiskZone, RouteCheckpoint } from './liveMapTypes';
+import type {
+  RiskAvoidanceSeverity,
+  RiskSeverity,
+  RiskZone,
+  RouteCheckpoint
+} from './liveMapTypes';
 import {
   buildRouteRiskAlertSegment,
   createRiskZoneAccessibilityLabel
@@ -45,15 +50,18 @@ export function RiskOverlay({
   const routeSegmentCoordinates = zone.routeSegmentCoordinates || [];
   const connectorCoordinates = zone.connectorCoordinates || [];
   const polygonCoordinates = zone.polygonCoordinates || [];
-  const routeAlertCoordinates = routeSegmentCoordinates.length > 1
-    ? []
-    : buildRouteRiskAlertSegment(routeCoordinates || [], zone);
+  const routeAlert = isRouteAlertZone(zone);
+  const showRouteProximitySegment = routeAlert || selected || active;
+  const routeAlertCoordinates =
+    showRouteProximitySegment && routeSegmentCoordinates.length <= 1
+      ? buildRouteRiskAlertSegment(routeCoordinates || [], zone)
+      : [];
   const handlePress = (event?: { stopPropagation?: () => void }) => {
     event?.stopPropagation?.();
     onPress?.(zone);
   };
-  const routeAlert = isRouteAlertZone(zone);
-  const riskColors = severityOverlayColors(zone.severity);
+  const riskTone = resolveRiskOverlayTone(zone);
+  const riskColors = severityOverlayColors(riskTone);
 
   return (
     <>
@@ -80,7 +88,7 @@ export function RiskOverlay({
           />
         </>
       ) : null}
-      {routeSegmentCoordinates.length > 1 ? (
+      {showRouteProximitySegment && routeSegmentCoordinates.length > 1 ? (
         <>
           <Polyline
             coordinates={routeSegmentCoordinates}
@@ -103,7 +111,7 @@ export function RiskOverlay({
           />
         </>
       ) : null}
-      {connectorCoordinates.length > 1 ? (
+      {showRouteProximitySegment && connectorCoordinates.length > 1 ? (
         <Polyline
           coordinates={connectorCoordinates}
           strokeColor={riskColors.stroke}
@@ -213,7 +221,8 @@ function RiskMarker({
   routeAlert: boolean;
   zone: RiskZone;
 }) {
-  const riskColors = severityOverlayColors(zone.severity);
+  const riskTone = resolveRiskOverlayTone(zone);
+  const riskColors = severityOverlayColors(riskTone);
   const markerColor = riskColors.stroke;
   const selectionProgress = useMotionValue(selected ? 1 : 0, {
     spring: true,
@@ -225,6 +234,7 @@ function RiskMarker({
       anchor={{ x: 0.5, y: 0.5 }}
       testID={uiTestIds.liveMapRiskZone(zone.id)}
       tappable={Boolean(onPress)}
+      tracksViewChanges={Boolean(selected || active)}
       zIndex={10}
       onPress={onPress}
     >
@@ -239,7 +249,7 @@ function RiskMarker({
             styles.riskMarker,
             active ? styles.riskMarkerActive : null,
             selected ? styles.riskMarkerSelected : null,
-            severityMarkerStyle(zone.severity)
+            severityMarkerStyle(riskTone)
           ]}
         >
           <Animated.View
@@ -262,8 +272,8 @@ function RiskMarker({
           <AlertTriangle
             accessibilityElementsHidden
             color={markerColor}
-            fill={severityMarkerFill(zone.severity)}
-            size={severityMarkerSize(zone.severity)}
+            fill={severityMarkerFill(riskTone)}
+            size={severityMarkerSize(riskTone)}
             strokeWidth={2.6}
           />
         </View>
@@ -332,21 +342,31 @@ export function createVehicleMarkerAccessibilityLabel(demoDriveEnabled: boolean)
   return demoDriveEnabled ? 'Route preview position' : 'Current position';
 }
 
-function severityMarkerStyle(severity: RiskSeverity) {
-  if (severity === 'high') {
+type RiskOverlayTone = RiskSeverity | Extract<RiskAvoidanceSeverity, 'critical'>;
+
+function resolveRiskOverlayTone(zone: RiskZone): RiskOverlayTone {
+  return zone.avoidanceSeverity === 'critical' ? 'critical' : zone.severity;
+}
+
+function severityMarkerStyle(severity: RiskOverlayTone) {
+  if (severity === 'critical') {
     return styles.riskMarkerHigh;
   }
 
-  if (severity === 'medium') {
+  if (severity === 'high' || severity === 'medium') {
     return styles.riskMarkerMedium;
   }
 
   return styles.riskMarkerLow;
 }
 
-function severityMarkerFill(severity: RiskSeverity): string {
-  if (severity === 'high') {
+function severityMarkerFill(severity: RiskOverlayTone): string {
+  if (severity === 'critical') {
     return 'rgba(229, 72, 77, 0.24)';
+  }
+
+  if (severity === 'high') {
+    return 'rgba(223, 122, 22, 0.24)';
   }
 
   if (severity === 'medium') {
@@ -356,8 +376,8 @@ function severityMarkerFill(severity: RiskSeverity): string {
   return 'rgba(126, 156, 191, 0.20)';
 }
 
-function severityMarkerSize(severity: RiskSeverity): number {
-  if (severity === 'high') {
+function severityMarkerSize(severity: RiskOverlayTone): number {
+  if (severity === 'critical' || severity === 'high') {
     return 22;
   }
 
@@ -368,14 +388,24 @@ function severityMarkerSize(severity: RiskSeverity): number {
   return 16;
 }
 
-function severityOverlayColors(severity: RiskSeverity) {
-  if (severity === 'high') {
+function severityOverlayColors(severity: RiskOverlayTone) {
+  if (severity === 'critical') {
     return {
       fill: 'rgba(229, 72, 77, 0.15)',
       selectedFill: 'rgba(229, 72, 77, 0.20)',
       selectionHalo: 'rgba(229, 72, 77, 0.13)',
       selectionStroke: 'rgba(255, 132, 136, 0.94)',
       stroke: colors.danger,
+    };
+  }
+
+  if (severity === 'high') {
+    return {
+      fill: 'rgba(245, 165, 36, 0.16)',
+      selectedFill: 'rgba(245, 165, 36, 0.22)',
+      selectionHalo: 'rgba(245, 165, 36, 0.14)',
+      selectionStroke: 'rgba(255, 209, 102, 0.96)',
+      stroke: '#f5a524',
     };
   }
 

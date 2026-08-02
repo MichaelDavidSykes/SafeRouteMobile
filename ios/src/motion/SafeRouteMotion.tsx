@@ -14,7 +14,7 @@ import {
   useEffect,
   useMemo,
   useRef,
-  useState,
+  useSyncExternalStore,
   type PropsWithChildren,
 } from 'react';
 
@@ -32,15 +32,21 @@ export const safeRouteMotion = {
 
 const settledCurve = Easing.bezier(0.2, 0.7, 0.2, 1);
 const exitCurve = Easing.bezier(0.4, 0, 1, 1);
+const keyboardCurve = Easing.bezier(0.17, 0.59, 0.4, 0.77);
 
 export const safeRouteEasing = {
   exit: exitCurve,
+  keyboard: keyboardCurve,
   settled: settledCurve,
 } as const;
 
 export const safeRouteSpring = {
   damping: 22,
+  isInteraction: false,
   mass: 0.7,
+  overshootClamping: true,
+  restDisplacementThreshold: 0.001,
+  restSpeedThreshold: 0.001,
   stiffness: 240,
 } as const;
 
@@ -82,6 +88,7 @@ type EntranceVariant =
   | 'auth'
   | 'chrome'
   | 'disclosure'
+  | 'list'
   | 'scene'
   | 'scrim'
   | 'sheet';
@@ -114,6 +121,10 @@ const entranceSpecs: Record<EntranceVariant, EntranceSpec> = {
     duration: safeRouteMotion.disclosureDurationMs,
     translateY: -8,
   },
+  list: {
+    duration: 280,
+    translateY: 8,
+  },
   scene: {
     duration: safeRouteMotion.sceneDurationMs,
     translateY: 12,
@@ -128,28 +139,67 @@ const entranceSpecs: Record<EntranceVariant, EntranceSpec> = {
   },
 };
 
+type ReduceMotionListener = () => void;
+
+const reduceMotionListeners = new Set<ReduceMotionListener>();
+let reduceMotionSnapshot = false;
+let reduceMotionSubscription:
+  | ReturnType<typeof AccessibilityInfo.addEventListener>
+  | null = null;
+let reduceMotionRequestRevision = 0;
+
+function publishReduceMotionSnapshot(enabled: boolean): void {
+  if (reduceMotionSnapshot === enabled) {
+    return;
+  }
+  reduceMotionSnapshot = enabled;
+  reduceMotionListeners.forEach((listener) => listener());
+}
+
+function startReduceMotionObservation(): void {
+  if (reduceMotionSubscription) {
+    return;
+  }
+  const requestRevision = reduceMotionRequestRevision + 1;
+  reduceMotionRequestRevision = requestRevision;
+  void AccessibilityInfo.isReduceMotionEnabled().then((enabled) => {
+    if (
+      reduceMotionRequestRevision === requestRevision
+      && reduceMotionListeners.size > 0
+    ) {
+      publishReduceMotionSnapshot(enabled);
+    }
+  });
+  reduceMotionSubscription = AccessibilityInfo.addEventListener(
+    'reduceMotionChanged',
+    publishReduceMotionSnapshot,
+  );
+}
+
+function subscribeToReduceMotion(listener: ReduceMotionListener): () => void {
+  reduceMotionListeners.add(listener);
+  startReduceMotionObservation();
+  return () => {
+    reduceMotionListeners.delete(listener);
+    if (reduceMotionListeners.size > 0) {
+      return;
+    }
+    reduceMotionRequestRevision += 1;
+    reduceMotionSubscription?.remove();
+    reduceMotionSubscription = null;
+  };
+}
+
+function getReduceMotionSnapshot(): boolean {
+  return reduceMotionSnapshot;
+}
+
 export function useReduceMotionEnabled(): boolean {
-  const [reduceMotionEnabled, setReduceMotionEnabled] = useState(false);
-
-  useEffect(() => {
-    let active = true;
-    void AccessibilityInfo.isReduceMotionEnabled().then((enabled) => {
-      if (active) {
-        setReduceMotionEnabled(enabled);
-      }
-    });
-    const subscription = AccessibilityInfo.addEventListener(
-      'reduceMotionChanged',
-      setReduceMotionEnabled,
-    );
-
-    return () => {
-      active = false;
-      subscription.remove();
-    };
-  }, []);
-
-  return reduceMotionEnabled;
+  return useSyncExternalStore(
+    subscribeToReduceMotion,
+    getReduceMotionSnapshot,
+    getReduceMotionSnapshot,
+  );
 }
 
 export function useKeyboardTranslateY({
@@ -183,9 +233,11 @@ export function useKeyboardTranslateY({
         translateY.setValue(-keyboardOverlap);
         return;
       }
+      Keyboard.scheduleLayoutAnimation(event);
       Animated.timing(translateY, {
         duration,
-        easing: safeRouteEasing.settled,
+        easing: safeRouteEasing.keyboard,
+        isInteraction: false,
         toValue: -keyboardOverlap,
         useNativeDriver: true,
       }).start();
@@ -247,6 +299,7 @@ export function useEntranceProgress({
       delay,
       duration,
       easing: safeRouteEasing.settled,
+      isInteraction: false,
       toValue: 1,
       useNativeDriver: true,
     });
@@ -318,6 +371,7 @@ export function useLoopingPulse({
       Animated.timing(progress, {
         duration,
         easing: Easing.out(Easing.ease),
+        isInteraction: false,
         toValue: 1,
         useNativeDriver: true,
       }),
@@ -359,6 +413,7 @@ export function useMotionValue(
       : Animated.timing(animatedValue, {
           duration,
           easing: safeRouteEasing.settled,
+          isInteraction: false,
           toValue: value,
           useNativeDriver: true,
         });

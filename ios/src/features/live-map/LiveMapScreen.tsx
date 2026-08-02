@@ -1402,6 +1402,22 @@ export function LiveMapScreen({
     lastDriveAlongCameraPoseRef.current = null;
     setNavigationState("navigating");
     setFollowModeEnabled(true);
+    if (vehicleCoordinate) {
+      const driveAlongCamera = resolveDriveAlongCamera(
+        vehicleCoordinate,
+        heading,
+        layout.isCompact,
+      );
+      mapRef.current?.animateCamera(driveAlongCamera.camera, {
+        duration: driveAlongCamera.durationMs,
+      });
+      lastDriveAlongCameraPoseRef.current = {
+        compact: layout.isCompact,
+        coordinate: vehicleCoordinate,
+        heading,
+        state: "navigating",
+      };
+    }
   };
 
   const authorizeAndStartNavigation = async () => {

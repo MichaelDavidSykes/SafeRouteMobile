@@ -389,7 +389,27 @@ describe('area risk API core', () => {
             radiusM: 1400,
             areaShape: 'circle',
             coordinates: circleCoordinates,
-            notes: 'Elevated road disruption.'
+            notes: 'Elevated road disruption.',
+            confidence: 'analyst-reviewed',
+            evidenceCount: 15,
+            lastVerifiedAt: '2026-07-08T12:00:00Z',
+            validUntil: '2026-08-08T12:00:00Z',
+            riskAreaSource: 'custom',
+            riskAreaSourceLabel: 'Workspace safety team',
+            riskAreaSourceDescription: 'Analyst-authored local safety intelligence.',
+            sourceUrl: 'https://example.com/risk/central',
+            escalationIndicators: [{
+              id: 'indicator-1',
+              label: 'Road closures reported',
+              confidence: 'high',
+              evidenceCount: 4
+            }],
+            linkedEntities: [{
+              id: 'entity-1',
+              label: 'Central Station',
+              relation: 'nearby',
+              type: 'transport-hub'
+            }]
           },
           {
             id: 'polygon-1',
@@ -417,7 +437,7 @@ describe('area risk API core', () => {
     assert.deepEqual(feed.zones[0], {
       id: 'generated-area-risk-safe-route-central-1',
       title: 'Central district',
-      description: 'Elevated road disruption. Source: General Risk Area Source.',
+      description: 'Elevated road disruption.',
       severity: 'high',
       avoidanceSeverity: 'critical',
       category: 'Area Risk',
@@ -427,8 +447,30 @@ describe('area risk API core', () => {
       radiusMeters: 1400,
       markerColor: '#d84a3f',
       strokeColor: 'rgba(216, 74, 63, 0.72)',
-      fillColor: 'rgba(216, 74, 63, 0.18)'
+      fillColor: 'rgba(216, 74, 63, 0.18)',
+      confidence: 'analyst-reviewed',
+      source: 'Workspace safety team',
+      sourceDescription: 'Analyst-authored local safety intelligence.',
+      sourceType: 'custom',
+      sourceUrl: 'https://example.com/risk/central',
+      sourceUrls: ['https://example.com/risk/central'],
+      evidenceCount: 15,
+      escalationIndicators: [{
+        id: 'indicator-1',
+        label: 'Road closures reported',
+        confidence: 'high',
+        evidenceCount: 4
+      }],
+      linkedEntities: [{
+        id: 'entity-1',
+        label: 'Central Station',
+        relation: 'nearby',
+        type: 'transport-hub'
+      }],
+      lastVerifiedAt: '2026-07-08T12:00:00Z',
+      validUntil: '2026-08-08T12:00:00Z'
     });
+    assert.equal(feed.zones[1].riskScore, 48);
     assert.equal(feed.zones[1].severity, 'medium');
     assert.equal(feed.zones[1].polygonCoordinates?.length, 4);
     assert.deepEqual(feed.zones[1].coordinate, {

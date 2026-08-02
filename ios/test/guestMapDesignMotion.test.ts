@@ -126,7 +126,7 @@ describe('guest map design motion', () => {
     assert.match(guestMapSource, /replayKey=\{replayKey\}[\s\S]*guestMapSearchResults/);
     assert.match(
       guestMapSource,
-      /handlePresentRouteChoices[\s\S]*animateNextMapLayout\(safeRouteMotion\.disclosureDurationMs\)[\s\S]*setRouteChoicesOpen\(true\)/,
+      /handlePlotRouteAction[\s\S]*plotTravelMode\(travelMode\)/,
     );
     assert.match(detailCalloutSource, /Animated\.parallel/);
     assert.match(detailCalloutSource, /safeRouteMotion\.sheetExitDurationMs/);

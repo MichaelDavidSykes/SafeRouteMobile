@@ -125,7 +125,7 @@ function createRiskCandidate({
   const title = normalizeRiskCopy(zone.title, "Route risk");
   const description = normalizeRiskCopy(zone.description, "");
   const distanceLabel = createRiskDistanceLabel(distanceAheadMeters);
-  const severityLabel = createSeverityVisibleLabel(zone.severity);
+  const severityLabel = createSeverityVisibleLabel(zone);
 
   return {
     accessibilityLabel: [
@@ -141,7 +141,7 @@ function createRiskCandidate({
     priorityBucket: resolvePriorityBucket(distanceAheadMeters),
     severity: zone.severity,
     title,
-    tone: createAdvisoryTone(zone.severity),
+    tone: createAdvisoryTone(zone),
     visibleLabel:
       distanceAheadMeters <= 0
         ? `${severityLabel} here`
@@ -177,24 +177,28 @@ function createRiskDistanceLabel(distanceAheadMeters: number): string {
   return formatDistance(Math.max(0, distanceAheadMeters));
 }
 
-function createSeverityVisibleLabel(severity: RiskSeverity): string {
-  if (severity === "high") {
+function createSeverityVisibleLabel(zone: RiskZone): string {
+  if (zone.avoidanceSeverity === "critical") {
+    return "Critical risk";
+  }
+
+  if (zone.severity === "high") {
     return "High risk";
   }
 
-  if (severity === "medium") {
+  if (zone.severity === "medium") {
     return "Risk";
   }
 
   return "Risk note";
 }
 
-function createAdvisoryTone(severity: RiskSeverity): RouteRiskAdvisoryTone {
-  if (severity === "high") {
+function createAdvisoryTone(zone: RiskZone): RouteRiskAdvisoryTone {
+  if (zone.avoidanceSeverity === "critical") {
     return "danger";
   }
 
-  if (severity === "medium") {
+  if (zone.severity === "high" || zone.severity === "medium") {
     return "warning";
   }
 

@@ -9,6 +9,7 @@ import {
   createGuestMapHomeCopy,
   createGuestRoadSnappedRoutePlan,
   createGuestRouteActionState,
+  resolveGuestCollapsedRouteCardState,
   createGuestRouteInputCopy,
   createGuestRouteMetrics,
   createGuestRoutePlanId,
@@ -162,6 +163,37 @@ describe('guest route planner helpers', () => {
     assert.ok(boundedState.accessibilityLabel.startsWith('Plot local route to Airport terminal'));
     assert.ok(boundedState.accessibilityLabel.endsWith('…'));
     assert.ok(boundedState.accessibilityLabel.length <= 'Plot local route to '.length + GUEST_ROUTE_LABEL_MAX_LENGTH);
+  });
+
+  it('keeps the collapsed route card honest while road routing is in flight', () => {
+    assert.equal(
+      resolveGuestCollapsedRouteCardState({
+        roadPreviewPending: false,
+        routePlotted: false,
+      }),
+      'search',
+    );
+    assert.equal(
+      resolveGuestCollapsedRouteCardState({
+        roadPreviewPending: true,
+        routePlotted: false,
+      }),
+      'finding',
+    );
+    assert.equal(
+      resolveGuestCollapsedRouteCardState({
+        roadPreviewPending: false,
+        routePlotted: true,
+      }),
+      'ready',
+    );
+    assert.equal(
+      resolveGuestCollapsedRouteCardState({
+        roadPreviewPending: true,
+        routePlotted: true,
+      }),
+      'finding',
+    );
   });
 
   it('rejects blank guest destinations before creating local route data', () => {

@@ -1,5 +1,10 @@
+import type { LatLng, Region } from 'react-native-maps';
+
 export const GUEST_ROUTE_SHEET_VIEWPORT_FRACTION = 0.5;
 export const GUEST_ROUTE_SHEET_MIN_BOTTOM_PADDING = 10;
+export const GUEST_SELECTED_LOCATION_SCREEN_Y_FRACTION = 0.38;
+export const GUEST_SELECTED_LOCATION_LATITUDE_DELTA = 0.045;
+export const GUEST_SELECTED_LOCATION_LONGITUDE_DELTA = 0.055;
 
 export function resolveGuestRouteSheetHeight(viewportHeight: number): number {
   if (!Number.isFinite(viewportHeight) || viewportHeight <= 0) {
@@ -15,4 +20,25 @@ export function resolveGuestRouteSheetBottomPadding(safeAreaBottom: number): num
   }
 
   return Math.max(GUEST_ROUTE_SHEET_MIN_BOTTOM_PADDING, Math.round(safeAreaBottom));
+}
+
+export function regionForGuestSelectedLocation(
+  coordinate: LatLng
+): Region {
+  const latitudeDelta = GUEST_SELECTED_LOCATION_LATITUDE_DELTA;
+  const verticalOffsetRatio =
+    0.5 - GUEST_SELECTED_LOCATION_SCREEN_Y_FRACTION;
+  const halfLatitudeDelta = latitudeDelta / 2;
+  const centeredLatitude = coordinate.latitude
+    - latitudeDelta * verticalOffsetRatio;
+
+  return {
+    latitude: Math.max(
+      -90 + halfLatitudeDelta,
+      Math.min(90 - halfLatitudeDelta, centeredLatitude)
+    ),
+    longitude: coordinate.longitude,
+    latitudeDelta,
+    longitudeDelta: GUEST_SELECTED_LOCATION_LONGITUDE_DELTA
+  };
 }

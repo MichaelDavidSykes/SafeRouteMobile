@@ -4,8 +4,10 @@ import { describe, it } from 'node:test';
 import {
   buildSafeRoutePreviewPayload,
   buildPublicSafeRoutePreviewPayload,
+  createSafeRouteConstraintFallbackPreview,
   normalizeSafeRoutePreviewResponse,
-  resolveSafeRoutePreviewRequestMode
+  resolveSafeRoutePreviewRequestMode,
+  SAFE_ROUTE_CONSTRAINT_FALLBACK_NOTICE,
 } from '../src/features/guest-map/safeRouteRoadRouteProviderCore';
 
 const stops = [
@@ -137,6 +139,22 @@ describe('SafeRoute road route provider', () => {
         avoidUnpavedRoads: false
       }
     }).preferences, undefined);
+  });
+
+  it('marks an unconstrained hosted fallback without disguising its safety status', () => {
+    const fallback = createSafeRouteConstraintFallbackPreview({
+      alternatives: [],
+      coordinates: stops,
+      distanceMeters: 1200,
+      durationSeconds: 300,
+      provider: 'osrm',
+      snapped: true,
+    });
+
+    assert.equal(fallback.snapped, true);
+    assert.equal(fallback.riskAvoidanceDegraded, true);
+    assert.equal(fallback.safetyNotice, SAFE_ROUTE_CONSTRAINT_FALLBACK_NOTICE);
+    assert.deepEqual(fallback.coordinates, stops);
   });
 
   it('requires a non-driving response to confirm the requested mode', () => {

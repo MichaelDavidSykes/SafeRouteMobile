@@ -76,7 +76,7 @@ describe("iOS polish audit interaction contracts", () => {
 
     assert.match(
       guestMap,
-      /\{!selectedRiskZone \? \([\s\S]*testID=\{uiTestIds\.guestMapCollapsedSheet\}/,
+      /\{!selectedRiskZone && !mapAction \? \([\s\S]*testID=\{uiTestIds\.guestMapCollapsedSheet\}/,
     );
   });
 

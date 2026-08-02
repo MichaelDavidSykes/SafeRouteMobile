@@ -62,7 +62,7 @@ import {
   useKeyboardTranslateY,
   useReduceMotionEnabled,
 } from '../../motion/SafeRouteMotion';
-import { chrome, colors, spacing } from '../../theme';
+import { colors } from '../../theme';
 import { uiTestIds } from '../../testing/uiTestIds';
 import type {
   RouteCheckpoint,
@@ -384,6 +384,14 @@ export function GuestMapScreen({
   const liveCoordinate = liveLocation
     ? { latitude: liveLocation.latitude, longitude: liveLocation.longitude }
     : null;
+  const locationSearchBiasRef = useRef({
+    center: liveCoordinate,
+    region: mapRegion,
+  });
+  locationSearchBiasRef.current = {
+    center: liveCoordinate,
+    region: mapRegion,
+  };
   const currentLocationVisible =
     Boolean(liveCoordinate) && permissionStatus !== 'denied';
   const routingClientId = authenticated ? activeWorkspace?.id || null : null;
@@ -727,10 +735,6 @@ export function GuestMapScreen({
       routeInputRefs.current.get(stopId)?.focus();
     });
   };
-  const focusRouteStopInput = (stopId: string) => {
-    transitionActiveInput(stopId);
-    scheduleRouteStopInputFocus(stopId);
-  };
   const handleCollapsedLocationSearch = () => {
     const nextStopId = resolveGuestRouteDraftNextStopInputId(routeDraft);
     transitionActiveInput(nextStopId, { animate: false });
@@ -901,10 +905,7 @@ export function GuestMapScreen({
       }
       setLocationSearchPending(true);
       void searchGuestLocations(query, {
-        bias: {
-          center: liveCoordinate,
-          region: mapRegion
-        },
+        bias: locationSearchBiasRef.current,
         serviceBaseUrl: LUNARCHAIN_API_BASE,
         signal: controller.signal
       }).then((results) => {
@@ -932,12 +933,6 @@ export function GuestMapScreen({
     activeInput,
     activeDraftStop?.label,
     activeDraftStop?.resolution.type,
-    liveCoordinate?.latitude,
-    liveCoordinate?.longitude,
-    mapRegion.latitude,
-    mapRegion.longitude,
-    mapRegion.latitudeDelta,
-    mapRegion.longitudeDelta,
     networkChecking,
     online,
   ]);

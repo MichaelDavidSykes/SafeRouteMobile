@@ -50,7 +50,7 @@ describe('SafeRoute Maestro npm runner', () => {
       }),
       [
         '/opt/maestro/bin/maestro',
-        '/Users/tester/.maestro/bin/maestro',
+        join('/Users/tester', '.maestro/bin/maestro'),
         'maestro'
       ]
     );

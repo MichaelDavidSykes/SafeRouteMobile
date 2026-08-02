@@ -242,7 +242,6 @@ export default function App() {
 
 function SafeRouteApp() {
   const {
-    offline,
     online,
     status: networkStatus,
   } = useNetworkAvailability();

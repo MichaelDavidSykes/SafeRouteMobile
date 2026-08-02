@@ -162,14 +162,16 @@ function startReduceMotionObservation(): void {
   }
   const requestRevision = reduceMotionRequestRevision + 1;
   reduceMotionRequestRevision = requestRevision;
-  void AccessibilityInfo.isReduceMotionEnabled().then((enabled) => {
-    if (
-      reduceMotionRequestRevision === requestRevision
-      && reduceMotionListeners.size > 0
-    ) {
-      publishReduceMotionSnapshot(enabled);
-    }
-  });
+  void AccessibilityInfo.isReduceMotionEnabled()
+    .then((enabled) => {
+      if (
+        reduceMotionRequestRevision === requestRevision
+        && reduceMotionListeners.size > 0
+      ) {
+        publishReduceMotionSnapshot(enabled);
+      }
+    })
+    .catch(() => undefined);
   reduceMotionSubscription = AccessibilityInfo.addEventListener(
     'reduceMotionChanged',
     publishReduceMotionSnapshot,
@@ -407,6 +409,7 @@ export function useMotionValue(
     const animation = spring
       ? Animated.spring(animatedValue, {
           ...safeRouteSpring,
+          isInteraction: false,
           toValue: value,
           useNativeDriver: true,
         })

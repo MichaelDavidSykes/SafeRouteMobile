@@ -14,7 +14,6 @@ import {
   ActivityIndicator,
   Alert,
   Animated,
-  Easing,
   findNodeHandle,
   LayoutAnimation,
   PanResponder,

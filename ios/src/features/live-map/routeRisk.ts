@@ -158,10 +158,7 @@ export function routeRiskStartBlockedReason(
       .map(({ id }) => id)
   );
   const [firstViolation] = audit.violations
-    .filter((violation) =>
-      violation.zone.severity === "high" &&
-      hardAvoidRiskZoneIds.has(violation.zone.id)
-    )
+    .filter((violation) => hardAvoidRiskZoneIds.has(violation.zone.id))
     .sort((first, second) => {
       const severityDelta =
         severityPriority(second.zone.severity) - severityPriority(first.zone.severity);

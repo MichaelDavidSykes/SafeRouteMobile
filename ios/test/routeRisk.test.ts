@@ -351,6 +351,18 @@ describe("SafeRoute risk-aware route behavior", () => {
     };
     assert.equal(auditRouteRiskAvoidance(advisoryPlan).violations.length, 1);
     assert.equal(routeRiskStartBlockedReason(advisoryPlan), null);
+
+    const criticalPlan = {
+      ...advisoryPlan,
+      riskZones: advisoryPlan.riskZones.map((zone) => ({
+        ...zone,
+        avoidanceSeverity: "critical" as const,
+      })),
+    };
+    assert.match(
+      routeRiskStartBlockedReason(criticalPlan) || "",
+      /Route intersects Security cordon\. Re-sync route in SafeRoute planner/,
+    );
   });
 
   it("keeps blocked-start risk copy punctuation-clean for VoiceOver", () => {

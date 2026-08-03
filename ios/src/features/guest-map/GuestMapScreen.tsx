@@ -163,6 +163,7 @@ import {
 import { createGuestMapRiskSummary } from './guestMapRiskSummary';
 import {
   regionForGuestSelectedLocation,
+  resolveGuestRouteFitBottomPadding,
   resolveGuestRouteSheetBottomPadding,
   resolveGuestRouteSheetHeight,
 } from './guestMapSheetLayout';
@@ -417,6 +418,9 @@ export function GuestMapScreen({
   const origin = routeDraft.origin.label;
   const destination = routeDraft.destination.label;
   const routeSheetMaxHeight = resolveGuestRouteSheetHeight(viewport.height);
+  const routeFitBottomPadding = resolveGuestRouteFitBottomPadding(
+    viewport.height,
+  );
   const routeSheetBottomPadding = resolveGuestRouteSheetBottomPadding(
     safeAreaInsets.bottom,
   );
@@ -951,9 +955,9 @@ export function GuestMapScreen({
           ? [liveCoordinate, ...routeFitCoordinates]
           : routeFitCoordinates;
       mapRef.current?.fitToCoordinates(coordinatesToFit, {
-        animated: false,
+        animated: !reduceMotionEnabled,
         edgePadding: {
-          bottom: 360,
+          bottom: routeFitBottomPadding,
           left: 42,
           right: 42,
           top: 150
@@ -962,7 +966,13 @@ export function GuestMapScreen({
     }, 120);
 
     return () => clearTimeout(timer);
-  }, [mapReady, mapRenderSessionKey, routeCollectionRevision]);
+  }, [
+    mapReady,
+    mapRenderSessionKey,
+    reduceMotionEnabled,
+    routeCollectionRevision,
+    routeFitBottomPadding,
+  ]);
 
   useEffect(() => () => {
     cancelRoadRouteUpgrade();

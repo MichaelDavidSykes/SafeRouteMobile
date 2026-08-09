@@ -75,20 +75,21 @@ describe("live map risk overlay interactions", () => {
       /export function VehicleMarker[\s\S]*?export function createVehicleMarkerAccessibilityLabel/.exec(
         source,
       )?.[0] || "";
-    const vehicleMarkerBlock =
-      /<View[\s\S]*?style=\{styles\.vehicleMarker\}[\s\S]*?>/.exec(source)?.[0] || "";
-
     assert.match(
       vehicleMarkerFunction,
       /const markerTitle = demoDriveEnabled \? 'Route preview position' : 'Current position'/,
     );
     assert.match(vehicleMarkerFunction, /title=\{markerTitle\}/);
-    assert.match(vehicleMarkerBlock, /accessible/);
+    assert.match(vehicleMarkerFunction, /<View[\s\S]*?accessible/);
     assert.match(
-      vehicleMarkerBlock,
+      vehicleMarkerFunction,
       /accessibilityLabel=\{createVehicleMarkerAccessibilityLabel\(demoDriveEnabled\)\}/,
     );
-    assert.match(vehicleMarkerBlock, /accessibilityRole="image"/);
+    assert.match(vehicleMarkerFunction, /accessibilityRole="image"/);
+    assert.match(
+      vehicleMarkerFunction,
+      /style=\{\[[\s\S]*?styles\.vehicleMarker[\s\S]*?screenRotation/,
+    );
     assert.match(
       source,
       /return demoDriveEnabled \? 'Route preview position' : 'Current position'/,

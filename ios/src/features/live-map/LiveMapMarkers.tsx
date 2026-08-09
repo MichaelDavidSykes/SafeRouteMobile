@@ -21,6 +21,7 @@ import {
 import { uiTestIds } from '../../testing/uiTestIds';
 import { colors, radius } from '../../theme';
 import { SAFE_ROUTE_DARK_ROUTE_CASING } from '../maps/safeRouteMapTheme';
+import { resolveDeviceHeadingScreenRotation } from '../maps/deviceHeading';
 import {
   useLoopingPulse,
   useMotionValue,
@@ -308,14 +309,17 @@ export function VehicleMarker({
   coordinate,
   demoDriveEnabled,
   heading,
+  mapHeading,
   testID,
 }: {
   coordinate: { latitude: number; longitude: number };
   demoDriveEnabled: boolean;
   heading: number | null;
+  mapHeading: number;
   testID?: string;
 }) {
   const markerTitle = demoDriveEnabled ? 'Route preview position' : 'Current position';
+  const screenRotation = resolveDeviceHeadingScreenRotation(heading, mapHeading);
   const reduceMotionEnabled = useReduceMotionEnabled();
   const pulseProgress = useLoopingPulse({
     duration: 2600,
@@ -342,8 +346,6 @@ export function VehicleMarker({
     <Marker
       coordinate={coordinate}
       anchor={{ x: 0.5, y: 0.5 }}
-      flat={heading !== null}
-      rotation={heading ?? 0}
       testID={testID}
       title={markerTitle}
       zIndex={100}
@@ -352,7 +354,12 @@ export function VehicleMarker({
         accessible
         accessibilityLabel={createVehicleMarkerAccessibilityLabel(demoDriveEnabled)}
         accessibilityRole="image"
-        style={styles.vehicleMarker}
+        style={[
+          styles.vehicleMarker,
+          screenRotation !== null
+            ? { transform: [{ rotate: `${screenRotation}deg` }] }
+            : null,
+        ]}
       >
         <Animated.View
           accessibilityElementsHidden

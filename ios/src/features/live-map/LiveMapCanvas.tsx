@@ -29,10 +29,12 @@ interface LiveMapCanvasProps {
   activeRiskZoneId?: string | null;
   demoDriveActive: boolean;
   heading: number | null;
+  mapHeading: number;
   mapRef: RefObject<MapView | null>;
   onMapReady: () => void;
   onMapPress: () => void;
   onPanDrag: () => void;
+  onRegionChangeComplete: () => void;
   onRiskZonePress: (zone: RiskZone) => void;
   onDismissRiskDetail: () => void;
   offline: boolean;
@@ -51,10 +53,12 @@ export function LiveMapCanvas({
   activeRiskZoneId,
   demoDriveActive,
   heading,
+  mapHeading,
   mapRef,
   onMapReady,
   onMapPress,
   onPanDrag,
+  onRegionChangeComplete,
   onRiskZonePress,
   onDismissRiskDetail,
   offline,
@@ -112,6 +116,7 @@ export function LiveMapCanvas({
       onPress={onMapPress}
       onPanDrag={onPanDrag}
       onMapReady={onMapReady}
+      onRegionChangeComplete={onRegionChangeComplete}
     >
       {Platform.OS === "ios" ? <SafeRouteDarkMapMask /> : null}
       {routeCoordinates.length > 1 ? (
@@ -183,6 +188,7 @@ export function LiveMapCanvas({
           coordinate={vehicleCoordinate}
           demoDriveEnabled={demoDriveActive}
           heading={heading}
+          mapHeading={mapHeading}
         />
       ) : null}
       </MapView>

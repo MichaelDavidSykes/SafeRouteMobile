@@ -25,16 +25,29 @@ describe('device heading', () => {
     }), 275);
   });
 
-  it('rejects uncalibrated or invalid compass samples', () => {
+  it('continues following a finite heading while calibration accuracy is unavailable', () => {
     assert.equal(resolveDeviceHeadingDegrees({
       accuracy: 0,
       magHeading: 90,
       trueHeading: 90
-    }), null);
+    }), 90);
+    assert.equal(resolveDeviceHeadingDegrees({
+      accuracy: 0,
+      magHeading: 275,
+      trueHeading: -1
+    }), 275);
+  });
+
+  it('rejects invalid compass samples instead of preserving a stale direction', () => {
     assert.equal(resolveDeviceHeadingDegrees({
       accuracy: 3,
       magHeading: Number.NaN,
       trueHeading: -1
+    }), null);
+    assert.equal(resolveDeviceHeadingDegrees({
+      accuracy: -1,
+      magHeading: 90,
+      trueHeading: 90
     }), null);
   });
 

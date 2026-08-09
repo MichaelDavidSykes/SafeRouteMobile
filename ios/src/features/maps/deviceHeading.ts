@@ -20,7 +20,7 @@ const HEADING_DEADBAND_DEGREES = 1.5;
 export function resolveDeviceHeadingDegrees(
   sample: DeviceHeadingSample
 ): number | null {
-  if (!isFiniteNumber(sample.accuracy) || sample.accuracy <= 0) {
+  if (!isFiniteNumber(sample.accuracy) || sample.accuracy < 0) {
     return null;
   }
 

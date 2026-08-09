@@ -26,11 +26,11 @@ export function useDeviceHeading(enabled: boolean): number | null {
         }
 
         const nextHeading = resolveDeviceHeadingDegrees(sample);
-        if (nextHeading !== null) {
-          setHeadingDegrees((previousHeading) =>
-            smoothDeviceHeadingDegrees(previousHeading, nextHeading)
-          );
-        }
+        setHeadingDegrees((previousHeading) =>
+          nextHeading === null
+            ? null
+            : smoothDeviceHeadingDegrees(previousHeading, nextHeading)
+        );
       },
       () => {
         if (mounted) {

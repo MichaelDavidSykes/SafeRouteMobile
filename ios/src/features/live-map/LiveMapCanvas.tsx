@@ -38,6 +38,7 @@ interface LiveMapCanvasProps {
   offline: boolean;
   permissionStatus: PermissionStatus;
   progressCoordinates: LatLng[];
+  riskOverlayRenderRevision: number;
   routePlan: SavedSafeRoutePlan;
   selectedRiskZoneId?: string | null;
   selectedRiskZone?: RiskZone | null;
@@ -60,6 +61,7 @@ export function LiveMapCanvas({
   offline,
   permissionStatus,
   progressCoordinates,
+  riskOverlayRenderRevision,
   routePlan,
   selectedRiskZoneId,
   selectedRiskZone,
@@ -155,7 +157,7 @@ export function LiveMapCanvas({
 
       {visibleRiskZones.map((zone) => (
         <RiskOverlay
-          key={zone.id}
+          key={`${riskOverlayRenderRevision}:${zone.id}`}
           active={zone.id === activeRiskZoneId}
           routeCoordinates={routeCoordinates}
           selected={zone.id === selectedRiskZoneId}

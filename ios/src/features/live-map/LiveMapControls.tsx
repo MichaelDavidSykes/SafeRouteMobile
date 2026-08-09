@@ -20,7 +20,7 @@ interface LiveMapControlsProps {
   layout: LiveMapOverlayLayout;
   onCenterVehicle: () => void;
   onFitRoute: () => void;
-  onSetAlertsVisible: (updater: (value: boolean) => boolean) => void;
+  onSetAlertsVisible: (visible: boolean) => void;
   routeIntelCount: number;
 }
 
@@ -73,7 +73,7 @@ export function LiveMapControls({
           control="intelligence"
           active={alertsVisible}
           compact={compactControls}
-          onPress={() => onSetAlertsVisible((value) => !value)}
+          onPress={() => onSetAlertsVisible(!alertsVisible)}
         />
       ) : null}
     </View>

@@ -36,7 +36,7 @@ interface LiveMapOverlayProps {
   onRepeatSpokenGuidance: () => void;
   onShareRoute: () => void;
   onRetryReroute: () => void;
-  onSetAlertsVisible: (updater: (value: boolean) => boolean) => void;
+  onSetAlertsVisible: (visible: boolean) => void;
   onStopRoute: () => void;
   onToggleSpokenGuidance: () => void;
   primaryActionStatusReason?: string | null;

@@ -7,7 +7,10 @@ import {
   type ViewportRiskCacheEntry
 } from './viewportRiskState';
 
-export const VIEWPORT_RISK_PERSISTENT_CACHE_SCHEMA = 1;
+// Schema 2 adds canonical area-family lineage. Discard schema-1 snapshots so
+// regenerated risk IDs cached before canonical deduplication cannot reappear
+// beside the authoritative refreshed family for up to 24 hours.
+export const VIEWPORT_RISK_PERSISTENT_CACHE_SCHEMA = 2;
 export const VIEWPORT_RISK_PERSISTENT_MAX_AGE_MS = 24 * 60 * 60 * 1000;
 export const VIEWPORT_RISK_PERSISTENT_MAX_ENTRIES = 16;
 export const VIEWPORT_RISK_PERSISTENT_MAX_CHARACTERS = 1536 * 1024;
@@ -350,6 +353,12 @@ function normalizePersistedRiskZone(value: unknown): RiskZone | null {
 function normalizePersistedRiskIntelligence(
   candidate: Partial<RiskZone>
 ): Partial<RiskZone> | null {
+  const areaFamilyId = optionalBoundedString(candidate.areaFamilyId, 160);
+  const areaFamilyAliases = optionalStringList(
+    candidate.areaFamilyAliases,
+    40,
+    160
+  );
   const riskScore = optionalBoundedNumber(candidate.riskScore, 0, 100);
   const evidenceCount = optionalBoundedInteger(candidate.evidenceCount, 0, 1_000_000);
   const confidence = optionalBoundedString(candidate.confidence, 80);
@@ -375,7 +384,9 @@ function normalizePersistedRiskIntelligence(
   );
   const linkedEntities = normalizePersistedLinkedEntities(candidate.linkedEntities);
   if (
-    riskScore === null
+    areaFamilyId === null
+    || areaFamilyAliases === null
+    || riskScore === null
     || evidenceCount === null
     || confidence === null
     || source === null
@@ -398,6 +409,8 @@ function normalizePersistedRiskIntelligence(
   }
 
   return {
+    ...(areaFamilyId !== undefined ? { areaFamilyId } : {}),
+    ...(areaFamilyAliases !== undefined ? { areaFamilyAliases } : {}),
     ...(riskScore !== undefined ? { riskScore } : {}),
     ...(evidenceCount !== undefined ? { evidenceCount } : {}),
     ...(confidence !== undefined ? { confidence } : {}),

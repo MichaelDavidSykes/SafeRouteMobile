@@ -18,6 +18,7 @@ import {
   canRequestAreaRiskResearch,
   canonicalAreaRiskZoneId,
   deriveRiskZoneAvoidRectangles,
+  mergeRiskZonesById,
   normalizeAreaRiskFeed,
   normalizeAreaRiskResearchState,
   partitionAreaRiskItemsByBounds,
@@ -446,8 +447,8 @@ describe('area risk API core', () => {
       shape: 'circle',
       radiusMeters: 1400,
       markerColor: '#d84a3f',
-      strokeColor: 'rgba(216, 74, 63, 0.72)',
-      fillColor: 'rgba(216, 74, 63, 0.18)',
+      strokeColor: 'rgba(216, 74, 63, 0.82)',
+      fillColor: 'rgba(216, 74, 63, 0.22)',
       confidence: 'analyst-reviewed',
       source: 'Workspace safety team',
       sourceDescription: 'Analyst-authored local safety intelligence.',
@@ -548,6 +549,83 @@ describe('area risk API core', () => {
     assert.equal(zones[0].id, 'generated-area-risk-zone-1');
     assert.equal(zones[0].severity, 'high');
     assert.equal(zones[0].avoidanceSeverity, 'critical');
+  });
+
+  it('coalesces regenerated records through canonical and retired family IDs', () => {
+    const current = normalizeAreaRiskFeed({
+      items: [{
+        id: 'current-zone',
+        areaFamilyId: 'family-keeper',
+        areaFamilyAliases: ['family-retired', 'family-retired'],
+        label: 'Canonical area name',
+        severity: 'medium',
+        lat: -33.92,
+        lon: 18.42,
+        radiusM: 700
+      }]
+    }).zones;
+    const retired = normalizeAreaRiskFeed({
+      items: [{
+        id: 'retired-zone',
+        area_family_id: 'family-retired',
+        area_family_aliases: ['family-older'],
+        label: 'Historical area name',
+        severity: 'critical',
+        lat: -33.921,
+        lon: 18.421,
+        radiusM: 800
+      }]
+    }).zones;
+    const older = normalizeAreaRiskFeed({
+      items: [{
+        id: 'older-zone',
+        areaFamilyId: 'family-older',
+        label: 'Oldest area name',
+        severity: 'low',
+        lat: -33.922,
+        lon: 18.422,
+        radiusM: 600
+      }]
+    }).zones;
+
+    const zones = mergeRiskZonesById(current, older, retired);
+
+    assert.equal(zones.length, 1);
+    assert.equal(zones[0].id, 'generated-area-risk-current-zone');
+    assert.equal(zones[0].areaFamilyId, 'family-keeper');
+    assert.deepEqual(zones[0].areaFamilyAliases, [
+      'family-retired',
+      'family-older'
+    ]);
+    assert.equal(zones[0].severity, 'high');
+    assert.equal(zones[0].avoidanceSeverity, 'critical');
+    assert.equal(zones[0].radiusMeters, 800);
+  });
+
+  it('keeps distinct authoritative families separate despite matching geometry', () => {
+    const zones = normalizeAreaRiskFeed({
+      items: [{
+        id: 'zone-a',
+        areaFamilyId: 'family-a',
+        label: 'Shared label',
+        lat: -33.92,
+        lon: 18.42,
+        radiusM: 700
+      }, {
+        id: 'zone-b',
+        areaFamilyId: 'family-b',
+        label: 'Shared label',
+        lat: -33.92,
+        lon: 18.42,
+        radiusM: 700
+      }]
+    }).zones;
+
+    assert.equal(zones.length, 2);
+    assert.deepEqual(zones.map((zone) => zone.areaFamilyId), [
+      'family-a',
+      'family-b'
+    ]);
   });
 
   it('adds bearer auth only when supplied by the caller', () => {

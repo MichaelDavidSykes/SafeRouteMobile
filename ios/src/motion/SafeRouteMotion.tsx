@@ -32,7 +32,7 @@ export const safeRouteMotion = {
 
 const settledCurve = Easing.bezier(0.2, 0.7, 0.2, 1);
 const exitCurve = Easing.bezier(0.4, 0, 1, 1);
-const keyboardCurve = Easing.bezier(0.17, 0.59, 0.4, 0.77);
+const keyboardCurve = Easing.bezier(0.2, 0.8, 0.2, 1);
 
 export const safeRouteEasing = {
   exit: exitCurve,
@@ -235,7 +235,6 @@ export function useKeyboardTranslateY({
         translateY.setValue(-keyboardOverlap);
         return;
       }
-      Keyboard.scheduleLayoutAnimation(event);
       Animated.timing(translateY, {
         duration,
         easing: safeRouteEasing.keyboard,

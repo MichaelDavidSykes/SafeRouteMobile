@@ -62,7 +62,7 @@ import {
   useKeyboardTranslateY,
   useReduceMotionEnabled,
 } from '../../motion/SafeRouteMotion';
-import { colors } from '../../theme';
+import { colors, spacing } from '../../theme';
 import { uiTestIds } from '../../testing/uiTestIds';
 import type {
   RouteCheckpoint,
@@ -152,7 +152,8 @@ import {
   resolveGuestRouteDraftNextStopInputId,
   resolveGuestRouteDraftStopCoordinate,
   setGuestRouteCurrentLocation,
-  shouldUseGuestMapSelectionAsDestination
+  shouldUseGuestMapSelectionAsDestination,
+  type GuestRouteDraft,
 } from './guestRouteDraft';
 import { guestMapStyles as styles } from './GuestMapScreen.styles';
 import { createGuestRiskArea } from './guestRiskAreaApi';
@@ -316,6 +317,10 @@ export function GuestMapScreen({
   const sheetGestureActionRef = useRef<(collapsed: boolean) => void>(() => undefined);
   const routeInputRefs = useRef(new Map<string, TextInput>());
   const pendingInputFocusFrameRef = useRef<number | null>(null);
+  const pendingInputFocusRetryRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const pendingInputFocusRecoveryRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const pendingSearchStageFrameRef = useRef<number | null>(null);
+  const searchStageProgress = useRef(new Animated.Value(1)).current;
   const [routeDraft, dispatchRouteDraft] = useReducer(
     guestRouteDraftReducer,
     undefined,
@@ -338,15 +343,37 @@ export function GuestMapScreen({
       configureNextSafeRouteLayoutAnimation(duration, options);
     }
   };
+  const cancelPendingSearchStageAnimation = () => {
+    if (pendingSearchStageFrameRef.current !== null) {
+      cancelAnimationFrame(pendingSearchStageFrameRef.current);
+      pendingSearchStageFrameRef.current = null;
+    }
+    searchStageProgress.stopAnimation();
+  };
+  const animateSearchStageContent = () => {
+    cancelPendingSearchStageAnimation();
+    if (reduceMotionEnabled) {
+      searchStageProgress.setValue(1);
+      return;
+    }
+    searchStageProgress.setValue(0);
+    pendingSearchStageFrameRef.current = requestAnimationFrame(() => {
+      pendingSearchStageFrameRef.current = null;
+      Animated.timing(searchStageProgress, {
+        duration: GUEST_SEARCH_STAGE_TRANSITION_MS,
+        easing: safeRouteEasing.settled,
+        isInteraction: false,
+        toValue: 1,
+        useNativeDriver: true,
+      }).start();
+    });
+  };
   const transitionActiveInput = (
     nextInput: string | null,
     { animate = !sheetCollapsed }: { animate?: boolean } = {},
   ) => {
     if (animate && Boolean(activeInput) !== Boolean(nextInput)) {
-      animateNextMapLayout(GUEST_SEARCH_STAGE_TRANSITION_MS, {
-        animateCreate: !nextInput,
-        animateDelete: Boolean(nextInput),
-      });
+      animateSearchStageContent();
     }
     setActiveInput(nextInput);
   };
@@ -424,6 +451,8 @@ export function GuestMapScreen({
   const routeSheetBottomPadding = resolveGuestRouteSheetBottomPadding(
     safeAreaInsets.bottom,
   );
+  const routeSheetTravelDistance =
+    routeSheetMaxHeight + routeSheetBottomPadding + spacing.lg;
   const keyboardTranslateY = useKeyboardTranslateY({
     reduceMotionEnabled,
     viewportHeight: viewport.height,
@@ -504,13 +533,15 @@ export function GuestMapScreen({
       active = false;
     };
   }, [resolvedPlacesScopeId]);
-  const routeContextDisabled =
-    routeAction.disabled ||
+  const routeRequestContextDisabled =
     routeResolutionPending ||
     roadPreviewPending ||
     workspaceSelectionPending ||
     workspaceSelectionRequired ||
     workspaceAuthorizationRequired;
+  const routeContextDisabled =
+    routeAction.disabled || routeRequestContextDisabled;
+  const routeRequestDisabled = !online || routeRequestContextDisabled;
   const routePlanningDisabled = !online || routeContextDisabled;
   const routeActionDisabled = routePlan
     ? routeContextDisabled
@@ -668,11 +699,18 @@ export function GuestMapScreen({
   onSessionExpiredRef.current = onSessionExpired;
   onWorkspaceUnavailableRef.current = onWorkspaceUnavailable;
   const cancelPendingRouteInputFocus = () => {
-    if (pendingInputFocusFrameRef.current === null) {
-      return;
+    if (pendingInputFocusFrameRef.current !== null) {
+      cancelAnimationFrame(pendingInputFocusFrameRef.current);
+      pendingInputFocusFrameRef.current = null;
     }
-    cancelAnimationFrame(pendingInputFocusFrameRef.current);
-    pendingInputFocusFrameRef.current = null;
+    if (pendingInputFocusRetryRef.current !== null) {
+      clearTimeout(pendingInputFocusRetryRef.current);
+      pendingInputFocusRetryRef.current = null;
+    }
+    if (pendingInputFocusRecoveryRef.current !== null) {
+      clearTimeout(pendingInputFocusRecoveryRef.current);
+      pendingInputFocusRecoveryRef.current = null;
+    }
   };
   const animateRouteSheet = (
     collapsed: boolean,
@@ -734,14 +772,34 @@ export function GuestMapScreen({
   };
   const scheduleRouteStopInputFocus = (stopId: string) => {
     cancelPendingRouteInputFocus();
+    const focusInput = () => {
+      routeInputRefs.current.get(stopId)?.focus();
+    };
     pendingInputFocusFrameRef.current = requestAnimationFrame(() => {
       pendingInputFocusFrameRef.current = null;
-      routeInputRefs.current.get(stopId)?.focus();
+      focusInput();
+      pendingInputFocusRetryRef.current = setTimeout(() => {
+        pendingInputFocusRetryRef.current = null;
+        focusInput();
+      }, 120);
+      pendingInputFocusRecoveryRef.current = setTimeout(() => {
+        pendingInputFocusRecoveryRef.current = null;
+        if (Keyboard.isVisible()) {
+          return;
+        }
+        const input = routeInputRefs.current.get(stopId);
+        input?.blur();
+        pendingInputFocusFrameRef.current = requestAnimationFrame(() => {
+          pendingInputFocusFrameRef.current = null;
+          input?.focus();
+        });
+      }, 520);
     });
   };
   const handleCollapsedLocationSearch = () => {
     const nextStopId = resolveGuestRouteDraftNextStopInputId(routeDraft);
     transitionActiveInput(nextStopId, { animate: false });
+    routeInputRefs.current.get(nextStopId)?.focus();
     animateRouteSheet(false);
     scheduleRouteStopInputFocus(nextStopId);
   };
@@ -770,7 +828,10 @@ export function GuestMapScreen({
           Math.min(
             1,
             sheetGestureStartProgressRef.current
-              + gesture.dy / GUEST_ROUTE_SHEET_DRAG_DISTANCE,
+              + gesture.dy / Math.max(
+                GUEST_ROUTE_SHEET_DRAG_DISTANCE,
+                routeSheetTravelDistance,
+              ),
           ),
         );
         sheetGestureProgressRef.current = nextProgress;
@@ -786,7 +847,7 @@ export function GuestMapScreen({
       },
       onPanResponderTerminationRequest: () => false,
     }),
-    [sheetProgress]
+    [routeSheetTravelDistance, sheetProgress]
   );
 
   useEffect(() => {
@@ -825,6 +886,7 @@ export function GuestMapScreen({
 
   useEffect(() => () => {
     cancelPendingRouteInputFocus();
+    cancelPendingSearchStageAnimation();
     activeRiskAreaRequestRef.current?.abort();
     activeRiskAreaRequestRef.current = null;
     riskAreaRequestIdRef.current += 1;
@@ -1065,8 +1127,9 @@ export function GuestMapScreen({
 
   const handlePlotRoute = async (
     requestedTravelMode: SafeRouteTravelMode = travelMode,
+    requestedDraft?: GuestRouteDraft,
   ) => {
-    if (routePlanningDisabled) {
+    if (routeRequestDisabled) {
       return;
     }
     const plotWorkspaceId = routingClientId;
@@ -1088,16 +1151,25 @@ export function GuestMapScreen({
     setRouteMessage('');
     transitionActiveInput(null);
 
-    let plottingDraft = routeDraft;
+    let plottingDraft = requestedDraft ?? routeDraft;
     if (
-      SAFEROUTE_PREVIEW_MODE_ENABLED &&
       isCurrentLocationLabel(plottingDraft.origin.label) &&
       !resolveGuestRouteDraftStopCoordinate(plottingDraft, plottingDraft.origin.id)
     ) {
-      plottingDraft = setGuestRouteCurrentLocation(plottingDraft, {
-        latitude: GUEST_MAP_REGION.latitude,
-        longitude: GUEST_MAP_REGION.longitude
-      });
+      const currentCoordinate = liveCoordinate ?? (
+        SAFEROUTE_PREVIEW_MODE_ENABLED
+          ? {
+              latitude: GUEST_MAP_REGION.latitude,
+              longitude: GUEST_MAP_REGION.longitude,
+            }
+          : null
+      );
+      if (currentCoordinate) {
+        plottingDraft = setGuestRouteCurrentLocation(
+          plottingDraft,
+          currentCoordinate,
+        );
+      }
     }
     const typedStopIds = getGuestRouteDraftUnresolvedStopIds(plottingDraft)
       .filter((stopId) => findGuestRouteDraftStop(plottingDraft, stopId)?.resolution.type === 'unresolved');
@@ -1245,6 +1317,7 @@ export function GuestMapScreen({
       requestOwnsState() &&
       requestAuthorizationIsCurrent();
     let acceptedRoadPreview = false;
+    let acceptedRoadPreviewPlan: SavedSafeRoutePlan | null = null;
     let sessionExpiryHandled = false;
     let workspaceUnavailableHandled = false;
 
@@ -1339,11 +1412,18 @@ export function GuestMapScreen({
         });
       }
       acceptedRoadPreview = true;
+      acceptedRoadPreviewPlan = roadRoutePlan;
       setRoutePlan(roadRoutePlan);
       setRouteAlternatives(acceptedRoutePlans);
       setRouteMessage('');
       openPendingPreview(roadRoutePlan);
       return true;
+    };
+    const clearPublishedRoadPreview = () => {
+      acceptedRoadPreview = false;
+      acceptedRoadPreviewPlan = null;
+      setRoutePlan(null);
+      setRouteAlternatives([]);
     };
 
     const routePreviewFetcher = roadRoutePreviewFetcher || ((options: GuestRoadRoutePreviewOptions) =>
@@ -1378,6 +1458,9 @@ export function GuestMapScreen({
           riskZonesSnapshot,
           roadPreview.routeAlerts || [],
         );
+        if (!publishRoadPreview(roadPreview, finalRiskZones)) {
+          return;
+        }
         try {
           const corridorRiskZones = await fetchAreaRiskAlongRoute(
             roadPreview.coordinates,
@@ -1437,6 +1520,7 @@ export function GuestMapScreen({
             ) {
               finalRoadPreview = riskAwarePreview;
             } else {
+              clearPublishedRoadPreview();
               return;
             }
           }
@@ -1447,8 +1531,8 @@ export function GuestMapScreen({
           if (handleRouteWorkspaceUnavailable(error)) {
             return;
           }
-          // Without corridor intelligence the client cannot prove that every
-          // displayed route avoids hard-exclusion risk areas.
+          // The provider-snapped route is already visible. Keep it when this
+          // optional corridor enrichment is temporarily unavailable.
           return;
         }
 
@@ -1460,7 +1544,9 @@ export function GuestMapScreen({
         if (!requestIsCurrent()) {
           return;
         }
-        publishRoadPreview(finalRoadPreview, finalRiskZones);
+        if (!publishRoadPreview(finalRoadPreview, finalRiskZones)) {
+          clearPublishedRoadPreview();
+        }
       })
       .catch((error) => {
         if (handleRouteSessionExpiry(error)) {
@@ -1476,6 +1562,9 @@ export function GuestMapScreen({
         if (requestOwnsState() && requestAuthorizationIsCurrent()) {
           activeRoadRouteRequestRef.current = null;
           setRoadPreviewPending(false);
+          if (acceptedRoadPreviewPlan) {
+            openPendingPreview(acceptedRoadPreviewPlan);
+          }
           if (!acceptedRoadPreview && !sessionExpiryHandled && !workspaceUnavailableHandled) {
             pendingOpenPreviewRef.current = false;
             setRoutePlan(null);
@@ -1618,15 +1707,20 @@ export function GuestMapScreen({
       return;
     }
     const selectedStopId = activeInput;
-    cancelRoadRouteUpgrade();
-    dispatchRouteDraft({
+    const selectionAction = {
       selection: {
         coordinate: result.coordinate,
-        label: result.displayName
+        label: result.displayName,
       },
-      stopId: activeInput,
-      type: 'stop/select'
-    });
+      stopId: selectedStopId,
+      type: 'stop/select' as const,
+    };
+    const nextRouteDraft = guestRouteDraftReducer(routeDraft, selectionAction);
+    const shouldAutoPlotBaseRoute =
+      selectedStopId === GUEST_ROUTE_DRAFT_DESTINATION_ID &&
+      nextRouteDraft.waypoints.length === 0;
+    cancelRoadRouteUpgrade();
+    dispatchRouteDraft(selectionAction);
     setRoutePlan(null);
     setRouteAlternatives([]);
     setRouteMessage('');
@@ -1645,6 +1739,9 @@ export function GuestMapScreen({
         )
         .then(setPersistentPlaces)
         .catch(() => undefined);
+    }
+    if (shouldAutoPlotBaseRoute) {
+      void handlePlotRoute(travelMode, nextRouteDraft);
     }
   };
 
@@ -1807,12 +1904,15 @@ export function GuestMapScreen({
       coordinate: mapAction.coordinate,
       label: mapAction.label.slice(0, GUEST_ROUTE_LABEL_MAX_LENGTH)
     };
+    let nextRouteDraft: GuestRouteDraft | null = null;
     if (mapSelectionSetsDestination) {
-      dispatchRouteDraft({
+      const selectionAction = {
         selection,
         stopId: GUEST_ROUTE_DRAFT_DESTINATION_ID,
-        type: 'stop/select'
-      });
+        type: 'stop/select' as const,
+      };
+      nextRouteDraft = guestRouteDraftReducer(routeDraft, selectionAction);
+      dispatchRouteDraft(selectionAction);
     } else {
       dispatchRouteDraft({
         options: {
@@ -1827,11 +1927,15 @@ export function GuestMapScreen({
     setRouteAlternatives([]);
     setRouteMessage(
       mapSelectionSetsDestination
-        ? 'Destination set. Plot the route when ready.'
+        ? ''
         : 'Stop added. Plot the route when ready.'
     );
     setMapAction(null);
-    animateRouteSheet(false);
+    if (nextRouteDraft) {
+      void handlePlotRoute(travelMode, nextRouteDraft);
+    } else {
+      animateRouteSheet(false);
+    }
   };
 
   const handleAddMapRiskArea = async () => {
@@ -2430,13 +2534,13 @@ export function GuestMapScreen({
               },
               {
                 opacity: sheetProgress.interpolate({
-                  inputRange: [0, 1],
-                  outputRange: [1, 0]
+                  inputRange: [0, 0.86, 1],
+                  outputRange: [1, 1, 0]
                 }),
                 transform: [{
                   translateY: sheetProgress.interpolate({
                     inputRange: [0, 1],
-                    outputRange: [0, 24]
+                    outputRange: [0, routeSheetTravelDistance]
                   })
                 }]
               }
@@ -2535,6 +2639,17 @@ export function GuestMapScreen({
                 </>
               ) : null}
 
+              <Animated.View
+                style={{
+                  opacity: searchStageProgress,
+                  transform: [{
+                    translateY: searchStageProgress.interpolate({
+                      inputRange: [0, 1],
+                      outputRange: [12, 0],
+                    }),
+                  }],
+                }}
+              >
               <View style={styles.inputStack}>
                 <RouteInput
                   divided
@@ -2628,6 +2743,7 @@ export function GuestMapScreen({
                   <Text style={styles.addStopButtonText}>Add stop</Text>
                 </Pressable>
               ) : null}
+              </Animated.View>
             </ScrollView>
 
             {showRouteFooter ? (
@@ -3360,8 +3476,26 @@ function RouteInput({
   testID: string;
   value: string;
 }) {
+  const nativeInputRef = useRef<TextInput | null>(null);
+  const focusNativeInput = () => {
+    const input = nativeInputRef.current;
+    if (!input) {
+      return;
+    }
+    if (input.isFocused() && !Keyboard.isVisible()) {
+      input.blur();
+      requestAnimationFrame(() => input.focus());
+      return;
+    }
+    input.focus();
+  };
+
   return (
-    <View style={[styles.inputRow, divided ? styles.inputRowDivider : null]}>
+    <Pressable
+      accessible={false}
+      style={[styles.inputRow, divided ? styles.inputRowDivider : null]}
+      onPress={focusNativeInput}
+    >
       <View
         accessibilityElementsHidden
         style={[
@@ -3380,7 +3514,10 @@ function RouteInput({
       <View style={styles.routeInputCopy}>
         <Text accessibilityElementsHidden style={styles.routeInputOverline}>{overline}</Text>
         <TextInput
-          ref={inputRef}
+          ref={(input) => {
+            nativeInputRef.current = input;
+            inputRef?.(input);
+          }}
           accessibilityHint={accessibilityHint}
           accessibilityLabel={label}
           autoCapitalize="words"
@@ -3389,6 +3526,7 @@ function RouteInput({
           placeholder={placeholder}
           placeholderTextColor={colors.muted}
           returnKeyType={onSubmitEditing ? 'done' : 'default'}
+          showSoftInputOnFocus
           style={styles.input}
           submitBehavior="blurAndSubmit"
           testID={testID}
@@ -3398,7 +3536,7 @@ function RouteInput({
           onSubmitEditing={onSubmitEditing}
         />
       </View>
-    </View>
+    </Pressable>
   );
 }
 
@@ -3524,9 +3662,8 @@ function LocationSearchResults({
       {shortcuts.length ? (
         <>
           <Text style={styles.searchSectionLabel}>Saved places</Text>
-          {shortcuts.map((shortcut, index) => (
+          {shortcuts.map((shortcut) => (
             <LocationSearchResultRow
-              delay={Math.min(index * 32, 128)}
               key={shortcut.id}
               icon={shortcut.kind}
               result={shortcut.result}
@@ -3550,9 +3687,8 @@ function LocationSearchResults({
       {!pending && results.length ? (
         <Text style={styles.searchSectionLabel}>Search results</Text>
       ) : null}
-      {!pending ? results.map((result, index) => (
+      {!pending ? results.map((result) => (
         <LocationSearchResultRow
-          delay={Math.min(index * 32, 128)}
           key={result.id}
           result={result}
           onManage={onManage}
@@ -3569,13 +3705,11 @@ function LocationSearchResults({
 }
 
 function LocationSearchResultRow({
-  delay,
   icon,
   onManage,
   onSelect,
   result,
 }: {
-  delay: number;
   icon?: LocationSearchShortcut['kind'];
   onManage: (result: GuestLocationSearchResult) => void;
   onSelect: (result: GuestLocationSearchResult) => void;
@@ -3589,8 +3723,7 @@ function LocationSearchResultRow({
         ? Clock3
         : Star;
   return (
-    <MotionEntrance delay={delay} variant="list">
-      <View style={styles.searchResultRow}>
+    <View style={styles.searchResultRow}>
         {icon ? (
           <ShortcutIcon
             accessibilityElementsHidden
@@ -3639,8 +3772,7 @@ function LocationSearchResultRow({
             strokeWidth={2.2}
           />
         </Pressable>
-      </View>
-    </MotionEntrance>
+    </View>
   );
 }
 

@@ -180,6 +180,15 @@ export function LiveMapScreen({
   const mapRef = useRef<MapView | null>(null);
   const activeRerouteRequestRef = useRef<AbortController | null>(null);
   const lastDriveAlongCameraPoseRef = useRef<DriveAlongCameraPose | null>(null);
+  const driveAlongCameraActiveRef = useRef(
+    Boolean(
+      resumedNavigationSession?.followModeEnabled
+      && (
+        resumedNavigationSession.navigationState === "navigating"
+        || resumedNavigationSession.navigationState === "off-route"
+      )
+    ),
+  );
   const rerouteStateRef = useRef<LiveRerouteState>(createLiveRerouteState());
   const liveRoutePlanRef = useRef(
     resumedNavigationSession?.routePlan || routePlan,
@@ -414,6 +423,12 @@ export function LiveMapScreen({
     navigationState,
     progress,
   );
+  driveAlongCameraActiveRef.current =
+    followModeEnabled
+    && (
+      activeNavigationState === "navigating"
+      || activeNavigationState === "off-route"
+    );
   const backendManeuverBatch = useMemo(
     () => normalizeBackendManeuverBatch({
       maneuvers: liveRoutePlan.route.navigationSteps,
@@ -1045,7 +1060,10 @@ export function LiveMapScreen({
     setNavigationAuthorizationNotice(null);
     setSelectedRiskZoneId(null);
     const timer = setTimeout(() => {
-      if (nextRoutePlan.route.coordinates.length >= 2) {
+      if (
+        !driveAlongCameraActiveRef.current
+        && nextRoutePlan.route.coordinates.length >= 2
+      ) {
         mapRef.current?.fitToCoordinates(nextRoutePlan.route.coordinates, {
           animated: true,
           edgePadding: layout.edgePadding,
@@ -1340,10 +1358,37 @@ export function LiveMapScreen({
     }
   };
 
+  const handleMapReady = () => {
+    if (!driveAlongCameraActiveRef.current) {
+      fitRoute();
+      return;
+    }
+
+    if (!vehicleCoordinate) {
+      return;
+    }
+
+    const driveAlongCamera = resolveDriveAlongCamera(
+      vehicleCoordinate,
+      heading,
+      layout.isCompact,
+    );
+    mapRef.current?.animateCamera(driveAlongCamera.camera, {
+      duration: driveAlongCamera.durationMs,
+    });
+    lastDriveAlongCameraPoseRef.current = {
+      compact: layout.isCompact,
+      coordinate: vehicleCoordinate,
+      heading,
+      state: activeNavigationState,
+    };
+  };
+
   const suspendDriveAlongCameraForMapReview = () => {
     if (
       shouldSuspendDriveAlongCamera(activeNavigationState, followModeEnabled)
     ) {
+      driveAlongCameraActiveRef.current = false;
       setFollowModeEnabled(false);
     }
   };
@@ -1360,6 +1405,9 @@ export function LiveMapScreen({
     }
 
     setFollowModeEnabled(true);
+    driveAlongCameraActiveRef.current =
+      activeNavigationState === "navigating"
+      || activeNavigationState === "off-route";
 
     if (
       shouldUseDriveAlongCamera(activeNavigationState, true, vehicleCoordinate)
@@ -1400,6 +1448,7 @@ export function LiveMapScreen({
       setNavigationStartedAtMs(startedAtMs);
     }
     lastDriveAlongCameraPoseRef.current = null;
+    driveAlongCameraActiveRef.current = true;
     setNavigationState("navigating");
     setFollowModeEnabled(true);
     if (vehicleCoordinate) {
@@ -1475,6 +1524,7 @@ export function LiveMapScreen({
       activeNavigationState === "off-route"
     ) {
       lastDriveAlongCameraPoseRef.current = null;
+      driveAlongCameraActiveRef.current = false;
       setNavigationState("paused");
       setFollowModeEnabled(false);
       return;
@@ -1482,6 +1532,7 @@ export function LiveMapScreen({
 
     if (activeNavigationState === "paused") {
       lastDriveAlongCameraPoseRef.current = null;
+      driveAlongCameraActiveRef.current = true;
       setNavigationState("navigating");
       setFollowModeEnabled(true);
       return;
@@ -1559,6 +1610,7 @@ export function LiveMapScreen({
     setBackgroundTrackingRequested(false);
     setPendingNavigationStart(false);
     lastDriveAlongCameraPoseRef.current = null;
+    driveAlongCameraActiveRef.current = false;
 
     const stoppedRerouteState = stopLiveRerouteMonitoring(
       rerouteStateRef.current,
@@ -1672,7 +1724,7 @@ export function LiveMapScreen({
           demoDriveActive={demoDriveActive}
           heading={heading}
           mapRef={mapRef}
-          onMapReady={fitRoute}
+          onMapReady={handleMapReady}
           onMapPress={handleMapPress}
           onPanDrag={handleMapPanDrag}
           onDismissRiskDetail={handleDismissRiskDetail}

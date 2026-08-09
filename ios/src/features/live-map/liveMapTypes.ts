@@ -38,6 +38,8 @@ export interface RouteNavigationStep {
 
 export interface RiskZone {
   id: string;
+  areaFamilyId?: string;
+  areaFamilyAliases?: string[];
   title: string;
   description: string;
   severity: RiskSeverity;

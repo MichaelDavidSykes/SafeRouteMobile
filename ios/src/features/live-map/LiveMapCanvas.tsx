@@ -28,7 +28,7 @@ interface LiveMapCanvasProps {
   activeNavigationState: NavigationLifecycle;
   activeRiskZoneId?: string | null;
   demoDriveActive: boolean;
-  heading: number;
+  heading: number | null;
   mapRef: RefObject<MapView | null>;
   onMapReady: () => void;
   onMapPress: () => void;

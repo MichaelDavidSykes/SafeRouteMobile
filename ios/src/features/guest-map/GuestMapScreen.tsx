@@ -70,7 +70,11 @@ import type {
   SavedSafeRoutePlan,
 } from '../live-map/liveMapTypes';
 import type { RiskZone } from '../live-map/liveMapTypes';
-import { CheckpointMarker, RiskOverlay } from '../live-map/LiveMapMarkers';
+import {
+  CheckpointMarker,
+  RiskOverlay,
+  VehicleMarker,
+} from '../live-map/LiveMapMarkers';
 import {
   LiveMapDetailCallout,
   LiveMapRiskDetailCallout,
@@ -91,6 +95,7 @@ import {
 } from '../maps/safeRouteMapTheme';
 import { shouldRenderRouteCheckpointMarker } from '../maps/mapMarkerPresentation';
 import { SafeRouteDarkMapMask } from '../maps/SafeRouteDarkMapMask';
+import { useDeviceHeading } from '../maps/useDeviceHeading';
 import { isPreviewAccessToken } from '../auth/previewSession';
 import { createSessionNoticeState } from '../auth/sessionNoticeState';
 import {
@@ -412,6 +417,7 @@ export function GuestMapScreen({
   const liveCoordinate = liveLocation
     ? { latitude: liveLocation.latitude, longitude: liveLocation.longitude }
     : null;
+  const deviceHeadingDegrees = useDeviceHeading(permissionStatus === 'granted');
   const locationSearchBiasRef = useRef({
     center: liveCoordinate,
     region: mapRegion,
@@ -2069,7 +2075,7 @@ export function GuestMapScreen({
         showsIndoors={false}
         showsIndoorLevelPicker={false}
         showsMyLocationButton={false}
-        showsUserLocation={currentLocationVisible}
+        showsUserLocation={false}
         showsScale={false}
         showsTraffic={online && travelMode === 'drive'}
         zoomEnabled
@@ -2149,6 +2155,14 @@ export function GuestMapScreen({
               <View style={styles.markerCore} />
             </View>
           </Marker>
+        ) : null}
+        {currentLocationVisible && liveCoordinate ? (
+          <VehicleMarker
+            coordinate={liveCoordinate}
+            demoDriveEnabled={false}
+            heading={deviceHeadingDegrees}
+            testID={uiTestIds.guestMapCurrentLocationMarker}
+          />
         ) : null}
       </MapView>
 

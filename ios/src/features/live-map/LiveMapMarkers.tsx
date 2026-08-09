@@ -285,11 +285,13 @@ function RiskMarker({
 export function VehicleMarker({
   coordinate,
   demoDriveEnabled,
-  heading
+  heading,
+  testID,
 }: {
   coordinate: { latitude: number; longitude: number };
   demoDriveEnabled: boolean;
-  heading: number;
+  heading: number | null;
+  testID?: string;
 }) {
   const markerTitle = demoDriveEnabled ? 'Route preview position' : 'Current position';
   const reduceMotionEnabled = useReduceMotionEnabled();
@@ -318,8 +320,11 @@ export function VehicleMarker({
     <Marker
       coordinate={coordinate}
       anchor={{ x: 0.5, y: 0.5 }}
-      rotation={heading}
+      flat={heading !== null}
+      rotation={heading ?? 0}
+      testID={testID}
       title={markerTitle}
+      zIndex={100}
     >
       <View
         accessible
@@ -332,7 +337,14 @@ export function VehicleMarker({
           pointerEvents="none"
           style={[styles.vehicleMarkerPulse, pulseStyle]}
         />
-        <View style={styles.vehicleMarkerHeading} />
+        {heading !== null ? (
+          <View
+            accessibilityElementsHidden
+            pointerEvents="none"
+            style={styles.vehicleMarkerHeading}
+          />
+        ) : null}
+        <View accessibilityElementsHidden style={styles.vehicleMarkerCore} />
       </View>
     </Marker>
   );
@@ -510,14 +522,10 @@ const styles = StyleSheet.create({
     justifyContent: 'center'
   },
   vehicleMarker: {
-    width: 30,
-    height: 30,
+    width: 44,
+    height: 44,
     alignItems: 'center',
     justifyContent: 'center',
-    borderWidth: 2,
-    borderColor: colors.surface,
-    borderRadius: radius.pill,
-    backgroundColor: colors.appleBlue,
     shadowOpacity: 0,
     shadowRadius: 0,
     shadowOffset: { width: 0, height: 0 },
@@ -525,20 +533,29 @@ const styles = StyleSheet.create({
   },
   vehicleMarkerPulse: {
     position: 'absolute',
-    width: 30,
-    height: 30,
+    width: 24,
+    height: 24,
     borderRadius: radius.pill,
     backgroundColor: colors.appleBlue,
   },
   vehicleMarkerHeading: {
+    position: 'absolute',
+    top: 0,
     width: 0,
     height: 0,
-    borderLeftWidth: 5,
-    borderRightWidth: 5,
-    borderBottomWidth: 11,
+    borderLeftWidth: 8,
+    borderRightWidth: 8,
+    borderBottomWidth: 20,
     borderLeftColor: 'transparent',
     borderRightColor: 'transparent',
-    borderBottomColor: colors.surface,
-    transform: [{ translateY: -1 }]
+    borderBottomColor: 'rgba(10, 132, 255, 0.82)',
+  },
+  vehicleMarkerCore: {
+    width: 24,
+    height: 24,
+    borderWidth: 3,
+    borderColor: colors.surface,
+    borderRadius: radius.pill,
+    backgroundColor: colors.appleBlue,
   }
 });

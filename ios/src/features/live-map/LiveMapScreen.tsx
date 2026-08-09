@@ -105,6 +105,7 @@ import { useNetworkAvailability } from "../api/useNetworkAvailability";
 import { getRequestSessionExpiry } from "../api/sessionExpiry";
 import { getRequestUnavailableWorkspaceId } from "../workspaces/workspaceAccessRecovery";
 import { isCurrentWorkspaceAuthorizationEpoch } from "../workspaces/workspaceForegroundRevalidation";
+import { useDeviceHeading } from "../maps/useDeviceHeading";
 import {
   cancelNavigationStartAuthorization,
   createNavigationStartAuthorizationGate,
@@ -299,6 +300,9 @@ export function LiveMapScreen({
     navigationActive: navigationLocationTrackingActive,
     permissionRequested: locationTrackingRequested,
   });
+  const deviceHeadingDegrees = useDeviceHeading(
+    !demoDriveActive && permissionStatus === "granted",
+  );
   onAuthorizeNavigationStartRef.current = onAuthorizeNavigationStart;
   onNavigationSessionChangeRef.current = onNavigationSessionChange;
   onWorkspaceUnavailableRef.current = onWorkspaceUnavailable;
@@ -615,6 +619,15 @@ export function LiveMapScreen({
     demoDriveActive,
     routeStep,
   );
+  const vehicleFacingHeading = demoDriveActive
+    ? heading
+    : deviceHeadingDegrees ?? (
+        typeof coordinate?.heading === "number" &&
+        Number.isFinite(coordinate.heading) &&
+        coordinate.heading >= 0
+          ? coordinate.heading
+          : null
+      );
 
   const commitRerouteState = (nextState: LiveRerouteState) => {
     const currentState = rerouteStateRef.current;
@@ -1722,7 +1735,7 @@ export function LiveMapScreen({
           activeNavigationState={activeNavigationState}
           activeRiskZoneId={liveRiskAlert?.zone.id}
           demoDriveActive={demoDriveActive}
-          heading={heading}
+          heading={vehicleFacingHeading}
           mapRef={mapRef}
           onMapReady={handleMapReady}
           onMapPress={handleMapPress}

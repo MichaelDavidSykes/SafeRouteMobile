@@ -29,6 +29,8 @@ describe('persistent risk cache', () => {
     const request = createRequest();
     const richZone: RiskZone = {
       ...createZone('cached'),
+      areaFamilyId: 'family-keeper',
+      areaFamilyAliases: ['family-retired'],
       riskScore: 84,
       confidence: 'analyst-reviewed',
       evidenceCount: 15,
@@ -63,6 +65,14 @@ describe('persistent risk cache', () => {
     assert.equal(
       restored.get(viewportRiskCacheKey(request))?.zones[0].riskScore,
       84
+    );
+    assert.equal(
+      restored.get(viewportRiskCacheKey(request))?.zones[0].areaFamilyId,
+      'family-keeper'
+    );
+    assert.deepEqual(
+      restored.get(viewportRiskCacheKey(request))?.zones[0].areaFamilyAliases,
+      ['family-retired']
     );
     assert.equal(
       restored.get(viewportRiskCacheKey(request))?.zones[0].escalationIndicators?.[0].label,
@@ -105,6 +115,25 @@ describe('persistent risk cache', () => {
         'principal-1',
         1200
       ),
+      null
+    );
+  });
+
+  it('discards pre-lineage viewport snapshots that can retain regenerated IDs', () => {
+    const cache: ViewportRiskCache = new Map();
+    cacheViewportRiskZones(
+      cache,
+      createRequest(),
+      [createZone('legacy-regenerated-id')],
+      { now: 1000 }
+    );
+    const legacy = JSON.parse(
+      serializeViewportRiskCache(cache, 'principal-1', 1100)
+    ) as { schema: number };
+    legacy.schema = 1;
+
+    assert.equal(
+      parseViewportRiskCache(JSON.stringify(legacy), 'principal-1', 1200),
       null
     );
   });

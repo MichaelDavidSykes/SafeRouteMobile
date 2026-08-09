@@ -741,12 +741,44 @@ export function areaRiskQueryBoundsForRequest(
 }
 
 export function mergeRiskZonesById(...zoneSets: ReadonlyArray<readonly RiskZone[]>): RiskZone[] {
-  const byId = new Map<string, RiskZone>();
+  const merged: RiskZone[] = [];
   for (const zone of zoneSets.flat()) {
-    const existing = byId.get(zone.id);
-    byId.set(zone.id, existing ? mergeRiskZone(existing, zone) : cloneRiskZone(zone));
+    const candidate = cloneRiskZone(zone);
+    const matchingIndexes = new Set<number>();
+    let lineageClosure = candidate;
+    let expanded = true;
+    while (expanded) {
+      expanded = false;
+      for (let index = 0; index < merged.length; index += 1) {
+        if (
+          matchingIndexes.has(index)
+          || !riskZonesShareIdentity(lineageClosure, merged[index])
+        ) {
+          continue;
+        }
+        matchingIndexes.add(index);
+        lineageClosure = mergeRiskZone(lineageClosure, merged[index]);
+        expanded = true;
+      }
+    }
+    if (!matchingIndexes.size) {
+      merged.push(candidate);
+      continue;
+    }
+
+    const orderedIndexes = Array.from(matchingIndexes).sort((left, right) => left - right);
+    const insertionIndex = orderedIndexes[0];
+    let combined = merged[insertionIndex];
+    for (const index of orderedIndexes.slice(1)) {
+      combined = mergeRiskZone(combined, merged[index]);
+    }
+    combined = mergeRiskZone(combined, candidate);
+    for (const index of orderedIndexes.reverse()) {
+      merged.splice(index, 1);
+    }
+    merged.splice(insertionIndex, 0, combined);
   }
-  return Array.from(byId.values());
+  return merged;
 }
 
 export function canonicalAreaRiskZoneId(
@@ -974,9 +1006,18 @@ function normalizeAreaRiskItem(value: unknown, index: number, feedSource: string
     severity,
     title
   });
+  const areaFamilyId = cleanOptionalText(
+    item.areaFamilyId ?? item.area_family_id,
+    160
+  );
+  const areaFamilyAliases = normalizeAreaRiskFamilyAliases(
+    item.areaFamilyAliases ?? item.area_family_aliases
+  ).filter((alias) => alias !== areaFamilyId);
 
   return {
     id,
+    ...(areaFamilyId ? { areaFamilyId } : {}),
+    ...(areaFamilyAliases.length ? { areaFamilyAliases } : {}),
     title,
     description,
     severity,
@@ -1043,9 +1084,11 @@ function mergeRiskZone(primary: RiskZone, incoming: RiskZone): RiskZone {
   const polygonCoordinates = incomingPolygon.length > primaryPolygon.length
     ? incomingPolygon
     : primaryPolygon;
+  const lineage = mergeRiskZoneLineage(primary, incoming);
 
   return {
     ...primary,
+    ...lineage,
     description: primary.description.length >= incoming.description.length
       ? primary.description
       : incoming.description,
@@ -1102,6 +1145,9 @@ function riskZoneAvoidanceSeverity(
 function cloneRiskZone(zone: RiskZone): RiskZone {
   return {
     ...zone,
+    ...(zone.areaFamilyAliases
+      ? { areaFamilyAliases: [...zone.areaFamilyAliases] }
+      : {}),
     coordinate: { ...zone.coordinate },
     polygonCoordinates: zone.polygonCoordinates?.map((coordinate) => ({ ...coordinate })),
     ...(zone.sourceUrls ? { sourceUrls: [...zone.sourceUrls] } : {}),
@@ -1578,6 +1624,50 @@ function normalizeTextList(
   return Array.from(new Map(
     normalized.map((candidate) => [candidate.toLowerCase(), candidate])
   ).values()).slice(0, maxItems);
+}
+
+function normalizeAreaRiskFamilyAliases(value: unknown): string[] {
+  return Array.from(new Set(
+    asArray(value)
+      .map((candidate) => cleanOptionalText(candidate, 160))
+      .filter((candidate): candidate is string => Boolean(candidate))
+  )).slice(0, 40);
+}
+
+function riskZoneFamilyIds(zone: RiskZone): Set<string> {
+  return new Set([
+    cleanOptionalText(zone.areaFamilyId, 160),
+    ...normalizeAreaRiskFamilyAliases(zone.areaFamilyAliases)
+  ].filter((familyId): familyId is string => Boolean(familyId)));
+}
+
+function riskZonesShareIdentity(left: RiskZone, right: RiskZone): boolean {
+  if (left.id === right.id) {
+    return true;
+  }
+  const leftFamilies = riskZoneFamilyIds(left);
+  return leftFamilies.size > 0
+    && Array.from(riskZoneFamilyIds(right)).some((familyId) =>
+      leftFamilies.has(familyId)
+    );
+}
+
+function mergeRiskZoneLineage(
+  primary: RiskZone,
+  incoming: RiskZone
+): Pick<RiskZone, 'areaFamilyAliases' | 'areaFamilyId'> {
+  const primaryFamilyId = cleanOptionalText(primary.areaFamilyId, 160);
+  const incomingFamilyId = cleanOptionalText(incoming.areaFamilyId, 160);
+  const areaFamilyId = primaryFamilyId ?? incomingFamilyId;
+  const areaFamilyAliases = Array.from(new Set([
+    ...normalizeAreaRiskFamilyAliases(primary.areaFamilyAliases),
+    ...(incomingFamilyId ? [incomingFamilyId] : []),
+    ...normalizeAreaRiskFamilyAliases(incoming.areaFamilyAliases)
+  ])).filter((familyId) => familyId !== areaFamilyId).slice(0, 40);
+  return {
+    ...(areaFamilyId ? { areaFamilyId } : {}),
+    ...(areaFamilyAliases.length ? { areaFamilyAliases } : {})
+  };
 }
 
 function normalizeEscalationIndicators(value: unknown): RiskEscalationIndicator[] {

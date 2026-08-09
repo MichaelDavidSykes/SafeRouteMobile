@@ -160,8 +160,11 @@ export function normalizeSafeRoutePreviewResponse(
   if (!provider || record.snapped !== true) {
     return null;
   }
+  const rawRiskAreas = record.risk_areas ?? record.riskAreas;
   const riskAvoidance = normalizeRiskAvoidanceProof(
     record.risk_avoidance ?? record.riskAvoidance,
+    record,
+    Array.isArray(rawRiskAreas) ? rawRiskAreas.length : 0,
   );
   if (!riskAvoidance) {
     return null;
@@ -303,6 +306,8 @@ function routeCoordinateSignature(coordinates: LatLng[]): string {
 
 function normalizeRiskAvoidanceProof(
   value: unknown,
+  route: Record<string, unknown>,
+  riskAreaCount: number,
 ): SafeRouteRiskAvoidanceProof | null {
   if (!value || typeof value !== 'object' || Array.isArray(value)) {
     return null;
@@ -312,22 +317,84 @@ function normalizeRiskAvoidanceProof(
   const coverageStatus = record.coverage_status ?? record.coverageStatus;
   const ignoredAreaCount = record.ignored_area_count ?? record.ignoredAreaCount;
   const status = record.status;
+  const crossedAreaCount = normalizeNonNegativeInteger(
+    record.crossed_area_count ?? record.crossedAreaCount,
+  ) ?? 0;
+  const criticalCrossedAreaCount = normalizeNonNegativeInteger(
+    record.critical_crossed_area_count ?? record.criticalCrossedAreaCount,
+  ) ?? 0;
+  const riskExposureMeters = normalizeNonNegativeNumber(
+    record.risk_exposure_meters ?? record.riskExposureMeters,
+  ) ?? 0;
 
   if (
     policyVersion !== SAFE_ROUTE_POLICY_VERSION ||
-    (status !== 'verified' && status !== 'not-required') ||
+    (status !== 'verified' && status !== 'not-required' && status !== 'best-effort') ||
     (coverageStatus !== 'complete' && coverageStatus !== 'current-empty') ||
-    ignoredAreaCount !== 0
+    ignoredAreaCount !== 0 ||
+    criticalCrossedAreaCount > crossedAreaCount ||
+    crossedAreaCount > riskAreaCount
+  ) {
+    return null;
+  }
+
+  const bestEffortRiskCrossing =
+    route.best_effort_risk_crossing ?? route.bestEffortRiskCrossing;
+  const constraintsApplied =
+    route.constraints_applied ?? route.constraintsApplied;
+  const constraintsSatisfied =
+    route.constraints_satisfied ?? route.constraintsSatisfied;
+  const routeCrossedAreaCount = normalizeNonNegativeInteger(
+    route.crossed_avoid_area_count ?? route.crossedAvoidAreaCount,
+  );
+  const routeCriticalCrossedAreaCount = normalizeNonNegativeInteger(
+    route.critical_crossed_avoid_area_count ?? route.criticalCrossedAvoidAreaCount,
+  ) ?? 0;
+  const routeRiskExposureMeters = normalizeNonNegativeNumber(
+    route.risk_exposure_meters ?? route.riskExposureMeters,
+  ) ?? 0;
+  if (status === 'best-effort') {
+    if (
+      bestEffortRiskCrossing !== true ||
+      constraintsApplied !== true ||
+      constraintsSatisfied !== false ||
+      crossedAreaCount <= 0 ||
+      routeCrossedAreaCount !== crossedAreaCount ||
+      routeCriticalCrossedAreaCount !== criticalCrossedAreaCount ||
+      routeRiskExposureMeters !== riskExposureMeters
+    ) {
+      return null;
+    }
+  } else if (
+    bestEffortRiskCrossing === true ||
+    crossedAreaCount !== 0 ||
+    criticalCrossedAreaCount !== 0 ||
+    riskExposureMeters !== 0
   ) {
     return null;
   }
 
   return {
     coverageStatus,
+    criticalCrossedAreaCount,
+    crossedAreaCount,
     ignoredAreaCount,
     policyVersion,
+    riskExposureMeters,
     status,
   };
+}
+
+function normalizeNonNegativeInteger(value: unknown): number | null {
+  return typeof value === 'number' && Number.isSafeInteger(value) && value >= 0
+    ? value
+    : null;
+}
+
+function normalizeNonNegativeNumber(value: unknown): number | null {
+  return typeof value === 'number' && Number.isFinite(value) && value >= 0
+    ? value
+    : null;
 }
 
 function normalizeProviderCoordinates(value: unknown): LatLng[] {

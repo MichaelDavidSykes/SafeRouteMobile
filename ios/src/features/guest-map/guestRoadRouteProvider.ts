@@ -17,9 +17,12 @@ export type GuestRoadRouteProvider = 'osrm' | 'tomtom';
 
 export type SafeRouteRiskAvoidanceProof = {
   coverageStatus: 'complete' | 'current-empty';
+  criticalCrossedAreaCount: number;
+  crossedAreaCount: number;
   ignoredAreaCount: 0;
   policyVersion: 'safe-route-v1';
-  status: 'verified' | 'not-required';
+  riskExposureMeters: number;
+  status: 'verified' | 'not-required' | 'best-effort';
 };
 
 export type GuestRoadRouteAlternative = {

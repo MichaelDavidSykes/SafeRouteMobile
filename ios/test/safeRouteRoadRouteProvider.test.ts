@@ -277,6 +277,50 @@ describe('verified SafeRoute road route provider', () => {
     assert.deepEqual(wrongPolicy?.alternatives, []);
   });
 
+  it('retains two disclosed provider alternatives when avoiding risk is impossible', () => {
+    const bestEffortProof = proof({
+      status: 'best-effort',
+      crossed_area_count: 1,
+      critical_crossed_area_count: 0,
+      risk_exposure_meters: 420,
+    });
+    const bestEffortFields = {
+      best_effort_risk_crossing: true,
+      constraints_applied: true,
+      constraints_satisfied: false,
+      crossed_avoid_area_count: 1,
+      critical_crossed_avoid_area_count: 0,
+      risk_exposure_meters: 420,
+      risk_avoidance: bestEffortProof,
+      risk_areas: [{
+        id: 'unavoidable-area',
+        title: 'Unavoidable area',
+        severity: 'high',
+        coordinate: { lat: -33.945, lon: 18.51 },
+        radius_meters: 300,
+      }],
+    };
+    const result = normalizeSafeRoutePreviewResponse(verifiedResponse({
+      ...bestEffortFields,
+      alternatives: [
+        alternativeResponse(-33.94, 18.54, bestEffortFields),
+        alternativeResponse(-33.93, 18.55, bestEffortFields),
+      ],
+    }), stops);
+
+    assert.equal(result?.riskAvoidance.status, 'best-effort');
+    assert.equal(result?.alternatives?.length, 2);
+    assert.deepEqual(
+      result?.alternatives?.map(({ riskAvoidance }) => riskAvoidance.status),
+      ['best-effort', 'best-effort'],
+    );
+
+    assert.equal(normalizeSafeRoutePreviewResponse(verifiedResponse({
+      ...bestEffortFields,
+      crossed_avoid_area_count: 2,
+    }), stops), null);
+  });
+
   it('derives optional alternative details without weakening its proof', () => {
     const result = normalizeSafeRoutePreviewResponse(verifiedResponse({
       alternatives: [alternativeResponse(-33.94, 18.54, {
@@ -402,7 +446,10 @@ function proof(overrides: Record<string, unknown> = {}) {
     policy_version: SAFE_ROUTE_POLICY_VERSION,
     status: 'verified',
     coverage_status: 'complete',
+    crossed_area_count: 0,
+    critical_crossed_area_count: 0,
     ignored_area_count: 0,
+    risk_exposure_meters: 0,
     ...overrides,
   };
 }

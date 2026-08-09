@@ -1,11 +1,10 @@
 import type { LatLng, Region } from 'react-native-maps';
 
-import type { GuestRoadRoutePreview, GuestRouteAvoidRectangle } from '../guest-map/guestRoadRouteProvider';
-import { routeIntersectsAvoidRectangles } from '../guest-map/routeAvoidanceGeometry';
-import { deriveRiskZoneAvoidRectangles, mergeRiskZonesById } from './areaRiskApiCore';
-import type { RiskZone, RouteCheckpoint, SavedSafeRoutePlan } from './liveMapTypes';
+import type { VerifiedSafeRoutePreview } from '../guest-map/guestRoadRouteProvider';
+import type { SafeRouteRoutePreferences } from '../guest-map/routePreferences';
+import { mergeRiskZonesById } from './areaRiskApiCore';
+import type { RouteCheckpoint, SavedSafeRoutePlan } from './liveMapTypes';
 import { extractRemainingCheckpoints } from './liveRerouteState';
-import { calculateRiskZoneRouteProximity } from './routeRisk';
 import {
   formatDistance,
   formatEta,
@@ -17,7 +16,10 @@ import {
 const LIVE_RISK_REGION_DELTA = 0.12;
 const CHECKPOINT_COMPLETION_BUFFER_METERS = 35;
 const REROUTE_STOP_DEDUPE_METERS = 5;
-const ROUTE_OPTION_AVOIDANCE_PADDING_METERS = 140;
+
+type LiveRerouteRoutePlan = SavedSafeRoutePlan & {
+  routePreferences?: SafeRouteRoutePreferences;
+};
 
 export interface LiveRerouteTargets {
   remainingCheckpoints: RouteCheckpoint[];
@@ -84,103 +86,42 @@ export function buildLiveRerouteTargets(
   };
 }
 
-export function buildLiveRerouteAvoidRectangles(
-  riskZones: RiskZone[],
-  routeCoordinates: LatLng[],
-  requiredStops: LatLng[]
-): GuestRouteAvoidRectangle[] {
-  const rankedZones = [...riskZones].sort((left, right) => {
-    const leftProximity = calculateRiskZoneRouteProximity(routeCoordinates, left);
-    const rightProximity = calculateRiskZoneRouteProximity(routeCoordinates, right);
-    return (leftProximity?.routeDistanceMeters ?? Number.POSITIVE_INFINITY) -
-      (rightProximity?.routeDistanceMeters ?? Number.POSITIVE_INFINITY);
-  });
-  return deriveRiskZoneAvoidRectangles(rankedZones, {
-    maxRectangles: 10,
-    paddingMeters: 140
-  }).map((rectangle) => ({
-    label: rectangle.label,
-    maxLatitude: rectangle.max_lat,
-    maxLongitude: rectangle.max_lon,
-    minLatitude: rectangle.min_lat,
-    minLongitude: rectangle.min_lon
-  }))
-    .filter((rectangle) => routeIntersectsAvoidRectangles(routeCoordinates, [rectangle]))
-    .filter((rectangle) => !requiredStops.some((stop) => coordinateInsideRectangle(stop, rectangle)));
+export function withLiveReroutePreferences(
+  routePlan: SavedSafeRoutePlan,
+  preferences: SafeRouteRoutePreferences,
+): LiveRerouteRoutePlan {
+  return {
+    ...routePlan,
+    routePreferences: { ...preferences },
+  };
 }
 
-export function buildRouteOptionAvoidRectangles(
-  riskZones: RiskZone[],
-  candidateRouteCoordinates: LatLng[] | LatLng[][],
-  requiredStops: LatLng[]
-): GuestRouteAvoidRectangle[] {
-  const candidateRoutes = normalizeCandidateRoutes(candidateRouteCoordinates);
-  const rankedZones = riskZones
-    .map((zone) => ({
-      proximity: nearestRouteProximity(candidateRoutes, zone),
-      zone,
-    }))
-    .filter(({ proximity }) =>
-      Boolean(
-        proximity &&
-        proximity.clearanceMeters <= ROUTE_OPTION_AVOIDANCE_PADDING_METERS,
-      )
-    )
-    .sort((left, right) =>
-      (left.proximity?.routeDistanceMeters ?? Number.POSITIVE_INFINITY) -
-      (right.proximity?.routeDistanceMeters ?? Number.POSITIVE_INFINITY)
-    )
-    .map(({ zone }) => zone);
-  return deriveRiskZoneAvoidRectangles(rankedZones, {
-    maxRectangles: 10,
-    paddingMeters: ROUTE_OPTION_AVOIDANCE_PADDING_METERS,
-  }).map((rectangle) => ({
-    label: rectangle.label,
-    maxLatitude: rectangle.max_lat,
-    maxLongitude: rectangle.max_lon,
-    minLatitude: rectangle.min_lat,
-    minLongitude: rectangle.min_lon,
-  })).filter((rectangle) =>
-    !requiredStops.some((stop) => coordinateInsideRectangle(stop, rectangle))
-  );
-}
-
-function normalizeCandidateRoutes(
-  coordinates: LatLng[] | LatLng[][],
-): LatLng[][] {
-  if (!coordinates.length) {
-    return [];
+export function resolveLiveReroutePreferences(
+  routePlan: SavedSafeRoutePlan,
+): SafeRouteRoutePreferences | undefined {
+  const preferences = (routePlan as LiveRerouteRoutePlan).routePreferences;
+  if (
+    !preferences ||
+    typeof preferences.avoidFerries !== 'boolean' ||
+    typeof preferences.avoidMotorways !== 'boolean' ||
+    typeof preferences.avoidTolls !== 'boolean' ||
+    typeof preferences.avoidUnpavedRoads !== 'boolean'
+  ) {
+    return undefined;
   }
-  const routes = Array.isArray(coordinates[0])
-    ? coordinates as LatLng[][]
-    : [coordinates as LatLng[]];
-  return routes.filter((route) => route.length >= 2);
-}
-
-function nearestRouteProximity(
-  routes: LatLng[][],
-  zone: RiskZone,
-) {
-  return routes
-    .map((route) => calculateRiskZoneRouteProximity(route, zone))
-    .filter((proximity): proximity is NonNullable<typeof proximity> =>
-      Boolean(proximity)
-    )
-    .sort((left, right) => left.clearanceMeters - right.clearanceMeters)[0] ?? null;
+  return { ...preferences };
 }
 
 export function applyLiveReroutePreview({
   currentCoordinate,
   preview,
   requestRevision,
-  riskZones,
   routePlan,
   targets
 }: {
   currentCoordinate: LatLng;
-  preview: GuestRoadRoutePreview;
+  preview: VerifiedSafeRoutePreview;
   requestRevision: number;
-  riskZones: RiskZone[];
   routePlan: SavedSafeRoutePlan;
   targets: LiveRerouteTargets;
 }): SavedSafeRoutePlan {
@@ -201,7 +142,7 @@ export function applyLiveReroutePreview({
     updatedAtLabel: 'Updated now',
     region: regionForCoordinates(preview.coordinates, routePlan.region),
     checkpoints,
-    riskZones: mergeRiskZonesById(riskZones, preview.routeAlerts || []),
+    riskZones: mergeRiskZonesById(preview.riskZones, preview.routeAlerts || []),
     route: {
       ...routePlan.route,
       id: routeId,
@@ -257,16 +198,6 @@ function dedupeCoordinates(coordinates: LatLng[]): LatLng[] {
     isCoordinate(coordinate) &&
     (index === 0 || haversineDistanceMeters(items[index - 1], coordinate) >= REROUTE_STOP_DEDUPE_METERS)
   );
-}
-
-function coordinateInsideRectangle(
-  coordinate: LatLng,
-  rectangle: GuestRouteAvoidRectangle
-): boolean {
-  return coordinate.latitude >= rectangle.minLatitude &&
-    coordinate.latitude <= rectangle.maxLatitude &&
-    coordinate.longitude >= rectangle.minLongitude &&
-    coordinate.longitude <= rectangle.maxLongitude;
 }
 
 function isCoordinate(coordinate?: LatLng | null): coordinate is LatLng {

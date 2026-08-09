@@ -56,7 +56,6 @@ import {
 } from "./liveMapNavigation";
 import { useLiveLocation } from "./useLiveLocation";
 import { useViewportRiskAreas } from "./useViewportRiskAreas";
-import { fetchAreaRiskAlongRoute } from "./routeRiskCorridorApi";
 import {
   applyLiveRerouteSample,
   createLiveRerouteState,
@@ -72,9 +71,9 @@ import {
 } from "./liveRerouteState";
 import {
   applyLiveReroutePreview,
-  buildLiveRerouteAvoidRectangles,
   buildLiveRerouteTargets,
   createLiveRiskRegion,
+  resolveLiveReroutePreferences,
 } from "./liveReroutePlan";
 import {
   SAFEROUTE_DEMO_DRIVE_ENABLED,
@@ -703,20 +702,15 @@ export function LiveMapScreen({
       return;
     }
     const routingAccessToken = liveApiAccessToken;
-    const avoidRectangles = buildLiveRerouteAvoidRectangles(
-      plan.riskZones,
-      plan.route.coordinates,
-      targets.stops,
-    );
+    const routePreferences = resolveLiveReroutePreferences(plan);
 
     try {
       const preview = await fetchSafeRouteRoadRoutePreview({
         accessToken: routingAccessToken,
-        avoidRectangles,
         clientId: requestWorkspaceId,
+        preferences: routePreferences,
         signal: controller.signal,
         stops: targets.stops,
-        timeoutMs: 15_000,
         travelMode: plan.travelMode ?? 'drive',
       });
       if (
@@ -731,57 +725,10 @@ export function LiveMapScreen({
         failRerouteRequest(request);
         return;
       }
-      const corridorRiskZones = await fetchAreaRiskAlongRoute(
-        preview.coordinates,
-        {
-          accessToken: routingAccessToken,
-          clientId: requestWorkspaceId || undefined,
-          maxChunks: 8,
-          signal: controller.signal,
-          timeoutMs: 9000,
-        },
-      );
-      if (!requestIsCurrent()) {
-        controller.abort();
-        return;
-      }
-      const finalRiskZones = mergeRiskZonesById(
-        plan.riskZones,
-        corridorRiskZones,
-      );
-      const corridorAvoidRectangles = buildLiveRerouteAvoidRectangles(
-        finalRiskZones,
-        preview.coordinates,
-        targets.stops,
-      );
-      const finalPreview = JSON.stringify(corridorAvoidRectangles) === JSON.stringify(avoidRectangles)
-        ? preview
-        : await fetchSafeRouteRoadRoutePreview({
-            accessToken: routingAccessToken,
-            avoidRectangles: corridorAvoidRectangles,
-            clientId: requestWorkspaceId,
-            signal: controller.signal,
-            stops: targets.stops,
-            timeoutMs: 15_000,
-            travelMode: plan.travelMode ?? 'drive',
-          });
-      if (
-        !requestIsCurrent() ||
-        !finalPreview?.snapped ||
-        finalPreview.coordinates.length < 2
-      ) {
-        if (!requestIsCurrent()) {
-          controller.abort();
-          return;
-        }
-        failRerouteRequest(request);
-        return;
-      }
       const nextPlan = applyLiveReroutePreview({
         currentCoordinate,
-        preview: finalPreview,
+        preview,
         requestRevision: request.requestRevision,
-        riskZones: finalRiskZones,
         routePlan: plan,
         targets,
       });

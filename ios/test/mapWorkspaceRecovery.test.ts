@@ -19,17 +19,18 @@ describe("authenticated Map workspace recovery integration", () => {
     assert.match(app, /onNavigationSessionChange=\{handleNavigationSessionChange\}/);
   });
 
-  it("fails planner, corridor, and risk-write state closed before reporting an owned denial", () => {
+  it("fails verified planning and risk-write state closed before reporting an owned denial", () => {
     const guest = source("src/features/guest-map/GuestMapScreen.tsx");
 
     assert.match(guest, /requestAccessToken = routingAccessToken;[\s\S]*requestWorkspaceId = routingClientId/);
-    assert.match(guest, /handleRouteWorkspaceUnavailable[\s\S]*getRequestUnavailableWorkspaceId[\s\S]*roadRouteRequestIdRef\.current === requestId[\s\S]*routingClientIdRef\.current === requestWorkspaceId/);
+    assert.match(guest, /const requestOwnsState = \(\) =>[\s\S]*roadRouteRequestIdRef\.current === requestId[\s\S]*routingClientIdRef\.current === requestWorkspaceId/);
+    assert.match(guest, /handleRouteWorkspaceUnavailable[\s\S]*getRequestUnavailableWorkspaceId\([\s\S]*requestActive:[\s\S]*requestIsCurrent\(\)/);
     assert.match(guest, /recoverWorkspaceAccessRef\.current = \(workspaceId\) => \{[\s\S]*clearWorkspaceScopedMapState\(\);[\s\S]*onWorkspaceUnavailableRef\.current\?\.\(workspaceId\)/);
     assert.match(guest, /useViewportRiskAreas\(\{[\s\S]*onWorkspaceUnavailable: onWorkspaceUnavailable[\s\S]*recoverWorkspaceAccessRef\.current\(workspaceId\)/);
     assert.match(guest, /workspaceUnavailableHandled = true;[\s\S]*recoverWorkspaceAccessRef\.current\(unavailableWorkspaceId\)/);
     assert.match(
       guest,
-      /catch \(error\) \{[\s\S]*handleRouteSessionExpiry\(error\)[\s\S]*handleRouteWorkspaceUnavailable\(error\)[\s\S]*hosted, road-snapped route has already been published/,
+      /\.catch\(\(error\) => \{[\s\S]*handleRouteSessionExpiry\(error\)[\s\S]*handleRouteWorkspaceUnavailable\(error\)[\s\S]*finalizer fails closed/,
     );
     assert.match(guest, /createGuestRiskArea\([\s\S]*getRequestSessionExpiry\([\s\S]*getRequestUnavailableWorkspaceId\([\s\S]*recoverWorkspaceAccessRef\.current\(unavailableWorkspaceId\)/);
     assert.match(guest, /!acceptedRoadPreview && !sessionExpiryHandled && !workspaceUnavailableHandled/);
@@ -89,8 +90,9 @@ describe("authenticated Map workspace recovery integration", () => {
     );
     assert.match(
       live,
-      /requestAuthorizationIsCurrent[\s\S]*Verify current workspace access before rerouting[\s\S]*const requestIsCurrent[\s\S]*fetchAreaRiskAlongRoute[\s\S]*requestIsCurrent\(\)/,
+      /requestAuthorizationIsCurrent[\s\S]*Verify current workspace access before rerouting[\s\S]*const requestIsCurrent[\s\S]*fetchSafeRouteRoadRoutePreview[\s\S]*requestIsCurrent\(\)/,
     );
+    assert.doesNotMatch(live, /fetchAreaRiskAlongRoute|buildLiveRerouteAvoidRectangles/);
     assert.match(
       live,
       /rerouteMonitoringActive = Boolean\([\s\S]*!activeRoutePlan\.clientId \|\| workspaceAuthorizationFresh/,

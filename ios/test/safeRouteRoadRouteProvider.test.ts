@@ -1,511 +1,408 @@
 import assert from 'node:assert/strict';
+import { readFileSync } from 'node:fs';
 import { describe, it } from 'node:test';
 
 import {
-  buildSafeRoutePreviewPayload,
   buildPublicSafeRoutePreviewPayload,
-  createSafeRouteConstraintFallbackPreview,
+  buildSafeRoutePreviewPayload,
   normalizeSafeRoutePreviewResponse,
   resolveSafeRoutePreviewRequestMode,
-  SAFE_ROUTE_CONSTRAINT_FALLBACK_NOTICE,
+  SAFE_ROUTE_POLICY_VERSION,
 } from '../src/features/guest-map/safeRouteRoadRouteProviderCore';
+
+const transportSource = readFileSync(
+  new URL('../src/features/guest-map/safeRouteRoadRouteProvider.ts', import.meta.url),
+  'utf8',
+);
 
 const stops = [
   { latitude: -33.9249, longitude: 18.4241 },
-  { latitude: -33.9696, longitude: 18.5972 }
+  { latitude: -33.9696, longitude: 18.5972 },
 ];
-const avoidRectangle = {
-  label: 'High risk',
-  minLatitude: -33.95,
-  maxLatitude: -33.94,
-  minLongitude: 18.48,
-  maxLongitude: 18.49
-};
 
-describe('SafeRoute road route provider', () => {
-  it('allows only complete workspace identity or a genuinely public request', () => {
+describe('verified SafeRoute road route provider', () => {
+  it('allows only a complete workspace identity or a genuinely public request', () => {
     assert.deepEqual(resolveSafeRoutePreviewRequestMode({
       accessToken: ' token ',
-      clientId: ' tenant-1 '
+      clientId: ' tenant-1 ',
     }), {
       accessToken: 'token',
       clientId: 'tenant-1',
-      kind: 'workspace'
+      kind: 'workspace',
     });
     assert.deepEqual(resolveSafeRoutePreviewRequestMode({}), { kind: 'public' });
     assert.deepEqual(resolveSafeRoutePreviewRequestMode({ accessToken: 'token' }), {
-      kind: 'invalid'
+      kind: 'invalid',
     });
-    assert.deepEqual(resolveSafeRoutePreviewRequestMode({ clientId: 'preview-only' }), {
-      kind: 'public'
+    assert.deepEqual(resolveSafeRoutePreviewRequestMode({ clientId: 'public-only' }), {
+      kind: 'public',
     });
   });
 
-  it('builds the authenticated planner payload with bounded avoid rectangles', () => {
+  it('builds a versioned workspace request without client-derived avoid areas', () => {
     assert.deepEqual(buildSafeRoutePreviewPayload({
       clientId: ' tenant-1 ',
       stops,
-      avoidRectangles: [{ ...avoidRectangle, label: ' High risk ' }]
+      travelMode: 'drive',
     }), {
       client_id: 'tenant-1',
       include_alternatives: true,
       include_road_metadata: true,
       include_route_alerts: true,
-      target_alternative_count: 3,
+      policy_version: 'safe-route-v1',
+      target_alternative_count: 2,
+      travel_mode: 'drive',
       waypoints: [
         { lat: -33.9249, lon: 18.4241, elevation_m: null },
-        { lat: -33.9696, lon: 18.5972, elevation_m: null }
+        { lat: -33.9696, lon: 18.5972, elevation_m: null },
       ],
-      avoid_rectangles: [{
-        label: 'High risk',
-        min_lat: -33.95,
-        max_lat: -33.94,
-        min_lon: 18.48,
-        max_lon: 18.49
-      }]
     });
   });
 
-  it('uses the strict public endpoint schema without workspace-only flags', () => {
+  it('builds the same versioned planning contract for public travel modes', () => {
     assert.deepEqual(buildPublicSafeRoutePreviewPayload({
       stops,
-      avoidRectangles: [avoidRectangle]
+      travelMode: 'walk',
     }), {
       include_alternatives: true,
-      target_alternative_count: 3,
+      include_route_alerts: true,
+      policy_version: 'safe-route-v1',
+      target_alternative_count: 2,
+      travel_mode: 'walk',
       waypoints: [
         { lat: -33.9249, lon: 18.4241, elevation_m: null },
-        { lat: -33.9696, lon: 18.5972, elevation_m: null }
+        { lat: -33.9696, lon: 18.5972, elevation_m: null },
       ],
-      avoid_rectangles: [{
-        label: 'High risk',
-        min_lat: -33.95,
-        max_lat: -33.94,
-        min_lon: 18.48,
-        max_lon: 18.49
-      }]
     });
   });
 
-  it('adds a non-driving travel mode to both route-preview contracts', () => {
-    assert.equal(buildSafeRoutePreviewPayload({
-      clientId: 'tenant-1',
-      stops,
-      avoidRectangles: [],
-      travelMode: 'cycle'
-    }).travel_mode, 'cycle');
-    assert.equal(buildPublicSafeRoutePreviewPayload({
-      stops,
-      avoidRectangles: [],
-      travelMode: 'walk'
-    }).travel_mode, 'walk');
-  });
-
-  it('adds only enabled provider-enforced route preferences', () => {
+  it('sends only enabled provider-enforced preferences', () => {
     const preferences = {
       avoidFerries: false,
       avoidMotorways: true,
       avoidTolls: true,
-      avoidUnpavedRoads: false
+      avoidUnpavedRoads: false,
     };
     assert.deepEqual(buildSafeRoutePreviewPayload({
       clientId: 'tenant-1',
       stops,
-      avoidRectangles: [],
-      preferences
+      preferences,
     }).preferences, {
       avoid_ferries: false,
       avoid_motorways: true,
       avoid_tolls: true,
-      avoid_unpaved_roads: false
-    });
-    assert.deepEqual(buildPublicSafeRoutePreviewPayload({
-      stops,
-      avoidRectangles: [],
-      preferences
-    }).preferences, {
-      avoid_ferries: false,
-      avoid_motorways: true,
-      avoid_tolls: true,
-      avoid_unpaved_roads: false
+      avoid_unpaved_roads: false,
     });
     assert.equal(buildPublicSafeRoutePreviewPayload({
       stops,
-      avoidRectangles: [],
       preferences: {
         avoidFerries: false,
         avoidMotorways: false,
         avoidTolls: false,
-        avoidUnpavedRoads: false
-      }
+        avoidUnpavedRoads: false,
+      },
     }).preferences, undefined);
   });
 
-  it('marks an unconstrained hosted fallback without disguising its safety status', () => {
-    const fallback = createSafeRouteConstraintFallbackPreview({
-      alternatives: [],
-      coordinates: stops,
-      distanceMeters: 1200,
-      durationSeconds: 300,
-      provider: 'osrm',
-      snapped: true,
-    });
+  it('requires the exact central risk-avoidance authority', () => {
+    const valid = verifiedResponse();
+    assert.ok(normalizeSafeRoutePreviewResponse(valid, stops));
 
-    assert.equal(fallback.snapped, true);
-    assert.equal(fallback.riskAvoidanceDegraded, true);
-    assert.equal(fallback.safetyNotice, SAFE_ROUTE_CONSTRAINT_FALLBACK_NOTICE);
-    assert.deepEqual(fallback.coordinates, stops);
+    assert.equal(normalizeSafeRoutePreviewResponse({
+      ...valid,
+      policy_version: undefined,
+    }, stops), null);
+    assert.equal(normalizeSafeRoutePreviewResponse({
+      ...valid,
+      policy_version: 'legacy-safe-route',
+    }, stops), null);
+
+    for (const riskAvoidance of [
+      undefined,
+      proof({ policy_version: 'legacy-policy' }),
+      proof({ status: 'pending' }),
+      proof({ coverage_status: 'partial' }),
+      proof({ ignored_area_count: 1 }),
+      proof({ ignored_area_count: false }),
+    ]) {
+      assert.equal(normalizeSafeRoutePreviewResponse({
+        ...valid,
+        risk_avoidance: riskAvoidance,
+      }, stops), null);
+    }
+
+    assert.ok(normalizeSafeRoutePreviewResponse({
+      ...valid,
+      risk_avoidance: proof({
+        coverage_status: 'current-empty',
+        status: 'not-required',
+      }),
+    }, stops));
   });
 
-  it('requires a non-driving response to confirm the requested mode', () => {
-    const response = {
-      provider: 'tomtom',
-      snapped: true,
-      coordinates: [
-        { lat: -33.9249, lon: 18.4241 },
-        { lat: -33.9696, lon: 18.5972 }
-      ]
-    };
-
-    assert.equal(
-      normalizeSafeRoutePreviewResponse(response, stops, [], 'walk'),
-      null
-    );
-    assert.equal(
-      normalizeSafeRoutePreviewResponse(
-        { ...response, travel_mode: 'drive' },
-        stops,
-        [],
-        'cycle'
-      ),
-      null
-    );
-    assert.equal(
-      normalizeSafeRoutePreviewResponse(
-        { ...response, travel_mode: 'walk' },
-        stops,
-        [],
-        'walk'
-      )?.provider,
-      'tomtom'
-    );
-  });
-
-  it('rejects routes that do not prove enabled preferences were applied', () => {
-    const response = {
-      provider: 'tomtom',
-      snapped: true,
-      coordinates: [
-        { lat: -33.9249, lon: 18.4241 },
-        { lat: -33.9696, lon: 18.5972 }
-      ]
-    };
+  it('still requires evidence that enabled road preferences were applied', () => {
     const preferences = {
       avoidFerries: false,
       avoidMotorways: true,
       avoidTolls: true,
-      avoidUnpavedRoads: false
+      avoidUnpavedRoads: false,
     };
-
     assert.equal(
       normalizeSafeRoutePreviewResponse(
-        response,
+        verifiedResponse(),
         stops,
-        [],
         'drive',
-        preferences
+        preferences,
       ),
-      null
+      null,
     );
     assert.ok(normalizeSafeRoutePreviewResponse(
-      {
-        ...response,
+      verifiedResponse({
         route_preferences: {
           requested: ['tollRoads', 'motorways'],
           applied: ['tollRoads', 'motorways'],
-          provider: 'tomtom'
-        }
-      },
+          provider: 'tomtom',
+        },
+      }),
       stops,
-      [],
       'drive',
-      preferences
+      preferences,
     ));
   });
 
-  it('normalizes snapped provider geometry and metrics', () => {
-    const result = normalizeSafeRoutePreviewResponse({
-      provider: 'tomtom',
-      snapped: true,
-      avoid_area_count: 1,
-      ignored_avoid_area_count: 0,
-      constraints_applied: true,
-      constraints_satisfied: true,
-      distance_meters: 17000,
-      duration_seconds: 1800,
-      guidance_steps: [{
-        id: 'step-1',
-        instruction: 'Turn right onto Airport Approach',
-        maneuver_type: 'turn',
-        modifier: 'right',
-        road_name: 'Airport Approach',
-        distance_along_meters: 1200,
-        distance_meters: 800,
-        duration_seconds: 90,
-        coordinate: { lat: -33.94, lon: 18.5 }
-      }],
-      route_alerts: [
-        {
-          id: 'road-alert-1',
-          title: 'Narrow road warning',
-          description: 'Width restriction reported.',
-          severity: 'high',
-          category: 'road-suitability',
-          shape: 'route-alert',
-          coordinate: { lat: -33.94, lon: 18.5 },
-          route_segment_coordinates: [
-            { lat: -33.9249, lon: 18.4241 },
-            { lat: -33.94, lon: 18.5 }
-          ],
-          radius_meters: 175
-        },
-        {
-          id: 'structure-alert-1',
-          title: 'Elevated building sightline',
-          severity: 'medium',
-          category: 'structure-exposure',
-          shape: 'sightline',
-          coordinate: { lat: -33.941, lon: 18.501 },
-          connector_coordinates: [
-            { lat: -33.941, lon: 18.501 },
-            { lat: -33.94, lon: 18.5 }
-          ]
-        }
-      ],
-      coordinates: [
-        { lat: -33.9249, lon: 18.4241 },
-        { lat: -33.94, lon: 18.5 },
-        { lat: -33.9696, lon: 18.5972 }
-      ]
-    }, stops, [avoidRectangle]);
-
-    assert.equal(result?.provider, 'tomtom');
-    assert.equal(result?.distanceMeters, 17000);
-    assert.equal(result?.durationSeconds, 1800);
-    assert.deepEqual(result?.coordinates[0], stops[0]);
-    assert.deepEqual(result?.coordinates.at(-1), stops.at(-1));
-    assert.equal(result?.guidanceSteps?.[0].instruction, 'Turn right onto Airport Approach');
-    assert.equal(result?.guidanceSteps?.[0].distanceAlongMeters, 1200);
-    assert.equal(result?.routeAlerts?.length, 2);
-    assert.equal(result?.routeAlerts?.[0].category, 'Road Suitability');
-    assert.equal(result?.routeAlerts?.[0].routeSegmentCoordinates?.length, 2);
-    assert.equal(result?.routeAlerts?.[1].category, 'Structure Exposure');
-    assert.equal(result?.routeAlerts?.[1].connectorCoordinates?.length, 2);
-  });
-
-  it('accepts only complete, distinct, backend-guided alternatives', () => {
-    const result = normalizeSafeRoutePreviewResponse({
-      provider: 'tomtom',
-      snapped: true,
-      distance_meters: 17000,
-      duration_seconds: 1800,
-      guidance_steps: [{
-        id: 'primary-step',
-        instruction: 'Continue',
-        distance_along_meters: 0,
-        coordinate: { lat: -33.9249, lon: 18.4241 }
-      }],
-      coordinates: [
-        { lat: -33.9249, lon: 18.4241 },
-        { lat: -33.94, lon: 18.52 },
-        { lat: -33.9696, lon: 18.5972 }
-      ],
-      alternatives: [
-        {
-          provider: 'tomtom',
-          snapped: true,
-          distance_meters: 18100,
-          duration_seconds: 1920,
-          guidance_steps: [{
-            id: 'alternative-step',
-            instruction: 'Bear left',
-            distance_along_meters: 500,
-            coordinate: { lat: -33.93, lon: 18.55 }
-          }],
-          coordinates: [
-            { lat: -33.9249, lon: 18.4241 },
-            { lat: -33.93, lon: 18.55 },
-            { lat: -33.9696, lon: 18.5972 }
-          ]
-        },
-        {
-          provider: 'tomtom',
-          snapped: true,
-          coordinates: [
-            { lat: -33.9249, lon: 18.4241 },
-            { lat: -33.92, lon: 18.54 },
-            { lat: -33.9696, lon: 18.5972 }
-          ]
-        }
-      ]
-    }, stops);
-
-    assert.equal(result?.alternatives?.length, 1);
-    assert.equal(result?.alternatives?.[0].distanceMeters, 18100);
-    assert.equal(
-      result?.alternatives?.[0].guidanceSteps[0].instruction,
-      'Bear left',
-    );
-  });
-
-  it('rejects manual, unsnapped, endpoint-mismatched, and unconstrained responses', () => {
-    assert.equal(normalizeSafeRoutePreviewResponse({
-      provider: 'manual',
-      snapped: false,
-      coordinates: stops
-    }, stops), null);
-    assert.equal(normalizeSafeRoutePreviewResponse({
-      provider: 'osrm',
-      snapped: true,
+  it('rejects manual, unsnapped, and endpoint-mismatched geometry', () => {
+    assert.equal(normalizeSafeRoutePreviewResponse(
+      verifiedResponse({ provider: 'manual' }),
+      stops,
+    ), null);
+    assert.equal(normalizeSafeRoutePreviewResponse(
+      verifiedResponse({ snapped: false }),
+      stops,
+    ), null);
+    assert.equal(normalizeSafeRoutePreviewResponse(verifiedResponse({
       coordinates: [
         { lat: 51.5, lon: -0.1 },
-        { lat: 51.6, lon: -0.2 }
-      ]
-    }, stops), null);
-    assert.equal(normalizeSafeRoutePreviewResponse({
-      provider: 'tomtom',
-      snapped: true,
-      avoid_area_count: 0,
-      coordinates: stops.map((coordinate) => ({
-        lat: coordinate.latitude,
-        lon: coordinate.longitude
-      }))
-    }, stops, [avoidRectangle]), null);
+        { lat: 51.6, lon: -0.2 },
+      ],
+    }), stops), null);
   });
 
-  it('requires exact Backend constraint authority for every submitted avoid area', () => {
-    const authorityRectangle = {
-      minLatitude: -33.92,
-      maxLatitude: -33.91,
-      minLongitude: 18.5,
-      maxLongitude: 18.51
-    };
-    const safeCoordinates = stops.map((coordinate) => ({
-      lat: coordinate.latitude,
-      lon: coordinate.longitude
-    }));
-    const response = {
-      provider: 'osrm',
-      snapped: true,
-      constraints_applied: true,
-      constraints_satisfied: true,
-      avoid_area_count: 1,
-      ignored_avoid_area_count: 0,
-      coordinates: safeCoordinates
-    };
+  it('preserves the exact verified coordinate sequence and rejects malformed points', () => {
+    const backendCoordinates = [
+      { lat: -33.92481, lon: 18.42419 },
+      { lat: -33.945123456, lon: 18.510987654 },
+      { lat: -33.945123456, lon: 18.510987654 },
+      { lat: -33.96951, lon: 18.59711 },
+    ];
+    const result = normalizeSafeRoutePreviewResponse(verifiedResponse({
+      coordinates: backendCoordinates,
+    }), stops);
 
-    assert.ok(normalizeSafeRoutePreviewResponse(response, stops, [authorityRectangle]));
-    assert.equal(normalizeSafeRoutePreviewResponse({
-      ...response,
-      constraints_satisfied: false
-    }, stops, [authorityRectangle]), null);
-    assert.equal(normalizeSafeRoutePreviewResponse({
-      ...response,
-      constraints_applied: false
-    }, stops, [authorityRectangle]), null);
-    assert.equal(normalizeSafeRoutePreviewResponse({
-      ...response,
-      avoid_area_count: 2
-    }, stops, [authorityRectangle]), null);
-    assert.equal(normalizeSafeRoutePreviewResponse({
-      ...response,
-      ignored_avoid_area_count: 1
-    }, stops, [authorityRectangle]), null);
+    assert.deepEqual(result?.coordinates, backendCoordinates.map(({ lat, lon }) => ({
+      latitude: lat,
+      longitude: lon,
+    })));
+    assert.notDeepEqual(result?.coordinates[0], stops[0]);
+    assert.notDeepEqual(result?.coordinates.at(-1), stops.at(-1));
+
+    for (const malformedPoint of [
+      null,
+      { lat: '-33.945', lon: 18.51 },
+      { lat: -91, lon: 18.51 },
+    ]) {
+      assert.equal(normalizeSafeRoutePreviewResponse(verifiedResponse({
+        coordinates: [
+          { lat: stops[0].latitude, lon: stops[0].longitude },
+          malformedPoint,
+          { lat: stops[1].latitude, lon: stops[1].longitude },
+        ],
+      }), stops), null);
+    }
   });
 
-  it('rejects constrained geometry whose segment crosses an avoid area without a vertex inside', () => {
-    const crossingRectangle = {
-      minLatitude: -33.95,
-      maxLatitude: -33.94,
-      minLongitude: 18.5,
-      maxLongitude: 18.52
-    };
-    const response = {
-      provider: 'osrm',
-      snapped: true,
-      constraints_applied: true,
-      constraints_satisfied: true,
-      avoid_area_count: 1,
-      ignored_avoid_area_count: 0,
-      coordinates: [
-        { lat: stops[0].latitude, lon: stops[0].longitude },
-        { lat: stops[1].latitude, lon: stops[1].longitude }
-      ]
-    };
+  it('keeps authoritative risk areas separate from route alerts', () => {
+    const result = normalizeSafeRoutePreviewResponse(verifiedResponse({
+      risk_areas: [{
+        id: 'critical-area',
+        title: 'Critical area',
+        description: 'Avoid this area.',
+        severity: 'critical',
+        category: 'area-risk',
+        coordinate: { lat: -33.94, lon: 18.5 },
+        radius_meters: 250,
+      }],
+      route_alerts: [{
+        id: 'road-alert',
+        title: 'Narrow road',
+        description: 'Width restriction.',
+        severity: 'medium',
+        category: 'road-suitability',
+        coordinate: { lat: -33.945, lon: 18.52 },
+        radius_meters: 100,
+      }],
+    }), stops);
 
-    assert.equal(
-      normalizeSafeRoutePreviewResponse(response, stops, [crossingRectangle]),
-      null
+    assert.equal(result?.riskAvoidance.policyVersion, SAFE_ROUTE_POLICY_VERSION);
+    assert.deepEqual(result?.riskZones.map(({ id }) => id), ['critical-area']);
+    assert.equal(result?.riskZones[0]?.avoidanceSeverity, 'critical');
+    assert.deepEqual(result?.routeAlerts?.map(({ id }) => id), ['road-alert']);
+  });
+
+  it('requires independent verified proof on every accepted alternative', () => {
+    const result = normalizeSafeRoutePreviewResponse(verifiedResponse({
+      alternatives: [
+        alternativeResponse(-33.94, 18.54),
+        alternativeResponse(-33.93, 18.55, {
+          risk_avoidance: proof({ ignored_area_count: 1 }),
+        }),
+      ],
+    }), stops);
+
+    assert.equal(result?.alternatives?.length, 1);
+    assert.equal(result?.alternatives?.[0].riskAvoidance.status, 'verified');
+    assert.equal(result?.alternatives?.[0].riskZones[0]?.id, 'alternative-risk');
+
+    const missingProof = normalizeSafeRoutePreviewResponse(verifiedResponse({
+      alternatives: [alternativeResponse(-33.92, 18.56, {
+        risk_avoidance: undefined,
+      })],
+    }), stops);
+    assert.deepEqual(missingProof?.alternatives, []);
+
+    const wrongPolicy = normalizeSafeRoutePreviewResponse(verifiedResponse({
+      alternatives: [alternativeResponse(-33.92, 18.56, {
+        policy_version: 'legacy-safe-route',
+      })],
+    }), stops);
+    assert.deepEqual(wrongPolicy?.alternatives, []);
+  });
+
+  it('derives optional alternative details without weakening its proof', () => {
+    const result = normalizeSafeRoutePreviewResponse(verifiedResponse({
+      alternatives: [alternativeResponse(-33.94, 18.54, {
+        distance_meters: undefined,
+        duration_seconds: undefined,
+        guidance_steps: undefined,
+      })],
+    }), stops);
+
+    assert.equal(result?.alternatives?.length, 1);
+    assert.ok((result?.alternatives?.[0].distanceMeters ?? 0) > 0);
+    assert.ok((result?.alternatives?.[0].durationSeconds ?? 0) > 0);
+    assert.deepEqual(result?.alternatives?.[0].guidanceSteps, []);
+    assert.equal(result?.alternatives?.[0].riskAvoidance.status, 'verified');
+  });
+
+  it('requires non-driving responses to confirm the requested mode', () => {
+    const response = verifiedResponse({ travel_mode: undefined });
+    assert.equal(normalizeSafeRoutePreviewResponse(response, stops, 'walk'), null);
+    assert.equal(normalizeSafeRoutePreviewResponse({
+      ...response,
+      travel_mode: 'drive',
+    }, stops, 'cycle'), null);
+    assert.ok(normalizeSafeRoutePreviewResponse({
+      ...response,
+      travel_mode: 'walk',
+    }, stops, 'walk'));
+  });
+
+  it('uses the authenticated verified endpoint for every supported travel mode', () => {
+    assert.match(
+      transportSource,
+      /const requestMode = resolveSafeRoutePreviewRequestMode\(options\)/,
+    );
+    assert.doesNotMatch(
+      transportSource,
+      /travelMode === ['"]drive['"][\s\S]*resolveSafeRoutePreviewRequestMode/,
+    );
+    assert.match(
+      transportSource,
+      /['"]\/convoy-routes\/verified-route-preview['"]/,
+    );
+    assert.match(
+      transportSource,
+      /if \(travelMode === ['"]transit['"]\)[\s\S]*new ApiRequestError\([\s\S]*400[\s\S]*resolveSafeRoutePreviewRequestMode\(options\)/,
     );
   });
 
-  it('accepts a strictly safe mixed-side route through a dense risk corridor', () => {
-    const denseStops = [
-      { latitude: 0, longitude: 0 },
-      { latitude: 0, longitude: 0.05 }
-    ];
-    const denseRectangles = [
-      {
-        minLatitude: -0.003,
-        maxLatitude: 0.001,
-        minLongitude: 0.018,
-        maxLongitude: 0.022
-      },
-      {
-        minLatitude: -0.001,
-        maxLatitude: 0.003,
-        minLongitude: 0.0222,
-        maxLongitude: 0.0262
-      }
-    ];
-    const result = normalizeSafeRoutePreviewResponse({
-      provider: 'osrm',
-      snapped: true,
-      constraints_applied: true,
-      constraints_satisfied: true,
-      avoid_area_count: 2,
-      ignored_avoid_area_count: 0,
-      coordinates: [
-        { lat: 0, lon: 0 },
-        { lat: -0.0034, lon: 0.0176 },
-        { lat: -0.0034, lon: 0.0224 },
-        { lat: 0.0034, lon: 0.0218 },
-        { lat: 0.0034, lon: 0.0266 },
-        { lat: 0, lon: 0.05 }
-      ]
-    }, denseStops, denseRectangles);
-
-    assert.ok(result);
-    assert.equal(result.provider, 'osrm');
-    assert.equal(result.snapped, true);
+  it('uses the public verified endpoint and never falls back to direct OSRM', () => {
+    assert.match(
+      transportSource,
+      /\/mobile\/safe-route\/verified-route-preview/,
+    );
+    assert.doesNotMatch(
+      transportSource,
+      /fetchGuestRoadRoutePreview|openstreetmap|project-osrm|profileFallback|completeSafeRouteAlternatives/,
+    );
   });
 
-  it('requires intermediate requested stops to appear in order', () => {
-    const orderedStops = [
-      stops[0],
-      { latitude: -33.94, longitude: 18.48 },
-      stops[1]
-    ];
-    const result = normalizeSafeRoutePreviewResponse({
-      provider: 'osrm',
-      snapped: true,
-      coordinates: [
-        { lat: -33.9249, lon: 18.4241 },
-        { lat: -33.94, lon: 18.48 },
-        { lat: -33.9696, lon: 18.5972 }
-      ]
-    }, orderedStops);
-
-    assert.ok(result);
+  it('uses a 60 second default verified-planner budget', () => {
+    assert.match(
+      transportSource,
+      /export const SAFE_ROUTE_PREVIEW_TIMEOUT_MS = 60_000/,
+    );
   });
 });
+
+function verifiedResponse(overrides: Record<string, unknown> = {}) {
+  return {
+    policy_version: SAFE_ROUTE_POLICY_VERSION,
+    provider: 'tomtom',
+    snapped: true,
+    travel_mode: 'drive',
+    distance_meters: 17_000,
+    duration_seconds: 1_800,
+    coordinates: [
+      { lat: stops[0].latitude, lon: stops[0].longitude },
+      { lat: -33.945, lon: 18.51 },
+      { lat: stops[1].latitude, lon: stops[1].longitude },
+    ],
+    risk_avoidance: proof(),
+    risk_areas: [],
+    route_alerts: [],
+    ...overrides,
+  };
+}
+
+function alternativeResponse(
+  latitude: number,
+  longitude: number,
+  overrides: Record<string, unknown> = {},
+) {
+  return {
+    policy_version: SAFE_ROUTE_POLICY_VERSION,
+    provider: 'tomtom',
+    snapped: true,
+    distance_meters: 18_100,
+    duration_seconds: 1_920,
+    coordinates: [
+      { lat: stops[0].latitude, lon: stops[0].longitude },
+      { lat: latitude, lon: longitude },
+      { lat: stops[1].latitude, lon: stops[1].longitude },
+    ],
+    guidance_steps: [{
+      id: `alternative-${latitude}`,
+      instruction: 'Bear left',
+      distance_along_meters: 500,
+      coordinate: { lat: latitude, lon: longitude },
+    }],
+    risk_avoidance: proof(),
+    risk_areas: [{
+      id: 'alternative-risk',
+      title: 'Alternative advisory',
+      severity: 'medium',
+      coordinate: { lat: latitude, lon: longitude },
+    }],
+    ...overrides,
+  };
+}
+
+function proof(overrides: Record<string, unknown> = {}) {
+  return {
+    policy_version: SAFE_ROUTE_POLICY_VERSION,
+    status: 'verified',
+    coverage_status: 'complete',
+    ignored_area_count: 0,
+    ...overrides,
+  };
+}

@@ -20,7 +20,7 @@ describe('authenticated map session expiry integration', () => {
     assert.match(hook, /sessionExpiryHandled = true;[\s\S]*controller\.abort\(\);[\s\S]*setZones\(\[\]\);[\s\S]*onSessionExpiredRef\.current\?\.\(sessionExpiry\.message\)/);
   });
 
-  it('routes current guest route and corridor expiry without publishing a generic failure', () => {
+  it('routes current guest verified-planner and viewport expiry without publishing a generic failure', () => {
     const app = source('App.tsx');
     const guestMap = source('src/features/guest-map/GuestMapScreen.tsx');
 
@@ -28,8 +28,7 @@ describe('authenticated map session expiry integration', () => {
     assert.match(app, /fetchSavedRoutes\(accessToken\)[\s\S]*error instanceof ApiSessionExpiredError[\s\S]*handleSessionExpired\(error\.message\)/);
     assert.doesNotMatch(guestMap, /fetchSavedRoutes\(accessToken\)/);
     assert.match(guestMap, /handleRouteSessionExpiry/);
-    assert.match(guestMap, /roadRouteRequestIdRef\.current !== requestId/);
-    assert.match(guestMap, /catch \(error\) \{[\s\S]*handleRouteSessionExpiry\(error\)/);
+    assert.match(guestMap, /const requestOwnsState = \(\) =>[\s\S]*roadRouteRequestIdRef\.current === requestId/);
     assert.match(guestMap, /\.catch\(\(error\) => \{[\s\S]*handleRouteSessionExpiry\(error\)/);
     assert.match(guestMap, /!acceptedRoadPreview && !sessionExpiryHandled/);
     assert.match(guestMap, /activeRiskAreaRequestRef\.current\?\.abort\(\)/);
@@ -42,6 +41,9 @@ describe('authenticated map session expiry integration', () => {
 
   it('routes only the current live reroute expiry to the app session boundary', () => {
     const liveMap = source('src/features/live-map/LiveMapScreen.tsx');
+    const rerouteStart = liveMap.indexOf('const executeLiveReroute =');
+    const rerouteEnd = liveMap.indexOf('const rerouteMonitoringActive', rerouteStart);
+    const rerouteHandler = liveMap.slice(rerouteStart, rerouteEnd);
 
     assert.match(liveMap, /onSessionExpired\?: \(message\?: string\) => void/);
     assert.match(liveMap, /useViewportRiskAreas\(\{[\s\S]*onSessionExpired/);
@@ -51,8 +53,15 @@ describe('authenticated map session expiry integration', () => {
     assert.match(liveMap, /currentRerouteState\.request\.routeRevision === request\.routeRevision/);
     assert.match(liveMap, /onSessionExpired\?\.\(sessionExpiry\.message\);[\s\S]*return;/);
     assert.match(liveMap, /activeRerouteRequestRef\.current\?\.abort\(\)/);
-    assert.match(liveMap, /fetchSafeRouteRoadRoutePreview\(\{[\s\S]*signal: controller\.signal/);
-    assert.match(liveMap, /fetchAreaRiskAlongRoute\([\s\S]*signal: controller\.signal/);
+    assert.equal(
+      rerouteHandler.match(/fetchSafeRouteRoadRoutePreview\(\{/g)?.length,
+      1,
+    );
+    assert.match(
+      rerouteHandler,
+      /routePreferences = resolveLiveReroutePreferences\(plan\)[\s\S]*preferences: routePreferences/,
+    );
+    assert.doesNotMatch(rerouteHandler, /fetchAreaRiskAlongRoute|avoidRectangles/);
     assert.match(liveMap, /useEffect\(\(\) => \(\) => \{[\s\S]*stopLiveRerouteMonitoring/);
   });
 

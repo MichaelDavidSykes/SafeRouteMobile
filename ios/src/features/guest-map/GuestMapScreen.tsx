@@ -84,9 +84,7 @@ import {
   areaRiskItemIntersectsBounds,
   mergeRiskZonesById,
 } from '../live-map/areaRiskApiCore';
-import { fetchAreaRiskAlongRoute } from '../live-map/routeRiskCorridorApi';
-import { buildRouteOptionAvoidRectangles } from '../live-map/liveReroutePlan';
-import { routeRiskStartBlockedReason } from '../live-map/routeRisk';
+import { withLiveReroutePreferences } from '../live-map/liveReroutePlan';
 import { useLiveLocation } from '../live-map/useLiveLocation';
 import {
   SAFE_ROUTE_CAMERA_ZOOM_RANGE,
@@ -120,7 +118,6 @@ import {
   GUEST_MAP_REGION,
   GUEST_ROUTE_LABEL_MAX_LENGTH,
   createGuestMapHomeCopy,
-  createGuestRoadSnappedRoutePlan,
   createGuestRouteActionState,
   createGuestRouteInputCopy,
   createGuestRoutePlanId,
@@ -132,8 +129,8 @@ import {
   type GuestFullAccessFeature
 } from './guestRoutePlanner';
 import {
-  type GuestRoadRoutePreview,
-  type GuestRoadRoutePreviewOptions
+  type GuestRoadRoutePreviewOptions,
+  type VerifiedSafeRoutePreview,
 } from './guestRoadRouteProvider';
 import { fetchSafeRouteRoadRoutePreview } from './safeRouteRoadRouteProvider';
 import {
@@ -187,7 +184,6 @@ import {
 } from './routePreferences';
 import { routePreferencesStore } from './routePreferencesStore';
 
-const GUEST_ROUTE_PROVIDER_UI_TIMEOUT_MS = 15000;
 const GUEST_LOCATION_SEARCH_DEBOUNCE_MS = 320;
 const GUEST_LOCATION_SEARCH_MIN_LENGTH = 2;
 const GUEST_SEARCH_STAGE_TRANSITION_MS = safeRouteMotion.scrimDurationMs;
@@ -204,7 +200,7 @@ const GUEST_MAP_ALTERNATIVE_ROUTE_COLORS = [
 
 type GuestRoadRoutePreviewFetcher = (
   options: GuestRoadRoutePreviewOptions
-) => Promise<GuestRoadRoutePreview | null>;
+) => Promise<VerifiedSafeRoutePreview | null>;
 
 type LocationSearchShortcut = {
   id: string;
@@ -1299,8 +1295,8 @@ export function GuestMapScreen({
     const originCoordinateSnapshot = localRoutePlan.checkpoints[0]?.coordinate;
     const destinationCoordinateSnapshot = localRoutePlan.checkpoints.at(-1)?.coordinate;
     const checkpointsSnapshot = localRoutePlan.checkpoints;
-    const riskZonesSnapshot = localRoutePlan.riskZones;
     const authenticatedSnapshot = authenticated;
+    const routePreferencesSnapshot = routePreferences;
     const requestAccessToken = routingAccessToken;
     const requestWorkspaceId = routingClientId;
     const requestNetworkEpoch = networkRequestEpochRef.current;
@@ -1371,10 +1367,7 @@ export function GuestMapScreen({
       onOpenRoutePreview?.(nextRoutePlan);
     };
 
-    const publishRoadPreview = (
-      preview: GuestRoadRoutePreview,
-      riskZones: RiskZone[],
-    ): boolean => {
+    const publishRoadPreview = (preview: VerifiedSafeRoutePreview): boolean => {
       const roadRoutePlans = [
         preview,
         ...(preview.alternatives || []),
@@ -1389,19 +1382,22 @@ export function GuestMapScreen({
           planId: index === 0
             ? localRoutePlan.id
             : `${localRoutePlan.id}-alternative-${index}`,
-          riskZones,
+          riskZones: mergeRiskZonesById(
+            routePreview.riskZones,
+            index === 0 ? preview.routeAlerts || [] : [],
+          ),
           roadSnappedCoordinates: routePreview.coordinates,
           routeDistanceMeters: routePreview.distanceMeters,
           routeDurationSeconds: routePreview.durationSeconds,
           routeGuidanceSteps: routePreview.guidanceSteps,
           travelMode: localRoutePlan.travelMode ?? 'drive',
         };
-        return createGuestRoutePlan(routePlanOptions);
+        return withLiveReroutePreferences(
+          createGuestRoutePlan(routePlanOptions),
+          routePreferencesSnapshot,
+        );
       }).filter((plan) => plan.updatedAtLabel === 'Road preview');
-      const safeRoadRoutePlans = roadRoutePlans.filter(
-        (plan) => !routeRiskStartBlockedReason(plan),
-      );
-      const acceptedRoutePlans = safeRoadRoutePlans.slice(0, 3);
+      const acceptedRoutePlans = roadRoutePlans.slice(0, 3);
       acceptedRoutePlans.forEach((plan, index) => {
         plan.route.label = index === 0
           ? 'Primary route'
@@ -1425,12 +1421,6 @@ export function GuestMapScreen({
       openPendingPreview(roadRoutePlan);
       return true;
     };
-    const clearPublishedRoadPreview = () => {
-      acceptedRoadPreview = false;
-      acceptedRoadPreviewPlan = null;
-      setRoutePlan(null);
-      setRouteAlternatives([]);
-    };
 
     const routePreviewFetcher = roadRoutePreviewFetcher || ((options: GuestRoadRoutePreviewOptions) =>
       fetchSafeRouteRoadRoutePreview({
@@ -1439,120 +1429,17 @@ export function GuestMapScreen({
         clientId: requestWorkspaceId
       }));
 
-    const avoidRectangles = buildRouteOptionAvoidRectangles(
-      riskZonesSnapshot,
-      localRoutePlan.route.coordinates,
-      stops
-    );
-    const routePreferencesSnapshot = routePreferences;
-
     void routePreviewFetcher({
-      avoidRectangles,
       preferences: routePreferencesSnapshot,
       signal: controller.signal,
       stops,
-      timeoutMs: GUEST_ROUTE_PROVIDER_UI_TIMEOUT_MS,
       travelMode: localRoutePlan.travelMode ?? 'drive',
     })
-      .then(async (roadPreview) => {
+      .then((roadPreview) => {
         if (!roadPreview || !requestIsCurrent()) {
           return;
         }
-
-        let finalRoadPreview = roadPreview;
-        let finalRiskZones = mergeRiskZonesById(
-          riskZonesSnapshot,
-          roadPreview.routeAlerts || [],
-        );
-        if (!publishRoadPreview(roadPreview, finalRiskZones)) {
-          return;
-        }
-        try {
-          const corridorRiskZones = await fetchAreaRiskAlongRoute(
-            roadPreview.coordinates,
-            {
-              accessToken: requestAccessToken,
-              clientId: requestWorkspaceId || undefined,
-              maxChunks: 8,
-              signal: controller.signal,
-              timeoutMs: 9000
-            }
-          );
-          if (!requestIsCurrent()) {
-            return;
-          }
-          finalRiskZones = mergeRiskZonesById(riskZonesSnapshot, corridorRiskZones);
-          const corridorAvoidRectangles = buildRouteOptionAvoidRectangles(
-            finalRiskZones,
-            [
-              roadPreview.coordinates,
-              ...(roadPreview.alternatives || []).map(
-                (alternative) => alternative.coordinates,
-              ),
-            ],
-            stops
-          );
-          if (
-            JSON.stringify(corridorAvoidRectangles) !== JSON.stringify(avoidRectangles)
-          ) {
-            const riskAwarePreview = await routePreviewFetcher({
-              avoidRectangles: corridorAvoidRectangles,
-              preferences: routePreferencesSnapshot,
-              signal: controller.signal,
-              stops,
-              timeoutMs: GUEST_ROUTE_PROVIDER_UI_TIMEOUT_MS,
-              travelMode: localRoutePlan.travelMode ?? 'drive',
-            });
-            const riskAwareRoutePlan = riskAwarePreview
-              ? createGuestRoadSnappedRoutePlan({
-                  authenticated: authenticatedSnapshot,
-                  checkpoints: checkpointsSnapshot,
-                  destination: destinationSnapshot,
-                  destinationCoordinate: destinationCoordinateSnapshot,
-                  origin: originSnapshot,
-                  originCoordinate: originCoordinateSnapshot,
-                  planId: localRoutePlan.id,
-                  riskZones: finalRiskZones,
-                  roadSnappedCoordinates: riskAwarePreview.coordinates,
-                  routeDistanceMeters: riskAwarePreview.distanceMeters,
-                  routeDurationSeconds: riskAwarePreview.durationSeconds,
-                  routeGuidanceSteps: riskAwarePreview.guidanceSteps,
-                  travelMode: localRoutePlan.travelMode ?? 'drive',
-                })
-              : null;
-            if (
-              riskAwarePreview &&
-              riskAwareRoutePlan
-            ) {
-              finalRoadPreview = riskAwarePreview;
-            } else {
-              clearPublishedRoadPreview();
-              return;
-            }
-          }
-        } catch (error) {
-          if (handleRouteSessionExpiry(error)) {
-            return;
-          }
-          if (handleRouteWorkspaceUnavailable(error)) {
-            return;
-          }
-          // The provider-snapped route is already visible. Keep it when this
-          // optional corridor enrichment is temporarily unavailable.
-          return;
-        }
-
-        finalRiskZones = mergeRiskZonesById(
-          finalRiskZones,
-          finalRoadPreview.routeAlerts || []
-        );
-
-        if (!requestIsCurrent()) {
-          return;
-        }
-        if (!publishRoadPreview(finalRoadPreview, finalRiskZones)) {
-          clearPublishedRoadPreview();
-        }
+        publishRoadPreview(roadPreview);
       })
       .catch((error) => {
         if (handleRouteSessionExpiry(error)) {

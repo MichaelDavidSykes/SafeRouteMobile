@@ -3,10 +3,10 @@ import { describe, it } from 'node:test';
 
 import {
   applyLiveReroutePreview,
-  buildLiveRerouteAvoidRectangles,
-  buildRouteOptionAvoidRectangles,
   buildLiveRerouteTargets,
-  createLiveRiskRegion
+  createLiveRiskRegion,
+  resolveLiveReroutePreferences,
+  withLiveReroutePreferences,
 } from '../src/features/live-map/liveReroutePlan';
 import type { RiskZone, SavedSafeRoutePlan } from '../src/features/live-map/liveMapTypes';
 import { calculateRouteProgress } from '../src/features/live-map/routeProgress';
@@ -69,152 +69,17 @@ describe('live reroute plan integration', () => {
     assert.deepEqual(targets.stops, [current, routePlan.checkpoints[2].coordinate]);
   });
 
-  it('ranks severe risk areas for avoidance and excludes a rectangle containing a required stop', () => {
-    const current = { latitude: -33.90, longitude: 18.40 };
-    const currentRisk = riskZone('current-risk', current, 500);
-    const routeRisk = riskZone('route-risk', { latitude: -33.95, longitude: 18.50 }, 350);
-    const rectangles = buildLiveRerouteAvoidRectangles(
-      [currentRisk, routeRisk],
-      routePlan.route.coordinates,
-      [current, routePlan.checkpoints[2].coordinate]
-    );
-
-    assert.equal(rectangles.length, 1);
-    assert.equal(rectangles[0].label, 'route-risk');
-  });
-
-  it('constrains only risk areas close to a real candidate route', () => {
-    const route = [
-      { latitude: 51.507198, longitude: -0.127598 },
-      { latitude: 51.51, longitude: -0.09 },
-    ];
-    const nearbyButClearRisk = riskZone(
-      'liverpool-street',
-      { latitude: 51.517853, longitude: -0.081602 },
-      650,
-    );
-
-    assert.deepEqual(
-      buildRouteOptionAvoidRectangles(
-        [nearbyButClearRisk],
-        route,
-        [route[0], route[1]],
-      ),
-      [],
-    );
-
-    const intersectingRisk = riskZone(
-      'route-risk',
-      { latitude: 51.5085, longitude: -0.11 },
-      200,
-    );
-    assert.equal(
-      buildRouteOptionAvoidRectangles(
-        [intersectingRisk],
-        route,
-        [route[0], route[1]],
-      ).length,
-      1,
-    );
-  });
-
-  it('does not treat gaps between alternative routes as route segments', () => {
-    const firstRoute = [
-      { latitude: 0, longitude: 0 },
-      { latitude: 0, longitude: 1 },
-    ];
-    const secondRoute = [
-      { latitude: 1, longitude: 0 },
-      { latitude: 1, longitude: 1 },
-    ];
-    const gapRisk = riskZone(
-      'gap-risk',
-      { latitude: 0.5, longitude: 0.5 },
-      100,
-    );
-
-    assert.deepEqual(
-      buildRouteOptionAvoidRectangles(
-        [gapRisk],
-        [firstRoute, secondRoute],
-        [firstRoute[0], secondRoute.at(-1)!],
-      ),
-      [],
-    );
-  });
-
-  it('submits only high-risk rectangles that the candidate route actually enters', () => {
-    const crossingRisk = riskZone(
-      'London Bridge–Borough High Street',
-      { latitude: -33.95, longitude: 18.50 },
-      900
-    );
-    const clearRisk = riskZone(
-      'Unrelated district',
-      { latitude: -33.86, longitude: 18.72 },
-      900
-    );
-
-    const rectangles = buildLiveRerouteAvoidRectangles(
-      [clearRisk, crossingRisk],
-      routePlan.route.coordinates,
-      [routePlan.checkpoints[0].coordinate, routePlan.checkpoints[2].coordinate]
-    );
-
-    assert.deepEqual(rectangles.map(({ label }) => label), [
-      'London Bridge–Borough High Street'
-    ]);
-  });
-
-  it('does not let district-scale high risk block the Cape Town corridor while critical remains fail closed', () => {
-    const origin = { latitude: -33.90876894132692, longitude: 18.420521374095387 };
-    const destination = { latitude: -33.86984598482066, longitude: 18.5545751389195 };
-    const zones = [
-      polygonRiskZone('Woodstock district', 'high', [
-        [-33.940183, 18.428262],
-        [-33.940183, 18.464066],
-        [-33.910443, 18.464066],
-        [-33.910443, 18.428262]
-      ]),
-      polygonRiskZone('Jakes Gerwel district', 'high', [
-        [-33.940621, 18.452212],
-        [-33.940621, 18.477788],
-        [-33.919379, 18.477788],
-        [-33.919379, 18.452212]
-      ]),
-      polygonRiskZone('Long Street local risk', 'high', [
-        [-33.930961, 18.408297],
-        [-33.930961, 18.426503],
-        [-33.915839, 18.426503],
-        [-33.915839, 18.408297]
-      ]),
-      polygonRiskZone('Critical shared area', 'critical', [
-        [-33.902602, 18.550364],
-        [-33.902602, 18.570294],
-        [-33.886032, 18.570294],
-        [-33.886032, 18.550364]
-      ])
-    ];
-
-    const rectangles = buildLiveRerouteAvoidRectangles(
-      zones,
-      [
-        origin,
-        { latitude: -33.923, longitude: 18.417 },
-        { latitude: -33.894, longitude: 18.56 },
-        destination
-      ],
-      [origin, destination]
-    );
-    const labels = rectangles.map((rectangle) => rectangle.label);
-
-    assert.deepEqual(labels, ['Critical shared area', 'Long Street local risk']);
-  });
-
-  it('replaces the remaining path with provider-snapped geometry and resets its origin', () => {
+  it('replaces the remaining path with verified geometry, server risk areas, and the original preferences', () => {
     const current = { latitude: -33.96, longitude: 18.53 };
+    const preferences = {
+      avoidFerries: false,
+      avoidMotorways: true,
+      avoidTolls: true,
+      avoidUnpavedRoads: false,
+    };
+    const preferredRoutePlan = withLiveReroutePreferences(routePlan, preferences);
     const targets = buildLiveRerouteTargets(
-      routePlan,
+      preferredRoutePlan,
       current,
       calculateRouteProgress(routePlan.route.coordinates, current)
     );
@@ -227,6 +92,17 @@ describe('live reroute plan integration', () => {
       distanceMeters: 5200,
       durationSeconds: 780,
       provider: 'osrm' as const,
+      riskAvoidance: {
+        coverageStatus: 'complete' as const,
+        ignoredAreaCount: 0 as const,
+        policyVersion: 'safe-route-v1' as const,
+        status: 'verified' as const,
+      },
+      riskZones: [riskZone(
+        'verified-route-risk',
+        { latitude: -33.98, longitude: 18.57 },
+        200,
+      )],
       snapped: true,
       routeAlerts: [riskZone(
         'reroute-alert',
@@ -238,8 +114,7 @@ describe('live reroute plan integration', () => {
       currentCoordinate: current,
       preview,
       requestRevision: 4,
-      riskZones: [riskZone('live-risk', { latitude: -33.98, longitude: 18.57 }, 200)],
-      routePlan,
+      routePlan: preferredRoutePlan,
       targets
     });
 
@@ -252,7 +127,8 @@ describe('live reroute plan integration', () => {
     assert.equal(next.checkpoints[0].kind, 'origin');
     assert.equal(next.checkpoints.at(-1)?.kind, 'destination');
     assert.equal(next.clientId, 'client-1');
-    assert.deepEqual(next.riskZones.map(({ id }) => id), ['live-risk', 'reroute-alert']);
+    assert.deepEqual(next.riskZones.map(({ id }) => id), ['verified-route-risk', 'reroute-alert']);
+    assert.deepEqual(resolveLiveReroutePreferences(next), preferences);
   });
 });
 
@@ -280,33 +156,6 @@ function riskZone(id: string, coordinate: { latitude: number; longitude: number 
     category: 'area-risk',
     coordinate,
     radiusMeters,
-    markerColor: '#d84a3f',
-    strokeColor: '#d84a3f',
-    fillColor: 'rgba(216,74,63,.18)'
-  };
-}
-
-function polygonRiskZone(
-  title: string,
-  avoidanceSeverity: 'high' | 'critical',
-  coordinates: Array<[number, number]>
-): RiskZone {
-  const polygonCoordinates = coordinates.map(([latitude, longitude]) => ({ latitude, longitude }));
-  const latitude = polygonCoordinates.reduce((total, coordinate) => total + coordinate.latitude, 0) /
-    polygonCoordinates.length;
-  const longitude = polygonCoordinates.reduce((total, coordinate) => total + coordinate.longitude, 0) /
-    polygonCoordinates.length;
-  return {
-    id: title.toLowerCase().replace(/\s+/g, '-'),
-    title,
-    description: title,
-    severity: 'high',
-    ...(avoidanceSeverity === 'critical' ? { avoidanceSeverity } : {}),
-    category: 'area-risk',
-    coordinate: { latitude, longitude },
-    polygonCoordinates,
-    shape: 'polygon',
-    radiusMeters: 0,
     markerColor: '#d84a3f',
     strokeColor: '#d84a3f',
     fillColor: 'rgba(216,74,63,.18)'

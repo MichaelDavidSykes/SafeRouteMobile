@@ -43,7 +43,7 @@ describe('guest route plotting lifecycle', () => {
     );
   });
 
-  it('keeps a valid road-snapped route when optional risk enrichment fails', () => {
+  it('publishes only the single verified route response and its authoritative risks', () => {
     const upgradeStart = guestMapSource.indexOf(
       'const upgradeGuestRouteWithRoadPreview =',
     );
@@ -52,18 +52,15 @@ describe('guest route plotting lifecycle', () => {
       upgradeStart,
     );
     const upgradeHandler = guestMapSource.slice(upgradeStart, upgradeEnd);
-    const initialPublish = upgradeHandler.indexOf(
-      'publishRoadPreview(roadPreview, finalRiskZones)',
+    assert.equal(
+      upgradeHandler.match(/routePreviewFetcher\(\{/g)?.length,
+      1,
     );
-    const corridorFetch = upgradeHandler.indexOf('fetchAreaRiskAlongRoute(');
-
-    assert.ok(initialPublish >= 0);
-    assert.ok(corridorFetch >= 0);
-    assert.ok(initialPublish < corridorFetch);
     assert.match(
       upgradeHandler,
-      /provider-snapped route is already visible[\s\S]*optional corridor enrichment is temporarily unavailable/,
+      /riskZones: mergeRiskZonesById\([\s\S]*routePreview\.riskZones[\s\S]*publishRoadPreview\(roadPreview\)/,
     );
+    assert.doesNotMatch(upgradeHandler, /fetchAreaRiskAlongRoute|avoidRectangles/);
     assert.match(
       upgradeHandler,
       /if \(!acceptedRoadPreview && !sessionExpiryHandled && !workspaceUnavailableHandled\)/,

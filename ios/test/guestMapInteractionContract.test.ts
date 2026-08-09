@@ -289,7 +289,7 @@ describe('guest map interaction contract', () => {
     );
   });
 
-  it('collapses accepted route plots and reopens only when road routing fails', () => {
+  it('collapses accepted route plots and reopens only when verified routing fails', () => {
     const plotStart = screen.indexOf('const handlePlotRoute = async (');
     const roadUpgradeStart = screen.indexOf(
       'const upgradeGuestRouteWithRoadPreview =',
@@ -307,16 +307,18 @@ describe('guest map interaction contract', () => {
     );
     assert.match(
       screen,
-      /!acceptedRoadPreview && !sessionExpiryHandled && !workspaceUnavailableHandled[\s\S]*reopenRouteModeChoices\(localRoutePlan\.travelMode \?\? 'drive'\)/,
+      /!acceptedRoadPreview && !sessionExpiryHandled && !workspaceUnavailableHandled[\s\S]*showRoutePlotFailure\(localRoutePlan\.travelMode \?\? 'drive'\)/,
     );
-    assert.ok(
-      screen.indexOf('publishRoadPreview(roadPreview, finalRiskZones)') <
-        screen.indexOf('fetchAreaRiskAlongRoute('),
-      'The first provider-snapped route must be published before corridor enrichment.',
+    const upgradeEnd = screen.indexOf('const handleOpenPreview =', roadUpgradeStart);
+    const upgradeHandler = screen.slice(roadUpgradeStart, upgradeEnd);
+    assert.equal(upgradeHandler.match(/routePreviewFetcher\(\{/g)?.length, 1);
+    assert.doesNotMatch(
+      upgradeHandler,
+      /fetchAreaRiskAlongRoute|buildRouteOptionAvoidRectangles|avoidRectangles/,
     );
     assert.match(
       screen,
-      /catch \(error\) \{[\s\S]*handleRouteSessionExpiry\(error\)[\s\S]*handleRouteWorkspaceUnavailable\(error\)[\s\S]*hosted, road-snapped route has already been published/,
+      /\.catch\(\(error\) => \{[\s\S]*handleRouteSessionExpiry\(error\)[\s\S]*handleRouteWorkspaceUnavailable\(error\)[\s\S]*finalizer fails closed/,
     );
   });
 

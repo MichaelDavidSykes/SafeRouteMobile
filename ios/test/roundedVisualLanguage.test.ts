@@ -489,8 +489,7 @@ describe("rounded visual language", () => {
     assert.doesNotMatch(guestMapSource, /openPendingPreview\(localRoutePlan\)/);
     assert.doesNotMatch(guestMapSource, /setRoutePlan\(SAFEROUTE_PREVIEW_MODE_ENABLED\s*\?\s*localRoutePlan/);
     assert.match(guestMapSource, /We couldn't plot the \$\{requestedModeLabel\} route/);
-    assert.match(guestMapSource, /GUEST_ROUTE_PROVIDER_UI_TIMEOUT_MS\s*=\s*15000/);
-    assert.match(guestMapSource, /timeoutMs:\s*GUEST_ROUTE_PROVIDER_UI_TIMEOUT_MS/);
+    assert.doesNotMatch(guestMapSource, /GUEST_ROUTE_PROVIDER_UI_TIMEOUT_MS|timeoutMs:\s*15_000/);
     assert.match(
       guestMapSource,
       /publishRoadPreview[\s\S]*preview,[\s\S]*\.\.\.\(preview\.alternatives \|\| \[\]\)/,

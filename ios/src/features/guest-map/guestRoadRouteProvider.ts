@@ -15,6 +15,13 @@ import type { SafeRouteRoutePreferences } from './routePreferences';
 
 export type GuestRoadRouteProvider = 'osrm' | 'tomtom';
 
+export type SafeRouteRiskAvoidanceProof = {
+  coverageStatus: 'complete' | 'current-empty';
+  ignoredAreaCount: 0;
+  policyVersion: 'safe-route-v1';
+  status: 'verified' | 'not-required';
+};
+
 export type GuestRoadRouteAlternative = {
   coordinates: LatLng[];
   distanceMeters: number;
@@ -33,6 +40,20 @@ export type GuestRoadRoutePreview = {
   snapped: boolean;
   guidanceSteps?: RouteNavigationStep[];
   routeAlerts?: RiskZone[];
+};
+
+export type VerifiedSafeRouteAlternative = GuestRoadRouteAlternative & {
+  riskAvoidance: SafeRouteRiskAvoidanceProof;
+  riskZones: RiskZone[];
+};
+
+export type VerifiedSafeRoutePreview = Omit<
+  GuestRoadRoutePreview,
+  'alternatives'
+> & {
+  alternatives?: VerifiedSafeRouteAlternative[];
+  riskAvoidance: SafeRouteRiskAvoidanceProof;
+  riskZones: RiskZone[];
 };
 
 export type GuestRoadRoutePreviewOptions = {

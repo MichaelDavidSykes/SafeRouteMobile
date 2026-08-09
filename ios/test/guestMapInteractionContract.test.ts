@@ -162,10 +162,14 @@ describe('guest map interaction contract', () => {
     assert.match(styles, /currentLocationHalo:[\s\S]*rgba\(10, 132, 255, 0\.25\)/);
   });
 
-  it('keeps the source map intact and blocks protected work while workspace selection saves', () => {
-    assert.match(
-      screen,
-      /routeActionDisabled =[\s\S]*workspaceSelectionPending[\s\S]*workspaceSelectionRequired/,
+  it('keeps route plotting available while workspace selection protects scoped work', () => {
+    const routeGate = screen.slice(
+      screen.indexOf('const routeRequestContextDisabled ='),
+      screen.indexOf('const mapSelectionSetsDestination ='),
+    );
+    assert.doesNotMatch(
+      routeGate,
+      /workspaceSelectionPending|workspaceSelectionRequired|workspaceAuthorizationRequired/,
     );
     assert.match(
       screen,
@@ -175,7 +179,6 @@ describe('guest map interaction contract', () => {
       screen,
       /refreshEnabled:[\s\S]*online &&[\s\S]*!workspaceSelectionPending/,
     );
-    assert.match(screen, /Saving workspace…/);
     assert.match(screen, /Wait while the workspace choice is saved/);
     assert.match(screen, /Wait while SafeRoute verifies workspace access/);
     assert.match(screen, /switchingDisabled = switchDisabled \|\| selectionPending \|\| loading/);

@@ -43,6 +43,43 @@ describe('guest route plotting lifecycle', () => {
     );
   });
 
+  it('never gates plotting on workspace verification and uses public routing while it is stale', () => {
+    const routeGateStart = guestMapSource.indexOf(
+      'const routeRequestContextDisabled =',
+    );
+    const routeGateEnd = guestMapSource.indexOf(
+      'const mapSelectionSetsDestination =',
+      routeGateStart,
+    );
+    const routeGate = guestMapSource.slice(routeGateStart, routeGateEnd);
+    const upgradeStart = guestMapSource.indexOf(
+      'const upgradeGuestRouteWithRoadPreview =',
+    );
+    const upgradeEnd = guestMapSource.indexOf(
+      'const handleOpenPreview =',
+      upgradeStart,
+    );
+    const upgradeHandler = guestMapSource.slice(upgradeStart, upgradeEnd);
+
+    assert.doesNotMatch(
+      routeGate,
+      /workspaceSelectionPending|workspaceSelectionRequired|workspaceAuthorizationRequired/,
+    );
+    assert.doesNotMatch(routeGate, /Verify workspace access/);
+    assert.match(
+      upgradeHandler,
+      /requestWorkspaceId = requestAccessToken[\s\S]*requestWorkspaceContextId[\s\S]*: null/,
+    );
+    assert.match(
+      upgradeHandler,
+      /authenticated: Boolean\(requestUsesWorkspace && onSessionExpired\)/,
+    );
+    assert.match(
+      upgradeHandler,
+      /accessToken: requestAccessToken,[\s\S]*clientId: requestWorkspaceId/,
+    );
+  });
+
   it('publishes only the single verified route response and its authoritative risks', () => {
     const upgradeStart = guestMapSource.indexOf(
       'const upgradeGuestRouteWithRoadPreview =',

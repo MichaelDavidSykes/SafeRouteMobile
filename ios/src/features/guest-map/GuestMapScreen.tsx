@@ -294,6 +294,7 @@ export function GuestMapScreen({
   const mapRef = useRef<MapView | null>(null);
   const mapCameraRequestIdRef = useRef(0);
   const activeRoadRouteRequestRef = useRef<AbortController | null>(null);
+  const activeRoadRouteWorkspaceIdRef = useRef<string | null>(null);
   const activeLocationSearchRef = useRef<AbortController | null>(null);
   const activeDraftResolutionRef = useRef<AbortController | null>(null);
   const activeRiskAreaRequestRef = useRef<AbortController | null>(null);
@@ -539,10 +540,7 @@ export function GuestMapScreen({
   }, [resolvedPlacesScopeId]);
   const routeRequestContextDisabled =
     routeResolutionPending ||
-    roadPreviewPending ||
-    workspaceSelectionPending ||
-    workspaceSelectionRequired ||
-    workspaceAuthorizationRequired;
+    roadPreviewPending;
   const routeContextDisabled =
     routeAction.disabled || routeRequestContextDisabled;
   const routeRequestDisabled = !online || routeRequestContextDisabled;
@@ -555,59 +553,24 @@ export function GuestMapScreen({
   const stagedRouteActionBusy =
     routeResolutionPending ||
     roadPreviewPending ||
-    workspaceSelectionPending ||
-    (networkChecking && !routePlan) ||
-    (workspaceAuthorizationRequired && workspaceCatalogLoading);
-  const workspaceBlockingActionLabel = workspaceCatalogLoading
-    ? 'Loading workspace…'
-    : workspaceCatalogError
-      ? 'Workspace unavailable'
-      : availableWorkspaces.length
-        ? 'Choose workspace'
-        : 'No workspace access';
+    (networkChecking && !routePlan);
   const routeActionLabel = routeResolutionPending
     ? 'Resolving route points…'
     : roadPreviewPending
       ? 'Finding safest route…'
-    : workspaceSelectionPending
-      ? 'Saving workspace…'
     : networkChecking && !routePlan
       ? 'Checking connection…'
     : offline && !routePlan
       ? 'Offline'
-    : workspaceSelectionRequired
-      ? workspaceBlockingActionLabel
-      : workspaceAuthorizationRequired
-        ? workspaceCatalogLoading
-          ? 'Checking workspace…'
-          : 'Verify workspace access'
       : routeAction.label;
   const routeActionAccessibilityLabel = networkChecking && !routePlan
     ? 'Checking connection before plotting this route'
     : offline && !routePlan
       ? 'Reconnect before plotting this route'
-    : workspaceSelectionPending
-      ? 'Saving the workspace before plotting this route'
-    : workspaceSelectionRequired
-    ? workspaceBlockingActionLabel
-    : workspaceAuthorizationRequired
-      ? workspaceCatalogLoading
-        ? 'Checking workspace access before plotting this route'
-        : 'Verify workspace access before plotting this route'
     : routeAction.accessibilityLabel;
   const routeActionAccessibilityHint = !online && !routePlan
     ? 'Wait for a connection before requesting a road-snapped route.'
-    : workspaceSelectionPending
-      ? 'Wait for the workspace change to finish before plotting this route.'
-    : workspaceSelectionRequired
-    ? availableWorkspaces.length
-      ? 'Choose the SafeRoute workspace above before plotting this route.'
-      : workspaceCatalogError
-        ? 'Retry workspace loading before plotting this route.'
-        : 'Route planning needs an available SafeRoute workspace.'
-    : workspaceAuthorizationRequired
-      ? 'Retry workspace loading before plotting or starting workspace guidance.'
-      : routeAction.accessibilityHint;
+    : routeAction.accessibilityHint;
   const stagedRouteActionLabel =
     !routePlan && !routeDraftReady ? 'Select locations' : routeActionLabel;
   const stagedRouteActionAccessibilityLabel =
@@ -1054,6 +1017,7 @@ export function GuestMapScreen({
     pendingOpenPreviewRef.current = false;
     activeRoadRouteRequestRef.current?.abort();
     activeRoadRouteRequestRef.current = null;
+    activeRoadRouteWorkspaceIdRef.current = null;
     setRoadPreviewPending(false);
   };
 
@@ -1062,7 +1026,6 @@ export function GuestMapScreen({
       return;
     }
 
-    cancelRoadRouteUpgrade();
     riskAreaRequestIdRef.current += 1;
     activeRiskAreaRequestRef.current?.abort();
     activeRiskAreaRequestRef.current = null;
@@ -1085,15 +1048,19 @@ export function GuestMapScreen({
   }, [online]);
 
   const clearWorkspaceScopedMapState = () => {
-    cancelRoadRouteUpgrade();
+    if (activeRoadRouteWorkspaceIdRef.current) {
+      cancelRoadRouteUpgrade();
+    }
     riskAreaRequestIdRef.current += 1;
     activeRiskAreaRequestRef.current?.abort();
     activeRiskAreaRequestRef.current = null;
     setRiskAreaSavePending(false);
     setSelectedRiskZone(null);
     setMapAction(null);
-    setRoutePlan(null);
-    setRouteAlternatives([]);
+    setRoutePlan((current) => current?.clientId ? null : current);
+    setRouteAlternatives((current) =>
+      current.filter((plan) => !plan.clientId),
+    );
     setRouteMessage('');
   };
 
@@ -1136,19 +1103,10 @@ export function GuestMapScreen({
     if (routeRequestDisabled) {
       return;
     }
-    const plotWorkspaceId = routingClientId;
-    const plotAuthorizationEpoch = workspaceAuthorizationEpochRef.current;
     const plotNetworkRequestEpoch = networkRequestEpochRef.current;
-    const plotAuthorizationIsCurrent = () =>
+    const plotRequestIsCurrent = () =>
       onlineRef.current &&
-      plotNetworkRequestEpoch === networkRequestEpochRef.current &&
-      isCurrentWorkspaceAuthorizationEpoch({
-        currentEpoch: workspaceAuthorizationEpochRef.current,
-        currentFresh: workspaceAuthorizationFreshRef.current,
-        currentWorkspaceId: routingClientIdRef.current,
-        requestEpoch: plotAuthorizationEpoch,
-        requestWorkspaceId: plotWorkspaceId,
-      });
+      plotNetworkRequestEpoch === networkRequestEpochRef.current;
 
     Keyboard.dismiss();
     cancelRoadRouteUpgrade();
@@ -1190,7 +1148,7 @@ export function GuestMapScreen({
           }),
           signal: controller.signal
         });
-        if (controller.signal.aborted || !plotAuthorizationIsCurrent()) {
+        if (controller.signal.aborted || !plotRequestIsCurrent()) {
           return;
         }
         for (const stopId of typedStopIds) {
@@ -1219,7 +1177,7 @@ export function GuestMapScreen({
       }
     }
     const unresolvedStopIds = getGuestRouteDraftUnresolvedStopIds(plottingDraft);
-    if (!plotAuthorizationIsCurrent()) {
+    if (!plotRequestIsCurrent()) {
       return;
     }
     if (unresolvedStopIds.length) {
@@ -1300,26 +1258,28 @@ export function GuestMapScreen({
     const authenticatedSnapshot = authenticated;
     const routePreferencesSnapshot = routePreferences;
     const requestAccessToken = routingAccessToken;
-    const requestWorkspaceId = routingClientId;
+    const requestWorkspaceContextId = routingClientId;
+    const requestWorkspaceId = requestAccessToken
+      ? requestWorkspaceContextId
+      : null;
+    const requestUsesWorkspace = Boolean(
+      requestAccessToken && requestWorkspaceId,
+    );
+    activeRoadRouteWorkspaceIdRef.current = requestWorkspaceId;
     const requestNetworkEpoch = networkRequestEpochRef.current;
-    const requestAuthorizationEpoch = workspaceAuthorizationEpochRef.current;
-    const requestAuthorizationIsCurrent = () =>
+    const requestContextIsCurrent = () =>
       onlineRef.current &&
       requestNetworkEpoch === networkRequestEpochRef.current &&
-      isCurrentWorkspaceAuthorizationEpoch({
-        currentEpoch: workspaceAuthorizationEpochRef.current,
-        currentFresh: workspaceAuthorizationFreshRef.current,
-        currentWorkspaceId: routingClientIdRef.current,
-        requestEpoch: requestAuthorizationEpoch,
-        requestWorkspaceId,
-      });
+      (
+        !requestUsesWorkspace ||
+        routingClientIdRef.current === requestWorkspaceContextId
+      );
     const requestOwnsState = () =>
-      roadRouteRequestIdRef.current === requestId &&
-      routingClientIdRef.current === requestWorkspaceId;
+      roadRouteRequestIdRef.current === requestId;
     const requestIsCurrent = () =>
       !controller.signal.aborted &&
       requestOwnsState() &&
-      requestAuthorizationIsCurrent();
+      requestContextIsCurrent();
     let acceptedRoadPreview = false;
     let acceptedRoadPreviewPlan: SavedSafeRoutePlan | null = null;
     let sessionExpiryHandled = false;
@@ -1327,7 +1287,7 @@ export function GuestMapScreen({
 
     const handleRouteSessionExpiry = (error: unknown) => {
       const sessionExpiry = getRequestSessionExpiry({
-        authenticated: Boolean(routingAccessToken && onSessionExpired),
+        authenticated: Boolean(requestUsesWorkspace && onSessionExpired),
         error,
         handled: sessionExpiryHandled,
         requestActive: requestIsCurrent(),
@@ -1454,9 +1414,13 @@ export function GuestMapScreen({
         // connectors as drivable road geometry.
       })
       .finally(() => {
-        if (requestOwnsState() && requestAuthorizationIsCurrent()) {
+        if (requestOwnsState()) {
           activeRoadRouteRequestRef.current = null;
+          activeRoadRouteWorkspaceIdRef.current = null;
           setRoadPreviewPending(false);
+          if (!requestContextIsCurrent()) {
+            return;
+          }
           if (acceptedRoadPreviewPlan) {
             openPendingPreview(acceptedRoadPreviewPlan);
           }

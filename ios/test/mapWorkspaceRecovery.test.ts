@@ -19,11 +19,13 @@ describe("authenticated Map workspace recovery integration", () => {
     assert.match(app, /onNavigationSessionChange=\{handleNavigationSessionChange\}/);
   });
 
-  it("fails verified planning and risk-write state closed before reporting an owned denial", () => {
+  it("falls route planning back to public while keeping workspace writes fail closed", () => {
     const guest = source("src/features/guest-map/GuestMapScreen.tsx");
 
-    assert.match(guest, /requestAccessToken = routingAccessToken;[\s\S]*requestWorkspaceId = routingClientId/);
-    assert.match(guest, /const requestOwnsState = \(\) =>[\s\S]*roadRouteRequestIdRef\.current === requestId[\s\S]*routingClientIdRef\.current === requestWorkspaceId/);
+    assert.match(guest, /requestAccessToken = routingAccessToken;[\s\S]*requestWorkspaceId = requestAccessToken[\s\S]*requestWorkspaceContextId[\s\S]*: null/);
+    assert.match(guest, /const requestUsesWorkspace = Boolean\([\s\S]*requestAccessToken && requestWorkspaceId/);
+    assert.match(guest, /activeRoadRouteWorkspaceIdRef\.current = requestWorkspaceId/);
+    assert.match(guest, /const requestOwnsState = \(\) =>[\s\S]*roadRouteRequestIdRef\.current === requestId/);
     assert.match(guest, /handleRouteWorkspaceUnavailable[\s\S]*getRequestUnavailableWorkspaceId\([\s\S]*requestActive:[\s\S]*requestIsCurrent\(\)/);
     assert.match(guest, /recoverWorkspaceAccessRef\.current = \(workspaceId\) => \{[\s\S]*clearWorkspaceScopedMapState\(\);[\s\S]*onWorkspaceUnavailableRef\.current\?\.\(workspaceId\)/);
     assert.match(guest, /useViewportRiskAreas\(\{[\s\S]*onWorkspaceUnavailable: onWorkspaceUnavailable[\s\S]*recoverWorkspaceAccessRef\.current\(workspaceId\)/);
@@ -34,6 +36,10 @@ describe("authenticated Map workspace recovery integration", () => {
     );
     assert.match(guest, /createGuestRiskArea\([\s\S]*getRequestSessionExpiry\([\s\S]*getRequestUnavailableWorkspaceId\([\s\S]*recoverWorkspaceAccessRef\.current\(unavailableWorkspaceId\)/);
     assert.match(guest, /!acceptedRoadPreview && !sessionExpiryHandled && !workspaceUnavailableHandled/);
+    assert.match(
+      guest,
+      /clearWorkspaceScopedMapState =[\s\S]*if \(activeRoadRouteWorkspaceIdRef\.current\)[\s\S]*setRoutePlan\(\(current\) => current\?\.clientId \? null : current\)[\s\S]*filter\(\(plan\) => !plan\.clientId\)/,
+    );
   });
 
   it("purges denied viewport intelligence once without changing public or transient semantics", () => {
@@ -67,7 +73,7 @@ describe("authenticated Map workspace recovery integration", () => {
     assert.match(live, /if \(unavailableWorkspaceId\) \{[\s\S]*closeRouteForWorkspaceLoss\(unavailableWorkspaceId\);[\s\S]*return;[\s\S]*failRerouteRequest\(request\)/);
   });
 
-  it("invalidates Map requests while foreground workspace authorization is paused", () => {
+  it("pauses workspace intelligence without cancelling public-capable route plotting", () => {
     const app = source("App.tsx");
     const guest = source("src/features/guest-map/GuestMapScreen.tsx");
     const live = source("src/features/live-map/LiveMapScreen.tsx");
@@ -76,14 +82,17 @@ describe("authenticated Map workspace recovery integration", () => {
       app.match(/<LiveMapScreen[\s\S]*?\/>/)?.[0] || "",
       /workspaceAuthorizationFresh=\{activeWorkspaceAuthorizationFresh\}/,
     );
-    assert.match(
-      guest,
-      /workspaceAuthorizationEpochRef[\s\S]*isCurrentWorkspaceAuthorizationEpoch\([\s\S]*requestAuthorizationIsCurrent\(\)/,
+    const routeUpgrade = guest.slice(
+      guest.indexOf('const upgradeGuestRouteWithRoadPreview ='),
+      guest.indexOf('const handleOpenPreview ='),
     );
-    assert.match(
-      guest,
-      /workspaceAuthorizationRequired[\s\S]*cancelRoadRouteUpgrade\(\)[\s\S]*riskAreaRequestIdRef\.current \+= 1[\s\S]*activeRiskAreaRequestRef\.current\?\.abort\(\)/,
+    const authorizationPauseEffect = guest.slice(
+      guest.indexOf('if (!workspaceAuthorizationRequired)'),
+      guest.indexOf('useEffect(() => {\n    if (online)', guest.indexOf('if (!workspaceAuthorizationRequired)')),
     );
+    assert.doesNotMatch(routeUpgrade, /isCurrentWorkspaceAuthorizationEpoch/);
+    assert.doesNotMatch(authorizationPauseEffect, /cancelRoadRouteUpgrade\(\)/);
+    assert.match(authorizationPauseEffect, /activeRiskAreaRequestRef\.current\?\.abort\(\)/);
     assert.match(
       live,
       /useViewportRiskAreas\(\{[\s\S]*refreshEnabled:[\s\S]*online &&[\s\S]*\(!activeRoutePlan\.clientId \|\| workspaceAuthorizationFresh\)/,

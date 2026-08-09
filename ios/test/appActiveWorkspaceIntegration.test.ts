@@ -568,19 +568,23 @@ describe("App active workspace integration", () => {
     );
   });
 
-  it("fails closed on Map and scopes Saved loads to the controlled workspace", () => {
+  it("keeps Map routing available while workspace-only actions stay protected", () => {
     const guest = guestSource();
     const routes = routesSource();
+    const routeGate = guest.slice(
+      guest.indexOf('const routeRequestContextDisabled ='),
+      guest.indexOf('const mapSelectionSetsDestination ='),
+    );
 
     assert.match(guest, /workspaceSelectionRequired = authenticated && !routingClientId/);
     assert.match(guest, /workspaceAuthorizationRequired =[\s\S]*authenticated && Boolean\(routingClientId\) && !workspaceAuthorizationFresh/);
-    assert.match(guest, /routeActionDisabled =[\s\S]*workspaceAuthorizationRequired/);
-    assert.match(guest, /Verify workspace access before plotting this route/);
-    assert.match(guest, /Checking workspace access before plotting this route/);
     assert.match(
-      guest,
-      /stagedRouteActionBusy =[\s\S]*workspaceAuthorizationRequired && workspaceCatalogLoading/,
+      routeGate,
+      /routeRequestContextDisabled =[\s\S]*routeResolutionPending \|\|[\s\S]*roadPreviewPending/,
     );
+    assert.doesNotMatch(routeGate, /workspaceSelectionPending|workspaceSelectionRequired|workspaceAuthorizationRequired/);
+    assert.doesNotMatch(guest, /Verify workspace access before plotting this route/);
+    assert.doesNotMatch(guest, /Checking workspace access before plotting this route/);
     assert.match(guest, /busy: stagedRouteActionBusy/);
     assert.match(
       guest,
@@ -594,7 +598,6 @@ describe("App active workspace integration", () => {
     assert.match(guest, /Verify current workspace access before adding a risk area/);
     assert.match(guest, /routeActionAccessibilityLabel = networkChecking/);
     assert.match(guest, /retryAvailable =[\s\S]*!loading && Boolean\(onRetry && errorMessage\)/);
-    assert.match(guest, /Choose the SafeRoute workspace above before plotting this route/);
     assert.match(guest, /routeMessage \|\| sessionNoticeState\?\.message \|\| locationErrorMessage/);
     assert.match(guest, /sessionNoticeState\.accessibilityRole/);
     assert.match(
@@ -603,9 +606,17 @@ describe("App active workspace integration", () => {
     );
     assert.match(
       guest,
-      /if \(!workspaceAuthorizationRequired\) \{[\s\S]*cancelRoadRouteUpgrade\(\)[\s\S]*activeRiskAreaRequestRef\.current\?\.abort\(\)/,
+      /if \(!workspaceAuthorizationRequired\) \{[\s\S]*riskAreaRequestIdRef\.current \+= 1;[\s\S]*activeRiskAreaRequestRef\.current\?\.abort\(\)/,
     );
-    assert.match(guest, /cancelRoadRouteUpgrade\(\)[\s\S]*activeRiskAreaRequestRef\.current\?\.abort\(\)[\s\S]*setRoutePlan\(null\)/);
+    const authorizationPauseEffect = guest.slice(
+      guest.indexOf('if (!workspaceAuthorizationRequired)'),
+      guest.indexOf('useEffect(() => {\n    if (online)', guest.indexOf('if (!workspaceAuthorizationRequired)')),
+    );
+    assert.doesNotMatch(authorizationPauseEffect, /cancelRoadRouteUpgrade\(\)/);
+    assert.match(
+      guest,
+      /clearWorkspaceScopedMapState =[\s\S]*activeRoadRouteWorkspaceIdRef\.current[\s\S]*cancelRoadRouteUpgrade\(\)[\s\S]*setRoutePlan\(\(current\) => current\?\.clientId \? null : current\)/,
+    );
     assert.doesNotMatch(guest, /result\.clients\[0\]/);
     assert.match(routes, /selectedClientId = activeWorkspace\?\.id \|\| null/);
     assert.match(routes, /fetchSavedRoutes\([\s\S]*requestWorkspaceId/);
@@ -1081,7 +1092,7 @@ describe("App active workspace integration", () => {
     );
     assert.match(
       guest,
-      /workspaceAuthorizationRequired =[\s\S]*!workspaceAuthorizationFresh[\s\S]*routeActionDisabled =[\s\S]*workspaceAuthorizationRequired/,
+      /requestWorkspaceId = requestAccessToken[\s\S]*requestWorkspaceContextId[\s\S]*: null/,
     );
     assert.match(
       app,

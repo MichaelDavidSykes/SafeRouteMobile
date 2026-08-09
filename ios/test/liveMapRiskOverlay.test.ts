@@ -24,16 +24,16 @@ describe("live map risk overlay interactions", () => {
 
     assert.match(source, /buildRouteRiskAlertSegment\(routeCoordinates \|\| \[\], zone\)/);
     assert.equal(routeSegmentIdUsages.length, 2);
-    assert.match(routeSegmentBlock, /tappable=\{Boolean\(onPress\)\}/);
+    assert.match(routeSegmentBlock, /tappable=\{tappable\}/);
     assert.match(routeSegmentBlock, /onPress=\{handlePress\}/);
 
     assert.match(polygonBlock, /testID=\{uiTestIds\.liveMapRiskZoneArea\(zone\.id\)\}/);
-    assert.match(polygonBlock, /tappable=\{Boolean\(onPress\)\}/);
+    assert.match(polygonBlock, /tappable=\{tappable\}/);
     assert.match(polygonBlock, /onPress=\{handlePress\}/);
 
     assert.match(source, /const TappableCircle = Circle as ComponentType<TappableCircleProps>/);
     assert.match(circleBlock, /testID=\{uiTestIds\.liveMapRiskZoneArea\(zone\.id\)\}/);
-    assert.match(circleBlock, /tappable=\{Boolean\(onPress\)\}/);
+    assert.match(circleBlock, /tappable=\{tappable\}/);
     assert.match(circleBlock, /onPress=\{handlePress\}/);
   });
 
@@ -42,8 +42,8 @@ describe("live map risk overlay interactions", () => {
     const riskMarkerFunction =
       /function RiskMarker[\s\S]*?export function VehicleMarker/.exec(source)?.[0] || "";
 
-    assert.match(source, /strokeColor=\{selected \? riskColors\.selectionStroke : 'transparent'\}/);
-    assert.match(source, /fillColor=\{selected \? riskColors\.selectedFill : riskColors\.fill\}/);
+    assert.match(source, /strokeColor=\{coverageStrokeColor\}/);
+    assert.match(source, /fillColor=\{coverageFillColor\}/);
     assert.match(source, /strokeWidth=\{selected \? 1 : 0\}/);
     assert.match(riskMarkerFunction, /zIndex=\{10\}/);
     assert.match(riskMarkerFunction, /useMotionValue\(selected \? 1 : 0,[\s\S]*spring: true/);
@@ -57,6 +57,16 @@ describe("live map risk overlay interactions", () => {
     assert.doesNotMatch(riskMarkerFunction, /zIndex=\{selected \|\| active/);
     assert.doesNotMatch(riskMarkerFunction, /selected\s*\?\s*<AlertTriangle/);
     assert.doesNotMatch(source, /rgba\(10, 12, 17, 0\.72\)/);
+  });
+
+  it("keeps native risk overlays mounted while hiding them", () => {
+    const source = markerSource();
+
+    assert.match(source, /const tappable = visible && Boolean\(onPress\)/);
+    assert.match(source, /const riskStrokeColor = visible \? riskColors\.stroke : 'transparent'/);
+    assert.match(source, /const coverageFillColor = visible[\s\S]*: 'transparent'/);
+    assert.match(source, /opacity=\{visible \? 1 : 0\}/);
+    assert.match(source, /accessibilityElementsHidden=\{!visible\}/);
   });
 
   it("exposes the live vehicle marker position to VoiceOver", () => {

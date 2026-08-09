@@ -217,12 +217,9 @@ export function LiveMapScreen({
     workspaceAuthorizationEpochRef.current += 1;
   }
   const viewport = useWindowDimensions();
-  const [riskOverlayVisibility, setRiskOverlayVisibility] = useState(() => ({
-    alertsVisible: DEFAULT_ROUTE_INTELLIGENCE_VISIBLE,
-    renderRevision: 0,
-  }));
-  const { alertsVisible, renderRevision: riskOverlayRenderRevision } =
-    riskOverlayVisibility;
+  const [alertsVisible, setAlertsVisible] = useState(
+    DEFAULT_ROUTE_INTELLIGENCE_VISIBLE,
+  );
   const [followModeEnabled, setFollowModeEnabled] = useState(
     resumedNavigationSession?.followModeEnabled ?? true,
   );
@@ -1711,20 +1708,7 @@ export function LiveMapScreen({
   };
 
   const handleSetAlertsVisible = (nextVisible: boolean) => {
-    setRiskOverlayVisibility((current) => {
-      if (current.alertsVisible === nextVisible) {
-        return current;
-      }
-
-      return {
-        alertsVisible: nextVisible,
-        // MapKit can retain detached native overlays after React removes them.
-        // A new revision forces fresh native overlay instances when shown again.
-        renderRevision: nextVisible
-          ? current.renderRevision + 1
-          : current.renderRevision,
-      };
-    });
+    setAlertsVisible(nextVisible);
     if (!nextVisible) {
       setSelectedRiskZoneId(null);
     }
@@ -1760,7 +1744,6 @@ export function LiveMapScreen({
           offline={!online}
           permissionStatus={permissionStatus}
           progressCoordinates={progressCoordinates}
-          riskOverlayRenderRevision={riskOverlayRenderRevision}
           routePlan={liveRoutePlan}
           selectedRiskZoneId={selectedRiskZoneId}
           selectedRiskZone={selectedRiskZone}

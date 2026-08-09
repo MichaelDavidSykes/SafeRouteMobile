@@ -39,12 +39,14 @@ export function RiskOverlay({
   onPress,
   routeCoordinates,
   selected,
+  visible = true,
   zone
 }: {
   active?: boolean;
   onPress?: (zone: RiskZone) => void;
   routeCoordinates?: Array<{ latitude: number; longitude: number }>;
   selected?: boolean;
+  visible?: boolean;
   zone: RiskZone;
 }) {
   const routeSegmentCoordinates = zone.routeSegmentCoordinates || [];
@@ -57,11 +59,25 @@ export function RiskOverlay({
       ? buildRouteRiskAlertSegment(routeCoordinates || [], zone)
       : [];
   const handlePress = (event?: { stopPropagation?: () => void }) => {
+    if (!visible) {
+      return;
+    }
     event?.stopPropagation?.();
     onPress?.(zone);
   };
   const riskTone = resolveRiskOverlayTone(zone);
   const riskColors = severityOverlayColors(riskTone);
+  const tappable = visible && Boolean(onPress);
+  const casingColor = visible ? SAFE_ROUTE_DARK_ROUTE_CASING : 'transparent';
+  const riskStrokeColor = visible ? riskColors.stroke : 'transparent';
+  const coverageStrokeColor = visible && selected
+    ? riskColors.selectionStroke
+    : 'transparent';
+  const coverageFillColor = visible
+    ? selected
+      ? riskColors.selectedFill
+      : riskColors.fill
+    : 'transparent';
 
   return (
     <>
@@ -69,21 +85,21 @@ export function RiskOverlay({
         <>
           <Polyline
             coordinates={routeAlertCoordinates}
-            strokeColor={SAFE_ROUTE_DARK_ROUTE_CASING}
+            strokeColor={casingColor}
             strokeWidth={selected || active ? 6 : 5}
             lineCap="round"
             lineJoin="round"
-            tappable={Boolean(onPress)}
+            tappable={tappable}
             onPress={handlePress}
           />
           <Polyline
             coordinates={routeAlertCoordinates}
-            strokeColor={riskColors.stroke}
+            strokeColor={riskStrokeColor}
             strokeWidth={selected || active ? 3 : 2}
             lineCap="round"
             lineJoin="round"
             testID={uiTestIds.liveMapRouteRiskSegment(zone.id)}
-            tappable={Boolean(onPress)}
+            tappable={tappable}
             onPress={handlePress}
           />
         </>
@@ -92,21 +108,21 @@ export function RiskOverlay({
         <>
           <Polyline
             coordinates={routeSegmentCoordinates}
-            strokeColor={SAFE_ROUTE_DARK_ROUTE_CASING}
+            strokeColor={casingColor}
             strokeWidth={selected || active ? 6 : 5}
             lineCap="round"
             lineJoin="round"
-            tappable={Boolean(onPress)}
+            tappable={tappable}
             onPress={handlePress}
           />
           <Polyline
             coordinates={routeSegmentCoordinates}
-            strokeColor={riskColors.stroke}
+            strokeColor={riskStrokeColor}
             strokeWidth={selected || active ? 3 : 2}
             lineCap="round"
             lineJoin="round"
             testID={uiTestIds.liveMapRouteRiskSegment(zone.id)}
-            tappable={Boolean(onPress)}
+            tappable={tappable}
             onPress={handlePress}
           />
         </>
@@ -114,34 +130,34 @@ export function RiskOverlay({
       {showRouteProximitySegment && connectorCoordinates.length > 1 ? (
         <Polyline
           coordinates={connectorCoordinates}
-          strokeColor={riskColors.stroke}
+          strokeColor={riskStrokeColor}
           strokeWidth={2}
           lineDashPattern={[3, 9]}
           lineCap="round"
           lineJoin="round"
-          tappable={Boolean(onPress)}
+          tappable={tappable}
           onPress={handlePress}
         />
       ) : null}
       {shouldRenderRiskCoverage(zone) && polygonCoordinates.length > 2 ? (
         <Polygon
           coordinates={polygonCoordinates}
-          strokeColor={selected ? riskColors.selectionStroke : 'transparent'}
-          fillColor={selected ? riskColors.selectedFill : riskColors.fill}
+          strokeColor={coverageStrokeColor}
+          fillColor={coverageFillColor}
           strokeWidth={selected ? 1 : 0}
           testID={uiTestIds.liveMapRiskZoneArea(zone.id)}
-          tappable={Boolean(onPress)}
+          tappable={tappable}
           onPress={handlePress}
         />
       ) : shouldRenderRiskCoverage(zone) ? (
         <TappableCircle
           center={zone.coordinate}
           radius={visibleRiskRadiusMeters(zone)}
-          strokeColor={selected ? riskColors.selectionStroke : 'transparent'}
-          fillColor={selected ? riskColors.selectedFill : riskColors.fill}
+          strokeColor={coverageStrokeColor}
+          fillColor={coverageFillColor}
           strokeWidth={selected ? 1 : 0}
           testID={uiTestIds.liveMapRiskZoneArea(zone.id)}
-          tappable={Boolean(onPress)}
+          tappable={tappable}
           onPress={handlePress}
         />
       ) : null}
@@ -150,6 +166,7 @@ export function RiskOverlay({
         onPress={handlePress}
         routeAlert={routeAlert}
         selected={selected}
+        visible={visible}
         zone={zone}
       />
     </>
@@ -213,12 +230,14 @@ function RiskMarker({
   onPress,
   selected,
   routeAlert,
+  visible,
   zone
 }: {
   active?: boolean;
   onPress?: () => void;
   selected?: boolean;
   routeAlert: boolean;
+  visible: boolean;
   zone: RiskZone;
 }) {
   const riskTone = resolveRiskOverlayTone(zone);
@@ -232,14 +251,17 @@ function RiskMarker({
     <Marker
       coordinate={zone.coordinate}
       anchor={{ x: 0.5, y: 0.5 }}
+      opacity={visible ? 1 : 0}
       testID={uiTestIds.liveMapRiskZone(zone.id)}
-      tappable={Boolean(onPress)}
-      tracksViewChanges={Boolean(selected || active)}
+      tappable={visible && Boolean(onPress)}
+      tracksViewChanges={visible && Boolean(selected || active)}
       zIndex={10}
       onPress={onPress}
     >
       <View
+        accessible={visible}
         accessibilityLabel={createRiskZoneAccessibilityLabel(zone, Boolean(selected))}
+        accessibilityElementsHidden={!visible}
         accessibilityRole="button"
         testID={uiTestIds.liveMapRiskZone(zone.id)}
         style={routeAlert ? styles.routeAlertMarkerHitArea : styles.riskMarkerHitArea}

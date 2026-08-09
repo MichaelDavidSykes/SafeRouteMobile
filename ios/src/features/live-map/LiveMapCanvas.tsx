@@ -38,7 +38,6 @@ interface LiveMapCanvasProps {
   offline: boolean;
   permissionStatus: PermissionStatus;
   progressCoordinates: LatLng[];
-  riskOverlayRenderRevision: number;
   routePlan: SavedSafeRoutePlan;
   selectedRiskZoneId?: string | null;
   selectedRiskZone?: RiskZone | null;
@@ -61,7 +60,6 @@ export function LiveMapCanvas({
   offline,
   permissionStatus,
   progressCoordinates,
-  riskOverlayRenderRevision,
   routePlan,
   selectedRiskZoneId,
   selectedRiskZone,
@@ -75,6 +73,7 @@ export function LiveMapCanvas({
     progressCoordinateCount: progressCoordinates.length,
     routeCoordinateCount: routeCoordinates.length,
   });
+  const visibleRiskZoneIds = new Set(visibleRiskZones.map((zone) => zone.id));
   const showRouteCheckpoints =
     activeNavigationState !== "navigating" &&
     activeNavigationState !== "off-route";
@@ -155,12 +154,13 @@ export function LiveMapCanvas({
         />
       ) : null}
 
-      {visibleRiskZones.map((zone) => (
+      {routePlan.riskZones.map((zone) => (
         <RiskOverlay
-          key={`${riskOverlayRenderRevision}:${zone.id}`}
+          key={zone.id}
           active={zone.id === activeRiskZoneId}
           routeCoordinates={routeCoordinates}
           selected={zone.id === selectedRiskZoneId}
+          visible={visibleRiskZoneIds.has(zone.id)}
           zone={zone}
           onPress={onRiskZonePress}
         />

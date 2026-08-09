@@ -88,14 +88,10 @@ describe("iOS polish audit interaction contracts", () => {
       liveMap,
       /const handleSetAlertsVisible =[\s\S]*if \(!nextVisible\) \{[\s\S]*setSelectedRiskZoneId\(null\)/,
     );
-    assert.match(
-      liveMap,
-      /renderRevision: nextVisible[\s\S]*current\.renderRevision \+ 1/,
-    );
     assert.match(liveMap, /onSetAlertsVisible=\{handleSetAlertsVisible\}/);
     assert.match(
       canvas,
-      /key=\{`\$\{riskOverlayRenderRevision\}:\$\{zone\.id\}`\}/,
+      /routePlan\.riskZones\.map\(\(zone\) => \([\s\S]*key=\{zone\.id\}[\s\S]*visible=\{visibleRiskZoneIds\.has\(zone\.id\)\}/,
     );
     assert.match(canvas, /useSafeAreaInsets\(\)/);
     assert.match(canvas, /bottomInset=\{safeAreaInsets\.bottom \+ 12\}/);

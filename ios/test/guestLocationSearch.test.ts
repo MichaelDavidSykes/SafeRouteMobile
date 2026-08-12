@@ -101,7 +101,7 @@ describe('guest location search', () => {
     });
   });
 
-  it('uses the LunarChain mobile search proxy and normalizes its envelope', async () => {
+  it('uses the LunarChain mobile search proxy and preserves its relevance order', async () => {
     const urls: string[] = [];
     const results = await searchGuestLocations('Cape Town Airport', {
       serviceBaseUrl: 'https://api.lunarchain.net/api/v1/',
@@ -120,14 +120,24 @@ describe('guest location search', () => {
           ok: true,
           json: async () => ({
             data: {
-              items: [{
-                id: 'tomtom-airport',
-                label: 'Cape Town International Airport',
-                displayName: 'Cape Town International Airport, Cape Town',
-                lat: -33.9696,
-                lon: 18.5972,
-                category: 'POI'
-              }]
+              items: [
+                {
+                  id: 'tomtom-airport',
+                  label: 'Cape Town International Airport',
+                  displayName: 'Cape Town International Airport, Cape Town',
+                  lat: -33.9696,
+                  lon: 18.5972,
+                  category: 'POI'
+                },
+                {
+                  id: 'nearby-address',
+                  label: '1 Long Street',
+                  displayName: '1 Long Street, Cape Town',
+                  lat: -33.92491,
+                  lon: 18.42411,
+                  category: 'Street'
+                }
+              ]
             }
           })
         } as Response;
@@ -138,7 +148,12 @@ describe('guest location search', () => {
     assert.equal(url.pathname, '/api/v1/mobile/safe-route/locations/search');
     assert.equal(url.searchParams.get('lat'), '-33.9249');
     assert.equal(url.searchParams.get('bbox'), '-34.0249,18.2741,-33.8249,18.5741');
-    assert.equal(results[0]?.id, 'tomtom-airport');
+    assert.equal(url.searchParams.has('addressdetails'), false);
+    assert.equal(url.searchParams.has('format'), false);
+    assert.deepEqual(results.map((result) => result.id), [
+      'tomtom-airport',
+      'nearby-address'
+    ]);
     assert.equal(results[0]?.category, 'POI');
   });
 
@@ -168,13 +183,39 @@ describe('guest location search', () => {
     );
   });
 
-  it('returns empty results for blank searches and provider failures', async () => {
+  it('returns empty results for blank searches and surfaces provider failures', async () => {
     assert.deepEqual(await searchGuestLocations('   '), []);
-    assert.deepEqual(
-      await searchGuestLocations('London', {
-        request: async () => ({ ok: false }) as Response
+    await assert.rejects(
+      searchGuestLocations('London', {
+        request: async () => ({ ok: false, status: 503 }) as Response
       }),
-      []
+      /status 503/
+    );
+    await assert.rejects(
+      searchGuestLocations('London', {
+        request: async () => {
+          throw new TypeError('network unavailable');
+        }
+      }),
+      /network unavailable/
+    );
+  });
+
+  it('propagates caller cancellation as an abort instead of a false empty result', async () => {
+    const controller = new AbortController();
+    controller.abort();
+
+    await assert.rejects(
+      searchGuestLocations('Cape Town International Airport', {
+        signal: controller.signal,
+        request: async (_url, init) => {
+          assert.equal(init?.signal?.aborted, true);
+          const error = new Error('search aborted');
+          error.name = 'AbortError';
+          throw error;
+        }
+      }),
+      { name: 'AbortError' }
     );
   });
 

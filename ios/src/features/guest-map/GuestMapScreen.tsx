@@ -418,11 +418,17 @@ export function GuestMapScreen({
     : null;
   const deviceHeadingDegrees = useDeviceHeading(permissionStatus === 'granted');
   const locationSearchBiasRef = useRef({
-    center: liveCoordinate,
+    center: {
+      latitude: mapRegion.latitude,
+      longitude: mapRegion.longitude,
+    },
     region: mapRegion,
   });
   locationSearchBiasRef.current = {
-    center: liveCoordinate,
+    center: {
+      latitude: mapRegion.latitude,
+      longitude: mapRegion.longitude,
+    },
     region: mapRegion,
   };
   const currentLocationVisible =
@@ -3405,7 +3411,9 @@ function RouteInput({
           accessibilityHint={accessibilityHint}
           accessibilityLabel={label}
           autoCapitalize="words"
+          autoComplete="off"
           autoCorrect={false}
+          importantForAutofill="no"
           maxLength={GUEST_ROUTE_LABEL_MAX_LENGTH}
           placeholder={placeholder}
           placeholderTextColor={colors.muted}
@@ -3414,6 +3422,7 @@ function RouteInput({
           style={styles.input}
           submitBehavior="blurAndSubmit"
           testID={testID}
+          textContentType="none"
           value={value}
           onChangeText={onChangeText}
           onFocus={onFocus}
@@ -3459,7 +3468,9 @@ function WaypointInput({
         accessibilityHint="Enter a place, address, or coordinate for this stop."
         accessibilityLabel={`Stop ${index + 1}`}
         autoCapitalize="words"
+        autoComplete="off"
         autoCorrect={false}
+        importantForAutofill="no"
         maxLength={GUEST_ROUTE_LABEL_MAX_LENGTH}
         placeholder={`Stop ${index + 1}`}
         placeholderTextColor={colors.muted}
@@ -3467,6 +3478,7 @@ function WaypointInput({
         style={styles.input}
         submitBehavior="blurAndSubmit"
         testID={uiTestIds.guestMapWaypointInput(stopId)}
+        textContentType="none"
         value={value}
         onChangeText={onChangeText}
         onFocus={onFocus}

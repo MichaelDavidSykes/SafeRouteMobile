@@ -59,11 +59,13 @@ export async function searchGuestLocations(
 
   const normalizedBias = normalizeSearchBias(bias);
   const params = new URLSearchParams({
-    addressdetails: '1',
-    format: 'jsonv2',
     limit: String(LOCATION_RESULT_LIMIT),
     q: normalizedQuery
   });
+  if (!serviceBaseUrl) {
+    params.set('addressdetails', '1');
+    params.set('format', 'jsonv2');
+  }
   const bounds = normalizedBias.region
     ? regionToBounds(normalizedBias.region)
     : null;
@@ -96,16 +98,14 @@ export async function searchGuestLocations(
       signal: timeoutSignal.signal
     });
     if (!response.ok) {
-      return [];
+      throw new Error(`Location search request failed with status ${response.status}.`);
     }
 
     const payload = await response.json();
-    return rankLocationResults(
-      normalizeLocationResults(unwrapLocationItems(payload)),
-      normalizedBias
-    );
-  } catch {
-    return [];
+    const results = normalizeLocationResults(unwrapLocationItems(payload));
+    return serviceBaseUrl
+      ? results
+      : rankLocationResults(results, normalizedBias);
   } finally {
     timeoutSignal.cleanup();
   }

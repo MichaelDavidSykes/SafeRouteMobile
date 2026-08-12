@@ -4,6 +4,8 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { describe, it } from 'node:test';
 
+import { normalizeSafeRoutePreviewResponse } from '../src/features/guest-map/safeRouteRoadRouteProviderCore';
+
 import {
   CONNECTIVITY_CONTRACT_PHASES,
   CONNECTIVITY_CONTRACT_REACHABILITY_PATH,
@@ -11,9 +13,12 @@ import {
   CONNECTIVITY_CONTRACT_STATUSES,
   GUIDANCE_CONTRACT_EVIDENCE_PATH,
   GUIDANCE_CONTRACT_MODES,
+  GUIDANCE_CONTRACT_POLICY_VERSION,
+  GUIDANCE_CONTRACT_PUBLIC_PREVIEW_PATH,
   GUIDANCE_CONTRACT_ROUTE_IDS,
   GUIDANCE_CONTRACT_ROUTE_VARIANT_IDS,
   GUIDANCE_CONTRACT_TRIP_IDS,
+  GUIDANCE_CONTRACT_WORKSPACE_PREVIEW_PATH,
   GUIDANCE_CONTRACT_WORKSPACES,
   GUIDANCE_START_BOUNDARY_PATH,
   OFFLINE_CALENDAR_AUTH_CONTRACT_PHASES,
@@ -64,15 +69,22 @@ describe('Maestro guidance contract API', () => {
     });
     const address = server.address();
     assert.ok(address && typeof address === 'object');
-    const endpoint = `http://127.0.0.1:${address.port}/api/v1/mobile/safe-route/route-preview`;
+    const requestedStops = [
+      { latitude: 51.5074, longitude: -0.1278 },
+      { latitude: 51.5053, longitude: 0.0553 },
+    ];
+    const endpoint = `http://127.0.0.1:${address.port}${GUIDANCE_CONTRACT_PUBLIC_PREVIEW_PATH}`;
     const request = (includeRouteAlerts: boolean) => fetch(endpoint, {
       body: JSON.stringify({
-        include_road_metadata: includeRouteAlerts,
+        include_alternatives: true,
         include_route_alerts: includeRouteAlerts,
-        waypoints: [
-          { lat: 51.5074, lon: -0.1278 },
-          { lat: 51.5053, lon: 0.0553 },
-        ],
+        policy_version: GUIDANCE_CONTRACT_POLICY_VERSION,
+        target_alternative_count: 2,
+        travel_mode: 'drive',
+        waypoints: requestedStops.map(({ latitude, longitude }) => ({
+          lat: latitude,
+          lon: longitude,
+        })),
       }),
       headers: { 'Content-Type': 'application/json' },
       method: 'POST',
@@ -85,6 +97,25 @@ describe('Maestro guidance contract API', () => {
       const response = await request(true);
       assert.equal(response.status, 200);
       const body = await response.json();
+      assert.equal(body.data.policy_version, GUIDANCE_CONTRACT_POLICY_VERSION);
+      assert.equal(body.data.travel_mode, 'drive');
+      assert.deepEqual(body.data.risk_areas, []);
+      assert.deepEqual(body.data.risk_avoidance, {
+        coverage_status: 'current-empty',
+        critical_crossed_area_count: 0,
+        crossed_area_count: 0,
+        ignored_area_count: 0,
+        policy_version: GUIDANCE_CONTRACT_POLICY_VERSION,
+        risk_exposure_meters: 0,
+        status: 'not-required',
+      });
+      const normalized = normalizeSafeRoutePreviewResponse(
+        body.data,
+        requestedStops,
+        'drive',
+      );
+      assert.ok(normalized, 'Canonical mobile client must accept the fixture response.');
+      assert.equal(normalized.routeAlerts?.length, 10);
       assert.equal(body.data.route_alert_count, 10);
       assert.deepEqual(
         body.data.route_alerts.map((alert: { category: string }) => alert.category),
@@ -2929,7 +2960,8 @@ describe('Maestro guidance contract API', () => {
     });
     const address = server.address();
     assert.ok(address && typeof address === 'object');
-    const base = `http://127.0.0.1:${address.port}/api/v1`;
+    const origin = `http://127.0.0.1:${address.port}`;
+    const base = `${origin}/api/v1`;
     const authorization = `Bearer ${createGuidanceContractAccessToken()}`;
 
     try {
@@ -3001,7 +3033,7 @@ describe('Maestro guidance contract API', () => {
         `${base}/mobile/safe-route/routes?client_id=missing-workspace`,
         { headers: { Authorization: authorization } }
       )).status, 404);
-      assert.equal((await fetch(`${base}/convoy-routes/route-preview`, {
+      assert.equal((await fetch(`${origin}${GUIDANCE_CONTRACT_WORKSPACE_PREVIEW_PATH}`, {
         body: JSON.stringify({
           client_id: GUIDANCE_CONTRACT_WORKSPACES.denied.id,
           waypoints: [
@@ -3455,7 +3487,7 @@ describe('Maestro guidance contract API', () => {
         entry({
           authorizationClass: 'none',
           authorized: false,
-          path: '/api/v1/mobile/safe-route/route-preview',
+          path: GUIDANCE_CONTRACT_PUBLIC_PREVIEW_PATH,
           phase: 'publicPrepare',
           sequence: 2
         }),
@@ -3843,6 +3875,26 @@ describe('Maestro guidance contract API', () => {
         authorized: false
       }),
       true
+    );
+    assert.equal(
+      isGuidanceStartProtectedTraffic({
+        authorizationClass: 'none',
+        authorized: false,
+        method: 'POST',
+        path: GUIDANCE_CONTRACT_WORKSPACE_PREVIEW_PATH,
+        search: '',
+      }),
+      true,
+    );
+    assert.equal(
+      isGuidanceStartProtectedTraffic({
+        authorizationClass: 'none',
+        authorized: false,
+        method: 'POST',
+        path: GUIDANCE_CONTRACT_PUBLIC_PREVIEW_PATH,
+        search: '',
+      }),
+      false,
     );
     assert.equal(
       isGuidanceStartProtectedTraffic({

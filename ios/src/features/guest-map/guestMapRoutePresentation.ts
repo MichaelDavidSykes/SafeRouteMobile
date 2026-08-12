@@ -95,7 +95,7 @@ export function createGuestMapRouteRenderSession({
     fitCoordinates,
     initialRegion: regionContainingCoordinates(fitCoordinates),
     lines,
-    riskZones: collectStableRiskZones(routeCollection, maxRenderedRiskZones),
+    riskZones: collectStableRiskZones([selectedRoute], maxRenderedRiskZones),
     selectedCoordinates,
   };
 }

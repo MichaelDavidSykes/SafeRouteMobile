@@ -44,6 +44,7 @@ appId: host.exp.Exponent
     id: "safe-route-risk-zone-contract-support-coverage"
 - assertVisible:
     id: "safe-route-risk-zone-contract-straight-corridor"
+- takeScreenshot: "route-alerts-guest-preview"
 - tapOn:
     id: "safe-route-risk-zone-contract-road-suitability"
 - extendedWaitUntil:
@@ -84,3 +85,4 @@ appId: host.exp.Exponent
     id: "safe-route-risk-zone-contract-support-coverage"
 - assertVisible:
     id: "safe-route-risk-zone-contract-straight-corridor"
+- takeScreenshot: "route-alerts-live-map"

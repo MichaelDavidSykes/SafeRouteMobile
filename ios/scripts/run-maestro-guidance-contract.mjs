@@ -15,6 +15,7 @@ import { join } from 'node:path';
 import {
   GUIDANCE_CONTRACT_API_PORT,
   GUIDANCE_CONTRACT_MODES,
+  GUIDANCE_CONTRACT_PUBLIC_PREVIEW_PATH,
   GUIDANCE_CONTRACT_ROUTE_IDS,
   GUIDANCE_CONTRACT_WORKSPACES,
   GUIDANCE_START_BOUNDARY_PATH,
@@ -136,10 +137,10 @@ async function main() {
 
   await startApi('reset');
   runPhase('reset', 'reset to a signed-out map', phases.reset);
-  const publicPreviewCount = requestCount('/api/v1/mobile/safe-route/route-preview');
+  const publicPreviewCount = requestCount(GUIDANCE_CONTRACT_PUBLIC_PREVIEW_PATH);
   runPhase('publicPrepare', 'prepare signed-out public guidance', phases.publicPrepare);
   assertCondition(
-    requestCount('/api/v1/mobile/safe-route/route-preview') > publicPreviewCount,
+    requestCount(GUIDANCE_CONTRACT_PUBLIC_PREVIEW_PATH) > publicPreviewCount,
     'Public preparation did not exercise the contract route-preview endpoint.'
   );
   await runStartBoundary({

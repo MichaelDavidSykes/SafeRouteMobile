@@ -9,6 +9,7 @@ import {
   AlertTriangle,
   ChevronDown,
   ChevronUp,
+  CircleAlert,
   ExternalLink,
   X,
 } from "lucide-react-native";
@@ -36,6 +37,7 @@ import {
   type RouteRiskProximity,
 } from "./routeRisk";
 import { formatDistance } from "./routeProgress";
+import { isRouteAlertZone } from "./riskOverlayPresentation";
 import {
   resolveRiskDetailSheetGesture,
   shouldDismissRiskDetailGesture,
@@ -70,16 +72,26 @@ export function LiveMapRiskDetailCallout({
   });
   const areaLabel = createRiskAreaChipLabel(zone);
   const severityColor = resolveSeverityColor(presentation.tone);
+  const routeAlert = isRouteAlertZone(zone);
 
   return (
     <LiveMapDetailCallout
       accessibilityLabel={presentation.accessibilityLabel}
       bottomInset={bottomInset}
-      dismissAccessibilityLabel="Close risk details"
+      dismissAccessibilityLabel={routeAlert
+        ? "Close route alert details"
+        : "Close risk details"}
       dismissTestID={uiTestIds.liveMapRiskDetailDismiss}
       expandedContent={<RiskZoneExpandedContent zone={zone} />}
       expandedTestID={uiTestIds.liveMapRiskDetailExpanded}
-      icon={(
+      icon={routeAlert ? (
+        <CircleAlert
+          accessibilityElementsHidden
+          color={severityColor}
+          size={22}
+          strokeWidth={2.2}
+        />
+      ) : (
         <AlertTriangle
           accessibilityElementsHidden
           color={severityColor}
@@ -90,7 +102,9 @@ export function LiveMapRiskDetailCallout({
       iconTileStyle={severityIconTileStyle(presentation.tone)}
       onDismiss={onDismiss}
       replayKey={zone.id}
-      subtitle={zone.category || "Risk area"}
+      subtitle={routeAlert
+        ? `Route alert · ${zone.category || "Safety intelligence"}`
+        : zone.category || "Risk area"}
       testID={uiTestIds.liveMapRiskDetail}
       title={presentation.title}
     >
@@ -646,12 +660,17 @@ export function LiveMapDetailCallout({
 
 function RiskZoneExpandedContent({ zone }: { zone: RiskZone }) {
   const detail = createRiskZoneExpandedPresentation(zone);
+  const routeAlert = isRouteAlertZone(zone);
   return (
     <View>
       <View style={styles.expandedHeadingRow}>
-        <Text style={styles.expandedHeading}>Risk intelligence</Text>
+        <Text style={styles.expandedHeading}>
+          {routeAlert ? "Route intelligence" : "Risk intelligence"}
+        </Text>
         <View style={styles.intelligenceBadge}>
-          <Text style={styles.intelligenceBadgeText}>AREA RECORD</Text>
+          <Text style={styles.intelligenceBadgeText}>
+            {routeAlert ? "ROUTE ALERT" : "AREA RECORD"}
+          </Text>
         </View>
       </View>
 
@@ -777,10 +796,7 @@ function RiskDetailSections({
 }
 
 function createRiskAreaChipLabel(zone: RiskZone): string {
-  if (
-    zone.shape?.trim().toLowerCase() === "route-alert" ||
-    (zone.routeSegmentCoordinates?.length || 0) > 1
-  ) {
+  if (isRouteAlertZone(zone)) {
     return "Route segment";
   }
 

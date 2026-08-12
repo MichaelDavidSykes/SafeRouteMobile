@@ -95,6 +95,8 @@ describe('Maestro cold guidance contract matrix', () => {
     assert.match(publicPreparation, /Narrow road warning/);
     assert.match(publicPreparation, /Road Suitability/);
     assert.match(publicPreparation, /id: "safe-route-risk-detail-dismiss"/);
+    assert.match(publicPreparation, /takeScreenshot: "route-alerts-guest-preview"/);
+    assert.match(publicPreparation, /takeScreenshot: "route-alerts-live-map"/);
   });
 
   it('runs public, offline workspace, wrong-principal, denial, and regain phases', () => {

@@ -251,7 +251,20 @@ describe('verified SafeRoute road route provider', () => {
   it('requires independent verified proof on every accepted alternative', () => {
     const result = normalizeSafeRoutePreviewResponse(verifiedResponse({
       alternatives: [
-        alternativeResponse(-33.94, 18.54),
+        alternativeResponse(-33.94, 18.54, {
+          route_alerts: [{
+            id: 'alternative-route-alert',
+            title: 'Alternative road alert',
+            severity: 'high',
+            category: 'road-suitability',
+            shape: 'route-alert',
+            coordinate: { lat: -33.94, lon: 18.54 },
+            route_segment_coordinates: [
+              { lat: stops[0].latitude, lon: stops[0].longitude },
+              { lat: -33.94, lon: 18.54 },
+            ],
+          }],
+        }),
         alternativeResponse(-33.93, 18.55, {
           risk_avoidance: proof({ ignored_area_count: 1 }),
         }),
@@ -261,6 +274,10 @@ describe('verified SafeRoute road route provider', () => {
     assert.equal(result?.alternatives?.length, 1);
     assert.equal(result?.alternatives?.[0].riskAvoidance.status, 'verified');
     assert.equal(result?.alternatives?.[0].riskZones[0]?.id, 'alternative-risk');
+    assert.deepEqual(
+      result?.alternatives?.[0].routeAlerts.map(({ id }) => id),
+      ['alternative-route-alert'],
+    );
 
     const missingProof = normalizeSafeRoutePreviewResponse(verifiedResponse({
       alternatives: [alternativeResponse(-33.92, 18.56, {

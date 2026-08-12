@@ -1,5 +1,5 @@
 import type { ComponentProps, ComponentType } from 'react';
-import { AlertTriangle, MapPin } from 'lucide-react-native';
+import { AlertTriangle, CircleAlert, MapPin } from 'lucide-react-native';
 import { Animated, StyleSheet, View } from 'react-native';
 import { Circle, Marker, Polygon, Polyline } from 'react-native-maps';
 
@@ -35,6 +35,13 @@ type TappableCircleProps = ComponentProps<typeof Circle> & {
 
 const TappableCircle = Circle as ComponentType<TappableCircleProps>;
 
+const ROUTE_PROXIMITY_CASING_Z_INDEX = 32;
+const ROUTE_PROXIMITY_CORE_Z_INDEX = 33;
+const ROUTE_ALERT_CONNECTOR_Z_INDEX = 39;
+const ROUTE_ALERT_CASING_Z_INDEX = 40;
+const ROUTE_ALERT_CORE_Z_INDEX = 41;
+const ROUTE_ALERT_MARKER_Z_INDEX = 42;
+
 export function RiskOverlay({
   active,
   onPress,
@@ -69,8 +76,21 @@ export function RiskOverlay({
   const riskTone = resolveRiskOverlayTone(zone);
   const riskColors = severityOverlayColors(riskTone);
   const tappable = visible && Boolean(onPress);
+  const emphasized = Boolean(selected || active);
   const casingColor = visible ? SAFE_ROUTE_DARK_ROUTE_CASING : 'transparent';
   const riskStrokeColor = visible ? riskColors.stroke : 'transparent';
+  const segmentCasingWidth = routeAlert
+    ? (emphasized ? 11 : 10)
+    : (emphasized ? 6 : 5);
+  const segmentCoreWidth = routeAlert
+    ? (emphasized ? 5 : 4)
+    : (emphasized ? 3 : 2);
+  const segmentCasingZIndex = routeAlert
+    ? ROUTE_ALERT_CASING_Z_INDEX
+    : ROUTE_PROXIMITY_CASING_Z_INDEX;
+  const segmentCoreZIndex = routeAlert
+    ? ROUTE_ALERT_CORE_Z_INDEX
+    : ROUTE_PROXIMITY_CORE_Z_INDEX;
   const coverageStrokeColor = visible && selected
     ? riskColors.selectionStroke
     : 'transparent';
@@ -87,18 +107,20 @@ export function RiskOverlay({
           <Polyline
             coordinates={routeAlertCoordinates}
             strokeColor={casingColor}
-            strokeWidth={selected || active ? 6 : 5}
+            strokeWidth={segmentCasingWidth}
             lineCap="round"
             lineJoin="round"
+            zIndex={segmentCasingZIndex}
             tappable={tappable}
             onPress={handlePress}
           />
           <Polyline
             coordinates={routeAlertCoordinates}
             strokeColor={riskStrokeColor}
-            strokeWidth={selected || active ? 3 : 2}
+            strokeWidth={segmentCoreWidth}
             lineCap="round"
             lineJoin="round"
+            zIndex={segmentCoreZIndex}
             testID={uiTestIds.liveMapRouteRiskSegment(zone.id)}
             tappable={tappable}
             onPress={handlePress}
@@ -110,18 +132,20 @@ export function RiskOverlay({
           <Polyline
             coordinates={routeSegmentCoordinates}
             strokeColor={casingColor}
-            strokeWidth={selected || active ? 6 : 5}
+            strokeWidth={segmentCasingWidth}
             lineCap="round"
             lineJoin="round"
+            zIndex={segmentCasingZIndex}
             tappable={tappable}
             onPress={handlePress}
           />
           <Polyline
             coordinates={routeSegmentCoordinates}
             strokeColor={riskStrokeColor}
-            strokeWidth={selected || active ? 3 : 2}
+            strokeWidth={segmentCoreWidth}
             lineCap="round"
             lineJoin="round"
+            zIndex={segmentCoreZIndex}
             testID={uiTestIds.liveMapRouteRiskSegment(zone.id)}
             tappable={tappable}
             onPress={handlePress}
@@ -136,6 +160,9 @@ export function RiskOverlay({
           lineDashPattern={[3, 9]}
           lineCap="round"
           lineJoin="round"
+          zIndex={routeAlert
+            ? ROUTE_ALERT_CONNECTOR_Z_INDEX
+            : ROUTE_PROXIMITY_CASING_Z_INDEX}
           tappable={tappable}
           onPress={handlePress}
         />
@@ -256,7 +283,7 @@ function RiskMarker({
       testID={uiTestIds.liveMapRiskZone(zone.id)}
       tappable={visible && Boolean(onPress)}
       tracksViewChanges={visible && Boolean(selected || active)}
-      zIndex={10}
+      zIndex={routeAlert ? ROUTE_ALERT_MARKER_Z_INDEX : 10}
       onPress={onPress}
     >
       <View
@@ -270,9 +297,12 @@ function RiskMarker({
         <View
           style={[
             styles.riskMarker,
+            routeAlert ? styles.routeAlertMarker : null,
             active ? styles.riskMarkerActive : null,
+            routeAlert && active ? styles.routeAlertMarkerActive : null,
             selected ? styles.riskMarkerSelected : null,
-            severityMarkerStyle(riskTone)
+            severityMarkerStyle(riskTone),
+            routeAlert ? { backgroundColor: markerColor } : null,
           ]}
         >
           <Animated.View
@@ -292,13 +322,22 @@ function RiskMarker({
               },
             ]}
           />
-          <AlertTriangle
-            accessibilityElementsHidden
-            color={markerColor}
-            fill={severityMarkerFill(riskTone)}
-            size={severityMarkerSize(riskTone)}
-            strokeWidth={2.6}
-          />
+          {routeAlert ? (
+            <CircleAlert
+              accessibilityElementsHidden
+              color={colors.surface}
+              size={19}
+              strokeWidth={2.6}
+            />
+          ) : (
+            <AlertTriangle
+              accessibilityElementsHidden
+              color={markerColor}
+              fill={severityMarkerFill(riskTone)}
+              size={severityMarkerSize(riskTone)}
+              strokeWidth={2.6}
+            />
+          )}
         </View>
       </View>
     </Marker>
@@ -527,6 +566,17 @@ const styles = StyleSheet.create({
     opacity: 1,
     shadowOpacity: 0.48,
     shadowRadius: 8,
+  },
+  routeAlertMarker: {
+    width: 30,
+    height: 30,
+    borderWidth: 2,
+    borderColor: 'rgba(248, 250, 252, 0.9)',
+    borderRadius: radius.pill,
+    opacity: 0.96,
+  },
+  routeAlertMarkerActive: {
+    opacity: 0.98,
   },
   riskMarkerSelectionRing: {
     position: 'absolute',

@@ -5,6 +5,11 @@ import { appendFileSync, readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 
 export const GUIDANCE_CONTRACT_API_PORT = 18080;
+export const GUIDANCE_CONTRACT_POLICY_VERSION = 'safe-route-v1';
+export const GUIDANCE_CONTRACT_PUBLIC_PREVIEW_PATH =
+  '/api/v1/mobile/safe-route/verified-route-preview';
+export const GUIDANCE_CONTRACT_WORKSPACE_PREVIEW_PATH =
+  '/api/v1/convoy-routes/verified-route-preview';
 export const GUIDANCE_CONTRACT_MODES = Object.freeze({
   active: 'active-a',
   denied: 'denied-a',
@@ -961,11 +966,11 @@ export function createGuidanceContractHandler({
 
     if (
       request.method === 'POST' &&
-      (url.pathname === '/api/v1/mobile/safe-route/route-preview' ||
-        url.pathname === '/api/v1/convoy-routes/route-preview')
+      (url.pathname === GUIDANCE_CONTRACT_PUBLIC_PREVIEW_PATH ||
+        url.pathname === GUIDANCE_CONTRACT_WORKSPACE_PREVIEW_PATH)
     ) {
       const body = await readJsonBody(request);
-      if (url.pathname === '/api/v1/convoy-routes/route-preview') {
+      if (url.pathname === GUIDANCE_CONTRACT_WORKSPACE_PREVIEW_PATH) {
         const requestedWorkspaceId = String(body?.client_id || '').trim();
         if (!Object.values(GUIDANCE_CONTRACT_WORKSPACES)
           .some((workspace) => workspace.id === requestedWorkspaceId)) {
@@ -1001,11 +1006,23 @@ export function createGuidanceContractHandler({
           coordinates: routeCoordinates,
           distance_meters: 13500,
           duration_seconds: 1440,
+          policy_version: GUIDANCE_CONTRACT_POLICY_VERSION,
           provider: 'osrm',
+          risk_areas: [],
+          risk_avoidance: {
+            coverage_status: 'current-empty',
+            critical_crossed_area_count: 0,
+            crossed_area_count: 0,
+            ignored_area_count: 0,
+            policy_version: GUIDANCE_CONTRACT_POLICY_VERSION,
+            risk_exposure_meters: 0,
+            status: 'not-required'
+          },
           route_alert_count: routeAlerts.length,
           route_alert_status: routeAlerts.length ? 'ready' : 'not-requested',
           route_alerts: routeAlerts,
-          snapped: true
+          snapped: true,
+          travel_mode: String(body?.travel_mode || 'drive').trim() || 'drive'
         },
         message: 'SafeRoute preview created.'
       });
@@ -2961,7 +2978,7 @@ function isProtectedPath(pathname) {
     pathname === '/api/v1/mobile/safe-route/routes' ||
     pathname.startsWith('/api/v1/mobile/safe-route/routes/') ||
     pathname.startsWith('/api/v1/mobile/safe-route/operations/client/') ||
-    pathname === '/api/v1/convoy-routes/route-preview' ||
+    pathname === GUIDANCE_CONTRACT_WORKSPACE_PREVIEW_PATH ||
     pathname === '/api/v1/intel/map/area-risk/research'
   );
 }

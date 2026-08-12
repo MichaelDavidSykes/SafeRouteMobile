@@ -1346,7 +1346,7 @@ export function GuestMapScreen({
             : `${localRoutePlan.id}-alternative-${index}`,
           riskZones: mergeRiskZonesById(
             routePreview.riskZones,
-            index === 0 ? preview.routeAlerts || [] : [],
+            routePreview.routeAlerts || [],
           ),
           roadSnappedCoordinates: routePreview.coordinates,
           routeDistanceMeters: routePreview.distanceMeters,

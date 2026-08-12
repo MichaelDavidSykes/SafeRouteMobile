@@ -1,4 +1,4 @@
-import { AlertTriangle } from "lucide-react-native";
+import { AlertTriangle, CircleAlert } from "lucide-react-native";
 import { Pressable, Text, View } from "react-native";
 
 import type { LiveMapOverlayLayout } from "./liveMapLayout";
@@ -7,6 +7,7 @@ import {
   type LiveRouteRiskAlert,
 } from "./routeRisk";
 import { formatDistance } from "./routeProgress";
+import { isRouteAlertZone } from "./riskOverlayPresentation";
 import { riskCardStyles as styles } from "./LiveMapRiskCard.styles";
 import { uiTestIds } from "../../testing/uiTestIds";
 import { colors } from "../../theme";
@@ -28,10 +29,13 @@ export function LiveRouteRiskAlertCard({
     alert.zone.avoidanceSeverity === "critical"
       ? "critical"
       : presentation.tone;
+  const routeAlert = isRouteAlertZone(alert.zone);
 
   return (
     <Pressable
-      accessibilityHint="Opens the SafeRoute risk-area details."
+      accessibilityHint={routeAlert
+        ? "Opens the SafeRoute route-alert details."
+        : "Opens the SafeRoute risk-area details."}
       accessibilityLabel={presentation.accessibilityLabel}
       accessibilityRole="button"
       testID={uiTestIds.liveMapRiskAlert}
@@ -52,12 +56,21 @@ export function LiveRouteRiskAlertCard({
           riskIconTileToneStyle(tone),
         ]}
       >
-        <AlertTriangle
-          accessibilityElementsHidden
-          color={riskToneColor(presentation.tone)}
-          size={22}
-          strokeWidth={2}
-        />
+        {routeAlert ? (
+          <CircleAlert
+            accessibilityElementsHidden
+            color={riskToneColor(presentation.tone)}
+            size={22}
+            strokeWidth={2.2}
+          />
+        ) : (
+          <AlertTriangle
+            accessibilityElementsHidden
+            color={riskToneColor(presentation.tone)}
+            size={22}
+            strokeWidth={2}
+          />
+        )}
       </View>
       <View style={styles.riskCopy}>
         <View style={styles.riskTitleRow}>
@@ -117,10 +130,7 @@ function riskCardToneStyle(tone: RiskCardTone) {
 }
 
 function createAlertAreaLabel(alert: LiveRouteRiskAlert): string {
-  if (
-    alert.zone.shape?.trim().toLowerCase() === "route-alert" ||
-    (alert.zone.routeSegmentCoordinates?.length || 0) > 1
-  ) {
+  if (isRouteAlertZone(alert.zone)) {
     return "Route segment";
   }
 

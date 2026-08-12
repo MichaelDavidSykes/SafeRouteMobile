@@ -48,6 +48,7 @@ export type GuestRoadRoutePreview = {
 export type VerifiedSafeRouteAlternative = GuestRoadRouteAlternative & {
   riskAvoidance: SafeRouteRiskAvoidanceProof;
   riskZones: RiskZone[];
+  routeAlerts: RiskZone[];
 };
 
 export type VerifiedSafeRoutePreview = Omit<

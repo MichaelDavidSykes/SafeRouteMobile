@@ -37,7 +37,32 @@ describe("live map risk overlay interactions", () => {
     assert.match(circleBlock, /onPress=\{handlePress\}/);
   });
 
-  it("keeps the alert triangle visible while highlighting the selected risk area", () => {
+  it("renders route-alert casing, core, connectors, and markers above every route line", () => {
+    const source = markerSource();
+
+    assert.match(source, /const ROUTE_ALERT_CONNECTOR_Z_INDEX = 39/);
+    assert.match(source, /const ROUTE_ALERT_CASING_Z_INDEX = 40/);
+    assert.match(source, /const ROUTE_ALERT_CORE_Z_INDEX = 41/);
+    assert.match(source, /const ROUTE_ALERT_MARKER_Z_INDEX = 42/);
+    assert.match(
+      source,
+      /const segmentCasingWidth = routeAlert[\s\S]*\? \(emphasized \? 11 : 10\)/,
+    );
+    assert.match(
+      source,
+      /const segmentCoreWidth = routeAlert[\s\S]*\? \(emphasized \? 5 : 4\)/,
+    );
+    assert.equal(
+      (source.match(/zIndex=\{segmentCasingZIndex\}/g) || []).length,
+      2,
+    );
+    assert.equal(
+      (source.match(/zIndex=\{segmentCoreZIndex\}/g) || []).length,
+      2,
+    );
+  });
+
+  it("distinguishes route-alert markers while highlighting selected risk areas", () => {
     const source = markerSource();
     const riskMarkerFunction =
       /function RiskMarker[\s\S]*?export function VehicleMarker/.exec(source)?.[0] || "";
@@ -45,7 +70,10 @@ describe("live map risk overlay interactions", () => {
     assert.match(source, /strokeColor=\{coverageStrokeColor\}/);
     assert.match(source, /fillColor=\{coverageFillColor\}/);
     assert.match(source, /strokeWidth=\{selected \? 1 : 0\}/);
-    assert.match(riskMarkerFunction, /zIndex=\{10\}/);
+    assert.match(
+      riskMarkerFunction,
+      /zIndex=\{routeAlert \? ROUTE_ALERT_MARKER_Z_INDEX : 10\}/,
+    );
     assert.match(riskMarkerFunction, /useMotionValue\(selected \? 1 : 0,[\s\S]*spring: true/);
     assert.match(riskMarkerFunction, /styles\.riskMarkerSelectionRing/);
     assert.match(
@@ -53,7 +81,10 @@ describe("live map risk overlay interactions", () => {
       /backgroundColor: riskColors\.selectionHalo[\s\S]*borderColor: riskColors\.selectionStroke[\s\S]*opacity: selectionProgress/,
     );
     assert.doesNotMatch(riskMarkerFunction, /riskMarkerSelectionRingVisible/);
+    assert.match(riskMarkerFunction, /routeAlert \? \([\s\S]*<CircleAlert/);
+    assert.match(riskMarkerFunction, /<CircleAlert[\s\S]*color=\{colors\.surface\}/);
     assert.match(riskMarkerFunction, /<AlertTriangle[\s\S]*strokeWidth=\{2\.6\}/);
+    assert.match(riskMarkerFunction, /styles\.routeAlertMarker/);
     assert.doesNotMatch(riskMarkerFunction, /zIndex=\{selected \|\| active/);
     assert.doesNotMatch(riskMarkerFunction, /selected\s*\?\s*<AlertTriangle/);
     assert.doesNotMatch(source, /rgba\(10, 12, 17, 0\.72\)/);

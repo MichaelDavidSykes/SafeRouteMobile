@@ -484,13 +484,13 @@ describe('live map UI state helpers', () => {
       state: { disabled: false }
     });
     assert.deepEqual(mapControlAccessibility('intelligence', { active: false }), {
-      label: 'Show route risk notes',
-      hint: 'Shows risk overlays on the map.',
+      label: 'Show route intelligence',
+      hint: 'Shows risk areas and route alerts on the map.',
       state: { disabled: false, selected: false }
     });
     assert.deepEqual(mapControlAccessibility('intelligence', { active: true }), {
-      label: 'Hide route risk notes',
-      hint: 'Hides risk overlays from the map.',
+      label: 'Hide route intelligence',
+      hint: 'Hides risk areas and route alerts from the map.',
       state: { disabled: false, selected: true }
     });
   });
@@ -498,7 +498,7 @@ describe('live map UI state helpers', () => {
   it('keeps map-control visible labels short for compact iPhone map chrome', () => {
     assert.equal(mapControlDisplayLabel('center'), 'Center');
     assert.equal(mapControlDisplayLabel('fit'), 'Overview');
-    assert.equal(mapControlDisplayLabel('intelligence'), 'Risks');
+    assert.equal(mapControlDisplayLabel('intelligence'), 'Alerts');
   });
 
   it('hides route-intelligence chrome when a route has no overlays', () => {

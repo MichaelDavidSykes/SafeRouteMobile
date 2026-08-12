@@ -3,6 +3,7 @@ import type { LatLng } from "react-native-maps";
 import type { RiskSeverity, RiskZone, SavedSafeRoutePlan } from "./liveMapTypes";
 import { riskZoneToAvoidRectangles } from "./areaRiskApiCore";
 import type { NavigationLifecycle } from "./liveMapUiState";
+import { isRouteAlertZone } from "./riskOverlayPresentation";
 import {
   calculateCumulativeDistances,
   densifyRouteCoordinates,
@@ -330,10 +331,13 @@ export function createLiveRouteRiskAlertPresentation(
   alert: LiveRouteRiskAlert
 ): LiveRouteRiskAlertPresentation {
   const zone = alert.zone;
-  const title = liveRiskAlertTitle(alert.status);
+  const routeAlert = isRouteAlertZone(zone);
+  const title = routeAlert
+    ? liveRouteAlertTitle(alert.status)
+    : liveRiskAlertTitle(alert.status);
   const zoneTitle = normalizeRiskTitle(zone.title);
   const categoryLabel = normalizeRiskCategory(zone.category);
-  const detailLabel = liveRiskAlertDetail(alert);
+  const detailLabel = liveRiskAlertDetail(alert, routeAlert);
   const metaLabel = [
     severityLabel(zone.severity),
     createCompactRiskCopy(categoryLabel, LIVE_RISK_VISIBLE_CATEGORY_MAX_LENGTH),
@@ -359,6 +363,7 @@ export function createRiskZoneDetailPresentation({
   const title = normalizeRiskTitle(zone.title);
   const body = normalizeCopy(zone.description) || "SafeRoute risk note";
   const categoryLabel = normalizeRiskCategory(zone.category);
+  const routeAlert = isRouteAlertZone(zone);
   const areaLabel = isRouteSegmentRiskZone(zone)
     ? "route segment"
     : zone.polygonCoordinates?.length
@@ -377,7 +382,7 @@ export function createRiskZoneDetailPresentation({
   const clearanceLabel = routeRiskAvoidanceLabel(proximity);
 
   return {
-    accessibilityLabel: `Risk area. ${title}. ${accessibilityMetaLabel}. ${body}. ${clearanceLabel}.`,
+    accessibilityLabel: `${routeAlert ? "Route alert" : "Risk area"}. ${title}. ${accessibilityMetaLabel}. ${body}. ${clearanceLabel}.`,
     body: createCompactRiskCopy(body, LIVE_RISK_VISIBLE_BODY_MAX_LENGTH),
     clearanceLabel,
     metaLabel,
@@ -390,7 +395,9 @@ export function createRiskZoneAccessibilityLabel(
   zone: RiskZone,
   selected = false
 ): string {
-  const prefix = selected ? "Selected risk area" : "Risk area";
+  const prefix = isRouteAlertZone(zone)
+    ? selected ? "Selected route alert" : "Route alert"
+    : selected ? "Selected risk area" : "Risk area";
   return `${prefix}. ${normalizeCopy(zone.title) || "Route risk"}. ${severityLabel(zone.severity)}. ${normalizeCopy(zone.category) || "Route risk"}.`;
 }
 
@@ -473,15 +480,27 @@ function liveRiskAlertTitle(status: LiveRouteRiskAlertStatus): string {
   }
 }
 
-function liveRiskAlertDetail(alert: LiveRouteRiskAlert): string {
+function liveRouteAlertTitle(status: LiveRouteRiskAlertStatus): string {
+  return status === "approaching" ? "Route alert ahead" : "Route alert";
+}
+
+function liveRiskAlertDetail(
+  alert: LiveRouteRiskAlert,
+  routeAlert = isRouteAlertZone(alert.zone)
+): string {
   if (alert.status === "inside") {
+    if (routeAlert) {
+      return "On this SafeRoute alert segment";
+    }
     return alert.proximity.areaShape === "polygon"
       ? "Inside this mapped SafeRoute area"
       : "Inside this SafeRoute risk area";
   }
 
   if (alert.status === "nearby") {
-    return `${formatDistance(alert.distanceToVehicleMeters)} from risk area`;
+    return `${formatDistance(alert.distanceToVehicleMeters)} from ${
+      routeAlert ? "route alert" : "risk area"
+    }`;
   }
 
   return `${formatDistance(Math.max(0, alert.routeDistanceAheadMeters))} ahead`;

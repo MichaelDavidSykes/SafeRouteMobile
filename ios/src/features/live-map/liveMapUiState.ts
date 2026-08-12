@@ -105,7 +105,7 @@ export function mapControlDisplayLabel(control: LiveMapControlId): string {
     case 'fit':
       return 'Overview';
     case 'intelligence':
-      return 'Risks';
+      return 'Alerts';
   }
 }
 
@@ -465,8 +465,10 @@ export function mapControlAccessibility(
       };
     case 'intelligence':
       return {
-        label: active ? 'Hide route risk notes' : 'Show route risk notes',
-        hint: active ? 'Hides risk overlays from the map.' : 'Shows risk overlays on the map.',
+        label: active ? 'Hide route intelligence' : 'Show route intelligence',
+        hint: active
+          ? 'Hides risk areas and route alerts from the map.'
+          : 'Shows risk areas and route alerts on the map.',
         state: { disabled, selected: active }
       };
   }

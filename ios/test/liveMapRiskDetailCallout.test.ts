@@ -1,10 +1,33 @@
 import assert from "node:assert/strict";
+import { readFileSync } from "node:fs";
+import { join } from "node:path";
 import { describe, it } from "node:test";
 
 import { resolveRiskCalloutPlacement } from "../src/features/live-map/liveMapRiskDetailPlacement";
 import { createRiskZoneExpandedPresentation } from "../src/features/live-map/riskDetailPresentation";
 
 describe("map-anchored risk detail callout", () => {
+  it("labels route-alert details separately from mapped risk areas", () => {
+    const source = readFileSync(
+      join(process.cwd(), "src/features/live-map/LiveMapRiskDetailCallout.tsx"),
+      "utf8",
+    );
+    const alertCardSource = readFileSync(
+      join(process.cwd(), "src/features/live-map/LiveMapRiskCard.tsx"),
+      "utf8",
+    );
+
+    assert.match(source, /const routeAlert = isRouteAlertZone\(zone\)/);
+    assert.match(source, /routeAlert[\s\S]*"Close route alert details"/);
+    assert.match(source, /routeAlert \? \([\s\S]*<CircleAlert/);
+    assert.match(source, /`Route alert · \$\{zone\.category \|\| "Safety intelligence"\}`/);
+    assert.match(source, /routeAlert \? "Route intelligence" : "Risk intelligence"/);
+    assert.match(source, /routeAlert \? "ROUTE ALERT" : "AREA RECORD"/);
+    assert.match(alertCardSource, /const routeAlert = isRouteAlertZone\(alert\.zone\)/);
+    assert.match(alertCardSource, /routeAlert[\s\S]*route-alert details/);
+    assert.match(alertCardSource, /routeAlert \? \([\s\S]*<CircleAlert/);
+  });
+
   it("keeps the detail above a central marker and links back to it", () => {
     const placement = resolveRiskCalloutPlacement({
       anchorPoint: { x: 195, y: 360 },

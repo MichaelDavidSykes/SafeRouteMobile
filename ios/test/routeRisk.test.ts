@@ -9,6 +9,7 @@ import {
   buildRouteRiskAlertSegment,
   calculateRiskZoneRouteProximity,
   createLiveRouteRiskAlertPresentation,
+  createRiskZoneAccessibilityLabel,
   createRiskZoneDetailPresentation,
   LIVE_RISK_VISIBLE_BODY_MAX_LENGTH,
   LIVE_RISK_VISIBLE_CATEGORY_MAX_LENGTH,
@@ -562,6 +563,29 @@ describe("SafeRoute risk-aware route behavior", () => {
     const detail = createRiskZoneDetailPresentation({ proximity, zone });
     assert.match(detail.metaLabel, /route segment/);
     assert.equal(detail.clearanceLabel, "Route alert on saved line");
+    assert.match(detail.accessibilityLabel, /^Route alert\. Road suitability\./);
+    assert.match(
+      createRiskZoneAccessibilityLabel(zone),
+      /^Route alert\. Road suitability\./,
+    );
+    assert.match(
+      createRiskZoneAccessibilityLabel(zone, true),
+      /^Selected route alert\. Road suitability\./,
+    );
+
+    const progress = calculateRouteProgress(
+      routePlan.route.coordinates,
+      routePlan.route.coordinates[0],
+    );
+    const liveAlert = resolveLiveRouteRiskAlert({
+      navigationState: "navigating",
+      progress,
+      routePlan,
+    });
+    assert.ok(liveAlert);
+    const livePresentation = createLiveRouteRiskAlertPresentation(liveAlert);
+    assert.match(livePresentation.title, /^Route alert/);
+    assert.match(livePresentation.accessibilityLabel, /^Route alert/);
   });
 
   it("uses the raw live vehicle coordinate for risk alerts when off the snapped route", () => {

@@ -290,6 +290,7 @@ function normalizeCompleteRouteAlternatives(
       provider: normalized.provider,
       riskAvoidance: normalized.riskAvoidance,
       riskZones: normalized.riskZones,
+      routeAlerts: normalized.routeAlerts ?? [],
       snapped: true,
     });
   }

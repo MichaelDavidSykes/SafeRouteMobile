@@ -27,6 +27,10 @@ appId: host.exp.Exponent
       id: "safe-route-risk-zone-contract-road-suitability"
     timeout: 10000
 - assertVisible:
+    id: "safe-route-risk-zone-contract-unstable-road-surface"
+- assertVisible:
+    id: "safe-route-risk-zone-contract-road-damage"
+- assertVisible:
     id: "safe-route-risk-zone-contract-traffic"
 - assertVisible:
     id: "safe-route-risk-zone-contract-blockage"
@@ -67,6 +71,10 @@ appId: host.exp.Exponent
     timeout: 15000
 - assertVisible:
     id: "safe-route-risk-zone-contract-road-suitability"
+- assertVisible:
+    id: "safe-route-risk-zone-contract-unstable-road-surface"
+- assertVisible:
+    id: "safe-route-risk-zone-contract-road-damage"
 - assertVisible:
     id: "safe-route-risk-zone-contract-traffic"
 - assertVisible:

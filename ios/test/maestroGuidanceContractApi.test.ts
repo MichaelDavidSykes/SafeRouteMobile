@@ -115,12 +115,14 @@ describe('Maestro guidance contract API', () => {
         'drive',
       );
       assert.ok(normalized, 'Canonical mobile client must accept the fixture response.');
-      assert.equal(normalized.routeAlerts?.length, 10);
-      assert.equal(body.data.route_alert_count, 10);
+      assert.equal(normalized.routeAlerts?.length, 12);
+      assert.equal(body.data.route_alert_count, 12);
       assert.deepEqual(
         body.data.route_alerts.map((alert: { category: string }) => alert.category),
         [
           'road-suitability',
+          'unstable-road-surface',
+          'road-damage',
           'traffic',
           'blockage-exposure',
           'elevated-structure',

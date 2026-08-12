@@ -3157,8 +3157,8 @@ function interpolateCoordinates(coordinates) {
     const start = coordinates[index];
     const end = coordinates[index + 1];
     interpolated.push(start);
-    for (let step = 1; step <= 3; step += 1) {
-      const ratio = step / 4;
+    for (let step = 1; step <= 15; step += 1) {
+      const ratio = step / 16;
       interpolated.push({
         latitude: Number((start.latitude + (end.latitude - start.latitude) * ratio).toFixed(6)),
         longitude: Number((start.longitude + (end.longitude - start.longitude) * ratio).toFixed(6))
@@ -3178,16 +3178,18 @@ function createGuidanceContractRouteAlerts(routeCoordinates) {
     routeCoordinates.length - 1,
     Math.max(0, Math.round((routeCoordinates.length - 1) * ratio))
   )];
-  const firstQuarter = pointAt(0.2);
-  const trafficPoint = pointAt(0.3);
+  const firstQuarter = pointAt(0.08);
+  const unstableSurfacePoint = pointAt(0.16);
+  const roadDamagePoint = pointAt(0.24);
+  const trafficPoint = pointAt(0.32);
   const blockagePoint = pointAt(0.4);
-  const midpoint = pointAt(0.5);
-  const buildingPoint = pointAt(0.6);
-  const elevationPoint = pointAt(0.7);
-  const junctionPoint = pointAt(0.78);
-  const intersectionPoint = pointAt(0.84);
-  const supportPoint = pointAt(0.9);
-  const thirdQuarter = pointAt(0.95);
+  const midpoint = pointAt(0.48);
+  const buildingPoint = pointAt(0.56);
+  const elevationPoint = pointAt(0.64);
+  const junctionPoint = pointAt(0.72);
+  const intersectionPoint = pointAt(0.8);
+  const supportPoint = pointAt(0.88);
+  const thirdQuarter = pointAt(0.96);
   const last = routeCoordinates.at(-1);
   const structure = {
     latitude: Number((midpoint.latitude + 0.0012).toFixed(6)),
@@ -3206,6 +3208,28 @@ function createGuidanceContractRouteAlerts(routeCoordinates) {
       radius_meters: 175
     },
     {
+      id: 'contract-unstable-road-surface',
+      title: 'Unstable road surface',
+      description: 'An unsealed or rough road surface affects this route section.',
+      severity: 'high',
+      category: 'unstable-road-surface',
+      shape: 'route-alert',
+      coordinate: unstableSurfacePoint,
+      route_segment_coordinates: [firstQuarter, unstableSurfacePoint],
+      radius_meters: 175
+    },
+    {
+      id: 'contract-road-damage',
+      title: 'Road damage ahead',
+      description: 'Mapped road damage requires additional caution.',
+      severity: 'high',
+      category: 'road-damage',
+      shape: 'route-alert',
+      coordinate: roadDamagePoint,
+      route_segment_coordinates: [unstableSurfacePoint, roadDamagePoint],
+      radius_meters: 175
+    },
+    {
       id: 'contract-traffic',
       title: 'Heavy traffic ahead',
       description: 'Live traffic is moving below normal speed.',
@@ -3213,7 +3237,7 @@ function createGuidanceContractRouteAlerts(routeCoordinates) {
       category: 'traffic',
       shape: 'route-alert',
       coordinate: trafficPoint,
-      route_segment_coordinates: [firstQuarter, trafficPoint],
+      route_segment_coordinates: [roadDamagePoint, trafficPoint],
       radius_meters: 250
     },
     {

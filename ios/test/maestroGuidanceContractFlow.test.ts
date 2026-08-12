@@ -76,6 +76,8 @@ describe('Maestro cold guidance contract matrix', () => {
 
     for (const alertId of [
       'contract-road-suitability',
+      'contract-unstable-road-surface',
+      'contract-road-damage',
       'contract-traffic',
       'contract-blockage',
       'contract-elevated-structure',

@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   Alert,
   Platform,
@@ -709,6 +709,7 @@ export function LiveMapScreen({
     try {
       const preview = await fetchSafeRouteRoadRoutePreview({
         accessToken: routingAccessToken,
+        cachePolicy: 'network-only',
         clientId: requestWorkspaceId,
         preferences: routePreferences,
         signal: controller.signal,
@@ -1638,10 +1639,10 @@ export function LiveMapScreen({
     });
   };
 
-  const handleRiskZonePress = (zone: RiskZone) => {
+  const handleRiskZonePress = useCallback((zone: RiskZone) => {
     setSelectedRiskZoneId(zone.id);
-    handleSetAlertsVisible(true);
-  };
+    setAlertsVisible(true);
+  }, []);
 
   const handleOpenRiskAlert = () => {
     if (!liveRiskAlert) {

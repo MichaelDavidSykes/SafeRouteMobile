@@ -10,6 +10,29 @@ const markerSource = () =>
   );
 
 describe("live map risk overlay interactions", () => {
+  it("memoizes native route-alert overlays across location and heading updates", () => {
+    const source = markerSource();
+    const guestMapSource = readFileSync(
+      join(process.cwd(), "src/features/guest-map/GuestMapScreen.tsx"),
+      "utf8",
+    );
+    const liveMapSource = readFileSync(
+      join(process.cwd(), "src/features/live-map/LiveMapScreen.tsx"),
+      "utf8",
+    );
+
+    assert.match(source, /import \{ memo \} from 'react'/);
+    assert.match(source, /export const RiskOverlay = memo\(function RiskOverlay/);
+    assert.match(
+      guestMapSource,
+      /const handleSelectRiskZone = useCallback\([\s\S]*?sheetGestureActionRef\.current\(true\);[\s\S]*?\}, \[\]\);/,
+    );
+    assert.match(
+      liveMapSource,
+      /const handleRiskZonePress = useCallback\([\s\S]*?setAlertsVisible\(true\);[\s\S]*?\}, \[\]\);/,
+    );
+  });
+
   it("keeps polygon and circular risk areas tappable with stable IDs", () => {
     const source = markerSource();
     const routeSegmentBlock =

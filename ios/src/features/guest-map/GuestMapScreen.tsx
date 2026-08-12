@@ -132,7 +132,10 @@ import {
   type GuestRoadRoutePreviewOptions,
   type VerifiedSafeRoutePreview,
 } from './guestRoadRouteProvider';
-import { fetchSafeRouteRoadRoutePreview } from './safeRouteRoadRouteProvider';
+import {
+  fetchSafeRouteRoadRoutePreview,
+  invalidateSafeRoutePreviewCache,
+} from './safeRouteRoadRouteProvider';
 import {
   reverseGeocodeGuestLocation,
   searchGuestLocations,
@@ -1760,13 +1763,13 @@ export function GuestMapScreen({
     });
   };
 
-  const handleSelectRiskZone = (zone: RiskZone) => {
+  const handleSelectRiskZone = useCallback((zone: RiskZone) => {
     setMapAction(null);
     setSelectedRiskZone(zone);
     // Risk details are a map-level interaction, so present them above the
     // compact route summary rather than hiding them behind the expanded sheet.
-    animateRouteSheet(true);
-  };
+    sheetGestureActionRef.current(true);
+  }, []);
 
   const handleMapPress = (event: MapPressEvent) => {
     if (event.nativeEvent.action === 'marker-press') {
@@ -1886,6 +1889,9 @@ export function GuestMapScreen({
       ) {
         return;
       }
+      // The next route must be verified against the newly saved workspace risk
+      // state instead of reusing a preview prepared before this mutation.
+      invalidateSafeRoutePreviewCache();
       setMapAction(null);
       setRouteMessage('Risk area added for your workspace.');
       viewportRisk.retry();

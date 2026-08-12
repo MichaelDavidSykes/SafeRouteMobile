@@ -1,4 +1,5 @@
 import type { ComponentProps, ComponentType } from 'react';
+import { memo } from 'react';
 import { AlertTriangle, CircleAlert, MapPin } from 'lucide-react-native';
 import { Animated, StyleSheet, View } from 'react-native';
 import { Circle, Marker, Polygon, Polyline } from 'react-native-maps';
@@ -42,7 +43,7 @@ const ROUTE_ALERT_CASING_Z_INDEX = 40;
 const ROUTE_ALERT_CORE_Z_INDEX = 41;
 const ROUTE_ALERT_MARKER_Z_INDEX = 42;
 
-export function RiskOverlay({
+export const RiskOverlay = memo(function RiskOverlay({
   active,
   onPress,
   routeCoordinates,
@@ -199,7 +200,7 @@ export function RiskOverlay({
       />
     </>
   );
-}
+});
 
 export function CheckpointMarker({ checkpoint }: { checkpoint: RouteCheckpoint }) {
   const markerRole = checkpointMarkerRole(checkpoint.kind);

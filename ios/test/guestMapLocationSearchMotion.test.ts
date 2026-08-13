@@ -28,16 +28,16 @@ describe('guest location-search motion', () => {
     );
   });
 
-  it('focuses the destination field immediately and keeps recovery retries', () => {
+  it('starts the sheet before one idempotent focus and keeps failure recovery', () => {
     assert.match(
       guestMapSource,
-      /handleCollapsedLocationSearch[\s\S]*transitionActiveInput\(nextStopId, \{ animate: false \}\)[\s\S]*routeInputRefs\.current\.get\(nextStopId\)\?\.focus\(\)[\s\S]*animateRouteSheet\(false\)[\s\S]*scheduleRouteStopInputFocus\(nextStopId\)/,
+      /handleCollapsedLocationSearch[\s\S]*transitionActiveInput\(nextStopId, \{ animate: false \}\)[\s\S]*animateRouteSheet\([\s\S]*false,[\s\S]*scheduleRouteStopInputFocus\(nextStopId\)/,
     );
     assert.match(
       guestMapSource,
-      /routeInputRefs\.current\.get\(stopId\)\?\.focus\(\)/,
+      /const input = routeInputRefs\.current\.get\(stopId\);[\s\S]*!input\.isFocused\(\)[\s\S]*input\.focus\(\)/,
     );
-    assert.match(guestMapSource, /pendingInputFocusRetryRef[\s\S]*120/);
+    assert.doesNotMatch(guestMapSource, /pendingInputFocusRetryRef|setTimeout\([\s\S]{0,120}, 120\)/);
     assert.match(
       guestMapSource,
       /pendingInputFocusRecoveryRef[\s\S]*Keyboard\.isVisible\(\)[\s\S]*input\?\.blur\(\)[\s\S]*input\?\.focus\(\)/,

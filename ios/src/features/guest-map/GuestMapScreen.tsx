@@ -318,12 +318,12 @@ export function GuestMapScreen({
   }
   const sheetProgress = useRef(new Animated.Value(1)).current;
   const sheetAnimationRevisionRef = useRef(0);
+  const sheetAnimationRunningRef = useRef(false);
   const sheetGestureProgressRef = useRef(1);
   const sheetGestureStartProgressRef = useRef(1);
   const sheetGestureActionRef = useRef<(collapsed: boolean) => void>(() => undefined);
   const routeInputRefs = useRef(new Map<string, TextInput>());
   const pendingInputFocusFrameRef = useRef<number | null>(null);
-  const pendingInputFocusRetryRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const pendingInputFocusRecoveryRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const pendingSearchStageFrameRef = useRef<number | null>(null);
   const searchStageProgress = useRef(new Animated.Value(1)).current;
@@ -678,10 +678,6 @@ export function GuestMapScreen({
       cancelAnimationFrame(pendingInputFocusFrameRef.current);
       pendingInputFocusFrameRef.current = null;
     }
-    if (pendingInputFocusRetryRef.current !== null) {
-      clearTimeout(pendingInputFocusRetryRef.current);
-      pendingInputFocusRetryRef.current = null;
-    }
     if (pendingInputFocusRecoveryRef.current !== null) {
       clearTimeout(pendingInputFocusRecoveryRef.current);
       pendingInputFocusRecoveryRef.current = null;
@@ -690,6 +686,7 @@ export function GuestMapScreen({
   const animateRouteSheet = (
     collapsed: boolean,
     onComplete?: () => void,
+    onAnimationStarted?: () => void,
   ) => {
     cancelPendingRouteInputFocus();
     const animationRevision = sheetAnimationRevisionRef.current + 1;
@@ -702,12 +699,14 @@ export function GuestMapScreen({
     }
     if (reduceMotionEnabled) {
       sheetProgress.stopAnimation();
+      sheetAnimationRunningRef.current = false;
       sheetGestureProgressRef.current = targetProgress;
       sheetProgress.setValue(targetProgress);
+      onAnimationStarted?.();
       onComplete?.();
       return;
     }
-    sheetProgress.stopAnimation((currentProgress) => {
+    const startAnimation = (currentProgress: number) => {
       if (sheetAnimationRevisionRef.current !== animationRevision) {
         return;
       }
@@ -717,12 +716,14 @@ export function GuestMapScreen({
       if (remainingDistance < 0.001) {
         sheetGestureProgressRef.current = targetProgress;
         sheetProgress.setValue(targetProgress);
+        onAnimationStarted?.();
         onComplete?.();
         return;
       }
       const fullDuration = collapsed
         ? safeRouteMotion.sheetExitDurationMs
         : safeRouteMotion.sheetDurationMs;
+      sheetAnimationRunningRef.current = true;
       Animated.timing(sheetProgress, {
         duration: Math.max(
           GUEST_ROUTE_SHEET_MIN_SETTLE_DURATION_MS,
@@ -735,28 +736,37 @@ export function GuestMapScreen({
         toValue: targetProgress,
         useNativeDriver: true
       }).start(({ finished }) => {
-        if (
-          finished
-          && sheetAnimationRevisionRef.current === animationRevision
-        ) {
+        if (sheetAnimationRevisionRef.current !== animationRevision) {
+          return;
+        }
+        sheetAnimationRunningRef.current = false;
+        if (finished) {
           sheetGestureProgressRef.current = targetProgress;
           onComplete?.();
         }
       });
-    });
+      onAnimationStarted?.();
+    };
+    if (sheetAnimationRunningRef.current) {
+      sheetProgress.stopAnimation((currentProgress) => {
+        sheetAnimationRunningRef.current = false;
+        startAnimation(currentProgress);
+      });
+      return;
+    }
+    startAnimation(sheetGestureProgressRef.current);
   };
   const scheduleRouteStopInputFocus = (stopId: string) => {
     cancelPendingRouteInputFocus();
     const focusInput = () => {
-      routeInputRefs.current.get(stopId)?.focus();
+      const input = routeInputRefs.current.get(stopId);
+      if (input && !input.isFocused()) {
+        input.focus();
+      }
     };
     pendingInputFocusFrameRef.current = requestAnimationFrame(() => {
       pendingInputFocusFrameRef.current = null;
       focusInput();
-      pendingInputFocusRetryRef.current = setTimeout(() => {
-        pendingInputFocusRetryRef.current = null;
-        focusInput();
-      }, 120);
       pendingInputFocusRecoveryRef.current = setTimeout(() => {
         pendingInputFocusRecoveryRef.current = null;
         if (Keyboard.isVisible()) {
@@ -774,9 +784,11 @@ export function GuestMapScreen({
   const handleCollapsedLocationSearch = () => {
     const nextStopId = resolveGuestRouteDraftNextStopInputId(routeDraft);
     transitionActiveInput(nextStopId, { animate: false });
-    routeInputRefs.current.get(nextStopId)?.focus();
-    animateRouteSheet(false);
-    scheduleRouteStopInputFocus(nextStopId);
+    animateRouteSheet(
+      false,
+      undefined,
+      () => scheduleRouteStopInputFocus(nextStopId),
+    );
   };
   const handleCollapsedRouteEdit = () => {
     Keyboard.dismiss();
@@ -791,6 +803,7 @@ export function GuestMapScreen({
         && Math.abs(gesture.dy) > Math.abs(gesture.dx),
       onPanResponderGrant: () => {
         sheetAnimationRevisionRef.current += 1;
+        sheetAnimationRunningRef.current = false;
         sheetProgress.stopAnimation((currentProgress) => {
           const boundedProgress = Math.max(0, Math.min(1, currentProgress));
           sheetGestureProgressRef.current = boundedProgress;
@@ -1230,7 +1243,6 @@ export function GuestMapScreen({
     // A straight checkpoint connector is useful as an internal request
     // scaffold, but it is never a drivable route. Keep navigation gated until
     // an authoritative provider returns road-snapped geometry.
-    animateRouteSheet(true);
     setRoutePlan(null);
     setRouteAlternatives([]);
     upgradeGuestRouteWithRoadPreview(localRoutePlan);
@@ -1388,6 +1400,7 @@ export function GuestMapScreen({
       setRoutePlan(roadRoutePlan);
       setRouteAlternatives(acceptedRoutePlans);
       setRouteMessage('');
+      animateRouteSheet(true);
       openPendingPreview(roadRoutePlan);
       return true;
     };

@@ -292,7 +292,7 @@ describe('guest map interaction contract', () => {
     );
   });
 
-  it('collapses accepted route plots and reopens only when verified routing fails', () => {
+  it('keeps plotting stable and collapses only after verified routing succeeds', () => {
     const plotStart = screen.indexOf('const handlePlotRoute = async (');
     const roadUpgradeStart = screen.indexOf(
       'const upgradeGuestRouteWithRoadPreview =',
@@ -300,13 +300,9 @@ describe('guest map interaction contract', () => {
     );
     const plotHandler = screen.slice(plotStart, roadUpgradeStart);
 
-    assert.match(
+    assert.doesNotMatch(
       plotHandler,
-      /createGuestRoutePlan\([\s\S]*animateRouteSheet\(true\)[\s\S]*upgradeGuestRouteWithRoadPreview\(localRoutePlan\)/,
-    );
-    assert.ok(
-      plotHandler.indexOf('if (unresolvedStopIds.length)') <
-        plotHandler.indexOf('animateRouteSheet(true)'),
+      /animateRouteSheet\(true\)/,
     );
     assert.match(
       screen,
@@ -314,6 +310,13 @@ describe('guest map interaction contract', () => {
     );
     const upgradeEnd = screen.indexOf('const handleOpenPreview =', roadUpgradeStart);
     const upgradeHandler = screen.slice(roadUpgradeStart, upgradeEnd);
+    const publishStart = upgradeHandler.indexOf('const publishRoadPreview =');
+    const fetcherStart = upgradeHandler.indexOf('const routePreviewFetcher =');
+    const publishHandler = upgradeHandler.slice(publishStart, fetcherStart);
+    assert.match(
+      publishHandler,
+      /setRoutePlan\(roadRoutePlan\)[\s\S]*animateRouteSheet\(true\)/,
+    );
     assert.equal(upgradeHandler.match(/routePreviewFetcher\(\{/g)?.length, 1);
     assert.doesNotMatch(
       upgradeHandler,

@@ -3,10 +3,9 @@ import type { LatLng } from 'react-native-maps';
 import type { RoutePath } from './liveMapTypes';
 import { resolveUpcomingNavigationStep } from './routeGuidance';
 import {
-  calculateCumulativeDistances,
   haversineDistanceMeters,
-  normalizeRouteCoordinates,
-  projectCoordinateToRoute
+  prepareRouteGeometry,
+  projectCoordinateToPreparedRoute
 } from './routeGeometry';
 
 export {
@@ -15,6 +14,8 @@ export {
   densifyRouteCoordinates,
   haversineDistanceMeters,
   normalizeRouteCoordinates,
+  prepareRouteGeometry,
+  projectCoordinateToPreparedRoute,
   projectCoordinateToSegment,
   projectCoordinateToRoute
 } from './routeGeometry';
@@ -143,15 +144,15 @@ export function calculateRouteProgress(
     return null;
   }
 
-  const routeCoordinates = normalizeRouteCoordinates(coordinates);
+  const preparedRoute = prepareRouteGeometry(coordinates);
+  const routeCoordinates = preparedRoute.coordinates;
   if (!routeCoordinates.length) {
     return null;
   }
 
-  const cumulativeDistances = calculateCumulativeDistances(routeCoordinates);
-  const totalDistanceMeters = cumulativeDistances[cumulativeDistances.length - 1] || 0;
-  const projection = projectCoordinateToRoute(
-    routeCoordinates,
+  const totalDistanceMeters = preparedRoute.totalDistanceMeters;
+  const projection = projectCoordinateToPreparedRoute(
+    preparedRoute,
     currentCoordinate,
     options.minimumDistanceAlongMeters
   );
@@ -297,7 +298,7 @@ function resolveStepGuidance(route: RoutePath, requestedStep: number): { instruc
   };
 }
 
-function buildSnappedProgressCoordinates(coordinates: LatLng[], segmentIndex: number, snappedCoordinate: LatLng): LatLng[] {
+function buildSnappedProgressCoordinates(coordinates: readonly LatLng[], segmentIndex: number, snappedCoordinate: LatLng): LatLng[] {
   const completedCoordinates = coordinates.slice(0, Math.max(1, segmentIndex + 1));
   const lastCoordinate = completedCoordinates[completedCoordinates.length - 1];
   if (!lastCoordinate || haversineDistanceMeters(lastCoordinate, snappedCoordinate) > 1) {

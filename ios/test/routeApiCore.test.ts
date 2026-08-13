@@ -12,11 +12,15 @@ import {
 
 describe('SafeRoute route API core', () => {
   it('builds saved-route list paths with trimmed encoded client filters', () => {
-    assert.equal(buildSavedRoutesPath(), '/mobile/safe-route/routes');
-    assert.equal(buildSavedRoutesPath('  '), '/mobile/safe-route/routes');
+    assert.equal(buildSavedRoutesPath(), '/mobile/safe-route/routes?limit=50&view=summary');
+    assert.equal(buildSavedRoutesPath('  '), '/mobile/safe-route/routes?limit=50&view=summary');
     assert.equal(
       buildSavedRoutesPath(' client/alpha beta '),
-      '/mobile/safe-route/routes?client_id=client%2Falpha+beta'
+      '/mobile/safe-route/routes?limit=50&view=summary&client_id=client%2Falpha+beta'
+    );
+    assert.equal(
+      buildSavedRoutesPath('client-1', { offset: 50 }),
+      '/mobile/safe-route/routes?limit=50&view=summary&client_id=client-1&offset=50'
     );
   });
 
@@ -37,6 +41,7 @@ describe('SafeRoute route API core', () => {
       seenPaths.push(`${accessToken}:${path}`);
       return {
         clients: 'malformed',
+        pagination: { has_more: true, next_offset: 50, offset: 0, page_size: 50 },
         selected_client_id: ' client-1 ',
         routes: [
           {
@@ -55,10 +60,17 @@ describe('SafeRoute route API core', () => {
 
     const result = await loadSavedRoutes(request, 'token-1', 'client-1');
 
-    assert.deepEqual(seenPaths, ['token-1:/mobile/safe-route/routes?client_id=client-1']);
+    assert.deepEqual(seenPaths, ['token-1:/mobile/safe-route/routes?limit=50&view=summary&client_id=client-1']);
     assert.deepEqual(result.clients, []);
     assert.equal(result.routes.length, 1);
     assert.equal(result.routes[0].route.eta, '10 min');
+    assert.equal(result.routes[0].isSummary, true);
+    assert.deepEqual(result.pagination, {
+      hasMore: true,
+      nextOffset: 50,
+      offset: 0,
+      pageSize: 50,
+    });
     assert.equal(result.selectedClientId, 'client-1');
   });
 
@@ -110,6 +122,21 @@ describe('SafeRoute route API core', () => {
     assert.equal(result.routes.length, 1);
     assert.equal(result.routes[0].id, 'route-ready');
     assert.equal(result.routes[0].name, 'Ready route');
+  });
+
+  it('bounds oversized legacy responses even when the server ignores pagination', async () => {
+    const request: RouteApiRequester = async () => ({
+      clients: [],
+      routes: Array.from({ length: 75 }, (_, index) => ({
+        id: `route-${index}`,
+        route: { distance_meters: index + 1 }
+      }))
+    }) as never;
+
+    const result = await loadSavedRoutes(request, 'token-1');
+
+    assert.equal(result.routes.length, 50);
+    assert.equal(result.routes.at(-1)?.id, 'route-49');
   });
 
   it('normalizes saved-route client filters before exposing route-picker copy', async () => {

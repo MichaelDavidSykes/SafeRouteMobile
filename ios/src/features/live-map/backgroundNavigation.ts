@@ -57,9 +57,9 @@ const backgroundNavigationLifecycle =
 export const SAFEROUTE_BACKGROUND_LOCATION_OPTIONS: Location.LocationTaskOptions = {
   accuracy: Location.Accuracy.BestForNavigation,
   activityType: Location.LocationActivityType.AutomotiveNavigation,
-  deferredUpdatesDistance: 20,
-  deferredUpdatesInterval: 10_000,
-  distanceInterval: 5,
+  deferredUpdatesDistance: 30,
+  deferredUpdatesInterval: 15_000,
+  distanceInterval: 10,
   foregroundService: {
     killServiceOnDestroy: false,
     notificationBody: "Live route guidance and safety monitoring are active.",
@@ -68,7 +68,7 @@ export const SAFEROUTE_BACKGROUND_LOCATION_OPTIONS: Location.LocationTaskOptions
   },
   pausesUpdatesAutomatically: false,
   showsBackgroundLocationIndicator: true,
-  timeInterval: 3_000,
+  timeInterval: 5_000,
 };
 
 function unsupportedRuntimeResult(): BackgroundNavigationResult {

@@ -8,6 +8,7 @@ import {
 } from "./locationSignal";
 
 export const ACTIVE_NAVIGATION_SESSION_VERSION = 4;
+export const ACTIVE_NAVIGATION_DELTA_VERSION = 1;
 export const ACTIVE_NAVIGATION_SESSION_MAX_AGE_MS = 24 * 60 * 60 * 1000;
 export const ACTIVE_NAVIGATION_SESSION_MAX_PAYLOAD_BYTES = 2_000_000;
 export const REVOKED_ACTIVE_NAVIGATION_SESSION = '{"revoked":true,"version":0}';
@@ -40,6 +41,21 @@ export interface ActiveNavigationSession {
   savedAtMs: number;
   version: typeof ACTIVE_NAVIGATION_SESSION_VERSION;
 }
+
+export interface ActiveNavigationSessionDelta {
+  backgroundTrackingEnabled: boolean;
+  followModeEnabled: boolean;
+  lastLocation: ReliableLocationSample | null;
+  navigationInstanceId: string;
+  navigationState: PersistedNavigationLifecycle;
+  progressFloorMeters: number;
+  routeId: string;
+  routeRevision: string;
+  savedAtMs: number;
+  version: typeof ACTIVE_NAVIGATION_DELTA_VERSION;
+}
+
+const routeRevisionCache = new WeakMap<SavedSafeRoutePlan, string>();
 
 export interface CreateActiveNavigationSessionOptions {
   backgroundTrackingEnabled?: boolean;
@@ -184,6 +200,96 @@ export function serializeActiveNavigationSession(
   } catch {
     return null;
   }
+}
+
+export function createActiveNavigationSessionDelta(
+  session: ActiveNavigationSession,
+): ActiveNavigationSessionDelta {
+  return {
+    backgroundTrackingEnabled: session.backgroundTrackingEnabled,
+    followModeEnabled: session.followModeEnabled,
+    lastLocation: session.lastLocation ? { ...session.lastLocation } : null,
+    navigationInstanceId: session.navigationInstanceId,
+    navigationState: session.navigationState,
+    progressFloorMeters: session.progressFloorMeters,
+    routeId: session.routePlan.route.id,
+    routeRevision: createActiveNavigationRouteRevision(session.routePlan),
+    savedAtMs: session.savedAtMs,
+    version: ACTIVE_NAVIGATION_DELTA_VERSION,
+  };
+}
+
+export function serializeActiveNavigationSessionDelta(
+  session: ActiveNavigationSession,
+): string | null {
+  try {
+    return JSON.stringify(createActiveNavigationSessionDelta(session));
+  } catch {
+    return null;
+  }
+}
+
+export function mergeActiveNavigationSessionDelta(
+  session: ActiveNavigationSession,
+  value: unknown,
+  nowMs = Date.now(),
+): ActiveNavigationSession {
+  const parsed = parseActiveNavigationSessionValue(value);
+  if (
+    !isRecord(parsed) ||
+    parsed.version !== ACTIVE_NAVIGATION_DELTA_VERSION ||
+    parsed.navigationInstanceId !== session.navigationInstanceId ||
+    parsed.routeId !== session.routePlan.route.id ||
+    parsed.routeRevision !== createActiveNavigationRouteRevision(session.routePlan)
+  ) {
+    return session;
+  }
+  const merged = normalizeActiveNavigationSession({
+    ...session,
+    backgroundTrackingEnabled: parsed.backgroundTrackingEnabled,
+    followModeEnabled: parsed.followModeEnabled,
+    lastLocation: parsed.lastLocation,
+    navigationState: parsed.navigationState,
+    progressFloorMeters: parsed.progressFloorMeters,
+    savedAtMs: parsed.savedAtMs,
+  }, nowMs);
+  return merged || session;
+}
+
+export function createActiveNavigationRouteRevision(
+  routePlan: SavedSafeRoutePlan,
+): string {
+  const cached = routeRevisionCache.get(routePlan);
+  if (cached) {
+    return cached;
+  }
+  let hash = 2166136261;
+  const append = (value: unknown) => {
+    const text = String(value ?? "");
+    for (let index = 0; index < text.length; index += 1) {
+      hash ^= text.charCodeAt(index);
+      hash = Math.imul(hash, 16777619);
+    }
+  };
+  append(routePlan.id);
+  append(routePlan.clientId);
+  append(routePlan.route.id);
+  append(routePlan.route.navigationStepRevision);
+  for (const coordinate of routePlan.route.coordinates) {
+    append(coordinate.latitude);
+    append(coordinate.longitude);
+  }
+  for (const zone of routePlan.riskZones) {
+    append(zone.id);
+    append(zone.coordinate.latitude);
+    append(zone.coordinate.longitude);
+    append(zone.radiusMeters);
+    append(zone.polygonCoordinates?.length || 0);
+    append(zone.routeSegmentCoordinates?.length || 0);
+  }
+  const revision = `${routePlan.route.coordinates.length}:${routePlan.riskZones.length}:${(hash >>> 0).toString(36)}`;
+  routeRevisionCache.set(routePlan, revision);
+  return revision;
 }
 
 export function normalizeActiveNavigationSession(

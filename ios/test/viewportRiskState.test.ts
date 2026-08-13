@@ -20,11 +20,31 @@ import {
   resolveCompletedViewportRiskZones,
   resolveUnavailableViewportRiskZones,
   resolveViewportRiskUnavailableRecovery,
+  shouldRevalidateViewportRiskRequest,
   viewportRiskCacheKey,
   type ViewportRiskCache
 } from '../src/features/live-map/viewportRiskState';
 
 describe('viewport risk state', () => {
+  it('suppresses fresh viewport network reads but honors bypass and stale entries', () => {
+    const cache: ViewportRiskCache = new Map();
+    const request = createRequest();
+    cacheViewportRiskZones(cache, request, [createZone('fresh')], { now: 1_000 });
+
+    assert.equal(shouldRevalidateViewportRiskRequest(cache, request, {
+      now: 30_000,
+      ttlMs: 60_000,
+    }), false);
+    assert.equal(shouldRevalidateViewportRiskRequest(cache, request, {
+      bypassCache: true,
+      now: 30_000,
+      ttlMs: 60_000,
+    }), true);
+    assert.equal(shouldRevalidateViewportRiskRequest(cache, request, {
+      now: 61_001,
+      ttlMs: 60_000,
+    }), true);
+  });
   it('retains rendered zones during replacement downloads and swaps only when ready', () => {
     const retained = [createZone('retained', 'medium')];
     const incoming = [createZone('incoming', 'high')];

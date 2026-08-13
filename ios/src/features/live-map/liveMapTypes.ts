@@ -102,6 +102,7 @@ export interface RouteCheckpoint {
 
 export interface SavedSafeRoutePlan {
   id: string;
+  isSummary?: boolean;
   clientId?: string;
   name: string;
   operation: string;

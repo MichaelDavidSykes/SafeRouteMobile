@@ -39,6 +39,10 @@ describe('workspace risk-area API core', () => {
       '/convoy-routes/risk-markers/client/workspace%2Fone' +
         '?include_inactive=false&request_nonce=nonce%20one'
     );
+    assert.equal(
+      buildWorkspaceRiskAreaPath(' workspace/one '),
+      '/convoy-routes/risk-markers/client/workspace%2Fone?include_inactive=false'
+    );
     assert.throws(
       () => buildWorkspaceRiskAreaPath('', 'nonce'),
       /valid workspace/i

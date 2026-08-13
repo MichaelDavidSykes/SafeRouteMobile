@@ -72,14 +72,15 @@ import type {
 import type { RiskZone } from '../live-map/liveMapTypes';
 import {
   CheckpointMarker,
+  CompassTrackedMarker,
   RiskOverlay,
-  VehicleMarker,
 } from '../live-map/LiveMapMarkers';
 import {
   LiveMapDetailCallout,
   LiveMapRiskDetailCallout,
 } from '../live-map/LiveMapRiskDetailCallout';
 import { useViewportRiskAreas } from '../live-map/useViewportRiskAreas';
+import { invalidateWorkspaceRiskAreaCache } from '../live-map/workspaceRiskAreaApi';
 import {
   areaRiskItemIntersectsBounds,
   mergeRiskZonesById,
@@ -93,7 +94,6 @@ import {
 } from '../maps/safeRouteMapTheme';
 import { shouldRenderRouteCheckpointMarker } from '../maps/mapMarkerPresentation';
 import { SafeRouteDarkMapMask } from '../maps/SafeRouteDarkMapMask';
-import { useDeviceHeading } from '../maps/useDeviceHeading';
 import { isPreviewAccessToken } from '../auth/previewSession';
 import { createSessionNoticeState } from '../auth/sessionNoticeState';
 import {
@@ -419,7 +419,6 @@ export function GuestMapScreen({
   const liveCoordinate = liveLocation
     ? { latitude: liveLocation.latitude, longitude: liveLocation.longitude }
     : null;
-  const deviceHeadingDegrees = useDeviceHeading(permissionStatus === 'granted');
   const locationSearchBiasRef = useRef({
     center: {
       latitude: mapRegion.latitude,
@@ -1892,6 +1891,7 @@ export function GuestMapScreen({
       // The next route must be verified against the newly saved workspace risk
       // state instead of reusing a preview prepared before this mutation.
       invalidateSafeRoutePreviewCache();
+      invalidateWorkspaceRiskAreaCache(requestWorkspaceId);
       setMapAction(null);
       setRouteMessage('Risk area added for your workspace.');
       viewportRisk.retry();
@@ -2038,10 +2038,9 @@ export function GuestMapScreen({
           </Marker>
         ) : null}
         {currentLocationVisible && liveCoordinate ? (
-          <VehicleMarker
+          <CompassTrackedMarker
             coordinate={liveCoordinate}
-            demoDriveEnabled={false}
-            heading={deviceHeadingDegrees}
+            enabled={permissionStatus === 'granted'}
             mapHeading={mapCameraHeadingDegrees}
             testID={uiTestIds.guestMapCurrentLocationMarker}
           />

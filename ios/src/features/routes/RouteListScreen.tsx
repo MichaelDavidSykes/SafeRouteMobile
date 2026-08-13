@@ -1,9 +1,9 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   ActivityIndicator,
+  FlatList,
   Pressable,
   RefreshControl,
-  ScrollView,
   Text,
   View,
 } from "react-native";
@@ -66,6 +66,24 @@ function routesForWorkspace(
   workspaceId: string,
 ): SavedSafeRoutePlan[] {
   return routes.filter((route) => route.clientId === workspaceId);
+}
+
+function mergeRoutePages(
+  current: SavedSafeRoutePlan[],
+  next: SavedSafeRoutePlan[],
+): SavedSafeRoutePlan[] {
+  const merged = current.slice();
+  const indexById = new Map(merged.map((route, index) => [route.id, index]));
+  next.forEach((route) => {
+    const existingIndex = indexById.get(route.id);
+    if (existingIndex === undefined) {
+      indexById.set(route.id, merged.length);
+      merged.push(route);
+    } else {
+      merged[existingIndex] = route;
+    }
+  });
+  return merged;
 }
 
 interface RouteListErrorState extends BaseRouteListErrorState {
@@ -145,6 +163,8 @@ export function RouteListScreen({
   const [routes, setRoutes] = useState<SavedSafeRoutePlan[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
+  const [loadingMore, setLoadingMore] = useState(false);
+  const [nextRouteOffset, setNextRouteOffset] = useState<number | null>(null);
   const [errorState, setErrorState] = useState<RouteListErrorState | null>(
     null,
   );
@@ -159,6 +179,9 @@ export function RouteListScreen({
   const [offlineCopyNowMs, setOfflineCopyNowMs] = useState(() => Date.now());
   const loadRevisionRef = useRef(0);
   const detailRevisionRef = useRef(0);
+  const loadMoreInFlightRef = useRef(false);
+  const routesRef = useRef<SavedSafeRoutePlan[]>([]);
+  routesRef.current = routes;
   const protectedRequestsAvailableRef = useRef(protectedRequestsAvailable);
   if (protectedRequestsAvailableRef.current !== protectedRequestsAvailable) {
     protectedRequestsAvailableRef.current = protectedRequestsAvailable;
@@ -172,9 +195,12 @@ export function RouteListScreen({
     (workspaceId: string) => {
       loadRevisionRef.current += 1;
       detailRevisionRef.current += 1;
+      loadMoreInFlightRef.current = false;
       activeWorkspaceIdRef.current = null;
       setLoadedWorkspaceId(null);
       setRoutes([]);
+      setNextRouteOffset(null);
+      setLoadingMore(false);
       setShowingOfflineCopy(false);
       setOfflineCopyStoredAtMs(null);
       setDetailLoadingId(null);
@@ -191,6 +217,8 @@ export function RouteListScreen({
     async ({ refresh = false }: { refresh?: boolean } = {}) => {
       const revision = loadRevisionRef.current + 1;
       loadRevisionRef.current = revision;
+      loadMoreInFlightRef.current = false;
+      setLoadingMore(false);
       if (refresh) {
         setRefreshing(true);
       } else {
@@ -201,6 +229,7 @@ export function RouteListScreen({
       if (!selectedClientId) {
         setLoadedWorkspaceId(null);
         setRoutes([]);
+        setNextRouteOffset(null);
         setShowingOfflineCopy(false);
         setOfflineCopyStoredAtMs(null);
         setLoading(false);
@@ -245,6 +274,7 @@ export function RouteListScreen({
             return;
           }
           setRoutes(cachedRoutes);
+          setNextRouteOffset(null);
           setLoadedWorkspaceId(requestWorkspaceId);
           setLoading(false);
           setShowingOfflineCopy(true);
@@ -254,12 +284,14 @@ export function RouteListScreen({
           return;
         }
         setRoutes(cachedRoutes);
+        setNextRouteOffset(null);
         setLoadedWorkspaceId(requestWorkspaceId);
         setOfflineCopyStoredAtMs(null);
         setLoading(false);
         setRefreshing(true);
       } else if (reviewOnly) {
         setRoutes([]);
+        setNextRouteOffset(null);
         setLoadedWorkspaceId(requestWorkspaceId);
         setShowingOfflineCopy(false);
         setOfflineCopyStoredAtMs(null);
@@ -288,6 +320,9 @@ export function RouteListScreen({
           routes: routesForWorkspace(result.routes, requestWorkspaceId),
         };
         setRoutes(scopedResult.routes);
+        setNextRouteOffset(
+          result.pagination?.hasMore ? result.pagination.nextOffset : null,
+        );
         setLoadedWorkspaceId(requestWorkspaceId);
         setShowingOfflineCopy(false);
         setOfflineCopyStoredAtMs(null);
@@ -333,12 +368,14 @@ export function RouteListScreen({
             return;
           }
           setRoutes(offlineRoutes);
+          setNextRouteOffset(null);
           setLoadedWorkspaceId(requestWorkspaceId);
           setShowingOfflineCopy(true);
           setOfflineCopyStoredAtMs(offlineSnapshot.storedAtMs);
           setOfflineCopyNowMs(Date.now());
         } else {
           setRoutes([]);
+          setNextRouteOffset(null);
           setLoadedWorkspaceId(requestWorkspaceId);
           setShowingOfflineCopy(false);
           setOfflineCopyStoredAtMs(null);
@@ -366,6 +403,70 @@ export function RouteListScreen({
     ],
   );
 
+  const loadNextRoutePage = useCallback(async () => {
+    const requestWorkspaceId = selectedClientId;
+    const offset = nextRouteOffset;
+    const revision = loadRevisionRef.current;
+    if (
+      !requestWorkspaceId ||
+      offset === null ||
+      loadMoreInFlightRef.current ||
+      refreshing ||
+      !protectedRequestsAvailable
+    ) {
+      return;
+    }
+    loadMoreInFlightRef.current = true;
+    const requestOwnsWorkspace = () =>
+      revision === loadRevisionRef.current &&
+      activeWorkspaceIdRef.current === requestWorkspaceId &&
+      protectedRequestsAvailableRef.current;
+    setLoadingMore(true);
+    try {
+      const result = await fetchSavedRoutes(accessToken, requestWorkspaceId, { offset });
+      if (!requestOwnsWorkspace()) {
+        return;
+      }
+      const nextRoutes = routesForWorkspace(result.routes, requestWorkspaceId);
+      const mergedRoutes = mergeRoutePages(routesRef.current, nextRoutes);
+      routesRef.current = mergedRoutes;
+      setRoutes(mergedRoutes);
+      setNextRouteOffset(
+        result.pagination?.hasMore ? result.pagination.nextOffset : null,
+      );
+      void saveOfflineRoutes(cacheIdentity, requestWorkspaceId, {
+        ...result,
+        routes: mergedRoutes,
+      }).catch(() => undefined);
+    } catch (error) {
+      if (!requestOwnsWorkspace()) {
+        return;
+      }
+      if (error instanceof ApiSessionExpiredError) {
+        onSessionExpired(error.message);
+        return;
+      }
+      if (isWorkspaceUnavailableError(error)) {
+        recoverUnavailableWorkspace(requestWorkspaceId);
+      }
+    } finally {
+      loadMoreInFlightRef.current = false;
+      if (requestOwnsWorkspace()) {
+        setLoadingMore(false);
+      }
+    }
+  }, [
+    accessToken,
+    cacheIdentity,
+    loadingMore,
+    nextRouteOffset,
+    onSessionExpired,
+    protectedRequestsAvailable,
+    recoverUnavailableWorkspace,
+    refreshing,
+    selectedClientId,
+  ]);
+
   const previousSelectedClientIdRef = useRef(selectedClientId);
   useEffect(() => {
     if (previousSelectedClientIdRef.current === selectedClientId) {
@@ -378,6 +479,8 @@ export function RouteListScreen({
     setDetailLoadingId(null);
     setErrorState(null);
     setRoutes([]);
+    setNextRouteOffset(null);
+    setLoadingMore(false);
     setShowingOfflineCopy(false);
     setOfflineCopyStoredAtMs(null);
     setLoading(true);
@@ -402,6 +505,7 @@ export function RouteListScreen({
   useEffect(() => {
     if (!protectedRequestsAvailable) {
       setDetailLoadingId(null);
+      setLoadingMore(false);
     }
   }, [protectedRequestsAvailable]);
 
@@ -586,7 +690,10 @@ export function RouteListScreen({
     ownedShowingOfflineCopy,
   ]);
 
-  const handleSelectRoute = async (route: SavedSafeRoutePlan) => {
+  const handleSelectRoute = async (
+    route: SavedSafeRoutePlan,
+    destination: "map" | "sheet" = "map",
+  ) => {
     if (!selectedClientId) {
       return;
     }
@@ -602,6 +709,13 @@ export function RouteListScreen({
       );
     setDetailLoadingId(route.id);
     setErrorState(null);
+    const publishRouteDetail = (detail: SavedSafeRoutePlan) => {
+      if (destination === "sheet") {
+        setSelectedDetailRoute(detail);
+      } else {
+        onSelectRoute(detail);
+      }
+    };
 
     if (reviewOnly) {
       const cachedDetail = await loadOfflineRouteDetail(cacheIdentity, route.id);
@@ -637,7 +751,7 @@ export function RouteListScreen({
         }
         setShowingOfflineCopy(true);
         setDetailLoadingId(null);
-        onSelectRoute({ ...cached, clientId: selectedClientId });
+        publishRouteDetail({ ...cached, clientId: selectedClientId });
         return;
       }
       setErrorState({
@@ -673,7 +787,7 @@ export function RouteListScreen({
         return;
       }
       void saveOfflineRouteDetail(cacheIdentity, routeDetail).catch(() => undefined);
-      onSelectRoute(routeDetail);
+      publishRouteDetail(routeDetail);
     } catch (error) {
       if (!requestOwnsWorkspace()) {
         return;
@@ -717,7 +831,7 @@ export function RouteListScreen({
           }
         }
         setShowingOfflineCopy(true);
-        onSelectRoute({ ...cached, clientId: selectedClientId });
+        publishRouteDetail({ ...cached, clientId: selectedClientId });
       } else {
         setErrorState({
           ...createRouteDetailErrorState(error, route.name),
@@ -895,8 +1009,15 @@ export function RouteListScreen({
           </View>
         </View>
       ) : (
-        <ScrollView
+        <FlatList
           contentContainerStyle={styles.routeList}
+          data={filteredRoutes}
+          initialNumToRender={8}
+          keyExtractor={(route) => route.id}
+          maxToRenderPerBatch={8}
+          onEndReached={() => void loadNextRoutePage()}
+          onEndReachedThreshold={0.4}
+          windowSize={7}
           refreshControl={
             <RefreshControl
               refreshing={refreshing}
@@ -905,23 +1026,23 @@ export function RouteListScreen({
             />
           }
           showsVerticalScrollIndicator={false}
-        >
-          {filteredRoutes.map((route) => (
+          renderItem={({ item: route }) => (
             <RouteCard
               cachedReviewAccessibilityLabel={
                 ownedShowingOfflineCopy
                   ? offlineReviewPresentation?.cardAccessibilityLabel
                   : null
               }
-              key={route.id}
               loading={detailLoadingId === route.id}
               route={route}
               onMapPress={() => handleSelectRoute(route)}
-              onPress={() => setSelectedDetailRoute(route)}
+              onPress={() => void handleSelectRoute(route, "sheet")}
             />
-          ))}
-
-          {showEmptyState ? (
+          )}
+          ListFooterComponent={loadingMore ? (
+            <ActivityIndicator color={colors.appleBlue} />
+          ) : null}
+          ListEmptyComponent={showEmptyState ? (
             <View
               accessible
               accessibilityLabel={emptyState.accessibilityLabel}
@@ -936,7 +1057,7 @@ export function RouteListScreen({
               </Text>
             </View>
           ) : null}
-        </ScrollView>
+        />
       )}
 
       </MotionEntrance>

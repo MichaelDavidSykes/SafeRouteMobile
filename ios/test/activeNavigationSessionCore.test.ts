@@ -9,12 +9,15 @@ import {
   persistAuthorizedNavigationSession,
   revokePersistedActiveNavigationSession,
   canResumeActiveNavigationSession,
+  createActiveNavigationRouteRevision,
   createActiveNavigationInstanceId,
   createActiveNavigationSession,
   isNavigationSessionForRoutePreview,
   mergeActiveNavigationLocation,
+  mergeActiveNavigationSessionDelta,
   normalizeActiveNavigationSession,
   serializeActiveNavigationSession,
+  serializeActiveNavigationSessionDelta,
 } from "../src/features/live-map/activeNavigationSessionCore";
 import { SAVED_ROUTE_PLANS } from "../src/features/live-map/demoRoute";
 
@@ -44,6 +47,50 @@ function session(overrides: Record<string, unknown> = {}) {
 }
 
 describe("active navigation session", () => {
+  it("persists changing guidance fields as a compact delta tied to an immutable route revision", () => {
+    const original = session();
+    const updated = session({
+      followModeEnabled: false,
+      navigationInstanceId: original.navigationInstanceId,
+      navigationState: "paused",
+      progressFloorMeters: 700,
+      savedAtMs: nowMs + 2_000,
+    });
+    const full = serializeActiveNavigationSession(updated);
+    const delta = serializeActiveNavigationSessionDelta(updated);
+    assert.ok(full);
+    assert.ok(delta);
+    assert.ok(delta.length < full.length / 4);
+    const merged = mergeActiveNavigationSessionDelta(original, delta, nowMs + 2_000);
+    assert.equal(merged.navigationState, "paused");
+    assert.equal(merged.followModeEnabled, false);
+    assert.equal(merged.progressFloorMeters, 700);
+    assert.equal(merged.routePlan.id, original.routePlan.id);
+    assert.deepEqual(merged.routePlan.route.coordinates, original.routePlan.route.coordinates);
+    assert.equal(
+      createActiveNavigationRouteRevision(original.routePlan),
+      createActiveNavigationRouteRevision(original.routePlan),
+    );
+    const otherGeometry = {
+      ...original.routePlan,
+      route: {
+        ...original.routePlan.route,
+        coordinates: original.routePlan.route.coordinates.map((coordinate, index) =>
+          index === 1
+            ? { ...coordinate, latitude: coordinate.latitude + 0.01 }
+            : coordinate
+        ),
+      },
+    };
+    assert.equal(
+      mergeActiveNavigationSessionDelta(
+        { ...original, routePlan: otherGeometry },
+        delta,
+        nowMs + 2_000,
+      ).navigationState,
+      original.navigationState,
+    );
+  });
   it("round-trips a bounded active route session", () => {
     const original = session();
     const serialized = serializeActiveNavigationSession(original);

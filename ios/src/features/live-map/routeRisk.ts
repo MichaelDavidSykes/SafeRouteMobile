@@ -42,6 +42,20 @@ export interface RouteRiskAvoidanceAudit {
   violations: RouteRiskProximity[];
 }
 
+export interface RouteRiskSpatialEntry {
+  maxLatitude: number;
+  maxLongitude: number;
+  minLatitude: number;
+  minLongitude: number;
+  proximity: RouteRiskProximity;
+}
+
+/** Route-relative risk geometry built once when a plan/viewport revision changes. */
+export interface RouteRiskSpatialIndex {
+  entries: RouteRiskSpatialEntry[];
+  routeCoordinates: LatLng[];
+}
+
 export interface LiveRouteRiskAlert {
   distanceToVehicleMeters: number;
   vehicleInsideRiskArea: boolean;
@@ -103,6 +117,50 @@ export function calculateRiskZoneRouteProximity(
     routeDistanceMeters: projection.distanceMeters,
     zone,
   };
+}
+
+export function createRouteRiskSpatialIndex(
+  routeCoordinates: LatLng[],
+  riskZones: RiskZone[]
+): RouteRiskSpatialIndex {
+  const entries = riskZones
+    .map((zone): RouteRiskSpatialEntry | null => {
+      const proximity = calculateRiskZoneRouteProximity(routeCoordinates, zone);
+      if (!proximity) {
+        return null;
+      }
+      const coordinates = [
+        zone.coordinate,
+        ...(zone.polygonCoordinates || []),
+        ...(zone.routeSegmentCoordinates || []),
+      ];
+      const radiusPaddingLatitude = (normalizeRadiusMeters(zone.radiusMeters) + LIVE_RISK_ACTIVE_BUFFER_METERS) / 110574;
+      const longitudeScale = 111320 * Math.max(0.15, Math.cos(zone.coordinate.latitude * Math.PI / 180));
+      const radiusPaddingLongitude = (normalizeRadiusMeters(zone.radiusMeters) + LIVE_RISK_ACTIVE_BUFFER_METERS) / longitudeScale;
+      let minLatitude = Number.POSITIVE_INFINITY;
+      let maxLatitude = Number.NEGATIVE_INFINITY;
+      let minLongitude = Number.POSITIVE_INFINITY;
+      let maxLongitude = Number.NEGATIVE_INFINITY;
+      coordinates.forEach((coordinate) => {
+        minLatitude = Math.min(minLatitude, coordinate.latitude);
+        maxLatitude = Math.max(maxLatitude, coordinate.latitude);
+        minLongitude = Math.min(minLongitude, coordinate.longitude);
+        maxLongitude = Math.max(maxLongitude, coordinate.longitude);
+      });
+      return {
+        maxLatitude: maxLatitude + radiusPaddingLatitude,
+        maxLongitude: maxLongitude + radiusPaddingLongitude,
+        minLatitude: minLatitude - radiusPaddingLatitude,
+        minLongitude: minLongitude - radiusPaddingLongitude,
+        proximity,
+      };
+    })
+    .filter((entry): entry is RouteRiskSpatialEntry => Boolean(entry))
+    .sort((first, second) =>
+      first.proximity.routeDistanceAlongMeters - second.proximity.routeDistanceAlongMeters
+    );
+
+  return { entries, routeCoordinates };
 }
 
 export function auditRouteRiskAvoidance(
@@ -197,11 +255,13 @@ function normalizeRouteStartBlockedRiskTitle(title: string): string {
 export function resolveLiveRouteRiskAlert({
   navigationState,
   progress,
+  riskIndex,
   routePlan,
   vehicleCoordinate,
 }: {
   navigationState: NavigationLifecycle;
   progress: RouteProgressSnapshot | null;
+  riskIndex?: RouteRiskSpatialIndex | null;
   routePlan: SavedSafeRoutePlan;
   vehicleCoordinate?: LatLng | null;
 }): LiveRouteRiskAlert | null {
@@ -210,18 +270,41 @@ export function resolveLiveRouteRiskAlert({
   }
 
   const currentVehicleCoordinate = vehicleCoordinate || progress.snappedCoordinate;
-  const candidates = routePlan.riskZones
-    .map((zone) => {
-      const proximity = calculateRiskZoneRouteProximity(
-        routePlan.route.coordinates,
-        zone
-      );
-      if (!proximity) {
-        return null;
-      }
+  const indexedProximities = riskIndex?.routeCoordinates === routePlan.route.coordinates
+    ? riskIndex.entries
+    : routePlan.riskZones.map((zone) => {
+        const proximity = calculateRiskZoneRouteProximity(
+          routePlan.route.coordinates,
+          zone
+        );
+        return proximity
+          ? {
+              maxLatitude: 90,
+              maxLongitude: 180,
+              minLatitude: -90,
+              minLongitude: -180,
+              proximity,
+            }
+          : null;
+      }).filter((entry): entry is RouteRiskSpatialEntry => Boolean(entry));
+  const candidates = indexedProximities
+    .map((entry) => {
+      const proximity = entry.proximity;
+      const zone = proximity.zone;
 
       const routeDistanceAheadMeters =
         proximity.routeDistanceAlongMeters - progress.travelledDistanceMeters;
+      const routeCandidate =
+        routeDistanceAheadMeters >= -(proximity.radiusMeters + LIVE_RISK_PASSED_GRACE_METERS) &&
+        routeDistanceAheadMeters <= LIVE_RISK_UPCOMING_DISTANCE_METERS;
+      const nearbyCandidate =
+        currentVehicleCoordinate.latitude >= entry.minLatitude &&
+        currentVehicleCoordinate.latitude <= entry.maxLatitude &&
+        currentVehicleCoordinate.longitude >= entry.minLongitude &&
+        currentVehicleCoordinate.longitude <= entry.maxLongitude;
+      if (!routeCandidate && !nearbyCandidate) {
+        return null;
+      }
       const vehicleProximity = calculateRiskZoneCoordinateProximity(
         currentVehicleCoordinate,
         zone
@@ -325,6 +408,44 @@ export function resolveVisibleRiskZones({
   }
 
   return [liveRiskAlert.zone];
+}
+
+export function cullVisibleRiskZones({
+  activeRiskZoneId,
+  maxCount = 80,
+  progress,
+  riskIndex,
+  riskZones,
+  selectedRiskZoneId,
+}: {
+  activeRiskZoneId?: string | null;
+  maxCount?: number;
+  progress: RouteProgressSnapshot | null;
+  riskIndex: RouteRiskSpatialIndex;
+  riskZones: RiskZone[];
+  selectedRiskZoneId?: string | null;
+}): RiskZone[] {
+  if (riskZones.length <= maxCount) {
+    return riskZones;
+  }
+  const proximityById = new Map(
+    riskIndex.entries.map((entry) => [entry.proximity.zone.id, entry.proximity]),
+  );
+  const travelledDistance = progress?.travelledDistanceMeters || 0;
+  const severityScore: Record<RiskSeverity, number> = { high: 0, medium: 1, low: 2 };
+  return riskZones.slice().sort((first, second) => {
+    const priority = (zone: RiskZone) => {
+      if (zone.id === activeRiskZoneId) return -4_000_000;
+      if (zone.id === selectedRiskZoneId) return -3_000_000;
+      const proximity = proximityById.get(zone.id);
+      const routeDistance = proximity
+        ? Math.abs(proximity.routeDistanceAlongMeters - travelledDistance)
+        : 2_000_000;
+      return (isRouteAlertZone(zone) ? -1_000_000 : 0) +
+        severityScore[zone.severity] * 100_000 + routeDistance;
+    };
+    return priority(first) - priority(second);
+  }).slice(0, Math.max(1, maxCount));
 }
 
 export function createLiveRouteRiskAlertPresentation(

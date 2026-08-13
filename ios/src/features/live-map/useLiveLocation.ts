@@ -39,6 +39,7 @@ interface UseLiveLocationOptions {
   manageBackgroundNavigation?: boolean;
   navigationActive?: boolean;
   permissionRequested?: boolean;
+  trackingEnabled?: boolean;
 }
 
 export function useLiveLocation({
@@ -49,7 +50,8 @@ export function useLiveLocation({
   initialLocationSample = null,
   manageBackgroundNavigation = false,
   navigationActive = false,
-  permissionRequested = false
+  permissionRequested = false,
+  trackingEnabled = true,
 }: UseLiveLocationOptions = {}) {
   const initialReliableLocationRef = useRef(
     isReliableLocationSampleRecent(initialLocationSample)
@@ -84,6 +86,7 @@ export function useLiveLocation({
   const [errorMessage, setErrorMessage] = useState('');
   const [locationQuality, setLocationQuality] = useState<'degraded' | 'good'>('degraded');
   const [backgroundStatus, setBackgroundStatus] = useState<BackgroundNavigationStatus>('idle');
+  const [appStateActive, setAppStateActive] = useState(AppState.currentState === 'active');
 
   navigationActiveRef.current = navigationActive;
 
@@ -183,6 +186,10 @@ export function useLiveLocation({
       setPermissionStatus('granted');
       setErrorMessage('');
 
+      if (!trackingEnabled || !appStateActive) {
+        return;
+      }
+
       try {
         const lastKnown = await Location.getLastKnownPositionAsync({
           maxAge: trackingCadence.lastKnownMaxAgeMs,
@@ -236,8 +243,10 @@ export function useLiveLocation({
     };
   }, [
     acceptLocationObject,
+    appStateActive,
     navigationActive,
-    permissionRequested
+    permissionRequested,
+    trackingEnabled,
   ]);
 
   useEffect(() => {
@@ -262,6 +271,9 @@ export function useLiveLocation({
     };
 
     const appStateSubscription = AppState.addEventListener('change', (nextState) => {
+      if (mounted) {
+        setAppStateActive(nextState === 'active');
+      }
       if (nextState !== 'active') {
         return;
       }

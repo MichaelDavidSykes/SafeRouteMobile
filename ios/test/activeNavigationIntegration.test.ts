@@ -39,9 +39,10 @@ describe("production navigation reliability integration", () => {
     );
 
     assert.match(backgroundSource, /AutomotiveNavigation/);
-    assert.match(backgroundSource, /deferredUpdatesDistance:\s*20/);
-    assert.match(backgroundSource, /deferredUpdatesInterval:\s*10_000/);
-    assert.match(backgroundSource, /distanceInterval:\s*5/);
+    assert.match(backgroundSource, /deferredUpdatesDistance:\s*30/);
+    assert.match(backgroundSource, /deferredUpdatesInterval:\s*15_000/);
+    assert.match(backgroundSource, /distanceInterval:\s*10/);
+    assert.match(backgroundSource, /timeInterval:\s*5_000/);
     assert.match(backgroundSource, /foregroundService:/);
     assert.doesNotMatch(sessionCoreSource, /accessToken|password|loginCode/);
     assert.match(backgroundSource, /await revokeBackgroundNavigationPermit\(\)/);
@@ -135,7 +136,12 @@ describe("production navigation reliability integration", () => {
     assert.doesNotMatch(prestartReadback, /stopBackgroundNavigation\(/);
     assert.match(
       liveMapSource,
-      /setInterval\(\(\) => \{[\s\S]*void persistCurrentSession\(\);[\s\S]*\}, 5_000\)/,
+      /setInterval\(\(\) => \{[\s\S]*void persistCurrentSession\(\);[\s\S]*\}, 15_000\)/,
+    );
+    assert.match(activeSessionSource, /ACTIVE_NAVIGATION_SESSION_DELTA_KEY/);
+    assert.match(
+      activeSessionSource,
+      /persistedRouteRevision !== routeRevision \|\|[\s\S]*persistedNavigationInstanceId !== session\.navigationInstanceId/,
     );
   });
 

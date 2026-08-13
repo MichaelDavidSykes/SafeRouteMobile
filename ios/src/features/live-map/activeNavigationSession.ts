@@ -3,6 +3,7 @@ import * as SecureStore from "expo-secure-store";
 
 import {
   mergeActiveNavigationLocation,
+  mergeActiveNavigationSessionDelta,
   normalizeActiveNavigationSession,
   ensurePersistedNavigationRevocation,
   hasPersistedNavigationRevocation,
@@ -10,6 +11,8 @@ import {
   REVOKED_ACTIVE_NAVIGATION_SESSION,
   revokePersistedActiveNavigationSession,
   serializeActiveNavigationSession,
+  serializeActiveNavigationSessionDelta,
+  createActiveNavigationRouteRevision,
   type ActiveNavigationSession,
 } from "./activeNavigationSessionCore";
 import {
@@ -25,10 +28,14 @@ import {
   isBackgroundNavigationSampleCurrent,
   isBackgroundNavigationWriteAuthorized,
   normalizeBackgroundNavigationPermit,
+  type BackgroundNavigationPermit,
 } from "./backgroundNavigationPermitCore";
+import { haversineDistanceMeters } from "./routeGeometry";
 
 const ACTIVE_NAVIGATION_SESSION_KEY =
   "@saferoute/active-navigation-session-v1";
+const ACTIVE_NAVIGATION_SESSION_DELTA_KEY =
+  "@saferoute/active-navigation-session-delta-v1";
 const BACKGROUND_NAVIGATION_LOCATION_KEY =
   "@saferoute/background-navigation-location-v1";
 const BACKGROUND_NAVIGATION_PERMIT_KEY =
@@ -39,6 +46,20 @@ const ACTIVE_NAVIGATION_REVOCATION_KEY =
 const ACTIVE_NAVIGATION_REVOKED_VALUE = "revoked";
 const BACKGROUND_LOCATION_MAX_AGE_MS = RELIABLE_LOCATION_MAX_WALL_AGE_MS;
 let navigationStorageMutationQueue: Promise<void> = Promise.resolve();
+let persistedRouteRevision: string | null = null;
+let persistedNavigationInstanceId: string | null = null;
+let runtimeBackgroundNavigationIdentity: {
+  navigationInstanceId: string;
+  routeId: string;
+} | null = null;
+let cachedBackgroundAuthorization: {
+  expiresAtMs: number;
+  permit: BackgroundNavigationPermit;
+  session: ActiveNavigationSession;
+} | null = null;
+const BACKGROUND_AUTHORIZATION_CACHE_MS = 15_000;
+const BACKGROUND_LOCATION_MIN_WRITE_INTERVAL_MS = 5_000;
+const BACKGROUND_LOCATION_MIN_WRITE_DISTANCE_METERS = 10;
 const runtimeBackgroundNavigationPermit =
   createBackgroundNavigationRuntimePermitStore();
 
@@ -62,16 +83,36 @@ export type ActiveNavigationSessionReadback =
 export async function saveActiveNavigationSession(
   session: ActiveNavigationSession,
 ): Promise<boolean> {
-  const serialized = serializeActiveNavigationSession(session);
-  if (!serialized) {
+  const delta = serializeActiveNavigationSessionDelta(session);
+  const routeRevision = createActiveNavigationRouteRevision(session.routePlan);
+  if (!delta) {
     return false;
   }
 
   return enqueueNavigationStorageMutation(async () => {
-    return persistAuthorizedNavigationSession(
-      () => AsyncStorage.setItem(ACTIVE_NAVIGATION_SESSION_KEY, serialized),
+    const includeBase =
+      persistedRouteRevision !== routeRevision ||
+      persistedNavigationInstanceId !== session.navigationInstanceId;
+    const serialized = includeBase
+      ? serializeActiveNavigationSession(session)
+      : null;
+    if (includeBase && !serialized) {
+      return false;
+    }
+    const persisted = await persistAuthorizedNavigationSession(
+      () => includeBase
+        ? AsyncStorage.multiSet([
+            [ACTIVE_NAVIGATION_SESSION_KEY, serialized!],
+            [ACTIVE_NAVIGATION_SESSION_DELTA_KEY, delta],
+          ])
+        : AsyncStorage.setItem(ACTIVE_NAVIGATION_SESSION_DELTA_KEY, delta),
       () => SecureStore.deleteItemAsync(ACTIVE_NAVIGATION_REVOCATION_KEY),
     );
+    if (persisted) {
+      persistedRouteRevision = routeRevision;
+      persistedNavigationInstanceId = session.navigationInstanceId;
+    }
+    return persisted;
   });
 }
 
@@ -94,10 +135,16 @@ export async function readActiveNavigationSession(
       await clearActiveNavigationSession();
       return { session: null, status: "absent" };
     }
-    const serialized = await AsyncStorage.getItem(
+    const values = await AsyncStorage.multiGet([
       ACTIVE_NAVIGATION_SESSION_KEY,
-    );
-    const session = normalizeActiveNavigationSession(serialized, nowMs);
+      ACTIVE_NAVIGATION_SESSION_DELTA_KEY,
+    ]);
+    const serialized = values[0]?.[1] || null;
+    const delta = values[1]?.[1] || null;
+    const baseSession = normalizeActiveNavigationSession(serialized, nowMs);
+    const session = baseSession
+      ? mergeActiveNavigationSessionDelta(baseSession, delta, nowMs)
+      : null;
     if (!session) {
       if (serialized) {
         await clearActiveNavigationSession();
@@ -111,6 +158,8 @@ export async function readActiveNavigationSession(
       session.navigationInstanceId,
       nowMs,
     );
+    persistedRouteRevision = createActiveNavigationRouteRevision(session.routePlan);
+    persistedNavigationInstanceId = session.navigationInstanceId;
     return {
       session: mergeActiveNavigationLocation(session, backgroundLocation),
       status: "present",
@@ -122,6 +171,10 @@ export async function readActiveNavigationSession(
 
 export async function clearActiveNavigationSession(): Promise<boolean> {
   runtimeBackgroundNavigationPermit.revoke();
+  persistedRouteRevision = null;
+  persistedNavigationInstanceId = null;
+  runtimeBackgroundNavigationIdentity = null;
+  cachedBackgroundAuthorization = null;
   return ensurePersistedNavigationRevocation(
     () => enqueueNavigationStorageMutation(() =>
       revokePersistedActiveNavigationSession(
@@ -131,6 +184,7 @@ export async function clearActiveNavigationSession(): Promise<boolean> {
         ),
         () => AsyncStorage.multiRemove([
           ACTIVE_NAVIGATION_SESSION_KEY,
+          ACTIVE_NAVIGATION_SESSION_DELTA_KEY,
           BACKGROUND_NAVIGATION_LOCATION_KEY,
           BACKGROUND_NAVIGATION_PERMIT_KEY,
         ]),
@@ -214,7 +268,14 @@ export async function activateBackgroundNavigationPermit(
       ) {
         return false;
       }
-      return runtimeBackgroundNavigationPermit.activate(permit);
+      const activated = runtimeBackgroundNavigationPermit.activate(permit);
+      if (activated) {
+        runtimeBackgroundNavigationIdentity = {
+          navigationInstanceId: permit.navigationInstanceId,
+          routeId: permit.routeId,
+        };
+      }
+      return activated;
     } catch {
       return false;
     }
@@ -223,6 +284,8 @@ export async function activateBackgroundNavigationPermit(
 
 export async function revokeBackgroundNavigationPermit(): Promise<void> {
   runtimeBackgroundNavigationPermit.revoke();
+  runtimeBackgroundNavigationIdentity = null;
+  cachedBackgroundAuthorization = null;
   await enqueueNavigationStorageMutation(async () => {
     try {
       await AsyncStorage.removeItem(BACKGROUND_NAVIGATION_PERMIT_KEY);
@@ -246,13 +309,23 @@ export async function saveBackgroundNavigationLocation(
 
   return enqueueNavigationStorageMutation(async () => {
     try {
-      const [permitValue, sessionValue, locationValue] = await Promise.all([
-        AsyncStorage.getItem(BACKGROUND_NAVIGATION_PERMIT_KEY),
-        AsyncStorage.getItem(ACTIVE_NAVIGATION_SESSION_KEY),
-        AsyncStorage.getItem(BACKGROUND_NAVIGATION_LOCATION_KEY),
-      ]);
-      const permit = normalizeBackgroundNavigationPermit(permitValue);
-      const session = normalizeActiveNavigationSession(sessionValue);
+      const locationValue = await AsyncStorage.getItem(BACKGROUND_NAVIGATION_LOCATION_KEY);
+      const cached = cachedBackgroundAuthorization;
+      let permit = cached?.expiresAtMs && cached.expiresAtMs > Date.now() &&
+        cached.permit.routeId === normalizedRouteId &&
+        cached.permit.navigationInstanceId === navigationInstanceId &&
+        runtimeBackgroundNavigationPermit.matches(cached.permit)
+          ? cached.permit
+          : null;
+      let session = permit && cached ? cached.session : null;
+      if (!permit || !session) {
+        const [permitValue, sessionValue] = await Promise.all([
+          AsyncStorage.getItem(BACKGROUND_NAVIGATION_PERMIT_KEY),
+          AsyncStorage.getItem(ACTIVE_NAVIGATION_SESSION_KEY),
+        ]);
+        permit = normalizeBackgroundNavigationPermit(permitValue);
+        session = normalizeActiveNavigationSession(sessionValue);
+      }
       if (
         !permit ||
         !session ||
@@ -260,6 +333,11 @@ export async function saveBackgroundNavigationLocation(
       ) {
         return "unauthorized";
       }
+      cachedBackgroundAuthorization = {
+        expiresAtMs: Date.now() + BACKGROUND_AUTHORIZATION_CACHE_MS,
+        permit,
+        session,
+      };
       if (!isBackgroundNavigationWriteAuthorized({
           permitValue: permit,
           navigationInstanceIdValue: permit.navigationInstanceId,
@@ -298,6 +376,17 @@ export async function saveBackgroundNavigationLocation(
           session.accessScope,
         ) &&
         currentLocation.sample.timestampMs >= sample.timestampMs
+      ) {
+        return "ignored";
+      }
+      if (
+        currentLocation &&
+        currentLocation.routeId === normalizedRouteId &&
+        currentLocation.navigationInstanceId === navigationInstanceId &&
+        sample.timestampMs - currentLocation.sample.timestampMs <
+          BACKGROUND_LOCATION_MIN_WRITE_INTERVAL_MS &&
+        haversineDistanceMeters(currentLocation.sample, sample) <
+          BACKGROUND_LOCATION_MIN_WRITE_DISTANCE_METERS
       ) {
         return "ignored";
       }
@@ -455,12 +544,25 @@ export async function getPersistedActiveNavigationAuthorization(): Promise<{
   navigationInstanceId: string;
   routeId: string;
 } | null> {
+  const runtimeAuthorization = getRuntimeBackgroundNavigationAuthorization();
+  if (runtimeAuthorization) {
+    return runtimeAuthorization;
+  }
   const session = await loadActiveNavigationSession();
   return session
     ? {
         navigationInstanceId: session.navigationInstanceId,
         routeId: session.routePlan.route.id,
       }
+    : null;
+}
+
+export function getRuntimeBackgroundNavigationAuthorization(): {
+  navigationInstanceId: string;
+  routeId: string;
+} | null {
+  return runtimeBackgroundNavigationPermit.hasActivePermit() && runtimeBackgroundNavigationIdentity
+    ? { ...runtimeBackgroundNavigationIdentity }
     : null;
 }
 

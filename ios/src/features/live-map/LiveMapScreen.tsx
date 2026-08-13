@@ -30,6 +30,8 @@ import { createRouteRiskAdvisory } from "./liveRouteRiskAdvisory";
 import {
   calculateRiskZoneRouteProximity,
   auditRouteRiskAvoidance,
+  cullVisibleRiskZones,
+  createRouteRiskSpatialIndex,
   routeRiskStartBlockedReason,
   resolveLiveRouteRiskAlert,
   resolveVisibleRiskZones,
@@ -104,7 +106,6 @@ import { useNetworkAvailability } from "../api/useNetworkAvailability";
 import { getRequestSessionExpiry } from "../api/sessionExpiry";
 import { getRequestUnavailableWorkspaceId } from "../workspaces/workspaceAccessRecovery";
 import { isCurrentWorkspaceAuthorizationEpoch } from "../workspaces/workspaceForegroundRevalidation";
-import { useDeviceHeading } from "../maps/useDeviceHeading";
 import {
   cancelNavigationStartAuthorization,
   createNavigationStartAuthorizationGate,
@@ -300,10 +301,8 @@ export function LiveMapScreen({
     manageBackgroundNavigation: true,
     navigationActive: navigationLocationTrackingActive,
     permissionRequested: locationTrackingRequested,
+    trackingEnabled: locationTrackingRequested,
   });
-  const deviceHeadingDegrees = useDeviceHeading(
-    !demoDriveActive && permissionStatus === "granted",
-  );
   onAuthorizeNavigationStartRef.current = onAuthorizeNavigationStart;
   onNavigationSessionChangeRef.current = onNavigationSessionChange;
   onWorkspaceUnavailableRef.current = onWorkspaceUnavailable;
@@ -422,6 +421,13 @@ export function LiveMapScreen({
           : 0,
       speedMetersPerSecond,
     },
+  );
+  const routeRiskIndex = useMemo(
+    () => createRouteRiskSpatialIndex(
+      liveRoutePlan.route.coordinates,
+      liveRoutePlan.riskZones,
+    ),
+    [liveRoutePlan.route.coordinates, liveRoutePlan.riskZones],
   );
   progressRef.current = progress;
   const activeNavigationState = resolveActiveNavigationState(
@@ -558,6 +564,7 @@ export function LiveMapScreen({
   );
   const riskAdvisory = createRouteRiskAdvisory({
     progress,
+    riskIndex: routeRiskIndex,
     riskZones: liveRoutePlan.riskZones,
     routeCoordinates: liveRoutePlan.route.coordinates,
   });
@@ -566,6 +573,7 @@ export function LiveMapScreen({
       resolveLiveRouteRiskAlert({
         navigationState: activeNavigationState,
         progress,
+        riskIndex: routeRiskIndex,
         routePlan: liveRoutePlan,
         vehicleCoordinate: rawVehicleCoordinate,
       }),
@@ -579,18 +587,36 @@ export function LiveMapScreen({
       rawVehicleCoordinate?.latitude,
       rawVehicleCoordinate?.longitude,
       liveRoutePlan,
+      routeRiskIndex,
     ],
   );
-  const visibleRiskZones = useMemo(
-    () =>
-      resolveVisibleRiskZones({
-        alertsVisible,
-        liveRiskAlert,
-        navigationState: activeNavigationState,
-        riskZones: liveRoutePlan.riskZones,
-      }),
-    [activeNavigationState, alertsVisible, liveRiskAlert, liveRoutePlan.riskZones],
+  const riskCullProgressBucket = Math.floor(
+    (progress?.travelledDistanceMeters || 0) / 250,
   );
+  const activeRiskZoneId = liveRiskAlert?.zone.id || null;
+  const visibleRiskZones = useMemo(() => {
+    const visible = resolveVisibleRiskZones({
+      alertsVisible,
+      liveRiskAlert,
+      navigationState: activeNavigationState,
+      riskZones: liveRoutePlan.riskZones,
+    });
+    return cullVisibleRiskZones({
+      activeRiskZoneId,
+      progress,
+      riskIndex: routeRiskIndex,
+      riskZones: visible,
+      selectedRiskZoneId,
+    });
+  }, [
+    activeNavigationState,
+    activeRiskZoneId,
+    alertsVisible,
+    liveRoutePlan.riskZones,
+    riskCullProgressBucket,
+    routeRiskIndex,
+    selectedRiskZoneId,
+  ]);
   const selectedRiskZone = useMemo(
     () =>
       liveRoutePlan.riskZones.find((zone) => zone.id === selectedRiskZoneId) ||
@@ -600,10 +626,12 @@ export function LiveMapScreen({
   const selectedRiskProximity = useMemo(
     () =>
       selectedRiskZone
-        ? calculateRiskZoneRouteProximity(
-            liveRoutePlan.route.coordinates,
-            selectedRiskZone,
-          )
+        ? routeRiskIndex.entries.find(
+            (entry) => entry.proximity.zone.id === selectedRiskZone.id,
+          )?.proximity || calculateRiskZoneRouteProximity(
+          liveRoutePlan.route.coordinates,
+          selectedRiskZone,
+        )
         : null,
     [liveRoutePlan.route.coordinates, selectedRiskZone],
   );
@@ -620,15 +648,6 @@ export function LiveMapScreen({
     demoDriveActive,
     routeStep,
   );
-  const vehicleFacingHeading = demoDriveActive
-    ? heading
-    : deviceHeadingDegrees ?? (
-        typeof coordinate?.heading === "number" &&
-        Number.isFinite(coordinate.heading) &&
-        coordinate.heading >= 0
-          ? coordinate.heading
-          : null
-      );
 
   const commitRerouteState = (nextState: LiveRerouteState) => {
     const currentState = rerouteStateRef.current;
@@ -1167,7 +1186,7 @@ export function LiveMapScreen({
     void persistCurrentSession();
     const interval = setInterval(() => {
       void persistCurrentSession();
-    }, 5_000);
+    }, 15_000);
     return () => clearInterval(interval);
   }, [activeRoutePlan.route.id, demoDriveActive, navigationState, routeContext]);
 
@@ -1699,9 +1718,9 @@ export function LiveMapScreen({
       >
         <LiveMapCanvas
           activeNavigationState={activeNavigationState}
-          activeRiskZoneId={liveRiskAlert?.zone.id}
+          activeRiskZoneId={activeRiskZoneId}
           demoDriveActive={demoDriveActive}
-          heading={vehicleFacingHeading}
+          heading={heading}
           mapHeading={mapCameraHeadingDegrees}
           mapRef={mapRef}
           onMapReady={handleMapReady}

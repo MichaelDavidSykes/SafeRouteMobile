@@ -3,7 +3,11 @@ import type { Region } from 'react-native-maps';
 
 import { getRequestSessionExpiry } from '../api/sessionExpiry';
 import { getRequestUnavailableWorkspaceId } from '../workspaces/workspaceAccessRecovery';
-import { fetchWorkspaceRiskAreas } from './workspaceRiskAreaApi';
+import {
+  fetchWorkspaceRiskAreas,
+  getWorkspaceRiskAreasMemorySnapshot,
+  invalidateWorkspaceRiskAreaCache,
+} from './workspaceRiskAreaApi';
 import { selectWorkspaceRiskAreasForRegion } from './workspaceRiskAreaApiCore';
 import type { RiskZone } from './liveMapTypes';
 import { workspaceRiskPersistentCache } from './workspaceRiskPersistentCache';
@@ -29,6 +33,7 @@ export function useWorkspaceRiskAreas({
   region: Region;
 }) {
   const requestRevisionRef = useRef(0);
+  const handledRetryRevisionRef = useRef(0);
   const accessSessionIdentityRef = useRef({
     identity: 0,
     token: String(accessToken || '').trim()
@@ -96,6 +101,18 @@ export function useWorkspaceRiskAreas({
     let workspaceUnavailableHandled = false;
     let freshResponseAccepted = false;
     let refreshFailed = false;
+    const memorySnapshot = getWorkspaceRiskAreasMemorySnapshot({
+      accessToken: normalizedAccessToken,
+      clientId: normalizedClientId,
+    });
+    if (memorySnapshot) {
+      freshResponseAccepted = true;
+      allZonesRef.current = memorySnapshot.zones;
+      loadedContextRef.current = requestContext;
+      setAllZones(memorySnapshot.zones);
+      setLoadedContext(requestContext);
+      setLoading(false);
+    }
 
     void workspaceRiskPersistentCache.load(
       normalizedCacheScopeId,
@@ -122,12 +139,15 @@ export function useWorkspaceRiskAreas({
       }
     });
 
-    if (!refreshEnabled) {
+    if (!refreshEnabled || memorySnapshot?.fresh) {
       return () => controller.abort();
     }
 
+    const bypassCache = retryRevision > handledRetryRevisionRef.current;
+    handledRetryRevisionRef.current = retryRevision;
     void fetchWorkspaceRiskAreas({
       accessToken: normalizedAccessToken,
+      bypassCache,
       clientId: normalizedClientId,
       signal: controller.signal
     }).then((zones) => {
@@ -156,6 +176,7 @@ export function useWorkspaceRiskAreas({
         requestActive: true
       });
       if (sessionExpiry) {
+        invalidateWorkspaceRiskAreaCache(normalizedClientId);
         sessionExpiryHandled = true;
         freshResponseAccepted = true;
         allZonesRef.current = [];
@@ -173,6 +194,7 @@ export function useWorkspaceRiskAreas({
         workspaceId: normalizedClientId
       });
       if (unavailableWorkspaceId) {
+        invalidateWorkspaceRiskAreaCache(normalizedClientId);
         workspaceUnavailableHandled = true;
         freshResponseAccepted = true;
         allZonesRef.current = [];

@@ -35,6 +35,7 @@ import {
   resolveViewportRiskCoverageOutcome,
   resolveViewportRiskDisplayZones,
   resolveViewportRiskUnavailableRecovery,
+  shouldRevalidateViewportRiskRequest,
   type ViewportRiskCache,
   type ViewportRiskCoverageState
 } from './viewportRiskState';
@@ -328,7 +329,11 @@ export function useViewportRiskAreas({
         cachedRequestCount += 1;
         cachedZones.push(cached);
       }
-      requestsToLoad.push(request);
+      if (shouldRevalidateViewportRiskRequest(cacheRef.current, request, {
+        bypassCache,
+      })) {
+        requestsToLoad.push(request);
+      }
     }
 
     const nearbyCachedResult = collectFreshViewportRiskZonesForRequests(
@@ -374,6 +379,18 @@ export function useViewportRiskAreas({
       );
       return () => controller.abort();
     }
+    if (!requestsToLoad.length) {
+      setZones(resolveViewportRiskDisplayZones(retainedZones, cachedResult, true));
+      setLoading(false);
+      setErrorMessage('');
+      setStatusMessage(
+        cachedResult.length
+          ? 'Current risks are available for this map view.'
+          : 'No current risk areas in this map view.'
+      );
+      setCoverageState(cachedResult.length ? 'current' : 'current-empty');
+      return () => controller.abort();
+    }
     setZones(resolveViewportRiskDisplayZones(retainedZones, cachedResult, false));
     setLoading(!hasCompleteCachedCoverage);
     setErrorMessage('');
@@ -416,6 +433,7 @@ export function useViewportRiskAreas({
       let currentEmptyResearchCount = 0;
       let sessionExpiryHandled = false;
       let workspaceUnavailableHandled = false;
+      let cacheUpdated = false;
       const downloads = requestsToLoad.map(async (request) => {
         try {
           const feed = await fetchAreaRiskViewport(request, {
@@ -497,19 +515,11 @@ export function useViewportRiskAreas({
             cacheViewportRiskZones(cacheRef.current, request, feed.zones, {
               ttlMs: VIEWPORT_RISK_PERSISTENT_MAX_AGE_MS
             });
-            void viewportRiskPersistentCache.save(
-              normalizedCacheScopeId,
-              cacheRef.current
-            ).catch(() => undefined);
+            cacheUpdated = true;
           }
           if (feed.readError && !feed.zones.length) {
             failedRequestCount += 1;
           }
-          setZones(resolveViewportRiskDisplayZones(
-            retainedZones,
-            mergeRiskZonesById(...cachedZones, ...receivedZones),
-            false
-          ));
         } catch (error) {
           if (!requestIsCurrent()) {
             return;
@@ -600,6 +610,12 @@ export function useViewportRiskAreas({
           replacementReady
         );
         setZones(visibleZones);
+        if (cacheUpdated) {
+          void viewportRiskPersistentCache.save(
+            normalizedCacheScopeId,
+            cacheRef.current
+          ).catch(() => undefined);
+        }
 
         const outcome = resolveViewportRiskCoverageOutcome({
           allRequestsFailed,

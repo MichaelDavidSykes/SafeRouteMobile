@@ -12,12 +12,12 @@ describe('map facing-direction indicator', () => {
 
     assert.match(
       guestMap,
-      /useDeviceHeading\(permissionStatus === 'granted'\)/,
+      /<CompassTrackedMarker/,
     );
     assert.match(guestMap, /showsUserLocation=\{false\}/);
     assert.match(
       guestMap,
-      /currentLocationVisible && liveCoordinate[\s\S]*<VehicleMarker[\s\S]*heading=\{deviceHeadingDegrees\}[\s\S]*mapHeading=\{mapCameraHeadingDegrees\}[\s\S]*guestMapCurrentLocationMarker/,
+      /currentLocationVisible && liveCoordinate[\s\S]*<CompassTrackedMarker[\s\S]*enabled=\{permissionStatus === 'granted'\}[\s\S]*mapHeading=\{mapCameraHeadingDegrees\}[\s\S]*guestMapCurrentLocationMarker/,
     );
     assert.match(guestMap, /mapRef\.current\?\.getCamera\(\)/);
     assert.match(guestMap, /setMapCameraHeadingDegrees\(Number\.isFinite\(nextHeading\) \? nextHeading : 0\)/);
@@ -25,18 +25,19 @@ describe('map facing-direction indicator', () => {
 
   it('keeps compass-facing direction separate from navigation camera bearing', () => {
     const liveMap = source('features/live-map/LiveMapScreen.tsx');
+    const liveCanvas = source('features/live-map/LiveMapCanvas.tsx');
 
     assert.match(
-      liveMap,
-      /const deviceHeadingDegrees = useDeviceHeading\([\s\S]*!demoDriveActive[\s\S]*permissionStatus === "granted"/,
+      liveCanvas,
+      /<CompassTrackedMarker[\s\S]*enabled=\{!demoDriveActive && permissionStatus === "granted"\}/,
+    );
+    assert.match(
+      liveCanvas,
+      /fallbackHeading=\{heading\}/,
     );
     assert.match(
       liveMap,
-      /const vehicleFacingHeading = demoDriveActive[\s\S]*deviceHeadingDegrees \?\?[\s\S]*coordinate\?\.heading/,
-    );
-    assert.match(
-      liveMap,
-      /<LiveMapCanvas[\s\S]*heading=\{vehicleFacingHeading\}[\s\S]*mapHeading=\{mapCameraHeadingDegrees\}/,
+      /<LiveMapCanvas[\s\S]*heading=\{heading\}[\s\S]*mapHeading=\{mapCameraHeadingDegrees\}/,
     );
     assert.match(liveMap, /mapRef\.current\?\.getCamera\(\)/);
   });

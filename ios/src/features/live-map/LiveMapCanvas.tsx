@@ -8,7 +8,7 @@ import type { RouteRiskProximity } from "./routeRisk";
 import type { RiskZone, SavedSafeRoutePlan } from "./liveMapTypes";
 import type { NavigationLifecycle } from "./liveMapUiState";
 import { shouldShowNativeUserLocation } from "./liveMapUiState";
-import { CheckpointMarker, RiskOverlay, VehicleMarker } from "./LiveMapMarkers";
+import { CheckpointMarker, CompassTrackedMarker, RiskOverlay } from "./LiveMapMarkers";
 import { LiveMapRiskDetailCallout } from "./LiveMapRiskDetailCallout";
 import { resolveRouteLinePresentation } from "./routeLinePresentation";
 import { uiTestIds } from "../../testing/uiTestIds";
@@ -77,7 +77,6 @@ export function LiveMapCanvas({
     progressCoordinateCount: progressCoordinates.length,
     routeCoordinateCount: routeCoordinates.length,
   });
-  const visibleRiskZoneIds = new Set(visibleRiskZones.map((zone) => zone.id));
   const showRouteCheckpoints =
     activeNavigationState !== "navigating" &&
     activeNavigationState !== "off-route";
@@ -159,13 +158,12 @@ export function LiveMapCanvas({
         />
       ) : null}
 
-      {routePlan.riskZones.map((zone) => (
+      {visibleRiskZones.map((zone) => (
         <RiskOverlay
           key={zone.id}
           active={zone.id === activeRiskZoneId}
           routeCoordinates={routeCoordinates}
           selected={zone.id === selectedRiskZoneId}
-          visible={visibleRiskZoneIds.has(zone.id)}
           zone={zone}
           onPress={onRiskZonePress}
         />
@@ -184,10 +182,11 @@ export function LiveMapCanvas({
         : null}
 
       {vehicleCoordinate ? (
-        <VehicleMarker
+        <CompassTrackedMarker
           coordinate={vehicleCoordinate}
           demoDriveEnabled={demoDriveActive}
-          heading={heading}
+          enabled={!demoDriveActive && permissionStatus === "granted"}
+          fallbackHeading={heading}
           mapHeading={mapHeading}
         />
       ) : null}

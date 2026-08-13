@@ -17,6 +17,23 @@ import {
 import { SAVED_ROUTE_PLANS } from "../src/features/live-map/demoRoute";
 
 describe("offline saved route cache", () => {
+  it("stores lightweight list summaries but never treats them as navigable detail", () => {
+    const route = {
+      ...SAVED_ROUTE_PLANS[0],
+      isSummary: true,
+      riskZones: [],
+      route: {
+        ...SAVED_ROUTE_PLANS[0].route,
+        coordinates: SAVED_ROUTE_PLANS[0].route.coordinates.slice(0, 2),
+        navigationSteps: [],
+      },
+    };
+    const record = createOfflineRouteCacheRecord({
+      clients: [], routes: [route], selectedClientId: null,
+    }, "user-a", 1_000);
+    const restored = parseOfflineRouteCacheRecord(record, "user-a", 2_000);
+    assert.equal(restored?.routes[0].isSummary, true);
+  });
   it("round-trips snapped geometry, guidance, risks, and route context", () => {
     const route = SAVED_ROUTE_PLANS[0];
     assert.ok(route);

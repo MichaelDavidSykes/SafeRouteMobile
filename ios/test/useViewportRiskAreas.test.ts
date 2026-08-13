@@ -47,6 +47,8 @@ describe('viewport risk hook integration contract', () => {
     assert.match(source, /Cached risks are available while SafeRoute is offline/);
     assert.match(source, /if \(!refreshEnabled\)/);
     assert.match(source, /requestsToLoad\.push\(request\)/);
+    assert.match(source, /shouldRevalidateViewportRiskRequest/);
+    assert.match(source, /if \(!requestsToLoad\.length\)/);
     assert.match(source, /viewportRiskPersistentCache\.save/);
     assert.match(source, /resolveCompletedViewportRiskZones\([\s\S]*true/);
   });
@@ -93,7 +95,7 @@ describe('viewport risk hook integration contract', () => {
     );
     assert.match(
       source,
-      /const cacheScopeChanged = cacheScopeContextRef\.current !== cacheScopeContext/,
+      /const cacheScopeChanged = cacheStorageScopeRef\.current !== cacheStorageScope/,
     );
     assert.match(
       source,

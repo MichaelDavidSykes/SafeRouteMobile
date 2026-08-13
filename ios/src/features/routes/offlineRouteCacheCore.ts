@@ -53,7 +53,7 @@ export function createOfflineRouteCacheRecord(
     storedAtMs: nowMs,
     value: {
       clients: value.clients.slice(0, OFFLINE_ROUTE_CACHE_MAX_ROUTES),
-      routes: value.routes.filter(hasUsableRoutePlan).slice(0, OFFLINE_ROUTE_CACHE_MAX_ROUTES),
+      routes: value.routes.filter(hasCacheableRouteSummary).slice(0, OFFLINE_ROUTE_CACHE_MAX_ROUTES),
       selectedClientId: value.selectedClientId,
     },
   };
@@ -99,7 +99,7 @@ export function parseOfflineRouteCacheSnapshot(
     value: {
       clients: record.value.clients.slice(0, OFFLINE_ROUTE_CACHE_MAX_ROUTES),
       routes: record.value.routes
-        .filter(hasUsableRoutePlan)
+        .filter(hasCacheableRouteSummary)
         .slice(0, OFFLINE_ROUTE_CACHE_MAX_ROUTES),
       selectedClientId:
         typeof record.value.selectedClientId === "string"
@@ -117,7 +117,7 @@ export function removeWorkspaceFromOfflineRouteCache(
   if (!normalizedWorkspaceId) {
     return {
       clients: value.clients.slice(0, OFFLINE_ROUTE_CACHE_MAX_ROUTES),
-      routes: value.routes.filter(hasUsableRoutePlan).slice(0, OFFLINE_ROUTE_CACHE_MAX_ROUTES),
+      routes: value.routes.filter(hasCacheableRouteSummary).slice(0, OFFLINE_ROUTE_CACHE_MAX_ROUTES),
       selectedClientId: value.selectedClientId,
     };
   }
@@ -128,7 +128,7 @@ export function removeWorkspaceFromOfflineRouteCache(
       .slice(0, OFFLINE_ROUTE_CACHE_MAX_ROUTES),
     routes: value.routes
       .filter((route) => route.clientId !== normalizedWorkspaceId)
-      .filter(hasUsableRoutePlan)
+      .filter(hasCacheableRouteSummary)
       .slice(0, OFFLINE_ROUTE_CACHE_MAX_ROUTES),
     selectedClientId:
       value.selectedClientId === normalizedWorkspaceId
@@ -512,6 +512,7 @@ export function hasUsableRoutePlan(value: unknown): value is SavedSafeRoutePlan 
   return Boolean(
     typeof plan.id === "string" &&
       plan.id.trim() &&
+      plan.isSummary !== true &&
       plan.route &&
       Array.isArray(plan.route.coordinates) &&
       plan.route.coordinates.length >= 2 &&
@@ -523,4 +524,23 @@ export function hasUsableRoutePlan(value: unknown): value is SavedSafeRoutePlan 
       Array.isArray(plan.checkpoints) &&
       Array.isArray(plan.riskZones),
   );
+}
+
+export function hasCacheableRouteSummary(value: unknown): value is SavedSafeRoutePlan {
+  if (!value || typeof value !== "object") {
+    return false;
+  }
+  const plan = value as Partial<SavedSafeRoutePlan>;
+  return Boolean(
+    typeof plan.id === "string" &&
+      plan.id.trim() &&
+      plan.route &&
+      Array.isArray(plan.route.coordinates) &&
+      plan.route.coordinates.length <= 2 &&
+      plan.route.coordinates.every((coordinate) =>
+        Number.isFinite(coordinate?.latitude) && Number.isFinite(coordinate?.longitude)
+      ) &&
+      Array.isArray(plan.checkpoints) &&
+      Array.isArray(plan.riskZones)
+  ) || hasUsableRoutePlan(value);
 }

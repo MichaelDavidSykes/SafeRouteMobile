@@ -23,6 +23,7 @@ import { uiTestIds } from '../../testing/uiTestIds';
 import { colors, radius } from '../../theme';
 import { SAFE_ROUTE_DARK_ROUTE_CASING } from '../maps/safeRouteMapTheme';
 import { resolveDeviceHeadingScreenRotation } from '../maps/deviceHeading';
+import { useDeviceHeading } from '../maps/useDeviceHeading';
 import {
   useLoopingPulse,
   useMotionValue,
@@ -58,6 +59,10 @@ export const RiskOverlay = memo(function RiskOverlay({
   visible?: boolean;
   zone: RiskZone;
 }) {
+  if (!visible) {
+    return null;
+  }
+
   const routeSegmentCoordinates = zone.routeSegmentCoordinates || [];
   const connectorCoordinates = zone.connectorCoordinates || [];
   const polygonCoordinates = zone.polygonCoordinates || [];
@@ -241,6 +246,33 @@ export function CheckpointMarker({ checkpoint }: { checkpoint: RouteCheckpoint }
     </Marker>
   );
 }
+
+export const CompassTrackedMarker = memo(function CompassTrackedMarker({
+  coordinate,
+  demoDriveEnabled = false,
+  enabled,
+  fallbackHeading = null,
+  mapHeading,
+  testID,
+}: {
+  coordinate: { latitude: number; longitude: number };
+  demoDriveEnabled?: boolean;
+  enabled: boolean;
+  fallbackHeading?: number | null;
+  mapHeading: number;
+  testID?: string;
+}) {
+  const heading = useDeviceHeading(enabled);
+  return (
+    <VehicleMarker
+      coordinate={coordinate}
+      demoDriveEnabled={demoDriveEnabled}
+      heading={heading ?? fallbackHeading}
+      mapHeading={mapHeading}
+      testID={testID}
+    />
+  );
+});
 
 function checkpointMarkerRole(kind: RouteCheckpoint['kind']): string {
   if (kind === 'origin') {

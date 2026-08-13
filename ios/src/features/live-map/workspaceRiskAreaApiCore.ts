@@ -30,15 +30,18 @@ interface WorkspaceRiskAreaRecord {
 
 export function buildWorkspaceRiskAreaPath(
   clientId: string,
-  requestNonce: string
+  requestNonce?: string | null
 ): string {
   const normalizedClientId = cleanOptionalText(clientId, 160);
   const normalizedNonce = cleanOptionalText(requestNonce, 160);
-  if (!normalizedClientId || !normalizedNonce) {
-    throw new Error('A valid workspace and request nonce are required.');
+  if (!normalizedClientId) {
+    throw new Error('A valid workspace is required.');
   }
-  return `${WORKSPACE_RISK_AREA_ENDPOINT_PATH}/${encodeURIComponent(normalizedClientId)}` +
-    `?include_inactive=false&request_nonce=${encodeURIComponent(normalizedNonce)}`;
+  const basePath = `${WORKSPACE_RISK_AREA_ENDPOINT_PATH}/${encodeURIComponent(normalizedClientId)}` +
+    '?include_inactive=false';
+  return normalizedNonce
+    ? `${basePath}&request_nonce=${encodeURIComponent(normalizedNonce)}`
+    : basePath;
 }
 
 export function normalizeWorkspaceRiskAreas(

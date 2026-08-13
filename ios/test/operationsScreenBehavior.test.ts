@@ -174,7 +174,7 @@ describe("operations screen behavior", () => {
     );
     assert.match(text, /row\.manifestAvailable \? \(/);
     assert.match(text, /Manifest unavailable\. Refresh or reconnect/);
-    assert.match(text, /operationsListRef\.current\?\.scrollTo\(\{ animated: false, y: 0 \}\)/);
+    assert.match(text, /operationsListRef\.current\?\.scrollToOffset\(\{ animated: false, offset: 0 \}\)/);
     assert.match(text, /AccessibilityInfo\.setAccessibilityFocus\(headingNode\)/);
     assert.match(text, /accessibilityRole="header"/);
   });

@@ -570,6 +570,12 @@ export const operationsStyles = StyleSheet.create({
     gap: 10,
     marginBottom: 24,
   },
+  calendarGroupHeader: {
+    paddingBottom: 10,
+  },
+  calendarListRow: {
+    marginBottom: 10,
+  },
   calendarGroupTitle: {
     paddingHorizontal: 4,
     color: colors.muted,

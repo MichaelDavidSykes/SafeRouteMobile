@@ -1,5 +1,5 @@
-import { useEffect, useState } from 'react';
-import { Platform } from 'react-native';
+import { useEffect, useRef, useState } from 'react';
+import { AppState, Platform } from 'react-native';
 import * as Location from 'expo-location';
 
 import {
@@ -7,11 +7,31 @@ import {
   smoothDeviceHeadingDegrees
 } from './deviceHeading';
 
-export function useDeviceHeading(enabled: boolean): number | null {
+export interface DeviceHeadingOptions {
+  deadbandDegrees?: number;
+  minimumUpdateIntervalMs?: number;
+}
+
+export function useDeviceHeading(
+  enabled: boolean,
+  {
+    deadbandDegrees = 3,
+    minimumUpdateIntervalMs = 250,
+  }: DeviceHeadingOptions = {},
+): number | null {
   const [headingDegrees, setHeadingDegrees] = useState<number | null>(null);
+  const [appStateActive, setAppStateActive] = useState(AppState.currentState === 'active');
+  const lastPublishedAtRef = useRef(0);
 
   useEffect(() => {
-    if (!enabled || Platform.OS === 'web') {
+    const subscription = AppState.addEventListener('change', (state) => {
+      setAppStateActive(state === 'active');
+    });
+    return () => subscription.remove();
+  }, []);
+
+  useEffect(() => {
+    if (!enabled || !appStateActive || Platform.OS === 'web') {
       setHeadingDegrees(null);
       return;
     }
@@ -26,11 +46,24 @@ export function useDeviceHeading(enabled: boolean): number | null {
         }
 
         const nextHeading = resolveDeviceHeadingDegrees(sample);
-        setHeadingDegrees((previousHeading) =>
-          nextHeading === null
-            ? null
-            : smoothDeviceHeadingDegrees(previousHeading, nextHeading)
-        );
+        if (nextHeading === null) {
+          return;
+        }
+        const now = Date.now();
+        if (now - lastPublishedAtRef.current < minimumUpdateIntervalMs) {
+          return;
+        }
+        lastPublishedAtRef.current = now;
+        setHeadingDegrees((previousHeading) => {
+          const smoothed = smoothDeviceHeadingDegrees(previousHeading, nextHeading);
+          if (
+            previousHeading !== null &&
+            angularDifference(previousHeading, smoothed) < deadbandDegrees
+          ) {
+            return previousHeading;
+          }
+          return smoothed;
+        });
       },
       () => {
         if (mounted) {
@@ -53,7 +86,12 @@ export function useDeviceHeading(enabled: boolean): number | null {
       mounted = false;
       subscription?.remove();
     };
-  }, [enabled]);
+  }, [appStateActive, deadbandDegrees, enabled, minimumUpdateIntervalMs]);
 
   return headingDegrees;
+}
+
+function angularDifference(first: number, second: number): number {
+  const difference = Math.abs(first - second) % 360;
+  return Math.min(difference, 360 - difference);
 }

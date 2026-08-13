@@ -14,6 +14,7 @@ import {
   ActivityIndicator,
   Alert,
   Animated,
+  FlatList,
   findNodeHandle,
   LayoutAnimation,
   PanResponder,
@@ -119,6 +120,12 @@ const COMPACT_OFFLINE_SAVING_STATES = new Set<OperationsOfflineCalendarSavingSta
 type OperationsRouteSelection = Pick<OperationsRouteRow, "id" | "routeId" | "title"> & {
   convoyId?: string | null;
 };
+
+type OperationsListItem =
+  | { kind: "planned"; row: OperationsRouteRow }
+  | { id: string; kind: "calendar-header"; label: string }
+  | { kind: "calendar"; row: OperationsRouteRow; timeLabel: string }
+  | { groupIndex: number; kind: "convoy"; row: OperationsConvoyRow };
 
 interface OperationsErrorState extends BaseRouteListErrorState {
   row?: OperationsRouteSelection;
@@ -267,7 +274,7 @@ export function OperationsScreen({
   const loadRevisionRef = useRef(0);
   const detailRevisionRef = useRef(0);
   const detailLoadingIdRef = useRef<string | null>(null);
-  const operationsListRef = useRef<ScrollView | null>(null);
+  const operationsListRef = useRef<FlatList<OperationsListItem> | null>(null);
   const convoyDetailHeadingRef = useRef<Text | null>(null);
   const calendarDetailHeadingRef = useRef<Text | null>(null);
   const onSessionExpiredRef = useRef(onSessionExpired);
@@ -855,6 +862,30 @@ export function OperationsScreen({
     () => createCalendarGroups(calendarRows),
     [calendarRows],
   );
+  const operationsListItems = useMemo<OperationsListItem[]>(() => {
+    if (activeTab === "planned-routes") {
+      return plannedRows.map((row) => ({ kind: "planned", row }));
+    }
+    if (activeTab === "convoy-management") {
+      return convoyRows.map((row, groupIndex) => ({
+        groupIndex,
+        kind: "convoy",
+        row,
+      }));
+    }
+    return calendarGroups.flatMap((group) => [
+      {
+        id: `calendar-header-${group.dateLabel}`,
+        kind: "calendar-header" as const,
+        label: group.dateLabel,
+      },
+      ...group.rows.map(({ row, timeLabel }) => ({
+        kind: "calendar" as const,
+        row,
+        timeLabel,
+      })),
+    ]);
+  }, [activeTab, calendarGroups, convoyRows, plannedRows]);
   const detailVisible = Boolean(
     selectedCalendarRow || selectedConvoy || selectedVehicleContext,
   );
@@ -874,7 +905,7 @@ export function OperationsScreen({
     }
 
     const frame = requestAnimationFrame(() => {
-      operationsListRef.current?.scrollTo({ animated: false, y: 0 });
+      operationsListRef.current?.scrollToOffset({ animated: false, offset: 0 });
       const headingNode = findNodeHandle(convoyDetailHeadingRef.current);
       if (headingNode) {
         AccessibilityInfo.setAccessibilityFocus(headingNode);
@@ -2002,8 +2033,14 @@ export function OperationsScreen({
             </View>
           </View>
         ) : (
-          <ScrollView
+          <FlatList
             contentContainerStyle={styles.list}
+            data={operationsListItems}
+            initialNumToRender={8}
+            keyExtractor={(item) => item.kind === "calendar-header"
+              ? item.id
+              : `${item.kind}-${item.row.id}`}
+            maxToRenderPerBatch={8}
             ref={operationsListRef}
             refreshControl={
               <RefreshControl
@@ -2013,49 +2050,51 @@ export function OperationsScreen({
               />
             }
             showsVerticalScrollIndicator={false}
-          >
-            {activeTab === "planned-routes"
-              ? plannedRows.map((row) => (
+            windowSize={7}
+            renderItem={({ item }) => {
+              if (item.kind === "planned") {
+                const row = item.row;
+                return (
                   <OperationsRouteCard
-                    key={row.id}
                     interactionLocked={Boolean(detailLoadingId)}
                     loading={detailLoadingId === row.id}
                     row={row}
                     onPress={() => void handleSelectOperationsRoute(row)}
                   />
-                ))
-              : null}
-            {activeTab === "calendar"
-              ? calendarGroups.map((group) => (
-                  <View key={group.dateLabel} style={styles.calendarGroup}>
+                );
+              }
+              if (item.kind === "calendar-header") {
+                return (
+                  <View style={styles.calendarGroupHeader}>
                     <Text accessibilityRole="header" style={styles.calendarGroupTitle}>
-                      {group.dateLabel}
+                      {item.label}
                     </Text>
-                    <View style={styles.calendarGroupRows}>
-                      {group.rows.map(({ row, timeLabel }) => (
-                        <OperationsCalendarCard
-                          key={row.id}
-                          interactionLocked={Boolean(detailLoadingId)}
-                          row={row}
-                          timeLabel={timeLabel}
-                          onPress={() => {
-                            setSelectedConvoyId(null);
-                            setSelectedVehicle(null);
-                            onConvoySelectionChange?.(null);
-                            setSelectedCalendarRowId(row.id);
-                          }}
-                        />
-                      ))}
-                    </View>
                   </View>
-                ))
-              : null}
-            {activeTab === "convoy-management"
-              ? convoyRows.map((row, index) => (
+                );
+              }
+              if (item.kind === "calendar") {
+                const row = item.row;
+                return (
+                  <View style={styles.calendarListRow}>
+                    <OperationsCalendarCard
+                      interactionLocked={Boolean(detailLoadingId)}
+                      row={row}
+                      timeLabel={item.timeLabel}
+                      onPress={() => {
+                        setSelectedConvoyId(null);
+                        setSelectedVehicle(null);
+                        onConvoySelectionChange?.(null);
+                        setSelectedCalendarRowId(row.id);
+                      }}
+                    />
+                  </View>
+                );
+              }
+              const row = item.row;
+              return (
                     <OperationsConvoyCard
-                      key={row.id}
                       expanded={!collapsedConvoyIds.has(row.id)}
-                      groupIndex={index}
+                      groupIndex={item.groupIndex}
                       row={row}
                       onToggle={() => {
                         if (!reduceMotionEnabled) {
@@ -2083,10 +2122,9 @@ export function OperationsScreen({
                         setSelectedVehicle({ convoyId: row.id, vehicleId });
                       }}
                     />
-                  ))
-              : null}
-
-            {shouldShowEmptyState({
+              );
+            }}
+            ListEmptyComponent={shouldShowEmptyState({
               activeTab,
               calendarRows,
               convoyRows,
@@ -2102,7 +2140,7 @@ export function OperationsScreen({
                 <Text style={styles.emptyCopy}>{emptyState.copy}</Text>
               </View>
             ) : null}
-          </ScrollView>
+          />
         )
       ) : null}
 

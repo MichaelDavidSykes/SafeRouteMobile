@@ -119,6 +119,12 @@ export interface MobileSafeRouteDto {
 
 export interface MobileRouteListResponse {
   clients: MobileSafeRouteClient[];
+  pagination?: {
+    has_more?: boolean;
+    next_offset?: number | null;
+    offset?: number;
+    page_size?: number;
+  };
   routes: MobileSafeRouteDto[];
   selected_client_id?: string | null;
 }
@@ -151,23 +157,27 @@ const severityColors: Record<RiskSeverity, { marker: string; stroke: string; fil
   }
 };
 
-export function mapRouteDtoToSavedPlan(dto: MobileSafeRouteDto): SavedSafeRoutePlan {
+export function mapRouteDtoToSavedPlan(
+  dto: MobileSafeRouteDto,
+  { summary = false }: { summary?: boolean } = {},
+): SavedSafeRoutePlan {
   const route = dto.route || {};
   const originCoordinate = normalizeCoordinate(dto.origin?.coordinate);
   const destinationCoordinate = normalizeCoordinate(dto.destination?.coordinate);
-  const routeCoordinates = normalizeCoordinates(route.coordinates);
+  const routeCoordinates = summary ? [] : normalizeCoordinates(route.coordinates);
   const coordinates = routeCoordinates.length >= 2
     ? routeCoordinates
     : [originCoordinate, destinationCoordinate].filter((coordinate): coordinate is LatLng => Boolean(coordinate));
   const safeScore = clampNumber(route.risk_score ?? 0, 0, 100);
   const riskLevel = normalizeRiskLevel(route.risk_level, safeScore);
   const color = normalizeRouteColor(route.color, riskLevel);
-  const navigationSteps = normalizeRouteNavigationSteps(
-    route.guidance_steps ?? route.navigation_steps
-  );
+  const navigationSteps = summary
+    ? []
+    : normalizeRouteNavigationSteps(route.guidance_steps ?? route.navigation_steps);
 
   return {
     id: cleanText(dto.id, 'safe-route-plan'),
+    ...(summary ? { isSummary: true } : {}),
     ...(firstCleanText(dto.client_id, dto.client?.id, '')
       ? { clientId: firstCleanText(dto.client_id, dto.client?.id, '') }
       : {}),
@@ -206,7 +216,7 @@ export function mapRouteDtoToSavedPlan(dto: MobileSafeRouteDto): SavedSafeRouteP
           }
         : {})
     },
-    riskZones: mapRiskOverlays(dto),
+    riskZones: summary ? [] : mapRiskOverlays(dto),
     checkpoints: mapCheckpoints(
       preferredCheckpointDtos(dto.checkpoints, dto.waypoints),
       dto.origin,
@@ -214,6 +224,12 @@ export function mapRouteDtoToSavedPlan(dto: MobileSafeRouteDto): SavedSafeRouteP
       coordinates
     )
   };
+}
+
+export function mapRouteDtoToSavedSummaryPlan(
+  dto: MobileSafeRouteDto,
+): SavedSafeRoutePlan {
+  return mapRouteDtoToSavedPlan(dto, { summary: true });
 }
 
 function preferredCheckpointDtos(

@@ -113,14 +113,16 @@ describe("live map risk overlay interactions", () => {
     assert.doesNotMatch(source, /rgba\(10, 12, 17, 0\.72\)/);
   });
 
-  it("keeps native risk overlays mounted while hiding them", () => {
+  it("unmounts hidden native risk overlays instead of keeping transparent geometry", () => {
     const source = markerSource();
+    const canvasSource = readFileSync(
+      join(process.cwd(), "src/features/live-map/LiveMapCanvas.tsx"),
+      "utf8",
+    );
 
-    assert.match(source, /const tappable = visible && Boolean\(onPress\)/);
-    assert.match(source, /const riskStrokeColor = visible \? riskColors\.stroke : 'transparent'/);
-    assert.match(source, /const coverageFillColor = visible[\s\S]*: 'transparent'/);
-    assert.match(source, /opacity=\{visible \? 1 : 0\}/);
-    assert.match(source, /accessibilityElementsHidden=\{!visible\}/);
+    assert.match(source, /if \(!visible\) \{\s*return null;\s*\}/);
+    assert.match(canvasSource, /\{visibleRiskZones\.map\(\(zone\) => \(/);
+    assert.doesNotMatch(canvasSource, /routePlan\.riskZones\.map/);
   });
 
   it("exposes the live vehicle marker position to VoiceOver", () => {

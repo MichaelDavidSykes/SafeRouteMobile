@@ -8,6 +8,8 @@ import {
 import {
   calculateRiskZoneRouteProximity,
   LIVE_RISK_LATERAL_BUFFER_METERS,
+  type RouteRiskProximity,
+  type RouteRiskSpatialIndex,
 } from "./routeRisk";
 
 export type RouteRiskAdvisoryTone = "danger" | "warning" | "info";
@@ -41,11 +43,13 @@ const SEVERITY_PRIORITY: Record<RiskSeverity, number> = {
 
 export function createRouteRiskAdvisory({
   progress,
+  riskIndex,
   riskZones,
   routeCoordinates,
   lookaheadMeters = DEFAULT_RISK_LOOKAHEAD_METERS,
 }: {
   progress: RouteProgressSnapshot | null;
+  riskIndex?: RouteRiskSpatialIndex | null;
   riskZones: RiskZone[];
   routeCoordinates: LatLng[];
 } & RouteRiskAdvisoryOptions): RouteRiskAdvisory | null {
@@ -60,12 +64,15 @@ export function createRouteRiskAdvisory({
     return null;
   }
 
-  const candidates = riskZones
-    .map((zone) =>
+  const proximities = riskIndex?.routeCoordinates === routeCoordinates
+    ? riskIndex.entries.map((entry) => entry.proximity)
+    : riskZones.map((zone) => calculateRiskZoneRouteProximity(routeCoordinates, zone))
+        .filter((proximity): proximity is RouteRiskProximity => Boolean(proximity));
+  const candidates = proximities
+    .map((proximity) =>
       createRiskCandidate({
         progress,
-        routeCoordinates,
-        zone,
+        proximity,
         lookaheadMeters,
       }),
     )
@@ -85,19 +92,14 @@ export function createRouteRiskAdvisory({
 
 function createRiskCandidate({
   progress,
-  routeCoordinates,
-  zone,
+  proximity,
   lookaheadMeters,
 }: {
   progress: RouteProgressSnapshot;
-  routeCoordinates: LatLng[];
-  zone: RiskZone;
+  proximity: RouteRiskProximity;
   lookaheadMeters: number;
 }): CandidateRouteRiskAdvisory | null {
-  const proximity = calculateRiskZoneRouteProximity(routeCoordinates, zone);
-  if (!proximity) {
-    return null;
-  }
+  const zone = proximity.zone;
 
   const routeAlertCorridorMeters = proximity.areaShape === "polygon"
     ? LIVE_RISK_LATERAL_BUFFER_METERS
@@ -194,11 +196,11 @@ function createSeverityVisibleLabel(zone: RiskZone): string {
 }
 
 function createAdvisoryTone(zone: RiskZone): RouteRiskAdvisoryTone {
-  if (zone.avoidanceSeverity === "critical") {
+  if (zone.avoidanceSeverity === "critical" || zone.severity === "high") {
     return "danger";
   }
 
-  if (zone.severity === "high" || zone.severity === "medium") {
+  if (zone.severity === "medium") {
     return "warning";
   }
 

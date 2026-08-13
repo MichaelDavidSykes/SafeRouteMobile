@@ -4,11 +4,20 @@ import {
   SAFEROUTE_PREVIEW_MODE_ENABLED,
 } from '../../config/env';
 import { isPreviewAccessToken } from '../auth/previewSession';
-import { loadRouteDetail, loadSavedRoutes, type SavedRouteSyncResult } from './routeApiCore';
+import {
+  loadRouteDetail,
+  loadSavedRoutes,
+  type SavedRouteListOptions,
+  type SavedRouteSyncResult,
+} from './routeApiCore';
 import type { SavedSafeRoutePlan } from '../live-map/liveMapTypes';
 import { loadPreviewRouteDetail, loadPreviewSavedRoutes } from './previewRouteApi';
 
-export async function fetchSavedRoutes(accessToken: string, clientId?: string): Promise<SavedRouteSyncResult> {
+export async function fetchSavedRoutes(
+  accessToken: string,
+  clientId?: string,
+  options: SavedRouteListOptions = {},
+): Promise<SavedRouteSyncResult> {
   if (SAFEROUTE_PREVIEW_MODE_ENABLED && isPreviewAccessToken(accessToken)) {
     if (SAFEROUTE_PREVIEW_INITIAL_SCREEN === 'guidance-suspended') {
       throw new Error('Preview workspace access is unavailable.');
@@ -19,7 +28,7 @@ export async function fetchSavedRoutes(accessToken: string, clientId?: string): 
     });
   }
 
-  return loadSavedRoutes(apiRequest, accessToken, clientId);
+  return loadSavedRoutes(apiRequest, accessToken, clientId, options);
 }
 
 export async function fetchRouteDetail(accessToken: string, routeId: string): Promise<SavedSafeRoutePlan> {

@@ -9,6 +9,7 @@ import {
 import type { RiskZone } from './liveMapTypes';
 
 export const VIEWPORT_RISK_CACHE_TTL_MS = 10 * 60 * 1000;
+export const VIEWPORT_RISK_REVALIDATE_MS = 2 * 60 * 1000;
 export const VIEWPORT_RISK_CACHE_MAX_ENTRIES = 32;
 
 export interface ViewportRiskCacheEntry {
@@ -375,6 +376,27 @@ export function getCachedViewportRiskZones(
 
   entry.lastAccessedAt = now;
   return cloneRiskZones(entry.zones);
+}
+
+export function shouldRevalidateViewportRiskRequest(
+  cache: ViewportRiskCache,
+  request: AreaRiskViewportRequest,
+  {
+    bypassCache = false,
+    now = Date.now(),
+    ttlMs = VIEWPORT_RISK_REVALIDATE_MS,
+    ...keyOptions
+  }: AreaRiskCacheKeyOptions & {
+    bypassCache?: boolean;
+    now?: number;
+    ttlMs?: number;
+  } = {}
+): boolean {
+  if (bypassCache) {
+    return true;
+  }
+  const entry = cache.get(viewportRiskCacheKey(request, keyOptions));
+  return !entry || !isViewportRiskCacheEntryFresh(entry, now, ttlMs);
 }
 
 export function cacheViewportRiskZones(

@@ -1,3 +1,4 @@
+import { AppState } from "react-native";
 import * as Location from "expo-location";
 import * as TaskManager from "expo-task-manager";
 
@@ -28,6 +29,11 @@ if (!TaskManager.isTaskDefined(SAFEROUTE_BACKGROUND_LOCATION_TASK)) {
         return;
       }
       if (error || !Array.isArray(data?.locations)) {
+        return;
+      }
+
+      // Foreground guidance owns the high-frequency stream while the app is active.
+      if (AppState.currentState === "active") {
         return;
       }
 

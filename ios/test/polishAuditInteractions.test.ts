@@ -91,7 +91,7 @@ describe("iOS polish audit interaction contracts", () => {
     assert.match(liveMap, /onSetAlertsVisible=\{handleSetAlertsVisible\}/);
     assert.match(
       canvas,
-      /routePlan\.riskZones\.map\(\(zone\) => \([\s\S]*key=\{zone\.id\}[\s\S]*visible=\{visibleRiskZoneIds\.has\(zone\.id\)\}/,
+      /visibleRiskZones\.map\(\(zone\) => \([\s\S]*key=\{zone\.id\}/,
     );
     assert.match(canvas, /useSafeAreaInsets\(\)/);
     assert.match(canvas, /bottomInset=\{safeAreaInsets\.bottom \+ 12\}/);

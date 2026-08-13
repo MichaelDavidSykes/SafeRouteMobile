@@ -15,6 +15,23 @@ export interface RouteProjection extends SegmentProjection {
   distanceAlongMeters: number;
 }
 
+/** Immutable metrics for route calculations that are reused for every GPS sample. */
+export interface PreparedRouteGeometry {
+  readonly coordinates: readonly LatLng[];
+  readonly cumulativeDistances: readonly number[];
+  readonly segmentLengths: readonly number[];
+  readonly totalDistanceMeters: number;
+}
+
+interface PreparedRouteCacheEntry {
+  first: LatLng | undefined;
+  last: LatLng | undefined;
+  length: number;
+  prepared: PreparedRouteGeometry;
+}
+
+const preparedRouteCache = new WeakMap<LatLng[], PreparedRouteCacheEntry>();
+
 export function haversineDistanceMeters(first: LatLng, second: LatLng): number {
   const lat1 = toRadians(first.latitude);
   const lat2 = toRadians(second.latitude);
@@ -28,16 +45,41 @@ export function haversineDistanceMeters(first: LatLng, second: LatLng): number {
 }
 
 export function calculateCumulativeDistances(coordinates: LatLng[]): number[] {
-  const route = normalizeRouteCoordinates(coordinates);
-  if (!route.length) {
-    return [];
+  return prepareRouteGeometry(coordinates).cumulativeDistances.slice();
+}
+
+export function prepareRouteGeometry(coordinates: LatLng[]): PreparedRouteGeometry {
+  const cached = preparedRouteCache.get(coordinates);
+  if (
+    cached &&
+    cached.length === coordinates.length &&
+    cached.first === coordinates[0] &&
+    cached.last === coordinates[coordinates.length - 1]
+  ) {
+    return cached.prepared;
   }
 
-  const distances = [0];
-  for (let index = 1; index < route.length; index += 1) {
-    distances[index] = distances[index - 1] + haversineDistanceMeters(route[index - 1], route[index]);
+  const route = Object.freeze(normalizeRouteCoordinates(coordinates));
+  const segmentLengths: number[] = [];
+  const cumulativeDistances: number[] = route.length ? [0] : [];
+  for (let index = 0; index < route.length - 1; index += 1) {
+    const segmentLength = haversineDistanceMeters(route[index], route[index + 1]);
+    segmentLengths.push(segmentLength);
+    cumulativeDistances.push(cumulativeDistances[index] + segmentLength);
   }
-  return distances;
+  const prepared: PreparedRouteGeometry = Object.freeze({
+    coordinates: route,
+    cumulativeDistances: Object.freeze(cumulativeDistances),
+    segmentLengths: Object.freeze(segmentLengths),
+    totalDistanceMeters: cumulativeDistances[cumulativeDistances.length - 1] || 0
+  });
+  preparedRouteCache.set(coordinates, {
+    first: coordinates[0],
+    last: coordinates[coordinates.length - 1],
+    length: coordinates.length,
+    prepared
+  });
+  return prepared;
 }
 
 export function densifyRouteCoordinates(
@@ -93,7 +135,19 @@ export function projectCoordinateToRoute(
   currentCoordinate: LatLng,
   minimumDistanceAlongMeters = 0
 ): RouteProjection | null {
-  const route = normalizeRouteCoordinates(coordinates);
+  return projectCoordinateToPreparedRoute(
+    prepareRouteGeometry(coordinates),
+    currentCoordinate,
+    minimumDistanceAlongMeters
+  );
+}
+
+export function projectCoordinateToPreparedRoute(
+  preparedRoute: PreparedRouteGeometry,
+  currentCoordinate: LatLng,
+  minimumDistanceAlongMeters = 0
+): RouteProjection | null {
+  const route = preparedRoute.coordinates;
   if (!route.length || !isValidCoordinate(currentCoordinate)) {
     return null;
   }
@@ -108,10 +162,8 @@ export function projectCoordinateToRoute(
     };
   }
 
-  const segmentLengths = route.slice(0, -1).map((coordinate, index) => (
-    haversineDistanceMeters(coordinate, route[index + 1])
-  ));
-  const routeDistanceMeters = segmentLengths.reduce((total, distance) => total + distance, 0);
+  const segmentLengths = preparedRoute.segmentLengths;
+  const routeDistanceMeters = preparedRoute.totalDistanceMeters;
   const minimumDistance = clamp(
     Number.isFinite(minimumDistanceAlongMeters) ? minimumDistanceAlongMeters : 0,
     0,

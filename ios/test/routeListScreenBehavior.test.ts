@@ -247,11 +247,11 @@ describe("route list screen behavior", () => {
     assert.match(detailSource, /detailRevisionRef\.current = revision/);
     assert.match(
       detailSource,
-      /await loadOfflineRouteDetail[\s\S]*?!requestOwnsWorkspace\(\)[\s\S]*?onSelectRoute\(\{ \.\.\.cached, clientId: selectedClientId \}\)/,
+      /await loadOfflineRouteDetail[\s\S]*?!requestOwnsWorkspace\(\)[\s\S]*?publishRouteDetail\(\{ \.\.\.cached, clientId: selectedClientId \}\)/,
     );
     assert.match(
       detailSource,
-      /await fetchRouteDetail[\s\S]*?!requestOwnsWorkspace\(\)[\s\S]*?routeDetail\.clientId !== selectedClientId[\s\S]*?onSelectRoute\(routeDetail\)/,
+      /await fetchRouteDetail[\s\S]*?!requestOwnsWorkspace\(\)[\s\S]*?routeDetail\.clientId !== selectedClientId[\s\S]*?publishRouteDetail\(routeDetail\)/,
     );
     assert.match(
       detailSource,

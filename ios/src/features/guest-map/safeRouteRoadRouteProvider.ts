@@ -1,12 +1,5 @@
 import { LUNARCHAIN_API_BASE } from '../../config/env';
-import {
-  ApiRequestError,
-  apiRequest,
-  fetchWithTimeout,
-  getApiErrorMessage,
-  parseJsonResponse,
-  unwrapApiEnvelope
-} from '../api/apiClient';
+import { ApiRequestError } from '../api/apiClient';
 import type {
   GuestRoadRoutePreviewOptions,
   VerifiedSafeRoutePreview
@@ -18,6 +11,9 @@ import {
   resolveSafeRoutePreviewRequestMode
 } from './safeRouteRoadRouteProviderCore';
 import { SafeRoutePreviewRequestCache } from './safeRoutePreviewRequestCache';
+import { requestVerifiedSafeRoutePreview } from './safeRouteRoadRouteTransportCore';
+
+export { SafeRoutePreviewCoveragePendingError } from './safeRouteRoadRouteTransportCore';
 
 export type SafeRouteRoadRoutePreviewOptions = GuestRoadRoutePreviewOptions & {
   accessToken?: string | null;
@@ -26,6 +22,7 @@ export type SafeRouteRoadRoutePreviewOptions = GuestRoadRoutePreviewOptions & {
 };
 
 export const SAFE_ROUTE_PREVIEW_TIMEOUT_MS = 60_000;
+const WORKSPACE_SAFE_ROUTE_PREVIEW_PATH = '/convoy-routes/verified-route-preview';
 const safeRoutePreviewRequestCache =
   new SafeRoutePreviewRequestCache<VerifiedSafeRoutePreview | null>();
 const accessTokenScopes = new Map<string, string>();
@@ -72,16 +69,21 @@ export async function fetchSafeRouteRoadRoutePreview(
     });
     return safeRoutePreviewRequestCache.getOrLoad(cacheKey, {
       load: async (signal) => {
-        const response = await apiRequest<unknown>(
-          '/convoy-routes/verified-route-preview',
-          requestMode.accessToken,
-          {
+        const response = await requestVerifiedSafeRoutePreview({
+          init: {
             body: JSON.stringify(payload),
+            headers: {
+              Accept: 'application/json',
+              Authorization: `Bearer ${requestMode.accessToken}`,
+              'Content-Type': 'application/json',
+            },
             method: 'POST',
-            signal,
-            timeoutMs,
           },
-        );
+          input: `${LUNARCHAIN_API_BASE}${WORKSPACE_SAFE_ROUTE_PREVIEW_PATH}`,
+          request: options.request,
+          signal,
+          timeoutMs,
+        });
         return normalizeSafeRoutePreviewResponse(
           response,
           options.stops,
@@ -107,25 +109,19 @@ export async function fetchSafeRouteRoadRoutePreview(
   });
   return safeRoutePreviewRequestCache.getOrLoad(cacheKey, {
     load: async (signal) => {
-      const response = await fetchWithTimeout(
-        `${LUNARCHAIN_API_BASE}/mobile/safe-route/verified-route-preview`,
-        {
+      const response = await requestVerifiedSafeRoutePreview({
+        init: {
           body: JSON.stringify(payload),
           headers: { Accept: 'application/json', 'Content-Type': 'application/json' },
           method: 'POST',
-          signal,
-          timeoutMs,
         },
-      );
-      const body = await parseJsonResponse(response);
-      if (!response.ok) {
-        throw new ApiRequestError(
-          getApiErrorMessage(body, 'Unable to prepare a verified road route.'),
-          response.status,
-        );
-      }
+        input: `${LUNARCHAIN_API_BASE}/mobile/safe-route/verified-route-preview`,
+        request: options.request,
+        signal,
+        timeoutMs,
+      });
       return normalizeSafeRoutePreviewResponse(
-        unwrapApiEnvelope<unknown>(body),
+        response,
         options.stops,
         travelMode,
         options.preferences,

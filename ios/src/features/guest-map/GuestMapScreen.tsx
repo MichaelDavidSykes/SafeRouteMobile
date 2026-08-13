@@ -102,6 +102,7 @@ import {
 } from '../api/mapTransportState';
 import { useNetworkAvailability } from '../api/useNetworkAvailability';
 import { getRequestSessionExpiry } from '../api/sessionExpiry';
+import { ApiRequestError } from '../api/apiClient';
 import type { SafeRouteWorkspace } from '../workspaces/activeWorkspace';
 import { getRequestUnavailableWorkspaceId } from '../workspaces/workspaceAccessRecovery';
 import { isCurrentWorkspaceAuthorizationEpoch } from '../workspaces/workspaceForegroundRevalidation';
@@ -1248,11 +1249,15 @@ export function GuestMapScreen({
     upgradeGuestRouteWithRoadPreview(localRoutePlan);
   };
 
-  const showRoutePlotFailure = (requestedMode: SafeRouteTravelMode) => {
+  const showRoutePlotFailure = (
+    requestedMode: SafeRouteTravelMode,
+    message?: string,
+  ) => {
     const requestedModeLabel = getGuestTravelModeRouteLabel(requestedMode);
     animateNextMapLayout(safeRouteMotion.disclosureDurationMs);
     setRouteMessage(
-      `We couldn't plot the ${requestedModeLabel} route. Tap Plot Route to retry.`,
+      message
+        || `We couldn't plot the ${requestedModeLabel} route. Tap Plot Route to retry.`,
     );
     animateRouteSheet(false);
   };
@@ -1302,6 +1307,7 @@ export function GuestMapScreen({
       requestContextIsCurrent();
     let acceptedRoadPreview = false;
     let acceptedRoadPreviewPlan: SavedSafeRoutePlan | null = null;
+    let terminalRouteErrorMessage: string | null = null;
     let sessionExpiryHandled = false;
     let workspaceUnavailableHandled = false;
 
@@ -1431,6 +1437,9 @@ export function GuestMapScreen({
         if (handleRouteWorkspaceUnavailable(error)) {
           return;
         }
+        if (error instanceof ApiRequestError && requestIsCurrent()) {
+          terminalRouteErrorMessage = error.message;
+        }
         // The finalizer fails closed instead of presenting checkpoint
         // connectors as drivable road geometry.
       })
@@ -1449,7 +1458,10 @@ export function GuestMapScreen({
             pendingOpenPreviewRef.current = false;
             setRoutePlan(null);
             setRouteAlternatives([]);
-            showRoutePlotFailure(localRoutePlan.travelMode ?? 'drive');
+            showRoutePlotFailure(
+              localRoutePlan.travelMode ?? 'drive',
+              terminalRouteErrorMessage || undefined,
+            );
           }
         }
       });

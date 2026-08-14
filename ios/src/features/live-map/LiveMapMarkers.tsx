@@ -1,5 +1,5 @@
-import type { ComponentProps, ComponentType, RefObject } from 'react';
-import { memo, useEffect, useRef, useState } from 'react';
+import type { ComponentProps, ComponentType } from 'react';
+import { memo } from 'react';
 import {
   AlertTriangle,
   CircleAlert,
@@ -8,8 +8,8 @@ import {
   Shield,
   ShieldCheck,
 } from 'lucide-react-native';
-import { Animated, Easing, StyleSheet, View } from 'react-native';
-import MapView, { Circle, Marker, Polygon, Polyline } from 'react-native-maps';
+import { StyleSheet, View } from 'react-native';
+import { Circle, Marker, Polygon, Polyline, type Region } from 'react-native-maps';
 
 import type {
   RiskAvoidanceSeverity,
@@ -30,7 +30,6 @@ import {
 import { uiTestIds } from '../../testing/uiTestIds';
 import { colors, radius } from '../../theme';
 import { SAFE_ROUTE_DARK_ROUTE_CASING } from '../maps/safeRouteMapTheme';
-import { resolveDeviceHeadingScreenRotation } from '../maps/deviceHeading';
 import {
   supportFacilityCalloutDescription,
   supportFacilityKindLabel,
@@ -319,104 +318,98 @@ export const CompassTrackedMarker = memo(function CompassTrackedMarker({
   );
 });
 
-export function CompassDirectionOverlay({
+export const CompassDirectionPolygon = memo(function CompassDirectionPolygon({
   coordinate,
   enabled,
   fallbackHeading = null,
-  mapHeading,
-  mapReady,
-  mapRef,
-  projectionRevision,
+  mapWidth,
+  region,
 }: {
   coordinate: { latitude: number; longitude: number };
   enabled: boolean;
   fallbackHeading?: number | null;
-  mapHeading: number;
-  mapReady: boolean;
-  mapRef: RefObject<MapView | null>;
-  projectionRevision: number;
+  mapWidth: number;
+  region: Region;
 }) {
-  const deviceHeading = useDeviceHeading(enabled);
-  const screenRotation = resolveDeviceHeadingScreenRotation(
-    deviceHeading ?? fallbackHeading,
-    mapHeading,
+  const deviceHeading = useDeviceHeading(enabled, {
+    deadbandDegrees: 0.8,
+    minimumUpdateIntervalMs: 80,
+  });
+  const heading = deviceHeading ?? fallbackHeading;
+  const coordinates = buildCompassDirectionPolygon(
+    coordinate,
+    heading,
+    region,
+    mapWidth,
   );
-  const [screenPoint, setScreenPoint] = useState<{ x: number; y: number } | null>(null);
-  const projectionRequestRef = useRef(0);
-  const animatedRotation = useRef(new Animated.Value(screenRotation ?? 0)).current;
-
-  useEffect(() => {
-    if (!mapReady || !mapRef.current) {
-      setScreenPoint(null);
-      return;
-    }
-    const requestId = projectionRequestRef.current + 1;
-    projectionRequestRef.current = requestId;
-    let active = true;
-    void mapRef.current.pointForCoordinate(coordinate).then((point) => {
-      if (
-        active
-        && projectionRequestRef.current === requestId
-        && Number.isFinite(point.x)
-        && Number.isFinite(point.y)
-      ) {
-        setScreenPoint({ x: point.x, y: point.y });
-      }
-    }).catch(() => undefined);
-    return () => {
-      active = false;
-    };
-  }, [
-    coordinate.latitude,
-    coordinate.longitude,
-    mapReady,
-    mapRef,
-    projectionRevision,
-  ]);
-
-  useEffect(() => {
-    if (screenRotation === null) {
-      return;
-    }
-    animatedRotation.stopAnimation((currentRotation) => {
-      const current = Number.isFinite(currentRotation) ? currentRotation : screenRotation;
-      const normalizedCurrent = ((current % 360) + 360) % 360;
-      const shortestDelta = ((screenRotation - normalizedCurrent + 540) % 360) - 180;
-      Animated.timing(animatedRotation, {
-        duration: 180,
-        easing: Easing.out(Easing.cubic),
-        isInteraction: false,
-        toValue: current + shortestDelta,
-        useNativeDriver: true,
-      }).start();
-    });
-  }, [animatedRotation, screenRotation]);
-
-  if (!screenPoint || screenRotation === null) {
+  if (coordinates.length !== 3) {
     return null;
   }
-
   return (
-    <Animated.View
-      accessibilityElementsHidden
-      pointerEvents="none"
-      style={[
-        styles.compassDirectionOverlay,
-        {
-          left: screenPoint.x - 22,
-          top: screenPoint.y - 22,
-          transform: [{
-            rotate: animatedRotation.interpolate({
-              inputRange: [-36000, 36000],
-              outputRange: ['-36000deg', '36000deg'],
-            }),
-          }],
-        },
-      ]}
-    >
-      <View style={styles.vehicleMarkerHeading} />
-    </Animated.View>
+    <Polygon
+      coordinates={coordinates}
+      fillColor="rgba(10, 132, 255, 0.86)"
+      strokeColor="rgba(248, 250, 252, 0.96)"
+      strokeWidth={1.4}
+      tappable={false}
+      zIndex={99}
+    />
   );
+});
+
+export function buildCompassDirectionPolygon(
+  coordinate: { latitude: number; longitude: number },
+  heading: number | null,
+  region: Region,
+  mapWidth: number,
+): Array<{ latitude: number; longitude: number }> {
+  if (
+    heading === null
+    || !Number.isFinite(heading)
+    || !Number.isFinite(coordinate.latitude)
+    || !Number.isFinite(coordinate.longitude)
+    || !Number.isFinite(region.longitudeDelta)
+    || !Number.isFinite(mapWidth)
+    || mapWidth <= 0
+  ) {
+    return [];
+  }
+  const latitudeScale = Math.max(0.2, Math.cos(coordinate.latitude * Math.PI / 180));
+  const metersPerPixel = Math.abs(region.longitudeDelta) * 111_320 * latitudeScale
+    / Math.max(240, mapWidth);
+  const tipMeters = Math.max(6, Math.min(500, metersPerPixel * 21));
+  const baseOffsetMeters = Math.max(2, Math.min(120, metersPerPixel * 3));
+  const halfBaseMeters = Math.max(3, Math.min(180, metersPerPixel * 7));
+  const radians = (((heading % 360) + 360) % 360) * Math.PI / 180;
+  const forwardNorth = Math.cos(radians);
+  const forwardEast = Math.sin(radians);
+  const leftNorth = -forwardEast;
+  const leftEast = forwardNorth;
+  return [
+    offsetCoordinate(coordinate, forwardNorth * tipMeters, forwardEast * tipMeters),
+    offsetCoordinate(
+      coordinate,
+      -forwardNorth * baseOffsetMeters + leftNorth * halfBaseMeters,
+      -forwardEast * baseOffsetMeters + leftEast * halfBaseMeters,
+    ),
+    offsetCoordinate(
+      coordinate,
+      -forwardNorth * baseOffsetMeters - leftNorth * halfBaseMeters,
+      -forwardEast * baseOffsetMeters - leftEast * halfBaseMeters,
+    ),
+  ];
+}
+
+function offsetCoordinate(
+  coordinate: { latitude: number; longitude: number },
+  northMeters: number,
+  eastMeters: number,
+): { latitude: number; longitude: number } {
+  const longitudeScale = Math.max(0.2, Math.cos(coordinate.latitude * Math.PI / 180));
+  return {
+    latitude: coordinate.latitude + northMeters / 111_320,
+    longitude: coordinate.longitude + eastMeters / (111_320 * longitudeScale),
+  };
 }
 
 function checkpointMarkerRole(kind: RouteCheckpoint['kind']): string {
@@ -738,26 +731,6 @@ const styles = StyleSheet.create({
     height: 34,
     borderRadius: radius.pill,
     backgroundColor: 'rgba(10, 132, 255, 0.2)',
-  },
-  compassDirectionOverlay: {
-    position: 'absolute',
-    width: 44,
-    height: 44,
-    alignItems: 'center',
-    zIndex: 1,
-    elevation: 1,
-  },
-  vehicleMarkerHeading: {
-    position: 'absolute',
-    top: 0,
-    width: 0,
-    height: 0,
-    borderLeftWidth: 8,
-    borderRightWidth: 8,
-    borderBottomWidth: 20,
-    borderLeftColor: 'transparent',
-    borderRightColor: 'transparent',
-    borderBottomColor: 'rgba(10, 132, 255, 0.82)',
   },
   vehicleMarkerCore: {
     width: 24,

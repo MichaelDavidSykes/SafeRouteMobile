@@ -1,7 +1,7 @@
 import type { RefObject } from "react";
 import { useState } from "react";
-import { Platform, StyleSheet } from "react-native";
-import MapView, { Polyline, type LatLng } from "react-native-maps";
+import { Platform, StyleSheet, useWindowDimensions } from "react-native";
+import MapView, { Polyline, type LatLng, type Region } from "react-native-maps";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import type { PermissionStatus } from "./liveLocationState";
@@ -15,7 +15,7 @@ import type { NavigationLifecycle } from "./liveMapUiState";
 import { shouldShowNativeUserLocation } from "./liveMapUiState";
 import {
   CheckpointMarker,
-  CompassDirectionOverlay,
+  CompassDirectionPolygon,
   CompassTrackedMarker,
   RiskOverlay,
   SupportFacilityMarker,
@@ -40,12 +40,11 @@ interface LiveMapCanvasProps {
   activeRiskZoneId?: string | null;
   demoDriveActive: boolean;
   heading: number | null;
-  mapHeading: number;
   mapRef: RefObject<MapView | null>;
   onMapReady: () => void;
   onMapPress: () => void;
   onPanDrag: () => void;
-  onRegionChangeComplete: () => void;
+  onRegionChangeComplete?: () => void;
   onRiskZonePress: (zone: RiskZone) => void;
   onDismissRiskDetail: () => void;
   offline: boolean;
@@ -65,7 +64,6 @@ export function LiveMapCanvas({
   activeRiskZoneId,
   demoDriveActive,
   heading,
-  mapHeading,
   mapRef,
   onMapReady,
   onMapPress,
@@ -85,8 +83,8 @@ export function LiveMapCanvas({
   visibleSupportFacilities,
 }: LiveMapCanvasProps) {
   const safeAreaInsets = useSafeAreaInsets();
-  const [mapReady, setMapReady] = useState(false);
-  const [projectionRevision, setProjectionRevision] = useState(0);
+  const viewport = useWindowDimensions();
+  const [mapRegion, setMapRegion] = useState<Region>(routePlan.region);
   const routeCoordinates = routePlan.route.coordinates;
   const routeLinePresentation = resolveRouteLinePresentation({
     progressCoordinateCount: progressCoordinates.length,
@@ -129,14 +127,10 @@ export function LiveMapCanvas({
       userInterfaceStyle="dark"
       onPress={onMapPress}
       onPanDrag={onPanDrag}
-      onMapReady={() => {
-        setMapReady(true);
-        setProjectionRevision((current) => current + 1);
-        onMapReady();
-      }}
-      onRegionChangeComplete={() => {
-        setProjectionRevision((current) => current + 1);
-        onRegionChangeComplete();
+      onMapReady={onMapReady}
+      onRegionChangeComplete={(region) => {
+        setMapRegion(region);
+        onRegionChangeComplete?.();
       }}
     >
       {Platform.OS === "ios" ? <SafeRouteDarkMapMask /> : null}
@@ -208,23 +202,21 @@ export function LiveMapCanvas({
         : null}
 
       {vehicleCoordinate ? (
-        <CompassTrackedMarker
-          coordinate={vehicleCoordinate}
-          demoDriveEnabled={demoDriveActive}
-        />
+        <>
+          <CompassDirectionPolygon
+            coordinate={vehicleCoordinate}
+            enabled={!demoDriveActive && permissionStatus === "granted"}
+            fallbackHeading={heading}
+            mapWidth={viewport.width}
+            region={mapRegion}
+          />
+          <CompassTrackedMarker
+            coordinate={vehicleCoordinate}
+            demoDriveEnabled={demoDriveActive}
+          />
+        </>
       ) : null}
       </MapView>
-      {vehicleCoordinate ? (
-        <CompassDirectionOverlay
-          coordinate={vehicleCoordinate}
-          enabled={!demoDriveActive && permissionStatus === "granted"}
-          fallbackHeading={heading}
-          mapHeading={mapHeading}
-          mapReady={mapReady}
-          mapRef={mapRef}
-          projectionRevision={projectionRevision}
-        />
-      ) : null}
       {selectedRiskZone ? (
         <LiveMapRiskDetailCallout
           bottomInset={safeAreaInsets.bottom + 12}

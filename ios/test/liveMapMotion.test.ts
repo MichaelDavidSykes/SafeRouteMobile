@@ -61,7 +61,7 @@ describe("live map design motion", () => {
 
     assert.doesNotMatch(markers, /useLoopingPulse/);
     assert.match(markers, /style=\{styles\.vehicleMarker\}/);
-    assert.match(markers, /styles\.compassDirectionOverlay/);
+    assert.match(markers, /CompassDirectionPolygon/);
     assert.match(markers, /collapsable=\{false\}/);
     assert.match(markers, /tracksViewChanges=\{false\}/);
     assert.match(

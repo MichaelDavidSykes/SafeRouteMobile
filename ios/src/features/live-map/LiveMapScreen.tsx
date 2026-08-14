@@ -180,7 +180,6 @@ export function LiveMapScreen({
       ? initialNavigationSession || null
       : null;
   const mapRef = useRef<MapView | null>(null);
-  const mapCameraRequestIdRef = useRef(0);
   const activeRerouteRequestRef = useRef<AbortController | null>(null);
   const lastDriveAlongCameraPoseRef = useRef<DriveAlongCameraPose | null>(null);
   const driveAlongCameraActiveRef = useRef(
@@ -265,7 +264,6 @@ export function LiveMapScreen({
   const [selectedRiskZoneId, setSelectedRiskZoneId] = useState<string | null>(
     null,
   );
-  const [mapCameraHeadingDegrees, setMapCameraHeadingDegrees] = useState(0);
   // Expo preview sessions advance along the real snapped route automatically
   // once guidance starts. This keeps QA deterministic without exposing a
   // confusing simulation control in the customer-facing route sheet.
@@ -1745,23 +1743,6 @@ export function LiveMapScreen({
     suspendDriveAlongCameraForMapReview();
   };
 
-  const handleMapRegionChangeComplete = () => {
-    const requestId = mapCameraRequestIdRef.current + 1;
-    mapCameraRequestIdRef.current = requestId;
-    const cameraPromise = mapRef.current?.getCamera();
-    if (!cameraPromise) {
-      return;
-    }
-
-    void cameraPromise.then((camera) => {
-      if (mapCameraRequestIdRef.current !== requestId) {
-        return;
-      }
-      const nextHeading = Number(camera.heading);
-      setMapCameraHeadingDegrees(Number.isFinite(nextHeading) ? nextHeading : 0);
-    }).catch(() => undefined);
-  };
-
   const handleMapPress = () => {
     setSelectedRiskZoneId(null);
   };
@@ -1779,12 +1760,10 @@ export function LiveMapScreen({
           activeRiskZoneId={activeRiskZoneId}
           demoDriveActive={demoDriveActive}
           heading={heading}
-          mapHeading={mapCameraHeadingDegrees}
           mapRef={mapRef}
           onMapReady={handleMapReady}
           onMapPress={handleMapPress}
           onPanDrag={handleMapPanDrag}
-          onRegionChangeComplete={handleMapRegionChangeComplete}
           onDismissRiskDetail={handleDismissRiskDetail}
           onRiskZonePress={handleRiskZonePress}
           offline={!online}

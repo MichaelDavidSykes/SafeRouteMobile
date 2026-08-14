@@ -21,10 +21,8 @@ describe('map facing-direction indicator', () => {
     );
     assert.match(
       guestMap,
-      /<CompassDirectionOverlay[\s\S]*enabled=\{permissionStatus === 'granted'\}[\s\S]*mapHeading=\{mapCameraHeadingDegrees\}[\s\S]*mapRef=\{mapRef\}/,
+      /<CompassDirectionPolygon[\s\S]*enabled=\{permissionStatus === 'granted'\}[\s\S]*mapWidth=\{viewport\.width\}[\s\S]*region=\{mapRegion\}/,
     );
-    assert.match(guestMap, /mapRef\.current\?\.getCamera\(\)/);
-    assert.match(guestMap, /setMapCameraHeadingDegrees\(Number\.isFinite\(nextHeading\) \? nextHeading : 0\)/);
   });
 
   it('keeps compass-facing direction separate from navigation camera bearing', () => {
@@ -33,7 +31,7 @@ describe('map facing-direction indicator', () => {
 
     assert.match(
       liveCanvas,
-      /<CompassDirectionOverlay[\s\S]*enabled=\{!demoDriveActive && permissionStatus === "granted"\}/,
+      /<CompassDirectionPolygon[\s\S]*enabled=\{!demoDriveActive && permissionStatus === "granted"\}/,
     );
     assert.match(
       liveCanvas,
@@ -41,26 +39,21 @@ describe('map facing-direction indicator', () => {
     );
     assert.match(
       liveMap,
-      /<LiveMapCanvas[\s\S]*heading=\{heading\}[\s\S]*mapHeading=\{mapCameraHeadingDegrees\}/,
+      /<LiveMapCanvas[\s\S]*heading=\{heading\}/,
     );
-    assert.match(liveMap, /mapRef\.current\?\.getCamera\(\)/);
   });
 
-  it('rotates a React overlay outside Apple MapKit marker snapshots', () => {
+  it('renders compass direction as MapKit geometry instead of a marker snapshot', () => {
     const markers = source('features/live-map/LiveMapMarkers.tsx');
 
-    assert.match(markers, /mapHeading: number/);
-    assert.match(
-      markers,
-      /resolveDeviceHeadingScreenRotation\([\s\S]*deviceHeading \?\? fallbackHeading,[\s\S]*mapHeading/,
-    );
-    assert.match(markers, /pointForCoordinate\(coordinate\)/);
-    assert.match(markers, /Animated\.timing\(animatedRotation/);
-    assert.match(markers, /styles\.compassDirectionOverlay/);
+    assert.match(markers, /export const CompassDirectionPolygon = memo/);
+    assert.match(markers, /useDeviceHeading\(enabled, \{[\s\S]*minimumUpdateIntervalMs: 80/);
+    assert.match(markers, /buildCompassDirectionPolygon\(/);
+    assert.match(markers, /<Polygon[\s\S]*zIndex=\{99\}/);
     assert.doesNotMatch(markers, /<Marker[\s\S]*rotation=/);
     assert.match(
       markers,
-      /vehicleMarkerHeading:[\s\S]*borderBottomColor: 'rgba\(10, 132, 255, 0\.82\)'/,
+      /fillColor="rgba\(10, 132, 255, 0\.86\)"/,
     );
   });
 });

@@ -190,7 +190,6 @@ export function LiveMapDetailCallout({
   const transitioningRef = useRef(false);
   const currentTranslateYRef = useRef(0);
   const pendingExpansionOffsetRef = useRef<number | null>(null);
-  const pendingCollapseResetRef = useRef(false);
   const [sheetStage, setSheetStage] = useState<RiskDetailSheetStage>("default");
   const sheetStageRef = useRef<RiskDetailSheetStage>("default");
   const expandableRef = useRef(Boolean(expandedContent));
@@ -232,11 +231,11 @@ export function LiveMapDetailCallout({
     translateY.stopAnimation();
     expandedContentOpacity.stopAnimation();
     if (reduceMotionEnabledRef.current) {
-      sheetStageRef.current = stage;
-      setSheetStage(stage);
-      expandedContentOpacity.setValue(stage === "expanded" ? 1 : 0);
       currentTranslateYRef.current = 0;
       translateY.setValue(0);
+      expandedContentOpacity.setValue(stage === "expanded" ? 1 : 0);
+      sheetStageRef.current = stage;
+      setSheetStage(stage);
       transitioningRef.current = false;
       return;
     }
@@ -268,13 +267,22 @@ export function LiveMapDetailCallout({
         return;
       }
       if (!finished) {
+        currentTranslateYRef.current = 0;
+        translateY.setValue(0);
+        expandedContentOpacity.setValue(1);
         transitioningRef.current = false;
         return;
       }
-      currentTranslateYRef.current = expandedPanelHeight;
-      pendingCollapseResetRef.current = true;
+
+      // Reset the native transform while the expanded layout is still mounted.
+      // The following state update can then collapse the panel without ever
+      // committing a compact card that still carries the off-screen transform.
+      currentTranslateYRef.current = 0;
+      translateY.setValue(0);
+      expandedContentOpacity.setValue(0);
       sheetStageRef.current = "default";
       setSheetStage("default");
+      transitioningRef.current = false;
     });
   };
   const dismissAnimationRef = useRef<(translateTo: number) => void>(
@@ -319,6 +327,12 @@ export function LiveMapDetailCallout({
       } else {
         dismissingRef.current = false;
         transitioningRef.current = false;
+        currentTranslateYRef.current = 0;
+        translateY.setValue(0);
+        dismissProgress.setValue(0);
+        expandedContentOpacity.setValue(
+          sheetStageRef.current === "expanded" ? 1 : 0,
+        );
       }
     });
   };
@@ -332,7 +346,6 @@ export function LiveMapDetailCallout({
     transitioningRef.current = false;
     currentTranslateYRef.current = 0;
     pendingExpansionOffsetRef.current = null;
-    pendingCollapseResetRef.current = false;
     sheetStageRef.current = "default";
     setSheetStage("default");
     translateY.setValue(0);
@@ -348,15 +361,6 @@ export function LiveMapDetailCallout({
   }, [dismissProgress, expandedContentOpacity, replayKey, translateY]);
 
   useLayoutEffect(() => {
-    if (sheetStage === "default" && pendingCollapseResetRef.current) {
-      pendingCollapseResetRef.current = false;
-      currentTranslateYRef.current = 0;
-      translateY.setValue(0);
-      expandedContentOpacity.setValue(0);
-      transitioningRef.current = false;
-      return;
-    }
-
     const gestureOffset = pendingExpansionOffsetRef.current;
     if (sheetStage !== "expanded" || gestureOffset === null) {
       return;
@@ -391,15 +395,14 @@ export function LiveMapDetailCallout({
           useNativeDriver: true,
         }),
       ]);
-      expansionAnimation.start(({ finished }) => {
+      expansionAnimation.start(() => {
         if (animationRevisionRef.current !== animationRevision) {
           return;
         }
         currentTranslateYRef.current = 0;
+        translateY.setValue(0);
+        expandedContentOpacity.setValue(1);
         transitioningRef.current = false;
-        if (!finished) {
-          expandedContentOpacity.setValue(1);
-        }
       });
     });
     return () => {
@@ -600,6 +603,7 @@ export function LiveMapDetailCallout({
         {expandedContent ? (
           <>
             <Pressable
+              {...handlePanResponder.panHandlers}
               accessibilityLabel={expanded
                 ? "Collapse detailed risk intelligence"
                 : "Expand detailed risk intelligence"}
@@ -632,6 +636,8 @@ export function LiveMapDetailCallout({
               </Text>
             </Pressable>
             <Animated.View
+              accessibilityElementsHidden={!expanded}
+              importantForAccessibility={expanded ? "auto" : "no-hide-descendants"}
               pointerEvents={expanded ? "auto" : "none"}
               style={[
                 styles.expandedPanel,

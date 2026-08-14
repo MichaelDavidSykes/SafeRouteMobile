@@ -130,4 +130,54 @@ describe("risk detail interaction", () => {
     assert.match(callout, /shouldDismissRiskDetailGesture/);
     assert.match(callout, /resolveRiskDetailSheetGesture/);
   });
+
+  it("collapses details without committing the compact card off-screen", () => {
+    const callout = readFileSync(
+      join(process.cwd(), "src/features/live-map/LiveMapRiskDetailCallout.tsx"),
+      "utf8",
+    );
+
+    assert.match(
+      callout,
+      /const expandedContentOpacity = useRef\(new Animated\.Value\(0\)\)\.current/,
+    );
+    assert.match(
+      callout,
+      /height: expanded \? expandedPanelHeight : 0/,
+    );
+    assert.match(
+      callout,
+      /toValue: expandedPanelHeight,[\s\S]*useNativeDriver: true/,
+    );
+    assert.doesNotMatch(callout, /useNativeDriver: false/);
+    assert.doesNotMatch(callout, /pendingCollapseResetRef/);
+    assert.match(
+      callout,
+      /if \(finished\) \{[\s\S]*onDismissRef\.current\(\);[\s\S]*else \{[\s\S]*translateY\.setValue\(0\);[\s\S]*dismissProgress\.setValue\(0\)/,
+    );
+
+    const transformReset = callout.indexOf(
+      'translateY.setValue(0);\n      expandedContentOpacity.setValue(0);',
+    );
+    const compactStageCommit = callout.indexOf(
+      'sheetStageRef.current = "default";\n      setSheetStage("default");',
+      transformReset,
+    );
+    assert.ok(transformReset >= 0);
+    assert.ok(compactStageCommit > transformReset);
+  });
+
+  it("removes collapsed intelligence from the native accessibility tree", () => {
+    const callout = readFileSync(
+      join(process.cwd(), "src/features/live-map/LiveMapRiskDetailCallout.tsx"),
+      "utf8",
+    );
+
+    assert.match(callout, /accessibilityElementsHidden=\{!expanded\}/);
+    assert.match(
+      callout,
+      /importantForAccessibility=\{expanded \? "auto" : "no-hide-descendants"\}/,
+    );
+    assert.match(callout, /pointerEvents=\{expanded \? "auto" : "none"\}/);
+  });
 });

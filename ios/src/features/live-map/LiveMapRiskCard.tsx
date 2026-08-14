@@ -45,6 +45,7 @@ export function LiveRouteRiskAlertCard({
           bottom: resolveRiskCardBottom(layout),
         },
         layout.isCompact ? styles.riskCardCompact : null,
+        routeAlert ? styles.routeAlertCard : null,
         riskCardToneStyle(tone),
         pressed ? styles.riskCardPressed : null,
       ]}
@@ -53,6 +54,7 @@ export function LiveRouteRiskAlertCard({
       <View
         style={[
           styles.riskIconTile,
+          routeAlert ? styles.routeAlertIconTile : null,
           riskIconTileToneStyle(tone),
         ]}
       >
@@ -60,7 +62,7 @@ export function LiveRouteRiskAlertCard({
           <CircleAlert
             accessibilityElementsHidden
             color={riskToneColor(presentation.tone)}
-            size={22}
+            size={18}
             strokeWidth={2.2}
           />
         ) : (

@@ -561,6 +561,10 @@ describe("rounded visual language", () => {
 
     assert.match(riskCardSource, /<Text numberOfLines=\{1\} style=\{styles\.riskEyebrow\}>/);
     assert.match(riskEyebrowBlock, /maxWidth:\s*["']100%["']/);
+    assert.match(riskCardSource, /routeAlert \? styles\.routeAlertCard : null/);
+    assert.match(riskCardSource, /routeAlert \? styles\.routeAlertIconTile : null/);
+    assert.match(riskCardStylesSource, /routeAlertCard:[\s\S]*minHeight:\s*72/);
+    assert.match(riskCardStylesSource, /routeAlertIconTile:[\s\S]*width:\s*34[\s\S]*height:\s*34/);
   });
 
   it("uses the handoff bottom risk callout with severity and area chips", () => {
@@ -1235,7 +1239,11 @@ describe("rounded visual language", () => {
         markerSource,
       )?.[1] || "";
     const riskMarkerBlock =
-      /riskMarker:\s*\{([\s\S]*?)\r?\n  \},\r?\n  riskMarkerActive:/.exec(
+      /riskMarker:\s*\{([\s\S]*?)\r?\n  \},\r?\n  routeAlertMarker:/.exec(
+        markerSource,
+      )?.[1] || "";
+    const routeAlertMarkerBlock =
+      /routeAlertMarker:\s*\{([\s\S]*?)\r?\n  \},\r?\n  riskMarkerHigh:/.exec(
         markerSource,
       )?.[1] || "";
     const vehicleMarkerBlock =
@@ -1256,8 +1264,9 @@ describe("rounded visual language", () => {
     assert.match(markerSource, /\bvehicleMarkerHeading:/);
     assert.match(markerSource, /borderRadius:\s*radius\.pill/);
     assert.match(riskMarkerBlock, /width:\s*34/);
-    assert.match(vehicleMarkerBlock, /width:\s*30/);
-    assert.match(markerSource, /strokeWidth=\{selected \|\| active \? 6 : 5\}/);
+    assert.match(routeAlertMarkerBlock, /width:\s*22/);
+    assert.match(vehicleMarkerBlock, /width:\s*44/);
+    assert.match(markerSource, /emphasized \? 6 : 5/);
     assert.doesNotMatch(markerSource, /strokeWidth=\{selected \|\| active \? 14 : 11\}/);
     for (const markerBlock of [checkpointMarkerBlock, vehicleMarkerBlock]) {
       assert.match(markerBlock, /shadowOpacity:\s*0/);
@@ -1265,10 +1274,10 @@ describe("rounded visual language", () => {
       assert.match(markerBlock, /elevation:\s*0/);
     }
     assert.match(riskMarkerBlock, /shadowOpacity:\s*0\.45/);
-    assert.match(markerSource, /riskMarkerSelectionRing:[\s\S]*borderWidth:\s*1/);
+    assert.doesNotMatch(markerSource, /riskMarkerSelectionRing/);
     assert.match(markerSource, /selectionStroke:\s*'rgba\(/);
     assert.doesNotMatch(markerSource, /backgroundColor:\s*'rgba\(10, 12, 17, 0\.72\)'/);
-    assert.doesNotMatch(markerSource, /riskMarkerSelected:\s*\{[^}]*transform:/);
+    assert.doesNotMatch(markerSource, /riskMarkerSelected/);
   });
 
   it("keeps live-map controls as familiar icon buttons", () => {

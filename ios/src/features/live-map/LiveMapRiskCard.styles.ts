@@ -26,6 +26,15 @@ export const riskCardStyles = StyleSheet.create({
     minHeight: 80,
     paddingVertical: spacing.xs,
   },
+  routeAlertCard: {
+    minHeight: 72,
+    paddingVertical: spacing.xs,
+    borderRadius: radius.card,
+    shadowOpacity: 0.1,
+    shadowRadius: 10,
+    shadowOffset: { width: 0, height: 4 },
+    elevation: 4,
+  },
   riskCardPressed: {
     transform: [{ scale: 0.992 }],
   },
@@ -36,6 +45,11 @@ export const riskCardStyles = StyleSheet.create({
     justifyContent: "center",
     flexShrink: 0,
     borderRadius: radius.card,
+  },
+  routeAlertIconTile: {
+    width: 34,
+    height: 34,
+    borderRadius: radius.md,
   },
   riskIconTileHigh: {
     backgroundColor: colors.dangerSoft,

@@ -26,7 +26,6 @@ import { resolveDeviceHeadingScreenRotation } from '../maps/deviceHeading';
 import { useDeviceHeading } from '../maps/useDeviceHeading';
 import {
   useLoopingPulse,
-  useMotionValue,
   useReduceMotionEnabled,
 } from '../../motion/SafeRouteMotion';
 
@@ -83,13 +82,14 @@ export const RiskOverlay = memo(function RiskOverlay({
   const riskColors = severityOverlayColors(riskTone);
   const tappable = visible && Boolean(onPress);
   const emphasized = Boolean(selected || active);
+  const showSegmentCasing = !routeAlert || emphasized;
   const casingColor = visible ? SAFE_ROUTE_DARK_ROUTE_CASING : 'transparent';
   const riskStrokeColor = visible ? riskColors.stroke : 'transparent';
   const segmentCasingWidth = routeAlert
-    ? (emphasized ? 11 : 10)
+    ? 7
     : (emphasized ? 6 : 5);
   const segmentCoreWidth = routeAlert
-    ? (emphasized ? 5 : 4)
+    ? (emphasized ? 4 : 3)
     : (emphasized ? 3 : 2);
   const segmentCasingZIndex = routeAlert
     ? ROUTE_ALERT_CASING_Z_INDEX
@@ -110,16 +110,18 @@ export const RiskOverlay = memo(function RiskOverlay({
     <>
       {routeAlertCoordinates.length > 1 ? (
         <>
-          <Polyline
-            coordinates={routeAlertCoordinates}
-            strokeColor={casingColor}
-            strokeWidth={segmentCasingWidth}
-            lineCap="round"
-            lineJoin="round"
-            zIndex={segmentCasingZIndex}
-            tappable={tappable}
-            onPress={handlePress}
-          />
+          {showSegmentCasing ? (
+            <Polyline
+              coordinates={routeAlertCoordinates}
+              strokeColor={casingColor}
+              strokeWidth={segmentCasingWidth}
+              lineCap="round"
+              lineJoin="round"
+              zIndex={segmentCasingZIndex}
+              tappable={tappable}
+              onPress={handlePress}
+            />
+          ) : null}
           <Polyline
             coordinates={routeAlertCoordinates}
             strokeColor={riskStrokeColor}
@@ -135,16 +137,18 @@ export const RiskOverlay = memo(function RiskOverlay({
       ) : null}
       {showRouteProximitySegment && routeSegmentCoordinates.length > 1 ? (
         <>
-          <Polyline
-            coordinates={routeSegmentCoordinates}
-            strokeColor={casingColor}
-            strokeWidth={segmentCasingWidth}
-            lineCap="round"
-            lineJoin="round"
-            zIndex={segmentCasingZIndex}
-            tappable={tappable}
-            onPress={handlePress}
-          />
+          {showSegmentCasing ? (
+            <Polyline
+              coordinates={routeSegmentCoordinates}
+              strokeColor={casingColor}
+              strokeWidth={segmentCasingWidth}
+              lineCap="round"
+              lineJoin="round"
+              zIndex={segmentCasingZIndex}
+              tappable={tappable}
+              onPress={handlePress}
+            />
+          ) : null}
           <Polyline
             coordinates={routeSegmentCoordinates}
             strokeColor={riskStrokeColor}
@@ -158,7 +162,9 @@ export const RiskOverlay = memo(function RiskOverlay({
           />
         </>
       ) : null}
-      {showRouteProximitySegment && connectorCoordinates.length > 1 ? (
+      {showRouteProximitySegment
+        && connectorCoordinates.length > 1
+        && (!routeAlert || emphasized) ? (
         <Polyline
           coordinates={connectorCoordinates}
           strokeColor={riskStrokeColor}
@@ -196,7 +202,6 @@ export const RiskOverlay = memo(function RiskOverlay({
         />
       ) : null}
       <RiskMarker
-        active={active}
         onPress={handlePress}
         routeAlert={routeAlert}
         selected={selected}
@@ -287,14 +292,12 @@ function checkpointMarkerRole(kind: RouteCheckpoint['kind']): string {
 }
 
 function RiskMarker({
-  active,
   onPress,
   selected,
   routeAlert,
   visible,
   zone
 }: {
-  active?: boolean;
   onPress?: () => void;
   selected?: boolean;
   routeAlert: boolean;
@@ -304,9 +307,6 @@ function RiskMarker({
   const riskTone = resolveRiskOverlayTone(zone);
   const riskColors = severityOverlayColors(riskTone);
   const markerColor = riskColors.stroke;
-  const selectionProgress = useMotionValue(selected ? 1 : 0, {
-    spring: true,
-  });
 
   return (
     <Marker
@@ -315,7 +315,7 @@ function RiskMarker({
       opacity={visible ? 1 : 0}
       testID={uiTestIds.liveMapRiskZone(zone.id)}
       tappable={visible && Boolean(onPress)}
-      tracksViewChanges={visible && Boolean(selected || active)}
+      tracksViewChanges={false}
       zIndex={routeAlert ? ROUTE_ALERT_MARKER_Z_INDEX : 10}
       onPress={onPress}
     >
@@ -324,6 +324,7 @@ function RiskMarker({
         accessibilityLabel={createRiskZoneAccessibilityLabel(zone, Boolean(selected))}
         accessibilityElementsHidden={!visible}
         accessibilityRole="button"
+        accessibilityState={{ selected: Boolean(selected) }}
         testID={uiTestIds.liveMapRiskZone(zone.id)}
         style={routeAlert ? styles.routeAlertMarkerHitArea : styles.riskMarkerHitArea}
       >
@@ -331,36 +332,16 @@ function RiskMarker({
           style={[
             styles.riskMarker,
             routeAlert ? styles.routeAlertMarker : null,
-            active ? styles.riskMarkerActive : null,
-            routeAlert && active ? styles.routeAlertMarkerActive : null,
-            selected ? styles.riskMarkerSelected : null,
             severityMarkerStyle(riskTone),
             routeAlert ? { backgroundColor: markerColor } : null,
           ]}
         >
-          <Animated.View
-            accessible={false}
-            style={[
-              styles.riskMarkerSelectionRing,
-              {
-                backgroundColor: riskColors.selectionHalo,
-                borderColor: riskColors.selectionStroke,
-                opacity: selectionProgress,
-                transform: [{
-                  scale: selectionProgress.interpolate({
-                    inputRange: [0, 1],
-                    outputRange: [0.82, 1],
-                  }),
-                }],
-              },
-            ]}
-          />
           {routeAlert ? (
             <CircleAlert
               accessibilityElementsHidden
               color={colors.surface}
-              size={19}
-              strokeWidth={2.6}
+              size={14}
+              strokeWidth={2.4}
             />
           ) : (
             <AlertTriangle
@@ -592,31 +573,16 @@ const styles = StyleSheet.create({
     shadowOffset: { width: 0, height: 2 },
     elevation: 4
   },
-  riskMarkerActive: {
-    opacity: 0.92,
-  },
-  riskMarkerSelected: {
-    opacity: 1,
-    shadowOpacity: 0.48,
-    shadowRadius: 8,
-  },
   routeAlertMarker: {
-    width: 30,
-    height: 30,
-    borderWidth: 2,
+    width: 22,
+    height: 22,
+    borderWidth: 1,
     borderColor: 'rgba(248, 250, 252, 0.9)',
     borderRadius: radius.pill,
     opacity: 0.96,
-  },
-  routeAlertMarkerActive: {
-    opacity: 0.98,
-  },
-  riskMarkerSelectionRing: {
-    position: 'absolute',
-    width: 30,
-    height: 30,
-    borderWidth: 1,
-    borderRadius: radius.pill,
+    shadowOpacity: 0,
+    shadowRadius: 0,
+    elevation: 0,
   },
   riskMarkerHigh: {
     shadowColor: colors.danger
@@ -628,8 +594,8 @@ const styles = StyleSheet.create({
     shadowColor: colors.info
   },
   routeAlertMarkerHitArea: {
-    width: 38,
-    height: 38,
+    width: 44,
+    height: 44,
     alignItems: 'center',
     justifyContent: 'center'
   },

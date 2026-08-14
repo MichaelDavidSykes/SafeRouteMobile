@@ -2,6 +2,10 @@ import type { SavedSafeRoutePlan } from "./liveMapTypes";
 import type { NavigationLifecycle } from "./liveMapUiState";
 import { haversineDistanceMeters } from "./routeGeometry";
 import {
+  MAX_MOBILE_SUPPORT_FACILITIES,
+  normalizeMobileSupportFacilities,
+} from "./supportFacilities";
+import {
   isReliableLocationSampleRecent,
   normalizeReliableLocationSample,
   type ReliableLocationSample,
@@ -287,7 +291,12 @@ export function createActiveNavigationRouteRevision(
     append(zone.polygonCoordinates?.length || 0);
     append(zone.routeSegmentCoordinates?.length || 0);
   }
-  const revision = `${routePlan.route.coordinates.length}:${routePlan.riskZones.length}:${(hash >>> 0).toString(36)}`;
+  for (const facility of routePlan.supportFacilities || []) {
+    append(facility.id);
+    append(facility.coordinate.latitude);
+    append(facility.coordinate.longitude);
+  }
+  const revision = `${routePlan.route.coordinates.length}:${routePlan.riskZones.length}:${routePlan.supportFacilities?.length || 0}:${(hash >>> 0).toString(36)}`;
   routeRevisionCache.set(routePlan, revision);
   return revision;
 }
@@ -580,6 +589,18 @@ function normalizeStoredRoutePlan(value: unknown): SavedSafeRoutePlan | null {
     return null;
   }
 
+  const supportFacilities = normalizeMobileSupportFacilities(
+    value.supportFacilities,
+  );
+  if (
+    value.supportFacilities !== undefined &&
+    (!Array.isArray(value.supportFacilities) ||
+      value.supportFacilities.length > MAX_MOBILE_SUPPORT_FACILITIES ||
+      supportFacilities.length !== value.supportFacilities.length)
+  ) {
+    return null;
+  }
+
   if (
     value.status !== "ready" &&
     value.status !== "in-progress" &&
@@ -592,6 +613,7 @@ function normalizeStoredRoutePlan(value: unknown): SavedSafeRoutePlan | null {
   const clientId = normalizeClientId(routePlan.clientId);
   return {
     ...routePlan,
+    supportFacilities,
     ...(clientId ? { clientId } : { clientId: undefined }),
   };
 }

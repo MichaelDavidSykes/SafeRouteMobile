@@ -5,6 +5,7 @@ import type {
   RiskZone,
   RouteNavigationStep,
   SafeRouteTravelMode,
+  SupportFacility,
 } from '../live-map/liveMapTypes';
 import {
   normalizeRouteAvoidRectangles,
@@ -56,6 +57,7 @@ export type VerifiedSafeRouteAlternative = GuestRoadRouteAlternative & {
   riskAvoidance: SafeRouteRiskAvoidanceProof;
   riskZones: RiskZone[];
   routeAlerts: RiskZone[];
+  supportFacilities: SupportFacility[];
 };
 
 export type VerifiedSafeRoutePreview = Omit<
@@ -65,6 +67,7 @@ export type VerifiedSafeRoutePreview = Omit<
   alternatives?: VerifiedSafeRouteAlternative[];
   riskAvoidance: SafeRouteRiskAvoidanceProof;
   riskZones: RiskZone[];
+  supportFacilities: SupportFacility[];
 };
 
 /**

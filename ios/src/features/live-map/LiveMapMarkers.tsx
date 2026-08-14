@@ -1,6 +1,13 @@
 import type { ComponentProps, ComponentType } from 'react';
 import { memo } from 'react';
-import { AlertTriangle, CircleAlert, MapPin } from 'lucide-react-native';
+import {
+  AlertTriangle,
+  CircleAlert,
+  Hospital,
+  MapPin,
+  Shield,
+  ShieldCheck,
+} from 'lucide-react-native';
 import { Animated, StyleSheet, View } from 'react-native';
 import { Circle, Marker, Polygon, Polyline } from 'react-native-maps';
 
@@ -8,7 +15,8 @@ import type {
   RiskAvoidanceSeverity,
   RiskSeverity,
   RiskZone,
-  RouteCheckpoint
+  RouteCheckpoint,
+  SupportFacility,
 } from './liveMapTypes';
 import {
   buildRouteRiskAlertSegment,
@@ -23,6 +31,10 @@ import { uiTestIds } from '../../testing/uiTestIds';
 import { colors, radius } from '../../theme';
 import { SAFE_ROUTE_DARK_ROUTE_CASING } from '../maps/safeRouteMapTheme';
 import { resolveDeviceHeadingScreenRotation } from '../maps/deviceHeading';
+import {
+  supportFacilityCalloutDescription,
+  supportFacilityKindLabel,
+} from './supportFacilities';
 import { useDeviceHeading } from '../maps/useDeviceHeading';
 import {
   useLoopingPulse,
@@ -251,6 +263,47 @@ export function CheckpointMarker({ checkpoint }: { checkpoint: RouteCheckpoint }
     </Marker>
   );
 }
+
+export const SupportFacilityMarker = memo(function SupportFacilityMarker({
+  facility,
+}: {
+  facility: SupportFacility;
+}) {
+  const hospital = facility.kind === 'hospital' || facility.supportType === 'hospital';
+  const police = facility.kind === 'police';
+  const color = hospital ? '#f43f5e' : police ? '#38bdf8' : '#22c55e';
+  const Icon = hospital ? Hospital : police ? Shield : ShieldCheck;
+  const kindLabel = supportFacilityKindLabel(facility);
+
+  return (
+    <Marker
+      coordinate={facility.coordinate}
+      anchor={{ x: 0.5, y: 0.5 }}
+      title={facility.label}
+      description={supportFacilityCalloutDescription(facility)}
+      testID={uiTestIds.supportFacility(facility.id)}
+      tracksViewChanges={false}
+      zIndex={43}
+    >
+      <View
+        accessible
+        accessibilityLabel={`${facility.label}. ${kindLabel}. ${supportFacilityCalloutDescription(facility)}`}
+        accessibilityRole="button"
+        style={styles.supportFacilityMarkerHitArea}
+        testID={uiTestIds.supportFacility(facility.id)}
+      >
+        <View style={[styles.supportFacilityMarker, { backgroundColor: color }]}>
+          <Icon
+            accessibilityElementsHidden
+            color={colors.surface}
+            size={14}
+            strokeWidth={2.4}
+          />
+        </View>
+      </View>
+    </Marker>
+  );
+});
 
 export const CompassTrackedMarker = memo(function CompassTrackedMarker({
   coordinate,
@@ -598,6 +651,23 @@ const styles = StyleSheet.create({
     height: 44,
     alignItems: 'center',
     justifyContent: 'center'
+  },
+  supportFacilityMarkerHitArea: {
+    width: 40,
+    height: 40,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  supportFacilityMarker: {
+    width: 24,
+    height: 24,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderWidth: 1,
+    borderColor: 'rgba(248, 250, 252, 0.92)',
+    borderRadius: radius.pill,
+    shadowOpacity: 0,
+    elevation: 0,
   },
   vehicleMarker: {
     width: 44,

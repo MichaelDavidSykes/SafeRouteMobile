@@ -188,6 +188,8 @@ export const uiTestIds = {
     `safe-route-risk-segment-${normalizeTestIdSegment(riskZoneId)}`,
   liveMapRiskZone: (riskZoneId: string) =>
     `safe-route-risk-zone-${normalizeTestIdSegment(riskZoneId)}`,
+  supportFacility: (facilityId: string) =>
+    `safe-route-support-${normalizeTestIdSegment(facilityId)}`,
 };
 
 export function normalizeTestIdSegment(value: string): string {

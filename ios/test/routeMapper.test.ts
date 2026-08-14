@@ -51,7 +51,15 @@ describe('SafeRoute mobile DTO mapper', () => {
           coordinate: { latitude: 51.51, longitude: -0.06 },
           radius_meters: 300
         }
-      ]
+      ],
+      support_facilities: [{
+        id: 'hospital-1',
+        label: 'Airport Hospital',
+        kind: 'hospital',
+        latitude: 51.515,
+        longitude: -0.04,
+        distance_m: 90,
+      }]
     });
 
     assert.equal(plan.name, 'Airport transfer');
@@ -66,6 +74,8 @@ describe('SafeRoute mobile DTO mapper', () => {
     assert.ok(plan.route.navigationStepRevision);
     assert.equal(plan.riskZones[0].severity, 'high');
     assert.equal(plan.riskZones[0].avoidanceSeverity, 'critical');
+    assert.equal(plan.supportFacilities?.[0].label, 'Airport Hospital');
+    assert.equal(plan.supportFacilities?.[0].distanceMeters, 90);
     assert.equal(plan.checkpoints.length, 2);
   });
 

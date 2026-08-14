@@ -622,6 +622,10 @@ export function LiveMapScreen({
     routeRiskIndex,
     selectedRiskZoneId,
   ]);
+  const visibleSupportFacilities = useMemo(
+    () => alertsVisible ? liveRoutePlan.supportFacilities || [] : [],
+    [alertsVisible, liveRoutePlan.supportFacilities],
+  );
   const selectedRiskZone = useMemo(
     () =>
       liveRoutePlan.riskZones.find((zone) => zone.id === selectedRiskZoneId) ||
@@ -1746,6 +1750,7 @@ export function LiveMapScreen({
           selectedRiskProximity={selectedRiskProximity}
           vehicleCoordinate={vehicleCoordinate}
           visibleRiskZones={visibleRiskZones}
+          visibleSupportFacilities={visibleSupportFacilities}
         />
       </MotionEntrance>
 

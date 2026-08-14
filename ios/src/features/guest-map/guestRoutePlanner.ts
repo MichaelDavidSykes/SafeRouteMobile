@@ -10,7 +10,8 @@ import type {
   RouteCheckpoint,
   RouteNavigationStep,
   SafeRouteTravelMode,
-  SavedSafeRoutePlan
+  SavedSafeRoutePlan,
+  SupportFacility,
 } from '../live-map/liveMapTypes';
 import { routeRiskStartBlockedReason } from '../live-map/routeRisk';
 import { formatDistance, formatEta } from '../routes/routeMapperNormalization';
@@ -67,6 +68,7 @@ export type GuestRoutePlanOptions = {
   originCoordinate?: LatLng | null;
   planId?: string;
   riskZones?: RiskZone[];
+  supportFacilities?: SupportFacility[];
   roadSnappedCoordinates?: LatLng[] | null;
   routeDistanceMeters?: number | null;
   routeDurationSeconds?: number | null;
@@ -361,6 +363,7 @@ export function createGuestRoutePlan({
   originCoordinate,
   planId,
   riskZones,
+  supportFacilities,
   roadSnappedCoordinates,
   routeDistanceMeters,
   routeDurationSeconds,
@@ -455,6 +458,7 @@ export function createGuestRoutePlan({
       : hasSelectedStopCoordinates
         ? []
         : GUEST_ROUTE_RISK_ZONES,
+    supportFacilities: supportFacilities ? [...supportFacilities] : [],
     checkpoints: normalizedCheckpoints.length >= 2
       ? normalizedCheckpoints
       : createGuestRouteCheckpoints({

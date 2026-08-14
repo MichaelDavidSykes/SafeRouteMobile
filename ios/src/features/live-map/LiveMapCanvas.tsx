@@ -5,10 +5,19 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import type { PermissionStatus } from "./liveLocationState";
 import type { RouteRiskProximity } from "./routeRisk";
-import type { RiskZone, SavedSafeRoutePlan } from "./liveMapTypes";
+import type {
+  RiskZone,
+  SavedSafeRoutePlan,
+  SupportFacility,
+} from "./liveMapTypes";
 import type { NavigationLifecycle } from "./liveMapUiState";
 import { shouldShowNativeUserLocation } from "./liveMapUiState";
-import { CheckpointMarker, CompassTrackedMarker, RiskOverlay } from "./LiveMapMarkers";
+import {
+  CheckpointMarker,
+  CompassTrackedMarker,
+  RiskOverlay,
+  SupportFacilityMarker,
+} from "./LiveMapMarkers";
 import { LiveMapRiskDetailCallout } from "./LiveMapRiskDetailCallout";
 import { resolveRouteLinePresentation } from "./routeLinePresentation";
 import { uiTestIds } from "../../testing/uiTestIds";
@@ -46,6 +55,7 @@ interface LiveMapCanvasProps {
   selectedRiskProximity?: RouteRiskProximity | null;
   vehicleCoordinate: LatLng | null;
   visibleRiskZones: RiskZone[];
+  visibleSupportFacilities: SupportFacility[];
 }
 
 export function LiveMapCanvas({
@@ -70,6 +80,7 @@ export function LiveMapCanvas({
   selectedRiskProximity,
   vehicleCoordinate,
   visibleRiskZones,
+  visibleSupportFacilities,
 }: LiveMapCanvasProps) {
   const safeAreaInsets = useSafeAreaInsets();
   const routeCoordinates = routePlan.route.coordinates;
@@ -167,6 +178,10 @@ export function LiveMapCanvas({
           zone={zone}
           onPress={onRiskZonePress}
         />
+      ))}
+
+      {visibleSupportFacilities.map((facility) => (
+        <SupportFacilityMarker facility={facility} key={facility.id} />
       ))}
 
       {showRouteCheckpoints

@@ -278,12 +278,22 @@ describe('verified SafeRoute road route provider', () => {
         coordinate: { lat: -33.945, lon: 18.52 },
         radius_meters: 100,
       }],
+      support_facilities: [{
+        id: 'hospital-1',
+        label: 'Cape Route Hospital',
+        kind: 'hospital',
+        lat: -33.943,
+        lon: 18.518,
+        distance_m: 85,
+        route_distance_km: 4.2,
+      }],
     }), stops);
 
     assert.equal(result?.riskAvoidance.policyVersion, SAFE_ROUTE_POLICY_VERSION);
     assert.deepEqual(result?.riskZones.map(({ id }) => id), ['critical-area']);
     assert.equal(result?.riskZones[0]?.avoidanceSeverity, 'critical');
     assert.deepEqual(result?.routeAlerts?.map(({ id }) => id), ['road-alert']);
+    assert.deepEqual(result?.supportFacilities.map(({ id }) => id), ['hospital-1']);
   });
 
   it('requires independent verified proof on every accepted alternative', () => {
@@ -302,6 +312,13 @@ describe('verified SafeRoute road route provider', () => {
               { lat: -33.94, lon: 18.54 },
             ],
           }],
+          support_facilities: [{
+            id: 'safe-haven-1',
+            label: 'Fire station safe haven',
+            kind: 'safe-haven',
+            lat: -33.941,
+            lon: 18.541,
+          }],
         }),
         alternativeResponse(-33.93, 18.55, {
           risk_avoidance: proof({ ignored_area_count: 1 }),
@@ -315,6 +332,10 @@ describe('verified SafeRoute road route provider', () => {
     assert.deepEqual(
       result?.alternatives?.[0].routeAlerts.map(({ id }) => id),
       ['alternative-route-alert'],
+    );
+    assert.deepEqual(
+      result?.alternatives?.[0].supportFacilities.map(({ id }) => id),
+      ['safe-haven-1'],
     );
 
     const missingProof = normalizeSafeRoutePreviewResponse(verifiedResponse({
@@ -459,6 +480,7 @@ function verifiedResponse(overrides: Record<string, unknown> = {}) {
     risk_avoidance: proof(),
     risk_areas: [],
     route_alerts: [],
+    support_facilities: [],
     ...overrides,
   };
 }

@@ -74,6 +74,7 @@ import {
   CheckpointMarker,
   CompassTrackedMarker,
   RiskOverlay,
+  SupportFacilityMarker,
 } from '../live-map/LiveMapMarkers';
 import {
   LiveMapDetailCallout,
@@ -1398,6 +1399,7 @@ export function GuestMapScreen({
             routePreview.riskZones,
             routePreview.routeAlerts || [],
           ),
+          supportFacilities: routePreview.supportFacilities,
           roadSnappedCoordinates: routePreview.coordinates,
           routeDistanceMeters: routePreview.distanceMeters,
           routeDurationSeconds: routePreview.durationSeconds,
@@ -2121,6 +2123,9 @@ export function GuestMapScreen({
             zone={zone}
             onPress={handleSelectRiskZone}
           />
+        ))}
+        {(routePlan?.supportFacilities || []).map((facility) => (
+          <SupportFacilityMarker facility={facility} key={facility.id} />
         ))}
         {!routePlan ? draftCheckpointMarkers.filter((checkpoint) =>
           shouldRenderRouteCheckpointMarker({

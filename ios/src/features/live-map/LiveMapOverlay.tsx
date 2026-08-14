@@ -123,7 +123,9 @@ export function LiveMapOverlay({
           onCenterVehicle={onCenterVehicle}
           onFitRoute={onFitRoute}
           onSetAlertsVisible={onSetAlertsVisible}
-          routeIntelCount={routePlan.riskZones.length}
+          routeIntelCount={
+            routePlan.riskZones.length + (routePlan.supportFacilities?.length || 0)
+          }
         />
       </MotionEntrance>
 

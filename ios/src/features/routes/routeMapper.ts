@@ -7,6 +7,7 @@ import type {
   SavedSafeRoutePlan
 } from '../live-map/liveMapTypes';
 import { normalizeRouteNavigationSteps } from '../live-map/routeGuidance';
+import { normalizeMobileSupportFacilities } from '../live-map/supportFacilities';
 import {
   clampNumber,
   formatDistance,
@@ -113,6 +114,7 @@ export interface MobileSafeRouteDto {
   risk_overlays?: MobileRiskOverlayDto[];
   route_alerts?: MobileRiskOverlayDto[];
   alerts?: MobileRiskOverlayDto[];
+  support_facilities?: unknown;
   checkpoints?: MobileCheckpointDto[];
   waypoints?: MobileWaypointDto[];
 }
@@ -217,6 +219,9 @@ export function mapRouteDtoToSavedPlan(
         : {})
     },
     riskZones: summary ? [] : mapRiskOverlays(dto),
+    supportFacilities: summary
+      ? []
+      : normalizeMobileSupportFacilities(dto.support_facilities),
     checkpoints: mapCheckpoints(
       preferredCheckpointDtos(dto.checkpoints, dto.waypoints),
       dto.origin,

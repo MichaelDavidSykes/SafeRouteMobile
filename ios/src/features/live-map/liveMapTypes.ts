@@ -92,6 +92,20 @@ export interface RiskLinkedEntity {
   type?: string;
 }
 
+export type SupportFacilityKind = 'hospital' | 'police' | 'safe-haven';
+
+export interface SupportFacility {
+  id: string;
+  label: string;
+  kind: SupportFacilityKind;
+  coordinate: LatLng;
+  supportType?: string;
+  source?: string;
+  details?: string;
+  distanceMeters?: number;
+  routeDistanceKm?: number;
+}
+
 export interface RouteCheckpoint {
   id: string;
   label: string;
@@ -115,5 +129,6 @@ export interface SavedSafeRoutePlan {
   region: Region;
   route: RoutePath;
   riskZones: RiskZone[];
+  supportFacilities?: SupportFacility[];
   checkpoints: RouteCheckpoint[];
 }

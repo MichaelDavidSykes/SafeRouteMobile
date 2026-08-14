@@ -73,7 +73,8 @@ export function LiveMapRouteSummarySheet({
   trackingLabel,
 }: LiveMapRouteSummarySheetProps) {
   const [detailsVisible, setDetailsVisible] = useState(false);
-  const routeIntelCount = routePlan.riskZones.length;
+  const routeIntelCount =
+    routePlan.riskZones.length + (routePlan.supportFacilities?.length || 0);
   const primary = createRouteSummaryPrimaryAction(
     navigationState,
     primaryDisabledReason || primaryActionStatusReason,

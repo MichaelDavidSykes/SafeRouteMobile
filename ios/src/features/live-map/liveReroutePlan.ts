@@ -143,6 +143,7 @@ export function applyLiveReroutePreview({
     region: regionForCoordinates(preview.coordinates, routePlan.region),
     checkpoints,
     riskZones: mergeRiskZonesById(preview.riskZones, preview.routeAlerts || []),
+    supportFacilities: preview.supportFacilities,
     route: {
       ...routePlan.route,
       id: routeId,

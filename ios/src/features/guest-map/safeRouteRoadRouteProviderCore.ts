@@ -3,6 +3,7 @@ import type { LatLng } from 'react-native-maps';
 import { haversineDistanceMeters } from '../live-map/routeGeometry';
 import { normalizeRouteNavigationSteps } from '../live-map/routeGuidance';
 import { mapMobileRiskOverlays } from '../routes/routeMapper';
+import { normalizeMobileSupportFacilities } from '../live-map/supportFacilities';
 import {
   type ProvisionalSafeRoutePreview,
   type SafeRouteRiskAvoidanceProof,
@@ -320,7 +321,10 @@ export function normalizeSafeRoutePreviewResponse(
     ),
     routeAlerts: mapMobileRiskOverlays(
       record.route_alerts ?? record.routeAlerts
-    )
+    ),
+    supportFacilities: normalizeMobileSupportFacilities(
+      record.support_facilities ?? record.supportFacilities,
+    ),
   };
 }
 
@@ -385,6 +389,7 @@ function normalizeCompleteRouteAlternatives(
       riskAvoidance: normalized.riskAvoidance,
       riskZones: normalized.riskZones,
       routeAlerts: normalized.routeAlerts ?? [],
+      supportFacilities: normalized.supportFacilities,
       snapped: true,
     });
   }

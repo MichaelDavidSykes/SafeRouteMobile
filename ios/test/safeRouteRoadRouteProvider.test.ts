@@ -5,6 +5,7 @@ import { describe, it } from 'node:test';
 import {
   buildPublicSafeRoutePreviewPayload,
   buildSafeRoutePreviewPayload,
+  normalizeProvisionalSafeRoutePreviewResponse,
   normalizeSafeRoutePreviewResponse,
   resolveSafeRoutePreviewRequestMode,
   SAFE_ROUTE_POLICY_VERSION,
@@ -45,6 +46,7 @@ describe('verified SafeRoute road route provider', () => {
       stops,
       travelMode: 'drive',
     }), {
+      accept_provisional_risk_coverage: true,
       client_id: 'tenant-1',
       include_alternatives: true,
       include_road_metadata: true,
@@ -64,6 +66,7 @@ describe('verified SafeRoute road route provider', () => {
       stops,
       travelMode: 'walk',
     }), {
+      accept_provisional_risk_coverage: true,
       include_alternatives: true,
       include_route_alerts: true,
       policy_version: 'safe-route-v1',
@@ -138,6 +141,41 @@ describe('verified SafeRoute road route provider', () => {
         status: 'not-required',
       }),
     }, stops));
+  });
+
+  it('accepts only snapped pending geometry with no partial risk claims', () => {
+    const pending = verifiedResponse({
+      alternatives: [],
+      constraints_applied: false,
+      guidance_steps: [{ instruction: 'Do not expose this yet' }],
+      risk_areas: [],
+      risk_avoidance: {
+        coverage_status: 'pending',
+        ignored_area_count: 0,
+        policy_version: SAFE_ROUTE_POLICY_VERSION,
+        status: 'pending',
+      },
+    });
+    const result = normalizeProvisionalSafeRoutePreviewResponse(pending, stops);
+
+    assert.equal(result?.verificationState, 'pending');
+    assert.equal(result?.snapped, true);
+    assert.deepEqual(result?.riskZones, []);
+    assert.deepEqual(result?.guidanceSteps, []);
+    assert.equal(normalizeSafeRoutePreviewResponse(pending, stops), null);
+
+    for (const unsafePending of [
+      { ...pending, snapped: false },
+      { ...pending, provider: 'manual' },
+      { ...pending, constraints_applied: true },
+      { ...pending, risk_areas: [{ id: 'partial-risk' }] },
+      { ...pending, risk_avoidance: proof() },
+    ]) {
+      assert.equal(
+        normalizeProvisionalSafeRoutePreviewResponse(unsafePending, stops),
+        null,
+      );
+    }
   });
 
   it('still requires evidence that enabled road preferences were applied', () => {

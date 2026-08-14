@@ -37,6 +37,7 @@ export type VerifiedSafeRoutePreviewRequestOptions = {
   input: Parameters<typeof fetch>[0];
   maxPendingWaitMs?: number;
   now?: () => number;
+  onProvisionalResponse?: (response: unknown) => void;
   request?: SafeRoutePreviewHttpRequester;
   signal?: AbortSignal;
   sleep?: SafeRoutePreviewSleep;
@@ -67,6 +68,7 @@ export async function requestVerifiedSafeRoutePreview({
   input,
   maxPendingWaitMs = SAFE_ROUTE_PREVIEW_MAX_PENDING_WAIT_MS,
   now = Date.now,
+  onProvisionalResponse,
   request,
   signal,
   sleep = waitForSafeRoutePreviewRetry,
@@ -74,8 +76,10 @@ export async function requestVerifiedSafeRoutePreview({
 }: VerifiedSafeRoutePreviewRequestOptions): Promise<unknown> {
   const startedAtMs = now();
   const pendingDeadlineMs = startedAtMs + normalizePendingWaitMs(maxPendingWaitMs);
+  let activeInit = init;
   let attempt = 0;
   let lastRetryAfterSeconds = SAFE_ROUTE_PREVIEW_DEFAULT_RETRY_AFTER_SECONDS;
+  let provisionalResponseDelivered = false;
 
   while (true) {
     if (signal?.aborted) {
@@ -87,18 +91,34 @@ export async function requestVerifiedSafeRoutePreview({
 
     const remainingWaitMs = Math.max(1, pendingDeadlineMs - now());
     const response = await performSafeRoutePreviewRequest({
-      init,
+      init: activeInit,
       input,
       request,
       signal,
       timeoutMs: Math.max(1, Math.min(timeoutMs, remainingWaitMs)),
     });
     const body = await parseJsonResponse(response);
-    if (response.ok) {
+    const provisionalResponse = isSafeRoutePreviewProvisionalResponse(
+      response.status,
+      body,
+    );
+    const pendingResponse = provisionalResponse
+      || isSafeRoutePreviewCoveragePendingResponse(response.status, body);
+    if (response.ok && !pendingResponse) {
       return unwrapApiEnvelope<unknown>(body);
     }
-    if (!isSafeRoutePreviewCoveragePendingResponse(response.status, body)) {
+    if (!pendingResponse) {
       throw createApiResponseError(response.status, body, fallbackMessage);
+    }
+    if (provisionalResponse) {
+      if (!provisionalResponseDelivered) {
+        provisionalResponseDelivered = true;
+        onProvisionalResponse?.(unwrapApiEnvelope<unknown>(body));
+      }
+      // The first provisional response supplies the drawable road geometry.
+      // Later polls opt back into strict mode so pending checks stay small and
+      // do not repeatedly rebuild/download alerts and alternatives.
+      activeInit = disableProvisionalCoverageOptIn(activeInit);
     }
 
     lastRetryAfterSeconds = resolveSafeRoutePreviewRetryDelaySeconds(
@@ -113,6 +133,44 @@ export async function requestVerifiedSafeRoutePreview({
     await sleep(retryDelayMs, signal);
     attempt += 1;
   }
+}
+
+function disableProvisionalCoverageOptIn(init: RequestInit): RequestInit {
+  if (typeof init.body !== 'string') {
+    return init;
+  }
+  try {
+    const payload = JSON.parse(init.body) as unknown;
+    if (!payload || typeof payload !== 'object' || Array.isArray(payload)) {
+      return init;
+    }
+    return {
+      ...init,
+      body: JSON.stringify({
+        ...payload as Record<string, unknown>,
+        accept_provisional_risk_coverage: false,
+      }),
+    };
+  } catch {
+    return init;
+  }
+}
+
+export function isSafeRoutePreviewProvisionalResponse(
+  statusCode: number,
+  body: unknown,
+): boolean {
+  if (statusCode < 200 || statusCode >= 300) {
+    return false;
+  }
+  const riskAvoidance = getRiskAvoidanceRecord(body);
+  if (!riskAvoidance) {
+    return false;
+  }
+  return normalizeMarker(riskAvoidance.status) === 'pending'
+    && normalizeMarker(
+      riskAvoidance.coverage_status ?? riskAvoidance.coverageStatus,
+    ) === 'pending';
 }
 
 export function isSafeRoutePreviewCoveragePendingResponse(

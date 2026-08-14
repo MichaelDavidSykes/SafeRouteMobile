@@ -4,6 +4,7 @@ import { haversineDistanceMeters } from '../live-map/routeGeometry';
 import { normalizeRouteNavigationSteps } from '../live-map/routeGuidance';
 import { mapMobileRiskOverlays } from '../routes/routeMapper';
 import {
+  type ProvisionalSafeRoutePreview,
   type SafeRouteRiskAvoidanceProof,
   type VerifiedSafeRouteAlternative,
   type VerifiedSafeRoutePreview
@@ -18,6 +19,7 @@ import {
 } from './routePreferences';
 
 type SafeRouteVerifiedPreviewPayload = {
+  accept_provisional_risk_coverage: true;
   client_id: string;
   include_alternatives: true;
   include_road_metadata: true;
@@ -82,6 +84,7 @@ export function buildSafeRoutePreviewPayload({
   preferences?: SafeRouteRoutePreferences;
 }): SafeRouteVerifiedPreviewPayload {
   const payload: SafeRouteVerifiedPreviewPayload = {
+    accept_provisional_risk_coverage: true,
     client_id: clientId.trim(),
     include_alternatives: true,
     include_road_metadata: true,
@@ -118,6 +121,7 @@ export function buildPublicSafeRoutePreviewPayload({
   });
 
   return {
+    accept_provisional_risk_coverage: true,
     ...(workspacePayload.preferences
       ? { preferences: workspacePayload.preferences }
       : {}),
@@ -127,6 +131,96 @@ export function buildPublicSafeRoutePreviewPayload({
     target_alternative_count: 2,
     travel_mode: workspacePayload.travel_mode,
     waypoints: workspacePayload.waypoints
+  };
+}
+
+export function normalizeProvisionalSafeRoutePreviewResponse(
+  payload: unknown,
+  requestedStops: LatLng[],
+  requestedTravelMode: SafeRouteTravelMode = 'drive',
+  requestedPreferences?: SafeRouteRoutePreferences,
+): ProvisionalSafeRoutePreview | null {
+  if (!payload || typeof payload !== 'object') {
+    return null;
+  }
+  const record = payload as Record<string, unknown>;
+  const responseTravelMode = record.travel_mode ?? record.travelMode;
+  const provider = record.provider === 'tomtom' || record.provider === 'osrm'
+    ? record.provider
+    : null;
+  const riskAvoidance = record.risk_avoidance ?? record.riskAvoidance;
+  const riskAvoidanceRecord = riskAvoidance && typeof riskAvoidance === 'object'
+    && !Array.isArray(riskAvoidance)
+    ? riskAvoidance as Record<string, unknown>
+    : null;
+  const rawRiskAreas = record.risk_areas ?? record.riskAreas;
+  if (
+    record.policy_version !== SAFE_ROUTE_POLICY_VERSION
+    && record.policyVersion !== SAFE_ROUTE_POLICY_VERSION
+  ) {
+    return null;
+  }
+  if (
+    !provider
+    || record.snapped !== true
+    || !riskAvoidanceRecord
+    || (riskAvoidanceRecord.policy_version ?? riskAvoidanceRecord.policyVersion)
+      !== SAFE_ROUTE_POLICY_VERSION
+    || riskAvoidanceRecord.status !== 'pending'
+    || (riskAvoidanceRecord.coverage_status ?? riskAvoidanceRecord.coverageStatus) !== 'pending'
+    || (riskAvoidanceRecord.ignored_area_count ?? riskAvoidanceRecord.ignoredAreaCount) !== 0
+    || record.constraints_applied !== false
+    || !Array.isArray(rawRiskAreas)
+    || rawRiskAreas.length !== 0
+    || (typeof responseTravelMode === 'string' && responseTravelMode !== requestedTravelMode)
+    || (requestedTravelMode !== 'drive' && responseTravelMode !== requestedTravelMode)
+  ) {
+    return null;
+  }
+  if (
+    requestedPreferences
+    && !safeRoutePreferencesMatchApiEvidence(
+      requestedPreferences,
+      record.route_preferences ?? record.routePreferences,
+    )
+  ) {
+    return null;
+  }
+
+  const coordinates = normalizeProviderCoordinates(record.coordinates);
+  const stops = requestedStops.filter(isValidCoordinate);
+  if (
+    coordinates.length < 2
+    || stops.length < 2
+    || !routeCoversStopsInOrder(coordinates, stops)
+  ) {
+    return null;
+  }
+  const measuredDistance = measureRouteDistance(coordinates);
+  const distanceMeters = normalizePositiveNumber(
+    record.distance_meters ?? record.distanceMeters ?? record.distance,
+  ) ?? measuredDistance;
+  const durationSeconds = normalizePositiveNumber(
+    record.duration_seconds ?? record.durationSeconds ?? record.duration,
+  ) ?? (distanceMeters > 0
+    ? distanceMeters / SAFE_ROUTE_FALLBACK_SPEED_METERS_PER_SECOND
+    : null);
+
+  return {
+    coordinates,
+    distanceMeters,
+    durationSeconds,
+    guidanceSteps: [],
+    provider,
+    riskAvoidance: {
+      coverageStatus: 'pending',
+      ignoredAreaCount: 0,
+      policyVersion: SAFE_ROUTE_POLICY_VERSION,
+      status: 'pending',
+    },
+    riskZones: [],
+    snapped: true,
+    verificationState: 'pending',
   };
 }
 

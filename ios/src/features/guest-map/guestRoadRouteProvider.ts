@@ -25,6 +25,13 @@ export type SafeRouteRiskAvoidanceProof = {
   status: 'verified' | 'not-required' | 'best-effort';
 };
 
+export type SafeRoutePendingRiskCoverageProof = {
+  coverageStatus: 'pending';
+  ignoredAreaCount: 0;
+  policyVersion: 'safe-route-v1';
+  status: 'pending';
+};
+
 export type GuestRoadRouteAlternative = {
   coordinates: LatLng[];
   distanceMeters: number;
@@ -60,8 +67,25 @@ export type VerifiedSafeRoutePreview = Omit<
   riskZones: RiskZone[];
 };
 
+/**
+ * Provider-snapped road geometry that is safe to draw, but not yet safe to
+ * navigate. Canonical risk-area coverage is intentionally absent until the
+ * verified response replaces it.
+ */
+export type ProvisionalSafeRoutePreview = Omit<
+  GuestRoadRoutePreview,
+  'alternatives' | 'routeAlerts'
+> & {
+  alternatives?: never;
+  riskAvoidance: SafeRoutePendingRiskCoverageProof;
+  riskZones: [];
+  routeAlerts?: never;
+  verificationState: 'pending';
+};
+
 export type GuestRoadRoutePreviewOptions = {
   avoidRectangles?: GuestRouteAvoidRectangle[];
+  onProvisionalPreview?: (preview: ProvisionalSafeRoutePreview) => void;
   request?: typeof fetch;
   signal?: AbortSignal;
   stops: LatLng[];

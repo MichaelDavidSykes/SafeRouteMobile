@@ -209,10 +209,12 @@ export function hasGuestRouteDestination(destination: string): boolean {
 
 export function createGuestRouteActionState({
   destination,
-  routePlotted
+  routePlotted,
+  routeVerificationPending = false,
 }: {
   destination: string;
   routePlotted: boolean;
+  routeVerificationPending?: boolean;
 }): GuestRouteActionState {
   if (!hasGuestRouteDestination(destination)) {
     return {
@@ -224,6 +226,15 @@ export function createGuestRouteActionState({
   }
 
   const destinationLabel = normalizeGuestRouteLabel(destination, 'destination');
+
+  if (routePlotted && routeVerificationPending) {
+    return {
+      accessibilityHint: 'Wait until canonical risk coverage is verified before starting guidance.',
+      accessibilityLabel: `Route to ${destinationLabel} is plotted but risk verification is still pending`,
+      disabled: true,
+      label: 'Verifying route',
+    };
+  }
 
   if (routePlotted) {
     return {

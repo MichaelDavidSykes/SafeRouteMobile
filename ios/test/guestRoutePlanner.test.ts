@@ -129,6 +129,20 @@ describe('guest route planner helpers', () => {
 
     assert.deepEqual(
       createGuestRouteActionState({
+        destination: 'London City Airport',
+        routePlotted: true,
+        routeVerificationPending: true,
+      }),
+      {
+        accessibilityHint: 'Wait until canonical risk coverage is verified before starting guidance.',
+        accessibilityLabel: 'Route to London City Airport is plotted but risk verification is still pending',
+        disabled: true,
+        label: 'Verifying route',
+      },
+    );
+
+    assert.deepEqual(
+      createGuestRouteActionState({
         destination: '  London   City Airport  ',
         routePlotted: false
       }),

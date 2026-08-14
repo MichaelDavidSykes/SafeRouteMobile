@@ -6,6 +6,7 @@ import {
   SafeRoutePreviewCoveragePendingError,
   getSafeRoutePreviewRetryAfterSeconds,
   isSafeRoutePreviewCoveragePendingResponse,
+  isSafeRoutePreviewProvisionalResponse,
   requestVerifiedSafeRoutePreview,
   resolveSafeRoutePreviewRetryDelaySeconds,
 } from '../src/features/guest-map/safeRouteRoadRouteTransportCore';
@@ -39,6 +40,71 @@ describe('verified SafeRoute road route transport', () => {
     assert.deepEqual(result, { route: 'verified' });
     assert.equal(requests, 3);
     assert.deepEqual(retryDelays, [10_000, 15_000]);
+  });
+
+  it('publishes provisional 200 geometry once and keeps polling for proof', async () => {
+    const responses = [
+      jsonResponse({ data: pendingPreviewBody() }, 200),
+      jsonResponse({ data: pendingPreviewBody() }, 200),
+      jsonResponse({ data: { route: 'verified' } }, 200),
+    ];
+    const provisional: unknown[] = [];
+    const provisionalFlags: unknown[] = [];
+    let requests = 0;
+
+    const result = await requestVerifiedSafeRoutePreview({
+      init: {
+        body: JSON.stringify({ accept_provisional_risk_coverage: true }),
+        method: 'POST',
+      },
+      input: 'https://example.test/verified-route-preview',
+      now: () => 0,
+      onProvisionalResponse: (response) => provisional.push(response),
+      request: async (_input, init) => {
+        provisionalFlags.push(JSON.parse(String(init?.body)).accept_provisional_risk_coverage);
+        return responses[requests++] as Response;
+      },
+      sleep: async () => undefined,
+      timeoutMs: 60_000,
+    });
+
+    assert.deepEqual(provisional, [pendingPreviewBody()]);
+    assert.deepEqual(provisionalFlags, [true, false, false]);
+    assert.deepEqual(result, { route: 'verified' });
+    assert.equal(requests, 3);
+    assert.equal(
+      isSafeRoutePreviewProvisionalResponse(
+        200,
+        { data: pendingPreviewBody() },
+      ),
+      true,
+    );
+  });
+
+  it('clears a provisional polling loop through the owner AbortSignal', async () => {
+    const controller = new AbortController();
+    let published = false;
+    let requests = 0;
+    const preview = requestVerifiedSafeRoutePreview({
+      init: { method: 'POST' },
+      input: 'https://example.test/verified-route-preview',
+      onProvisionalResponse: () => {
+        published = true;
+        controller.abort();
+      },
+      request: async () => {
+        requests += 1;
+        return jsonResponse({ data: pendingPreviewBody() }, 200);
+      },
+      signal: controller.signal,
+      timeoutMs: 60_000,
+    });
+
+    await assert.rejects(preview, (error) => (
+      error instanceof Error && error.name === 'AbortError'
+    ));
+    assert.equal(published, true);
+    assert.equal(requests, 1);
   });
 
   it('treats Retry-After as a minimum while capping repeated polling at 30 seconds', () => {
@@ -192,6 +258,23 @@ function pendingBody({
         status,
       },
     },
+  };
+}
+
+function pendingPreviewBody(): unknown {
+  return {
+    constraints_applied: false,
+    coordinates: [{ lat: -33.9, lon: 18.4 }, { lat: -33.95, lon: 18.5 }],
+    policy_version: 'safe-route-v1',
+    provider: 'tomtom',
+    risk_areas: [],
+    risk_avoidance: {
+      coverage_status: 'pending',
+      ignored_area_count: 0,
+      policy_version: 'safe-route-v1',
+      status: 'pending',
+    },
+    snapped: true,
   };
 }
 

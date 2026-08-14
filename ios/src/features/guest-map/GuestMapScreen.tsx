@@ -131,6 +131,7 @@ import {
 } from './guestRoutePlanner';
 import {
   type GuestRoadRoutePreviewOptions,
+  type ProvisionalSafeRoutePreview,
   type VerifiedSafeRoutePreview,
 } from './guestRoadRouteProvider';
 import {
@@ -197,6 +198,8 @@ const GUEST_ROUTE_SHEET_DRAG_DISTANCE = 120;
 const GUEST_ROUTE_SHEET_MIN_SETTLE_DURATION_MS = 110;
 const GUEST_MAP_MAX_ROUTE_COORDINATES = 1200;
 const GUEST_MAP_MAX_ROUTE_FIT_COORDINATES = 420;
+const GUEST_PROVISIONAL_ROUTE_MESSAGE =
+  'Road route plotted. Risk coverage is still being verified, so starting guidance is locked.';
 const GUEST_MAP_ALTERNATIVE_ROUTE_COLORS = [
   'rgba(91, 174, 255, 0.88)',
   'rgba(111, 132, 186, 0.88)',
@@ -299,6 +302,7 @@ export function GuestMapScreen({
   const mapCameraRequestIdRef = useRef(0);
   const activeRoadRouteRequestRef = useRef<AbortController | null>(null);
   const activeRoadRouteWorkspaceIdRef = useRef<string | null>(null);
+  const provisionalRoutePlanIdRef = useRef<string | null>(null);
   const activeLocationSearchRef = useRef<AbortController | null>(null);
   const activeDraftResolutionRef = useRef<AbortController | null>(null);
   const activeRiskAreaRequestRef = useRef<AbortController | null>(null);
@@ -482,6 +486,9 @@ export function GuestMapScreen({
     [activeDraftStop?.label, persistentPlaces],
   );
   const routePlotted = Boolean(routePlan);
+  const provisionalRouteVisible = Boolean(
+    routePlan && provisionalRoutePlanIdRef.current === routePlan.id,
+  );
   const routeDraftReady =
     getGuestRouteDraftUnresolvedStopIds(routeDraft).length === 0;
   const searchStageActive = Boolean(activeInput);
@@ -513,7 +520,8 @@ export function GuestMapScreen({
   });
   const routeAction = createGuestRouteActionState({
     destination,
-    routePlotted
+    routePlotted,
+    routeVerificationPending: provisionalRouteVisible,
   });
   const travelModeRouteLabel = getGuestTravelModeRouteLabel(travelMode);
   const collapsedRouteCardState = resolveGuestCollapsedRouteCardState({
@@ -566,7 +574,9 @@ export function GuestMapScreen({
   const routeActionLabel = routeResolutionPending
     ? 'Resolving route points…'
     : roadPreviewPending
-      ? 'Finding safest route…'
+      ? provisionalRouteVisible
+        ? 'Verifying risk coverage…'
+        : 'Finding safest route…'
     : networkChecking && !routePlan
       ? 'Checking connection…'
     : offline && !routePlan
@@ -635,11 +645,11 @@ export function GuestMapScreen({
       maxRenderedRiskZones: GUEST_MAP_MAX_RENDERED_RISK_ZONES,
       maxRouteCoordinates: GUEST_MAP_MAX_ROUTE_COORDINATES,
       routes: routeAlternatives,
-      selectedColor: colors.routePrimary,
+      selectedColor: provisionalRouteVisible ? colors.amber : colors.routePrimary,
       selectedRoute: routePlan,
       selectedStrokeWidth: SAFE_ROUTE_ROUTE_CORE_WIDTH + 2,
     }),
-    [routeAlternatives, routePlan],
+    [provisionalRouteVisible, routeAlternatives, routePlan],
   );
   const routeMapCoordinates = routeRenderSession.selectedCoordinates;
   const routeFitCoordinates = routeRenderSession.fitCoordinates;
@@ -1041,6 +1051,19 @@ export function GuestMapScreen({
     activeRoadRouteRequestRef.current = null;
     activeRoadRouteWorkspaceIdRef.current = null;
     setRoadPreviewPending(false);
+    const provisionalRoutePlanId = provisionalRoutePlanIdRef.current;
+    provisionalRoutePlanIdRef.current = null;
+    if (provisionalRoutePlanId) {
+      setRoutePlan((current) =>
+        current?.id === provisionalRoutePlanId ? null : current,
+      );
+      setRouteAlternatives((current) =>
+        current.filter((plan) => plan.id !== provisionalRoutePlanId),
+      );
+      setRouteMessage((current) =>
+        current === GUEST_PROVISIONAL_ROUTE_MESSAGE ? '' : current,
+      );
+    }
   };
 
   useEffect(() => {
@@ -1307,6 +1330,7 @@ export function GuestMapScreen({
       requestContextIsCurrent();
     let acceptedRoadPreview = false;
     let acceptedRoadPreviewPlan: SavedSafeRoutePlan | null = null;
+    let publishedProvisionalPreview = false;
     let terminalRouteErrorMessage: string | null = null;
     let sessionExpiryHandled = false;
     let workspaceUnavailableHandled = false;
@@ -1403,12 +1427,63 @@ export function GuestMapScreen({
       }
       acceptedRoadPreview = true;
       acceptedRoadPreviewPlan = roadRoutePlan;
+      provisionalRoutePlanIdRef.current = null;
       setRoutePlan(roadRoutePlan);
       setRouteAlternatives(acceptedRoutePlans);
       setRouteMessage('');
       animateRouteSheet(true);
       openPendingPreview(roadRoutePlan);
       return true;
+    };
+
+    const publishProvisionalRoadPreview = (
+      preview: ProvisionalSafeRoutePreview,
+    ): void => {
+      if (
+        !requestIsCurrent()
+        || acceptedRoadPreview
+        || publishedProvisionalPreview
+      ) {
+        return;
+      }
+      const provisionalPlan = withLiveReroutePreferences(
+        createGuestRoutePlan({
+          authenticated: authenticatedSnapshot,
+          checkpoints: checkpointsSnapshot,
+          destination: destinationSnapshot,
+          destinationCoordinate: destinationCoordinateSnapshot,
+          origin: originSnapshot,
+          originCoordinate: originCoordinateSnapshot,
+          planId: localRoutePlan.id,
+          // Pending coverage intentionally exposes no partial risk cohort.
+          riskZones: [],
+          roadSnappedCoordinates: preview.coordinates,
+          routeDistanceMeters: preview.distanceMeters,
+          routeDurationSeconds: preview.durationSeconds,
+          // Guidance must never be attached to a provisional route.
+          routeGuidanceSteps: [],
+          travelMode: localRoutePlan.travelMode ?? 'drive',
+        }),
+        routePreferencesSnapshot,
+      );
+      if (provisionalPlan.updatedAtLabel !== 'Road preview') {
+        return;
+      }
+      publishedProvisionalPreview = true;
+      provisionalPlan.route.label = 'Risk verification pending';
+      provisionalPlan.route.riskLabel = 'Pending';
+      provisionalPlan.route.tone = 'amber';
+      provisionalPlan.route.description = GUEST_PROVISIONAL_ROUTE_MESSAGE;
+      provisionalPlan.route.nextInstruction =
+        'Wait for verified risk coverage before starting guidance.';
+      if (requestWorkspaceId) {
+        provisionalPlan.clientId = requestWorkspaceId;
+      }
+      provisionalRoutePlanIdRef.current = provisionalPlan.id;
+      setRoutePlan(provisionalPlan);
+      setRouteAlternatives([provisionalPlan]);
+      setRouteMessage(GUEST_PROVISIONAL_ROUTE_MESSAGE);
+      animateRouteSheet(true);
     };
 
     const routePreviewFetcher = roadRoutePreviewFetcher || ((options: GuestRoadRoutePreviewOptions) =>
@@ -1419,6 +1494,7 @@ export function GuestMapScreen({
       }));
 
     void routePreviewFetcher({
+      onProvisionalPreview: publishProvisionalRoadPreview,
       preferences: routePreferencesSnapshot,
       signal: controller.signal,
       stops,
@@ -1448,6 +1524,21 @@ export function GuestMapScreen({
           activeRoadRouteRequestRef.current = null;
           activeRoadRouteWorkspaceIdRef.current = null;
           setRoadPreviewPending(false);
+          if (!acceptedRoadPreview) {
+            const provisionalRoutePlanId = provisionalRoutePlanIdRef.current;
+            provisionalRoutePlanIdRef.current = null;
+            if (provisionalRoutePlanId) {
+              setRoutePlan((current) =>
+                current?.id === provisionalRoutePlanId ? null : current,
+              );
+              setRouteAlternatives((current) =>
+                current.filter((plan) => plan.id !== provisionalRoutePlanId),
+              );
+              setRouteMessage((current) =>
+                current === GUEST_PROVISIONAL_ROUTE_MESSAGE ? '' : current,
+              );
+            }
+          }
           if (!requestContextIsCurrent()) {
             return;
           }
@@ -1468,7 +1559,10 @@ export function GuestMapScreen({
   };
 
   const handleOpenPreview = () => {
-    if (routeActionDisabled) {
+    if (
+      routeActionDisabled
+      || provisionalRoutePlanIdRef.current === routePlan?.id
+    ) {
       return;
     }
 
@@ -2009,6 +2103,7 @@ export function GuestMapScreen({
           <Polyline
             key={line.plan.id}
             coordinates={line.coordinates}
+            lineDashPattern={provisionalRouteVisible ? [10, 8] : undefined}
             strokeColor={line.strokeColor}
             strokeWidth={line.strokeWidth}
             lineCap="round"
@@ -2807,7 +2902,9 @@ export function GuestMapScreen({
             {collapsedRouteCardState === 'finding' ? (
               <View
                 accessible
-                accessibilityLabel={`Finding the safest ${travelModeRouteLabel} route. Checking roads and nearby risk areas.`}
+                accessibilityLabel={provisionalRouteVisible
+                  ? 'Road route plotted. Risk coverage verification is pending. Starting guidance is locked.'
+                  : `Finding the safest ${travelModeRouteLabel} route. Checking roads and nearby risk areas.`}
                 accessibilityLiveRegion="polite"
                 accessibilityRole="progressbar"
                 style={styles.collapsedRouteStatus}
@@ -2816,10 +2913,14 @@ export function GuestMapScreen({
                 <ActivityIndicator color={colors.appleBlue} size="small" />
                 <View style={styles.collapsedSearchCopy}>
                   <Text numberOfLines={1} style={styles.collapsedRouteReadyLabel}>
-                    Finding {travelModeRouteLabel} route
+                    {provisionalRouteVisible
+                      ? 'Safety check pending'
+                      : `Finding ${travelModeRouteLabel} route`}
                   </Text>
                   <Text numberOfLines={1} style={styles.collapsedSheetSubtitle}>
-                    Checking roads and nearby risk areas
+                    {provisionalRouteVisible
+                      ? 'Route shown · Start stays locked'
+                      : 'Checking roads and nearby risk areas'}
                   </Text>
                 </View>
               </View>

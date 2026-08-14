@@ -7,6 +7,7 @@ import type {
 import {
   buildPublicSafeRoutePreviewPayload,
   buildSafeRoutePreviewPayload,
+  normalizeProvisionalSafeRoutePreviewResponse,
   normalizeSafeRoutePreviewResponse,
   resolveSafeRoutePreviewRequestMode
 } from './safeRouteRoadRouteProviderCore';
@@ -80,6 +81,17 @@ export async function fetchSafeRouteRoadRoutePreview(
             method: 'POST',
           },
           input: `${LUNARCHAIN_API_BASE}${WORKSPACE_SAFE_ROUTE_PREVIEW_PATH}`,
+          onProvisionalResponse: (provisionalResponse) => {
+            const preview = normalizeProvisionalSafeRoutePreviewResponse(
+              provisionalResponse,
+              options.stops,
+              travelMode,
+              options.preferences,
+            );
+            if (preview) {
+              options.onProvisionalPreview?.(preview);
+            }
+          },
           request: options.request,
           signal,
           timeoutMs,
@@ -116,6 +128,17 @@ export async function fetchSafeRouteRoadRoutePreview(
           method: 'POST',
         },
         input: `${LUNARCHAIN_API_BASE}/mobile/safe-route/verified-route-preview`,
+        onProvisionalResponse: (provisionalResponse) => {
+          const preview = normalizeProvisionalSafeRoutePreviewResponse(
+            provisionalResponse,
+            options.stops,
+            travelMode,
+            options.preferences,
+          );
+          if (preview) {
+            options.onProvisionalPreview?.(preview);
+          }
+        },
         request: options.request,
         signal,
         timeoutMs,

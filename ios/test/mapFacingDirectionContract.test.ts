@@ -17,7 +17,11 @@ describe('map facing-direction indicator', () => {
     assert.match(guestMap, /showsUserLocation=\{false\}/);
     assert.match(
       guestMap,
-      /currentLocationVisible && liveCoordinate[\s\S]*<CompassTrackedMarker[\s\S]*enabled=\{permissionStatus === 'granted'\}[\s\S]*mapHeading=\{mapCameraHeadingDegrees\}[\s\S]*guestMapCurrentLocationMarker/,
+      /currentLocationVisible && liveCoordinate[\s\S]*<CompassTrackedMarker[\s\S]*guestMapCurrentLocationMarker/,
+    );
+    assert.match(
+      guestMap,
+      /<CompassDirectionOverlay[\s\S]*enabled=\{permissionStatus === 'granted'\}[\s\S]*mapHeading=\{mapCameraHeadingDegrees\}[\s\S]*mapRef=\{mapRef\}/,
     );
     assert.match(guestMap, /mapRef\.current\?\.getCamera\(\)/);
     assert.match(guestMap, /setMapCameraHeadingDegrees\(Number\.isFinite\(nextHeading\) \? nextHeading : 0\)/);
@@ -29,7 +33,7 @@ describe('map facing-direction indicator', () => {
 
     assert.match(
       liveCanvas,
-      /<CompassTrackedMarker[\s\S]*enabled=\{!demoDriveActive && permissionStatus === "granted"\}/,
+      /<CompassDirectionOverlay[\s\S]*enabled=\{!demoDriveActive && permissionStatus === "granted"\}/,
     );
     assert.match(
       liveCanvas,
@@ -42,21 +46,18 @@ describe('map facing-direction indicator', () => {
     assert.match(liveMap, /mapRef\.current\?\.getCamera\(\)/);
   });
 
-  it('rotates the React marker view on Apple MapKit instead of unsupported native marker props', () => {
+  it('rotates a React overlay outside Apple MapKit marker snapshots', () => {
     const markers = source('features/live-map/LiveMapMarkers.tsx');
 
-    assert.match(markers, /heading: number \| null/);
     assert.match(markers, /mapHeading: number/);
     assert.match(
       markers,
-      /resolveDeviceHeadingScreenRotation\(heading, mapHeading\)/,
+      /resolveDeviceHeadingScreenRotation\([\s\S]*deviceHeading \?\? fallbackHeading,[\s\S]*mapHeading/,
     );
-    assert.match(
-      markers,
-      /screenRotation !== null[\s\S]*transform: \[\{ rotate: `\$\{screenRotation\}deg` \}\]/,
-    );
-    assert.doesNotMatch(markers, /flat=\{heading !== null\}/);
-    assert.doesNotMatch(markers, /rotation=\{heading \?\? 0\}/);
+    assert.match(markers, /pointForCoordinate\(coordinate\)/);
+    assert.match(markers, /Animated\.timing\(animatedRotation/);
+    assert.match(markers, /styles\.compassDirectionOverlay/);
+    assert.doesNotMatch(markers, /<Marker[\s\S]*rotation=/);
     assert.match(
       markers,
       /vehicleMarkerHeading:[\s\S]*borderBottomColor: 'rgba\(10, 132, 255, 0\.82\)'/,

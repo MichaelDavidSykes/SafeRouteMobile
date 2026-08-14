@@ -1,5 +1,5 @@
-import type { ComponentProps, ComponentType } from 'react';
-import { memo } from 'react';
+import type { ComponentProps, ComponentType, RefObject } from 'react';
+import { memo, useEffect, useRef, useState } from 'react';
 import {
   AlertTriangle,
   CircleAlert,
@@ -8,8 +8,8 @@ import {
   Shield,
   ShieldCheck,
 } from 'lucide-react-native';
-import { StyleSheet, View } from 'react-native';
-import { Circle, Marker, Polygon, Polyline } from 'react-native-maps';
+import { Animated, Easing, StyleSheet, View } from 'react-native';
+import MapView, { Circle, Marker, Polygon, Polyline } from 'react-native-maps';
 
 import type {
   RiskAvoidanceSeverity,
@@ -304,29 +304,120 @@ export const SupportFacilityMarker = memo(function SupportFacilityMarker({
 export const CompassTrackedMarker = memo(function CompassTrackedMarker({
   coordinate,
   demoDriveEnabled = false,
-  enabled,
-  fallbackHeading = null,
-  mapHeading,
   testID,
 }: {
   coordinate: { latitude: number; longitude: number };
   demoDriveEnabled?: boolean;
-  enabled: boolean;
-  fallbackHeading?: number | null;
-  mapHeading: number;
   testID?: string;
 }) {
-  const heading = useDeviceHeading(enabled);
   return (
     <VehicleMarker
       coordinate={coordinate}
       demoDriveEnabled={demoDriveEnabled}
-      heading={heading ?? fallbackHeading}
-      mapHeading={mapHeading}
       testID={testID}
     />
   );
 });
+
+export function CompassDirectionOverlay({
+  coordinate,
+  enabled,
+  fallbackHeading = null,
+  mapHeading,
+  mapReady,
+  mapRef,
+  projectionRevision,
+}: {
+  coordinate: { latitude: number; longitude: number };
+  enabled: boolean;
+  fallbackHeading?: number | null;
+  mapHeading: number;
+  mapReady: boolean;
+  mapRef: RefObject<MapView | null>;
+  projectionRevision: number;
+}) {
+  const deviceHeading = useDeviceHeading(enabled);
+  const screenRotation = resolveDeviceHeadingScreenRotation(
+    deviceHeading ?? fallbackHeading,
+    mapHeading,
+  );
+  const [screenPoint, setScreenPoint] = useState<{ x: number; y: number } | null>(null);
+  const projectionRequestRef = useRef(0);
+  const animatedRotation = useRef(new Animated.Value(screenRotation ?? 0)).current;
+
+  useEffect(() => {
+    if (!mapReady || !mapRef.current) {
+      setScreenPoint(null);
+      return;
+    }
+    const requestId = projectionRequestRef.current + 1;
+    projectionRequestRef.current = requestId;
+    let active = true;
+    void mapRef.current.pointForCoordinate(coordinate).then((point) => {
+      if (
+        active
+        && projectionRequestRef.current === requestId
+        && Number.isFinite(point.x)
+        && Number.isFinite(point.y)
+      ) {
+        setScreenPoint({ x: point.x, y: point.y });
+      }
+    }).catch(() => undefined);
+    return () => {
+      active = false;
+    };
+  }, [
+    coordinate.latitude,
+    coordinate.longitude,
+    mapReady,
+    mapRef,
+    projectionRevision,
+  ]);
+
+  useEffect(() => {
+    if (screenRotation === null) {
+      return;
+    }
+    animatedRotation.stopAnimation((currentRotation) => {
+      const current = Number.isFinite(currentRotation) ? currentRotation : screenRotation;
+      const normalizedCurrent = ((current % 360) + 360) % 360;
+      const shortestDelta = ((screenRotation - normalizedCurrent + 540) % 360) - 180;
+      Animated.timing(animatedRotation, {
+        duration: 180,
+        easing: Easing.out(Easing.cubic),
+        isInteraction: false,
+        toValue: current + shortestDelta,
+        useNativeDriver: true,
+      }).start();
+    });
+  }, [animatedRotation, screenRotation]);
+
+  if (!screenPoint || screenRotation === null) {
+    return null;
+  }
+
+  return (
+    <Animated.View
+      accessibilityElementsHidden
+      pointerEvents="none"
+      style={[
+        styles.compassDirectionOverlay,
+        {
+          left: screenPoint.x - 22,
+          top: screenPoint.y - 22,
+          transform: [{
+            rotate: animatedRotation.interpolate({
+              inputRange: [-36000, 36000],
+              outputRange: ['-36000deg', '36000deg'],
+            }),
+          }],
+        },
+      ]}
+    >
+      <View style={styles.vehicleMarkerHeading} />
+    </Animated.View>
+  );
+}
 
 function checkpointMarkerRole(kind: RouteCheckpoint['kind']): string {
   if (kind === 'origin') {
@@ -410,21 +501,15 @@ function RiskMarker({
 export function VehicleMarker({
   coordinate,
   demoDriveEnabled,
-  heading,
-  mapHeading,
   testID,
 }: {
   coordinate: { latitude: number; longitude: number };
   demoDriveEnabled: boolean;
-  heading: number | null;
-  mapHeading: number;
   testID?: string;
 }) {
   const markerTitle = demoDriveEnabled ? 'Route preview position' : 'Current position';
-  const screenRotation = resolveDeviceHeadingScreenRotation(heading, mapHeading);
 
   return (
-    <>
       <Marker
         coordinate={coordinate}
         anchor={{ x: 0.5, y: 0.5 }}
@@ -450,27 +535,6 @@ export function VehicleMarker({
           <View accessibilityElementsHidden style={styles.vehicleMarkerCore} />
         </View>
       </Marker>
-      {screenRotation !== null ? (
-        <Marker
-          coordinate={coordinate}
-          anchor={{ x: 0.5, y: 0.5 }}
-          tracksViewChanges
-          zIndex={101}
-        >
-          <View
-            accessibilityElementsHidden
-            collapsable={false}
-            pointerEvents="none"
-            style={[
-              styles.vehicleMarkerDirection,
-              { transform: [{ rotate: `${screenRotation}deg` }] },
-            ]}
-          >
-            <View style={styles.vehicleMarkerHeading} />
-          </View>
-        </Marker>
-      ) : null}
-    </>
   );
 }
 
@@ -675,10 +739,13 @@ const styles = StyleSheet.create({
     borderRadius: radius.pill,
     backgroundColor: 'rgba(10, 132, 255, 0.2)',
   },
-  vehicleMarkerDirection: {
+  compassDirectionOverlay: {
+    position: 'absolute',
     width: 44,
     height: 44,
     alignItems: 'center',
+    zIndex: 102,
+    elevation: 102,
   },
   vehicleMarkerHeading: {
     position: 'absolute',

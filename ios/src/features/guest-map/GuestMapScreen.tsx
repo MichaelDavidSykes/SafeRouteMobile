@@ -72,6 +72,7 @@ import type {
 import type { RiskZone } from '../live-map/liveMapTypes';
 import {
   CheckpointMarker,
+  CompassDirectionOverlay,
   CompassTrackedMarker,
   RiskOverlay,
   SupportFacilityMarker,
@@ -404,6 +405,7 @@ export function GuestMapScreen({
   const [readyMapSessionKey, setReadyMapSessionKey] = useState<string | null>(null);
   const [mapRegion, setMapRegion] = useState<Region>(GUEST_MAP_REGION);
   const [mapCameraHeadingDegrees, setMapCameraHeadingDegrees] = useState(0);
+  const [mapProjectionRevision, setMapProjectionRevision] = useState(0);
   const [routeMessage, setRouteMessage] = useState('');
   const [workspaceMenuOpen, setWorkspaceMenuOpen] = useState(false);
   const [selectedRiskZone, setSelectedRiskZone] = useState<RiskZone | null>(null);
@@ -1705,6 +1707,7 @@ export function GuestMapScreen({
   };
 
   const handleMapRegionChangeComplete = (region: Region) => {
+    setMapProjectionRevision((current) => current + 1);
     setMapRegion(region);
     const requestId = mapCameraRequestIdRef.current + 1;
     mapCameraRequestIdRef.current = requestId;
@@ -2137,6 +2140,7 @@ export function GuestMapScreen({
         userInterfaceStyle={mapInterfaceStyle}
         onMapReady={() => {
           setReadyMapSessionKey(mapRenderSessionKey);
+          setMapProjectionRevision((current) => current + 1);
           setMapCameraHeadingDegrees(0);
           mapRef.current?.animateCamera({ heading: 0, pitch: 0 }, { duration: 0 });
         }}
@@ -2214,12 +2218,21 @@ export function GuestMapScreen({
         {currentLocationVisible && liveCoordinate ? (
           <CompassTrackedMarker
             coordinate={liveCoordinate}
-            enabled={permissionStatus === 'granted'}
-            mapHeading={mapCameraHeadingDegrees}
             testID={uiTestIds.guestMapCurrentLocationMarker}
           />
         ) : null}
       </MapView>
+
+      {currentLocationVisible && liveCoordinate ? (
+        <CompassDirectionOverlay
+          coordinate={liveCoordinate}
+          enabled={permissionStatus === 'granted'}
+          mapHeading={mapCameraHeadingDegrees}
+          mapReady={mapReady}
+          mapRef={mapRef}
+          projectionRevision={mapProjectionRevision}
+        />
+      ) : null}
 
       {selectedRiskZone ? (
         <LiveMapRiskDetailCallout

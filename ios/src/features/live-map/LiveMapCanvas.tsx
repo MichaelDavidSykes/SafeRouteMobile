@@ -1,4 +1,5 @@
 import type { RefObject } from "react";
+import { useState } from "react";
 import { Platform, StyleSheet } from "react-native";
 import MapView, { Polyline, type LatLng } from "react-native-maps";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
@@ -14,6 +15,7 @@ import type { NavigationLifecycle } from "./liveMapUiState";
 import { shouldShowNativeUserLocation } from "./liveMapUiState";
 import {
   CheckpointMarker,
+  CompassDirectionOverlay,
   CompassTrackedMarker,
   RiskOverlay,
   SupportFacilityMarker,
@@ -83,6 +85,8 @@ export function LiveMapCanvas({
   visibleSupportFacilities,
 }: LiveMapCanvasProps) {
   const safeAreaInsets = useSafeAreaInsets();
+  const [mapReady, setMapReady] = useState(false);
+  const [projectionRevision, setProjectionRevision] = useState(0);
   const routeCoordinates = routePlan.route.coordinates;
   const routeLinePresentation = resolveRouteLinePresentation({
     progressCoordinateCount: progressCoordinates.length,
@@ -125,8 +129,15 @@ export function LiveMapCanvas({
       userInterfaceStyle="dark"
       onPress={onMapPress}
       onPanDrag={onPanDrag}
-      onMapReady={onMapReady}
-      onRegionChangeComplete={onRegionChangeComplete}
+      onMapReady={() => {
+        setMapReady(true);
+        setProjectionRevision((current) => current + 1);
+        onMapReady();
+      }}
+      onRegionChangeComplete={() => {
+        setProjectionRevision((current) => current + 1);
+        onRegionChangeComplete();
+      }}
     >
       {Platform.OS === "ios" ? <SafeRouteDarkMapMask /> : null}
       {routeCoordinates.length > 1 ? (
@@ -200,12 +211,20 @@ export function LiveMapCanvas({
         <CompassTrackedMarker
           coordinate={vehicleCoordinate}
           demoDriveEnabled={demoDriveActive}
-          enabled={!demoDriveActive && permissionStatus === "granted"}
-          fallbackHeading={heading}
-          mapHeading={mapHeading}
         />
       ) : null}
       </MapView>
+      {vehicleCoordinate ? (
+        <CompassDirectionOverlay
+          coordinate={vehicleCoordinate}
+          enabled={!demoDriveActive && permissionStatus === "granted"}
+          fallbackHeading={heading}
+          mapHeading={mapHeading}
+          mapReady={mapReady}
+          mapRef={mapRef}
+          projectionRevision={projectionRevision}
+        />
+      ) : null}
       {selectedRiskZone ? (
         <LiveMapRiskDetailCallout
           bottomInset={safeAreaInsets.bottom + 12}

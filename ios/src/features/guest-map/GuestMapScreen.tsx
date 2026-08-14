@@ -72,7 +72,6 @@ import type {
 import type { RiskZone } from '../live-map/liveMapTypes';
 import {
   CheckpointMarker,
-  CompassDirectionPolygon,
   CompassTrackedMarker,
   RiskOverlay,
   SupportFacilityMarker,
@@ -302,6 +301,7 @@ export function GuestMapScreen({
     networkRequestEpochRef.current += 1;
   }
   const mapRef = useRef<MapView | null>(null);
+  const mapCameraRequestIdRef = useRef(0);
   const activeRoadRouteRequestRef = useRef<AbortController | null>(null);
   const activeRoadRouteWorkspaceIdRef = useRef<string | null>(null);
   const provisionalRoutePlanIdRef = useRef<string | null>(null);
@@ -403,6 +403,7 @@ export function GuestMapScreen({
   } | null>(null);
   const [readyMapSessionKey, setReadyMapSessionKey] = useState<string | null>(null);
   const [mapRegion, setMapRegion] = useState<Region>(GUEST_MAP_REGION);
+  const [mapCameraHeadingDegrees, setMapCameraHeadingDegrees] = useState(0);
   const [routeMessage, setRouteMessage] = useState('');
   const [workspaceMenuOpen, setWorkspaceMenuOpen] = useState(false);
   const [selectedRiskZone, setSelectedRiskZone] = useState<RiskZone | null>(null);
@@ -1696,6 +1697,7 @@ export function GuestMapScreen({
     userMovedMapRef.current = false;
     setMapAction(null);
     setSelectedRiskZone(null);
+    setMapCameraHeadingDegrees(0);
     mapRef.current?.animateCamera(
       { center: liveCoordinate, heading: 0, pitch: 0 },
       { duration: 450 }
@@ -1704,6 +1706,19 @@ export function GuestMapScreen({
 
   const handleMapRegionChangeComplete = (region: Region) => {
     setMapRegion(region);
+    const requestId = mapCameraRequestIdRef.current + 1;
+    mapCameraRequestIdRef.current = requestId;
+    const cameraPromise = mapRef.current?.getCamera();
+    if (!cameraPromise) {
+      return;
+    }
+    void cameraPromise.then((camera) => {
+      if (mapCameraRequestIdRef.current !== requestId) {
+        return;
+      }
+      const nextHeading = Number(camera.heading);
+      setMapCameraHeadingDegrees(Number.isFinite(nextHeading) ? nextHeading : 0);
+    }).catch(() => undefined);
   };
 
   const handleStopChange = (stopId: string, value: string) => {
@@ -2121,6 +2136,7 @@ export function GuestMapScreen({
         userInterfaceStyle={mapInterfaceStyle}
         onMapReady={() => {
           setReadyMapSessionKey(mapRenderSessionKey);
+          setMapCameraHeadingDegrees(0);
           mapRef.current?.animateCamera({ heading: 0, pitch: 0 }, { duration: 0 });
         }}
         onLongPress={(event) => handleMapLongPress(event.nativeEvent.coordinate)}
@@ -2195,18 +2211,12 @@ export function GuestMapScreen({
           </Marker>
         ) : null}
         {currentLocationVisible && liveCoordinate ? (
-          <>
-            <CompassDirectionPolygon
-              coordinate={liveCoordinate}
-              enabled={permissionStatus === 'granted'}
-              mapWidth={viewport.width}
-              region={mapRegion}
-            />
-            <CompassTrackedMarker
-              coordinate={liveCoordinate}
-              testID={uiTestIds.guestMapCurrentLocationMarker}
-            />
-          </>
+          <CompassTrackedMarker
+            coordinate={liveCoordinate}
+            enabled={permissionStatus === 'granted'}
+            mapHeading={mapCameraHeadingDegrees}
+            testID={uiTestIds.guestMapCurrentLocationMarker}
+          />
         ) : null}
       </MapView>
 

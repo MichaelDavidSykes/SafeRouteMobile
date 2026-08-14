@@ -21,7 +21,7 @@ describe('map facing-direction indicator', () => {
     );
     assert.match(
       guestMap,
-      /<CompassDirectionPolygon[\s\S]*enabled=\{permissionStatus === 'granted'\}[\s\S]*mapWidth=\{viewport\.width\}[\s\S]*region=\{mapRegion\}/,
+      /<CompassTrackedMarker[\s\S]*enabled=\{permissionStatus === 'granted'\}[\s\S]*mapHeading=\{mapCameraHeadingDegrees\}/,
     );
   });
 
@@ -31,7 +31,7 @@ describe('map facing-direction indicator', () => {
 
     assert.match(
       liveCanvas,
-      /<CompassDirectionPolygon[\s\S]*enabled=\{!demoDriveActive && permissionStatus === "granted"\}/,
+      /<CompassTrackedMarker[\s\S]*enabled=\{!demoDriveActive && permissionStatus === "granted"\}/,
     );
     assert.match(
       liveCanvas,
@@ -43,17 +43,19 @@ describe('map facing-direction indicator', () => {
     );
   });
 
-  it('renders compass direction as MapKit geometry instead of a marker snapshot', () => {
+  it('keeps one Apple-style puck mounted and rotates only its inner beam', () => {
     const markers = source('features/live-map/LiveMapMarkers.tsx');
 
-    assert.match(markers, /export const CompassDirectionPolygon = memo/);
     assert.match(markers, /useDeviceHeading\(enabled, \{[\s\S]*minimumUpdateIntervalMs: 80/);
-    assert.match(markers, /buildCompassDirectionPolygon\(/);
-    assert.match(markers, /<Polygon[\s\S]*zIndex=\{99\}/);
+    assert.match(markers, /styles\.vehicleMarkerDirection/);
+    assert.match(markers, /LinearGradient id="appleHeadingBeam"/);
+    assert.match(markers, /Animated\.timing\(animatedRotation/);
+    assert.match(markers, /useNativeDriver: true/);
+    assert.doesNotMatch(markers, /CompassDirectionPolygon/);
     assert.doesNotMatch(markers, /<Marker[\s\S]*rotation=/);
     assert.match(
       markers,
-      /fillColor="rgba\(10, 132, 255, 0\.86\)"/,
+      /backgroundColor: colors\.appleBlue/,
     );
   });
 });

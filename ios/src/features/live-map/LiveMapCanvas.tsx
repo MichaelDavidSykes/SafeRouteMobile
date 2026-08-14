@@ -1,7 +1,7 @@
 import type { RefObject } from "react";
-import { useState } from "react";
-import { Platform, StyleSheet, useWindowDimensions } from "react-native";
-import MapView, { Polyline, type LatLng, type Region } from "react-native-maps";
+import { useRef, useState } from "react";
+import { Platform, StyleSheet } from "react-native";
+import MapView, { Polyline, type LatLng } from "react-native-maps";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import type { PermissionStatus } from "./liveLocationState";
@@ -15,7 +15,6 @@ import type { NavigationLifecycle } from "./liveMapUiState";
 import { shouldShowNativeUserLocation } from "./liveMapUiState";
 import {
   CheckpointMarker,
-  CompassDirectionPolygon,
   CompassTrackedMarker,
   RiskOverlay,
   SupportFacilityMarker,
@@ -83,8 +82,8 @@ export function LiveMapCanvas({
   visibleSupportFacilities,
 }: LiveMapCanvasProps) {
   const safeAreaInsets = useSafeAreaInsets();
-  const viewport = useWindowDimensions();
-  const [mapRegion, setMapRegion] = useState<Region>(routePlan.region);
+  const mapCameraRequestIdRef = useRef(0);
+  const [mapCameraHeadingDegrees, setMapCameraHeadingDegrees] = useState(0);
   const routeCoordinates = routePlan.route.coordinates;
   const routeLinePresentation = resolveRouteLinePresentation({
     progressCoordinateCount: progressCoordinates.length,
@@ -98,6 +97,21 @@ export function LiveMapCanvas({
     permissionStatus,
     state: activeNavigationState,
   });
+  const refreshMapCameraHeading = () => {
+    const requestId = mapCameraRequestIdRef.current + 1;
+    mapCameraRequestIdRef.current = requestId;
+    const cameraPromise = mapRef.current?.getCamera();
+    if (!cameraPromise) {
+      return;
+    }
+    void cameraPromise.then((camera) => {
+      if (mapCameraRequestIdRef.current !== requestId) {
+        return;
+      }
+      const nextHeading = Number(camera.heading);
+      setMapCameraHeadingDegrees(Number.isFinite(nextHeading) ? nextHeading : 0);
+    }).catch(() => undefined);
+  };
 
   return (
     <>
@@ -127,9 +141,12 @@ export function LiveMapCanvas({
       userInterfaceStyle="dark"
       onPress={onMapPress}
       onPanDrag={onPanDrag}
-      onMapReady={onMapReady}
-      onRegionChangeComplete={(region) => {
-        setMapRegion(region);
+      onMapReady={() => {
+        onMapReady();
+        refreshMapCameraHeading();
+      }}
+      onRegionChangeComplete={() => {
+        refreshMapCameraHeading();
         onRegionChangeComplete?.();
       }}
     >
@@ -202,19 +219,13 @@ export function LiveMapCanvas({
         : null}
 
       {vehicleCoordinate ? (
-        <>
-          <CompassDirectionPolygon
-            coordinate={vehicleCoordinate}
-            enabled={!demoDriveActive && permissionStatus === "granted"}
-            fallbackHeading={heading}
-            mapWidth={viewport.width}
-            region={mapRegion}
-          />
-          <CompassTrackedMarker
-            coordinate={vehicleCoordinate}
-            demoDriveEnabled={demoDriveActive}
-          />
-        </>
+        <CompassTrackedMarker
+          coordinate={vehicleCoordinate}
+          demoDriveEnabled={demoDriveActive}
+          enabled={!demoDriveActive && permissionStatus === "granted"}
+          fallbackHeading={heading}
+          mapHeading={mapCameraHeadingDegrees}
+        />
       ) : null}
       </MapView>
       {selectedRiskZone ? (

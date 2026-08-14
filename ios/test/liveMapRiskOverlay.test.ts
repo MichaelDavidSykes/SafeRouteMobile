@@ -21,7 +21,7 @@ describe("live map risk overlay interactions", () => {
       "utf8",
     );
 
-    assert.match(source, /import \{ memo \} from 'react'/);
+    assert.match(source, /import \{ memo, useEffect, useRef \} from 'react'/);
     assert.match(source, /export const RiskOverlay = memo\(function RiskOverlay/);
     assert.match(
       guestMapSource,
@@ -172,8 +172,8 @@ describe("live map risk overlay interactions", () => {
       /collapsable=\{false\}[\s\S]*?style=\{styles\.vehicleMarker\}/,
     );
     assert.match(vehicleMarkerFunction, /tracksViewChanges=\{false\}/);
-    assert.match(source, /export const CompassDirectionPolygon = memo/);
-    assert.match(source, /buildCompassDirectionPolygon/);
+    assert.match(source, /styles\.vehicleMarkerDirection/);
+    assert.match(source, /LinearGradient id="appleHeadingBeam"/);
     assert.match(
       source,
       /return demoDriveEnabled \? 'Route preview position' : 'Current position'/,

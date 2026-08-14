@@ -1,5 +1,5 @@
 import type { ComponentProps, ComponentType } from 'react';
-import { memo } from 'react';
+import { memo, useEffect, useRef } from 'react';
 import {
   AlertTriangle,
   CircleAlert,
@@ -8,8 +8,14 @@ import {
   Shield,
   ShieldCheck,
 } from 'lucide-react-native';
-import { StyleSheet, View } from 'react-native';
-import { Circle, Marker, Polygon, Polyline, type Region } from 'react-native-maps';
+import { Animated, Easing, StyleSheet, View } from 'react-native';
+import { Circle, Marker, Polygon, Polyline } from 'react-native-maps';
+import Svg, {
+  Defs,
+  LinearGradient,
+  Path,
+  Stop,
+} from 'react-native-svg';
 
 import type {
   RiskAvoidanceSeverity,
@@ -35,6 +41,7 @@ import {
   supportFacilityKindLabel,
 } from './supportFacilities';
 import { useDeviceHeading } from '../maps/useDeviceHeading';
+import { resolveDeviceHeadingScreenRotation } from '../maps/deviceHeading';
 
 type TappableCircleProps = ComponentProps<typeof Circle> & {
   onPress?: () => void;
@@ -303,114 +310,32 @@ export const SupportFacilityMarker = memo(function SupportFacilityMarker({
 export const CompassTrackedMarker = memo(function CompassTrackedMarker({
   coordinate,
   demoDriveEnabled = false,
+  enabled,
+  fallbackHeading = null,
+  mapHeading = 0,
   testID,
 }: {
   coordinate: { latitude: number; longitude: number };
   demoDriveEnabled?: boolean;
-  testID?: string;
-}) {
-  return (
-    <VehicleMarker
-      coordinate={coordinate}
-      demoDriveEnabled={demoDriveEnabled}
-      testID={testID}
-    />
-  );
-});
-
-export const CompassDirectionPolygon = memo(function CompassDirectionPolygon({
-  coordinate,
-  enabled,
-  fallbackHeading = null,
-  mapWidth,
-  region,
-}: {
-  coordinate: { latitude: number; longitude: number };
   enabled: boolean;
   fallbackHeading?: number | null;
-  mapWidth: number;
-  region: Region;
+  mapHeading?: number;
+  testID?: string;
 }) {
   const deviceHeading = useDeviceHeading(enabled, {
     deadbandDegrees: 0.8,
     minimumUpdateIntervalMs: 80,
   });
-  const heading = deviceHeading ?? fallbackHeading;
-  const coordinates = buildCompassDirectionPolygon(
-    coordinate,
-    heading,
-    region,
-    mapWidth,
-  );
-  if (coordinates.length !== 3) {
-    return null;
-  }
   return (
-    <Polygon
-      coordinates={coordinates}
-      fillColor="rgba(10, 132, 255, 0.86)"
-      strokeColor="rgba(248, 250, 252, 0.96)"
-      strokeWidth={1.4}
-      tappable={false}
-      zIndex={99}
+    <VehicleMarker
+      coordinate={coordinate}
+      demoDriveEnabled={demoDriveEnabled}
+      heading={deviceHeading ?? fallbackHeading}
+      mapHeading={mapHeading}
+      testID={testID}
     />
   );
 });
-
-export function buildCompassDirectionPolygon(
-  coordinate: { latitude: number; longitude: number },
-  heading: number | null,
-  region: Region,
-  mapWidth: number,
-): Array<{ latitude: number; longitude: number }> {
-  if (
-    heading === null
-    || !Number.isFinite(heading)
-    || !Number.isFinite(coordinate.latitude)
-    || !Number.isFinite(coordinate.longitude)
-    || !Number.isFinite(region.longitudeDelta)
-    || !Number.isFinite(mapWidth)
-    || mapWidth <= 0
-  ) {
-    return [];
-  }
-  const latitudeScale = Math.max(0.2, Math.cos(coordinate.latitude * Math.PI / 180));
-  const metersPerPixel = Math.abs(region.longitudeDelta) * 111_320 * latitudeScale
-    / Math.max(240, mapWidth);
-  const tipMeters = Math.max(6, Math.min(500, metersPerPixel * 21));
-  const baseOffsetMeters = Math.max(2, Math.min(120, metersPerPixel * 3));
-  const halfBaseMeters = Math.max(3, Math.min(180, metersPerPixel * 7));
-  const radians = (((heading % 360) + 360) % 360) * Math.PI / 180;
-  const forwardNorth = Math.cos(radians);
-  const forwardEast = Math.sin(radians);
-  const leftNorth = -forwardEast;
-  const leftEast = forwardNorth;
-  return [
-    offsetCoordinate(coordinate, forwardNorth * tipMeters, forwardEast * tipMeters),
-    offsetCoordinate(
-      coordinate,
-      -forwardNorth * baseOffsetMeters + leftNorth * halfBaseMeters,
-      -forwardEast * baseOffsetMeters + leftEast * halfBaseMeters,
-    ),
-    offsetCoordinate(
-      coordinate,
-      -forwardNorth * baseOffsetMeters - leftNorth * halfBaseMeters,
-      -forwardEast * baseOffsetMeters - leftEast * halfBaseMeters,
-    ),
-  ];
-}
-
-function offsetCoordinate(
-  coordinate: { latitude: number; longitude: number },
-  northMeters: number,
-  eastMeters: number,
-): { latitude: number; longitude: number } {
-  const longitudeScale = Math.max(0.2, Math.cos(coordinate.latitude * Math.PI / 180));
-  return {
-    latitude: coordinate.latitude + northMeters / 111_320,
-    longitude: coordinate.longitude + eastMeters / (111_320 * longitudeScale),
-  };
-}
 
 function checkpointMarkerRole(kind: RouteCheckpoint['kind']): string {
   if (kind === 'origin') {
@@ -494,45 +419,108 @@ function RiskMarker({
 export function VehicleMarker({
   coordinate,
   demoDriveEnabled,
+  heading,
+  mapHeading,
   testID,
 }: {
   coordinate: { latitude: number; longitude: number };
   demoDriveEnabled: boolean;
+  heading: number | null;
+  mapHeading: number;
   testID?: string;
 }) {
   const markerTitle = demoDriveEnabled ? 'Route preview position' : 'Current position';
+  const screenRotation = resolveDeviceHeadingScreenRotation(heading, mapHeading);
+  const animatedRotation = useRef(new Animated.Value(screenRotation ?? 0)).current;
+  const previousRotationRef = useRef<number | null>(screenRotation);
+  const continuousRotationRef = useRef(screenRotation ?? 0);
+
+  useEffect(() => {
+    if (screenRotation === null) {
+      return;
+    }
+    const previousRotation = previousRotationRef.current;
+    if (previousRotation === null) {
+      continuousRotationRef.current = screenRotation;
+      animatedRotation.setValue(screenRotation);
+    } else {
+      continuousRotationRef.current += shortestHeadingDelta(previousRotation, screenRotation);
+      Animated.timing(animatedRotation, {
+        duration: 140,
+        easing: Easing.out(Easing.cubic),
+        isInteraction: false,
+        toValue: continuousRotationRef.current,
+        useNativeDriver: true,
+      }).start();
+    }
+    previousRotationRef.current = screenRotation;
+  }, [animatedRotation, screenRotation]);
 
   return (
-      <Marker
-        coordinate={coordinate}
-        anchor={{ x: 0.5, y: 0.5 }}
-        testID={testID}
-        title={markerTitle}
-        tracksViewChanges={false}
-        zIndex={100}
+    <Marker
+      coordinate={coordinate}
+      anchor={{ x: 0.5, y: 0.5 }}
+      testID={testID}
+      title={markerTitle}
+      tracksViewChanges={false}
+      zIndex={100}
+    >
+      <View
+        accessible
+        accessibilityLabel={createVehicleMarkerAccessibilityLabel(demoDriveEnabled)}
+        accessibilityRole="image"
+        collapsable={false}
+        style={styles.vehicleMarker}
       >
-        <View
-          accessible
-          accessibilityLabel={createVehicleMarkerAccessibilityLabel(demoDriveEnabled)}
-          accessibilityRole="image"
-          collapsable={false}
-          style={styles.vehicleMarker}
+        <Animated.View
+          accessibilityElementsHidden
+          pointerEvents="none"
+          style={[
+            styles.vehicleMarkerDirection,
+            {
+              opacity: screenRotation === null ? 0 : 1,
+              transform: [{
+                rotate: animatedRotation.interpolate({
+                  inputRange: [-36000, 36000],
+                  outputRange: ['-36000deg', '36000deg'],
+                }),
+              }],
+            },
+          ]}
         >
-          {!demoDriveEnabled ? (
-            <View
-              accessibilityElementsHidden
-              pointerEvents="none"
-              style={styles.vehicleMarkerHalo}
+          <Svg height={88} width={88} viewBox="0 0 88 88">
+            <Defs>
+              <LinearGradient id="appleHeadingBeam" x1="0" y1="1" x2="0" y2="0">
+                <Stop offset="0" stopColor="#0A84FF" stopOpacity="0.34" />
+                <Stop offset="0.7" stopColor="#0A84FF" stopOpacity="0.17" />
+                <Stop offset="1" stopColor="#0A84FF" stopOpacity="0" />
+              </LinearGradient>
+            </Defs>
+            <Path
+              d="M44 45 L21 4 Q44 -3 67 4 Z"
+              fill="url(#appleHeadingBeam)"
             />
-          ) : null}
-          <View accessibilityElementsHidden style={styles.vehicleMarkerCore} />
-        </View>
-      </Marker>
+          </Svg>
+        </Animated.View>
+        {!demoDriveEnabled ? (
+          <View
+            accessibilityElementsHidden
+            pointerEvents="none"
+            style={styles.vehicleMarkerHalo}
+          />
+        ) : null}
+        <View accessibilityElementsHidden style={styles.vehicleMarkerCore} />
+      </View>
+    </Marker>
   );
 }
 
 export function createVehicleMarkerAccessibilityLabel(demoDriveEnabled: boolean): string {
   return demoDriveEnabled ? 'Route preview position' : 'Current position';
+}
+
+function shortestHeadingDelta(from: number, to: number): number {
+  return ((to - from + 540) % 360) - 180;
 }
 
 type RiskOverlayTone = RiskSeverity | Extract<RiskAvoidanceSeverity, 'critical'>;
@@ -716,8 +704,8 @@ const styles = StyleSheet.create({
     elevation: 0,
   },
   vehicleMarker: {
-    width: 44,
-    height: 44,
+    width: 88,
+    height: 88,
     alignItems: 'center',
     justifyContent: 'center',
     shadowOpacity: 0,
@@ -725,19 +713,31 @@ const styles = StyleSheet.create({
     shadowOffset: { width: 0, height: 0 },
     elevation: 0
   },
+  vehicleMarkerDirection: {
+    position: 'absolute',
+    width: 88,
+    height: 88,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
   vehicleMarkerHalo: {
     position: 'absolute',
-    width: 34,
-    height: 34,
+    width: 32,
+    height: 32,
     borderRadius: radius.pill,
-    backgroundColor: 'rgba(10, 132, 255, 0.2)',
+    backgroundColor: 'rgba(10, 132, 255, 0.16)',
   },
   vehicleMarkerCore: {
-    width: 24,
-    height: 24,
+    width: 20,
+    height: 20,
     borderWidth: 3,
     borderColor: colors.surface,
     borderRadius: radius.pill,
     backgroundColor: colors.appleBlue,
+    shadowColor: '#000000',
+    shadowOpacity: 0.24,
+    shadowRadius: 3,
+    shadowOffset: { width: 0, height: 1 },
+    elevation: 3,
   }
 });

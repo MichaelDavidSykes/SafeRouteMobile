@@ -169,8 +169,11 @@ describe("live map risk overlay interactions", () => {
     assert.match(vehicleMarkerFunction, /accessibilityRole="image"/);
     assert.match(
       vehicleMarkerFunction,
-      /style=\{\[[\s\S]*?styles\.vehicleMarker[\s\S]*?screenRotation/,
+      /collapsable=\{false\}[\s\S]*?style=\{styles\.vehicleMarker\}/,
     );
+    assert.match(vehicleMarkerFunction, /styles\.vehicleMarkerDirection/);
+    assert.match(vehicleMarkerFunction, /tracksViewChanges=\{false\}/);
+    assert.match(vehicleMarkerFunction, /tracksViewChanges[\s\S]*?zIndex=\{101\}/);
     assert.match(
       source,
       /return demoDriveEnabled \? 'Route preview position' : 'Current position'/,

@@ -8,7 +8,7 @@ import {
   Shield,
   ShieldCheck,
 } from 'lucide-react-native';
-import { Animated, StyleSheet, View } from 'react-native';
+import { StyleSheet, View } from 'react-native';
 import { Circle, Marker, Polygon, Polyline } from 'react-native-maps';
 
 import type {
@@ -36,10 +36,6 @@ import {
   supportFacilityKindLabel,
 } from './supportFacilities';
 import { useDeviceHeading } from '../maps/useDeviceHeading';
-import {
-  useLoopingPulse,
-  useReduceMotionEnabled,
-} from '../../motion/SafeRouteMotion';
 
 type TappableCircleProps = ComponentProps<typeof Circle> & {
   onPress?: () => void;
@@ -426,62 +422,55 @@ export function VehicleMarker({
 }) {
   const markerTitle = demoDriveEnabled ? 'Route preview position' : 'Current position';
   const screenRotation = resolveDeviceHeadingScreenRotation(heading, mapHeading);
-  const reduceMotionEnabled = useReduceMotionEnabled();
-  const pulseProgress = useLoopingPulse({
-    duration: 2600,
-    enabled: !demoDriveEnabled,
-  });
-  const pulseStyle = {
-    opacity: reduceMotionEnabled
-      ? 0
-      : pulseProgress.interpolate({
-          inputRange: [0, 1],
-          outputRange: [0.55, 0],
-        }),
-    transform: [
-      {
-        scale: pulseProgress.interpolate({
-          inputRange: [0, 1],
-          outputRange: [1, 2.8],
-        }),
-      },
-    ],
-  };
 
   return (
-    <Marker
-      coordinate={coordinate}
-      anchor={{ x: 0.5, y: 0.5 }}
-      testID={testID}
-      title={markerTitle}
-      zIndex={100}
-    >
-      <View
-        accessible
-        accessibilityLabel={createVehicleMarkerAccessibilityLabel(demoDriveEnabled)}
-        accessibilityRole="image"
-        style={[
-          styles.vehicleMarker,
-          screenRotation !== null
-            ? { transform: [{ rotate: `${screenRotation}deg` }] }
-            : null,
-        ]}
+    <>
+      <Marker
+        coordinate={coordinate}
+        anchor={{ x: 0.5, y: 0.5 }}
+        testID={testID}
+        title={markerTitle}
+        tracksViewChanges={false}
+        zIndex={100}
       >
-        <Animated.View
-          accessibilityElementsHidden
-          pointerEvents="none"
-          style={[styles.vehicleMarkerPulse, pulseStyle]}
-        />
-        {heading !== null ? (
+        <View
+          accessible
+          accessibilityLabel={createVehicleMarkerAccessibilityLabel(demoDriveEnabled)}
+          accessibilityRole="image"
+          collapsable={false}
+          style={styles.vehicleMarker}
+        >
+          {!demoDriveEnabled ? (
+            <View
+              accessibilityElementsHidden
+              pointerEvents="none"
+              style={styles.vehicleMarkerHalo}
+            />
+          ) : null}
+          <View accessibilityElementsHidden style={styles.vehicleMarkerCore} />
+        </View>
+      </Marker>
+      {screenRotation !== null ? (
+        <Marker
+          coordinate={coordinate}
+          anchor={{ x: 0.5, y: 0.5 }}
+          tracksViewChanges
+          zIndex={101}
+        >
           <View
             accessibilityElementsHidden
+            collapsable={false}
             pointerEvents="none"
-            style={styles.vehicleMarkerHeading}
-          />
-        ) : null}
-        <View accessibilityElementsHidden style={styles.vehicleMarkerCore} />
-      </View>
-    </Marker>
+            style={[
+              styles.vehicleMarkerDirection,
+              { transform: [{ rotate: `${screenRotation}deg` }] },
+            ]}
+          >
+            <View style={styles.vehicleMarkerHeading} />
+          </View>
+        </Marker>
+      ) : null}
+    </>
   );
 }
 
@@ -679,12 +668,17 @@ const styles = StyleSheet.create({
     shadowOffset: { width: 0, height: 0 },
     elevation: 0
   },
-  vehicleMarkerPulse: {
+  vehicleMarkerHalo: {
     position: 'absolute',
-    width: 24,
-    height: 24,
+    width: 34,
+    height: 34,
     borderRadius: radius.pill,
-    backgroundColor: colors.appleBlue,
+    backgroundColor: 'rgba(10, 132, 255, 0.2)',
+  },
+  vehicleMarkerDirection: {
+    width: 44,
+    height: 44,
+    alignItems: 'center',
   },
   vehicleMarkerHeading: {
     position: 'absolute',

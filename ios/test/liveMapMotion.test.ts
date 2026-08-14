@@ -56,16 +56,14 @@ describe("live map design motion", () => {
     );
   });
 
-  it("uses the handoff pulse only for the real current-position marker", () => {
+  it("keeps the current-position marker static while compass direction changes", () => {
     const markers = source("features/live-map/LiveMapMarkers.tsx");
 
-    assert.match(markers, /useReduceMotionEnabled\(\)/);
-    assert.match(
-      markers,
-      /useLoopingPulse\(\{[\s\S]*duration: 2600[\s\S]*enabled: !demoDriveEnabled/,
-    );
-    assert.match(markers, /outputRange: \[1, 2\.8\]/);
-    assert.match(markers, /reduceMotionEnabled\s*\?\s*0/);
+    assert.doesNotMatch(markers, /useLoopingPulse/);
+    assert.match(markers, /style=\{styles\.vehicleMarker\}/);
+    assert.match(markers, /styles\.vehicleMarkerDirection/);
+    assert.match(markers, /collapsable=\{false\}/);
+    assert.match(markers, /tracksViewChanges=\{false\}/);
     assert.match(
       markers,
       /accessibilityLabel=\{createVehicleMarkerAccessibilityLabel\(demoDriveEnabled\)\}/,

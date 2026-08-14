@@ -744,8 +744,8 @@ const styles = StyleSheet.create({
     width: 44,
     height: 44,
     alignItems: 'center',
-    zIndex: 102,
-    elevation: 102,
+    zIndex: 1,
+    elevation: 1,
   },
   vehicleMarkerHeading: {
     position: 'absolute',

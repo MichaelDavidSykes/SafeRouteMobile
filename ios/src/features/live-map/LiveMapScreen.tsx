@@ -10,6 +10,7 @@ import {
 import type MapView from "react-native-maps";
 
 import { fetchSafeRouteRoadRoutePreview } from "../guest-map/safeRouteRoadRouteProvider";
+import { fetchRouteSupportFacilities } from "../guest-map/safeRouteSupportFacilitiesApi";
 import { isPreviewAccessToken } from "../auth/previewSession";
 import { mergeRiskZonesById } from "./areaRiskApiCore";
 import type { RiskZone, SavedSafeRoutePlan } from "./liveMapTypes";
@@ -342,6 +343,51 @@ export function LiveMapScreen({
   const liveApiAccessToken = accessToken && !isPreviewAccessToken(accessToken)
     ? accessToken
     : null;
+
+  useEffect(() => {
+    if (
+      !online
+      || activeRoutePlan.supportFacilities?.length
+      || (activeRoutePlan.clientId && (!liveApiAccessToken || !workspaceAuthorizationFresh))
+    ) {
+      return;
+    }
+    const routeId = activeRoutePlan.id;
+    const controller = new AbortController();
+    void fetchRouteSupportFacilities({
+      accessToken: liveApiAccessToken,
+      clientId: activeRoutePlan.clientId,
+      coordinates: activeRoutePlan.route.coordinates,
+      signal: controller.signal,
+    }).then((supportFacilities) => {
+      if (!supportFacilities.length || controller.signal.aborted) {
+        return;
+      }
+      setActiveRoutePlan((current) => current.id === routeId
+        ? { ...current, supportFacilities }
+        : current);
+    }).catch((error) => {
+      const sessionExpiry = getRequestSessionExpiry({
+        authenticated: Boolean(activeRoutePlan.clientId && onSessionExpired),
+        error,
+        handled: false,
+        requestActive: !controller.signal.aborted,
+      });
+      if (sessionExpiry) {
+        onSessionExpired?.(sessionExpiry.message);
+      }
+    });
+    return () => controller.abort();
+  }, [
+    activeRoutePlan.clientId,
+    activeRoutePlan.id,
+    activeRoutePlan.route.coordinates,
+    activeRoutePlan.supportFacilities?.length,
+    liveApiAccessToken,
+    online,
+    onSessionExpired,
+    workspaceAuthorizationFresh,
+  ]);
   const closeRouteForWorkspaceLoss = (workspaceId: string) => {
     const normalizedWorkspaceId = workspaceId.trim();
     if (

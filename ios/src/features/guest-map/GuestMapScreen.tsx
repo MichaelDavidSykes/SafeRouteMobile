@@ -139,6 +139,7 @@ import {
   fetchSafeRouteRoadRoutePreview,
   invalidateSafeRoutePreviewCache,
 } from './safeRouteRoadRouteProvider';
+import { fetchRouteSupportFacilities } from './safeRouteSupportFacilitiesApi';
 import {
   reverseGeocodeGuestLocation,
   searchGuestLocations,
@@ -461,6 +462,54 @@ export function GuestMapScreen({
     !isPreviewAccessToken(accessToken)
     ? accessToken
     : null;
+
+  useEffect(() => {
+    if (
+      !online
+      || !routePlan
+      || routePlan.supportFacilities?.length
+      || (routePlan.clientId && (!routingAccessToken || !workspaceAuthorizationFresh))
+    ) {
+      return;
+    }
+    const routeId = routePlan.id;
+    const controller = new AbortController();
+    void fetchRouteSupportFacilities({
+      accessToken: routingAccessToken,
+      clientId: routePlan.clientId,
+      coordinates: routePlan.route.coordinates,
+      signal: controller.signal,
+    }).then((supportFacilities) => {
+      if (!supportFacilities.length || controller.signal.aborted) {
+        return;
+      }
+      setRoutePlan((current) => current?.id === routeId
+        ? { ...current, supportFacilities }
+        : current);
+      setRouteAlternatives((current) => current.map((plan) => plan.id === routeId
+        ? { ...plan, supportFacilities }
+        : plan));
+    }).catch((error) => {
+      const sessionExpiry = getRequestSessionExpiry({
+        authenticated: Boolean(routePlan.clientId && onSessionExpiredRef.current),
+        error,
+        handled: false,
+        requestActive: !controller.signal.aborted,
+      });
+      if (sessionExpiry) {
+        onSessionExpiredRef.current?.(sessionExpiry.message);
+      }
+    });
+    return () => controller.abort();
+  }, [
+    online,
+    routePlan?.clientId,
+    routePlan?.id,
+    routePlan?.route.coordinates,
+    routePlan?.supportFacilities?.length,
+    routingAccessToken,
+    workspaceAuthorizationFresh,
+  ]);
   const origin = routeDraft.origin.label;
   const destination = routeDraft.destination.label;
   const routeSheetMaxHeight = resolveGuestRouteSheetHeight(viewport.height);

@@ -20,6 +20,7 @@ import {
   resolveNavigationStatusNotice,
   resolveVisibleMapControls,
   routeStartBlockedReason,
+  routeStartLocationDecision,
   routeStartProximityBlockedReason,
   routeStatusPillPresentation,
   shouldShowNativeUserLocation,
@@ -167,6 +168,114 @@ describe('live map UI state helpers', () => {
     );
   });
 
+  it('makes one shared start-location decision without weakening location gates', () => {
+    assert.deepEqual(
+      routeStartLocationDecision({
+        demoDriveActive: false,
+        hasLiveCoordinate: false,
+        locationRequested: false,
+        permissionStatus: 'granted',
+        routeCoordinateCount: 2
+      }),
+      { status: 'request-location' }
+    );
+    assert.deepEqual(
+      routeStartLocationDecision({
+        demoDriveActive: false,
+        hasLiveCoordinate: false,
+        locationRequested: true,
+        permissionStatus: 'idle',
+        routeCoordinateCount: 2
+      }),
+      {
+        status: 'blocked',
+        reason: 'Finding your current location before guidance can start.'
+      }
+    );
+    assert.deepEqual(
+      routeStartLocationDecision({
+        demoDriveActive: false,
+        hasLiveCoordinate: false,
+        locationRequested: false,
+        permissionStatus: 'idle',
+        routeCoordinateCount: 2
+      }),
+      { status: 'request-location' }
+    );
+    assert.deepEqual(
+      routeStartLocationDecision({
+        demoDriveActive: false,
+        hasLiveCoordinate: false,
+        locationRequested: false,
+        permissionStatus: 'checking',
+        routeCoordinateCount: 2
+      }),
+      {
+        status: 'blocked',
+        reason: 'Finding your current location before guidance can start.'
+      }
+    );
+    assert.deepEqual(
+      routeStartLocationDecision({
+        demoDriveActive: false,
+        hasLiveCoordinate: false,
+        locationRequested: false,
+        permissionStatus: 'denied',
+        routeCoordinateCount: 2
+      }),
+      {
+        status: 'blocked',
+        reason: 'Turn on foreground location access to start live guidance.'
+      }
+    );
+    assert.deepEqual(
+      routeStartLocationDecision({
+        demoDriveActive: false,
+        hasLiveCoordinate: false,
+        locationRequested: true,
+        permissionStatus: 'granted',
+        routeCoordinateCount: 2
+      }),
+      {
+        status: 'blocked',
+        reason: 'Finding your current location before guidance can start.'
+      }
+    );
+    assert.deepEqual(
+      routeStartLocationDecision({
+        demoDriveActive: false,
+        hasLiveCoordinate: true,
+        locationRequested: false,
+        permissionStatus: 'granted',
+        routeCoordinateCount: 2
+      }),
+      { status: 'ready' }
+    );
+    assert.deepEqual(
+      routeStartLocationDecision({
+        demoDriveActive: false,
+        hasLiveCoordinate: false,
+        locationRequested: false,
+        permissionStatus: 'granted',
+        routeCoordinateCount: 1
+      }),
+      {
+        status: 'blocked',
+        reason: 'Saved route geometry is incomplete. Re-sync the route before live guidance.'
+      }
+    );
+    assert.deepEqual(
+      routeStartLocationDecision({
+        demoDriveActive: true,
+        hasLiveCoordinate: false,
+        locationRequested: false,
+        permissionStatus: 'denied',
+        routeCoordinateCount: 2
+      }),
+      { status: 'ready' }
+    );
+  });
+
   it('blocks fresh guidance when the live location is away from the route start', () => {
     const routeStart = { latitude: 51.5074, longitude: -0.1278 };
 
@@ -212,6 +321,26 @@ describe('live map UI state helpers', () => {
         permissionStatus: 'idle'
       }),
       null
+    );
+    assert.equal(
+      liveLocationNotice({
+        demoDriveActive: false,
+        errorMessage: '',
+        hasLiveCoordinate: false,
+        locationRequested: false,
+        permissionStatus: 'granted'
+      }),
+      null
+    );
+    assert.equal(
+      liveLocationNotice({
+        demoDriveActive: false,
+        errorMessage: '',
+        hasLiveCoordinate: false,
+        locationRequested: true,
+        permissionStatus: 'granted'
+      }),
+      'Finding your current location before guidance can start.'
     );
     assert.equal(
       liveLocationNotice({

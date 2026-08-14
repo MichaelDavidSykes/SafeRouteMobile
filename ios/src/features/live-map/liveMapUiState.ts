@@ -60,8 +60,18 @@ interface LocationReadinessOptions {
   routeCoordinateCount?: number;
 }
 
+interface LocationStartDecisionOptions extends LocationReadinessOptions {
+  locationRequested: boolean;
+}
+
+export type RouteStartLocationDecision =
+  | { status: 'blocked'; reason: string }
+  | { status: 'request-location' }
+  | { status: 'ready' };
+
 interface LocationNoticeOptions extends LocationReadinessOptions {
   errorMessage?: string | null;
+  locationRequested?: boolean;
 }
 
 interface RouteStartProximityOptions {
@@ -143,6 +153,49 @@ export function routeStartBlockedReason({
   return null;
 }
 
+export function routeStartLocationDecision({
+  demoDriveActive,
+  hasLiveCoordinate,
+  locationRequested,
+  permissionStatus,
+  routeCoordinateCount,
+}: LocationStartDecisionOptions): RouteStartLocationDecision {
+  const blockedReason = routeStartBlockedReason({
+    demoDriveActive,
+    hasLiveCoordinate,
+    permissionStatus,
+    routeCoordinateCount,
+  });
+
+  if (!blockedReason) {
+    if (!demoDriveActive && permissionStatus === 'idle') {
+      return locationRequested
+        ? {
+            status: 'blocked',
+            reason: 'Finding your current location before guidance can start.'
+          }
+        : { status: 'request-location' };
+    }
+    return { status: 'ready' };
+  }
+
+  if (
+    !demoDriveActive &&
+    !hasLiveCoordinate &&
+    permissionStatus === 'granted' &&
+    routeGeometryBlockedReason(routeCoordinateCount) === null
+  ) {
+    return locationRequested
+      ? {
+          status: 'blocked',
+          reason: 'Finding your current location before guidance can start.'
+        }
+      : { status: 'request-location' };
+  }
+
+  return { status: 'blocked', reason: blockedReason };
+}
+
 export function routeStartProximityBlockedReason({
   currentCoordinate,
   routeStartCoordinate
@@ -166,6 +219,7 @@ export function liveLocationNotice({
   demoDriveActive,
   errorMessage,
   hasLiveCoordinate,
+  locationRequested,
   permissionStatus,
   routeCoordinateCount
 }: LocationNoticeOptions): string | null {
@@ -185,6 +239,17 @@ export function liveLocationNotice({
 
   if (permissionStatus === 'denied') {
     return 'Location access is off. Enable it in iOS Settings for live route guidance.';
+  }
+
+  if (typeof locationRequested === 'boolean') {
+    const decision = routeStartLocationDecision({
+      demoDriveActive,
+      hasLiveCoordinate,
+      locationRequested,
+      permissionStatus,
+      routeCoordinateCount
+    });
+    return decision.status === 'blocked' ? decision.reason : null;
   }
 
   return routeStartBlockedReason({ demoDriveActive, hasLiveCoordinate, permissionStatus, routeCoordinateCount });

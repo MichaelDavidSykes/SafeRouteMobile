@@ -18,7 +18,7 @@ import {
   DEFAULT_ROUTE_INTELLIGENCE_VISIBLE,
   liveLocationNotice,
   resolveNavigationStatusNotice,
-  routeStartBlockedReason,
+  routeStartLocationDecision,
   routeStartProximityBlockedReason,
   type NavigationLifecycle,
   workspaceGuidanceStartBlockedReason,
@@ -508,12 +508,16 @@ export function LiveMapScreen({
           routeStartCoordinate: liveRoutePlan.route.coordinates[0],
         })
       : null;
-  const locationStartBlockedReason = routeStartBlockedReason({
+  const locationStartDecision = routeStartLocationDecision({
     demoDriveActive,
     hasLiveCoordinate: Boolean(rawVehicleCoordinate),
+    locationRequested: liveLocationRequested,
     permissionStatus,
     routeCoordinateCount: liveRoutePlan.route.coordinates.length,
   });
+  const locationStartBlockedReason = locationStartDecision.status === "blocked"
+    ? locationStartDecision.reason
+    : null;
   const workspaceStartBlockedReason = workspaceGuidanceStartBlockedReason({
     checking: workspaceAuthorizationChecking,
     fresh: workspaceAuthorizationFresh,
@@ -541,6 +545,7 @@ export function LiveMapScreen({
     demoDriveActive,
     errorMessage,
     hasLiveCoordinate: Boolean(rawVehicleCoordinate),
+    locationRequested: liveLocationRequested,
     permissionStatus,
     routeCoordinateCount: liveRoutePlan.route.coordinates.length,
   });
@@ -1528,7 +1533,10 @@ export function LiveMapScreen({
       return;
     }
 
-    if (!demoDriveActive && permissionStatus === "idle") {
+    if (
+      !demoDriveActive &&
+      locationStartDecision.status === "request-location"
+    ) {
       setLiveLocationRequested(true);
       setPendingNavigationStart(true);
       return;

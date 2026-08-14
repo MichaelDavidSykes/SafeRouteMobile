@@ -186,10 +186,12 @@ export function useLiveLocation({
       setPermissionStatus('granted');
       setErrorMessage('');
 
-      if (!trackingEnabled || !appStateActive) {
+      if (!appStateActive) {
         return;
       }
 
+      // Reuse the guest map's recent fix during the route-preview handoff
+      // without keeping a continuous GPS watcher alive before Start is tapped.
       try {
         const lastKnown = await Location.getLastKnownPositionAsync({
           maxAge: trackingCadence.lastKnownMaxAgeMs,
@@ -200,6 +202,10 @@ export function useLiveLocation({
         }
       } catch {
         // Keep foreground permission granted; the live watcher below may still return a fresh fix.
+      }
+
+      if (!trackingEnabled) {
+        return;
       }
 
       try {

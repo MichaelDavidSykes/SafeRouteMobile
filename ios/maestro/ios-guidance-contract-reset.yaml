@@ -2,8 +2,8 @@ appId: host.exp.Exponent
 ---
 - stopApp
 - setLocation:
-    latitude: 51.5074
-    longitude: -0.1278
+    latitude: -33.971846
+    longitude: 18.602113
 - runFlow: subflows/ios-open-expo-project.yaml
 - runFlow:
     when:

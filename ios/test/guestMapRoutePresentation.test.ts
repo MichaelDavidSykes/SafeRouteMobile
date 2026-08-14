@@ -27,6 +27,28 @@ describe('guest map route presentation', () => {
       ['alternative-alert'],
     );
   });
+
+  it('keeps route alerts ahead of area overlays within the native map cap', () => {
+    const routeAlerts = [
+      riskZone('route-alert-high'),
+      riskZone('route-alert-medium', 'medium'),
+    ];
+    const areaRisks = Array.from({ length: 90 }, (_, index) =>
+      areaRiskZone(`area-risk-${index}`),
+    );
+    const primary = createRouteWithZones('primary', [
+      ...areaRisks,
+      ...routeAlerts,
+    ]);
+
+    const session = createSession(primary, [primary]);
+
+    assert.equal(session.riskZones.length, 80);
+    assert.deepEqual(
+      session.riskZones.slice(0, routeAlerts.length).map(({ id }) => id),
+      ['route-alert-high', 'route-alert-medium'],
+    );
+  });
 });
 
 function createSession(
@@ -47,21 +69,25 @@ function createSession(
 }
 
 function createRoute(id: string, zone: RiskZone) {
+  return createRouteWithZones(id, [zone]);
+}
+
+function createRouteWithZones(id: string, zones: RiskZone[]) {
   return createGuestRoutePlan({
     destination: 'Destination',
     origin: 'Origin',
     planId: id,
-    riskZones: [zone],
+    riskZones: zones,
     roadSnappedCoordinates: routeCoordinates,
   });
 }
 
-function riskZone(id: string): RiskZone {
+function riskZone(id: string, severity: RiskZone['severity'] = 'high'): RiskZone {
   return {
     id,
     title: 'Route alert',
     description: 'Alert scoped to this route alternative.',
-    severity: 'high',
+    severity,
     category: 'Road suitability',
     coordinate: routeCoordinates[0],
     routeSegmentCoordinates: routeCoordinates,
@@ -70,5 +96,14 @@ function riskZone(id: string): RiskZone {
     markerColor: '#f97316',
     strokeColor: '#f97316',
     fillColor: 'rgba(249,115,22,.1)',
+  };
+}
+
+function areaRiskZone(id: string): RiskZone {
+  return {
+    ...riskZone(id),
+    category: 'Area risk',
+    routeSegmentCoordinates: [],
+    shape: 'circle',
   };
 }

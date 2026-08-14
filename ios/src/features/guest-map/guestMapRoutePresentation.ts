@@ -4,6 +4,7 @@ import type {
   RiskZone,
   SavedSafeRoutePlan,
 } from '../live-map/liveMapTypes';
+import { isRouteAlertZone } from '../live-map/riskOverlayPresentation';
 
 export interface GuestMapRouteLinePresentation {
   coordinates: LatLng[];
@@ -238,9 +239,13 @@ function collectStableRiskZones(
 
   return [...zonesById.values()]
     .sort((left, right) => {
+      const routeAlertDifference =
+        Number(isRouteAlertZone(right)) - Number(isRouteAlertZone(left));
       const severityDifference =
         riskSeverityPriority(right) - riskSeverityPriority(left);
-      return severityDifference || left.id.localeCompare(right.id);
+      return routeAlertDifference
+        || severityDifference
+        || left.id.localeCompare(right.id);
     })
     .slice(0, maxRenderedRiskZones);
 }

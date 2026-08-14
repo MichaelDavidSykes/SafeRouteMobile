@@ -350,8 +350,8 @@ describe('guest map interaction contract', () => {
       screen,
       /const visibleRiskZones = useMemo\([\s\S]*mergeRiskZonesById\([\s\S]*viewportRisk\.zones[\s\S]*routePlan\?\.riskZones \|\| \[\]/,
     );
-    assert.match(screen, /visibleRiskZones\.map\(\(zone\) => \(/);
-    assert.match(screen, /routeCoordinates=\{routePlan\?\.route\.coordinates\}/);
+    assert.match(screen, /renderedRiskZones\.map\(\(zone\) => \(/);
+    assert.match(screen, /routeCoordinates=\{routeMapCoordinates\}/);
     assert.doesNotMatch(
       screen,
       /selectedRiskZone &&[\s\S]*!visibleRiskZones\.some\(\(zone\) => zone\.id === selectedRiskZone\.id\)/,

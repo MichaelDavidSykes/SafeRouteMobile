@@ -70,8 +70,8 @@ describe('Maestro guidance contract API', () => {
     const address = server.address();
     assert.ok(address && typeof address === 'object');
     const requestedStops = [
-      { latitude: 51.5074, longitude: -0.1278 },
-      { latitude: 51.5053, longitude: 0.0553 },
+      { latitude: -33.971846, longitude: 18.602113 },
+      { latitude: -33.903269, longitude: 18.42229 },
     ];
     const endpoint = `http://127.0.0.1:${address.port}${GUIDANCE_CONTRACT_PUBLIC_PREVIEW_PATH}`;
     const request = (includeRouteAlerts: boolean) => fetch(endpoint, {
@@ -99,6 +99,8 @@ describe('Maestro guidance contract API', () => {
       const body = await response.json();
       assert.equal(body.data.policy_version, GUIDANCE_CONTRACT_POLICY_VERSION);
       assert.equal(body.data.travel_mode, 'drive');
+      assert.deepEqual(body.data.coordinates[0], requestedStops[0]);
+      assert.deepEqual(body.data.coordinates.at(-1), requestedStops[1]);
       assert.deepEqual(body.data.risk_areas, []);
       assert.deepEqual(body.data.risk_avoidance, {
         coverage_status: 'current-empty',

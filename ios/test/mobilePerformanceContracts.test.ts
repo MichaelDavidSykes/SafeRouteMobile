@@ -68,6 +68,57 @@ describe("mobile performance contracts", () => {
     assert.ok(visible.some((zone) => zone.id === "risk-158"));
   });
 
+  it("keeps Cape route alerts inside the bounded native overlay set", () => {
+    const coordinates: LatLng[] = Array.from({ length: 420 }, (_, index) => ({
+      latitude: -33.971846 + index * ((-33.903269 + 33.971846) / 419),
+      longitude: 18.602113 + index * ((18.42229 - 18.602113) / 419),
+    }));
+    const routeAlerts: RiskZone[] = Array.from({ length: 12 }, (_, index) => ({
+      category: "route-alert",
+      coordinate: coordinates[20 + index * 30],
+      description: "",
+      fillColor: "#ffb00022",
+      id: `cape-route-alert-${index}`,
+      markerColor: "#ffb000",
+      radiusMeters: 175,
+      routeSegmentCoordinates: [
+        coordinates[15 + index * 30],
+        coordinates[25 + index * 30],
+      ],
+      severity: index < 4 ? "high" : "medium",
+      shape: "route-alert",
+      strokeColor: "#ffb000",
+      title: `Cape route alert ${index}`,
+    }));
+    const backgroundRisks: RiskZone[] = Array.from({ length: 148 }, (_, index) => ({
+      category: "risk",
+      coordinate: coordinates[Math.min(coordinates.length - 1, index * 2)],
+      description: "",
+      fillColor: "#f002",
+      id: `cape-background-risk-${index}`,
+      markerColor: "#f00",
+      radiusMeters: 100,
+      severity: "medium",
+      strokeColor: "#f00",
+      title: `Cape background risk ${index}`,
+    }));
+    const zones = [...backgroundRisks, ...routeAlerts];
+    const riskIndex = createRouteRiskSpatialIndex(coordinates, zones);
+    const visible = cullVisibleRiskZones({
+      maxCount: 80,
+      progress: calculateRouteProgress(coordinates, coordinates[0]),
+      riskIndex,
+      riskZones: zones,
+    });
+
+    assert.equal(visible.length, 80);
+    assert.deepEqual(
+      visible.filter((zone) => zone.shape === "route-alert").map(({ id }) => id).sort(),
+      routeAlerts.map(({ id }) => id).sort(),
+    );
+    assert.equal(zones.length, 160);
+  });
+
   it("drops detail geometry and risk payloads from the route-list model", () => {
     const coordinates = Array.from({ length: 1_000 }, (_, index) => ({
       latitude: 51.5 + index * 0.00001,

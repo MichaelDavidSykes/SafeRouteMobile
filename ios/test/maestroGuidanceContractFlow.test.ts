@@ -97,8 +97,27 @@ describe('Maestro cold guidance contract matrix', () => {
     assert.match(publicPreparation, /Narrow road warning/);
     assert.match(publicPreparation, /Road Suitability/);
     assert.match(publicPreparation, /id: "safe-route-risk-detail-dismiss"/);
-    assert.match(publicPreparation, /takeScreenshot: "route-alerts-guest-preview"/);
-    assert.match(publicPreparation, /takeScreenshot: "route-alerts-live-map"/);
+    assert.match(publicPreparation, /inputText: "-33\.903269, 18\.422290"/);
+    assert.match(
+      publicPreparation,
+      /id: "guest-map-search-coordinate-33-903269-18-422290"/,
+    );
+    assert.match(
+      publicPreparation,
+      /takeScreenshot: "cape-airport-waterfront-route-alerts-guest-preview"/,
+    );
+    assert.match(
+      publicPreparation,
+      /takeScreenshot: "cape-airport-waterfront-route-alert-detail"/,
+    );
+    assert.match(
+      publicPreparation,
+      /takeScreenshot: "cape-airport-waterfront-route-alerts-live-map"/,
+    );
+
+    const reset = read('maestro/ios-guidance-contract-reset.yaml');
+    assert.match(reset, /latitude: -33\.971846/);
+    assert.match(reset, /longitude: 18\.602113/);
   });
 
   it('runs public, offline workspace, wrong-principal, denial, and regain phases', () => {

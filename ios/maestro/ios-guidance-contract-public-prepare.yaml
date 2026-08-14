@@ -3,13 +3,13 @@ appId: host.exp.Exponent
 - tapOn:
     id: "guest-map-destination-input"
 - eraseText: 100
-- inputText: "51.5053, 0.0553"
+- inputText: "-33.903269, 18.422290"
 - extendedWaitUntil:
     visible:
-      id: "guest-map-search-coordinate-51-505300-0-055300"
+      id: "guest-map-search-coordinate-33-903269-18-422290"
     timeout: 10000
 - tapOn:
-    id: "guest-map-search-coordinate-51-505300-0-055300"
+    id: "guest-map-search-coordinate-33-903269-18-422290"
 - tapOn:
     id: "guest-map-plot-action"
 - extendedWaitUntil:
@@ -48,7 +48,7 @@ appId: host.exp.Exponent
     id: "safe-route-risk-zone-contract-support-coverage"
 - assertVisible:
     id: "safe-route-risk-zone-contract-straight-corridor"
-- takeScreenshot: "route-alerts-guest-preview"
+- takeScreenshot: "cape-airport-waterfront-route-alerts-guest-preview"
 - tapOn:
     id: "safe-route-risk-zone-contract-road-suitability"
 - extendedWaitUntil:
@@ -57,6 +57,7 @@ appId: host.exp.Exponent
     timeout: 5000
 - assertVisible: ".*Narrow road warning.*"
 - assertVisible: ".*Road Suitability.*"
+- takeScreenshot: "cape-airport-waterfront-route-alert-detail"
 - tapOn:
     id: "safe-route-risk-detail-dismiss"
 - assertNotVisible:
@@ -93,4 +94,4 @@ appId: host.exp.Exponent
     id: "safe-route-risk-zone-contract-support-coverage"
 - assertVisible:
     id: "safe-route-risk-zone-contract-straight-corridor"
-- takeScreenshot: "route-alerts-live-map"
+- takeScreenshot: "cape-airport-waterfront-route-alerts-live-map"

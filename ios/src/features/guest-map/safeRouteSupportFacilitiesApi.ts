@@ -13,7 +13,7 @@ import type { SupportFacility } from '../live-map/liveMapTypes';
 import { normalizeMobileSupportFacilities } from '../live-map/supportFacilities';
 
 const SUPPORT_CACHE_TTL_MS = 5 * 60_000;
-const SUPPORT_REQUEST_TIMEOUT_MS = 15_000;
+const SUPPORT_REQUEST_TIMEOUT_MS = 30_000;
 const MAX_SUPPORT_CACHE_ENTRIES = 8;
 const MAX_SUPPORT_ROUTE_COORDINATES = 512;
 

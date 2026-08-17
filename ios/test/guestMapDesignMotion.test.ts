@@ -10,6 +10,10 @@ const motionSource = readFileSync(
   new URL('../src/motion/SafeRouteMotion.tsx', import.meta.url),
   'utf8',
 );
+const bottomSheetSource = readFileSync(
+  new URL('../src/components/SafeRouteBottomSheet.tsx', import.meta.url),
+  'utf8',
+);
 const detailCalloutSource = readFileSync(
   new URL('../src/features/live-map/LiveMapRiskDetailCallout.tsx', import.meta.url),
   'utf8',
@@ -54,50 +58,53 @@ describe('guest map design motion', () => {
     assert.match(motionSource, /duration = 2600/);
   });
 
-  it('opens location search with the shared settled sheet curve', () => {
+  it('opens location search through the shared native bottom sheet', () => {
     assert.match(
       guestMapSource,
-      /GUEST_SEARCH_STAGE_TRANSITION_MS = safeRouteMotion\.scrimDurationMs/,
+      /const routeSheetSnapPoints = useMemo\([\s\S]*\[routeSheetMaxHeight\]/,
     );
     assert.match(
       guestMapSource,
-      /Animated\.timing\(sheetProgress[\s\S]*safeRouteMotion\.sheetExitDurationMs[\s\S]*safeRouteMotion\.sheetDurationMs/,
+      /<SafeRouteBottomSheet[\s\S]*animateOnMount=\{false\}[\s\S]*index=\{-1\}[\s\S]*snapPoints=\{routeSheetSnapPoints\}/,
     );
     assert.match(
       guestMapSource,
-      /safeRouteEasing\.exit[\s\S]*safeRouteEasing\.settled/,
+      /const animateRouteSheet =[\s\S]*routeSheetRef\.current\?\.close\(\)[\s\S]*routeSheetRef\.current\?\.snapToIndex\(0\)/,
     );
     assert.match(
       guestMapSource,
-      /const animateRouteSheet =[\s\S]*onComplete\?\.\(\)[\s\S]*const scheduleRouteStopInputFocus/,
-    );
-    assert.match(guestMapSource, /outputRange: \[0, 24\]/);
-    assert.doesNotMatch(guestMapSource, /outputRange: \[0, 620\]/);
-  });
-
-  it('synchronizes the search sheet with the native iOS keyboard transition', () => {
-    assert.match(motionSource, /keyboardDurationMs: 250/);
-    assert.match(motionSource, /export function useKeyboardTranslateY/);
-    assert.match(
-      motionSource,
-      /Animated\.timing\(translateY[\s\S]*duration,[\s\S]*safeRouteEasing\.settled[\s\S]*useNativeDriver: true[\s\S]*keyboardWillChangeFrame/,
-    );
-    assert.match(motionSource, /Keyboard\.metrics\(\)/);
-    assert.match(
-      guestMapSource,
-      /<KeyboardAvoidingView[\s\S]*enabled=\{Platform\.OS !== 'ios'\}/,
+      /handleRouteSheetChange[\s\S]*finishRouteSheetTransition\(false\)[\s\S]*handleRouteSheetClose[\s\S]*finishRouteSheetTransition\(true\)/,
     );
     assert.match(
-      guestMapSource,
-      /styles\.sheetDock[\s\S]*translateY: keyboardTranslateY/,
-    );
-    assert.match(
-      guestMapSource,
-      /handleCollapsedLocationSearch[\s\S]*animateRouteSheet\(false\);[\s\S]*scheduleRouteStopInputFocus\(nextStopId\);/,
+      bottomSheetSource,
+      /enableDynamicSizing=\{false\}[\s\S]*enableOverDrag=\{false\}/,
     );
     assert.doesNotMatch(
       guestMapSource,
-      /animateRouteSheet\(\s*false,\s*\(\) => scheduleRouteStopInputFocus/,
+      /sheetProgress|routeSheetTravelDistance|PanResponder/,
+    );
+  });
+
+  it('synchronizes search with the bottom sheet keyboard controller', () => {
+    assert.match(
+      bottomSheetSource,
+      /enableBlurKeyboardOnGesture[\s\S]*keyboardBehavior="interactive"[\s\S]*keyboardBlurBehavior="restore"/,
+    );
+    assert.match(
+      guestMapSource,
+      /<BottomSheetScrollView[\s\S]*keyboardDismissMode="interactive"[\s\S]*keyboardShouldPersistTaps="handled"/,
+    );
+    assert.match(
+      guestMapSource,
+      /function RouteInput[\s\S]*<BottomSheetTextInput[\s\S]*showSoftInputOnFocus/,
+    );
+    assert.match(
+      guestMapSource,
+      /handleCollapsedLocationSearch[\s\S]*animateRouteSheet\([\s\S]*false,[\s\S]*scheduleRouteStopInputFocus\(nextStopId\)/,
+    );
+    assert.doesNotMatch(
+      guestMapSource,
+      /useKeyboardTranslateY|keyboardTranslateY|KeyboardAvoidingView|pendingInputFocusRecoveryRef/,
     );
   });
 
@@ -121,16 +128,27 @@ describe('guest map design motion', () => {
     assert.match(guestMapSource, /animateNextMapLayout/);
     assert.match(
       guestMapSource,
-      /pointerEvents=\{sheetCollapsed \? 'none' : 'auto'\}[\s\S]*styles\.sheetScrim/,
+      /<SafeRouteBottomSheet[\s\S]*backdrop[\s\S]*dismissOnBackdropPress[\s\S]*enablePanDownToClose/,
     );
-    assert.match(guestMapSource, /replayKey=\{replayKey\}[\s\S]*guestMapSearchResults/);
+    assert.match(
+      bottomSheetSource,
+      /<BottomSheetBackdrop[\s\S]*pressBehavior=\{dismissOnBackdropPress \? 'close' : 'none'\}/,
+    );
+    assert.doesNotMatch(
+      guestMapSource,
+      /styles\.sheetScrim|searchStageProgress/,
+    );
+    assert.match(
+      guestMapSource,
+      /function LocationSearchResults[\s\S]*<View[\s\S]*guestMapSearchResults/,
+    );
     assert.match(
       guestMapSource,
       /handlePlotRouteAction[\s\S]*plotTravelMode\(travelMode\)/,
     );
-    assert.match(detailCalloutSource, /Animated\.parallel/);
-    assert.match(detailCalloutSource, /safeRouteMotion\.sheetExitDurationMs/);
-    assert.match(detailCalloutSource, /safeRouteEasing\.exit/);
-    assert.match(detailCalloutSource, /useReduceMotionEnabled/);
+    assert.match(detailCalloutSource, /<SafeRouteBottomSheet/);
+    assert.match(detailCalloutSource, /snapPoints=\{snapPoints\}/);
+    assert.match(detailCalloutSource, /enablePanDownToClose/);
+    assert.doesNotMatch(detailCalloutSource, /Animated\.parallel|PanResponder/);
   });
 });

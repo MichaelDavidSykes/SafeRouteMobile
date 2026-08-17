@@ -1178,28 +1178,8 @@ export const operationsStyles = StyleSheet.create({
     zIndex: 90,
     justifyContent: "flex-end",
   },
-  detailScrim: {
-    ...StyleSheet.absoluteFillObject,
-    backgroundColor: "rgba(0, 0, 0, 0.28)",
-  },
-  detailSheet: {
-    maxHeight: "88%",
-    overflow: "hidden",
-    borderTopLeftRadius: radius.sheet,
-    borderTopRightRadius: radius.sheet,
-    backgroundColor: colors.sheet,
-  },
-  detailGrabber: {
-    width: 38,
-    height: 5,
-    borderRadius: radius.pill,
-    backgroundColor: colors.border,
-  },
-  detailGrabberTouch: {
-    height: 28,
-    alignItems: "center",
-    justifyContent: "flex-start",
-    paddingTop: spacing.xs,
+  detailSheetScrollContent: {
+    paddingBottom: spacing.xl,
   },
   detailSheetHeader: {
     flexDirection: "row",
@@ -1271,7 +1251,6 @@ export const operationsStyles = StyleSheet.create({
   detailSheetContent: {
     gap: spacing.md,
     padding: 20,
-    paddingBottom: spacing.xl,
   },
   calendarDetailSchedule: {
     flexDirection: "row",

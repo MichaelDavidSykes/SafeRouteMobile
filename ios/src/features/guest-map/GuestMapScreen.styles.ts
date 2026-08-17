@@ -108,51 +108,17 @@ export const guestMapStyles = StyleSheet.create({
     backgroundColor: colors.appleBlueSoft,
     transform: [{ scale: 0.96 }]
   },
-  sheet: {
-    marginHorizontal: 0,
-    marginBottom: 0,
-    paddingHorizontal: spacing.lg,
-    paddingBottom: spacing.lg,
-    borderWidth: 0.5,
-    borderColor: colors.glassBorder,
-    borderTopLeftRadius: radius.sheet,
-    borderTopRightRadius: radius.sheet,
-    backgroundColor: colors.sheet,
-    shadowColor: '#000000',
-    shadowOpacity: 0.2,
-    shadowRadius: 20,
-    shadowOffset: { width: 0, height: -6 },
-    elevation: 18
-  },
-  sheetKeyboardCornerFill: {
-    position: 'absolute',
-    right: 0,
-    bottom: -28,
-    left: 0,
-    height: 30,
-    backgroundColor: colors.sheet,
-  },
   sheetDock: {
     position: 'relative',
     zIndex: 31,
     elevation: 31
   },
-  sheetScrim: {
-    position: 'absolute',
-    zIndex: 30,
-    elevation: 30,
-    top: 0,
-    right: 0,
-    bottom: 0,
-    left: 0,
-    backgroundColor: 'rgba(0, 0, 0, 0.12)'
-  },
-  sheetScrimButton: {
-    flex: 1,
-  },
   sheetScroll: {
     flex: 1,
     maxHeight: 520
+  },
+  sheetContentFrame: {
+    flex: 1,
   },
   sheetScrollContentSearching: {
     paddingBottom: spacing.md,
@@ -618,6 +584,9 @@ export const guestMapStyles = StyleSheet.create({
     paddingLeft: spacing.md,
     borderBottomWidth: 0.5,
     borderBottomColor: colors.borderSoft
+  },
+  searchResultRowDisabled: {
+    opacity: 0.5,
   },
   searchResultSelection: {
     minWidth: 0,

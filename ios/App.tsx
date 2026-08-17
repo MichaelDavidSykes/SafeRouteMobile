@@ -9,6 +9,8 @@ import {
   StyleSheet,
   View,
 } from 'react-native';
+import { BottomSheetModalProvider } from '@gorhom/bottom-sheet';
+import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { SafeAreaProvider, initialWindowMetrics } from 'react-native-safe-area-context';
 
 import {
@@ -234,9 +236,13 @@ type PendingWorkspaceSelectionRetry = {
 
 export default function App() {
   return (
-    <NetworkAvailabilityProvider>
-      <SafeRouteApp />
-    </NetworkAvailabilityProvider>
+    <GestureHandlerRootView style={styles.root}>
+      <BottomSheetModalProvider>
+        <NetworkAvailabilityProvider>
+          <SafeRouteApp />
+        </NetworkAvailabilityProvider>
+      </BottomSheetModalProvider>
+    </GestureHandlerRootView>
   );
 }
 

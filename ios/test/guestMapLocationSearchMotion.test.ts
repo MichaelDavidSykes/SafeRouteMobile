@@ -6,74 +6,80 @@ const guestMapSource = readFileSync(
   new URL('../src/features/guest-map/GuestMapScreen.tsx', import.meta.url),
   'utf8',
 );
-const motionSource = readFileSync(
-  new URL('../src/motion/SafeRouteMotion.tsx', import.meta.url),
+const bottomSheetSource = readFileSync(
+  new URL('../src/components/SafeRouteBottomSheet.tsx', import.meta.url),
   'utf8',
 );
 
 describe('guest location-search motion', () => {
-  it('opens the route sheet consistently from below the viewport', () => {
+  it('uses the shared native bottom sheet with one explicit snap point', () => {
     assert.match(
       guestMapSource,
-      /const routeSheetTravelDistance =\s*routeSheetMaxHeight \+ routeSheetBottomPadding \+ spacing\.lg/,
+      /const routeSheetSnapPoints = useMemo\([\s\S]*\[routeSheetMaxHeight\]/,
     );
     assert.match(
       guestMapSource,
-      /translateY: sheetProgress\.interpolate\(\{[\s\S]*outputRange: \[0, routeSheetTravelDistance\]/,
+      /<SafeRouteBottomSheet[\s\S]*enablePanDownToClose[\s\S]*index=\{-1\}[\s\S]*snapPoints=\{routeSheetSnapPoints\}/,
     );
-    assert.doesNotMatch(guestMapSource, /outputRange: \[0, 24\]/);
-    assert.match(
+    assert.match(guestMapSource, /<BottomSheetScrollView/);
+    assert.match(bottomSheetSource, /enableDynamicSizing=\{false\}/);
+    assert.doesNotMatch(
       guestMapSource,
-      /gesture\.dy \/ Math\.max\([\s\S]*routeSheetTravelDistance/,
-    );
-  });
-
-  it('starts the sheet before one idempotent focus and keeps failure recovery', () => {
-    assert.match(
-      guestMapSource,
-      /handleCollapsedLocationSearch[\s\S]*transitionActiveInput\(nextStopId, \{ animate: false \}\)[\s\S]*animateRouteSheet\([\s\S]*false,[\s\S]*scheduleRouteStopInputFocus\(nextStopId\)/,
-    );
-    assert.match(
-      guestMapSource,
-      /const input = routeInputRefs\.current\.get\(stopId\);[\s\S]*!input\.isFocused\(\)[\s\S]*input\.focus\(\)/,
-    );
-    assert.doesNotMatch(guestMapSource, /pendingInputFocusRetryRef|setTimeout\([\s\S]{0,120}, 120\)/);
-    assert.match(
-      guestMapSource,
-      /pendingInputFocusRecoveryRef[\s\S]*Keyboard\.isVisible\(\)[\s\S]*input\?\.blur\(\)[\s\S]*input\?\.focus\(\)/,
-    );
-    assert.match(
-      guestMapSource,
-      /function RouteInput[\s\S]*<Pressable[\s\S]*onPress=\{focusNativeInput\}[\s\S]*showSoftInputOnFocus/,
+      /routeSheetTravelDistance|sheetProgress|PanResponder/,
     );
   });
 
-  it('crossfades search-stage content upward on the native animation driver', () => {
-    assert.match(guestMapSource, /const searchStageProgress = useRef\(new Animated\.Value\(1\)\)\.current/);
+  it('starts the sheet before one direct input focus without blur-refocus recovery', () => {
     assert.match(
       guestMapSource,
-      /Animated\.timing\(searchStageProgress,[\s\S]*safeRouteEasing\.settled[\s\S]*useNativeDriver: true/,
+      /handleCollapsedLocationSearch[\s\S]*transitionActiveInput\(nextStopId\)[\s\S]*animateRouteSheet\([\s\S]*false,[\s\S]*scheduleRouteStopInputFocus\(nextStopId\)/,
     );
     assert.match(
       guestMapSource,
-      /translateY: searchStageProgress\.interpolate\(\{[\s\S]*outputRange: \[12, 0\]/,
+      /requestAnimationFrame\(\(\) => \{[\s\S]*routeInputRefs\.current\.get\(stopId\)\?\.focus\(\)/,
     );
     assert.doesNotMatch(
       guestMapSource,
-      /function LocationSearchResultRow[\s\S]*<MotionEntrance delay=/,
+      /pendingInputFocusRecoveryRef|Keyboard\.isVisible\(\)|input\?\.blur\(\)/,
+    );
+    assert.match(
+      guestMapSource,
+      /function RouteInput[\s\S]*<Pressable[\s\S]*onPress=\{focusNativeInput\}[\s\S]*<BottomSheetTextInput[\s\S]*showSoftInputOnFocus/,
     );
   });
 
-  it('tracks the native iOS keyboard frame with one explicit transform animation', () => {
-    assert.match(motionSource, /keyboardWillChangeFrame/);
-    assert.match(
-      motionSource,
-      /Animated\.timing\(translateY,[\s\S]*easing: safeRouteEasing\.keyboard[\s\S]*useNativeDriver: true/,
-    );
-    assert.doesNotMatch(motionSource, /Keyboard\.scheduleLayoutAnimation\(event\)/);
+  it('keeps search-stage content stable instead of crossfading conditional trees', () => {
     assert.match(
       guestMapSource,
-      /styles\.sheetDock[\s\S]*translateY: keyboardTranslateY/,
+      /const locationSearchOwnerRef = useRef<string \| null>\(null\)/,
+    );
+    assert.match(
+      guestMapSource,
+      /inputChanged \|\|[\s\S]*normalizedQuery\.length < GUEST_LOCATION_SEARCH_MIN_LENGTH[\s\S]*setLocationSearchResults\(\[\]\)/,
+    );
+    assert.match(
+      guestMapSource,
+      /locationSearchResultsQuery !== activeLocationSearchQuery[\s\S]*resultsDisabled=\{locationSearchResultsDisabled\}/,
+    );
+    assert.doesNotMatch(
+      guestMapSource,
+      /searchStageProgress|animateSearchStageContent|translateY: searchStageProgress/,
+    );
+    assert.match(
+      guestMapSource,
+      /function LocationSearchResults[\s\S]*<View[\s\S]*testID=\{uiTestIds\.guestMapSearchResults\}/,
+    );
+  });
+
+  it('lets the bottom sheet own interactive keyboard movement', () => {
+    assert.match(
+      bottomSheetSource,
+      /keyboardBehavior="interactive"[\s\S]*keyboardBlurBehavior="restore"/,
+    );
+    assert.match(guestMapSource, /<BottomSheetTextInput/);
+    assert.doesNotMatch(
+      guestMapSource,
+      /useKeyboardTranslateY|keyboardTranslateY|KeyboardAvoidingView/,
     );
   });
 });

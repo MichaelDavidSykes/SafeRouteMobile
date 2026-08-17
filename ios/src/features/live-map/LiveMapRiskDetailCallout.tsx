@@ -1,10 +1,16 @@
 import {
-  useLayoutEffect,
+  useCallback,
+  useEffect,
+  useMemo,
   useRef,
   useState,
   type ReactNode,
   type RefObject
 } from "react";
+import {
+  BottomSheetScrollView,
+  type BottomSheetScrollViewMethods,
+} from "@gorhom/bottom-sheet";
 import {
   AlertTriangle,
   ChevronDown,
@@ -15,11 +21,8 @@ import {
 } from "lucide-react-native";
 import {
   Alert,
-  Animated,
   Linking,
-  PanResponder,
   Pressable,
-  ScrollView,
   StyleSheet,
   Text,
   useWindowDimensions,
@@ -28,7 +31,12 @@ import {
   type ViewStyle,
 } from "react-native";
 import MapView from "react-native-maps";
+import { ReduceMotion } from "react-native-reanimated";
 
+import {
+  SafeRouteBottomSheet,
+  type SafeRouteBottomSheetRef,
+} from "../../components/SafeRouteBottomSheet";
 import { uiTestIds } from "../../testing/uiTestIds";
 import { chrome, colors, radius, typeScale } from "../../theme";
 import type { RiskSeverity, RiskZone } from "./liveMapTypes";
@@ -38,21 +46,9 @@ import {
 } from "./routeRisk";
 import { formatDistance } from "./routeProgress";
 import { isRouteAlertZone } from "./riskOverlayPresentation";
-import {
-  resolveRiskDetailSheetGesture,
-  shouldDismissRiskDetailGesture,
-  shouldStartRiskDetailDismissGesture,
-  shouldStartRiskDetailSheetGesture,
-  type RiskDetailSheetStage,
-} from "./riskDetailInteraction";
 import { createRiskZoneExpandedPresentation } from "./riskDetailPresentation";
-import {
-  MotionEntrance,
-  safeRouteEasing,
-  safeRouteMotion,
-  safeRouteSpring,
-  useReduceMotionEnabled,
-} from "../../motion/SafeRouteMotion";
+
+const RISK_DETAIL_SHEET_HANDLE_HEIGHT = 24;
 
 export function LiveMapRiskDetailCallout({
   bottomInset = chrome.tabBarHeight + 18,
@@ -178,489 +174,210 @@ export function LiveMapDetailCallout({
   title: string;
 }) {
   const viewport = useWindowDimensions();
-  const expandedPanelHeight = Math.min(
-    360,
-    Math.max(180, viewport.height - bottomInset - 330)
+  const sheetRef = useRef<SafeRouteBottomSheetRef>(null);
+  const scrollRef = useRef<BottomSheetScrollViewMethods>(null);
+  const dismissalNotifiedRef = useRef(false);
+  const previousReplayKeyRef = useRef(replayKey);
+  const [sheetIndex, setSheetIndex] = useState(0);
+
+  const availableSheetHeight = Math.max(
+    240,
+    viewport.height - bottomInset - 12,
   );
-  const translateY = useRef(new Animated.Value(0)).current;
-  const dismissProgress = useRef(new Animated.Value(0)).current;
-  const expandedContentOpacity = useRef(new Animated.Value(0)).current;
-  const animationRevisionRef = useRef(0);
-  const dismissingRef = useRef(false);
-  const transitioningRef = useRef(false);
-  const currentTranslateYRef = useRef(0);
-  const pendingExpansionOffsetRef = useRef<number | null>(null);
-  const [sheetStage, setSheetStage] = useState<RiskDetailSheetStage>("default");
-  const sheetStageRef = useRef<RiskDetailSheetStage>("default");
-  const expandableRef = useRef(Boolean(expandedContent));
-  expandableRef.current = Boolean(expandedContent);
-  const reduceMotionEnabled = useReduceMotionEnabled();
-  const reduceMotionEnabledRef = useRef(reduceMotionEnabled);
-  reduceMotionEnabledRef.current = reduceMotionEnabled;
-  const onDismissRef = useRef(onDismiss);
-  onDismissRef.current = onDismiss;
-  const restoreTranslationRef = useRef<() => void>(() => undefined);
-  restoreTranslationRef.current = () => {
-    animationRevisionRef.current += 1;
-    currentTranslateYRef.current = 0;
-    translateY.stopAnimation();
-    Animated.spring(translateY, {
-      ...safeRouteSpring,
-      toValue: 0,
-      useNativeDriver: true,
-    }).start();
-  };
-  const transitionStageRef = useRef<(stage: RiskDetailSheetStage) => void>(
-    () => undefined,
+  const preferredCompactHeight = expandedContent ? 310 : 260;
+  const compactSnapPoint = Math.min(
+    preferredCompactHeight,
+    Math.max(220, availableSheetHeight - (expandedContent ? 160 : 0)),
   );
-  transitionStageRef.current = (stage) => {
-    if (transitioningRef.current) {
-      return;
-    }
-    if (
-      !expandableRef.current
-      || sheetStageRef.current === stage
-    ) {
-      restoreTranslationRef.current();
-      return;
-    }
-
-    transitioningRef.current = true;
-    const animationRevision = animationRevisionRef.current + 1;
-    animationRevisionRef.current = animationRevision;
-    translateY.stopAnimation();
-    expandedContentOpacity.stopAnimation();
-    if (reduceMotionEnabledRef.current) {
-      currentTranslateYRef.current = 0;
-      translateY.setValue(0);
-      expandedContentOpacity.setValue(stage === "expanded" ? 1 : 0);
-      sheetStageRef.current = stage;
-      setSheetStage(stage);
-      transitioningRef.current = false;
-      return;
-    }
-
-    if (stage === "expanded") {
-      pendingExpansionOffsetRef.current = currentTranslateYRef.current;
-      sheetStageRef.current = "expanded";
-      setSheetStage("expanded");
-      return;
-    }
-
-    Animated.parallel([
-      Animated.timing(translateY, {
-        duration: safeRouteMotion.disclosureDurationMs,
-        easing: safeRouteEasing.settled,
-        isInteraction: false,
-        toValue: expandedPanelHeight,
-        useNativeDriver: true,
-      }),
-      Animated.timing(expandedContentOpacity, {
-        duration: safeRouteMotion.sheetExitDurationMs,
-        easing: safeRouteEasing.exit,
-        isInteraction: false,
-        toValue: 0,
-        useNativeDriver: true,
-      }),
-    ]).start(({ finished }) => {
-      if (animationRevisionRef.current !== animationRevision) {
-        return;
-      }
-      if (!finished) {
-        currentTranslateYRef.current = 0;
-        translateY.setValue(0);
-        expandedContentOpacity.setValue(1);
-        transitioningRef.current = false;
-        return;
-      }
-
-      // Reset the native transform while the expanded layout is still mounted.
-      // The following state update can then collapse the panel without ever
-      // committing a compact card that still carries the off-screen transform.
-      currentTranslateYRef.current = 0;
-      translateY.setValue(0);
-      expandedContentOpacity.setValue(0);
-      sheetStageRef.current = "default";
-      setSheetStage("default");
-      transitioningRef.current = false;
-    });
-  };
-  const dismissAnimationRef = useRef<(translateTo: number) => void>(
-    () => undefined,
+  const expandedSnapPoint = Math.min(680, availableSheetHeight);
+  const hasExpandedSnapPoint = Boolean(
+    expandedContent && expandedSnapPoint > compactSnapPoint + 20,
   );
-  dismissAnimationRef.current = (translateTo) => {
-    if (dismissingRef.current) {
-      return;
-    }
-    dismissingRef.current = true;
-    transitioningRef.current = true;
-    const animationRevision = animationRevisionRef.current + 1;
-    animationRevisionRef.current = animationRevision;
-    translateY.stopAnimation();
-    dismissProgress.stopAnimation();
-    expandedContentOpacity.stopAnimation();
-    if (reduceMotionEnabledRef.current) {
-      onDismissRef.current();
-      return;
-    }
-    Animated.parallel([
-      Animated.timing(translateY, {
-        duration: safeRouteMotion.sheetExitDurationMs,
-        easing: safeRouteEasing.exit,
-        isInteraction: false,
-        toValue: translateTo,
-        useNativeDriver: true,
-      }),
-      Animated.timing(dismissProgress, {
-        duration: safeRouteMotion.sheetExitDurationMs,
-        easing: safeRouteEasing.exit,
-        isInteraction: false,
-        toValue: 1,
-        useNativeDriver: true,
-      }),
-    ]).start(({ finished }) => {
-      if (animationRevisionRef.current !== animationRevision) {
-        return;
-      }
-      if (finished) {
-        onDismissRef.current();
-      } else {
-        dismissingRef.current = false;
-        transitioningRef.current = false;
-        currentTranslateYRef.current = 0;
-        translateY.setValue(0);
-        dismissProgress.setValue(0);
-        expandedContentOpacity.setValue(
-          sheetStageRef.current === "expanded" ? 1 : 0,
-        );
-      }
-    });
-  };
-
-  useLayoutEffect(() => {
-    animationRevisionRef.current += 1;
-    translateY.stopAnimation();
-    dismissProgress.stopAnimation();
-    expandedContentOpacity.stopAnimation();
-    dismissingRef.current = false;
-    transitioningRef.current = false;
-    currentTranslateYRef.current = 0;
-    pendingExpansionOffsetRef.current = null;
-    sheetStageRef.current = "default";
-    setSheetStage("default");
-    translateY.setValue(0);
-    dismissProgress.setValue(0);
-    expandedContentOpacity.setValue(0);
-
-    return () => {
-      animationRevisionRef.current += 1;
-      translateY.stopAnimation();
-      dismissProgress.stopAnimation();
-      expandedContentOpacity.stopAnimation();
-    };
-  }, [dismissProgress, expandedContentOpacity, replayKey, translateY]);
-
-  useLayoutEffect(() => {
-    const gestureOffset = pendingExpansionOffsetRef.current;
-    if (sheetStage !== "expanded" || gestureOffset === null) {
-      return;
-    }
-    pendingExpansionOffsetRef.current = null;
-    const initialTranslateY = expandedPanelHeight + gestureOffset;
-    const animationRevision = animationRevisionRef.current + 1;
-    animationRevisionRef.current = animationRevision;
-    currentTranslateYRef.current = initialTranslateY;
-    translateY.stopAnimation();
-    expandedContentOpacity.stopAnimation();
-    translateY.setValue(initialTranslateY);
-    expandedContentOpacity.setValue(0.55);
-    let expansionAnimation: Animated.CompositeAnimation | null = null;
-    const animationFrame = requestAnimationFrame(() => {
-      if (animationRevisionRef.current !== animationRevision) {
-        return;
-      }
-      expansionAnimation = Animated.parallel([
-        Animated.timing(translateY, {
-          duration: safeRouteMotion.disclosureDurationMs,
-          easing: safeRouteEasing.settled,
-          isInteraction: false,
-          toValue: 0,
-          useNativeDriver: true,
-        }),
-        Animated.timing(expandedContentOpacity, {
-          duration: safeRouteMotion.disclosureDurationMs,
-          easing: safeRouteEasing.settled,
-          isInteraction: false,
-          toValue: 1,
-          useNativeDriver: true,
-        }),
-      ]);
-      expansionAnimation.start(() => {
-        if (animationRevisionRef.current !== animationRevision) {
-          return;
-        }
-        currentTranslateYRef.current = 0;
-        translateY.setValue(0);
-        expandedContentOpacity.setValue(1);
-        transitioningRef.current = false;
-      });
-    });
-    return () => {
-      cancelAnimationFrame(animationFrame);
-      expansionAnimation?.stop();
-    };
-  }, [
-    expandedContentOpacity,
-    expandedPanelHeight,
-    sheetStage,
-    translateY,
-  ]);
-
-  const handleGestureReleaseRef = useRef<(
-    translationX: number,
-    translationY: number,
-    velocityY: number
-  ) => void>(() => undefined);
-  handleGestureReleaseRef.current = (translationX, translationY, velocityY) => {
-    if (expandableRef.current) {
-      const action = resolveRiskDetailSheetGesture(sheetStageRef.current, {
-        translationX,
-        translationY,
-        velocityY,
-      });
-      if (action === "expand") {
-        transitionStageRef.current("expanded");
-        return;
-      }
-      if (action === "collapse") {
-        transitionStageRef.current("default");
-        return;
-      }
-      if (action === "dismiss") {
-        dismissAnimationRef.current(320);
-        return;
-      }
-      restoreTranslationRef.current();
-      return;
-    }
-
-    if (
-      shouldDismissRiskDetailGesture({
-        translationX,
-        translationY,
-        velocityY,
-      })
-    ) {
-      dismissAnimationRef.current(320);
-      return;
-    }
-    restoreTranslationRef.current();
-  };
-  const handleGestureMoveRef = useRef<(translationY: number) => void>(
-    () => undefined,
+  const snapPoints = useMemo(
+    () => hasExpandedSnapPoint
+      ? [compactSnapPoint, expandedSnapPoint]
+      : [expandedContent ? expandedSnapPoint : compactSnapPoint],
+    [
+      compactSnapPoint,
+      expandedContent,
+      expandedSnapPoint,
+      hasExpandedSnapPoint,
+    ],
   );
-  handleGestureMoveRef.current = (translationY) => {
-    const nextTranslateY = sheetStageRef.current === "expanded"
-      ? Math.max(0, Math.min(56, translationY))
-      : Math.max(-48, translationY);
-    currentTranslateYRef.current = nextTranslateY;
-    translateY.setValue(nextTranslateY);
-  };
+  const expanded = Boolean(
+    expandedContent && (!hasExpandedSnapPoint || sheetIndex === 1),
+  );
 
-  const cardPanResponder = useRef(
-    PanResponder.create({
-      onMoveShouldSetPanResponder: (_, gestureState) =>
-        !transitioningRef.current && (
-        expandableRef.current
-          ? (
-              sheetStageRef.current === "default"
-              && shouldStartRiskDetailSheetGesture({
-                translationX: gestureState.dx,
-                translationY: gestureState.dy,
-              })
-            )
-          : shouldStartRiskDetailDismissGesture({
-              translationX: gestureState.dx,
-              translationY: gestureState.dy,
-            })),
-      onPanResponderMove: (_, gestureState) => {
-        handleGestureMoveRef.current(gestureState.dy);
-      },
-      onPanResponderRelease: (_, gestureState) => {
-        handleGestureReleaseRef.current(
-          gestureState.dx,
-          gestureState.dy,
-          gestureState.vy
-        );
-      },
-      onPanResponderTerminate: () => {
-        restoreTranslationRef.current();
-      },
-    }),
-  ).current;
-  const handlePanResponder = useRef(
-    PanResponder.create({
-      onMoveShouldSetPanResponder: (_, gestureState) =>
-        !transitioningRef.current && (
-        expandableRef.current
-          ? shouldStartRiskDetailSheetGesture({
-              translationX: gestureState.dx,
-              translationY: gestureState.dy,
-            })
-          : shouldStartRiskDetailDismissGesture({
-              translationX: gestureState.dx,
-              translationY: gestureState.dy,
-            })),
-      onPanResponderMove: (_, gestureState) => {
-        handleGestureMoveRef.current(gestureState.dy);
-      },
-      onPanResponderRelease: (_, gestureState) => {
-        handleGestureReleaseRef.current(
-          gestureState.dx,
-          gestureState.dy,
-          gestureState.vy
-        );
-      },
-      onPanResponderTerminate: () => {
-        restoreTranslationRef.current();
-      },
-    }),
-  ).current;
-  const expanded = sheetStage === "expanded";
+  useEffect(() => {
+    if (previousReplayKeyRef.current === replayKey) {
+      return;
+    }
+
+    previousReplayKeyRef.current = replayKey;
+    dismissalNotifiedRef.current = false;
+    setSheetIndex(0);
+    sheetRef.current?.snapToIndex(0);
+  }, [replayKey]);
+
+  const handleSheetChange = useCallback((index: number) => {
+    const nextIndex = Math.max(0, index);
+    if (nextIndex === 0) {
+      scrollRef.current?.scrollTo({ animated: false, y: 0 });
+    }
+    setSheetIndex(nextIndex);
+  }, []);
+  const handleSheetClosed = useCallback(() => {
+    if (dismissalNotifiedRef.current) {
+      return;
+    }
+
+    dismissalNotifiedRef.current = true;
+    onDismiss();
+  }, [onDismiss]);
+  const handleDismissRequest = useCallback(() => {
+    sheetRef.current?.close();
+  }, []);
+  const handleDisclosurePress = useCallback(() => {
+    if (!hasExpandedSnapPoint) {
+      return;
+    }
+
+    sheetRef.current?.snapToIndex(expanded ? 0 : 1);
+  }, [expanded, hasExpandedSnapPoint]);
 
   return (
-    <MotionEntrance
+    <View
       pointerEvents="box-none"
-      replayKey={replayKey}
       style={[StyleSheet.absoluteFill, styles.overlay]}
-      variant="sheet"
     >
-      <Animated.View
-        {...cardPanResponder.panHandlers}
-        accessible={groupedAccessibility && !expanded}
-        accessibilityLabel={
-          groupedAccessibility && !expanded ? accessibilityLabel : undefined
-        }
-        testID={testID}
-        style={[
-          styles.card,
-          {
-            bottom: bottomInset,
-            opacity: dismissProgress.interpolate({
-              inputRange: [0, 1],
-              outputRange: [1, 0],
-            }),
-            transform: [{ translateY }],
-          },
-        ]}
+      <SafeRouteBottomSheet
+        animateOnMount
+        bottomInset={bottomInset}
+        detached
+        enablePanDownToClose={!hasExpandedSnapPoint || sheetIndex === 0}
+        index={0}
+        key={replayKey}
+        onChange={handleSheetChange}
+        onClose={handleSheetClosed}
+        overrideReduceMotion={ReduceMotion.System}
+        ref={sheetRef}
+        snapPoints={snapPoints}
+        style={styles.sheet}
       >
-        <Pressable
-          {...handlePanResponder.panHandlers}
-          accessibilityLabel={expandedContent
-            ? (expanded ? "Show risk summary" : "Show detailed risk intelligence")
-            : "Swipe down to close"}
-          accessibilityRole={expandedContent ? "button" : undefined}
-          onPress={expandedContent
-            ? () => transitionStageRef.current(expanded ? "default" : "expanded")
-            : undefined}
-          style={styles.dragHandleDock}
+        <BottomSheetScrollView
+          ref={scrollRef}
+          contentContainerStyle={styles.sheetContent}
+          showsVerticalScrollIndicator={false}
         >
-          <View style={styles.dragHandle} />
-        </Pressable>
-        <View {...handlePanResponder.panHandlers} style={styles.titleRow}>
-          <View style={[styles.iconTile, iconTileStyle]}>
-            {icon}
-          </View>
           <View
-            accessible={!groupedAccessibility || expanded}
+            accessible={groupedAccessibility && !expanded}
             accessibilityLabel={
-              !groupedAccessibility || expanded ? accessibilityLabel : undefined
+              groupedAccessibility && !expanded ? accessibilityLabel : undefined
             }
-            style={styles.titleCopy}
+            style={hasExpandedSnapPoint
+              ? {
+                  minHeight: Math.max(
+                    0,
+                    compactSnapPoint - RISK_DETAIL_SHEET_HANDLE_HEIGHT,
+                  ),
+                }
+              : undefined}
+            testID={testID}
           >
-            <Text numberOfLines={2} style={styles.title}>
-              {title}
-            </Text>
-            <Text numberOfLines={1} style={styles.category}>
-              {subtitle}
-            </Text>
+            <View style={styles.titleRow}>
+              <View style={[styles.iconTile, iconTileStyle]}>
+                {icon}
+              </View>
+              <View
+                accessible={!groupedAccessibility || expanded}
+                accessibilityLabel={
+                  !groupedAccessibility || expanded
+                    ? accessibilityLabel
+                    : undefined
+                }
+                style={styles.titleCopy}
+              >
+                <Text numberOfLines={2} style={styles.title}>
+                  {title}
+                </Text>
+                <Text numberOfLines={1} style={styles.category}>
+                  {subtitle}
+                </Text>
+              </View>
+              <Pressable
+                accessibilityLabel={dismissAccessibilityLabel}
+                accessibilityRole="button"
+                hitSlop={8}
+                onPress={handleDismissRequest}
+                testID={dismissTestID}
+                style={({ pressed }) => [
+                  styles.dismiss,
+                  pressed ? styles.dismissPressed : null,
+                ]}
+              >
+                <X
+                  accessibilityElementsHidden
+                  color={colors.muted}
+                  size={14}
+                  strokeWidth={2.2}
+                />
+              </Pressable>
+            </View>
+
+            {children}
+
+            {expandedContent && hasExpandedSnapPoint ? (
+              <Pressable
+                accessibilityLabel={expanded
+                  ? "Collapse detailed risk intelligence"
+                  : "Expand detailed risk intelligence"}
+                accessibilityRole="button"
+                accessibilityState={{ expanded }}
+                onPress={handleDisclosurePress}
+                style={({ pressed }) => [
+                  styles.disclosureHint,
+                  pressed ? styles.disclosureHintPressed : null,
+                ]}
+              >
+                {expanded ? (
+                  <ChevronDown
+                    accessibilityElementsHidden
+                    color={colors.appleBlue}
+                    size={15}
+                    strokeWidth={2.2}
+                  />
+                ) : (
+                  <ChevronUp
+                    accessibilityElementsHidden
+                    color={colors.appleBlue}
+                    size={15}
+                    strokeWidth={2.2}
+                  />
+                )}
+                <Text style={styles.disclosureHintText}>
+                  {expanded
+                    ? "Swipe down for summary"
+                    : "Swipe up for full intelligence"}
+                </Text>
+              </Pressable>
+            ) : null}
           </View>
-          <Pressable
-            accessibilityLabel={dismissAccessibilityLabel}
-            accessibilityRole="button"
-            hitSlop={8}
-            testID={dismissTestID}
-            style={({ pressed }) => [
-              styles.dismiss,
-              pressed ? styles.dismissPressed : null,
-            ]}
-            onPress={() => dismissAnimationRef.current(36)}
-          >
-            <X accessibilityElementsHidden color={colors.muted} size={14} strokeWidth={2.2} />
-          </Pressable>
-        </View>
-        {children}
-        {expandedContent ? (
-          <>
-            <Pressable
-              {...handlePanResponder.panHandlers}
-              accessibilityLabel={expanded
-                ? "Collapse detailed risk intelligence"
-                : "Expand detailed risk intelligence"}
-              accessibilityRole="button"
-              onPress={() =>
-                transitionStageRef.current(expanded ? "default" : "expanded")
-              }
-              style={({ pressed }) => [
-                styles.disclosureHint,
-                pressed ? styles.disclosureHintPressed : null,
-              ]}
-            >
-              {expanded ? (
-                <ChevronDown
-                  accessibilityElementsHidden
-                  color={colors.appleBlue}
-                  size={15}
-                  strokeWidth={2.2}
-                />
-              ) : (
-                <ChevronUp
-                  accessibilityElementsHidden
-                  color={colors.appleBlue}
-                  size={15}
-                  strokeWidth={2.2}
-                />
-              )}
-              <Text style={styles.disclosureHintText}>
-                {expanded ? "Swipe down for summary" : "Swipe up for full intelligence"}
-              </Text>
-            </Pressable>
-            <Animated.View
+
+          {expandedContent ? (
+            <View
               accessibilityElementsHidden={!expanded}
-              importantForAccessibility={expanded ? "auto" : "no-hide-descendants"}
-              pointerEvents={expanded ? "auto" : "none"}
-              style={[
-                styles.expandedPanel,
-                {
-                  height: expanded ? expandedPanelHeight : 0,
-                  opacity: expandedContentOpacity,
-                },
-              ]}
+              importantForAccessibility={
+                expanded ? "auto" : "no-hide-descendants"
+              }
+              style={styles.expandedPanel}
               testID={expandedTestID}
             >
-              <ScrollView
-                contentContainerStyle={styles.expandedPanelContent}
-                nestedScrollEnabled
-                showsVerticalScrollIndicator={false}
-                style={{ height: expandedPanelHeight }}
-              >
-                {expandedContent}
-              </ScrollView>
-            </Animated.View>
-          </>
-        ) : null}
-      </Animated.View>
-    </MotionEntrance>
+              {expandedContent}
+            </View>
+          ) : null}
+        </BottomSheetScrollView>
+      </SafeRouteBottomSheet>
+    </View>
   );
 }
 
@@ -878,31 +595,12 @@ const styles = StyleSheet.create({
     zIndex: 50,
     elevation: 50,
   },
-  card: {
-    position: "absolute",
-    right: 12,
-    left: 12,
-    padding: 18,
-    borderRadius: radius.sheet,
-    backgroundColor: colors.surface,
-    shadowColor: "#000000",
-    shadowOpacity: 0.2,
-    shadowRadius: 20,
-    shadowOffset: { width: 0, height: 12 },
-    elevation: 10,
+  sheet: {
+    marginHorizontal: 12,
   },
-  dragHandleDock: {
-    height: 10,
-    alignItems: "center",
-    justifyContent: "flex-start",
-    marginTop: -10,
-    marginBottom: 4,
-  },
-  dragHandle: {
-    width: 36,
-    height: 4,
-    borderRadius: radius.pill,
-    backgroundColor: colors.border,
+  sheetContent: {
+    paddingHorizontal: 18,
+    paddingBottom: 18,
   },
   disclosureHint: {
     minHeight: 30,
@@ -923,9 +621,6 @@ const styles = StyleSheet.create({
     fontWeight: "600",
   },
   expandedPanel: {
-    overflow: "hidden",
-  },
-  expandedPanelContent: {
     paddingTop: 15,
     paddingBottom: 3,
   },

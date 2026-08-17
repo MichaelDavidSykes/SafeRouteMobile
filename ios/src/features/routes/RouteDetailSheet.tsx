@@ -1,8 +1,14 @@
-import { useEffect, useRef } from "react";
+import { useCallback, useRef } from "react";
+import { BottomSheetScrollView } from "@gorhom/bottom-sheet";
 import { CarFront, Route as RouteIcon, UsersRound, X } from "lucide-react-native";
-import { Animated, Modal, PanResponder, Pressable, ScrollView, Text, useWindowDimensions, View } from "react-native";
+import { Modal, Pressable, Text, View } from "react-native";
+import { GestureHandlerRootView } from "react-native-gesture-handler";
 import { SafeAreaView } from "react-native-safe-area-context";
 
+import {
+  SafeRouteBottomSheet,
+  type SafeRouteBottomSheetRef,
+} from "../../components/SafeRouteBottomSheet";
 import type { SavedSafeRoutePlan } from "../live-map/liveMapTypes";
 import {
   createRouteCardMetaLabel,
@@ -10,20 +16,8 @@ import {
 } from "./routeCardPresentation";
 import { routeDetailSheetStyles as styles } from "./RouteDetailSheet.styles";
 import { colors } from "../../theme";
-import {
-  shouldDismissRiskDetailGesture,
-  shouldStartRiskDetailDismissGesture,
-} from "../live-map/riskDetailInteraction";
-import {
-  safeRouteEasing,
-  safeRouteMotion,
-  safeRouteSpring,
-  useReduceMotionEnabled,
-} from "../../motion/SafeRouteMotion";
 
-const AnimatedSafeAreaView = Animated.createAnimatedComponent(SafeAreaView);
-const AnimatedPressable = Animated.createAnimatedComponent(Pressable);
-const SHEET_ENTRANCE_OFFSET = 24;
+const ROUTE_DETAIL_SNAP_POINTS = ["86%"];
 
 interface RouteDetailSheetProps {
   onClose: () => void;
@@ -31,167 +25,10 @@ interface RouteDetailSheetProps {
 }
 
 export function RouteDetailSheet({ onClose, route }: RouteDetailSheetProps) {
-  const viewport = useWindowDimensions();
-  const reduceMotionEnabled = useReduceMotionEnabled();
-  const sheetTranslateY = useRef(new Animated.Value(SHEET_ENTRANCE_OFFSET)).current;
-  const sheetOpacity = useRef(new Animated.Value(0)).current;
-  const scrimOpacity = useRef(new Animated.Value(0)).current;
-  const animationRevisionRef = useRef(0);
-  const closingRef = useRef(false);
-  const onCloseRef = useRef(onClose);
-  const reduceMotionEnabledRef = useRef(reduceMotionEnabled);
-  const viewportHeightRef = useRef(viewport.height);
-  onCloseRef.current = onClose;
-  reduceMotionEnabledRef.current = reduceMotionEnabled;
-  viewportHeightRef.current = viewport.height;
-
-  const restoreSheet = () => {
-    sheetTranslateY.stopAnimation();
-    if (reduceMotionEnabledRef.current) {
-      sheetTranslateY.setValue(0);
-      return;
-    }
-    Animated.spring(sheetTranslateY, {
-      ...safeRouteSpring,
-      toValue: 0,
-      useNativeDriver: true,
-    }).start();
-  };
-  const dismissSheet = () => {
-    if (closingRef.current) {
-      return;
-    }
-    closingRef.current = true;
-    const animationRevision = animationRevisionRef.current + 1;
-    animationRevisionRef.current = animationRevision;
-    sheetTranslateY.stopAnimation();
-    sheetOpacity.stopAnimation();
-    scrimOpacity.stopAnimation();
-    if (reduceMotionEnabledRef.current) {
-      onCloseRef.current();
-      return;
-    }
-    Animated.parallel([
-      Animated.timing(sheetTranslateY, {
-        duration: safeRouteMotion.sheetExitDurationMs,
-        easing: safeRouteEasing.exit,
-        isInteraction: false,
-        toValue: viewportHeightRef.current,
-        useNativeDriver: true,
-      }),
-      Animated.timing(sheetOpacity, {
-        duration: safeRouteMotion.sheetExitDurationMs,
-        easing: safeRouteEasing.exit,
-        isInteraction: false,
-        toValue: 0,
-        useNativeDriver: true,
-      }),
-      Animated.timing(scrimOpacity, {
-        duration: safeRouteMotion.sheetExitDurationMs,
-        easing: safeRouteEasing.exit,
-        isInteraction: false,
-        toValue: 0,
-        useNativeDriver: true,
-      }),
-    ]).start(({ finished }) => {
-      if (animationRevisionRef.current !== animationRevision) {
-        return;
-      }
-      if (finished) {
-        onCloseRef.current();
-      } else {
-        closingRef.current = false;
-      }
-    });
-  };
-  const dragResponder = useRef(
-    PanResponder.create({
-      onMoveShouldSetPanResponder: (_, gesture) =>
-        shouldStartRiskDetailDismissGesture({
-          translationX: gesture.dx,
-          translationY: gesture.dy,
-        }),
-      onPanResponderMove: (_, gesture) => {
-        sheetTranslateY.setValue(Math.max(0, gesture.dy));
-      },
-      onPanResponderRelease: (_, gesture) => {
-        if (
-          shouldDismissRiskDetailGesture({
-            translationX: gesture.dx,
-            translationY: gesture.dy,
-            velocityY: gesture.vy,
-          })
-        ) {
-          dismissSheet();
-          return;
-        }
-        restoreSheet();
-      },
-      onPanResponderTerminate: restoreSheet,
-    }),
-  ).current;
-  const routeAnimationKey = route?.id || null;
-
-  useEffect(() => {
-    animationRevisionRef.current += 1;
-    sheetTranslateY.stopAnimation();
-    sheetOpacity.stopAnimation();
-    scrimOpacity.stopAnimation();
-    closingRef.current = false;
-
-    let entranceAnimation: Animated.CompositeAnimation | null = null;
-    if (!routeAnimationKey) {
-      sheetTranslateY.setValue(SHEET_ENTRANCE_OFFSET);
-      sheetOpacity.setValue(0);
-      scrimOpacity.setValue(0);
-    } else if (reduceMotionEnabled) {
-      sheetTranslateY.setValue(0);
-      sheetOpacity.setValue(1);
-      scrimOpacity.setValue(1);
-    } else {
-      sheetTranslateY.setValue(SHEET_ENTRANCE_OFFSET);
-      sheetOpacity.setValue(0);
-      scrimOpacity.setValue(0);
-      entranceAnimation = Animated.parallel([
-        Animated.timing(sheetTranslateY, {
-          duration: safeRouteMotion.sheetDurationMs,
-          easing: safeRouteEasing.settled,
-          isInteraction: false,
-          toValue: 0,
-          useNativeDriver: true,
-        }),
-        Animated.timing(sheetOpacity, {
-          duration: safeRouteMotion.sheetDurationMs,
-          easing: safeRouteEasing.settled,
-          isInteraction: false,
-          toValue: 1,
-          useNativeDriver: true,
-        }),
-        Animated.timing(scrimOpacity, {
-          duration: safeRouteMotion.scrimDurationMs,
-          easing: safeRouteEasing.settled,
-          isInteraction: false,
-          toValue: 1,
-          useNativeDriver: true,
-        }),
-      ]);
-      entranceAnimation.start();
-    }
-
-    return () => {
-      animationRevisionRef.current += 1;
-      entranceAnimation?.stop();
-      sheetTranslateY.stopAnimation();
-      sheetOpacity.stopAnimation();
-      scrimOpacity.stopAnimation();
-    };
-  }, [
-    reduceMotionEnabled,
-    routeAnimationKey,
-    scrimOpacity,
-    sheetOpacity,
-    sheetTranslateY,
-  ]);
+  const sheetRef = useRef<SafeRouteBottomSheetRef>(null);
+  const dismissSheet = useCallback(() => {
+    sheetRef.current?.close();
+  }, []);
 
   if (!route) {
     return null;
@@ -230,38 +67,34 @@ export function RouteDetailSheet({ onClose, route }: RouteDetailSheetProps) {
       visible
       onRequestClose={dismissSheet}
     >
-      <View style={styles.overlay}>
-        <AnimatedPressable
-          accessibilityLabel="Close route details"
-          accessibilityRole="button"
-          style={[styles.scrim, { opacity: scrimOpacity }]}
-          onPress={dismissSheet}
-        />
-        <AnimatedSafeAreaView
+      <GestureHandlerRootView style={styles.overlay}>
+        <SafeRouteBottomSheet
+          ref={sheetRef}
+          accessibilityLabel="Route details"
           accessibilityViewIsModal
-          edges={["bottom"]}
-          onAccessibilityEscape={dismissSheet}
-          style={[
-            styles.sheet,
-            {
-              opacity: sheetOpacity,
-              transform: [{ translateY: sheetTranslateY }],
-            },
-          ]}
-          testID="safe-route-detail-sheet"
+          animateOnMount
+          backdrop
+          dismissOnBackdropPress
+          enablePanDownToClose
+          index={0}
+          onClose={onClose}
+          snapPoints={ROUTE_DETAIL_SNAP_POINTS}
+          surfaceColor={colors.sheet}
         >
-          <View {...dragResponder.panHandlers} style={styles.handleTouch}>
-            <View
-              accessibilityElementsHidden
-              importantForAccessibility="no-hide-descendants"
-              style={styles.handle}
-            />
-          </View>
-          <ScrollView
-            bounces={false}
-            contentContainerStyle={styles.content}
-            showsVerticalScrollIndicator={false}
+          <SafeAreaView
+            accessibilityLabel="Route details"
+            accessibilityViewIsModal
+            edges={["bottom"]}
+            onAccessibilityEscape={dismissSheet}
+            style={styles.sheetContent}
+            testID="safe-route-detail-sheet"
           >
+            <BottomSheetScrollView
+              bounces={false}
+              contentContainerStyle={styles.content}
+              showsVerticalScrollIndicator={false}
+              style={styles.scrollView}
+            >
             <View style={styles.modalHeader}>
               <View style={styles.headerIconTile}>
                 <RouteIcon accessibilityElementsHidden color={colors.appleBlue} size={28} strokeWidth={1.9} />
@@ -334,24 +167,25 @@ export function RouteDetailSheet({ onClose, route }: RouteDetailSheetProps) {
                 <Text style={styles.assignmentValue}>Review the convoy manifest for current crew.</Text>
               </View>
             </View>
-          </ScrollView>
+            </BottomSheetScrollView>
 
-          <Pressable
-            accessibilityLabel="Done viewing route details"
-            accessibilityRole="button"
-            testID="safe-route-detail-done"
-            style={({ pressed }) => [
-              styles.doneButton,
-              pressed ? styles.doneButtonPressed : null,
-            ]}
-            onPress={dismissSheet}
-          >
-            <Text numberOfLines={1} style={styles.doneButtonText}>
-              Done
-            </Text>
-          </Pressable>
-        </AnimatedSafeAreaView>
-      </View>
+            <Pressable
+              accessibilityLabel="Done viewing route details"
+              accessibilityRole="button"
+              testID="safe-route-detail-done"
+              style={({ pressed }) => [
+                styles.doneButton,
+                pressed ? styles.doneButtonPressed : null,
+              ]}
+              onPress={dismissSheet}
+            >
+              <Text numberOfLines={1} style={styles.doneButtonText}>
+                Done
+              </Text>
+            </Pressable>
+          </SafeAreaView>
+        </SafeRouteBottomSheet>
+      </GestureHandlerRootView>
     </Modal>
   );
 }

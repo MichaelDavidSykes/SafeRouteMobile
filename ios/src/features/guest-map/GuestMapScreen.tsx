@@ -31,10 +31,7 @@ import {
 import {
   ActivityIndicator,
   Alert,
-  Animated,
   Keyboard,
-  KeyboardAvoidingView,
-  PanResponder,
   Platform,
   Pressable,
   ScrollView,
@@ -44,6 +41,12 @@ import {
   useWindowDimensions,
   View
 } from 'react-native';
+import {
+  BottomSheetScrollView,
+  BottomSheetTextInput,
+  type BottomSheetHandleProps,
+  type BottomSheetScrollViewMethods,
+} from '@gorhom/bottom-sheet';
 import MapView, {
   Marker,
   Polyline,
@@ -57,12 +60,14 @@ import { LUNARCHAIN_API_BASE, SAFEROUTE_PREVIEW_MODE_ENABLED } from '../../confi
 import {
   configureNextSafeRouteLayoutAnimation,
   MotionEntrance,
-  safeRouteEasing,
   safeRouteMotion,
-  useKeyboardTranslateY,
   useReduceMotionEnabled,
 } from '../../motion/SafeRouteMotion';
 import { colors, spacing } from '../../theme';
+import {
+  SafeRouteBottomSheet,
+  type SafeRouteBottomSheetRef,
+} from '../../components/SafeRouteBottomSheet';
 import { uiTestIds } from '../../testing/uiTestIds';
 import type {
   RouteCheckpoint,
@@ -193,11 +198,8 @@ import { routePreferencesStore } from './routePreferencesStore';
 
 const GUEST_LOCATION_SEARCH_DEBOUNCE_MS = 320;
 const GUEST_LOCATION_SEARCH_MIN_LENGTH = 2;
-const GUEST_SEARCH_STAGE_TRANSITION_MS = safeRouteMotion.scrimDurationMs;
 const GUEST_WAYPOINT_ACTION_HIT_SLOP = 6;
 const GUEST_MAP_MAX_RENDERED_RISK_ZONES = 80;
-const GUEST_ROUTE_SHEET_DRAG_DISTANCE = 120;
-const GUEST_ROUTE_SHEET_MIN_SETTLE_DURATION_MS = 110;
 const GUEST_MAP_MAX_ROUTE_COORDINATES = 1200;
 const GUEST_MAP_MAX_ROUTE_FIT_COORDINATES = 420;
 const GUEST_PROVISIONAL_ROUTE_MESSAGE =
@@ -250,6 +252,24 @@ interface GuestMapScreenProps {
   workspaceSelectionPending?: boolean;
   workspaceSwitchFailure?: boolean;
   workspaceSwitchDisabled?: boolean;
+}
+
+function RouteSheetHandle({
+  hidden,
+}: BottomSheetHandleProps & { hidden: boolean }) {
+  return (
+    <View
+      accessibilityElementsHidden={hidden}
+      accessibilityHint="Swipes down to close route planning."
+      accessibilityLabel="Swipe down to minimize route planning"
+      accessibilityRole="adjustable"
+      importantForAccessibility={hidden ? 'no-hide-descendants' : 'auto'}
+      style={styles.sheetGrabberTouch}
+      testID={uiTestIds.guestMapSheetGrabber}
+    >
+      <View style={styles.sheetGrabber} />
+    </View>
+  );
 }
 
 export function GuestMapScreen({
@@ -323,17 +343,15 @@ export function GuestMapScreen({
     workspaceAuthorizationFreshRef.current = workspaceAuthorizationFresh;
     workspaceAuthorizationEpochRef.current += 1;
   }
-  const sheetProgress = useRef(new Animated.Value(1)).current;
-  const sheetAnimationRevisionRef = useRef(0);
-  const sheetAnimationRunningRef = useRef(false);
-  const sheetGestureProgressRef = useRef(1);
-  const sheetGestureStartProgressRef = useRef(1);
-  const sheetGestureActionRef = useRef<(collapsed: boolean) => void>(() => undefined);
+  const routeSheetRef = useRef<SafeRouteBottomSheetRef | null>(null);
+  const routeSheetScrollRef = useRef<BottomSheetScrollViewMethods | null>(null);
+  const pendingRouteSheetCompletionRef = useRef<{
+    collapsed: boolean;
+    callback?: () => void;
+  } | null>(null);
   const routeInputRefs = useRef(new Map<string, TextInput>());
   const pendingInputFocusFrameRef = useRef<number | null>(null);
-  const pendingInputFocusRecoveryRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const pendingSearchStageFrameRef = useRef<number | null>(null);
-  const searchStageProgress = useRef(new Animated.Value(1)).current;
+  const locationSearchOwnerRef = useRef<string | null>(null);
   const [routeDraft, dispatchRouteDraft] = useReducer(
     guestRouteDraftReducer,
     undefined,
@@ -341,12 +359,19 @@ export function GuestMapScreen({
   );
   const [activeInput, setActiveInput] = useState<string | null>(null);
   const [locationSearchResults, setLocationSearchResults] = useState<GuestLocationSearchResult[]>([]);
+  const [locationSearchResultsQuery, setLocationSearchResultsQuery] = useState('');
   const [locationSearchPending, setLocationSearchPending] = useState(false);
   const [locationSearchMessage, setLocationSearchMessage] = useState('');
   const [persistentPlaces, setPersistentPlaces] = useState<PersistentPlacesRecord | null>(null);
   const [sheetCollapsed, setSheetCollapsed] = useState(true);
+  const renderRouteSheetHandle = useCallback(
+    (props: BottomSheetHandleProps) => (
+      <RouteSheetHandle {...props} hidden={sheetCollapsed} />
+    ),
+    [sheetCollapsed],
+  );
   const animateNextMapLayout = (
-    duration: number = GUEST_SEARCH_STAGE_TRANSITION_MS,
+    duration: number = safeRouteMotion.scrimDurationMs,
     options?: {
       animateCreate?: boolean;
       animateDelete?: boolean;
@@ -356,38 +381,7 @@ export function GuestMapScreen({
       configureNextSafeRouteLayoutAnimation(duration, options);
     }
   };
-  const cancelPendingSearchStageAnimation = () => {
-    if (pendingSearchStageFrameRef.current !== null) {
-      cancelAnimationFrame(pendingSearchStageFrameRef.current);
-      pendingSearchStageFrameRef.current = null;
-    }
-    searchStageProgress.stopAnimation();
-  };
-  const animateSearchStageContent = () => {
-    cancelPendingSearchStageAnimation();
-    if (reduceMotionEnabled) {
-      searchStageProgress.setValue(1);
-      return;
-    }
-    searchStageProgress.setValue(0);
-    pendingSearchStageFrameRef.current = requestAnimationFrame(() => {
-      pendingSearchStageFrameRef.current = null;
-      Animated.timing(searchStageProgress, {
-        duration: GUEST_SEARCH_STAGE_TRANSITION_MS,
-        easing: safeRouteEasing.settled,
-        isInteraction: false,
-        toValue: 1,
-        useNativeDriver: true,
-      }).start();
-    });
-  };
-  const transitionActiveInput = (
-    nextInput: string | null,
-    { animate = !sheetCollapsed }: { animate?: boolean } = {},
-  ) => {
-    if (animate && Boolean(activeInput) !== Boolean(nextInput)) {
-      animateSearchStageContent();
-    }
+  const transitionActiveInput = (nextInput: string | null) => {
     setActiveInput(nextInput);
   };
   const handleWorkspaceAccessFocusTarget = useCallback(
@@ -519,15 +513,21 @@ export function GuestMapScreen({
   const routeSheetBottomPadding = resolveGuestRouteSheetBottomPadding(
     safeAreaInsets.bottom,
   );
-  const routeSheetTravelDistance =
-    routeSheetMaxHeight + routeSheetBottomPadding + spacing.lg;
-  const keyboardTranslateY = useKeyboardTranslateY({
-    reduceMotionEnabled,
-    viewportHeight: viewport.height,
-  });
+  const routeSheetSnapPoints = useMemo(
+    () => [routeSheetMaxHeight],
+    [routeSheetMaxHeight],
+  );
   const activeDraftStop = activeInput
     ? findGuestRouteDraftStop(routeDraft, activeInput)
     : null;
+  const activeLocationSearchQuery = activeDraftStop?.label.trim() ?? '';
+  const locationSearchResultsDisabled = Boolean(
+    locationSearchResults.length &&
+    (
+      locationSearchPending ||
+      locationSearchResultsQuery !== activeLocationSearchQuery
+    )
+  );
   const locationSearchShortcuts = useMemo(
     () => createLocationSearchShortcuts(
       persistentPlaces,
@@ -739,10 +739,14 @@ export function GuestMapScreen({
       cancelAnimationFrame(pendingInputFocusFrameRef.current);
       pendingInputFocusFrameRef.current = null;
     }
-    if (pendingInputFocusRecoveryRef.current !== null) {
-      clearTimeout(pendingInputFocusRecoveryRef.current);
-      pendingInputFocusRecoveryRef.current = null;
+  };
+  const finishRouteSheetTransition = (collapsed: boolean) => {
+    const pending = pendingRouteSheetCompletionRef.current;
+    if (!pending || pending.collapsed !== collapsed) {
+      return;
     }
+    pendingRouteSheetCompletionRef.current = null;
+    pending.callback?.();
   };
   const animateRouteSheet = (
     collapsed: boolean,
@@ -750,101 +754,50 @@ export function GuestMapScreen({
     onAnimationStarted?: () => void,
   ) => {
     cancelPendingRouteInputFocus();
-    const animationRevision = sheetAnimationRevisionRef.current + 1;
-    sheetAnimationRevisionRef.current = animationRevision;
-    const targetProgress = collapsed ? 1 : 0;
-    setSheetCollapsed(collapsed);
+    pendingRouteSheetCompletionRef.current = onComplete
+      ? { callback: onComplete, collapsed }
+      : null;
     if (collapsed) {
       Keyboard.dismiss();
-      transitionActiveInput(null, { animate: false });
+      routeSheetRef.current?.close();
+    } else {
+      // Remove the compact card before the sheet enters so the two surfaces
+      // never overlap or cross-fade through one another.
+      setSheetCollapsed(false);
+      routeSheetScrollRef.current?.scrollTo({ animated: false, y: 0 });
+      routeSheetRef.current?.snapToIndex(0);
     }
-    if (reduceMotionEnabled) {
-      sheetProgress.stopAnimation();
-      sheetAnimationRunningRef.current = false;
-      sheetGestureProgressRef.current = targetProgress;
-      sheetProgress.setValue(targetProgress);
-      onAnimationStarted?.();
-      onComplete?.();
+    onAnimationStarted?.();
+  };
+  const handleRouteSheetChange = (index: number) => {
+    if (index < 0) {
       return;
     }
-    const startAnimation = (currentProgress: number) => {
-      if (sheetAnimationRevisionRef.current !== animationRevision) {
-        return;
-      }
-      const boundedProgress = Math.max(0, Math.min(1, currentProgress));
-      sheetGestureProgressRef.current = boundedProgress;
-      const remainingDistance = Math.abs(targetProgress - boundedProgress);
-      if (remainingDistance < 0.001) {
-        sheetGestureProgressRef.current = targetProgress;
-        sheetProgress.setValue(targetProgress);
-        onAnimationStarted?.();
-        onComplete?.();
-        return;
-      }
-      const fullDuration = collapsed
-        ? safeRouteMotion.sheetExitDurationMs
-        : safeRouteMotion.sheetDurationMs;
-      sheetAnimationRunningRef.current = true;
-      Animated.timing(sheetProgress, {
-        duration: Math.max(
-          GUEST_ROUTE_SHEET_MIN_SETTLE_DURATION_MS,
-          Math.round(fullDuration * remainingDistance),
-        ),
-        easing: collapsed
-          ? safeRouteEasing.exit
-          : safeRouteEasing.settled,
-        isInteraction: false,
-        toValue: targetProgress,
-        useNativeDriver: true
-      }).start(({ finished }) => {
-        if (sheetAnimationRevisionRef.current !== animationRevision) {
-          return;
-        }
-        sheetAnimationRunningRef.current = false;
-        if (finished) {
-          sheetGestureProgressRef.current = targetProgress;
-          onComplete?.();
-        }
-      });
-      onAnimationStarted?.();
-    };
-    if (sheetAnimationRunningRef.current) {
-      sheetProgress.stopAnimation((currentProgress) => {
-        sheetAnimationRunningRef.current = false;
-        startAnimation(currentProgress);
-      });
-      return;
+    setSheetCollapsed(false);
+    finishRouteSheetTransition(false);
+  };
+  const handleRouteSheetAnimate = (_fromIndex: number, toIndex: number) => {
+    if (toIndex === -1) {
+      Keyboard.dismiss();
     }
-    startAnimation(sheetGestureProgressRef.current);
+  };
+  const handleRouteSheetClose = () => {
+    cancelPendingRouteInputFocus();
+    Keyboard.dismiss();
+    transitionActiveInput(null);
+    setSheetCollapsed(true);
+    finishRouteSheetTransition(true);
   };
   const scheduleRouteStopInputFocus = (stopId: string) => {
     cancelPendingRouteInputFocus();
-    const focusInput = () => {
-      const input = routeInputRefs.current.get(stopId);
-      if (input && !input.isFocused()) {
-        input.focus();
-      }
-    };
     pendingInputFocusFrameRef.current = requestAnimationFrame(() => {
       pendingInputFocusFrameRef.current = null;
-      focusInput();
-      pendingInputFocusRecoveryRef.current = setTimeout(() => {
-        pendingInputFocusRecoveryRef.current = null;
-        if (Keyboard.isVisible()) {
-          return;
-        }
-        const input = routeInputRefs.current.get(stopId);
-        input?.blur();
-        pendingInputFocusFrameRef.current = requestAnimationFrame(() => {
-          pendingInputFocusFrameRef.current = null;
-          input?.focus();
-        });
-      }, 520);
+      routeInputRefs.current.get(stopId)?.focus();
     });
   };
   const handleCollapsedLocationSearch = () => {
     const nextStopId = resolveGuestRouteDraftNextStopInputId(routeDraft);
-    transitionActiveInput(nextStopId, { animate: false });
+    transitionActiveInput(nextStopId);
     animateRouteSheet(
       false,
       undefined,
@@ -856,48 +809,6 @@ export function GuestMapScreen({
     transitionActiveInput(null);
     animateRouteSheet(false);
   };
-  sheetGestureActionRef.current = animateRouteSheet;
-  const sheetPanResponder = useMemo(
-    () => PanResponder.create({
-      onMoveShouldSetPanResponder: (_, gesture) =>
-        Math.abs(gesture.dy) > 5
-        && Math.abs(gesture.dy) > Math.abs(gesture.dx),
-      onPanResponderGrant: () => {
-        sheetAnimationRevisionRef.current += 1;
-        sheetAnimationRunningRef.current = false;
-        sheetProgress.stopAnimation((currentProgress) => {
-          const boundedProgress = Math.max(0, Math.min(1, currentProgress));
-          sheetGestureProgressRef.current = boundedProgress;
-          sheetGestureStartProgressRef.current = boundedProgress;
-        });
-      },
-      onPanResponderMove: (_, gesture) => {
-        const nextProgress = Math.max(
-          0,
-          Math.min(
-            1,
-            sheetGestureStartProgressRef.current
-              + gesture.dy / Math.max(
-                GUEST_ROUTE_SHEET_DRAG_DISTANCE,
-                routeSheetTravelDistance,
-              ),
-          ),
-        );
-        sheetGestureProgressRef.current = nextProgress;
-        sheetProgress.setValue(nextProgress);
-      },
-      onPanResponderRelease: (_, gesture) => {
-        const projectedProgress =
-          sheetGestureProgressRef.current + gesture.vy * 0.16;
-        sheetGestureActionRef.current(projectedProgress >= 0.42);
-      },
-      onPanResponderTerminate: () => {
-        sheetGestureActionRef.current(false);
-      },
-      onPanResponderTerminationRequest: () => false,
-    }),
-    [routeSheetTravelDistance, sheetProgress]
-  );
 
   useEffect(() => {
     if (
@@ -909,7 +820,10 @@ export function GuestMapScreen({
     ) {
       Keyboard.dismiss();
       transitionActiveInput(null);
-      sheetGestureActionRef.current(false);
+      cancelPendingRouteInputFocus();
+      routeSheetScrollRef.current?.scrollTo({ animated: false, y: 0 });
+      routeSheetRef.current?.snapToIndex(0);
+      setSheetCollapsed(false);
       setWorkspaceMenuOpen(true);
     }
   }, [
@@ -935,7 +849,6 @@ export function GuestMapScreen({
 
   useEffect(() => () => {
     cancelPendingRouteInputFocus();
-    cancelPendingSearchStageAnimation();
     activeRiskAreaRequestRef.current?.abort();
     activeRiskAreaRequestRef.current = null;
     riskAreaRequestIdRef.current += 1;
@@ -976,28 +889,41 @@ export function GuestMapScreen({
 
   useEffect(() => {
     activeLocationSearchRef.current?.abort();
-    setLocationSearchResults([]);
+    activeLocationSearchRef.current = null;
+    setLocationSearchPending(false);
     setLocationSearchMessage('');
-
-    if (!activeInput) {
-      setLocationSearchPending(false);
-      return;
-    }
 
     const activeStop = activeDraftStop;
     const query = activeStop?.label ?? '';
+    const normalizedQuery = query.trim();
+    const inputChanged = locationSearchOwnerRef.current !== activeInput;
+    locationSearchOwnerRef.current = activeInput;
+    if (
+      inputChanged ||
+      !activeInput ||
+      normalizedQuery.length < GUEST_LOCATION_SEARCH_MIN_LENGTH ||
+      activeStop?.resolution.type !== 'unresolved'
+    ) {
+      setLocationSearchResults([]);
+      setLocationSearchResultsQuery('');
+    }
+
+    if (!activeInput) {
+      return;
+    }
+
     if (
       !activeStop ||
-      query.trim().length < GUEST_LOCATION_SEARCH_MIN_LENGTH ||
+      normalizedQuery.length < GUEST_LOCATION_SEARCH_MIN_LENGTH ||
       activeStop.resolution.type !== 'unresolved' ||
       (activeInput === GUEST_ROUTE_DRAFT_ORIGIN_ID && isCurrentLocationLabel(query))
     ) {
-      setLocationSearchPending(false);
       return;
     }
 
     if (!online) {
-      setLocationSearchPending(false);
+      setLocationSearchResults([]);
+      setLocationSearchResultsQuery('');
       setLocationSearchMessage(
         networkChecking
           ? 'Checking connection before searching.'
@@ -1006,6 +932,7 @@ export function GuestMapScreen({
       return;
     }
 
+    setLocationSearchPending(true);
     const controller = new AbortController();
     activeLocationSearchRef.current = controller;
     const requestNetworkEpoch = networkRequestEpochRef.current;
@@ -1018,8 +945,7 @@ export function GuestMapScreen({
       if (!requestIsCurrent()) {
         return;
       }
-      setLocationSearchPending(true);
-      void searchGuestLocations(query, {
+      void searchGuestLocations(normalizedQuery, {
         bias: locationSearchBiasRef.current,
         serviceBaseUrl: LUNARCHAIN_API_BASE,
         signal: controller.signal
@@ -1028,9 +954,12 @@ export function GuestMapScreen({
           return;
         }
         setLocationSearchResults(results);
+        setLocationSearchResultsQuery(normalizedQuery);
         setLocationSearchMessage(results.length ? '' : 'No matching places found.');
       }).catch(() => {
         if (requestIsCurrent()) {
+          setLocationSearchResults([]);
+          setLocationSearchResultsQuery('');
           setLocationSearchMessage('Places could not be searched. Check your connection and try again.');
         }
       }).finally(() => {
@@ -1776,6 +1705,7 @@ export function GuestMapScreen({
     setRouteAlternatives([]);
     setRouteMessage('');
     setLocationSearchResults([]);
+    setLocationSearchResultsQuery('');
     setLocationSearchMessage('');
     transitionActiveInput(null);
     Keyboard.dismiss();
@@ -1936,7 +1866,9 @@ export function GuestMapScreen({
     setSelectedRiskZone(zone);
     // Risk details are a map-level interaction, so present them above the
     // compact route summary rather than hiding them behind the expanded sheet.
-    sheetGestureActionRef.current(true);
+    cancelPendingRouteInputFocus();
+    Keyboard.dismiss();
+    routeSheetRef.current?.close();
   }, []);
 
   const handleMapPress = (event: MapPressEvent) => {
@@ -2312,39 +2244,13 @@ export function GuestMapScreen({
         </LiveMapDetailCallout>
       ) : null}
 
-      <KeyboardAvoidingView
-        behavior="height"
-        enabled={Platform.OS !== 'ios'}
-        keyboardVerticalOffset={0}
-        pointerEvents="box-none"
-        style={styles.overlay}
-      >
       <SafeAreaView
         edges={['top', 'right', 'left']}
         pointerEvents="box-none"
         style={styles.overlay}
       >
-        {!selectedRiskZone && !mapAction ? (
-        <Animated.View
-          accessibilityElementsHidden={!sheetCollapsed}
-          importantForAccessibility={sheetCollapsed ? 'auto' : 'no-hide-descendants'}
-          pointerEvents={sheetCollapsed ? 'box-none' : 'none'}
-          style={[
-            styles.currentLocationControlDock,
-            {
-              opacity: sheetProgress.interpolate({
-                inputRange: [0, 0.64, 1],
-                outputRange: [0, 0, 1],
-              }),
-              transform: [{
-                translateY: sheetProgress.interpolate({
-                  inputRange: [0, 1],
-                  outputRange: [10, 0],
-                }),
-              }],
-            },
-          ]}
-        >
+        {!selectedRiskZone && !mapAction && sheetCollapsed ? (
+        <View style={styles.currentLocationControlDock}>
           <Pressable
             accessibilityHint={`Switches to the ${mapLayer === 'dark' ? 'satellite' : 'dark'} map.`}
             accessibilityLabel={mapLayer === 'dark' ? 'Show satellite map' : 'Show dark map'}
@@ -2401,7 +2307,7 @@ export function GuestMapScreen({
           >
             <Crosshair accessibilityElementsHidden color={colors.appleBlue} size={21} strokeWidth={1.9} />
           </Pressable>
-        </Animated.View>
+        </View>
         ) : null}
 
         <MotionEntrance
@@ -2560,81 +2466,45 @@ export function GuestMapScreen({
           </Pressable>
         </MotionEntrance>
 
-        <Animated.View
-          accessibilityElementsHidden={sheetCollapsed}
-          importantForAccessibility={sheetCollapsed ? 'no-hide-descendants' : 'auto'}
-          pointerEvents={sheetCollapsed ? 'none' : 'auto'}
-          style={[
-            styles.sheetScrim,
-            {
-              opacity: sheetProgress.interpolate({
-                inputRange: [0, 1],
-                outputRange: [1, 0],
-              }),
-            },
-          ]}
+        <SafeRouteBottomSheet
+          ref={routeSheetRef}
+          animateOnMount={false}
+          backdrop
+          dismissOnBackdropPress
+          enablePanDownToClose
+          handleComponent={renderRouteSheetHandle}
+          index={-1}
+          snapPoints={routeSheetSnapPoints}
+          style={styles.sheetDock}
+          surfaceColor={colors.sheet}
+          onAnimate={handleRouteSheetAnimate}
+          onChange={handleRouteSheetChange}
+          onClose={handleRouteSheetClose}
         >
-          <Pressable
-            accessibilityLabel="Close directions"
-            accessibilityRole="button"
-            style={styles.sheetScrimButton}
-            onPress={() => animateRouteSheet(true)}
-          />
-        </Animated.View>
-        <Animated.View
-          pointerEvents="box-none"
-          style={[
-            styles.sheetDock,
-            Platform.OS === 'ios'
-              ? { transform: [{ translateY: keyboardTranslateY }] }
-              : null,
-          ]}
-        >
-          <Animated.View
+          <View
             accessibilityElementsHidden={sheetCollapsed}
             importantForAccessibility={sheetCollapsed ? 'no-hide-descendants' : 'auto'}
             pointerEvents={sheetCollapsed ? 'none' : 'auto'}
-            style={[
-              styles.sheet,
-              {
-                height: routeSheetMaxHeight,
-                paddingBottom: routeSheetBottomPadding,
-              },
-              {
-                opacity: sheetProgress.interpolate({
-                  inputRange: [0, 0.86, 1],
-                  outputRange: [1, 1, 0]
-                }),
-                transform: [{
-                  translateY: sheetProgress.interpolate({
-                    inputRange: [0, 1],
-                    outputRange: [0, routeSheetTravelDistance]
-                  })
-                }]
-              }
-            ]}
+            style={styles.sheetContentFrame}
           >
-            <View pointerEvents="none" style={styles.sheetKeyboardCornerFill} />
-            <View
-              accessibilityLabel="Swipe down to minimize route planning"
-              accessibilityRole="adjustable"
-              style={styles.sheetGrabberTouch}
-              testID={uiTestIds.guestMapSheetGrabber}
-              {...sheetPanResponder.panHandlers}
-            >
-              <View style={styles.sheetGrabber} />
-            </View>
-            <ScrollView
+            <BottomSheetScrollView
+              ref={routeSheetScrollRef}
               bounces={false}
-              contentContainerStyle={
+              contentContainerStyle={[
+                { paddingHorizontal: spacing.lg },
                 searchStageActive
                   ? styles.sheetScrollContentSearching
-                  : undefined
-              }
+                  : undefined,
+                {
+                  paddingBottom: showRouteFooter
+                    ? spacing.md
+                    : routeSheetBottomPadding,
+                },
+              ]}
               keyboardDismissMode="interactive"
               keyboardShouldPersistTaps="handled"
               showsVerticalScrollIndicator={false}
-              style={[styles.sheetScroll, { maxHeight: routeSheetMaxHeight }]}
+              style={styles.sheetScroll}
             >
               <View style={styles.sheetHeaderRow}>
                 <View style={styles.sheetTitleBlock}>
@@ -2707,17 +2577,6 @@ export function GuestMapScreen({
                 </>
               ) : null}
 
-              <Animated.View
-                style={{
-                  opacity: searchStageProgress,
-                  transform: [{
-                    translateY: searchStageProgress.interpolate({
-                      inputRange: [0, 1],
-                      outputRange: [12, 0],
-                    }),
-                  }],
-                }}
-              >
               <View style={styles.inputStack}>
                 <RouteInput
                   divided
@@ -2788,6 +2647,7 @@ export function GuestMapScreen({
                   message={locationSearchMessage}
                   pending={locationSearchPending}
                   results={locationSearchResults}
+                  resultsDisabled={locationSearchResultsDisabled}
                   shortcuts={locationSearchShortcuts}
                   onManage={handleManageLocation}
                   onSelect={handleSelectLocation}
@@ -2811,11 +2671,18 @@ export function GuestMapScreen({
                   <Text style={styles.addStopButtonText}>Add stop</Text>
                 </Pressable>
               ) : null}
-              </Animated.View>
-            </ScrollView>
+            </BottomSheetScrollView>
 
             {showRouteFooter ? (
-            <View style={styles.sheetFooter}>
+            <View
+              style={[
+                styles.sheetFooter,
+                {
+                  paddingBottom: routeSheetBottomPadding,
+                  paddingHorizontal: spacing.lg,
+                },
+              ]}
+            >
               {!searchStageActive && routePlan && routeAlternatives.length > 1 ? (
                 <RouteAlternativeSelector
                   routes={routeAlternatives}
@@ -2918,40 +2785,16 @@ export function GuestMapScreen({
               </Pressable>
             </View>
             ) : null}
-          </Animated.View>
-        </Animated.View>
+          </View>
+        </SafeRouteBottomSheet>
 
-        {!selectedRiskZone && !mapAction ? (
+        {!selectedRiskZone && !mapAction && sheetCollapsed ? (
           <MotionEntrance
-            accessibilityElementsHidden={!sheetCollapsed}
             duration={360}
-            importantForAccessibility={sheetCollapsed ? 'auto' : 'no-hide-descendants'}
-            pointerEvents={sheetCollapsed ? 'auto' : 'none'}
             style={styles.collapsedSheetDock}
             variant="sheet"
           >
-            <Animated.View
-              style={[
-                styles.collapsedSheet,
-                {
-                  opacity: sheetProgress.interpolate({
-                    inputRange: [0, 0.35, 1],
-                    outputRange: [0, 0, 1]
-                  }),
-                  transform: [{
-                    translateY: sheetProgress.interpolate({
-                      inputRange: [0, 1],
-                      outputRange: [18, 0]
-                    })
-                  }]
-                }
-              ]}
-            >
-            <MotionEntrance
-              duration={safeRouteMotion.disclosureDurationMs}
-              replayKey={collapsedRouteCardState}
-              variant="sheet"
-            >
+            <View style={styles.collapsedSheet}>
             {collapsedRouteCardState === 'finding' ? (
               <View
                 accessible
@@ -3080,12 +2923,10 @@ export function GuestMapScreen({
                 </View>
               </Pressable>
             )}
-            </MotionEntrance>
-            </Animated.View>
+            </View>
           </MotionEntrance>
         ) : null}
       </SafeAreaView>
-      </KeyboardAvoidingView>
     </View>
   );
 }
@@ -3552,16 +3393,7 @@ function RouteInput({
 }) {
   const nativeInputRef = useRef<TextInput | null>(null);
   const focusNativeInput = () => {
-    const input = nativeInputRef.current;
-    if (!input) {
-      return;
-    }
-    if (input.isFocused() && !Keyboard.isVisible()) {
-      input.blur();
-      requestAnimationFrame(() => input.focus());
-      return;
-    }
-    input.focus();
+    nativeInputRef.current?.focus();
   };
 
   return (
@@ -3587,10 +3419,10 @@ function RouteInput({
       </View>
       <View style={styles.routeInputCopy}>
         <Text accessibilityElementsHidden style={styles.routeInputOverline}>{overline}</Text>
-        <TextInput
+        <BottomSheetTextInput
           ref={(input) => {
-            nativeInputRef.current = input;
-            inputRef?.(input);
+            nativeInputRef.current = input ?? null;
+            inputRef?.(input ?? null);
           }}
           accessibilityHint={accessibilityHint}
           accessibilityLabel={label}
@@ -3647,8 +3479,8 @@ function WaypointInput({
       <View accessibilityElementsHidden style={styles.waypointMarker}>
         <Text style={styles.waypointMarkerLabel}>{index + 1}</Text>
       </View>
-      <TextInput
-        ref={inputRef}
+      <BottomSheetTextInput
+        ref={(input) => inputRef?.(input ?? null)}
         accessibilityHint="Enter a place, address, or coordinate for this stop."
         accessibilityLabel={`Stop ${index + 1}`}
         autoCapitalize="words"
@@ -3719,6 +3551,7 @@ function LocationSearchResults({
   onSelect,
   pending,
   results,
+  resultsDisabled,
   shortcuts,
 }: {
   message: string;
@@ -3726,6 +3559,7 @@ function LocationSearchResults({
   onSelect: (result: GuestLocationSearchResult) => void;
   pending: boolean;
   results: GuestLocationSearchResult[];
+  resultsDisabled: boolean;
   shortcuts: LocationSearchShortcut[];
 }) {
   if (!pending && !message && !results.length && !shortcuts.length) {
@@ -3733,11 +3567,9 @@ function LocationSearchResults({
   }
 
   return (
-    <MotionEntrance
-      duration={GUEST_SEARCH_STAGE_TRANSITION_MS}
+    <View
       style={styles.searchResults}
       testID={uiTestIds.guestMapSearchResults}
-      variant="scrim"
     >
       {shortcuts.length ? (
         <>
@@ -3764,32 +3596,35 @@ function LocationSearchResults({
           <Text style={styles.searchStateText}>Searching nearby…</Text>
         </View>
       ) : null}
-      {!pending && results.length ? (
+      {results.length ? (
         <Text style={styles.searchSectionLabel}>Search results</Text>
       ) : null}
-      {!pending ? results.map((result) => (
+      {results.map((result) => (
         <LocationSearchResultRow
+          disabled={resultsDisabled}
           key={result.id}
           result={result}
           onManage={onManage}
           onSelect={onSelect}
         />
-      )) : null}
+      ))}
       {!pending && message ? (
         <Text accessible accessibilityLiveRegion="polite" style={styles.searchStateText}>
           {message}
         </Text>
       ) : null}
-    </MotionEntrance>
+    </View>
   );
 }
 
 function LocationSearchResultRow({
+  disabled = false,
   icon,
   onManage,
   onSelect,
   result,
 }: {
+  disabled?: boolean;
   icon?: LocationSearchShortcut['kind'];
   onManage: (result: GuestLocationSearchResult) => void;
   onSelect: (result: GuestLocationSearchResult) => void;
@@ -3803,7 +3638,12 @@ function LocationSearchResultRow({
         ? Clock3
         : Star;
   return (
-    <View style={styles.searchResultRow}>
+    <View
+      style={[
+        styles.searchResultRow,
+        disabled ? styles.searchResultRowDisabled : null,
+      ]}
+    >
         {icon ? (
           <ShortcutIcon
             accessibilityElementsHidden
@@ -3823,10 +3663,12 @@ function LocationSearchResultRow({
           accessibilityHint="Selects this place for the active route field."
           accessibilityLabel={result.displayName}
           accessibilityRole="button"
+          accessibilityState={{ disabled }}
+          disabled={disabled}
           testID={uiTestIds.guestMapSearchResult(result.id)}
           style={({ pressed }) => [
             styles.searchResultSelection,
-            pressed ? styles.searchResultRowPressed : null,
+            pressed && !disabled ? styles.searchResultRowPressed : null,
           ]}
           onPress={() => onSelect(result)}
         >
@@ -3837,11 +3679,13 @@ function LocationSearchResultRow({
           accessibilityHint="Opens Home, Work, and favourite options."
           accessibilityLabel={`Manage ${result.label}`}
           accessibilityRole="button"
+          accessibilityState={{ disabled }}
+          disabled={disabled}
           hitSlop={6}
           testID={uiTestIds.guestMapManagePlace(result.id)}
           style={({ pressed }) => [
             styles.searchResultManage,
-            pressed ? styles.searchResultManagePressed : null,
+            pressed && !disabled ? styles.searchResultManagePressed : null,
           ]}
           onPress={() => onManage(result)}
         >

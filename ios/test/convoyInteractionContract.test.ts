@@ -87,10 +87,11 @@ describe("convoy interaction contract", () => {
 
   it("makes Operations detail handles smoothly dismissible", () => {
     assert.match(screen, /function OperationsDetailSheet/);
-    assert.match(screen, /PanResponder\.create/);
-    assert.match(screen, /shouldStartRiskDetailDismissGesture/);
-    assert.match(screen, /shouldDismissRiskDetailGesture/);
-    assert.match(screen, /\.\.\.dragResponder\.panHandlers/);
-    assert.match(screen, /Animated\.timing\(sheetTranslateY/);
+    assert.match(screen, /<SafeRouteBottomSheet/);
+    assert.match(screen, /<BottomSheetScrollView/);
+    assert.match(screen, /enablePanDownToClose/);
+    assert.match(screen, /dismissOnBackdropPress/);
+    assert.match(screen, /onClose=\{handleSheetClosed\}/);
+    assert.doesNotMatch(screen, /PanResponder/);
   });
 });

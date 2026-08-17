@@ -9,6 +9,7 @@ import {
   UsersRound,
   X,
 } from "lucide-react-native";
+import { BottomSheetScrollView } from "@gorhom/bottom-sheet";
 import {
   AccessibilityInfo,
   ActivityIndicator,
@@ -17,12 +18,10 @@ import {
   FlatList,
   findNodeHandle,
   LayoutAnimation,
-  PanResponder,
   Pressable,
   RefreshControl,
   ScrollView,
   Text,
-  useWindowDimensions,
   View
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
@@ -66,17 +65,15 @@ import type { WorkspaceAccessIssue } from "../workspaces/workspaceAccessRefreshS
 import { isWorkspaceForbiddenError } from "../workspaces/workspaceAccessRecovery";
 import { loadOperationsWorkspaceData } from "./operationsWorkspaceLoadCore";
 import {
-  shouldDismissRiskDetailGesture,
-  shouldStartRiskDetailDismissGesture,
-} from "../live-map/riskDetailInteraction";
-import {
   MotionEntrance,
-  safeRouteEasing,
   safeRouteMotion,
-  safeRouteSpring,
   useMotionValue,
   useReduceMotionEnabled,
 } from "../../motion/SafeRouteMotion";
+import {
+  SafeRouteBottomSheet,
+  type SafeRouteBottomSheetRef,
+} from "../../components/SafeRouteBottomSheet";
 import {
   createCalendarRows,
   createConvoyRows,
@@ -108,8 +105,7 @@ import {
 const OPERATIONS_ERROR_ACTION_HIT_SLOP = 6;
 const CONVOY_CHEVRON_DURATION_MS = 250;
 const CONVOY_EXPANSION_DURATION_MS = safeRouteMotion.disclosureDurationMs;
-const DETAIL_SHEET_ENTRANCE_OFFSET = 24;
-const AnimatedPressable = Animated.createAnimatedComponent(Pressable);
+const OPERATIONS_DETAIL_SHEET_SNAP_POINTS: Array<string | number> = ["88%"];
 const OFFLINE_CALENDAR_REMOVAL_RETRY_SCOPES = new Set<string>();
 const COMPACT_OFFLINE_SAVING_STATES = new Set<OperationsOfflineCalendarSavingState>([
   "allowed",
@@ -2758,6 +2754,19 @@ function OperationsVehicleDetail({
       testID={uiTestIds.operationsVehicleDetail}
       title={vehicle.callsign}
       onClose={onBack}
+      renderFooter={(dismiss) => (
+        <Pressable
+          accessibilityLabel="Done viewing vehicle details"
+          accessibilityRole="button"
+          style={({ pressed }) => [
+            styles.vehicleDoneButton,
+            pressed ? styles.sheetMapActionPressed : null,
+          ]}
+          onPress={dismiss}
+        >
+          <Text style={styles.vehicleDoneButtonText}>Done</Text>
+        </Pressable>
+      )}
     >
       <View style={styles.vehicleSpecGrid}>
         <OperationsVehicleSpec label="Role" value={vehicle.roleLabel} />
@@ -2787,17 +2796,6 @@ function OperationsVehicleDetail({
         )}
       </View>
 
-      <Pressable
-        accessibilityLabel="Done viewing vehicle details"
-        accessibilityRole="button"
-        style={({ pressed }) => [
-          styles.vehicleDoneButton,
-          pressed ? styles.sheetMapActionPressed : null,
-        ]}
-        onPress={onBack}
-      >
-        <Text style={styles.vehicleDoneButtonText}>Done</Text>
-      </Pressable>
     </OperationsDetailSheet>
   );
 }
@@ -2829,6 +2827,7 @@ function OperationsDetailSheet({
   headingRef,
   icon,
   onClose,
+  renderFooter,
   statusLabel,
   subtitle,
   testID,
@@ -2841,216 +2840,90 @@ function OperationsDetailSheet({
   headingRef: (node: Text | null) => void;
   icon: ReactNode;
   onClose: () => void;
+  renderFooter?: (dismiss: () => void) => ReactNode;
   statusLabel: string;
   subtitle?: string;
   testID: string;
   title: string;
 }) {
-  const viewport = useWindowDimensions();
-  const reduceMotionEnabled = useReduceMotionEnabled();
-  const sheetTranslateY = useRef(
-    new Animated.Value(DETAIL_SHEET_ENTRANCE_OFFSET),
-  ).current;
-  const sheetOpacity = useRef(new Animated.Value(0)).current;
-  const scrimOpacity = useRef(new Animated.Value(0)).current;
-  const closingRef = useRef(false);
-  const onCloseRef = useRef(onClose);
-  const reduceMotionEnabledRef = useRef(reduceMotionEnabled);
-  const viewportHeightRef = useRef(viewport.height);
-  onCloseRef.current = onClose;
-  reduceMotionEnabledRef.current = reduceMotionEnabled;
-  viewportHeightRef.current = viewport.height;
+  const sheetRef = useRef<SafeRouteBottomSheetRef>(null);
+  const dismissalNotifiedRef = useRef(false);
 
-  const restoreSheet = () => {
-    if (reduceMotionEnabledRef.current) {
-      sheetTranslateY.setValue(0);
+  const dismissSheet = useCallback(() => {
+    sheetRef.current?.close();
+  }, []);
+  const handleSheetClosed = useCallback(() => {
+    if (dismissalNotifiedRef.current) {
       return;
     }
-    Animated.spring(sheetTranslateY, {
-      ...safeRouteSpring,
-      toValue: 0,
-      useNativeDriver: true,
-    }).start();
-  };
-  const dismissSheet = () => {
-    if (closingRef.current) {
-      return;
-    }
-    closingRef.current = true;
-    if (reduceMotionEnabledRef.current) {
-      onCloseRef.current();
-      return;
-    }
-    Animated.parallel([
-      Animated.timing(sheetTranslateY, {
-        duration: safeRouteMotion.sheetExitDurationMs,
-        easing: safeRouteEasing.exit,
-        isInteraction: false,
-        toValue: viewportHeightRef.current,
-        useNativeDriver: true,
-      }),
-      Animated.timing(sheetOpacity, {
-        duration: safeRouteMotion.sheetExitDurationMs,
-        easing: safeRouteEasing.exit,
-        isInteraction: false,
-        toValue: 0,
-        useNativeDriver: true,
-      }),
-      Animated.timing(scrimOpacity, {
-        duration: safeRouteMotion.sheetExitDurationMs,
-        easing: safeRouteEasing.exit,
-        isInteraction: false,
-        toValue: 0,
-        useNativeDriver: true,
-      }),
-    ]).start(({ finished }) => {
-      if (finished) {
-        onCloseRef.current();
-      } else {
-        closingRef.current = false;
-      }
-    });
-  };
-  const dragResponder = useRef(
-    PanResponder.create({
-      onMoveShouldSetPanResponder: (_, gesture) =>
-        shouldStartRiskDetailDismissGesture({
-          translationX: gesture.dx,
-          translationY: gesture.dy,
-        }),
-      onPanResponderMove: (_, gesture) => {
-        sheetTranslateY.setValue(Math.max(0, gesture.dy));
-      },
-      onPanResponderRelease: (_, gesture) => {
-        if (
-          shouldDismissRiskDetailGesture({
-            translationX: gesture.dx,
-            translationY: gesture.dy,
-            velocityY: gesture.vy,
-          })
-        ) {
-          dismissSheet();
-          return;
-        }
-        restoreSheet();
-      },
-      onPanResponderTerminate: restoreSheet,
-    }),
-  ).current;
 
-  useEffect(() => {
-    closingRef.current = false;
-    if (reduceMotionEnabled) {
-      sheetTranslateY.setValue(0);
-      sheetOpacity.setValue(1);
-      scrimOpacity.setValue(1);
-    } else {
-      sheetTranslateY.setValue(DETAIL_SHEET_ENTRANCE_OFFSET);
-      sheetOpacity.setValue(0);
-      scrimOpacity.setValue(0);
-      Animated.parallel([
-        Animated.timing(sheetTranslateY, {
-          duration: safeRouteMotion.sheetDurationMs,
-          easing: safeRouteEasing.settled,
-          isInteraction: false,
-          toValue: 0,
-          useNativeDriver: true,
-        }),
-        Animated.timing(sheetOpacity, {
-          duration: safeRouteMotion.sheetDurationMs,
-          easing: safeRouteEasing.settled,
-          isInteraction: false,
-          toValue: 1,
-          useNativeDriver: true,
-        }),
-        Animated.timing(scrimOpacity, {
-          duration: safeRouteMotion.scrimDurationMs,
-          easing: safeRouteEasing.settled,
-          isInteraction: false,
-          toValue: 1,
-          useNativeDriver: true,
-        }),
-      ]).start();
-    }
-
-    return () => {
-      scrimOpacity.stopAnimation();
-      sheetOpacity.stopAnimation();
-      sheetTranslateY.stopAnimation();
-    };
-  }, [
-    reduceMotionEnabled,
-    scrimOpacity,
-    sheetOpacity,
-    sheetTranslateY,
-  ]);
+    dismissalNotifiedRef.current = true;
+    onClose();
+  }, [onClose]);
 
   return (
-    <View style={styles.detailOverlay}>
-      <AnimatedPressable
-        accessible={false}
-        accessibilityElementsHidden
-        importantForAccessibility="no-hide-descendants"
-        style={[styles.detailScrim, { opacity: scrimOpacity }]}
-        onPress={dismissSheet}
-      />
-      <Animated.View
-        accessibilityLabel={accessibilityLabel}
-        accessibilityViewIsModal
-        testID={testID}
-        style={[
-          styles.detailSheet,
-          {
-            opacity: sheetOpacity,
-            transform: [{ translateY: sheetTranslateY }],
-          },
-        ]}
+    <View pointerEvents="box-none" style={styles.detailOverlay}>
+      <SafeRouteBottomSheet
+        animateOnMount
+        backdrop
+        dismissOnBackdropPress
+        enablePanDownToClose
+        index={0}
+        onClose={handleSheetClosed}
+        ref={sheetRef}
+        snapPoints={OPERATIONS_DETAIL_SHEET_SNAP_POINTS}
+        surfaceColor={colors.sheet}
       >
-        <View {...dragResponder.panHandlers} style={styles.detailGrabberTouch}>
-          <View style={styles.detailGrabber} />
-        </View>
-        <View style={styles.detailSheetHeader}>
-          <View style={styles.detailHeaderIconTile}>{icon}</View>
-          <View style={styles.detailSheetHeadingCopy}>
-            <Text
-              accessible
-              accessibilityLabel={accessibilityLabel}
-              accessibilityRole="header"
-              ref={headingRef}
-              style={styles.detailSheetTitle}
-            >
-              {title}
-            </Text>
-            {subtitle ? (
-              <Text numberOfLines={2} style={styles.detailSheetSubtitle}>{subtitle}</Text>
-            ) : null}
-            <View style={styles.detailSheetMetaRow}>
-              <OperationsStatusChip label={statusLabel} />
-              <Text style={styles.detailSheetEyebrow}>{eyebrow}</Text>
-            </View>
-          </View>
-          <Pressable
-            accessibilityLabel="Close details"
-            accessibilityRole="button"
-            hitSlop={6}
-            testID={closeTestID}
-            style={({ pressed }) => [
-              styles.detailClose,
-              pressed ? styles.routeCardPressed : null,
-            ]}
-            onPress={dismissSheet}
-          >
-            <X accessibilityElementsHidden color={colors.muted} size={15} strokeWidth={2.2} />
-          </Pressable>
-        </View>
-        <ScrollView
-          contentContainerStyle={styles.detailSheetContent}
-          nestedScrollEnabled
+        <BottomSheetScrollView
+          contentContainerStyle={styles.detailSheetScrollContent}
           showsVerticalScrollIndicator={false}
         >
-          {children}
-        </ScrollView>
-      </Animated.View>
+          <View
+            accessibilityLabel={accessibilityLabel}
+            accessibilityViewIsModal
+            testID={testID}
+          >
+            <View style={styles.detailSheetHeader}>
+              <View style={styles.detailHeaderIconTile}>{icon}</View>
+              <View style={styles.detailSheetHeadingCopy}>
+                <Text
+                  accessible
+                  accessibilityLabel={accessibilityLabel}
+                  accessibilityRole="header"
+                  ref={headingRef}
+                  style={styles.detailSheetTitle}
+                >
+                  {title}
+                </Text>
+                {subtitle ? (
+                  <Text numberOfLines={2} style={styles.detailSheetSubtitle}>{subtitle}</Text>
+                ) : null}
+                <View style={styles.detailSheetMetaRow}>
+                  <OperationsStatusChip label={statusLabel} />
+                  <Text style={styles.detailSheetEyebrow}>{eyebrow}</Text>
+                </View>
+              </View>
+              <Pressable
+                accessibilityLabel="Close details"
+                accessibilityRole="button"
+                hitSlop={6}
+                testID={closeTestID}
+                style={({ pressed }) => [
+                  styles.detailClose,
+                  pressed ? styles.routeCardPressed : null,
+                ]}
+                onPress={dismissSheet}
+              >
+                <X accessibilityElementsHidden color={colors.muted} size={15} strokeWidth={2.2} />
+              </Pressable>
+            </View>
+            <View style={styles.detailSheetContent}>
+              {children}
+              {renderFooter?.(dismissSheet)}
+            </View>
+          </View>
+        </BottomSheetScrollView>
+      </SafeRouteBottomSheet>
     </View>
   );
 }

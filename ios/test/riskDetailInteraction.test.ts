@@ -3,103 +3,7 @@ import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { describe, it } from "node:test";
 
-import {
-  resolveRiskDetailSheetGesture,
-  shouldDismissRiskDetailGesture,
-  shouldStartRiskDetailDismissGesture,
-  shouldStartRiskDetailSheetGesture,
-} from "../src/features/live-map/riskDetailInteraction";
-
 describe("risk detail interaction", () => {
-  it("starts only for a deliberate downward card drag", () => {
-    assert.equal(
-      shouldStartRiskDetailDismissGesture({
-        translationX: 2,
-        translationY: 18,
-      }),
-      true,
-    );
-    assert.equal(
-      shouldStartRiskDetailDismissGesture({
-        translationX: 24,
-        translationY: 12,
-      }),
-      false,
-    );
-    assert.equal(
-      shouldStartRiskDetailDismissGesture({
-        translationX: 0,
-        translationY: -20,
-      }),
-      false,
-    );
-  });
-
-  it("dismisses for a downward distance or flick and restores short drags", () => {
-    assert.equal(
-      shouldDismissRiskDetailGesture({
-        translationX: 0,
-        translationY: 72,
-      }),
-      true,
-    );
-    assert.equal(
-      shouldDismissRiskDetailGesture({
-        translationX: 0,
-        translationY: 24,
-        velocityY: 0.9,
-      }),
-      true,
-    );
-    assert.equal(
-      shouldDismissRiskDetailGesture({
-        translationX: 0,
-        translationY: 30,
-        velocityY: 0.2,
-      }),
-      false,
-    );
-  });
-
-  it("moves through expanded, summary, then dismissed sheet stages", () => {
-    assert.equal(
-      shouldStartRiskDetailSheetGesture({
-        translationX: 2,
-        translationY: -18,
-      }),
-      true,
-    );
-    assert.equal(
-      resolveRiskDetailSheetGesture("default", {
-        translationX: 0,
-        translationY: -64,
-      }),
-      "expand",
-    );
-    assert.equal(
-      resolveRiskDetailSheetGesture("expanded", {
-        translationX: 0,
-        translationY: 64,
-      }),
-      "collapse",
-    );
-    assert.equal(
-      resolveRiskDetailSheetGesture("default", {
-        translationX: 0,
-        translationY: 76,
-      }),
-      "dismiss",
-    );
-    assert.equal(
-      resolveRiskDetailSheetGesture("expanded", {
-        translationX: 0,
-        translationY: 20,
-        velocityY: 0.1,
-      }),
-      "restore",
-    );
-  });
-
   it("keeps risk details open during map pans in both map modes", () => {
     const guestMap = readFileSync(
       join(process.cwd(), "src/features/guest-map/GuestMapScreen.tsx"),
@@ -126,45 +30,26 @@ describe("risk detail interaction", () => {
     assert.doesNotMatch(livePanHandler, /setSelectedRiskZoneId\(null\)/);
     assert.match(guestMap, /onPress=\{handleMapPress\}/);
     assert.match(canvas, /onPress=\{onMapPress\}/);
-    assert.match(callout, /PanResponder\.create/);
-    assert.match(callout, /shouldDismissRiskDetailGesture/);
-    assert.match(callout, /resolveRiskDetailSheetGesture/);
+    assert.match(callout, /<SafeRouteBottomSheet/);
+    assert.match(callout, /enablePanDownToClose/);
+    assert.match(callout, /onClose=\{handleSheetClosed\}/);
   });
 
-  it("collapses details without committing the compact card off-screen", () => {
+  it("keeps one content tree mounted while the native sheet changes snap points", () => {
     const callout = readFileSync(
       join(process.cwd(), "src/features/live-map/LiveMapRiskDetailCallout.tsx"),
       "utf8",
     );
 
+    assert.match(callout, /snapPoints=\{snapPoints\}/);
+    assert.match(callout, /<BottomSheetScrollView/);
+    assert.match(callout, /sheetRef\.current\?\.snapToIndex\(expanded \? 0 : 1\)/);
     assert.match(
       callout,
-      /const expandedContentOpacity = useRef\(new Animated\.Value\(0\)\)\.current/,
+      /nextIndex === 0[\s\S]*scrollRef\.current\?\.scrollTo\(\{ animated: false, y: 0 \}\)/,
     );
-    assert.match(
-      callout,
-      /height: expanded \? expandedPanelHeight : 0/,
-    );
-    assert.match(
-      callout,
-      /toValue: expandedPanelHeight,[\s\S]*useNativeDriver: true/,
-    );
-    assert.doesNotMatch(callout, /useNativeDriver: false/);
-    assert.doesNotMatch(callout, /pendingCollapseResetRef/);
-    assert.match(
-      callout,
-      /if \(finished\) \{[\s\S]*onDismissRef\.current\(\);[\s\S]*else \{[\s\S]*translateY\.setValue\(0\);[\s\S]*dismissProgress\.setValue\(0\)/,
-    );
-
-    const transformReset = callout.indexOf(
-      'translateY.setValue(0);\n      expandedContentOpacity.setValue(0);',
-    );
-    const compactStageCommit = callout.indexOf(
-      'sheetStageRef.current = "default";\n      setSheetStage("default");',
-      transformReset,
-    );
-    assert.ok(transformReset >= 0);
-    assert.ok(compactStageCommit > transformReset);
+    assert.doesNotMatch(callout, /PanResponder|Animated\.View|requestAnimationFrame/);
+    assert.doesNotMatch(callout, /height:\s*expanded\s*\?/);
   });
 
   it("removes collapsed intelligence from the native accessibility tree", () => {
@@ -176,8 +61,7 @@ describe("risk detail interaction", () => {
     assert.match(callout, /accessibilityElementsHidden=\{!expanded\}/);
     assert.match(
       callout,
-      /importantForAccessibility=\{expanded \? "auto" : "no-hide-descendants"\}/,
+      /expanded \? "auto" : "no-hide-descendants"/,
     );
-    assert.match(callout, /pointerEvents=\{expanded \? "auto" : "none"\}/);
   });
 });

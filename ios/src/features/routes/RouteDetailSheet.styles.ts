@@ -5,36 +5,15 @@ import { colors, controlSizes, radius, spacing, typeScale } from "../../theme";
 export const routeDetailSheetStyles = StyleSheet.create({
   overlay: {
     flex: 1,
-    justifyContent: "flex-end",
   },
-  scrim: {
-    ...StyleSheet.absoluteFillObject,
-    backgroundColor: "transparent",
+  sheetContent: {
+    flex: 1,
   },
-  sheet: {
-    maxHeight: "86%",
-    overflow: "hidden",
-    paddingTop: spacing.sm,
-    paddingHorizontal: spacing.lg,
-    paddingBottom: spacing.lg,
-    borderTopLeftRadius: radius.sheet,
-    borderTopRightRadius: radius.sheet,
-    backgroundColor: colors.sheet,
-  },
-  handle: {
-    width: 38,
-    height: 5,
-    borderRadius: radius.pill,
-    backgroundColor: colors.border,
-  },
-  handleTouch: {
-    height: 28,
-    alignItems: "center",
-    justifyContent: "flex-start",
-    paddingTop: 2,
-    marginBottom: spacing.xs,
+  scrollView: {
+    flex: 1,
   },
   content: {
+    paddingHorizontal: spacing.lg,
     paddingBottom: spacing.lg,
   },
   modalHeader: {
@@ -255,6 +234,8 @@ export const routeDetailSheetStyles = StyleSheet.create({
     minHeight: controlSizes.primary,
     alignItems: "center",
     justifyContent: "center",
+    marginHorizontal: spacing.lg,
+    marginBottom: spacing.lg,
     borderRadius: 14,
     backgroundColor: colors.appleBlue,
   },

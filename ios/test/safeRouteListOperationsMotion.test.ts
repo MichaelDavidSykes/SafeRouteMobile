@@ -54,21 +54,25 @@ describe("SafeRoute list and Operations motion", () => {
     );
   });
 
-  it("coordinates sheet and scrim entrances while preserving drag dismissal", () => {
-    for (const path of [
-      "src/features/routes/RouteDetailSheet.tsx",
-      "src/features/operations/OperationsScreen.tsx",
-    ]) {
-      const sheet = source(path);
+  it("uses the shared native-thread sheet for saved route details", () => {
+    const sheet = source("src/features/routes/RouteDetailSheet.tsx");
 
-      assert.match(sheet, /useReduceMotionEnabled\(\)/);
-      assert.match(sheet, /safeRouteMotion\.sheetDurationMs/);
-      assert.match(sheet, /safeRouteMotion\.scrimDurationMs/);
-      assert.match(sheet, /Animated\.parallel\(\[/);
-      assert.match(sheet, /opacity: scrimOpacity/);
-      assert.match(sheet, /shouldStartRiskDetailDismissGesture/);
-      assert.match(sheet, /shouldDismissRiskDetailGesture/);
-      assert.match(sheet, /onPanResponderMove/);
-    }
+    assert.match(sheet, /<SafeRouteBottomSheet/);
+    assert.match(sheet, /<BottomSheetScrollView/);
+    assert.match(sheet, /enablePanDownToClose/);
+    assert.match(sheet, /dismissOnBackdropPress/);
+    assert.doesNotMatch(sheet, /PanResponder/);
+  });
+
+  it("uses the shared native-thread sheet for Operations details", () => {
+    const sheet = source("src/features/operations/OperationsScreen.tsx");
+
+    assert.match(sheet, /OPERATIONS_DETAIL_SHEET_SNAP_POINTS[^\n]*\["88%"\]/);
+    assert.match(sheet, /function OperationsDetailSheet[\s\S]*<SafeRouteBottomSheet/);
+    assert.match(sheet, /<BottomSheetScrollView/);
+    assert.match(sheet, /enablePanDownToClose/);
+    assert.match(sheet, /dismissOnBackdropPress/);
+    assert.match(sheet, /onClose=\{handleSheetClosed\}/);
+    assert.doesNotMatch(sheet, /PanResponder/);
   });
 });

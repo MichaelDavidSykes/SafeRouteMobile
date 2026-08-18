@@ -82,4 +82,19 @@ describe('guest location-search motion', () => {
       /useKeyboardTranslateY|keyboardTranslateY|KeyboardAvoidingView/,
     );
   });
+
+  it('keeps the native map mounted while route and search state changes', () => {
+    assert.match(
+      guestMapSource,
+      /const mapRenderSessionKey = `guest-map-\$\{nativeMapType\}`/,
+    );
+    assert.doesNotMatch(
+      guestMapSource,
+      /const mapRenderSessionKey[\s\S]{0,120}routeCollectionRevision/,
+    );
+    assert.match(
+      guestMapSource,
+      /routeCollectionRevision,[\s\S]*routeFitBottomPadding/,
+    );
+  });
 });

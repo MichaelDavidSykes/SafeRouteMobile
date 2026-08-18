@@ -723,9 +723,9 @@ export function GuestMapScreen({
       visibleRiskZones,
     ],
   );
-  const mapRenderSessionKey = `guest-map-${nativeMapType}-${
-    routeCollectionRevision || 'browse'
-  }`;
+  // Route geometry changes should update overlays and trigger the fit effect,
+  // never destroy and rebuild the native MapKit view while the sheet moves.
+  const mapRenderSessionKey = `guest-map-${nativeMapType}`;
   const mapReady = readyMapSessionKey === mapRenderSessionKey;
   const riskSummary = useMemo(
     () => createGuestMapRiskSummary(visibleRiskZones),

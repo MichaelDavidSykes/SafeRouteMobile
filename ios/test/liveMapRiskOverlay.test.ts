@@ -171,9 +171,8 @@ describe("live map risk overlay interactions", () => {
       vehicleMarkerFunction,
       /collapsable=\{false\}[\s\S]*?style=\{styles\.vehicleMarker\}/,
     );
-    assert.match(vehicleMarkerFunction, /tracksViewChanges=\{false\}/);
-    assert.match(source, /styles\.vehicleMarkerDirection/);
-    assert.match(source, /LinearGradient id="appleHeadingBeam"/);
+    assert.match(vehicleMarkerFunction, /tracksViewChanges=\{screenRotation !== null\}/);
+    assert.match(source, /styles\.vehicleMarkerHeadingBeam/);
     assert.match(
       source,
       /return demoDriveEnabled \? 'Route preview position' : 'Current position'/,

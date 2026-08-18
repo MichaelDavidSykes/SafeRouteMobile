@@ -12,13 +12,11 @@ import type {
   SupportFacility,
 } from "./liveMapTypes";
 import type { NavigationLifecycle } from "./liveMapUiState";
-import { shouldShowNativeUserLocation } from "./liveMapUiState";
 import {
   CheckpointMarker,
-  CompassTrackedHeadingOverlay,
+  CompassTrackedMarker,
   RiskOverlay,
   SupportFacilityMarker,
-  VehicleMarker,
 } from "./LiveMapMarkers";
 import { LiveMapRiskDetailCallout } from "./LiveMapRiskDetailCallout";
 import { resolveRouteLinePresentation } from "./routeLinePresentation";
@@ -85,7 +83,6 @@ export function LiveMapCanvas({
   const safeAreaInsets = useSafeAreaInsets();
   const mapCameraRequestIdRef = useRef(0);
   const [mapCameraHeadingDegrees, setMapCameraHeadingDegrees] = useState(0);
-  const [mapProjectionRevision, setMapProjectionRevision] = useState(0);
   const routeCoordinates = routePlan.route.coordinates;
   const routeLinePresentation = resolveRouteLinePresentation({
     progressCoordinateCount: progressCoordinates.length,
@@ -94,11 +91,6 @@ export function LiveMapCanvas({
   const showRouteCheckpoints =
     activeNavigationState !== "navigating" &&
     activeNavigationState !== "off-route";
-  const showNativeUserLocation = shouldShowNativeUserLocation({
-    demoDriveActive,
-    permissionStatus,
-    state: activeNavigationState,
-  });
   const refreshMapCameraHeading = () => {
     const requestId = mapCameraRequestIdRef.current + 1;
     mapCameraRequestIdRef.current = requestId;
@@ -123,7 +115,7 @@ export function LiveMapCanvas({
       style={StyleSheet.absoluteFill}
       initialRegion={routePlan.region}
       cameraZoomRange={SAFE_ROUTE_CAMERA_ZOOM_RANGE}
-      showsUserLocation={showNativeUserLocation}
+      showsUserLocation={false}
       showsMyLocationButton={false}
       showsCompass={false}
       showsBuildings
@@ -145,11 +137,9 @@ export function LiveMapCanvas({
       onPanDrag={onPanDrag}
       onMapReady={() => {
         onMapReady();
-        setMapProjectionRevision((revision) => revision + 1);
         refreshMapCameraHeading();
       }}
       onRegionChangeComplete={() => {
-        setMapProjectionRevision((revision) => revision + 1);
         refreshMapCameraHeading();
         onRegionChangeComplete?.();
       }}
@@ -215,7 +205,7 @@ export function LiveMapCanvas({
             shouldRenderRouteCheckpointMarker({
               checkpoint,
               liveCoordinate: vehicleCoordinate,
-              nativeUserLocationVisible: showNativeUserLocation,
+              nativeUserLocationVisible: false,
             })
           ).map((checkpoint) => (
             <CheckpointMarker key={checkpoint.id} checkpoint={checkpoint} />
@@ -223,22 +213,15 @@ export function LiveMapCanvas({
         : null}
 
       {vehicleCoordinate ? (
-        <VehicleMarker
+        <CompassTrackedMarker
           coordinate={vehicleCoordinate}
           demoDriveEnabled={demoDriveActive}
-        />
-      ) : null}
-      </MapView>
-      {vehicleCoordinate ? (
-        <CompassTrackedHeadingOverlay
-          coordinate={vehicleCoordinate}
           enabled={!demoDriveActive && permissionStatus === "granted"}
           fallbackHeading={heading}
           mapHeading={mapCameraHeadingDegrees}
-          mapRef={mapRef}
-          projectionRevision={mapProjectionRevision}
         />
       ) : null}
+      </MapView>
       {selectedRiskZone ? (
         <LiveMapRiskDetailCallout
           bottomInset={safeAreaInsets.bottom + 12}

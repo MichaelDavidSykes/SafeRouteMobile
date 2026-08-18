@@ -77,10 +77,9 @@ import type {
 import type { RiskZone } from '../live-map/liveMapTypes';
 import {
   CheckpointMarker,
-  CompassTrackedHeadingOverlay,
+  CompassTrackedMarker,
   RiskOverlay,
   SupportFacilityMarker,
-  VehicleMarker,
 } from '../live-map/LiveMapMarkers';
 import {
   LiveMapDetailCallout,
@@ -731,15 +730,6 @@ export function GuestMapScreen({
   // never destroy and rebuild the native MapKit view while the sheet moves.
   const mapRenderSessionKey = `guest-map-${nativeMapType}`;
   const mapReady = readyMapSessionKey === mapRenderSessionKey;
-  const compassProjectionRevision = [
-    mapRenderSessionKey,
-    readyMapSessionKey || 'pending',
-    mapRegion.latitude,
-    mapRegion.longitude,
-    mapRegion.latitudeDelta,
-    mapRegion.longitudeDelta,
-    mapCameraHeadingDegrees,
-  ].join(':');
   const riskSummary = useMemo(
     () => createGuestMapRiskSummary(visibleRiskZones),
     [visibleRiskZones],
@@ -2155,22 +2145,14 @@ export function GuestMapScreen({
           </Marker>
         ) : null}
         {currentLocationVisible && liveCoordinate ? (
-          <VehicleMarker
+          <CompassTrackedMarker
             coordinate={liveCoordinate}
+            enabled={permissionStatus === 'granted'}
+            mapHeading={mapCameraHeadingDegrees}
             testID={uiTestIds.guestMapCurrentLocationMarker}
           />
         ) : null}
       </MapView>
-
-      {currentLocationVisible && liveCoordinate ? (
-        <CompassTrackedHeadingOverlay
-          coordinate={liveCoordinate}
-          enabled={permissionStatus === 'granted'}
-          mapHeading={mapCameraHeadingDegrees}
-          mapRef={mapRef}
-          projectionRevision={compassProjectionRevision}
-        />
-      ) : null}
 
       {selectedRiskZone ? (
         <LiveMapRiskDetailCallout

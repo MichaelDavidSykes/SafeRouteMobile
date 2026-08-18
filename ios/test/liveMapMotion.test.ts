@@ -56,14 +56,14 @@ describe("live map design motion", () => {
     );
   });
 
-  it("keeps the current-position marker static while compass direction changes", () => {
+  it("keeps current position and compass direction in one map annotation", () => {
     const markers = source("features/live-map/LiveMapMarkers.tsx");
 
     assert.doesNotMatch(markers, /useLoopingPulse/);
     assert.match(markers, /style=\{styles\.vehicleMarker\}/);
-    assert.match(markers, /styles\.vehicleMarkerDirection/);
+    assert.match(markers, /styles\.vehicleMarkerHeadingBeam/);
     assert.match(markers, /collapsable=\{false\}/);
-    assert.match(markers, /tracksViewChanges=\{false\}/);
+    assert.match(markers, /tracksViewChanges=\{screenRotation !== null\}/);
     assert.match(
       markers,
       /accessibilityLabel=\{createVehicleMarkerAccessibilityLabel\(demoDriveEnabled\)\}/,

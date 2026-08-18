@@ -40,7 +40,7 @@ import {
   type ViewportRiskCoverageState
 } from './viewportRiskState';
 
-export const VIEWPORT_RISK_DEBOUNCE_MS = 450;
+export const VIEWPORT_RISK_DEBOUNCE_MS = 260;
 export const VIEWPORT_RISK_TIMEOUT_MS = 6000;
 export const VIEWPORT_RISK_MAX_POLL_ATTEMPTS = 4;
 export const VIEWPORT_RISK_MIN_POLL_MS = 1500;
@@ -584,7 +584,7 @@ export function useViewportRiskAreas({
         if (!requestIsCurrent()) {
           return;
         }
-        const nextZones = mergeRiskZonesById(...cachedZones, ...receivedZones);
+        const nextZones = mergeRiskZonesById(cachedResult, ...receivedZones);
         const allRequestsFailed =
           failedRequestCount === requestsToLoad.length
           && successfulRequestCount === 0;
@@ -598,7 +598,7 @@ export function useViewportRiskAreas({
         const replacementZones = resolveCompletedViewportRiskZones(
           cachedResult,
           mergeRiskZonesById(...receivedZones),
-          true
+          bypassCache
         );
         const visibleZones = resolveViewportRiskDisplayZones(
           unavailableRequestCount > 0

@@ -3,9 +3,11 @@ import { describe, it } from 'node:test';
 
 import {
   AREA_RISK_QUERY_COORDINATE_DECIMALS,
+  AREA_RISK_OVERVIEW_FOCUS_DELTA,
   AREA_RISK_RESEARCH_ENDPOINT_PATH,
   AREA_RISK_RESPONSE_BOUNDS_EPSILON,
   AREA_RISK_VIEWPORT_PADDING_RATIO,
+  AREA_RISK_WORLD_VIEW_LONGITUDE_DELTA,
   areaRiskItemIntersectsBounds,
   areaRiskResponseBoundsMatchRequest,
   approximateMapZoom,
@@ -63,12 +65,47 @@ describe('area risk API core', () => {
     assert.deepEqual(nearbyRequests, requests);
   });
 
-  it('uses one canonical cached partition for global zoom levels', () => {
+  it('keeps broad pannable views bounded so moving between cities requests new coverage', () => {
+    const capeTown = regionToAreaRiskViewportRequests({
+      latitude: -33.925,
+      longitude: 18.424,
+      latitudeDelta: 40,
+      longitudeDelta: 80
+    }, { clientId: 'workspace-1' });
+    const london = regionToAreaRiskViewportRequests({
+      latitude: 51.507,
+      longitude: -0.128,
+      latitudeDelta: 40,
+      longitudeDelta: 80
+    }, { clientId: 'workspace-1' });
+
+    assert.equal(AREA_RISK_OVERVIEW_FOCUS_DELTA, 5.5);
+    assert.ok(capeTown.length > 0);
+    assert.ok(london.length > 0);
+    assert.ok(capeTown.every((request) => request.scope === 'regional'));
+    assert.ok(london.every((request) => request.scope === 'regional'));
+    assert.ok(capeTown.every((request) => request.maxRecords === 80));
+    assert.ok(london.every((request) => request.maxRecords === 80));
+    assert.notDeepEqual(london, capeTown);
+    assert.ok(capeTown.every((request) => canRequestAreaRiskResearch(request, 'token')));
+    assert.ok(london.every((request) => canRequestAreaRiskResearch(request, 'token')));
+    assert.ok(capeTown.some((request) =>
+      request.minLat <= -33.925 && request.maxLat >= -33.925 &&
+      request.minLon <= 18.424 && request.maxLon >= 18.424
+    ));
+    assert.ok(london.some((request) =>
+      request.minLat <= 51.507 && request.maxLat >= 51.507 &&
+      request.minLon <= -0.128 && request.maxLon >= -0.128
+    ));
+  });
+
+  it('uses one canonical cached partition only for a near-world view', () => {
+    assert.equal(AREA_RISK_WORLD_VIEW_LONGITUDE_DELTA, 300);
     const requests = regionToAreaRiskViewportRequests({
       latitude: 0,
       longitude: 90,
-      latitudeDelta: 80,
-      longitudeDelta: 120
+      latitudeDelta: 160,
+      longitudeDelta: 300
     });
 
     assert.equal(requests.length, 1);

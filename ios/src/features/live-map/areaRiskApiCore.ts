@@ -22,6 +22,7 @@ export const MAX_AREA_RISK_RECORDS = 160;
 export const DEFAULT_DETAIL_AREA_RISK_MAX_RECORDS = MAX_AREA_RISK_RECORDS;
 export const DEFAULT_REGIONAL_AREA_RISK_MAX_RECORDS = MAX_AREA_RISK_RECORDS;
 export const DEFAULT_GLOBAL_AREA_RISK_MAX_RECORDS = MAX_AREA_RISK_RECORDS;
+export const DEFAULT_OVERVIEW_AREA_RISK_MAX_RECORDS = 80;
 export const MAX_AREA_RISK_RESEARCH_SPAN_KM = 1500;
 export const DEFAULT_AREA_RISK_PAGE_SIZE = 100;
 export const MAX_AREA_RISK_PAGES = 8;
@@ -30,6 +31,9 @@ export const AREA_RISK_QUERY_COORDINATE_DECIMALS = 5;
 export const AREA_RISK_RESPONSE_BOUNDS_EPSILON = 0.000001;
 export const AREA_RISK_CACHE_ZOOM_QUANTUM = 0.5;
 export const AREA_RISK_VIEWPORT_PADDING_RATIO = 0.45;
+export const AREA_RISK_OVERVIEW_FOCUS_DELTA = 5.5;
+export const AREA_RISK_WORLD_VIEW_LATITUDE_DELTA = 160;
+export const AREA_RISK_WORLD_VIEW_LONGITUDE_DELTA = 300;
 
 export type AreaRiskScope = 'global' | 'regional' | 'detail';
 export type AreaRiskLoadIntent = 'read' | 'research';
@@ -203,8 +207,9 @@ export function approximateMapZoom(region: Pick<Region, 'longitudeDelta'>): numb
 
 /**
  * Returns one stable padded request normally and two bounded requests when
- * the viewport crosses the antimeridian. World views use one canonical global
- * partition so panning at low zoom does not repeatedly refetch the same feed.
+ * the viewport crosses the antimeridian. Only a genuinely near-world view
+ * uses the canonical global partition. Broad, pannable views remain bounded
+ * to their visible region so moving between cities requests the new coverage.
  */
 export function regionToAreaRiskViewportRequests(
   region: Region | null | undefined,
@@ -226,10 +231,26 @@ export function regionToAreaRiskViewportRequests(
 
   const latitudeDelta = clamp(positiveFiniteNumber(region.latitudeDelta) ?? 0.04, 0.002, 170);
   const longitudeDelta = clamp(positiveFiniteNumber(region.longitudeDelta) ?? 0.04, 0.002, 360);
-  const scope: AreaRiskScope = zoom < 4 ? 'global' : (zoom >= 9 ? 'detail' : 'regional');
+  const worldView = latitudeDelta >= AREA_RISK_WORLD_VIEW_LATITUDE_DELTA
+    || longitudeDelta >= AREA_RISK_WORLD_VIEW_LONGITUDE_DELTA;
+  const scope: AreaRiskScope = worldView
+    ? 'global'
+    : (zoom >= 9 ? 'detail' : 'regional');
+  const overviewFocus = scope === 'regional' && zoom < 4;
+  const requestLatitudeDelta = overviewFocus
+    ? Math.min(latitudeDelta, AREA_RISK_OVERVIEW_FOCUS_DELTA)
+    : latitudeDelta;
+  const requestLongitudeDelta = overviewFocus
+    ? Math.min(longitudeDelta, AREA_RISK_OVERVIEW_FOCUS_DELTA)
+    : longitudeDelta;
   const rawBounds: AreaRiskBounds = scope === 'global'
     ? { south: -85, west: -180, north: 85, east: 180 }
-    : stablePaddedViewportBounds(region, latitudeDelta, longitudeDelta, zoom);
+    : stablePaddedViewportBounds(
+        region,
+        requestLatitudeDelta,
+        requestLongitudeDelta,
+        zoom
+      );
   if (rawBounds.north <= rawBounds.south) {
     return [];
   }
@@ -239,7 +260,11 @@ export function regionToAreaRiskViewportRequests(
       ? options.globalMaxRecords ?? DEFAULT_GLOBAL_AREA_RISK_MAX_RECORDS
       : scope === 'detail'
         ? options.detailMaxRecords ?? DEFAULT_DETAIL_AREA_RISK_MAX_RECORDS
-        : options.regionalMaxRecords ?? DEFAULT_REGIONAL_AREA_RISK_MAX_RECORDS,
+        : options.regionalMaxRecords ?? (
+            zoom < 4
+              ? DEFAULT_OVERVIEW_AREA_RISK_MAX_RECORDS
+              : DEFAULT_REGIONAL_AREA_RISK_MAX_RECORDS
+          ),
     1,
     MAX_AREA_RISK_RECORDS,
     scope === 'global'
@@ -317,7 +342,7 @@ function areaRiskViewportGridSize(zoom: number): number {
   if (zoom >= 4) {
     return 2;
   }
-  return 360;
+  return 1;
 }
 
 /** The configured API base contributes /api/v1 to this endpoint-relative path. */

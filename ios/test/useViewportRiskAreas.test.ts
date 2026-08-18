@@ -14,7 +14,7 @@ describe('viewport risk hook integration contract', () => {
   );
 
   it('debounces, aborts stale requests, and uses the bounded cache', () => {
-    assert.match(source, /VIEWPORT_RISK_DEBOUNCE_MS\s*=\s*450/);
+    assert.match(source, /VIEWPORT_RISK_DEBOUNCE_MS\s*=\s*260/);
     assert.match(source, /VIEWPORT_RISK_TIMEOUT_MS\s*=\s*6000/);
     assert.match(source, /new AbortController\(\)/);
     assert.match(
@@ -29,6 +29,14 @@ describe('viewport risk hook integration contract', () => {
     assert.match(source, /workspaceRisk\.retry\(\)/);
     assert.match(source, /resolveViewportRiskDisplayZones/);
     assert.match(source, /resolveCompletedViewportRiskZones/);
+    assert.match(
+      source,
+      /const nextZones = mergeRiskZonesById\(cachedResult, \.\.\.receivedZones\)/,
+    );
+    assert.match(
+      source,
+      /resolveCompletedViewportRiskZones\([\s\S]*cachedResult[\s\S]*bypassCache/,
+    );
     assert.match(source, /resolveUnavailableViewportRiskZones/);
     assert.match(source, /canCacheViewportRiskFeed/);
     assert.match(source, /requestSignature/);
@@ -50,7 +58,7 @@ describe('viewport risk hook integration contract', () => {
     assert.match(source, /shouldRevalidateViewportRiskRequest/);
     assert.match(source, /if \(!requestsToLoad\.length\)/);
     assert.match(source, /viewportRiskPersistentCache\.save/);
-    assert.match(source, /resolveCompletedViewportRiskZones\([\s\S]*true/);
+    assert.match(source, /resolveCompletedViewportRiskZones\([\s\S]*bypassCache/);
   });
 
   it('exposes explicit research, strict poll, empty, partial, stale, and retry states', () => {

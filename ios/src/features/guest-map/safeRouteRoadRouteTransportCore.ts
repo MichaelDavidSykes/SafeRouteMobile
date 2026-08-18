@@ -10,9 +10,9 @@ import {
 export const SAFE_ROUTE_PREVIEW_MAX_PENDING_WAIT_MS = 10 * 60_000;
 
 const SAFE_ROUTE_PREVIEW_DEFAULT_RETRY_AFTER_SECONDS = 10;
+const SAFE_ROUTE_PREVIEW_PROVISIONAL_RETRY_AFTER_SECONDS = 2;
 const SAFE_ROUTE_PREVIEW_MIN_RETRY_AFTER_SECONDS = 1;
 const SAFE_ROUTE_PREVIEW_MAX_RETRY_AFTER_SECONDS = 30;
-const SAFE_ROUTE_PREVIEW_RETRY_BACKOFF_STEP_SECONDS = 5;
 const PENDING_COVERAGE_MARKERS = new Set([
   'pending',
   'queued',
@@ -122,8 +122,14 @@ export async function requestVerifiedSafeRoutePreview({
     }
 
     lastRetryAfterSeconds = resolveSafeRoutePreviewRetryDelaySeconds(
-      getSafeRoutePreviewRetryAfterSeconds(response, body),
-      attempt,
+      getSafeRoutePreviewRetryAfterSeconds(
+        response,
+        body,
+        now(),
+        provisionalResponse
+          ? SAFE_ROUTE_PREVIEW_PROVISIONAL_RETRY_AFTER_SECONDS
+          : SAFE_ROUTE_PREVIEW_DEFAULT_RETRY_AFTER_SECONDS,
+      ),
     );
     const retryDelayMs = lastRetryAfterSeconds * 1000;
     if (now() + retryDelayMs > pendingDeadlineMs) {
@@ -196,6 +202,7 @@ export function getSafeRoutePreviewRetryAfterSeconds(
   response: Response,
   body: unknown,
   nowMs = Date.now(),
+  fallbackSeconds = SAFE_ROUTE_PREVIEW_DEFAULT_RETRY_AFTER_SECONDS,
 ): number {
   const retryAfterValues = [
     parseRetryAfterSeconds(response.headers.get('Retry-After'), nowMs),
@@ -203,7 +210,7 @@ export function getSafeRoutePreviewRetryAfterSeconds(
   ].filter((value): value is number => value !== null);
   const requestedSeconds = retryAfterValues.length
     ? Math.max(...retryAfterValues)
-    : SAFE_ROUTE_PREVIEW_DEFAULT_RETRY_AFTER_SECONDS;
+    : fallbackSeconds;
   return Math.max(
     SAFE_ROUTE_PREVIEW_MIN_RETRY_AFTER_SECONDS,
     Math.min(SAFE_ROUTE_PREVIEW_MAX_RETRY_AFTER_SECONDS, requestedSeconds),
@@ -212,23 +219,13 @@ export function getSafeRoutePreviewRetryAfterSeconds(
 
 export function resolveSafeRoutePreviewRetryDelaySeconds(
   retryAfterSeconds: number,
-  retryIndex: number,
 ): number {
-  const boundedRetryAfterSeconds = Number.isFinite(retryAfterSeconds)
+  return Number.isFinite(retryAfterSeconds)
     ? Math.max(
         SAFE_ROUTE_PREVIEW_MIN_RETRY_AFTER_SECONDS,
         Math.min(SAFE_ROUTE_PREVIEW_MAX_RETRY_AFTER_SECONDS, retryAfterSeconds),
       )
     : SAFE_ROUTE_PREVIEW_DEFAULT_RETRY_AFTER_SECONDS;
-  const boundedRetryIndex = Number.isFinite(retryIndex)
-    ? Math.max(0, Math.floor(retryIndex))
-    : 0;
-  const backoffSeconds = SAFE_ROUTE_PREVIEW_DEFAULT_RETRY_AFTER_SECONDS
-    + boundedRetryIndex * SAFE_ROUTE_PREVIEW_RETRY_BACKOFF_STEP_SECONDS;
-  return Math.min(
-    SAFE_ROUTE_PREVIEW_MAX_RETRY_AFTER_SECONDS,
-    Math.max(boundedRetryAfterSeconds, backoffSeconds),
-  );
 }
 
 async function performSafeRoutePreviewRequest({

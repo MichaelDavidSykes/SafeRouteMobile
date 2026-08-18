@@ -12,7 +12,7 @@ import {
 } from '../src/features/guest-map/safeRouteRoadRouteTransportCore';
 
 describe('verified SafeRoute road route transport', () => {
-  it('polls structured pending coverage with bounded network backoff', async () => {
+  it('honors the server retry interval without adding client backoff', async () => {
     const responses = [
       pendingResponse({ retryAfter: '10' }),
       pendingResponse({ retryAfter: '10' }),
@@ -39,17 +39,18 @@ describe('verified SafeRoute road route transport', () => {
 
     assert.deepEqual(result, { route: 'verified' });
     assert.equal(requests, 3);
-    assert.deepEqual(retryDelays, [10_000, 15_000]);
+    assert.deepEqual(retryDelays, [10_000, 10_000]);
   });
 
   it('publishes provisional 200 geometry once and keeps polling for proof', async () => {
     const responses = [
       jsonResponse({ data: pendingPreviewBody() }, 200),
-      jsonResponse({ data: pendingPreviewBody() }, 200),
+      pendingResponse({ retryAfter: '10' }),
       jsonResponse({ data: { route: 'verified' } }, 200),
     ];
     const provisional: unknown[] = [];
     const provisionalFlags: unknown[] = [];
+    const retryDelays: number[] = [];
     let requests = 0;
 
     const result = await requestVerifiedSafeRoutePreview({
@@ -64,12 +65,15 @@ describe('verified SafeRoute road route transport', () => {
         provisionalFlags.push(JSON.parse(String(init?.body)).accept_provisional_risk_coverage);
         return responses[requests++] as Response;
       },
-      sleep: async () => undefined,
+      sleep: async (delayMs) => {
+        retryDelays.push(delayMs);
+      },
       timeoutMs: 60_000,
     });
 
     assert.deepEqual(provisional, [pendingPreviewBody()]);
     assert.deepEqual(provisionalFlags, [true, false, false]);
+    assert.deepEqual(retryDelays, [2_000, 10_000]);
     assert.deepEqual(result, { route: 'verified' });
     assert.equal(requests, 3);
     assert.equal(
@@ -107,11 +111,10 @@ describe('verified SafeRoute road route transport', () => {
     assert.equal(requests, 1);
   });
 
-  it('treats Retry-After as a minimum while capping repeated polling at 30 seconds', () => {
-    assert.equal(resolveSafeRoutePreviewRetryDelaySeconds(1, 0), 10);
-    assert.equal(resolveSafeRoutePreviewRetryDelaySeconds(1, 1), 15);
-    assert.equal(resolveSafeRoutePreviewRetryDelaySeconds(25, 2), 25);
-    assert.equal(resolveSafeRoutePreviewRetryDelaySeconds(60, 9), 30);
+  it('honors Retry-After directly while bounding invalid server values', () => {
+    assert.equal(resolveSafeRoutePreviewRetryDelaySeconds(1), 1);
+    assert.equal(resolveSafeRoutePreviewRetryDelaySeconds(25), 25);
+    assert.equal(resolveSafeRoutePreviewRetryDelaySeconds(60), 30);
 
     const response = pendingResponse({
       bodyRetryAfterSeconds: 18,
@@ -120,6 +123,15 @@ describe('verified SafeRoute road route transport', () => {
     assert.equal(
       getSafeRoutePreviewRetryAfterSeconds(response, pendingBody({ retryAfterSeconds: 18 })),
       18,
+    );
+    assert.equal(
+      getSafeRoutePreviewRetryAfterSeconds(
+        jsonResponse({ data: pendingPreviewBody() }, 200),
+        { data: pendingPreviewBody() },
+        0,
+        2,
+      ),
+      2,
     );
   });
 

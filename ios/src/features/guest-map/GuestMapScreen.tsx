@@ -751,7 +751,6 @@ export function GuestMapScreen({
   const animateRouteSheet = (
     collapsed: boolean,
     onComplete?: () => void,
-    onAnimationStarted?: () => void,
   ) => {
     cancelPendingRouteInputFocus();
     pendingRouteSheetCompletionRef.current = onComplete
@@ -767,7 +766,6 @@ export function GuestMapScreen({
       routeSheetScrollRef.current?.scrollTo({ animated: false, y: 0 });
       routeSheetRef.current?.snapToIndex(0);
     }
-    onAnimationStarted?.();
   };
   const handleRouteSheetChange = (index: number) => {
     if (index < 0) {
@@ -798,9 +796,11 @@ export function GuestMapScreen({
   const handleCollapsedLocationSearch = () => {
     const nextStopId = resolveGuestRouteDraftNextStopInputId(routeDraft);
     transitionActiveInput(nextStopId);
+    // Focus only after Gorhom reports the open detent. If the keyboard appears
+    // while the sheet is still leaving index -1, its opening animation can
+    // overwrite the interactive keyboard offset and leave the sheet obscured.
     animateRouteSheet(
       false,
-      undefined,
       () => scheduleRouteStopInputFocus(nextStopId),
     );
   };

@@ -29,14 +29,22 @@ describe('guest location-search motion', () => {
     );
   });
 
-  it('starts the sheet before one direct input focus without blur-refocus recovery', () => {
+  it('waits for the opening animation to settle before focusing the input', () => {
     assert.match(
       guestMapSource,
-      /handleCollapsedLocationSearch[\s\S]*transitionActiveInput\(nextStopId\)[\s\S]*animateRouteSheet\([\s\S]*false,[\s\S]*scheduleRouteStopInputFocus\(nextStopId\)/,
+      /handleCollapsedLocationSearch[\s\S]*transitionActiveInput\(nextStopId\)[\s\S]*animateRouteSheet\([\s\S]*false,[\s\S]*\(\) => scheduleRouteStopInputFocus\(nextStopId\)/,
+    );
+    assert.match(
+      guestMapSource,
+      /handleRouteSheetChange[\s\S]*finishRouteSheetTransition\(false\)/,
     );
     assert.match(
       guestMapSource,
       /requestAnimationFrame\(\(\) => \{[\s\S]*routeInputRefs\.current\.get\(stopId\)\?\.focus\(\)/,
+    );
+    assert.doesNotMatch(
+      guestMapSource,
+      /onAnimationStarted|animateRouteSheet\([\s\S]{0,80}undefined,[\s\S]{0,80}scheduleRouteStopInputFocus/,
     );
     assert.doesNotMatch(
       guestMapSource,

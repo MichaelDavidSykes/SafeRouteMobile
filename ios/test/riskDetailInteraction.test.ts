@@ -48,7 +48,8 @@ describe("risk detail interaction", () => {
       callout,
       /nextIndex === 0[\s\S]*scrollRef\.current\?\.scrollTo\(\{ animated: false, y: 0 \}\)/,
     );
-    assert.doesNotMatch(callout, /PanResponder|Animated\.View|requestAnimationFrame/);
+    assert.doesNotMatch(callout, /PanResponder|requestAnimationFrame/);
+    assert.doesNotMatch(callout, /Animated[\s\S]*from "react-native"/);
     assert.doesNotMatch(callout, /height:\s*expanded\s*\?/);
   });
 
@@ -62,6 +63,31 @@ describe("risk detail interaction", () => {
     assert.match(
       callout,
       /expanded \? "auto" : "no-hide-descendants"/,
+    );
+  });
+
+  it("keeps expanded intelligence visually clipped until the sheet expands", () => {
+    const callout = readFileSync(
+      join(process.cwd(), "src/features/live-map/LiveMapRiskDetailCallout.tsx"),
+      "utf8",
+    );
+
+    assert.match(callout, /animatedIndex=\{animatedSheetIndex\}/);
+    assert.match(
+      callout,
+      /hasExpandedSnapPoint[\s\S]*\? interpolate\([\s\S]*animatedSheetIndex\.value[\s\S]*\[0, 0\.45, 1\][\s\S]*\[0, 0, 1\]/,
+    );
+    assert.match(
+      callout,
+      /pointerEvents=\{expanded \? "auto" : "none"\}/,
+    );
+    assert.match(
+      callout,
+      /style=\{\[styles\.expandedPanel, expandedPanelAnimatedStyle\]\}/,
+    );
+    assert.match(
+      callout,
+      /compactSnapPoint[\s\S]*- RISK_DETAIL_SHEET_HANDLE_HEIGHT[\s\S]*- RISK_DETAIL_SHEET_CONTENT_BOTTOM_PADDING/,
     );
   });
 });

@@ -31,7 +31,13 @@ import {
   type ViewStyle,
 } from "react-native";
 import MapView from "react-native-maps";
-import { ReduceMotion } from "react-native-reanimated";
+import Animated, {
+  Extrapolation,
+  ReduceMotion,
+  interpolate,
+  useAnimatedStyle,
+  useSharedValue,
+} from "react-native-reanimated";
 
 import {
   SafeRouteBottomSheet,
@@ -49,6 +55,7 @@ import { isRouteAlertZone } from "./riskOverlayPresentation";
 import { createRiskZoneExpandedPresentation } from "./riskDetailPresentation";
 
 const RISK_DETAIL_SHEET_HANDLE_HEIGHT = 24;
+const RISK_DETAIL_SHEET_CONTENT_BOTTOM_PADDING = 18;
 
 export function LiveMapRiskDetailCallout({
   bottomInset = chrome.tabBarHeight + 18,
@@ -179,6 +186,7 @@ export function LiveMapDetailCallout({
   const dismissalNotifiedRef = useRef(false);
   const previousReplayKeyRef = useRef(replayKey);
   const [sheetIndex, setSheetIndex] = useState(0);
+  const animatedSheetIndex = useSharedValue(-1);
 
   const availableSheetHeight = Math.max(
     240,
@@ -207,6 +215,16 @@ export function LiveMapDetailCallout({
   const expanded = Boolean(
     expandedContent && (!hasExpandedSnapPoint || sheetIndex === 1),
   );
+  const expandedPanelAnimatedStyle = useAnimatedStyle(() => ({
+    opacity: hasExpandedSnapPoint
+      ? interpolate(
+          animatedSheetIndex.value,
+          [0, 0.45, 1],
+          [0, 0, 1],
+          Extrapolation.CLAMP,
+        )
+      : 1,
+  }), [hasExpandedSnapPoint]);
 
   useEffect(() => {
     if (previousReplayKeyRef.current === replayKey) {
@@ -252,6 +270,7 @@ export function LiveMapDetailCallout({
     >
       <SafeRouteBottomSheet
         animateOnMount
+        animatedIndex={animatedSheetIndex}
         bottomInset={bottomInset}
         detached
         enablePanDownToClose={!hasExpandedSnapPoint || sheetIndex === 0}
@@ -278,7 +297,9 @@ export function LiveMapDetailCallout({
               ? {
                   minHeight: Math.max(
                     0,
-                    compactSnapPoint - RISK_DETAIL_SHEET_HANDLE_HEIGHT,
+                    compactSnapPoint
+                      - RISK_DETAIL_SHEET_HANDLE_HEIGHT
+                      - RISK_DETAIL_SHEET_CONTENT_BOTTOM_PADDING,
                   ),
                 }
               : undefined}
@@ -364,16 +385,17 @@ export function LiveMapDetailCallout({
           </View>
 
           {expandedContent ? (
-            <View
+            <Animated.View
               accessibilityElementsHidden={!expanded}
               importantForAccessibility={
                 expanded ? "auto" : "no-hide-descendants"
               }
-              style={styles.expandedPanel}
+              pointerEvents={expanded ? "auto" : "none"}
+              style={[styles.expandedPanel, expandedPanelAnimatedStyle]}
               testID={expandedTestID}
             >
               {expandedContent}
-            </View>
+            </Animated.View>
           ) : null}
         </BottomSheetScrollView>
       </SafeRouteBottomSheet>
@@ -600,7 +622,7 @@ const styles = StyleSheet.create({
   },
   sheetContent: {
     paddingHorizontal: 18,
-    paddingBottom: 18,
+    paddingBottom: RISK_DETAIL_SHEET_CONTENT_BOTTOM_PADDING,
   },
   disclosureHint: {
     minHeight: 30,

@@ -136,6 +136,7 @@ interface LiveMapScreenProps {
   returnLabel?: string;
   routeContext?: "guest" | "saved";
   routePlan: SavedSafeRoutePlan;
+  startNavigationOnOpen?: boolean;
   workspaceAuthorizationFresh?: boolean;
   workspaceAuthorizationChecking?: boolean;
   workspaceAuthorizationUnavailable?: boolean;
@@ -155,6 +156,7 @@ export function LiveMapScreen({
   returnLabel = "Routes",
   routePlan,
   routeContext = "saved",
+  startNavigationOnOpen = false,
   workspaceAuthorizationFresh = false,
   workspaceAuthorizationChecking = false,
   workspaceAuthorizationUnavailable = false,
@@ -179,6 +181,10 @@ export function LiveMapScreen({
     })
       ? initialNavigationSession || null
       : null;
+  const demoDriveActive =
+    SAFEROUTE_DEMO_DRIVE_ENABLED && isPreviewAccessToken(accessToken);
+  const automaticNavigationStartRouteKeyRef = useRef<string | null>(null);
+  const automaticNavigationStartPendingRef = useRef(false);
   const mapRef = useRef<MapView | null>(null);
   const activeRerouteRequestRef = useRef<AbortController | null>(null);
   const lastDriveAlongCameraPoseRef = useRef<DriveAlongCameraPose | null>(null);
@@ -267,7 +273,6 @@ export function LiveMapScreen({
   // Expo preview sessions advance along the real snapped route automatically
   // once guidance starts. This keeps QA deterministic without exposing a
   // confusing simulation control in the customer-facing route sheet.
-  const demoDriveActive = SAFEROUTE_DEMO_DRIVE_ENABLED && isPreviewAccessToken(accessToken);
   const navigationLocationTrackingActive =
     !demoDriveActive &&
     (navigationState === "navigating" || navigationState === "off-route");
@@ -1064,6 +1069,22 @@ export function LiveMapScreen({
         ? initialNavigationSession || null
         : null;
     const nextRoutePlan = nextResumeSession?.routePlan || routePlan;
+    const automaticStartRouteKey = [
+      routeContext,
+      nextRoutePlan.clientId || "public",
+      nextRoutePlan.id,
+      nextRoutePlan.route.id,
+    ].join(":");
+    if (
+      startNavigationOnOpen &&
+      !nextResumeSession &&
+      automaticNavigationStartRouteKeyRef.current !== automaticStartRouteKey
+    ) {
+      automaticNavigationStartRouteKeyRef.current = automaticStartRouteKey;
+      automaticNavigationStartPendingRef.current = true;
+    } else if (!startNavigationOnOpen || nextResumeSession) {
+      automaticNavigationStartPendingRef.current = false;
+    }
     activeRerouteRequestRef.current?.abort();
     navigationPersistenceRevisionRef.current += 1;
     persistedEvidenceNavigationIdRef.current = null;
@@ -1088,8 +1109,13 @@ export function LiveMapScreen({
       setNavigationInstanceId(createActiveNavigationInstanceId(preparedAtMs));
       setNavigationStartedAtMs(preparedAtMs);
     }
-    setLiveLocationRequested(Boolean(nextResumeSession));
-    setPendingNavigationStart(false);
+    setLiveLocationRequested(
+      Boolean(
+        nextResumeSession ||
+        (automaticNavigationStartPendingRef.current && !demoDriveActive),
+      ),
+    );
+    setPendingNavigationStart(automaticNavigationStartPendingRef.current);
     cancelNavigationStartAuthorization(navigationAuthorizationGateRef.current);
     setNavigationAuthorizationPending(false);
     setNavigationAuthorizationNotice(null);
@@ -1111,10 +1137,13 @@ export function LiveMapScreen({
     };
   }, [
     initialNavigationSession?.navigationInstanceId,
+    demoDriveActive,
     principalId,
     routeContext,
     routePlan.clientId,
     routePlan.id,
+    routePlan.route.id,
+    startNavigationOnOpen,
   ]);
 
   useEffect(() => {
@@ -1477,6 +1506,7 @@ export function LiveMapScreen({
   };
 
   const commitNavigationStart = () => {
+    automaticNavigationStartPendingRef.current = false;
     if (navigationState === "loaded" || navigationState === "stopped") {
       const startedAtMs = Date.now();
       setNavigationInstanceId(createActiveNavigationInstanceId(startedAtMs));
@@ -1531,6 +1561,7 @@ export function LiveMapScreen({
     if (result.status === "authorized") {
       setNavigationAuthorizationNotice(null);
     } else {
+      automaticNavigationStartPendingRef.current = false;
       setNavigationAuthorizationNotice(navigationStartAuthorizationNotice(result));
     }
     setNavigationAuthorizationPending(false);
@@ -1545,7 +1576,9 @@ export function LiveMapScreen({
       navigationAuthorizationGateRef.current.pending || pendingNavigationStart;
     cancelNavigationStartAuthorization(navigationAuthorizationGateRef.current);
     setNavigationAuthorizationPending(false);
-    setPendingNavigationStart(false);
+    setPendingNavigationStart(
+      automaticNavigationStartPendingRef.current && navigationState === "loaded",
+    );
     if (startWasPending) {
       setNavigationAuthorizationNotice(
         "Workspace access is being checked. Wait before starting guidance.",
@@ -1606,6 +1639,9 @@ export function LiveMapScreen({
     }
 
     if (demoDriveActive) {
+      if (navigationBlockedReason || navigationAuthorizationPending) {
+        return;
+      }
       setPendingNavigationStart(false);
       void authorizeAndStartNavigation();
       return;
@@ -1616,6 +1652,7 @@ export function LiveMapScreen({
       riskStartBlockedReason ||
       startProximityBlockedReason
     ) {
+      automaticNavigationStartPendingRef.current = false;
       setPendingNavigationStart(false);
       return;
     }
@@ -1646,6 +1683,7 @@ export function LiveMapScreen({
     setProgressFloorMeters(0);
     setFollowModeEnabled(false);
     setBackgroundTrackingRequested(false);
+    automaticNavigationStartPendingRef.current = false;
     setPendingNavigationStart(false);
     lastDriveAlongCameraPoseRef.current = null;
     driveAlongCameraActiveRef.current = false;

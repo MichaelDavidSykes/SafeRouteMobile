@@ -740,9 +740,19 @@ describe("Maestro iOS preview smoke flow", () => {
 
   it("keeps preview movement automatic and out of customer-facing route controls", () => {
     const flow = previewFlowSource();
+    const directGuestStart = flow.slice(
+      flow.indexOf("# Guest Start requests location"),
+    );
+    const activeGuidanceIndex = directGuestStart.indexOf(
+      'id: "safe-route-stop-action"',
+    );
+    const firstPrimaryTapIndex = directGuestStart.indexOf(
+      '- tapOn:\n    id: "safe-route-primary-action"',
+    );
 
     assert.doesNotMatch(flow, /safe-route-demo-action|route simulation|Simulate/);
-    assert.match(flow, /tapOn:\s*\n\s+id:\s*"safe-route-primary-action"/);
+    assert.ok(activeGuidanceIndex >= 0);
+    assert.ok(firstPrimaryTapIndex > activeGuidanceIndex);
   });
 
   it("avoids transient live risk detail assertions in the smoke flow", () => {
@@ -785,15 +795,17 @@ describe("Maestro iOS preview smoke flow", () => {
     const firstPermissionIndex = flow.indexOf('visible: "Allow While Using App"');
     const liveMapWaitIndex = flow.indexOf('id: "safe-route-live-map"');
 
-    assert.equal(permissionHandlerCount, 1);
+    const secondPermissionIndex = flow.indexOf(
+      'visible: "Allow While Using App"',
+      firstPermissionIndex + 1,
+    );
+
+    assert.equal(permissionHandlerCount, 2);
     assert.match(flow, /visible:\s*"Allow While Using App"/);
     assert.match(flow, /tapOn:\s*"Allow While Using App"/);
     assert.ok(firstPermissionIndex >= 0);
     assert.ok(liveMapWaitIndex > firstPermissionIndex);
-    assert.doesNotMatch(
-      flow,
-      /guest-map-plot-action[\s\S]*visible:\s*"Allow While Using App"/
-    );
+    assert.ok(secondPermissionIndex > liveMapWaitIndex);
   });
 
   it("limits action tap settling so map animations do not stall the smoke run", () => {

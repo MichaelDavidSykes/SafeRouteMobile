@@ -5027,6 +5027,7 @@ function SafeRouteApp() {
             returnLabel={returnCopy.label}
             routeContext={routePreviewSource}
             routePlan={selectedRoute}
+            startNavigationOnOpen={routePreviewSource === 'guest'}
             onChangeRoute={returnFromRoutePreview}
             onAuthorizeNavigationStart={handleAuthorizeNavigationStart}
             onNavigationSessionChange={handleNavigationSessionChange}

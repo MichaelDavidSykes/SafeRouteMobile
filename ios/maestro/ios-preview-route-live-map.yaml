@@ -142,8 +142,17 @@ appId: host.exp.Exponent
           id: "safe-route-card-sr-city-airport-alpha"
       - waitForAnimationToEnd:
           timeout: 5000
-# Live location permission is requested only after the user starts guidance,
-# so the map can render first without extra system-prompt hierarchy polling.
+      # Saved-route cards open a review surface, so this fallback keeps its
+      # explicit Start. The guest planner's Start action below starts directly.
+      - extendedWaitUntil:
+          visible:
+            id: "safe-route-live-map"
+          timeout: 30000
+      - tapOn:
+          id: "safe-route-primary-action"
+          waitToSettleTimeoutMs: 1000
+# Guest Start requests location as the live map opens. Accept a first-time iOS
+# permission prompt without adding a second in-app Start tap.
 - extendedWaitUntil:
     visible:
       id: "safe-route-live-map"
@@ -154,13 +163,17 @@ appId: host.exp.Exponent
     id: "safe-route-summary-sheet"
 - assertVisible:
     id: "safe-route-primary-action"
-- tapOn:
-    id: "safe-route-primary-action"
-    waitToSettleTimeoutMs: 1000
+- runFlow:
+    when:
+      visible: "Allow While Using App"
+    commands:
+      - tapOn: "Allow While Using App"
+      - waitForAnimationToEnd:
+          timeout: 3000
 - extendedWaitUntil:
     visible:
       id: "safe-route-stop-action"
-    timeout: 5000
+    timeout: 15000
 - assertVisible:
     id: "safe-route-remaining-metrics"
 - assertVisible:

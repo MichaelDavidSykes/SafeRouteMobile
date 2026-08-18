@@ -163,6 +163,37 @@ describe("production navigation reliability integration", () => {
     );
   });
 
+  it("turns the guest Start route handoff into one gated navigation start", () => {
+    const appSource = source("App.tsx");
+    const liveMapSource = source("src/features/live-map/LiveMapScreen.tsx");
+    const resetBlock = liveMapSource.slice(
+      liveMapSource.indexOf("const nextResumeSession ="),
+      liveMapSource.indexOf("const workspaceId =", liveMapSource.indexOf("const nextResumeSession =")),
+    );
+    const pendingStartBlock = liveMapSource.slice(
+      liveMapSource.indexOf("if (!pendingNavigationStart)"),
+      liveMapSource.indexOf("const handleStopRoute"),
+    );
+
+    assert.match(
+      appSource,
+      /startNavigationOnOpen=\{routePreviewSource === 'guest'\}/,
+    );
+    assert.match(resetBlock, /startNavigationOnOpen[\s\S]*!nextResumeSession/);
+    assert.match(resetBlock, /automaticNavigationStartRouteKeyRef/);
+    assert.match(resetBlock, /setLiveLocationRequested\([\s\S]*automaticNavigationStartPendingRef/);
+    assert.match(resetBlock, /setPendingNavigationStart\(automaticNavigationStartPendingRef\.current\)/);
+    assert.match(
+      pendingStartBlock,
+      /permissionStatus !== "granted" \|\| !rawVehicleCoordinate \|\| navigationBlockedReason[\s\S]*authorizeAndStartNavigation/,
+    );
+    assert.match(
+      liveMapSource,
+      /const commitNavigationStart = \(\) => \{[\s\S]*automaticNavigationStartPendingRef\.current = false;[\s\S]*setNavigationState\("navigating"\)/,
+    );
+    assert.doesNotMatch(resetBlock, /commitNavigationStart\(/);
+  });
+
   it("updates pause and end-route controls before cleanup work", () => {
     const liveMapSource = source("src/features/live-map/LiveMapScreen.tsx");
     const primaryActionBlock = liveMapSource.slice(

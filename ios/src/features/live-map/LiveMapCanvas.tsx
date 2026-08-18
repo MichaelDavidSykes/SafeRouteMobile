@@ -15,9 +15,10 @@ import type { NavigationLifecycle } from "./liveMapUiState";
 import { shouldShowNativeUserLocation } from "./liveMapUiState";
 import {
   CheckpointMarker,
-  CompassTrackedMarker,
+  CompassTrackedHeadingOverlay,
   RiskOverlay,
   SupportFacilityMarker,
+  VehicleMarker,
 } from "./LiveMapMarkers";
 import { LiveMapRiskDetailCallout } from "./LiveMapRiskDetailCallout";
 import { resolveRouteLinePresentation } from "./routeLinePresentation";
@@ -84,6 +85,7 @@ export function LiveMapCanvas({
   const safeAreaInsets = useSafeAreaInsets();
   const mapCameraRequestIdRef = useRef(0);
   const [mapCameraHeadingDegrees, setMapCameraHeadingDegrees] = useState(0);
+  const [mapProjectionRevision, setMapProjectionRevision] = useState(0);
   const routeCoordinates = routePlan.route.coordinates;
   const routeLinePresentation = resolveRouteLinePresentation({
     progressCoordinateCount: progressCoordinates.length,
@@ -143,9 +145,11 @@ export function LiveMapCanvas({
       onPanDrag={onPanDrag}
       onMapReady={() => {
         onMapReady();
+        setMapProjectionRevision((revision) => revision + 1);
         refreshMapCameraHeading();
       }}
       onRegionChangeComplete={() => {
+        setMapProjectionRevision((revision) => revision + 1);
         refreshMapCameraHeading();
         onRegionChangeComplete?.();
       }}
@@ -219,15 +223,22 @@ export function LiveMapCanvas({
         : null}
 
       {vehicleCoordinate ? (
-        <CompassTrackedMarker
+        <VehicleMarker
           coordinate={vehicleCoordinate}
           demoDriveEnabled={demoDriveActive}
-          enabled={!demoDriveActive && permissionStatus === "granted"}
-          fallbackHeading={heading}
-          mapHeading={mapCameraHeadingDegrees}
         />
       ) : null}
       </MapView>
+      {vehicleCoordinate ? (
+        <CompassTrackedHeadingOverlay
+          coordinate={vehicleCoordinate}
+          enabled={!demoDriveActive && permissionStatus === "granted"}
+          fallbackHeading={heading}
+          mapHeading={mapCameraHeadingDegrees}
+          mapRef={mapRef}
+          projectionRevision={mapProjectionRevision}
+        />
+      ) : null}
       {selectedRiskZone ? (
         <LiveMapRiskDetailCallout
           bottomInset={safeAreaInsets.bottom + 12}

@@ -12,16 +12,16 @@ describe('map facing-direction indicator', () => {
 
     assert.match(
       guestMap,
-      /<CompassTrackedMarker/,
+      /currentLocationVisible && liveCoordinate[\s\S]*<VehicleMarker[\s\S]*guestMapCurrentLocationMarker/,
     );
     assert.match(guestMap, /showsUserLocation=\{false\}/);
     assert.match(
       guestMap,
-      /currentLocationVisible && liveCoordinate[\s\S]*<CompassTrackedMarker[\s\S]*guestMapCurrentLocationMarker/,
+      /<\/MapView>[\s\S]*<CompassTrackedHeadingOverlay/,
     );
     assert.match(
       guestMap,
-      /<CompassTrackedMarker[\s\S]*enabled=\{permissionStatus === 'granted'\}[\s\S]*mapHeading=\{mapCameraHeadingDegrees\}/,
+      /<CompassTrackedHeadingOverlay[\s\S]*enabled=\{permissionStatus === 'granted'\}[\s\S]*mapHeading=\{mapCameraHeadingDegrees\}[\s\S]*mapRef=\{mapRef\}[\s\S]*projectionRevision=\{compassProjectionRevision\}/,
     );
   });
 
@@ -31,7 +31,11 @@ describe('map facing-direction indicator', () => {
 
     assert.match(
       liveCanvas,
-      /<CompassTrackedMarker[\s\S]*enabled=\{!demoDriveActive && permissionStatus === "granted"\}/,
+      /<VehicleMarker[\s\S]*demoDriveEnabled=\{demoDriveActive\}[\s\S]*<\/MapView>[\s\S]*<CompassTrackedHeadingOverlay/,
+    );
+    assert.match(
+      liveCanvas,
+      /<CompassTrackedHeadingOverlay[\s\S]*enabled=\{!demoDriveActive && permissionStatus === "granted"\}/,
     );
     assert.match(
       liveCanvas,
@@ -43,14 +47,24 @@ describe('map facing-direction indicator', () => {
     );
   });
 
-  it('keeps one Apple-style puck mounted and rotates only its inner beam', () => {
+  it('keeps a static MapKit puck and rotates the Apple-style beam above the map', () => {
     const markers = source('features/live-map/LiveMapMarkers.tsx');
+    const staticMarker = markers.slice(
+      markers.indexOf('export function VehicleMarker'),
+      markers.indexOf('export function createVehicleMarkerAccessibilityLabel'),
+    );
 
     assert.match(markers, /useDeviceHeading\(enabled, \{[\s\S]*minimumUpdateIntervalMs: 80/);
+    assert.match(markers, /map\.pointForCoordinate\(coordinate\)/);
+    assert.match(markers, /styles\.vehicleHeadingOverlay/);
     assert.match(markers, /styles\.vehicleMarkerDirection/);
     assert.match(markers, /LinearGradient id="appleHeadingBeam"/);
     assert.match(markers, /Animated\.timing\(animatedRotation/);
     assert.match(markers, /useNativeDriver: true/);
+    assert.match(markers, /renderToHardwareTextureAndroid/);
+    assert.match(markers, /shouldRasterizeIOS/);
+    assert.match(staticMarker, /<Marker/);
+    assert.doesNotMatch(staticMarker, /Animated\.View|appleHeadingBeam|useDeviceHeading/);
     assert.doesNotMatch(markers, /CompassDirectionPolygon/);
     assert.doesNotMatch(markers, /<Marker[\s\S]*rotation=/);
     assert.match(

@@ -1,5 +1,5 @@
-import type { ComponentProps, ComponentType } from 'react';
-import { memo, useEffect, useRef } from 'react';
+import type { ComponentProps, ComponentType, RefObject } from 'react';
+import { memo, useEffect, useRef, useState } from 'react';
 import {
   AlertTriangle,
   CircleAlert,
@@ -9,7 +9,15 @@ import {
   ShieldCheck,
 } from 'lucide-react-native';
 import { Animated, Easing, StyleSheet, View } from 'react-native';
-import { Circle, Marker, Polygon, Polyline } from 'react-native-maps';
+import type MapView from 'react-native-maps';
+import {
+  Circle,
+  Marker,
+  Polygon,
+  Polyline,
+  type LatLng,
+  type Point,
+} from 'react-native-maps';
 import Svg, {
   Defs,
   LinearGradient,
@@ -307,19 +315,21 @@ export const SupportFacilityMarker = memo(function SupportFacilityMarker({
   );
 });
 
-export const CompassTrackedMarker = memo(function CompassTrackedMarker({
+export const CompassTrackedHeadingOverlay = memo(function CompassTrackedHeadingOverlay({
   coordinate,
-  demoDriveEnabled = false,
   enabled,
   fallbackHeading = null,
+  mapRef,
   mapHeading = 0,
+  projectionRevision,
   testID,
 }: {
-  coordinate: { latitude: number; longitude: number };
-  demoDriveEnabled?: boolean;
+  coordinate: LatLng;
   enabled: boolean;
   fallbackHeading?: number | null;
+  mapRef: RefObject<MapView | null>;
   mapHeading?: number;
+  projectionRevision: number | string;
   testID?: string;
 }) {
   const deviceHeading = useDeviceHeading(enabled, {
@@ -327,11 +337,12 @@ export const CompassTrackedMarker = memo(function CompassTrackedMarker({
     minimumUpdateIntervalMs: 80,
   });
   return (
-    <VehicleMarker
+    <VehicleHeadingOverlay
       coordinate={coordinate}
-      demoDriveEnabled={demoDriveEnabled}
       heading={deviceHeading ?? fallbackHeading}
+      mapRef={mapRef}
       mapHeading={mapHeading}
+      projectionRevision={projectionRevision}
       testID={testID}
     />
   );
@@ -416,24 +427,64 @@ function RiskMarker({
   );
 }
 
-export function VehicleMarker({
+export const VehicleHeadingOverlay = memo(function VehicleHeadingOverlay({
   coordinate,
-  demoDriveEnabled,
   heading,
+  mapRef,
   mapHeading,
+  projectionRevision,
   testID,
 }: {
-  coordinate: { latitude: number; longitude: number };
-  demoDriveEnabled: boolean;
+  coordinate: LatLng;
   heading: number | null;
+  mapRef: RefObject<MapView | null>;
   mapHeading: number;
+  projectionRevision: number | string;
   testID?: string;
 }) {
-  const markerTitle = demoDriveEnabled ? 'Route preview position' : 'Current position';
   const screenRotation = resolveDeviceHeadingScreenRotation(heading, mapHeading);
+  const [projectedPoint, setProjectedPoint] = useState<Point | null>(null);
+  const projectionRequestIdRef = useRef(0);
   const animatedRotation = useRef(new Animated.Value(screenRotation ?? 0)).current;
   const previousRotationRef = useRef<number | null>(screenRotation);
   const continuousRotationRef = useRef(screenRotation ?? 0);
+
+  useEffect(() => {
+    const map = mapRef.current;
+    if (!map) {
+      return;
+    }
+
+    const requestId = projectionRequestIdRef.current + 1;
+    projectionRequestIdRef.current = requestId;
+    let mounted = true;
+    void map.pointForCoordinate(coordinate).then((point) => {
+      if (
+        !mounted ||
+        projectionRequestIdRef.current !== requestId ||
+        !Number.isFinite(point.x) ||
+        !Number.isFinite(point.y)
+      ) {
+        return;
+      }
+      setProjectedPoint((current) =>
+        current &&
+        Math.abs(current.x - point.x) < 0.5 &&
+        Math.abs(current.y - point.y) < 0.5
+          ? current
+          : point,
+      );
+    }).catch(() => undefined);
+
+    return () => {
+      mounted = false;
+    };
+  }, [
+    coordinate.latitude,
+    coordinate.longitude,
+    mapRef,
+    projectionRevision,
+  ]);
 
   useEffect(() => {
     if (screenRotation === null) {
@@ -456,6 +507,72 @@ export function VehicleMarker({
     previousRotationRef.current = screenRotation;
   }, [animatedRotation, screenRotation]);
 
+  if (
+    !projectedPoint ||
+    (screenRotation === null && previousRotationRef.current === null)
+  ) {
+    return null;
+  }
+
+  return (
+    <View
+      accessibilityElementsHidden
+      accessible={false}
+      pointerEvents="none"
+      style={[
+        styles.vehicleHeadingOverlay,
+        {
+          left: projectedPoint.x - 44,
+          top: projectedPoint.y - 44,
+        },
+      ]}
+      testID={testID}
+    >
+      <Animated.View
+        pointerEvents="none"
+        renderToHardwareTextureAndroid
+        shouldRasterizeIOS
+        style={[
+          styles.vehicleMarkerDirection,
+          {
+            transform: [{
+              rotate: animatedRotation.interpolate({
+                inputRange: [-36000, 36000],
+                outputRange: ['-36000deg', '36000deg'],
+              }),
+            }],
+          },
+        ]}
+      >
+        <Svg height={88} width={88} viewBox="0 0 88 88">
+          <Defs>
+            <LinearGradient id="appleHeadingBeam" x1="0" y1="1" x2="0" y2="0">
+              <Stop offset="0" stopColor="#0A84FF" stopOpacity="0.34" />
+              <Stop offset="0.7" stopColor="#0A84FF" stopOpacity="0.17" />
+              <Stop offset="1" stopColor="#0A84FF" stopOpacity="0" />
+            </LinearGradient>
+          </Defs>
+          <Path
+            d="M44 45 L21 4 Q44 -3 67 4 Z"
+            fill="url(#appleHeadingBeam)"
+          />
+        </Svg>
+      </Animated.View>
+    </View>
+  );
+});
+
+export function VehicleMarker({
+  coordinate,
+  demoDriveEnabled = false,
+  testID,
+}: {
+  coordinate: LatLng;
+  demoDriveEnabled?: boolean;
+  testID?: string;
+}) {
+  const markerTitle = demoDriveEnabled ? 'Route preview position' : 'Current position';
+
   return (
     <Marker
       coordinate={coordinate}
@@ -472,36 +589,6 @@ export function VehicleMarker({
         collapsable={false}
         style={styles.vehicleMarker}
       >
-        <Animated.View
-          accessibilityElementsHidden
-          pointerEvents="none"
-          style={[
-            styles.vehicleMarkerDirection,
-            {
-              opacity: screenRotation === null ? 0 : 1,
-              transform: [{
-                rotate: animatedRotation.interpolate({
-                  inputRange: [-36000, 36000],
-                  outputRange: ['-36000deg', '36000deg'],
-                }),
-              }],
-            },
-          ]}
-        >
-          <Svg height={88} width={88} viewBox="0 0 88 88">
-            <Defs>
-              <LinearGradient id="appleHeadingBeam" x1="0" y1="1" x2="0" y2="0">
-                <Stop offset="0" stopColor="#0A84FF" stopOpacity="0.34" />
-                <Stop offset="0.7" stopColor="#0A84FF" stopOpacity="0.17" />
-                <Stop offset="1" stopColor="#0A84FF" stopOpacity="0" />
-              </LinearGradient>
-            </Defs>
-            <Path
-              d="M44 45 L21 4 Q44 -3 67 4 Z"
-              fill="url(#appleHeadingBeam)"
-            />
-          </Svg>
-        </Animated.View>
         {!demoDriveEnabled ? (
           <View
             accessibilityElementsHidden
@@ -702,6 +789,13 @@ const styles = StyleSheet.create({
     borderRadius: radius.pill,
     shadowOpacity: 0,
     elevation: 0,
+  },
+  vehicleHeadingOverlay: {
+    position: 'absolute',
+    width: 88,
+    height: 88,
+    zIndex: 101,
+    elevation: 101,
   },
   vehicleMarker: {
     width: 88,

@@ -103,4 +103,17 @@ describe('guest route plotting lifecycle', () => {
       /if \(!acceptedRoadPreview && !sessionExpiryHandled && !workspaceUnavailableHandled\)/,
     );
   });
+
+  it('does not draw provisional geometry before risk verification completes', () => {
+    assert.match(
+      guestMapSource,
+      /const verifiedRouteGeometryVisible = Boolean\([\s\S]*routePlan && !provisionalRouteVisible/,
+    );
+    assert.match(
+      guestMapSource,
+      /\{verifiedRouteGeometryVisible \? routeRenderSession\.lines\.map/,
+    );
+    assert.doesNotMatch(guestMapSource, /lineDashPattern=\{provisionalRouteVisible/);
+    assert.match(guestMapSource, /Waiting for verified route/);
+  });
 });

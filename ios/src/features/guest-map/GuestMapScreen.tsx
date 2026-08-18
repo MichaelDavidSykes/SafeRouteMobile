@@ -203,7 +203,7 @@ const GUEST_MAP_MAX_RENDERED_RISK_ZONES = 80;
 const GUEST_MAP_MAX_ROUTE_COORDINATES = 1200;
 const GUEST_MAP_MAX_ROUTE_FIT_COORDINATES = 420;
 const GUEST_PROVISIONAL_ROUTE_MESSAGE =
-  'Road route plotted. Risk coverage is still being verified, so starting guidance is locked.';
+  'Road route found. Risk coverage is still being verified before the route can be shown or started.';
 const GUEST_MAP_ALTERNATIVE_ROUTE_COLORS = [
   'rgba(91, 174, 255, 0.88)',
   'rgba(111, 132, 186, 0.88)',
@@ -539,6 +539,9 @@ export function GuestMapScreen({
   const provisionalRouteVisible = Boolean(
     routePlan && provisionalRoutePlanIdRef.current === routePlan.id,
   );
+  const verifiedRouteGeometryVisible = Boolean(
+    routePlan && !provisionalRouteVisible,
+  );
   const routeDraftReady =
     getGuestRouteDraftUnresolvedStopIds(routeDraft).length === 0;
   const searchStageActive = Boolean(activeInput);
@@ -695,11 +698,11 @@ export function GuestMapScreen({
       maxRenderedRiskZones: GUEST_MAP_MAX_RENDERED_RISK_ZONES,
       maxRouteCoordinates: GUEST_MAP_MAX_ROUTE_COORDINATES,
       routes: routeAlternatives,
-      selectedColor: provisionalRouteVisible ? colors.amber : colors.routePrimary,
+      selectedColor: colors.routePrimary,
       selectedRoute: routePlan,
       selectedStrokeWidth: SAFE_ROUTE_ROUTE_CORE_WIDTH + 2,
     }),
-    [provisionalRouteVisible, routeAlternatives, routePlan],
+    [routeAlternatives, routePlan],
   );
   const routeMapCoordinates = routeRenderSession.selectedCoordinates;
   const routeFitCoordinates = routeRenderSession.fitCoordinates;
@@ -2081,11 +2084,10 @@ export function GuestMapScreen({
         {(mapLayer === 'dark' || !online) && Platform.OS === 'ios'
           ? <SafeRouteDarkMapMask />
           : null}
-        {routePlan ? routeRenderSession.lines.map((line) => (
+        {verifiedRouteGeometryVisible ? routeRenderSession.lines.map((line) => (
           <Polyline
             key={line.plan.id}
             coordinates={line.coordinates}
-            lineDashPattern={provisionalRouteVisible ? [10, 8] : undefined}
             strokeColor={line.strokeColor}
             strokeWidth={line.strokeWidth}
             lineCap="round"
@@ -2799,7 +2801,7 @@ export function GuestMapScreen({
               <View
                 accessible
                 accessibilityLabel={provisionalRouteVisible
-                  ? 'Road route plotted. Risk coverage verification is pending. Starting guidance is locked.'
+                  ? 'Road route found. Risk coverage verification is pending. The route will appear when verification finishes.'
                   : `Finding the safest ${travelModeRouteLabel} route. Checking roads and nearby risk areas.`}
                 accessibilityLiveRegion="polite"
                 accessibilityRole="progressbar"
@@ -2815,7 +2817,7 @@ export function GuestMapScreen({
                   </Text>
                   <Text numberOfLines={1} style={styles.collapsedSheetSubtitle}>
                     {provisionalRouteVisible
-                      ? 'Route shown · Start stays locked'
+                      ? 'Waiting for verified route'
                       : 'Checking roads and nearby risk areas'}
                   </Text>
                 </View>

@@ -191,7 +191,6 @@ import {
 } from './src/features/workspaces/workspaceAccessFocusHandoff';
 import { SuspendedNavigationNotice } from './src/features/live-map/SuspendedNavigationNotice';
 import { isSuspendedNavigationEndRequestCurrent } from './src/features/live-map/suspendedNavigationState';
-import { NavigationCleanupNotice } from './src/features/live-map/NavigationCleanupNotice';
 import { isNavigationStartRequestCurrent } from './src/features/live-map/navigationStartRequestIdentity';
 import {
   isCurrentPendingNavigationRestore,
@@ -313,10 +312,6 @@ function SafeRouteApp() {
   const [navigationCleanupStatus, setNavigationCleanupStatus] =
     useState<NavigationCleanupStatus>('idle');
   const [workspaceHandoffPending, setWorkspaceHandoffPending] = useState(false);
-  const [
-    pendingWorkspaceHandoffTargetName,
-    setPendingWorkspaceHandoffTargetName,
-  ] = useState('');
   const [workspaceSelectionStatus, setWorkspaceSelectionStatus] =
     useState<WorkspaceSelectionStatus>('idle');
   const [
@@ -427,6 +422,7 @@ function SafeRouteApp() {
   const routePreviewSourceRef = useRef<RoutePreviewSource>(routePreviewSource);
   const navigationCleanupRequiredRef = useRef(false);
   const navigationCleanupPromiseRef = useRef<Promise<boolean> | null>(null);
+  const navigationCleanupSilentRetryCountRef = useRef(0);
   const workspaceHandoffPendingRef = useRef(false);
   const pendingWorkspaceHandoffRef = useRef<PendingWorkspaceHandoff | null>(null);
   const pendingWorkspaceSelectionRetryRef =
@@ -525,41 +521,6 @@ function SafeRouteApp() {
     navigationCleanupStatus !== 'idle' || workspaceHandoffPending;
   const workspaceSelectionPending = workspaceSelectionStatus === 'saving';
   const workspaceSelectionFailed = workspaceSelectionStatus === 'failed';
-  const pendingWorkspaceHandoffForNotice = pendingWorkspaceHandoffTargetName
-    ? pendingWorkspaceHandoffRef.current
-    : null;
-  const pendingWorkspaceHandoffNoticeDecision =
-    pendingWorkspaceHandoffForNotice
-      ? resolveWorkspaceHandoffContinuation({
-          context: {
-            availableWorkspaces,
-            catalogBusy:
-              workspaceCatalogBusy ||
-              workspaceForegroundRefreshPendingRef.current,
-            cleanupPending: Boolean(navigationCleanupPromiseRef.current),
-            cleanupRequired: navigationCleanupRequiredRef.current,
-            currentPrincipalId: getAuthSessionPrincipalId(session),
-            currentSessionEpoch: sessionEpochRef.current,
-            currentSourceWorkspaceId: activeWorkspace?.id || null,
-            hasActiveNavigation: Boolean(activeNavigationSession),
-            hasPendingNavigation: Boolean(pendingNavigationRestore),
-            selectionPending: workspaceSelectionPending,
-            unavailableWorkspaceIds: unavailableWorkspaceIdsRef.current,
-          },
-          request: {
-            principalId:
-              pendingWorkspaceHandoffForNotice.requestedPrincipalId,
-            sessionEpoch:
-              pendingWorkspaceHandoffForNotice.requestedSessionEpoch,
-            sourceWorkspaceId:
-              pendingWorkspaceHandoffForNotice.requestedSourceWorkspaceId,
-            targetWorkspaceId:
-              pendingWorkspaceHandoffForNotice.requestedTargetWorkspaceId,
-          },
-        })
-      : null;
-  const workspaceHandoffNoticeTargetName =
-    pendingWorkspaceHandoffNoticeDecision?.target?.name || '';
   const pendingWorkspaceSelectionRetryNoticeDecision =
     pendingWorkspaceSelectionRetry
       ? resolveWorkspaceHandoffContinuation({
@@ -1230,7 +1191,6 @@ function SafeRouteApp() {
       return;
     }
     pendingWorkspaceHandoffRef.current = null;
-    setPendingWorkspaceHandoffTargetName('');
     if (discardDeferredCatalogRefresh) {
       workspaceCatalogRefreshDeferredRef.current = false;
       workspaceForegroundRefreshDeferredRef.current = false;
@@ -1498,6 +1458,28 @@ function SafeRouteApp() {
       setWorkspaceHandoffPending(continuationStillPending);
     }
   };
+
+  useEffect(() => {
+    if (navigationCleanupStatus === 'idle') {
+      navigationCleanupSilentRetryCountRef.current = 0;
+      return;
+    }
+    if (navigationCleanupStatus !== 'failed') {
+      return;
+    }
+    const attempt = navigationCleanupSilentRetryCountRef.current;
+    const retryDelaysMs = [1_200, 3_000, 6_000];
+    if (attempt >= retryDelaysMs.length) {
+      return;
+    }
+    navigationCleanupSilentRetryCountRef.current = attempt + 1;
+    const retryTimer = setTimeout(() => {
+      void handleRetryNavigationCleanup();
+    }, retryDelaysMs[attempt]);
+    return () => {
+      clearTimeout(retryTimer);
+    };
+  }, [navigationCleanupStatus]);
 
   const handleRetryOfflineCalendarCleanup = async () => {
     if (offlineCalendarCleanupStatus === 'checking') {
@@ -3627,7 +3609,6 @@ function SafeRouteApp() {
     if (decision.status === 'deferred') {
       workspaceHandoffPendingRef.current = true;
       setWorkspaceHandoffPending(true);
-      setPendingWorkspaceHandoffTargetName(decision.target.name);
       setSessionMessage(
         `Route ended. Waiting for workspace access before changing to ${decision.target.name}.`,
       );
@@ -4167,7 +4148,6 @@ function SafeRouteApp() {
               workspaceHandoffPendingRef.current = true;
               setWorkspaceHandoffPending(true);
               pendingWorkspaceHandoffRef.current = handoffRequest;
-              setPendingWorkspaceHandoffTargetName(requestedTarget.name);
               try {
                 const cleanupSucceeded = await discardPersistedNavigation(undefined, {
                   evidenceSession: requestedNavigation,
@@ -5191,15 +5171,6 @@ function SafeRouteApp() {
               void handleEndSuspendedNavigation();
             }}
             onRetry={handleRetryWorkspaceCatalog}
-          />
-        ) : null}
-        {navigationCleanupStatus !== 'idle' ? (
-          <NavigationCleanupNotice
-            checking={navigationCleanupStatus === 'checking'}
-            onRetry={() => {
-              void handleRetryNavigationCleanup();
-            }}
-            workspaceName={workspaceHandoffNoticeTargetName}
           />
         ) : null}
         {workspaceHandoffSelectionNoticeVisible &&

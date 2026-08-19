@@ -157,6 +157,9 @@ export function LiveMapOverlay({
             alert={liveRiskAlert}
             layout={layout}
             onPress={onOpenRiskAlert}
+            routeSummaryHasContinuityAction={Boolean(
+              backgroundNavigationPresentation,
+            )}
           />
         </MotionEntrance>
       ) : null}

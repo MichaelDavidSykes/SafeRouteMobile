@@ -85,9 +85,9 @@ describe("risk detail interaction", () => {
       callout,
       /style=\{\[styles\.expandedPanel, expandedPanelAnimatedStyle\]\}/,
     );
-    assert.match(
-      callout,
-      /compactSnapPoint[\s\S]*- RISK_DETAIL_SHEET_HANDLE_HEIGHT[\s\S]*- RISK_DETAIL_SHEET_CONTENT_BOTTOM_PADDING/,
-    );
+    assert.match(callout, /preferredCompactHeight = expandedContent \? 252 : 240/);
+    assert.match(callout, /expandedSnapPoint = Math\.min\(500, availableSheetHeight\)/);
+    assert.match(callout, /scrollEnabled=\{expanded\}/);
+    assert.doesNotMatch(callout, /minHeight: Math\.max\([\s\S]*compactSnapPoint/);
   });
 });

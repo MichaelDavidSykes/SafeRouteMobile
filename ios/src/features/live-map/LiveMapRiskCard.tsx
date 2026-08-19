@@ -1,4 +1,4 @@
-import { AlertTriangle, CircleAlert } from "lucide-react-native";
+import { AlertTriangle, ChevronRight, CircleAlert } from "lucide-react-native";
 import { Pressable, Text, View } from "react-native";
 
 import type { LiveMapOverlayLayout } from "./liveMapLayout";
@@ -16,12 +16,14 @@ interface LiveRouteRiskAlertCardProps {
   alert: LiveRouteRiskAlert;
   layout: LiveMapOverlayLayout;
   onPress: () => void;
+  routeSummaryHasContinuityAction?: boolean;
 }
 
 export function LiveRouteRiskAlertCard({
   alert,
   layout,
   onPress,
+  routeSummaryHasContinuityAction = false,
 }: LiveRouteRiskAlertCardProps) {
   const presentation = createLiveRouteRiskAlertPresentation(alert);
   const areaLabel = createAlertAreaLabel(alert);
@@ -42,7 +44,10 @@ export function LiveRouteRiskAlertCard({
       style={({ pressed }) => [
         styles.riskCard,
         {
-          bottom: resolveRiskCardBottom(layout),
+          bottom: resolveRiskCardBottom(
+            layout,
+            routeSummaryHasContinuityAction,
+          ),
         },
         layout.isCompact ? styles.riskCardCompact : null,
         routeAlert ? styles.routeAlertCard : null,
@@ -76,45 +81,30 @@ export function LiveRouteRiskAlertCard({
       </View>
       <View style={styles.riskCopy}>
         <View style={styles.riskTitleRow}>
-          <View style={styles.riskTitleCopy}>
-            <Text numberOfLines={1} style={styles.riskEyebrow}>
-              {presentation.title}
-            </Text>
-            <Text numberOfLines={1} style={styles.riskTitle}>
-              {presentation.zoneTitle}
-            </Text>
-          </View>
-          <Text numberOfLines={1} style={styles.riskDistance}>
-            {presentation.detailLabel}
+          <Text numberOfLines={1} style={styles.riskTitle}>
+            {presentation.zoneTitle}
           </Text>
+          <ChevronRight
+            accessibilityElementsHidden
+            color={colors.muted}
+            size={17}
+            strokeWidth={2.2}
+          />
         </View>
-        <View style={styles.riskChipRow}>
-          <View
-            style={[
-              styles.riskChip,
-              riskChipToneStyle(tone),
-            ]}
-          >
-            <Text
-              numberOfLines={1}
-              style={[styles.riskChipText, riskTextToneStyle(tone)]}
-            >
-              {riskSeverityLabel(tone)}
-            </Text>
-          </View>
-          <View style={[styles.riskChip, styles.riskAreaChip]}>
-            <Text numberOfLines={1} style={styles.riskAreaChipText}>
-              {areaLabel}
-            </Text>
-          </View>
-        </View>
+        <Text numberOfLines={1} style={styles.riskEyebrow}>
+          {`${presentation.title} · ${presentation.metaLabel} · ${areaLabel} · ${presentation.detailLabel}`}
+        </Text>
       </View>
     </Pressable>
   );
 }
 
-function resolveRiskCardBottom(layout: LiveMapOverlayLayout): number {
-  return layout.isCompact ? 128 : 136;
+function resolveRiskCardBottom(
+  layout: LiveMapOverlayLayout,
+  routeSummaryHasContinuityAction: boolean,
+): number {
+  const routeSummaryBottom = layout.isCompact ? 128 : 136;
+  return routeSummaryBottom + (routeSummaryHasContinuityAction ? 48 : 0);
 }
 
 type RiskCardTone = "low" | "medium" | "high" | "critical";
@@ -143,22 +133,6 @@ function createAlertAreaLabel(alert: LiveRouteRiskAlert): string {
   return `${formatDistance(alert.proximity.radiusMeters)} radius`;
 }
 
-function riskSeverityLabel(tone: RiskCardTone): string {
-  if (tone === "critical") {
-    return "Critical risk";
-  }
-
-  if (tone === "high") {
-    return "High risk";
-  }
-
-  if (tone === "medium") {
-    return "Medium risk";
-  }
-
-  return "Low risk";
-}
-
 function riskIconTileToneStyle(tone: RiskCardTone) {
   if (tone === "critical") {
     return styles.riskIconTileHigh;
@@ -169,30 +143,6 @@ function riskIconTileToneStyle(tone: RiskCardTone) {
   }
 
   return styles.riskIconTileLow;
-}
-
-function riskChipToneStyle(tone: RiskCardTone) {
-  if (tone === "critical") {
-    return styles.riskChipHigh;
-  }
-
-  if (tone === "high" || tone === "medium") {
-    return styles.riskChipMedium;
-  }
-
-  return styles.riskChipLow;
-}
-
-function riskTextToneStyle(tone: RiskCardTone) {
-  if (tone === "critical") {
-    return styles.riskTextHigh;
-  }
-
-  if (tone === "high" || tone === "medium") {
-    return styles.riskTextMedium;
-  }
-
-  return styles.riskTextLow;
 }
 
 function riskToneColor(tone: RiskCardTone): string {

@@ -1797,7 +1797,6 @@ export function LiveMapScreen({
           activeNavigationState={activeNavigationState}
           activeRiskZoneId={activeRiskZoneId}
           demoDriveActive={demoDriveActive}
-          heading={heading}
           mapRef={mapRef}
           onMapReady={handleMapReady}
           onMapPress={handleMapPress}

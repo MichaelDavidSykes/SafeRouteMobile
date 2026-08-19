@@ -77,7 +77,6 @@ import type {
 import type { RiskZone } from '../live-map/liveMapTypes';
 import {
   CheckpointMarker,
-  CompassTrackedHeadingOverlay,
   RiskOverlay,
   SupportFacilityMarker,
 } from '../live-map/LiveMapMarkers';
@@ -321,7 +320,6 @@ export function GuestMapScreen({
     networkRequestEpochRef.current += 1;
   }
   const mapRef = useRef<MapView | null>(null);
-  const mapCameraRequestIdRef = useRef(0);
   const activeRoadRouteRequestRef = useRef<AbortController | null>(null);
   const activeRoadRouteWorkspaceIdRef = useRef<string | null>(null);
   const provisionalRoutePlanIdRef = useRef<string | null>(null);
@@ -397,8 +395,6 @@ export function GuestMapScreen({
   } | null>(null);
   const [readyMapSessionKey, setReadyMapSessionKey] = useState<string | null>(null);
   const [mapRegion, setMapRegion] = useState<Region>(GUEST_MAP_REGION);
-  const [mapCameraHeadingDegrees, setMapCameraHeadingDegrees] = useState(0);
-  const [nativeUserCoordinate, setNativeUserCoordinate] = useState<LatLng | null>(null);
   const [routeMessage, setRouteMessage] = useState('');
   const [workspaceMenuOpen, setWorkspaceMenuOpen] = useState(false);
   const [selectedRiskZone, setSelectedRiskZone] = useState<RiskZone | null>(null);
@@ -731,15 +727,6 @@ export function GuestMapScreen({
   // never destroy and rebuild the native MapKit view while the sheet moves.
   const mapRenderSessionKey = `guest-map-${nativeMapType}`;
   const mapReady = readyMapSessionKey === mapRenderSessionKey;
-  const compassProjectionRevision = [
-    mapRenderSessionKey,
-    readyMapSessionKey || 'pending',
-    mapRegion.latitude,
-    mapRegion.longitude,
-    mapRegion.latitudeDelta,
-    mapRegion.longitudeDelta,
-    mapCameraHeadingDegrees,
-  ].join(':');
   const riskSummary = useMemo(
     () => createGuestMapRiskSummary(visibleRiskZones),
     [visibleRiskZones],
@@ -1639,7 +1626,6 @@ export function GuestMapScreen({
     userMovedMapRef.current = false;
     setMapAction(null);
     setSelectedRiskZone(null);
-    setMapCameraHeadingDegrees(0);
     mapRef.current?.animateCamera(
       { center: liveCoordinate, heading: 0, pitch: 0 },
       { duration: 450 }
@@ -1648,19 +1634,6 @@ export function GuestMapScreen({
 
   const handleMapRegionChangeComplete = (region: Region) => {
     setMapRegion(region);
-    const requestId = mapCameraRequestIdRef.current + 1;
-    mapCameraRequestIdRef.current = requestId;
-    const cameraPromise = mapRef.current?.getCamera();
-    if (!cameraPromise) {
-      return;
-    }
-    void cameraPromise.then((camera) => {
-      if (mapCameraRequestIdRef.current !== requestId) {
-        return;
-      }
-      const nextHeading = Number(camera.heading);
-      setMapCameraHeadingDegrees(Number.isFinite(nextHeading) ? nextHeading : 0);
-    }).catch(() => undefined);
   };
 
   const handleStopChange = (stopId: string, value: string) => {
@@ -2069,7 +2042,10 @@ export function GuestMapScreen({
         showsIndoors={false}
         showsIndoorLevelPicker={false}
         showsMyLocationButton={false}
-        showsUserLocation={currentLocationVisible}
+        showsUserLocation={permissionStatus === 'granted'}
+        {...(Platform.OS === 'ios' && permissionStatus === 'granted'
+          ? { showsUserHeadingIndicator: true }
+          : {})}
         tintColor={colors.appleBlue}
         userLocationAnnotationTitle="Current location"
         showsScale={false}
@@ -2083,26 +2059,12 @@ export function GuestMapScreen({
         userInterfaceStyle={mapInterfaceStyle}
         onMapReady={() => {
           setReadyMapSessionKey(mapRenderSessionKey);
-          setMapCameraHeadingDegrees(0);
           mapRef.current?.animateCamera({ heading: 0, pitch: 0 }, { duration: 0 });
         }}
         onLongPress={(event) => handleMapLongPress(event.nativeEvent.coordinate)}
         onPress={handleMapPress}
         onPanDrag={() => {
           userMovedMapRef.current = true;
-        }}
-        onUserLocationChange={(event) => {
-          const nextCoordinate = event.nativeEvent.coordinate;
-          if (
-            nextCoordinate &&
-            Number.isFinite(nextCoordinate.latitude) &&
-            Number.isFinite(nextCoordinate.longitude)
-          ) {
-            setNativeUserCoordinate({
-              latitude: nextCoordinate.latitude,
-              longitude: nextCoordinate.longitude,
-            });
-          }
         }}
         onRegionChangeComplete={handleMapRegionChangeComplete}
       >
@@ -2170,17 +2132,6 @@ export function GuestMapScreen({
           </Marker>
         ) : null}
       </MapView>
-
-      {currentLocationVisible && liveCoordinate ? (
-        <CompassTrackedHeadingOverlay
-          coordinate={nativeUserCoordinate || liveCoordinate}
-          enabled={permissionStatus === 'granted'}
-          mapHeading={mapCameraHeadingDegrees}
-          mapRef={mapRef}
-          projectionRevision={compassProjectionRevision}
-          testID={uiTestIds.guestMapCurrentLocationMarker}
-        />
-      ) : null}
 
       {selectedRiskZone ? (
         <LiveMapRiskDetailCallout

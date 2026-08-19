@@ -7,22 +7,24 @@ function source(path: string): string {
 }
 
 describe('map facing-direction indicator', () => {
-  it('uses the device compass for the planning-map location puck', () => {
+  it('hands the planning-map location puck and heading to native MapKit', () => {
     const guestMap = source('features/guest-map/GuestMapScreen.tsx');
 
     assert.match(
       guestMap,
-      /showsUserLocation=\{currentLocationVisible\}/,
+      /showsUserLocation=\{permissionStatus === 'granted'\}/,
     );
     assert.match(
       guestMap,
-      /<\/MapView>[\s\S]*<CompassTrackedHeadingOverlay[\s\S]*enabled=\{permissionStatus === 'granted'\}[\s\S]*mapHeading=\{mapCameraHeadingDegrees\}/,
+      /Platform\.OS === 'ios' && permissionStatus === 'granted'[\s\S]*showsUserHeadingIndicator: true/,
     );
-    assert.match(guestMap, /onUserLocationChange=[\s\S]*nativeUserCoordinate \|\| liveCoordinate/);
-    assert.doesNotMatch(guestMap, /<CompassTrackedMarker|<VehicleMarker[\s\S]*guestMapCurrentLocationMarker/);
+    assert.doesNotMatch(
+      guestMap,
+      /CompassTrackedHeadingOverlay|onUserLocationChange|nativeUserCoordinate|mapCameraHeadingDegrees/,
+    );
   });
 
-  it('keeps compass-facing direction separate from navigation camera bearing', () => {
+  it('keeps native location rendering separate from navigation camera logic', () => {
     const liveMap = source('features/live-map/LiveMapScreen.tsx');
     const liveCanvas = source('features/live-map/LiveMapCanvas.tsx');
 
@@ -32,39 +34,32 @@ describe('map facing-direction indicator', () => {
     );
     assert.match(
       liveCanvas,
-      /<\/MapView>[\s\S]*<CompassTrackedHeadingOverlay[\s\S]*enabled=\{permissionStatus === "granted"\}/,
-    );
-    assert.match(
-      liveCanvas,
-      /fallbackHeading=\{heading\}/,
-    );
-    assert.match(
-      liveMap,
-      /<LiveMapCanvas[\s\S]*heading=\{heading\}/,
+      /Platform\.OS === "ios" && !demoDriveActive && permissionStatus === "granted"[\s\S]*showsUserHeadingIndicator: true/,
     );
     assert.match(liveCanvas, /vehicleCoordinate && demoDriveActive[\s\S]*<VehicleMarker/);
-    assert.match(liveCanvas, /onUserLocationChange=[\s\S]*nativeUserCoordinate \|\| vehicleCoordinate/);
+    assert.doesNotMatch(
+      liveCanvas,
+      /CompassTrackedHeadingOverlay|onUserLocationChange|nativeUserCoordinate|mapCameraHeadingDegrees/,
+    );
+    assert.doesNotMatch(liveMap, /<LiveMapCanvas[\s\S]*heading=\{heading\}/);
   });
 
-  it('keeps the native location puck independent from the heading fan', () => {
+  it('attaches the native heading fan directly to MKUserLocationView', () => {
     const markers = source('features/live-map/LiveMapMarkers.tsx');
-    const vehicleMarker = markers.slice(
-      markers.indexOf('export function VehicleMarker'),
-      markers.indexOf('export function createVehicleMarkerAccessibilityLabel'),
+    const nativePatch = readFileSync(
+      new URL('../patches/react-native-maps+1.20.1.patch', import.meta.url),
+      'utf8',
     );
 
-    assert.match(markers, /useDeviceHeading\(enabled, \{[\s\S]*minimumUpdateIntervalMs: 120/);
-    assert.match(vehicleMarker, /<Marker/);
-    assert.match(vehicleMarker, /tracksViewChanges=\{false\}/);
-    assert.match(markers, /map\.pointForCoordinate\(coordinate\)/);
-    assert.match(markers, /styles\.vehicleHeadingOverlay/);
-    assert.match(markers, /LinearGradient id="nativePuckHeadingFan"/);
-    assert.match(markers, /Animated\.timing\(animatedRotation/);
-    assert.match(markers, /useNativeDriver: true/);
-    assert.doesNotMatch(markers, /shouldRasterizeIOS|renderToHardwareTextureAndroid/);
-    assert.doesNotMatch(vehicleMarker, /screenRotation|useDeviceHeading|Animated\.View/);
-    assert.doesNotMatch(markers, /CompassDirectionPolygon/);
-    assert.doesNotMatch(markers, /<Marker[\s\S]*rotation=/);
-    assert.match(markers, /backgroundColor: colors\.appleBlue/);
+    assert.doesNotMatch(
+      markers,
+      /VehicleHeadingOverlay|CompassTrackedHeadingOverlay|useDeviceHeading|pointForCoordinate/,
+    );
+    assert.match(nativePatch, /RCT_EXPORT_VIEW_PROPERTY\(showsUserHeadingIndicator, BOOL\)/);
+    assert.match(nativePatch, /attachUserHeadingIndicatorToAnnotationView/);
+    assert.match(nativePatch, /viewForAnnotation:self\.userLocation/);
+    assert.match(nativePatch, /didUpdateHeading/);
+    assert.match(nativePatch, /self\.lastUserHeadingDegrees - self\.camera\.heading/);
+    assert.match(nativePatch, /insertSubview:indicator atIndex:0/);
   });
 });

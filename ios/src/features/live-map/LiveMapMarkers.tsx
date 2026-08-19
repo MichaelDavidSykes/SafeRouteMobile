@@ -1,5 +1,5 @@
-import type { ComponentProps, ComponentType, RefObject } from 'react';
-import { memo, useEffect, useRef, useState } from 'react';
+import type { ComponentProps, ComponentType } from 'react';
+import { memo } from 'react';
 import {
   AlertTriangle,
   CircleAlert,
@@ -8,17 +8,14 @@ import {
   Shield,
   ShieldCheck,
 } from 'lucide-react-native';
-import { Animated, Easing, StyleSheet, View } from 'react-native';
-import type MapView from 'react-native-maps';
+import { StyleSheet, View } from 'react-native';
 import {
   Circle,
   Marker,
   Polygon,
   Polyline,
   type LatLng,
-  type Point,
 } from 'react-native-maps';
-import Svg, { Defs, LinearGradient, Path, Stop } from 'react-native-svg';
 
 import type {
   RiskAvoidanceSeverity,
@@ -43,8 +40,6 @@ import {
   supportFacilityCalloutDescription,
   supportFacilityKindLabel,
 } from './supportFacilities';
-import { useDeviceHeading } from '../maps/useDeviceHeading';
-import { resolveDeviceHeadingScreenRotation } from '../maps/deviceHeading';
 
 type TappableCircleProps = ComponentProps<typeof Circle> & {
   onPress?: () => void;
@@ -310,39 +305,6 @@ export const SupportFacilityMarker = memo(function SupportFacilityMarker({
   );
 });
 
-export const CompassTrackedHeadingOverlay = memo(function CompassTrackedHeadingOverlay({
-  coordinate,
-  enabled,
-  fallbackHeading = null,
-  mapRef,
-  mapHeading = 0,
-  projectionRevision,
-  testID,
-}: {
-  coordinate: LatLng;
-  enabled: boolean;
-  fallbackHeading?: number | null;
-  mapRef: RefObject<MapView | null>;
-  mapHeading?: number;
-  projectionRevision: number | string;
-  testID?: string;
-}) {
-  const deviceHeading = useDeviceHeading(enabled, {
-    deadbandDegrees: 1.2,
-    minimumUpdateIntervalMs: 120,
-  });
-  return (
-    <VehicleHeadingOverlay
-      coordinate={coordinate}
-      heading={deviceHeading ?? fallbackHeading}
-      mapRef={mapRef}
-      mapHeading={mapHeading}
-      projectionRevision={projectionRevision}
-      testID={testID}
-    />
-  );
-});
-
 function checkpointMarkerRole(kind: RouteCheckpoint['kind']): string {
   if (kind === 'origin') {
     return 'Route start';
@@ -422,128 +384,6 @@ function RiskMarker({
   );
 }
 
-export const VehicleHeadingOverlay = memo(function VehicleHeadingOverlay({
-  coordinate,
-  heading,
-  mapRef,
-  mapHeading,
-  projectionRevision,
-  testID,
-}: {
-  coordinate: LatLng;
-  heading: number | null;
-  mapRef: RefObject<MapView | null>;
-  mapHeading: number;
-  projectionRevision: number | string;
-  testID?: string;
-}) {
-  const screenRotation = resolveDeviceHeadingScreenRotation(heading, mapHeading);
-  const [projectedPoint, setProjectedPoint] = useState<Point | null>(null);
-  const projectionRequestIdRef = useRef(0);
-  const animatedRotation = useRef(new Animated.Value(screenRotation ?? 0)).current;
-  const previousRotationRef = useRef<number | null>(screenRotation);
-  const continuousRotationRef = useRef(screenRotation ?? 0);
-
-  useEffect(() => {
-    const map = mapRef.current;
-    if (!map) {
-      return;
-    }
-
-    const requestId = projectionRequestIdRef.current + 1;
-    projectionRequestIdRef.current = requestId;
-    let mounted = true;
-    void map.pointForCoordinate(coordinate).then((point) => {
-      if (
-        !mounted ||
-        projectionRequestIdRef.current !== requestId ||
-        !Number.isFinite(point.x) ||
-        !Number.isFinite(point.y)
-      ) {
-        return;
-      }
-      setProjectedPoint((current) =>
-        current &&
-        Math.abs(current.x - point.x) < 0.5 &&
-        Math.abs(current.y - point.y) < 0.5
-          ? current
-          : point,
-      );
-    }).catch(() => undefined);
-
-    return () => {
-      mounted = false;
-    };
-  }, [
-    coordinate.latitude,
-    coordinate.longitude,
-    mapRef,
-    projectionRevision,
-  ]);
-
-  useEffect(() => {
-    if (screenRotation === null) {
-      return;
-    }
-    const previousRotation = previousRotationRef.current;
-    if (previousRotation === null) {
-      continuousRotationRef.current = screenRotation;
-      animatedRotation.setValue(screenRotation);
-    } else {
-      continuousRotationRef.current += shortestHeadingDelta(previousRotation, screenRotation);
-      animatedRotation.stopAnimation();
-      Animated.timing(animatedRotation, {
-        duration: 160,
-        easing: Easing.out(Easing.cubic),
-        isInteraction: false,
-        toValue: continuousRotationRef.current,
-        useNativeDriver: true,
-      }).start();
-    }
-    previousRotationRef.current = screenRotation;
-  }, [animatedRotation, screenRotation]);
-
-  if (!projectedPoint || (screenRotation === null && previousRotationRef.current === null)) {
-    return null;
-  }
-
-  return (
-    <Animated.View
-      accessibilityElementsHidden
-      accessible={false}
-      pointerEvents="none"
-      style={[
-        styles.vehicleHeadingOverlay,
-        {
-          left: projectedPoint.x - 36,
-          top: projectedPoint.y - 36,
-          transform: [{
-            rotate: animatedRotation.interpolate({
-              inputRange: [-36000, 36000],
-              outputRange: ['-36000deg', '36000deg'],
-            }),
-          }],
-        },
-      ]}
-      testID={testID}
-    >
-      <Svg height={72} width={72} viewBox="0 0 72 72">
-        <Defs>
-          <LinearGradient id="nativePuckHeadingFan" x1="0" y1="1" x2="0" y2="0">
-            <Stop offset="0" stopColor="#0A84FF" stopOpacity="0.32" />
-            <Stop offset="0.72" stopColor="#0A84FF" stopOpacity="0.14" />
-            <Stop offset="1" stopColor="#0A84FF" stopOpacity="0" />
-          </LinearGradient>
-        </Defs>
-        <Path
-          d="M36 38 L13 7 Q36 -2 59 7 Z"
-          fill="url(#nativePuckHeadingFan)"
-        />
-      </Svg>
-    </Animated.View>
-  );
-});
-
 export function VehicleMarker({
   coordinate,
   demoDriveEnabled = false,
@@ -586,10 +426,6 @@ export function VehicleMarker({
 
 export function createVehicleMarkerAccessibilityLabel(demoDriveEnabled: boolean): string {
   return demoDriveEnabled ? 'Route preview position' : 'Current position';
-}
-
-function shortestHeadingDelta(from: number, to: number): number {
-  return ((to - from + 540) % 360) - 180;
 }
 
 type RiskOverlayTone = RiskSeverity | Extract<RiskAvoidanceSeverity, 'critical'>;
@@ -771,13 +607,6 @@ const styles = StyleSheet.create({
     borderRadius: radius.pill,
     shadowOpacity: 0,
     elevation: 0,
-  },
-  vehicleHeadingOverlay: {
-    position: 'absolute',
-    width: 72,
-    height: 72,
-    zIndex: 101,
-    elevation: 101,
   },
   vehicleMarker: {
     width: 44,

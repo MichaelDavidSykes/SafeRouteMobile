@@ -29,6 +29,7 @@ import {
   createRouteSummaryRemainingMetric,
   createRouteSummarySafetyBadge,
   createSavedRouteContextDetail,
+  shouldShowRouteSummarySafetyBadge,
   shouldUseCompactRouteSummary,
 } from "./routeSummaryPresentation";
 import type { BackgroundNavigationPresentation } from "./backgroundNavigationState";
@@ -122,6 +123,7 @@ export function LiveMapRouteSummarySheet({
     routeRiskLabel: route.riskLabel,
     safeScore: route.safeScore,
   });
+  const showSafetyMetric = shouldShowRouteSummarySafetyBadge(routeContext);
   const savedRouteContext = createSavedRouteContextDetail({
     convoyCallsign: routePlan.convoyCallsign,
     operation: routePlan.operation,
@@ -153,7 +155,7 @@ export function LiveMapRouteSummarySheet({
         {
           paddingBottom: compactRouteSummary
             ? 10
-            : Math.max(14, layout.sheetBottomPadding),
+            : 14,
         },
       ]}
     >
@@ -191,7 +193,9 @@ export function LiveMapRouteSummarySheet({
               >
                 {createRouteTitleDisplayText(routePlan.name)}
               </Text>
-              <StatusPill presentation={statusPresentation} />
+              {statusPresentation.label === "Ready" ? null : (
+                <StatusPill presentation={statusPresentation} />
+              )}
             </View>
 
             <RouteEndpoints
@@ -199,25 +203,41 @@ export function LiveMapRouteSummarySheet({
               origin={routePlan.origin}
             />
 
-            <View style={styles.metricsRow}>
+            <View
+              style={[
+                styles.metricsRow,
+                routeContext === "guest" ? styles.metricsRowGuest : null,
+              ]}
+            >
               <Metric
                 accessibilityLabel={headlinePresentation.accessibilityLabel}
+                compact={routeContext === "guest"}
                 label="ETA"
                 value={headlinePresentation.text}
               />
-              <View style={styles.metricDivider} />
+              <View
+                style={[
+                  styles.metricDivider,
+                  routeContext === "guest" ? styles.metricDividerGuest : null,
+                ]}
+              />
               <Metric
                 accessibilityLabel={routeDetail.accessibilityLabel}
+                compact={routeContext === "guest"}
                 label={remainingDistance ? "Remaining" : "Distance"}
                 value={distanceMetricValue}
               />
-              <View style={styles.metricDivider} />
-              <Metric
-                accessibilityLabel={safetyBadge.accessibilityLabel}
-                label="Risk"
-                tone={route.tone}
-                value={safetyBadge.text}
-              />
+              {showSafetyMetric ? (
+                <>
+                  <View style={styles.metricDivider} />
+                  <Metric
+                    accessibilityLabel={safetyBadge.accessibilityLabel}
+                    label="Risk"
+                    tone={route.tone}
+                    value={safetyBadge.text}
+                  />
+                </>
+              ) : null}
             </View>
           </>
         )}
@@ -373,25 +393,38 @@ export function LiveMapRouteSummarySheet({
 
 function Metric({
   accessibilityLabel,
+  compact,
   label,
   tone,
   value,
 }: {
   accessibilityLabel: string;
+  compact?: boolean;
   label: string;
   tone?: RoutePath["tone"];
   value: string;
 }) {
   return (
-    <View accessible accessibilityLabel={accessibilityLabel} style={styles.metric}>
-      <Text numberOfLines={1} style={styles.metricLabel}>
+    <View
+      accessible
+      accessibilityLabel={accessibilityLabel}
+      style={[styles.metric, compact ? styles.metricGuest : null]}
+    >
+      <Text
+        numberOfLines={1}
+        style={[styles.metricLabel, compact ? styles.metricLabelGuest : null]}
+      >
         {label}
       </Text>
       <Text
         adjustsFontSizeToFit
         minimumFontScale={0.78}
         numberOfLines={1}
-        style={[styles.metricValue, tone ? metricToneStyle(tone) : null]}
+        style={[
+          styles.metricValue,
+          compact ? styles.metricValueGuest : null,
+          tone ? metricToneStyle(tone) : null,
+        ]}
       >
         {value}
       </Text>

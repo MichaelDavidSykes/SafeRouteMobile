@@ -54,8 +54,7 @@ import { formatDistance } from "./routeProgress";
 import { isRouteAlertZone } from "./riskOverlayPresentation";
 import { createRiskZoneExpandedPresentation } from "./riskDetailPresentation";
 
-const RISK_DETAIL_SHEET_HANDLE_HEIGHT = 24;
-const RISK_DETAIL_SHEET_CONTENT_BOTTOM_PADDING = 18;
+const RISK_DETAIL_SHEET_CONTENT_BOTTOM_PADDING = 14;
 
 export function LiveMapRiskDetailCallout({
   bottomInset = chrome.tabBarHeight + 18,
@@ -136,7 +135,9 @@ export function LiveMapRiskDetailCallout({
         </View>
       </View>
 
-      <Text style={styles.body}>{presentation.body}</Text>
+      <Text numberOfLines={2} style={styles.body}>
+        {presentation.body}
+      </Text>
 
       {proximity ? (
         <Text numberOfLines={1} style={styles.clearance}>
@@ -192,12 +193,12 @@ export function LiveMapDetailCallout({
     240,
     viewport.height - bottomInset - 12,
   );
-  const preferredCompactHeight = expandedContent ? 310 : 260;
+  const preferredCompactHeight = expandedContent ? 252 : 240;
   const compactSnapPoint = Math.min(
     preferredCompactHeight,
     Math.max(220, availableSheetHeight - (expandedContent ? 160 : 0)),
   );
-  const expandedSnapPoint = Math.min(680, availableSheetHeight);
+  const expandedSnapPoint = Math.min(500, availableSheetHeight);
   const hasExpandedSnapPoint = Boolean(
     expandedContent && expandedSnapPoint > compactSnapPoint + 20,
   );
@@ -286,6 +287,7 @@ export function LiveMapDetailCallout({
         <BottomSheetScrollView
           ref={scrollRef}
           contentContainerStyle={styles.sheetContent}
+          scrollEnabled={expanded}
           showsVerticalScrollIndicator={false}
         >
           <View
@@ -293,16 +295,6 @@ export function LiveMapDetailCallout({
             accessibilityLabel={
               groupedAccessibility && !expanded ? accessibilityLabel : undefined
             }
-            style={hasExpandedSnapPoint
-              ? {
-                  minHeight: Math.max(
-                    0,
-                    compactSnapPoint
-                      - RISK_DETAIL_SHEET_HANDLE_HEIGHT
-                      - RISK_DETAIL_SHEET_CONTENT_BOTTOM_PADDING,
-                  ),
-                }
-              : undefined}
             testID={testID}
           >
             <View style={styles.titleRow}>
@@ -625,9 +617,8 @@ const styles = StyleSheet.create({
     paddingBottom: RISK_DETAIL_SHEET_CONTENT_BOTTOM_PADDING,
   },
   disclosureHint: {
-    minHeight: 30,
-    marginTop: 11,
-    marginBottom: -5,
+    minHeight: 28,
+    marginTop: 8,
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "center",
@@ -643,7 +634,7 @@ const styles = StyleSheet.create({
     fontWeight: "600",
   },
   expandedPanel: {
-    paddingTop: 15,
+    paddingTop: 12,
     paddingBottom: 3,
   },
   expandedHeadingRow: {
@@ -793,8 +784,8 @@ const styles = StyleSheet.create({
     lineHeight: 17,
   },
   iconTile: {
-    width: 42,
-    height: 42,
+    width: 40,
+    height: 40,
     alignItems: "center",
     justifyContent: "center",
     flexShrink: 0,
@@ -812,7 +803,7 @@ const styles = StyleSheet.create({
   titleRow: {
     flexDirection: "row",
     alignItems: "flex-start",
-    gap: 12,
+    gap: 10,
   },
   titleCopy: {
     flex: 1,
@@ -820,7 +811,7 @@ const styles = StyleSheet.create({
   },
   title: {
     color: colors.ink,
-    fontSize: 18,
+    fontSize: 17,
     fontWeight: "700",
     lineHeight: 22,
   },
@@ -831,7 +822,7 @@ const styles = StyleSheet.create({
     lineHeight: 17,
   },
   body: {
-    marginTop: 13,
+    marginTop: 11,
     color: colors.inkSoft,
     fontSize: 13.5,
     fontWeight: "400",
@@ -841,7 +832,7 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     flexWrap: "wrap",
     gap: 8,
-    marginTop: 14,
+    marginTop: 12,
   },
   chip: {
     minHeight: 28,

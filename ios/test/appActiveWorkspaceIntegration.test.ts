@@ -971,9 +971,10 @@ describe("App active workspace integration", () => {
       app,
       /workspaceHandoffPendingRef\.current[\s\S]*Finish saved-guidance cleanup before starting another route/,
     );
+    assert.doesNotMatch(app, /<NavigationCleanupNotice/);
     assert.match(
       app,
-      /<NavigationCleanupNotice[\s\S]*workspaceName=\{workspaceHandoffNoticeTargetName\}/,
+      /navigationCleanupSilentRetryCountRef[\s\S]*retryDelaysMs = \[1_200, 3_000, 6_000\][\s\S]*handleRetryNavigationCleanup\(\)/,
     );
     assert.match(
       app,
@@ -1033,7 +1034,7 @@ describe("App active workspace integration", () => {
     );
     assert.match(
       guestMap,
-      /createGuestRoadSnappedRoutePlan\(\{[\s\S]*planId: index === 0[\s\S]*localRoutePlan\.id/,
+      /planId: index === 0\s*\?\s*localRoutePlan\.id\s*:\s*`\$\{localRoutePlan\.id\}-alternative-\$\{index\}`/,
     );
     assert.match(
       app,
@@ -1249,7 +1250,7 @@ describe("App active workspace integration", () => {
     assert.match(app, /navigationCleanupRequiredRef\.current \|\|[\s\S]*canResumeActiveNavigationSession/);
     assert.match(app, /handleNavigationSessionChange[\s\S]*navigationCleanupRequiredRef\.current/);
     assert.match(app, /openRoutePreview[\s\S]*navigationCleanupRequiredRef\.current[\s\S]*Finish saved-guidance cleanup/);
-    assert.match(app, /NavigationCleanupNotice[\s\S]*onRetry=/);
+    assert.doesNotMatch(app, /<NavigationCleanupNotice/);
     assert.match(app, /unavailableWorkspaceIdsRef\.current = stagedUnavailableWorkspaceIds[\s\S]*availableWorkspacesRef\.current = stagedCatalog[\s\S]*currentNavigationCleanup[\s\S]*persistWorkspaceRecoveryWithEvidence/);
     assert.match(app, /recoveryPersistence !== 'persisted'[\s\S]*return;[\s\S]*if \(workspaceAccessRestored\) \{[\s\S]*unavailableWorkspaceIdsRef\.current = unavailableWorkspaceIds[\s\S]*availableWorkspacesRef\.current = catalog/);
     const persistenceIndex = app.indexOf(

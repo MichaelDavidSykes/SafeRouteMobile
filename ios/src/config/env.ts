@@ -2,10 +2,13 @@ import Constants from 'expo-constants';
 
 import {
   resolveSafeRouteExtraFromConstants,
-  resolveSafeRouteRuntimeConfig
+  resolveSafeRouteRuntimeConfig,
+  type SafeRouteConstantsLike
 } from './envCore';
 
-const extra = resolveSafeRouteExtraFromConstants(Constants);
+const extra = resolveSafeRouteExtraFromConstants(
+  Constants as unknown as SafeRouteConstantsLike
+);
 const runtimeConfig = resolveSafeRouteRuntimeConfig(extra);
 
 export const SAFEROUTE_DEMO_DRIVE_ENABLED = runtimeConfig.demoDriveEnabled;

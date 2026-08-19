@@ -1,0 +1,249 @@
+diff --git a/node_modules/react-native-maps/ios/AirMaps/AIRMap.h b/node_modules/react-native-maps/ios/AirMaps/AIRMap.h
+index 5aa5fed..46851e9 100644
+--- a/node_modules/react-native-maps/ios/AirMaps/AIRMap.h
++++ b/node_modules/react-native-maps/ios/AirMaps/AIRMap.h
+@@ -30,6 +30,7 @@ extern const NSInteger AIRMapMaxZoomLevel;
+ @property (nonatomic, copy) NSString *userLocationAnnotationTitle;
+ @property (nonatomic, assign) BOOL followUserLocation;
+ @property (nonatomic, assign) BOOL userLocationCalloutEnabled;
++@property (nonatomic, assign) BOOL showsUserHeadingIndicator;
+ @property (nonatomic, assign) BOOL hasStartedRendering;
+ @property (nonatomic, assign) BOOL cacheEnabled;
+ @property (nonatomic, assign) BOOL loadingEnabled;
+@@ -79,5 +80,7 @@ extern const NSInteger AIRMapMaxZoomLevel;
+
+ - (AIRMapMarker*) markerAtPoint:(CGPoint)point;
+ - (NSDictionary*) getMarkersFramesWithOnlyVisible:(BOOL)onlyVisible;
++- (void)attachUserHeadingIndicatorToAnnotationView:(MKAnnotationView *)view;
++- (void)refreshUserHeadingIndicator;
+
+ @end
+diff --git a/node_modules/react-native-maps/ios/AirMaps/AIRMap.m b/node_modules/react-native-maps/ios/AirMaps/AIRMap.m
+index 07a4638..766e021 100644
+--- a/node_modules/react-native-maps/ios/AirMaps/AIRMap.m
++++ b/node_modules/react-native-maps/ios/AirMaps/AIRMap.m
+@@ -20,6 +20,7 @@
+ #import "AIRMapWMSTile.h"
+ #import "AIRMapLocalTile.h"
+ #import "AIRMapOverlay.h"
++#import <CoreLocation/CoreLocation.h>
+
+ const NSTimeInterval AIRMapRegionChangeObserveInterval = 0.1;
+ const CGFloat AIRMapZoomBoundBuffer = 0.01;
+@@ -33,16 +34,21 @@ - (BOOL)gestureRecognizer:(UIGestureRecognizer *)gestureRecognizer shouldReceive
+
+ @end
+
+-@interface AIRMap ()
++@interface AIRMap () <CLLocationManagerDelegate>
+
+ @property (nonatomic, strong) UIActivityIndicatorView *activityIndicatorView;
+ @property (nonatomic, assign) NSNumber *shouldZoomEnabled;
+ @property (nonatomic, assign) NSNumber *shouldScrollEnabled;
+ @property (nonatomic, strong) MKCompassButton *defaultCompassButton;
+ @property (nonatomic, strong) MKCompassButton *overlayCompassButton;
++@property (nonatomic, strong) CLLocationManager *userHeadingLocationManager;
++@property (nonatomic, weak) MKAnnotationView *nativeUserLocationView;
++@property (nonatomic, strong) UIView *userHeadingIndicatorView;
++@property (nonatomic, assign) CLLocationDirection lastUserHeadingDegrees;
+
+ - (void)updateScrollEnabled;
+ - (void)updateZoomEnabled;
++- (void)updateUserHeadingIndicatorAnimated:(BOOL)animated;
+
+ @end
+
+@@ -89,6 +95,7 @@ - (instancetype)init
+         self.maxZoomLevel = AIRMapMaxZoomLevel;
+         self.compassOffset = CGPointMake(0, 0);
+         self.legacyZoomConstraintsEnabled = YES;
++        self.lastUserHeadingDegrees = -1.0;
+     }
+     return self;
+ }
+@@ -350,6 +357,147 @@ - (void)setShowsUserLocation:(BOOL)showsUserLocation
+     }
+ }
+
++- (void)setShowsUserHeadingIndicator:(BOOL)showsUserHeadingIndicator
++{
++    if (_showsUserHeadingIndicator == showsUserHeadingIndicator) {
++        return;
++    }
++
++    _showsUserHeadingIndicator = showsUserHeadingIndicator;
++    if (!showsUserHeadingIndicator || ![CLLocationManager headingAvailable]) {
++        [self.userHeadingLocationManager stopUpdatingHeading];
++        self.userHeadingLocationManager.delegate = nil;
++        self.userHeadingLocationManager = nil;
++        [self.userHeadingIndicatorView removeFromSuperview];
++        self.userHeadingIndicatorView = nil;
++        self.nativeUserLocationView = nil;
++        return;
++    }
++
++    CLLocationManager *headingManager = [CLLocationManager new];
++    headingManager.delegate = self;
++    headingManager.headingFilter = 1.0;
++    self.userHeadingLocationManager = headingManager;
++    [headingManager startUpdatingHeading];
++    MKAnnotationView *userLocationView = [self viewForAnnotation:self.userLocation];
++    if (userLocationView) {
++        [self attachUserHeadingIndicatorToAnnotationView:userLocationView];
++    }
++}
++
++- (void)dealloc
++{
++    [self.userHeadingLocationManager stopUpdatingHeading];
++    self.userHeadingLocationManager.delegate = nil;
++}
++
++- (void)attachUserHeadingIndicatorToAnnotationView:(MKAnnotationView *)view
++{
++    if (!self.showsUserHeadingIndicator || !view) {
++        return;
++    }
++
++    if (self.nativeUserLocationView == view && self.userHeadingIndicatorView.superview == view) {
++        return;
++    }
++
++    [self.userHeadingIndicatorView removeFromSuperview];
++    self.nativeUserLocationView = view;
++    view.clipsToBounds = NO;
++
++    const CGFloat indicatorSize = 72.0;
++    UIView *indicator = [[UIView alloc] initWithFrame:CGRectMake(
++        (CGRectGetWidth(view.bounds) - indicatorSize) / 2.0,
++        (CGRectGetHeight(view.bounds) - indicatorSize) / 2.0,
++        indicatorSize,
++        indicatorSize
++    )];
++    indicator.userInteractionEnabled = NO;
++    indicator.isAccessibilityElement = NO;
++    indicator.accessibilityElementsHidden = YES;
++
++    CAGradientLayer *gradient = [CAGradientLayer layer];
++    gradient.frame = indicator.bounds;
++    gradient.startPoint = CGPointMake(0.5, 1.0);
++    gradient.endPoint = CGPointMake(0.5, 0.0);
++    gradient.colors = @[
++        (id)[UIColor colorWithRed:10.0 / 255.0 green:132.0 / 255.0 blue:1.0 alpha:0.34].CGColor,
++        (id)[UIColor colorWithRed:10.0 / 255.0 green:132.0 / 255.0 blue:1.0 alpha:0.14].CGColor,
++        (id)[UIColor colorWithRed:10.0 / 255.0 green:132.0 / 255.0 blue:1.0 alpha:0.0].CGColor,
++    ];
++    gradient.locations = @[@0.0, @0.72, @1.0];
++
++    UIBezierPath *fanPath = [UIBezierPath bezierPath];
++    [fanPath moveToPoint:CGPointMake(36.0, 36.0)];
++    [fanPath addCurveToPoint:CGPointMake(18.0, 6.0)
++               controlPoint1:CGPointMake(29.0, 29.0)
++               controlPoint2:CGPointMake(22.0, 18.0)];
++    [fanPath addQuadCurveToPoint:CGPointMake(54.0, 6.0)
++                    controlPoint:CGPointMake(36.0, -1.0)];
++    [fanPath addCurveToPoint:CGPointMake(36.0, 36.0)
++               controlPoint1:CGPointMake(50.0, 18.0)
++               controlPoint2:CGPointMake(43.0, 29.0)];
++    [fanPath closePath];
++
++    CAShapeLayer *fanMask = [CAShapeLayer layer];
++    fanMask.frame = indicator.bounds;
++    fanMask.path = fanPath.CGPath;
++    gradient.mask = fanMask;
++    [indicator.layer addSublayer:gradient];
++
++    [view insertSubview:indicator atIndex:0];
++    self.userHeadingIndicatorView = indicator;
++    [self updateUserHeadingIndicatorAnimated:NO];
++}
++
++- (void)locationManager:(CLLocationManager *)manager didUpdateHeading:(CLHeading *)newHeading
++{
++    CLLocationDirection heading = newHeading.trueHeading >= 0.0
++        ? newHeading.trueHeading
++        : newHeading.magneticHeading;
++    if (heading < 0.0 || !isfinite(heading)) {
++        return;
++    }
++    self.lastUserHeadingDegrees = heading;
++    [self updateUserHeadingIndicatorAnimated:YES];
++}
++
++- (BOOL)locationManagerShouldDisplayHeadingCalibration:(CLLocationManager *)manager
++{
++    return NO;
++}
++
++- (void)refreshUserHeadingIndicator
++{
++    [self updateUserHeadingIndicatorAnimated:NO];
++}
++
++- (void)updateUserHeadingIndicatorAnimated:(BOOL)animated
++{
++    if (!self.userHeadingIndicatorView || self.lastUserHeadingDegrees < 0.0 || !isfinite(self.lastUserHeadingDegrees)) {
++        self.userHeadingIndicatorView.hidden = YES;
++        return;
++    }
++
++    self.userHeadingIndicatorView.hidden = NO;
++    CLLocationDirection screenHeading = self.lastUserHeadingDegrees - self.camera.heading;
++    CGFloat radians = screenHeading * M_PI / 180.0;
++    void (^updates)(void) = ^{
++        self.userHeadingIndicatorView.transform = CGAffineTransformMakeRotation(radians);
++    };
++    if (animated) {
++        [UIView animateWithDuration:0.14
++                              delay:0
++                            options:UIViewAnimationOptionBeginFromCurrentState |
++                                    UIViewAnimationOptionAllowUserInteraction |
++                                    UIViewAnimationOptionCurveEaseOut
++                         animations:updates
++                         completion:nil];
++    } else {
++        updates();
++    }
++}
++
+ - (void)setUserInterfaceStyle:(NSString*)userInterfaceStyle
+ {
+     if (@available(iOS 13.0, *)) {
+diff --git a/node_modules/react-native-maps/ios/AirMaps/AIRMapManager.m b/node_modules/react-native-maps/ios/AirMaps/AIRMapManager.m
+index 8bd7907..50d64d8 100644
+--- a/node_modules/react-native-maps/ios/AirMaps/AIRMapManager.m
++++ b/node_modules/react-native-maps/ios/AirMaps/AIRMapManager.m
+@@ -89,6 +89,7 @@ - (UIView *)view
+ RCT_EXPORT_VIEW_PROPERTY(userInterfaceStyle, NSString)
+ RCT_EXPORT_VIEW_PROPERTY(followsUserLocation, BOOL)
+ RCT_EXPORT_VIEW_PROPERTY(userLocationCalloutEnabled, BOOL)
++RCT_EXPORT_VIEW_PROPERTY(showsUserHeadingIndicator, BOOL)
+ RCT_EXPORT_VIEW_PROPERTY(showsPointsOfInterest, BOOL)
+ RCT_EXPORT_VIEW_PROPERTY(showsBuildings, BOOL)
+ RCT_EXPORT_VIEW_PROPERTY(showsCompass, BOOL)
+@@ -791,13 +792,14 @@ - (MKOverlayRenderer *)mapView:(MKMapView *)mapView rendererForOverlay:(id <MKOv
+
+ - (void)mapView:(AIRMap *)mapView didAddAnnotationViews:(NSArray<MKAnnotationView *> *)views
+ {
+-    if(!mapView.userLocationCalloutEnabled){
+-        for(MKAnnotationView* view in views){
+-            if ([view.annotation isKindOfClass:[MKUserLocation class]]){
++    for(MKAnnotationView* view in views){
++        if ([view.annotation isKindOfClass:[MKUserLocation class]]){
++            if(!mapView.userLocationCalloutEnabled){
+                 [view setEnabled:NO];
+                 [view setCanShowCallout:NO];
+-                break;
+             }
++            [mapView attachUserHeadingIndicatorToAnnotationView:view];
++            break;
+         }
+     }
+ }
+@@ -943,5 +945,6 @@ - (void)mapView:(AIRMap *)mapView regionWillChangeAnimated:(BOOL)animated
+
+ - (void)mapViewDidChangeVisibleRegion:(AIRMap *)mapView
+ {
++    [mapView refreshUserHeadingIndicator];
+     [self _regionChanged:mapView];
+ }

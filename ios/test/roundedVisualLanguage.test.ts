@@ -300,28 +300,19 @@ describe("rounded visual language", () => {
       join(process.cwd(), "src/features/guest-map/GuestMapScreen.tsx"),
       "utf8",
     );
-    const guestMapStylesSource = readFileSync(
-      join(process.cwd(), "src/features/guest-map/GuestMapScreen.styles.ts"),
-      "utf8",
-    );
     const guestPlannerSource = readFileSync(
       join(process.cwd(), "src/features/guest-map/guestRoutePlanner.ts"),
       "utf8",
     );
-    const sheetBlock =
-      /sheet:\s*\{([\s\S]*?)\n  \},\n  sheetHeaderRow:/.exec(
-        guestMapStylesSource,
-      )?.[1] || "";
 
     assert.match(guestPlannerSource, /sheetTitle:\s*'Where to\?'/);
     assert.match(guestMapSource, />Cancel</);
     assert.match(guestMapSource, /styles\.sheetGrabber/);
     assert.match(guestMapSource, /onPlannerVisibilityChange/);
-    assert.match(guestMapStylesSource, /sheetScrim:[\s\S]*rgba\(0, 0, 0, 0\.12\)/);
-    assert.match(sheetBlock, /backgroundColor:\s*colors\.sheet/);
-    assert.match(sheetBlock, /borderTopLeftRadius:\s*radius\.sheet/);
-    assert.match(sheetBlock, /shadowOpacity:\s*0\.2/);
-    assert.match(sheetBlock, /elevation:\s*18/);
+    assert.match(guestMapSource, /<SafeRouteBottomSheet/);
+    assert.match(guestMapSource, /snapPoints=\{routeSheetSnapPoints\}/);
+    assert.match(guestMapSource, /<BottomSheetTextInput/);
+    assert.doesNotMatch(guestMapSource, /PanResponder\.create/);
   });
 
   it("uses the handoff risk summary, login pill, and map-layer control", () => {
@@ -563,8 +554,8 @@ describe("rounded visual language", () => {
     assert.match(riskEyebrowBlock, /maxWidth:\s*["']100%["']/);
     assert.match(riskCardSource, /routeAlert \? styles\.routeAlertCard : null/);
     assert.match(riskCardSource, /routeAlert \? styles\.routeAlertIconTile : null/);
-    assert.match(riskCardStylesSource, /routeAlertCard:[\s\S]*minHeight:\s*72/);
-    assert.match(riskCardStylesSource, /routeAlertIconTile:[\s\S]*width:\s*34[\s\S]*height:\s*34/);
+    assert.match(riskCardStylesSource, /routeAlertCard:[\s\S]*minHeight:\s*60/);
+    assert.match(riskCardStylesSource, /routeAlertIconTile:[\s\S]*width:\s*30[\s\S]*height:\s*30/);
   });
 
   it("uses the handoff bottom risk callout with severity and area chips", () => {
@@ -585,8 +576,11 @@ describe("rounded visual language", () => {
     assert.match(calloutSource, /createSeverityChipLabel/);
     assert.match(calloutSource, /createRiskAreaChipLabel/);
     assert.match(calloutSource, /bottomInset = chrome\.tabBarHeight \+ 18/);
-    assert.match(calloutSource, /shadowOpacity:\s*0\.2/);
-    assert.match(calloutSource, /borderRadius:\s*radius\.sheet/);
+    assert.match(calloutSource, /<SafeRouteBottomSheet/);
+    assert.match(
+      calloutSource,
+      /enablePanDownToClose=\{!hasExpandedSnapPoint \|\| sheetIndex === 0\}/,
+    );
   });
 
   it("uses the current unframed auth hierarchy without duplicate logo chrome", () => {
@@ -1065,10 +1059,10 @@ describe("rounded visual language", () => {
     assert.match(routeSheetSource, /<StatusPill/);
     assert.match(routeSheetSource, /styles\.detailsButton/);
     assert.match(routeSheetSource, /uiTestIds\.liveMapPrimaryAction/);
-    assert.match(routeSheetStylesSource, /bottomSheet:[\s\S]*right:\s*12/);
-    assert.match(routeSheetStylesSource, /bottomSheet:[\s\S]*borderRadius:\s*radius\.lg/);
-    assert.match(routeSheetStylesSource, /bottomSheet:[\s\S]*shadowOpacity:\s*0\.16/);
-    assert.match(routeSheetStylesSource, /startButton:[\s\S]*borderRadius:\s*14/);
+    assert.match(routeSheetStylesSource, /bottomSheet:[\s\S]*right:\s*14/);
+    assert.match(routeSheetStylesSource, /bottomSheet:[\s\S]*borderRadius:\s*radius\.sheet/);
+    assert.match(routeSheetStylesSource, /bottomSheet:[\s\S]*shadowOpacity:\s*0\.12/);
+    assert.match(routeSheetStylesSource, /startButton:[\s\S]*borderRadius:\s*15/);
     assert.match(routeSummarySource, /label:\s*"Start"/);
     return;
     const bottomSheetBlock =
@@ -1247,7 +1241,7 @@ describe("rounded visual language", () => {
         markerSource,
       )?.[1] || "";
     const vehicleMarkerBlock =
-      /vehicleMarker:\s*\{([\s\S]*?)\r?\n  \},\r?\n  vehicleMarkerHeading:/.exec(
+      /vehicleMarker:\s*\{([\s\S]*?)\r?\n  \},\r?\n  vehicleMarkerHalo:/.exec(
         markerSource,
       )?.[1] || "";
 
@@ -1260,8 +1254,8 @@ describe("rounded visual language", () => {
     assert.doesNotMatch(markerSource, /,\s*shadow,/);
     assert.doesNotMatch(markerSource, /shadow\.panel/);
     assert.match(markerSource, /\briskMarkerHitArea:[\s\S]*width:\s*38/);
-    assert.doesNotMatch(markerSource, /Callout|showCallout/);
-    assert.match(markerSource, /\bvehicleMarkerHeading:/);
+    assert.doesNotMatch(markerSource, /<Callout\b|\bshowCallout\b/);
+    assert.doesNotMatch(markerSource, /\bvehicleMarkerHeading:/);
     assert.match(markerSource, /borderRadius:\s*radius\.pill/);
     assert.match(riskMarkerBlock, /width:\s*34/);
     assert.match(routeAlertMarkerBlock, /width:\s*22/);

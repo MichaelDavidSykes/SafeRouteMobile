@@ -12,14 +12,14 @@ describe('map facing-direction indicator', () => {
 
     assert.match(
       guestMap,
-      /currentLocationVisible && liveCoordinate[\s\S]*<CompassTrackedMarker[\s\S]*guestMapCurrentLocationMarker/,
+      /showsUserLocation=\{currentLocationVisible\}/,
     );
-    assert.match(guestMap, /showsUserLocation=\{false\}/);
     assert.match(
       guestMap,
-      /<CompassTrackedMarker[\s\S]*enabled=\{permissionStatus === 'granted'\}[\s\S]*mapHeading=\{mapCameraHeadingDegrees\}/,
+      /<\/MapView>[\s\S]*<CompassTrackedHeadingOverlay[\s\S]*enabled=\{permissionStatus === 'granted'\}[\s\S]*mapHeading=\{mapCameraHeadingDegrees\}/,
     );
-    assert.doesNotMatch(guestMap, /pointForCoordinate|CompassTrackedHeadingOverlay/);
+    assert.match(guestMap, /onUserLocationChange=[\s\S]*nativeUserCoordinate \|\| liveCoordinate/);
+    assert.doesNotMatch(guestMap, /<CompassTrackedMarker|<VehicleMarker[\s\S]*guestMapCurrentLocationMarker/);
   });
 
   it('keeps compass-facing direction separate from navigation camera bearing', () => {
@@ -28,11 +28,11 @@ describe('map facing-direction indicator', () => {
 
     assert.match(
       liveCanvas,
-      /<CompassTrackedMarker[\s\S]*demoDriveEnabled=\{demoDriveActive\}/,
+      /showsUserLocation=\{!demoDriveActive && permissionStatus === "granted"\}/,
     );
     assert.match(
       liveCanvas,
-      /<CompassTrackedMarker[\s\S]*enabled=\{!demoDriveActive && permissionStatus === "granted"\}/,
+      /<\/MapView>[\s\S]*<CompassTrackedHeadingOverlay[\s\S]*enabled=\{permissionStatus === "granted"\}/,
     );
     assert.match(
       liveCanvas,
@@ -42,10 +42,11 @@ describe('map facing-direction indicator', () => {
       liveMap,
       /<LiveMapCanvas[\s\S]*heading=\{heading\}/,
     );
-    assert.match(liveCanvas, /showsUserLocation=\{false\}/);
+    assert.match(liveCanvas, /vehicleCoordinate && demoDriveActive[\s\S]*<VehicleMarker/);
+    assert.match(liveCanvas, /onUserLocationChange=[\s\S]*nativeUserCoordinate \|\| vehicleCoordinate/);
   });
 
-  it('keeps position and direction in one stable map annotation', () => {
+  it('keeps the native location puck independent from the heading fan', () => {
     const markers = source('features/live-map/LiveMapMarkers.tsx');
     const vehicleMarker = markers.slice(
       markers.indexOf('export function VehicleMarker'),
@@ -54,16 +55,16 @@ describe('map facing-direction indicator', () => {
 
     assert.match(markers, /useDeviceHeading\(enabled, \{[\s\S]*minimumUpdateIntervalMs: 120/);
     assert.match(vehicleMarker, /<Marker/);
-    assert.match(vehicleMarker, /tracksViewChanges=\{screenRotation !== null\}/);
-    assert.match(vehicleMarker, /transform: \[\{ rotate: `\$\{screenRotation\}deg` \}\]/);
-    assert.match(vehicleMarker, /styles\.vehicleMarkerHeadingBeam/);
-    assert.doesNotMatch(markers, /pointForCoordinate|VehicleHeadingOverlay/);
-    assert.doesNotMatch(markers, /Animated\.View|shouldRasterizeIOS|renderToHardwareTextureAndroid/);
+    assert.match(vehicleMarker, /tracksViewChanges=\{false\}/);
+    assert.match(markers, /map\.pointForCoordinate\(coordinate\)/);
+    assert.match(markers, /styles\.vehicleHeadingOverlay/);
+    assert.match(markers, /LinearGradient id="nativePuckHeadingFan"/);
+    assert.match(markers, /Animated\.timing\(animatedRotation/);
+    assert.match(markers, /useNativeDriver: true/);
+    assert.doesNotMatch(markers, /shouldRasterizeIOS|renderToHardwareTextureAndroid/);
+    assert.doesNotMatch(vehicleMarker, /screenRotation|useDeviceHeading|Animated\.View/);
     assert.doesNotMatch(markers, /CompassDirectionPolygon/);
     assert.doesNotMatch(markers, /<Marker[\s\S]*rotation=/);
-    assert.match(
-      markers,
-      /backgroundColor: colors\.appleBlue/,
-    );
+    assert.match(markers, /backgroundColor: colors\.appleBlue/);
   });
 });

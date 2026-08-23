@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { Ellipsis, List, Share2 } from "lucide-react-native";
-import { Animated, Pressable, Text, View } from "react-native";
+import { Pressable, Text, View } from "react-native";
 
 import type { LiveMapOverlayLayout } from "./liveMapLayout";
 import type { RoutePath, SavedSafeRoutePlan } from "./liveMapTypes";
@@ -34,10 +34,7 @@ import {
   shouldUseCompactRouteSummary,
 } from "./routeSummaryPresentation";
 import type { BackgroundNavigationPresentation } from "./backgroundNavigationState";
-import {
-  MotionEntrance,
-  useLoopingPulse,
-} from "../../motion/SafeRouteMotion";
+import { MotionEntrance } from "../../motion/SafeRouteMotion";
 
 const ROUTE_SUMMARY_ACTION_HIT_SLOP = 12;
 const ROUTE_SUMMARY_ACTION_PRESS_RETENTION_OFFSET = 20;
@@ -298,18 +295,16 @@ export function LiveMapRouteSummarySheet({
         </MotionEntrance>
       ) : null}
 
-      <View
-        style={[
-          styles.actionRow,
-          compactRouteSummary ? styles.actionRowCompactNavigation : null,
-          routeContext === "guest" && !compactRouteSummary
-            ? styles.actionRowGuest
-            : null,
-        ]}
-      >
-        {primaryActionPending ? (
-          <RouteStartLoadingBar />
-        ) : (
+      {primaryActionPending ? null : (
+        <View
+          style={[
+            styles.actionRow,
+            compactRouteSummary ? styles.actionRowCompactNavigation : null,
+            routeContext === "guest" && !compactRouteSummary
+              ? styles.actionRowGuest
+              : null,
+          ]}
+        >
           <>
             <Pressable
               accessibilityHint={primaryAccessibility.hint}
@@ -408,44 +403,9 @@ export function LiveMapRouteSummarySheet({
               </>
             )}
           </>
-        )}
-      </View>
+        </View>
+      )}
     </MotionEntrance>
-  );
-}
-
-function RouteStartLoadingBar() {
-  const [trackWidth, setTrackWidth] = useState(0);
-  const sweepProgress = useLoopingPulse({ duration: 1050 });
-  const sweepWidth = Math.max(72, trackWidth * 0.38);
-
-  return (
-    <View
-      accessible
-      accessibilityLabel="Starting route guidance"
-      accessibilityLiveRegion="polite"
-      accessibilityRole="progressbar"
-      accessibilityState={{ busy: true }}
-      onLayout={(event) => setTrackWidth(event.nativeEvent.layout.width)}
-      style={styles.startLoadingTrack}
-      testID={uiTestIds.liveMapPrimaryAction}
-    >
-      <Animated.View
-        accessibilityElementsHidden
-        style={[
-          styles.startLoadingSweep,
-          {
-            width: sweepWidth,
-            transform: [{
-              translateX: sweepProgress.interpolate({
-                inputRange: [0, 1],
-                outputRange: [-sweepWidth, trackWidth],
-              }),
-            }],
-          },
-        ]}
-      />
-    </View>
   );
 }
 

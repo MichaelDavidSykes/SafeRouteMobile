@@ -169,9 +169,6 @@ describe("production navigation reliability integration", () => {
     const summarySource = source(
       "src/features/live-map/LiveMapRouteSummarySheet.tsx",
     );
-    const summaryStyles = source(
-      "src/features/live-map/LiveMapRouteSummarySheet.styles.ts",
-    );
     const resetBlock = liveMapSource.slice(
       liveMapSource.indexOf("const nextResumeSession ="),
       liveMapSource.indexOf("const workspaceId =", liveMapSource.indexOf("const nextResumeSession =")),
@@ -227,16 +224,9 @@ describe("production navigation reliability integration", () => {
     );
     assert.match(
       summarySource,
-      /primaryActionPending \? \([\s\S]*<RouteStartLoadingBar \/>/,
+      /primaryActionPending \? null : \([\s\S]*styles\.actionRow/,
     );
-    assert.match(
-      summarySource,
-      /function RouteStartLoadingBar[\s\S]*useLoopingPulse[\s\S]*accessibilityRole="progressbar"/,
-    );
-    assert.match(
-      summaryStyles,
-      /startLoadingTrack:[\s\S]*overflow: "hidden"[\s\S]*startLoadingSweep:/,
-    );
+    assert.doesNotMatch(summarySource, /RouteStartLoadingBar|useLoopingPulse/);
     assert.doesNotMatch(resetBlock, /commitNavigationStart\(/);
   });
 

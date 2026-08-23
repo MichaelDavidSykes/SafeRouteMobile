@@ -328,23 +328,6 @@ export const routeSummaryStyles = StyleSheet.create({
     backgroundColor: colors.appleBluePressed,
     transform: [{ scale: 0.985 }],
   },
-  startLoadingTrack: {
-    minHeight: controlSizes.secondary,
-    flex: 1,
-    overflow: "hidden",
-    borderWidth: StyleSheet.hairlineWidth,
-    borderColor: colors.appleBlueSoft,
-    borderRadius: 14,
-    backgroundColor: colors.controlStrong,
-  },
-  startLoadingSweep: {
-    position: "absolute",
-    top: 0,
-    bottom: 0,
-    borderRadius: 14,
-    backgroundColor: colors.appleBlue,
-    opacity: 0.72,
-  },
   startButtonText: {
     maxWidth: "100%",
     flexShrink: 1,

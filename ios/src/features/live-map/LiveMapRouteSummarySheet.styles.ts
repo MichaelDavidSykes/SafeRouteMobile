@@ -267,31 +267,6 @@ export const routeSummaryStyles = StyleSheet.create({
     fontWeight: "600",
     lineHeight: 16,
   },
-  continuityAction: {
-    minHeight: 28,
-    marginTop: 4,
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
-    gap: spacing.sm,
-    paddingHorizontal: 2,
-  },
-  continuityActionPressed: {
-    opacity: 0.78,
-  },
-  continuityMessage: {
-    flex: 1,
-    minWidth: 0,
-    color: colors.muted,
-    fontSize: 10.5,
-    fontWeight: "600",
-  },
-  continuityActionText: {
-    flexShrink: 0,
-    color: colors.appleBlue,
-    fontSize: 10.5,
-    fontWeight: "800",
-  },
   actionRow: {
     flexDirection: "row",
     alignItems: "center",

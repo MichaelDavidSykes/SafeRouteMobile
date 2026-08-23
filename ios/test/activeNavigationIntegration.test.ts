@@ -230,8 +230,11 @@ describe("production navigation reliability integration", () => {
     assert.doesNotMatch(resetBlock, /commitNavigationStart\(/);
   });
 
-  it("updates pause and end-route controls before cleanup work", () => {
+  it("keeps active guidance running until the single End action is used", () => {
     const liveMapSource = source("src/features/live-map/LiveMapScreen.tsx");
+    const summarySource = source(
+      "src/features/live-map/LiveMapRouteSummarySheet.tsx",
+    );
     const primaryActionBlock = liveMapSource.slice(
       liveMapSource.indexOf("const handlePrimaryNavigationAction"),
       liveMapSource.indexOf("const liveNavigationBlockedReason"),
@@ -241,10 +244,16 @@ describe("production navigation reliability integration", () => {
       liveMapSource.indexOf("const handleRiskZonePress"),
     );
 
+    assert.doesNotMatch(primaryActionBlock, /setNavigationState\("paused"\)/);
     assert.match(
       primaryActionBlock,
-      /setNavigationState\("paused"\);[\s\S]*setFollowModeEnabled\(false\);/,
+      /activeNavigationState === "navigating"[\s\S]*activeNavigationState === "off-route"[\s\S]*return;/,
     );
+    assert.match(
+      summarySource,
+      /showPrimaryAction = !showStopAction \|\| navigationState === "paused"/,
+    );
+    assert.match(summarySource, /\{showPrimaryAction \? \(/);
     assert.ok(
       stopActionBlock.indexOf('setNavigationState("stopped")') <
         stopActionBlock.indexOf("stopLiveRerouteMonitoring"),
@@ -308,7 +317,7 @@ describe("production navigation reliability integration", () => {
     );
   });
 
-  it("keeps background permission UI compact and text-led", () => {
+  it("removes the screen-lock prompt from the live route summary", () => {
     const summarySource = source(
       "src/features/live-map/LiveMapRouteSummarySheet.tsx",
     );
@@ -316,10 +325,9 @@ describe("production navigation reliability integration", () => {
       "src/features/live-map/LiveMapRouteSummarySheet.styles.ts",
     );
 
-    assert.match(summarySource, /liveMapBackgroundNavigationAction/);
-    assert.match(summarySource, /backgroundNavigationPresentation\.actionLabel/);
-    assert.doesNotMatch(summarySource, /Ionicons/);
-    assert.match(summaryStyles, /continuityAction:[\s\S]*borderRadius:\s*radius\.pill/);
+    assert.doesNotMatch(summarySource, /liveMapBackgroundNavigationAction/);
+    assert.doesNotMatch(summarySource, /backgroundNavigationPresentation/);
+    assert.doesNotMatch(summaryStyles, /continuityAction|continuityMessage/);
   });
 
   it("keeps active guidance compact and removes spoken guidance completely", () => {

@@ -33,17 +33,14 @@ import {
   shouldShowRouteSummarySafetyBadge,
   shouldUseCompactRouteSummary,
 } from "./routeSummaryPresentation";
-import type { BackgroundNavigationPresentation } from "./backgroundNavigationState";
 import { MotionEntrance } from "../../motion/SafeRouteMotion";
 
 const ROUTE_SUMMARY_ACTION_HIT_SLOP = 12;
 const ROUTE_SUMMARY_ACTION_PRESS_RETENTION_OFFSET = 20;
 
 interface LiveMapRouteSummarySheetProps {
-  backgroundNavigationPresentation?: BackgroundNavigationPresentation | null;
   layout: LiveMapOverlayLayout;
   navigationState: NavigationLifecycle;
-  onEnableBackgroundNavigation: () => void;
   onPrimaryAction: () => void;
   onShareRoute: () => void;
   onStopRoute: () => void;
@@ -59,10 +56,8 @@ interface LiveMapRouteSummarySheetProps {
 }
 
 export function LiveMapRouteSummarySheet({
-  backgroundNavigationPresentation,
   layout,
   navigationState,
-  onEnableBackgroundNavigation,
   onPrimaryAction,
   onShareRoute,
   onStopRoute,
@@ -96,6 +91,7 @@ export function LiveMapRouteSummarySheet({
     navigationState === "navigating" ||
     navigationState === "off-route" ||
     navigationState === "paused";
+  const showPrimaryAction = !showStopAction || navigationState === "paused";
   const headlineSource =
     navigationState === "arrived"
       ? "Arrived"
@@ -270,31 +266,6 @@ export function LiveMapRouteSummarySheet({
         </MotionEntrance>
       ) : null}
 
-      {backgroundNavigationPresentation ? (
-        <MotionEntrance
-          replayKey={backgroundNavigationPresentation.message}
-          variant="disclosure"
-        >
-          <Pressable
-            accessibilityLabel={backgroundNavigationPresentation.accessibilityLabel}
-            accessibilityRole="button"
-            testID={uiTestIds.liveMapBackgroundNavigationAction}
-            style={({ pressed }) => [
-              styles.continuityAction,
-              pressed ? styles.continuityActionPressed : null,
-            ]}
-            onPress={onEnableBackgroundNavigation}
-          >
-            <Text numberOfLines={1} style={styles.continuityMessage}>
-              {backgroundNavigationPresentation.message}
-            </Text>
-            <Text numberOfLines={1} style={styles.continuityActionText}>
-              {backgroundNavigationPresentation.actionLabel}
-            </Text>
-          </Pressable>
-        </MotionEntrance>
-      ) : null}
-
       {primaryActionPending ? null : (
         <View
           style={[
@@ -306,36 +277,38 @@ export function LiveMapRouteSummarySheet({
           ]}
         >
           <>
-            <Pressable
-              accessibilityHint={primaryAccessibility.hint}
-              accessibilityLabel={primaryAccessibility.label}
-              accessibilityRole="button"
-              accessibilityState={primaryAccessibility.state}
-              disabled={primaryDisabled}
-              hitSlop={ROUTE_SUMMARY_ACTION_HIT_SLOP}
-              pressRetentionOffset={ROUTE_SUMMARY_ACTION_PRESS_RETENTION_OFFSET}
-              testID={uiTestIds.liveMapPrimaryAction}
-              style={({ pressed }) => [
-                styles.startButton,
-                compactRouteSummary ? styles.startButtonCompactNavigation : null,
-                routeContext === "guest" && !compactRouteSummary
-                  ? styles.startButtonGuest
-                  : null,
-                primaryDisabled ? styles.startButtonDisabled : null,
-                pressed && !primaryDisabled ? styles.startButtonPressed : null,
-              ]}
-              onPress={onPrimaryAction}
-            >
-              <Text
-                numberOfLines={1}
-                style={[
-                  styles.startButtonText,
-                  primaryDisabled ? styles.startButtonTextDisabled : null,
+            {showPrimaryAction ? (
+              <Pressable
+                accessibilityHint={primaryAccessibility.hint}
+                accessibilityLabel={primaryAccessibility.label}
+                accessibilityRole="button"
+                accessibilityState={primaryAccessibility.state}
+                disabled={primaryDisabled}
+                hitSlop={ROUTE_SUMMARY_ACTION_HIT_SLOP}
+                pressRetentionOffset={ROUTE_SUMMARY_ACTION_PRESS_RETENTION_OFFSET}
+                testID={uiTestIds.liveMapPrimaryAction}
+                style={({ pressed }) => [
+                  styles.startButton,
+                  compactRouteSummary ? styles.startButtonCompactNavigation : null,
+                  routeContext === "guest" && !compactRouteSummary
+                    ? styles.startButtonGuest
+                    : null,
+                  primaryDisabled ? styles.startButtonDisabled : null,
+                  pressed && !primaryDisabled ? styles.startButtonPressed : null,
                 ]}
+                onPress={onPrimaryAction}
               >
-                {primary.label}
-              </Text>
-            </Pressable>
+                <Text
+                  numberOfLines={1}
+                  style={[
+                    styles.startButtonText,
+                    primaryDisabled ? styles.startButtonTextDisabled : null,
+                  ]}
+                >
+                  {primary.label}
+                </Text>
+              </Pressable>
+            ) : null}
 
             {showStopAction ? (
               <Pressable

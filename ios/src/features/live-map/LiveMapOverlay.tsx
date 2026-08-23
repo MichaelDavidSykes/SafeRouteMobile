@@ -23,13 +23,11 @@ import { LiveMapRiskDetailCallout } from "./LiveMapRiskDetailCallout";
 import { styles } from "./LiveMapOverlay.styles";
 import { LiveMapRouteHeader } from "./LiveMapRouteHeader";
 import { LiveMapRouteSummarySheet } from "./LiveMapRouteSummarySheet";
-import type { BackgroundNavigationPresentation } from "./backgroundNavigationState";
 import { MotionEntrance } from "../../motion/SafeRouteMotion";
 
 interface LiveMapOverlayProps {
   activeNavigationState: NavigationLifecycle;
   alertsVisible: boolean;
-  backgroundNavigationPresentation?: BackgroundNavigationPresentation | null;
   guidance: { instruction: string; distance: string };
   hasVehicleCoordinate: boolean;
   layout: LiveMapOverlayLayout;
@@ -47,7 +45,6 @@ interface LiveMapOverlayProps {
   primaryDisabledReason?: string | null;
   progress: RouteProgressSnapshot | null;
   liveRiskAlert: LiveRouteRiskAlert | null;
-  onEnableBackgroundNavigation: () => void;
   riskAdvisory?: RouteRiskAdvisory | null;
   reroutePresentation?: LiveReroutePresentation | null;
   returnAccessibilityLabel: string;
@@ -62,7 +59,6 @@ interface LiveMapOverlayProps {
 export function LiveMapOverlay({
   activeNavigationState,
   alertsVisible,
-  backgroundNavigationPresentation,
   guidance,
   hasVehicleCoordinate,
   layout,
@@ -80,7 +76,6 @@ export function LiveMapOverlay({
   primaryDisabledReason,
   progress,
   liveRiskAlert,
-  onEnableBackgroundNavigation,
   riskAdvisory,
   reroutePresentation,
   returnAccessibilityLabel,
@@ -162,15 +157,11 @@ export function LiveMapOverlay({
             alert={liveRiskAlert}
             layout={layout}
             onPress={setOpenLiveRiskAlert}
-            routeSummaryHasContinuityAction={Boolean(
-              backgroundNavigationPresentation,
-            )}
           />
         </MotionEntrance>
       ) : null}
 
       {!selectedRiskZone ? <LiveMapRouteSummarySheet
-        backgroundNavigationPresentation={backgroundNavigationPresentation}
         navigationState={activeNavigationState}
         layout={layout}
         progress={progress}
@@ -181,7 +172,6 @@ export function LiveMapOverlay({
         primaryActionPending={primaryActionPending}
         primaryActionStatusReason={primaryActionStatusReason}
         primaryDisabledReason={primaryDisabledReason}
-        onEnableBackgroundNavigation={onEnableBackgroundNavigation}
         onPrimaryAction={onPrimaryAction}
         onShareRoute={onShareRoute}
         onStopRoute={onStopRoute}

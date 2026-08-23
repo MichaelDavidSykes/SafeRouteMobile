@@ -16,14 +16,12 @@ interface LiveRouteRiskAlertCardProps {
   alert: LiveRouteRiskAlert;
   layout: LiveMapOverlayLayout;
   onPress: (alert: LiveRouteRiskAlert) => void;
-  routeSummaryHasContinuityAction?: boolean;
 }
 
 export function LiveRouteRiskAlertCard({
   alert,
   layout,
   onPress,
-  routeSummaryHasContinuityAction = false,
 }: LiveRouteRiskAlertCardProps) {
   const presentation = createLiveRouteRiskAlertPresentation(alert);
   const areaLabel = createAlertAreaLabel(alert);
@@ -44,10 +42,7 @@ export function LiveRouteRiskAlertCard({
       style={({ pressed }) => [
         styles.riskCard,
         {
-          bottom: resolveRiskCardBottom(
-            layout,
-            routeSummaryHasContinuityAction,
-          ),
+          bottom: resolveRiskCardBottom(layout),
         },
         layout.isCompact ? styles.riskCardCompact : null,
         routeAlert ? styles.routeAlertCard : null,
@@ -107,10 +102,8 @@ export function LiveRouteRiskAlertCard({
 
 function resolveRiskCardBottom(
   layout: LiveMapOverlayLayout,
-  routeSummaryHasContinuityAction: boolean,
 ): number {
-  const routeSummaryBottom = layout.isCompact ? 128 : 136;
-  return routeSummaryBottom + (routeSummaryHasContinuityAction ? 48 : 0);
+  return layout.isCompact ? 128 : 136;
 }
 
 type RiskCardTone = "low" | "medium" | "high" | "critical";

@@ -88,7 +88,6 @@ import {
   confirmBackgroundNavigationStopped,
   stopBackgroundNavigation,
 } from "./backgroundNavigation";
-import { createBackgroundNavigationPresentation } from "./backgroundNavigationState";
 import {
   createActiveNavigationInstanceId,
   createActiveNavigationSession,
@@ -288,9 +287,7 @@ export function LiveMapScreen({
     [activeRoutePlan.clientId, principalId],
   );
   const {
-    backgroundStatus,
     coordinate,
-    enableBackgroundTracking,
     errorMessage,
     permissionStatus,
     timestampMs,
@@ -495,13 +492,6 @@ export function LiveMapScreen({
       navigationPresentationState === "navigating"
       || navigationPresentationState === "off-route"
     );
-  const backgroundNavigationPresentation =
-    createBackgroundNavigationPresentation({
-      navigationActive:
-        activeNavigationState === "navigating" ||
-        activeNavigationState === "off-route",
-      status: backgroundStatus,
-    });
   activeSessionSnapshotRef.current =
     !demoDriveActive && isPersistedNavigationLifecycle(navigationState)
       ? createActiveNavigationSession({
@@ -1573,10 +1563,6 @@ export function LiveMapScreen({
       activeNavigationState === "navigating" ||
       activeNavigationState === "off-route"
     ) {
-      lastDriveAlongCameraPoseRef.current = null;
-      driveAlongCameraActiveRef.current = false;
-      setNavigationState("paused");
-      setFollowModeEnabled(false);
       return;
     }
 
@@ -1783,20 +1769,12 @@ export function LiveMapScreen({
       <LiveMapOverlay
         activeNavigationState={navigationPresentationState}
         alertsVisible={alertsVisible}
-        backgroundNavigationPresentation={backgroundNavigationPresentation}
         guidance={guidance}
         hasVehicleCoordinate={Boolean(rawVehicleCoordinate)}
         layout={layout}
         locationNotice={automaticNavigationStartInProgress ? null : locationNotice}
         onCenterVehicle={centerOnVehicle}
         onChangeRoute={onChangeRoute}
-        onEnableBackgroundNavigation={() => {
-          void enableBackgroundTracking().then((enabled) => {
-            if (enabled) {
-              setBackgroundTrackingRequested(true);
-            }
-          });
-        }}
         onFitRoute={fitRouteFromControl}
         onPrimaryAction={handlePrimaryNavigationAction}
         onShareRoute={() => {

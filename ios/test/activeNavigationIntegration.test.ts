@@ -333,8 +333,12 @@ describe("production navigation reliability integration", () => {
     assert.match(guidanceSource, /testID=\{uiTestIds\.liveMapReturn\}/);
     assert.match(guidanceSource, /onPress=\{onChangeRoute\}/);
     assert.match(
+      guidanceSource,
+      /top: Math\.max\(layout\.guidanceTop, safeAreaInsets\.top \+ 8\)/,
+    );
+    assert.match(
       overlaySource,
-      /guidanceCardVisible \? null : \([\s\S]*<LiveMapRouteHeader/,
+      /useSafeAreaInsets\(\)[\s\S]*guidanceCardVisible \? null : \([\s\S]*<LiveMapRouteHeader/,
     );
     assert.doesNotMatch(
       guidanceSource,

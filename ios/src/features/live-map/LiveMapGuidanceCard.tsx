@@ -25,6 +25,7 @@ interface LiveMapGuidanceCardProps {
   onChangeRoute: () => void;
   progress: RouteProgressSnapshot | null;
   returnAccessibilityLabel: string;
+  safeAreaInsets?: { left: number; right: number; top: number };
   riskAdvisory?: RouteRiskAdvisory | null;
   reroutePresentation?: LiveReroutePresentation | null;
   onRetryReroute?: () => void;
@@ -41,6 +42,7 @@ export function LiveMapGuidanceCard({
   onRetryReroute,
   returnAccessibilityLabel,
   riskAdvisory,
+  safeAreaInsets = { left: 0, right: 0, top: 0 },
   state,
   statusNotice,
 }: LiveMapGuidanceCardProps) {
@@ -71,7 +73,11 @@ export function LiveMapGuidanceCard({
       variant="chrome"
       style={[
         styles.guidanceCard,
-        { top: layout.guidanceTop },
+        {
+          left: 16 + safeAreaInsets.left,
+          right: 16 + safeAreaInsets.right,
+          top: Math.max(layout.guidanceTop, safeAreaInsets.top + 8),
+        },
         layout.isCompact ? styles.guidanceCardCompact : null,
         warningActive ? styles.guidanceCardWarning : null,
       ]}

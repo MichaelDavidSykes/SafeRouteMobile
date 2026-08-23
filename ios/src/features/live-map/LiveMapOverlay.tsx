@@ -1,4 +1,7 @@
-import { SafeAreaView } from "react-native-safe-area-context";
+import {
+  SafeAreaView,
+  useSafeAreaInsets,
+} from "react-native-safe-area-context";
 
 import type { RiskZone, SavedSafeRoutePlan } from "./liveMapTypes";
 import type { LiveMapOverlayLayout } from "./liveMapLayout";
@@ -88,6 +91,7 @@ export function LiveMapOverlay({
   selectedRiskZone,
   trackingLabel,
 }: LiveMapOverlayProps) {
+  const safeAreaInsets = useSafeAreaInsets();
   const guidanceCardVisible = shouldShowGuidanceCard(activeNavigationState);
 
   return (
@@ -134,6 +138,7 @@ export function LiveMapOverlay({
           reroutePresentation={reroutePresentation}
           returnAccessibilityLabel={returnAccessibilityLabel}
           riskAdvisory={riskAdvisory}
+          safeAreaInsets={safeAreaInsets}
           state={activeNavigationState}
           onRetryReroute={onRetryReroute}
           statusNotice={locationNotice}

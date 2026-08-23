@@ -1729,15 +1729,6 @@ export function LiveMapScreen({
     setAlertsVisible(true);
   }, []);
 
-  const handleOpenRiskAlert = () => {
-    if (!liveRiskAlert) {
-      return;
-    }
-
-    setSelectedRiskZoneId(liveRiskAlert.zone.id);
-    handleSetAlertsVisible(true);
-  };
-
   const handleDismissRiskDetail = () => {
     setSelectedRiskZoneId(null);
   };
@@ -1807,7 +1798,7 @@ export function LiveMapScreen({
           });
         }}
         onFitRoute={fitRouteFromControl}
-        onOpenRiskAlert={handleOpenRiskAlert}
+        onOpenRiskAlert={handleRiskZonePress}
         onPrimaryAction={handlePrimaryNavigationAction}
         onShareRoute={() => {
           void handleShareRoute();

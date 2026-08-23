@@ -2,6 +2,7 @@ import { AlertTriangle, ChevronRight, CircleAlert } from "lucide-react-native";
 import { Pressable, Text, View } from "react-native";
 
 import type { LiveMapOverlayLayout } from "./liveMapLayout";
+import type { RiskZone } from "./liveMapTypes";
 import {
   createLiveRouteRiskAlertPresentation,
   type LiveRouteRiskAlert,
@@ -15,7 +16,7 @@ import { colors } from "../../theme";
 interface LiveRouteRiskAlertCardProps {
   alert: LiveRouteRiskAlert;
   layout: LiveMapOverlayLayout;
-  onPress: () => void;
+  onPress: (zone: RiskZone) => void;
   routeSummaryHasContinuityAction?: boolean;
 }
 
@@ -54,7 +55,13 @@ export function LiveRouteRiskAlertCard({
         riskCardToneStyle(tone),
         pressed ? styles.riskCardPressed : null,
       ]}
-      onPress={onPress}
+      onPress={(event) => {
+        event.stopPropagation();
+        onPress(alert.zone);
+      }}
+      onPressIn={(event) => {
+        event.stopPropagation();
+      }}
     >
       <View
         style={[

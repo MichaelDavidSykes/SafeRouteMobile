@@ -35,6 +35,23 @@ describe("risk detail interaction", () => {
     assert.match(callout, /onClose=\{handleSheetClosed\}/);
   });
 
+  it("opens the exact live alert that was pressed without leaking the tap to the map", () => {
+    const riskCard = readFileSync(
+      join(process.cwd(), "src/features/live-map/LiveMapRiskCard.tsx"),
+      "utf8",
+    );
+    const liveMap = readFileSync(
+      join(process.cwd(), "src/features/live-map/LiveMapScreen.tsx"),
+      "utf8",
+    );
+
+    assert.match(riskCard, /onPress\(alert\.zone\)/);
+    assert.match(riskCard, /onPressIn=\{\(event\) => \{[\s\S]*event\.stopPropagation\(\)/);
+    assert.match(riskCard, /onPress=\{\(event\) => \{[\s\S]*event\.stopPropagation\(\)/);
+    assert.match(liveMap, /onOpenRiskAlert=\{handleRiskZonePress\}/);
+    assert.doesNotMatch(liveMap, /const handleOpenRiskAlert/);
+  });
+
   it("keeps one content tree mounted while the native sheet changes snap points", () => {
     const callout = readFileSync(
       join(process.cwd(), "src/features/live-map/LiveMapRiskDetailCallout.tsx"),

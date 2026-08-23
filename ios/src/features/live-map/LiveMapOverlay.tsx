@@ -46,7 +46,7 @@ interface LiveMapOverlayProps {
   progress: RouteProgressSnapshot | null;
   liveRiskAlert: LiveRouteRiskAlert | null;
   onEnableBackgroundNavigation: () => void;
-  onOpenRiskAlert: () => void;
+  onOpenRiskAlert: (zone: RiskZone) => void;
   riskAdvisory?: RouteRiskAdvisory | null;
   reroutePresentation?: LiveReroutePresentation | null;
   returnAccessibilityLabel: string;

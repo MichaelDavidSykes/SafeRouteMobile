@@ -1,3 +1,4 @@
+import { useEffect, useState } from "react";
 import {
   SafeAreaView,
   useSafeAreaInsets,
@@ -18,6 +19,7 @@ import {
   type LiveReroutePresentation,
 } from "./LiveMapGuidanceCard";
 import { LiveRouteRiskAlertCard } from "./LiveMapRiskCard";
+import { LiveMapRiskDetailCallout } from "./LiveMapRiskDetailCallout";
 import { styles } from "./LiveMapOverlay.styles";
 import { LiveMapRouteHeader } from "./LiveMapRouteHeader";
 import { LiveMapRouteSummarySheet } from "./LiveMapRouteSummarySheet";
@@ -46,7 +48,6 @@ interface LiveMapOverlayProps {
   progress: RouteProgressSnapshot | null;
   liveRiskAlert: LiveRouteRiskAlert | null;
   onEnableBackgroundNavigation: () => void;
-  onOpenRiskAlert: (zone: RiskZone) => void;
   riskAdvisory?: RouteRiskAdvisory | null;
   reroutePresentation?: LiveReroutePresentation | null;
   returnAccessibilityLabel: string;
@@ -80,7 +81,6 @@ export function LiveMapOverlay({
   progress,
   liveRiskAlert,
   onEnableBackgroundNavigation,
-  onOpenRiskAlert,
   riskAdvisory,
   reroutePresentation,
   returnAccessibilityLabel,
@@ -92,7 +92,13 @@ export function LiveMapOverlay({
   trackingLabel,
 }: LiveMapOverlayProps) {
   const safeAreaInsets = useSafeAreaInsets();
+  const [openLiveRiskAlert, setOpenLiveRiskAlert] =
+    useState<LiveRouteRiskAlert | null>(null);
   const guidanceCardVisible = shouldShowGuidanceCard(activeNavigationState);
+
+  useEffect(() => {
+    setOpenLiveRiskAlert(null);
+  }, [routePlan.id]);
 
   return (
     <SafeAreaView pointerEvents="box-none" style={styles.overlay}>
@@ -145,7 +151,7 @@ export function LiveMapOverlay({
         />
       ) : null}
 
-      {!selectedRiskZone && liveRiskAlert ? (
+      {!selectedRiskZone && !openLiveRiskAlert && liveRiskAlert ? (
         <MotionEntrance
           pointerEvents="box-none"
           replayKey={liveRiskAlert.zone.id}
@@ -155,7 +161,7 @@ export function LiveMapOverlay({
           <LiveRouteRiskAlertCard
             alert={liveRiskAlert}
             layout={layout}
-            onPress={onOpenRiskAlert}
+            onPress={setOpenLiveRiskAlert}
             routeSummaryHasContinuityAction={Boolean(
               backgroundNavigationPresentation,
             )}
@@ -181,6 +187,15 @@ export function LiveMapOverlay({
         onStopRoute={onStopRoute}
         sharePending={sharePending}
       /> : null}
+
+      {openLiveRiskAlert ? (
+        <LiveMapRiskDetailCallout
+          bottomInset={safeAreaInsets.bottom + 12}
+          proximity={openLiveRiskAlert.proximity}
+          zone={openLiveRiskAlert.zone}
+          onDismiss={() => setOpenLiveRiskAlert(null)}
+        />
+      ) : null}
     </SafeAreaView>
   );
 }

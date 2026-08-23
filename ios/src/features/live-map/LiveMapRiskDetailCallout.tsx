@@ -4,8 +4,7 @@ import {
   useMemo,
   useRef,
   useState,
-  type ReactNode,
-  type RefObject
+  type ReactNode
 } from "react";
 import {
   BottomSheetScrollView,
@@ -30,7 +29,6 @@ import {
   type StyleProp,
   type ViewStyle,
 } from "react-native";
-import MapView from "react-native-maps";
 import Animated, {
   Extrapolation,
   ReduceMotion,
@@ -63,7 +61,6 @@ export function LiveMapRiskDetailCallout({
   zone,
 }: {
   bottomInset?: number;
-  mapRef: RefObject<MapView | null>;
   onDismiss: () => void;
   proximity?: RouteRiskProximity | null;
   zone: RiskZone;

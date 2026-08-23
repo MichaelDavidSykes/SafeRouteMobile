@@ -35,21 +35,27 @@ describe("risk detail interaction", () => {
     assert.match(callout, /onClose=\{handleSheetClosed\}/);
   });
 
-  it("opens the exact live alert that was pressed without leaking the tap to the map", () => {
+  it("opens the exact live alert in an overlay without mutating map selection", () => {
     const riskCard = readFileSync(
       join(process.cwd(), "src/features/live-map/LiveMapRiskCard.tsx"),
       "utf8",
     );
-    const liveMap = readFileSync(
-      join(process.cwd(), "src/features/live-map/LiveMapScreen.tsx"),
+    const overlay = readFileSync(
+      join(process.cwd(), "src/features/live-map/LiveMapOverlay.tsx"),
       "utf8",
     );
 
-    assert.match(riskCard, /onPress\(alert\.zone\)/);
+    assert.match(riskCard, /onPress\(alert\)/);
     assert.match(riskCard, /onPressIn=\{\(event\) => \{[\s\S]*event\.stopPropagation\(\)/);
     assert.match(riskCard, /onPress=\{\(event\) => \{[\s\S]*event\.stopPropagation\(\)/);
-    assert.match(liveMap, /onOpenRiskAlert=\{handleRiskZonePress\}/);
-    assert.doesNotMatch(liveMap, /const handleOpenRiskAlert/);
+    assert.match(
+      overlay,
+      /useState<LiveRouteRiskAlert \| null>\(null\)/,
+    );
+    assert.match(overlay, /onPress=\{setOpenLiveRiskAlert\}/);
+    assert.match(overlay, /<LiveMapRiskDetailCallout/);
+    assert.match(overlay, /proximity=\{openLiveRiskAlert\.proximity\}/);
+    assert.doesNotMatch(overlay, /onOpenRiskAlert/);
   });
 
   it("keeps one content tree mounted while the native sheet changes snap points", () => {

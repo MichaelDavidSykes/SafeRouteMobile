@@ -1798,7 +1798,6 @@ export function LiveMapScreen({
           });
         }}
         onFitRoute={fitRouteFromControl}
-        onOpenRiskAlert={handleRiskZonePress}
         onPrimaryAction={handlePrimaryNavigationAction}
         onShareRoute={() => {
           void handleShareRoute();

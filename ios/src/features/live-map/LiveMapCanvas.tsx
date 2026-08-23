@@ -205,7 +205,6 @@ export function LiveMapCanvas({
       {selectedRiskZone ? (
         <LiveMapRiskDetailCallout
           bottomInset={safeAreaInsets.bottom + 12}
-          mapRef={mapRef}
           proximity={selectedRiskProximity}
           zone={selectedRiskZone}
           onDismiss={onDismissRiskDetail}

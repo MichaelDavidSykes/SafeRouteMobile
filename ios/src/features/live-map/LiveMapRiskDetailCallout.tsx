@@ -33,8 +33,10 @@ import Animated, {
   Extrapolation,
   ReduceMotion,
   interpolate,
+  runOnJS,
   useAnimatedStyle,
   useSharedValue,
+  withTiming,
 } from "react-native-reanimated";
 
 import {
@@ -56,12 +58,16 @@ const RISK_DETAIL_SHEET_CONTENT_BOTTOM_PADDING = 14;
 
 export function LiveMapRiskDetailCallout({
   bottomInset = chrome.tabBarHeight + 18,
+  morphFromRouteStack = false,
   onDismiss,
+  open = true,
   proximity,
   zone,
 }: {
   bottomInset?: number;
+  morphFromRouteStack?: boolean;
   onDismiss: () => void;
+  open?: boolean;
   proximity?: RouteRiskProximity | null;
   zone: RiskZone;
 }) {
@@ -99,7 +105,9 @@ export function LiveMapRiskDetailCallout({
         />
       )}
       iconTileStyle={severityIconTileStyle(presentation.tone)}
+      morphFromRouteStack={morphFromRouteStack}
       onDismiss={onDismiss}
+      open={open}
       replayKey={zone.id}
       subtitle={routeAlert
         ? `Route alert · ${zone.category || "Safety intelligence"}`
@@ -376,7 +384,9 @@ export function LiveMapDetailCallout({
   groupedAccessibility = false,
   icon,
   iconTileStyle,
+  morphFromRouteStack = false,
   onDismiss,
+  open = true,
   replayKey,
   subtitle,
   testID,
@@ -392,7 +402,9 @@ export function LiveMapDetailCallout({
   groupedAccessibility?: boolean;
   icon: ReactNode;
   iconTileStyle?: StyleProp<ViewStyle>;
+  morphFromRouteStack?: boolean;
   onDismiss: () => void;
+  open?: boolean;
   replayKey: string;
   subtitle: string;
   testID?: string;
@@ -405,6 +417,9 @@ export function LiveMapDetailCallout({
   const previousReplayKeyRef = useRef(replayKey);
   const [sheetIndex, setSheetIndex] = useState(0);
   const animatedSheetIndex = useSharedValue(-1);
+  const routeStackMorphProgress = useSharedValue(
+    morphFromRouteStack && !open ? 0 : 1,
+  );
 
   const availableSheetHeight = Math.max(
     240,
@@ -443,6 +458,41 @@ export function LiveMapDetailCallout({
         )
       : 1,
   }), [hasExpandedSnapPoint]);
+  const routeStackMorphAnimatedStyle = useAnimatedStyle(() => ({
+    opacity: routeStackMorphProgress.value,
+    transform: [
+      {
+        translateY: interpolate(
+          routeStackMorphProgress.value,
+          [0, 1],
+          [18, 0],
+          Extrapolation.CLAMP,
+        ),
+      },
+      {
+        scale: interpolate(
+          routeStackMorphProgress.value,
+          [0, 1],
+          [0.965, 1],
+          Extrapolation.CLAMP,
+        ),
+      },
+    ],
+  }));
+
+  useEffect(() => {
+    if (!morphFromRouteStack) {
+      return;
+    }
+
+    if (open) {
+      dismissalNotifiedRef.current = false;
+    }
+    routeStackMorphProgress.value = withTiming(open ? 1 : 0, {
+      duration: open ? 220 : 180,
+      reduceMotion: ReduceMotion.System,
+    });
+  }, [morphFromRouteStack, open, routeStackMorphProgress]);
 
   useEffect(() => {
     if (previousReplayKeyRef.current === replayKey) {
@@ -470,9 +520,30 @@ export function LiveMapDetailCallout({
     dismissalNotifiedRef.current = true;
     onDismiss();
   }, [onDismiss]);
+  const completeRouteStackMorphDismissal = useCallback(() => {
+    sheetRef.current?.snapToIndex(0);
+    setSheetIndex(0);
+    handleSheetClosed();
+  }, [handleSheetClosed]);
   const handleDismissRequest = useCallback(() => {
+    if (morphFromRouteStack) {
+      routeStackMorphProgress.value = withTiming(0, {
+        duration: 180,
+        reduceMotion: ReduceMotion.System,
+      }, (finished) => {
+        if (finished) {
+          runOnJS(completeRouteStackMorphDismissal)();
+        }
+      });
+      return;
+    }
+
     sheetRef.current?.close();
-  }, []);
+  }, [
+    completeRouteStackMorphDismissal,
+    morphFromRouteStack,
+    routeStackMorphProgress,
+  ]);
   const handleDisclosurePress = useCallback(() => {
     if (!hasExpandedSnapPoint) {
       return;
@@ -483,15 +554,17 @@ export function LiveMapDetailCallout({
 
   return (
     <View
-      pointerEvents="box-none"
+      pointerEvents={morphFromRouteStack && !open ? "none" : "box-none"}
       style={[StyleSheet.absoluteFill, styles.overlay]}
     >
       <SafeRouteBottomSheet
-        animateOnMount
+        animateOnMount={!morphFromRouteStack}
         animatedIndex={animatedSheetIndex}
         bottomInset={bottomInset}
         detached
-        enablePanDownToClose={!hasExpandedSnapPoint || sheetIndex === 0}
+        enablePanDownToClose={
+          !morphFromRouteStack && (!hasExpandedSnapPoint || sheetIndex === 0)
+        }
         index={0}
         key={replayKey}
         onChange={handleSheetChange}
@@ -499,7 +572,10 @@ export function LiveMapDetailCallout({
         overrideReduceMotion={ReduceMotion.System}
         ref={sheetRef}
         snapPoints={snapPoints}
-        style={styles.sheet}
+        style={[
+          styles.sheet,
+          morphFromRouteStack ? routeStackMorphAnimatedStyle : null,
+        ]}
       >
         <BottomSheetScrollView
           ref={scrollRef}

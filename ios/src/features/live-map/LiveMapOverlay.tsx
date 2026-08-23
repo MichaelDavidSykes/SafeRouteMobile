@@ -3,6 +3,7 @@ import {
   SafeAreaView,
   useSafeAreaInsets,
 } from "react-native-safe-area-context";
+import { View } from "react-native";
 
 import type { RiskZone, SavedSafeRoutePlan } from "./liveMapTypes";
 import type { LiveMapOverlayLayout } from "./liveMapLayout";
@@ -90,6 +91,8 @@ export function LiveMapOverlay({
   const [openLiveRiskAlert, setOpenLiveRiskAlert] =
     useState<LiveRouteRiskAlert | null>(null);
   const guidanceCardVisible = shouldShowGuidanceCard(activeNavigationState);
+  const liveRiskDetailOpen = Boolean(openLiveRiskAlert);
+  const riskDetailAlert = openLiveRiskAlert || liveRiskAlert;
 
   useEffect(() => {
     setOpenLiveRiskAlert(null);
@@ -146,43 +149,56 @@ export function LiveMapOverlay({
         />
       ) : null}
 
-      {!selectedRiskZone && !openLiveRiskAlert && liveRiskAlert ? (
-        <MotionEntrance
-          pointerEvents="box-none"
-          replayKey={liveRiskAlert.zone.id}
-          style={styles.transientEntrance}
-          variant="sheet"
+      {!selectedRiskZone ? (
+        <View
+          accessibilityElementsHidden={liveRiskDetailOpen}
+          importantForAccessibility={
+            liveRiskDetailOpen ? "no-hide-descendants" : "auto"
+          }
+          pointerEvents={liveRiskDetailOpen ? "none" : "box-none"}
+          style={styles.routeStack}
         >
-          <LiveRouteRiskAlertCard
-            alert={liveRiskAlert}
+          {liveRiskAlert ? (
+            <MotionEntrance
+              pointerEvents="box-none"
+              replayKey={liveRiskAlert.zone.id}
+              style={styles.transientEntrance}
+              variant="sheet"
+            >
+              <LiveRouteRiskAlertCard
+                alert={liveRiskAlert}
+                layout={layout}
+                onPress={setOpenLiveRiskAlert}
+              />
+            </MotionEntrance>
+          ) : null}
+
+          <LiveMapRouteSummarySheet
+            navigationState={activeNavigationState}
             layout={layout}
-            onPress={setOpenLiveRiskAlert}
+            progress={progress}
+            route={routePlan.route}
+            routeContext={routeContext}
+            routePlan={routePlan}
+            trackingLabel={trackingLabel}
+            primaryActionPending={primaryActionPending}
+            primaryActionStatusReason={primaryActionStatusReason}
+            primaryDisabledReason={primaryDisabledReason}
+            onPrimaryAction={onPrimaryAction}
+            onShareRoute={onShareRoute}
+            onStopRoute={onStopRoute}
+            sharePending={sharePending}
           />
-        </MotionEntrance>
+        </View>
       ) : null}
 
-      {!selectedRiskZone ? <LiveMapRouteSummarySheet
-        navigationState={activeNavigationState}
-        layout={layout}
-        progress={progress}
-        route={routePlan.route}
-        routeContext={routeContext}
-        routePlan={routePlan}
-        trackingLabel={trackingLabel}
-        primaryActionPending={primaryActionPending}
-        primaryActionStatusReason={primaryActionStatusReason}
-        primaryDisabledReason={primaryDisabledReason}
-        onPrimaryAction={onPrimaryAction}
-        onShareRoute={onShareRoute}
-        onStopRoute={onStopRoute}
-        sharePending={sharePending}
-      /> : null}
-
-      {openLiveRiskAlert ? (
+      {!selectedRiskZone && riskDetailAlert ? (
         <LiveMapRiskDetailCallout
           bottomInset={safeAreaInsets.bottom + 12}
-          proximity={openLiveRiskAlert.proximity}
-          zone={openLiveRiskAlert.zone}
+          morphFromRouteStack
+          open={liveRiskDetailOpen}
+          proximity={riskDetailAlert.proximity}
+          zone={riskDetailAlert.zone}
           onDismiss={() => setOpenLiveRiskAlert(null)}
         />
       ) : null}

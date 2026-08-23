@@ -13,6 +13,9 @@ export const styles = StyleSheet.create({
   transientEntrance: {
     ...StyleSheet.absoluteFillObject,
   },
+  routeStack: {
+    ...StyleSheet.absoluteFillObject,
+  },
   mapControls: {
     position: "absolute",
     right: spacing.md,

@@ -35,7 +35,7 @@ describe("risk detail interaction", () => {
     assert.match(callout, /onClose=\{handleSheetClosed\}/);
   });
 
-  it("opens the exact live alert in an overlay without mutating map selection", () => {
+  it("preloads the exact live alert and morphs it over the route stack", () => {
     const riskCard = readFileSync(
       join(process.cwd(), "src/features/live-map/LiveMapRiskCard.tsx"),
       "utf8",
@@ -54,8 +54,23 @@ describe("risk detail interaction", () => {
     );
     assert.match(overlay, /onPress=\{setOpenLiveRiskAlert\}/);
     assert.match(overlay, /<LiveMapRiskDetailCallout/);
-    assert.match(overlay, /proximity=\{openLiveRiskAlert\.proximity\}/);
+    assert.match(overlay, /morphFromRouteStack/);
+    assert.match(overlay, /open=\{liveRiskDetailOpen\}/);
+    assert.match(overlay, /proximity=\{riskDetailAlert\.proximity\}/);
+    assert.match(overlay, /pointerEvents=\{liveRiskDetailOpen \? "none" : "box-none"\}/);
     assert.doesNotMatch(overlay, /onOpenRiskAlert/);
+  });
+
+  it("keeps the live alert sheet mounted and transitions it without a mount delay", () => {
+    const callout = readFileSync(
+      join(process.cwd(), "src/features/live-map/LiveMapRiskDetailCallout.tsx"),
+      "utf8",
+    );
+
+    assert.match(callout, /animateOnMount=\{!morphFromRouteStack\}/);
+    assert.match(callout, /routeStackMorphProgress\.value = withTiming\(open \? 1 : 0/);
+    assert.match(callout, /morphFromRouteStack \? routeStackMorphAnimatedStyle : null/);
+    assert.match(callout, /runOnJS\(completeRouteStackMorphDismissal\)\(\)/);
   });
 
   it("keeps one content tree mounted while the native sheet changes snap points", () => {

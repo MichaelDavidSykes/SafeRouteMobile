@@ -33,12 +33,10 @@ interface LiveMapOverlayProps {
   onChangeRoute: () => void;
   onFitRoute: () => void;
   onPrimaryAction: () => void;
-  onRepeatSpokenGuidance: () => void;
   onShareRoute: () => void;
   onRetryReroute: () => void;
   onSetAlertsVisible: (visible: boolean) => void;
   onStopRoute: () => void;
-  onToggleSpokenGuidance: () => void;
   primaryActionPending?: boolean;
   primaryActionStatusReason?: string | null;
   primaryDisabledReason?: string | null;
@@ -54,9 +52,6 @@ interface LiveMapOverlayProps {
   routePlan: SavedSafeRoutePlan;
   sharePending?: boolean;
   selectedRiskZone: RiskZone | null;
-  spokenGuidanceAvailable: boolean;
-  spokenGuidanceCanRepeat: boolean;
-  spokenGuidanceMuted: boolean;
   trackingLabel: string;
 }
 
@@ -72,12 +67,10 @@ export function LiveMapOverlay({
   onChangeRoute,
   onFitRoute,
   onPrimaryAction,
-  onRepeatSpokenGuidance,
   onShareRoute,
   onRetryReroute,
   onSetAlertsVisible,
   onStopRoute,
-  onToggleSpokenGuidance,
   primaryActionPending,
   primaryActionStatusReason,
   primaryDisabledReason,
@@ -93,11 +86,10 @@ export function LiveMapOverlay({
   routePlan,
   sharePending,
   selectedRiskZone,
-  spokenGuidanceAvailable,
-  spokenGuidanceCanRepeat,
-  spokenGuidanceMuted,
   trackingLabel,
 }: LiveMapOverlayProps) {
+  const guidanceCardVisible = shouldShowGuidanceCard(activeNavigationState);
+
   return (
     <SafeAreaView pointerEvents="box-none" style={styles.overlay}>
       <MotionEntrance
@@ -106,16 +98,18 @@ export function LiveMapOverlay({
         style={styles.chromeEntrance}
         variant="chrome"
       >
-        <LiveMapRouteHeader
-          activeNavigationState={activeNavigationState}
-          layout={layout}
-          locationNotice={locationNotice}
-          onChangeRoute={onChangeRoute}
-          returnAccessibilityLabel={returnAccessibilityLabel}
-          returnLabel={returnLabel}
-          routePlan={routePlan}
-          trackingLabel={trackingLabel}
-        />
+        {guidanceCardVisible ? null : (
+          <LiveMapRouteHeader
+            activeNavigationState={activeNavigationState}
+            layout={layout}
+            locationNotice={locationNotice}
+            onChangeRoute={onChangeRoute}
+            returnAccessibilityLabel={returnAccessibilityLabel}
+            returnLabel={returnLabel}
+            routePlan={routePlan}
+            trackingLabel={trackingLabel}
+          />
+        )}
 
         <LiveMapControls
           activeNavigationState={activeNavigationState}
@@ -131,20 +125,18 @@ export function LiveMapOverlay({
         />
       </MotionEntrance>
 
-      {shouldShowGuidanceCard(activeNavigationState) ? (
+      {guidanceCardVisible ? (
         <LiveMapGuidanceCard
           guidance={guidance}
           layout={layout}
+          onChangeRoute={onChangeRoute}
           progress={progress}
           reroutePresentation={reroutePresentation}
+          returnAccessibilityLabel={returnAccessibilityLabel}
           riskAdvisory={riskAdvisory}
-          spokenGuidanceAvailable={spokenGuidanceAvailable}
-          spokenGuidanceCanRepeat={spokenGuidanceCanRepeat}
-          spokenGuidanceMuted={spokenGuidanceMuted}
           state={activeNavigationState}
-          onRepeatSpokenGuidance={onRepeatSpokenGuidance}
           onRetryReroute={onRetryReroute}
-          onToggleSpokenGuidance={onToggleSpokenGuidance}
+          statusNotice={locationNotice}
         />
       ) : null}
 

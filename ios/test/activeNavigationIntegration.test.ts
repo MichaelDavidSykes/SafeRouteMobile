@@ -321,4 +321,26 @@ describe("production navigation reliability integration", () => {
     assert.doesNotMatch(summarySource, /Ionicons/);
     assert.match(summaryStyles, /continuityAction:[\s\S]*borderRadius:\s*radius\.pill/);
   });
+
+  it("keeps active guidance compact and removes spoken guidance completely", () => {
+    const guidanceSource = source(
+      "src/features/live-map/LiveMapGuidanceCard.tsx",
+    );
+    const overlaySource = source("src/features/live-map/LiveMapOverlay.tsx");
+    const screenSource = source("src/features/live-map/LiveMapScreen.tsx");
+    const packageSource = source("package.json");
+
+    assert.match(guidanceSource, /testID=\{uiTestIds\.liveMapReturn\}/);
+    assert.match(guidanceSource, /onPress=\{onChangeRoute\}/);
+    assert.match(
+      overlaySource,
+      /guidanceCardVisible \? null : \([\s\S]*<LiveMapRouteHeader/,
+    );
+    assert.doesNotMatch(
+      guidanceSource,
+      /Volume2|VolumeX|RotateCcw|repeat-voice|spokenGuidance/,
+    );
+    assert.doesNotMatch(screenSource, /SpokenGuidance|spokenGuidance/);
+    assert.doesNotMatch(packageSource, /expo-speech/);
+  });
 });

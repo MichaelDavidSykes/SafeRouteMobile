@@ -1,4 +1,4 @@
-import { RotateCcw, Volume2, VolumeX } from "lucide-react-native";
+import { ChevronLeft } from "lucide-react-native";
 import { Pressable, Text, View } from "react-native";
 
 import type { LiveMapOverlayLayout } from "./liveMapLayout";
@@ -12,7 +12,6 @@ import type { RouteProgressSnapshot } from "./routeProgress";
 import { guidanceCardStyles as styles } from "./LiveMapGuidanceCard.styles";
 import { uiTestIds } from "../../testing/uiTestIds";
 import { MotionEntrance } from "../../motion/SafeRouteMotion";
-import { colors } from "../../theme";
 
 export interface LiveReroutePresentation {
   message: string;
@@ -23,31 +22,27 @@ export interface LiveReroutePresentation {
 interface LiveMapGuidanceCardProps {
   guidance: { instruction: string; distance: string };
   layout: LiveMapOverlayLayout;
+  onChangeRoute: () => void;
   progress: RouteProgressSnapshot | null;
+  returnAccessibilityLabel: string;
   riskAdvisory?: RouteRiskAdvisory | null;
   reroutePresentation?: LiveReroutePresentation | null;
-  spokenGuidanceAvailable?: boolean;
-  spokenGuidanceCanRepeat?: boolean;
-  spokenGuidanceMuted?: boolean;
-  onRepeatSpokenGuidance?: () => void;
   onRetryReroute?: () => void;
-  onToggleSpokenGuidance?: () => void;
   state: NavigationLifecycle;
+  statusNotice?: string | null;
 }
 
 export function LiveMapGuidanceCard({
   guidance,
   layout,
+  onChangeRoute,
   progress,
   reroutePresentation,
-  spokenGuidanceAvailable = false,
-  spokenGuidanceCanRepeat = false,
-  spokenGuidanceMuted = false,
-  onRepeatSpokenGuidance,
   onRetryReroute,
-  onToggleSpokenGuidance,
+  returnAccessibilityLabel,
   riskAdvisory,
   state,
+  statusNotice,
 }: LiveMapGuidanceCardProps) {
   const presentation = createGuidanceCardPresentation({
     guidance,
@@ -61,7 +56,9 @@ export function LiveMapGuidanceCard({
       : null;
   const accessibilityLabel = reroutePresentation
     ? `${rerouteTitle}. ${reroutePresentation.message}`
-    : presentation.accessibilityLabel;
+    : [presentation.accessibilityLabel, statusNotice?.trim()]
+        .filter(Boolean)
+        .join(" ");
   const warningActive = state === "off-route";
   const stateAwareAccessibilityLabel = warningActive
     ? `Off route. ${accessibilityLabel}`
@@ -69,8 +66,6 @@ export function LiveMapGuidanceCard({
 
   return (
     <MotionEntrance
-      accessible={!reroutePresentation?.retryAvailable}
-      accessibilityLabel={stateAwareAccessibilityLabel}
       replayKey={`${state}:${reroutePresentation?.status || "guidance"}`}
       testID={uiTestIds.liveMapGuidanceState(state)}
       variant="chrome"
@@ -81,7 +76,30 @@ export function LiveMapGuidanceCard({
         warningActive ? styles.guidanceCardWarning : null,
       ]}
     >
-      <View style={styles.guidanceCopy}>
+      <Pressable
+        accessibilityHint="Returns to the previous SafeRoute view without ending this route."
+        accessibilityLabel={returnAccessibilityLabel}
+        accessibilityRole="button"
+        hitSlop={8}
+        testID={uiTestIds.liveMapReturn}
+        style={({ pressed }) => [
+          styles.backButton,
+          pressed ? styles.backButtonPressed : null,
+        ]}
+        onPress={onChangeRoute}
+      >
+        <ChevronLeft
+          accessibilityElementsHidden
+          color="#f5f5f7"
+          size={24}
+          strokeWidth={2.3}
+        />
+      </Pressable>
+      <View
+        accessible={!reroutePresentation?.retryAvailable}
+        accessibilityLabel={stateAwareAccessibilityLabel}
+        style={styles.guidanceCopy}
+      >
         <Text
           numberOfLines={layout.guidanceTitleLines}
           style={[
@@ -92,16 +110,17 @@ export function LiveMapGuidanceCard({
         >
           {rerouteTitle || presentation.instructionLabel}
         </Text>
-        <Text
-          numberOfLines={1}
-          style={[
-            styles.guidanceMeta,
-            warningActive ? styles.guidanceDangerText : null,
-          ]}
-        >
-          {reroutePresentation?.message || presentation.metaLabel}
-        </Text>
-        {presentation.riskAdvisory ? (
+        {reroutePresentation?.message || statusNotice?.trim() ? (
+          <Text
+            numberOfLines={1}
+            style={[
+              styles.guidanceMeta,
+              warningActive ? styles.guidanceDangerText : null,
+            ]}
+          >
+            {reroutePresentation?.message || statusNotice?.trim()}
+          </Text>
+        ) : presentation.riskAdvisory ? (
           <Text
             numberOfLines={1}
             style={[
@@ -140,72 +159,6 @@ export function LiveMapGuidanceCard({
             >
               {presentation.distanceLabel}
             </Text>
-          ) : null}
-          {spokenGuidanceAvailable && onToggleSpokenGuidance ? (
-            <Pressable
-              accessibilityHint={
-                spokenGuidanceMuted
-                  ? "Turns spoken backend directions on."
-                  : "Mutes spoken backend directions."
-              }
-              accessibilityLabel={
-                spokenGuidanceMuted
-                  ? "Unmute spoken directions"
-                  : "Mute spoken directions"
-              }
-              accessibilityRole="button"
-              accessibilityState={{ selected: !spokenGuidanceMuted }}
-              testID={uiTestIds.liveMapControl("voice")}
-              style={({ pressed }) => [
-                styles.guidanceAudioButton,
-                !spokenGuidanceMuted ? styles.guidanceAudioButtonActive : null,
-                pressed ? styles.guidanceAudioButtonPressed : null,
-              ]}
-              onPress={onToggleSpokenGuidance}
-            >
-              {spokenGuidanceMuted ? (
-                <VolumeX
-                  accessibilityElementsHidden
-                  color={colors.appleBlue}
-                  size={19}
-                  strokeWidth={2.2}
-                />
-              ) : (
-                <Volume2
-                  accessibilityElementsHidden
-                  color={colors.onAccent}
-                  size={19}
-                  strokeWidth={2.2}
-                />
-              )}
-            </Pressable>
-          ) : null}
-          {spokenGuidanceAvailable && onRepeatSpokenGuidance ? (
-            <Pressable
-              accessibilityHint="Repeats the last backend direction."
-              accessibilityLabel="Repeat spoken direction"
-              accessibilityRole="button"
-              accessibilityState={{ disabled: !spokenGuidanceCanRepeat }}
-              disabled={!spokenGuidanceCanRepeat}
-              testID={uiTestIds.liveMapControl("repeat-voice")}
-              style={({ pressed }) => [
-                styles.guidanceAudioButton,
-                !spokenGuidanceCanRepeat
-                  ? styles.guidanceAudioButtonDisabled
-                  : null,
-                pressed && spokenGuidanceCanRepeat
-                  ? styles.guidanceAudioButtonPressed
-                  : null,
-              ]}
-              onPress={onRepeatSpokenGuidance}
-            >
-              <RotateCcw
-                accessibilityElementsHidden
-                color={spokenGuidanceCanRepeat ? colors.appleBlue : colors.mutedSoft}
-                size={18}
-                strokeWidth={2.2}
-              />
-            </Pressable>
           ) : null}
         </View>
       ) : null}

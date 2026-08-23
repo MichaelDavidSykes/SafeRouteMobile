@@ -839,7 +839,11 @@ describe("rounded visual language", () => {
       guidanceSource,
       /state === "off-route"[\s\S]*`Off route\. \$\{accessibilityLabel\}`/,
     );
-    assert.match(guidanceSource, /:\s*presentation\.accessibilityLabel/);
+    assert.match(
+      guidanceSource,
+      /\[presentation\.accessibilityLabel, statusNotice\?\.trim\(\)\]/,
+    );
+    assert.match(guidanceSource, /testID=\{uiTestIds\.liveMapReturn\}/);
     assert.match(guidanceSource, /presentation\.instructionLabel/);
     assert.match(guidanceSource, /presentation\.distanceLabel/);
     assert.match(guidanceSource, /<Text\s+numberOfLines=\{1\}[\s\S]*styles\.guidanceDistance/);
@@ -851,6 +855,7 @@ describe("rounded visual language", () => {
     assert.doesNotMatch(guidanceSource, /Ionicons/);
     assert.doesNotMatch(guidanceSource, /name=\{icon\}|name="navigate"|name="alert"|name="flag"/);
     assert.doesNotMatch(guidanceSource, /styles\.guidanceIcon/);
+    assert.doesNotMatch(guidanceSource, /Volume2|VolumeX|RotateCcw|spokenGuidance/);
     assert.doesNotMatch(guidanceSource, /Current instruction<\/Text>/);
     assert.doesNotMatch(guidanceSource, /styles\.darkLabel/);
     assert.match(guidanceCardBlock, /borderRadius:\s*radius\.xl/);

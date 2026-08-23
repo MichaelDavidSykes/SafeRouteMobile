@@ -115,7 +115,7 @@ describe("live map risk overlay interactions", () => {
     assert.doesNotMatch(riskMarkerFunction, /riskMarkerSelectionRing/);
     assert.doesNotMatch(riskMarkerFunction, /riskMarkerSelected/);
     assert.match(riskMarkerFunction, /routeAlert \? \([\s\S]*<CircleAlert/);
-    assert.match(riskMarkerFunction, /<CircleAlert[\s\S]*color=\{colors\.surface\}/);
+    assert.match(riskMarkerFunction, /<CircleAlert[\s\S]*color=\{colors\.onAccent\}/);
     assert.match(riskMarkerFunction, /<AlertTriangle[\s\S]*strokeWidth=\{2\.6\}/);
     assert.match(riskMarkerFunction, /styles\.routeAlertMarker/);
     assert.doesNotMatch(riskMarkerFunction, /zIndex=\{selected \|\| active/);

@@ -276,26 +276,28 @@ describe("rounded visual language", () => {
     assert.match(controlButtonCompactBlock, /minHeight:\s*46/);
   });
 
-  it("uses the four handoff tabs instead of map-sheet support links", () => {
+  it("uses a compact four-destination glass menu instead of a fixed tab bar", () => {
     const guestMapSource = readFileSync(
       join(process.cwd(), "src/features/guest-map/GuestMapScreen.tsx"),
       "utf8",
     );
-    const tabBarSource = readFileSync(
+    const navigationMenuSource = readFileSync(
       join(process.cwd(), "src/components/AppTabBar.tsx"),
       "utf8",
     );
 
     assert.doesNotMatch(guestMapSource, /<SupportButton/);
     for (const label of ["Map", "Routes", "Convoys", "Calendar"]) {
-      assert.match(tabBarSource, new RegExp(`label: "${label}"`));
+      assert.match(navigationMenuSource, new RegExp(`label: "${label}"`));
     }
-    assert.match(tabBarSource, /useSafeAreaInsets\(\)/);
-    assert.match(tabBarSource, /height: layout\.height/);
-    assert.match(tabBarSource, /accessibilityRole="tab"/);
+    assert.match(navigationMenuSource, /useSafeAreaInsets\(\)/);
+    assert.match(navigationMenuSource, /<Menu accessibilityElementsHidden/);
+    assert.match(navigationMenuSource, /<BlurView intensity=\{64\}/);
+    assert.match(navigationMenuSource, /accessibilityRole="button"/);
+    assert.doesNotMatch(navigationMenuSource, /styles\.bar/);
   });
 
-  it("uses the full-height Where to sheet from the handoff", () => {
+  it("uses a concise native location-planning sheet", () => {
     const guestMapSource = readFileSync(
       join(process.cwd(), "src/features/guest-map/GuestMapScreen.tsx"),
       "utf8",
@@ -305,7 +307,8 @@ describe("rounded visual language", () => {
       "utf8",
     );
 
-    assert.match(guestPlannerSource, /sheetTitle:\s*'Where to\?'/);
+    assert.doesNotMatch(guestPlannerSource, /sheetTitle|sheetSubtitle/);
+    assert.match(guestPlannerSource, /placeholder:\s*'Search for a location'/);
     assert.match(guestMapSource, />Cancel</);
     assert.match(guestMapSource, /styles\.sheetGrabber/);
     assert.match(guestMapSource, /onPlannerVisibilityChange/);
@@ -344,7 +347,7 @@ describe("rounded visual language", () => {
     assert.match(signInButtonBlock, /shadowOpacity:\s*0\.16/);
     assert.match(signInButtonBlock, /shadowRadius:\s*8/);
     assert.match(signInButtonBlock, /elevation:\s*5/);
-    assert.match(guestMapStylesSource, /riskSummaryText:[\s\S]*color:\s*colors\.surface/);
+    assert.match(guestMapStylesSource, /riskSummaryText:[\s\S]*color:\s*colors\.onAccent/);
   });
 
   it("keeps saved-route picker session notices bounded and accessible", () => {
@@ -568,7 +571,7 @@ describe("rounded visual language", () => {
       "utf8",
     );
 
-    assert.match(guestMapSource, /onDismiss=\{\(\) => setSelectedRiskZone\(null\)\}/);
+    assert.match(guestMapSource, /<LiveMapRiskDetailContent[\s\S]*onDismiss=\{dismissMapDetail\}/);
     assert.doesNotMatch(guestMapSource, /function GuestRiskDetail/);
     assert.match(calloutSource, /testID=\{uiTestIds\.liveMapRiskDetail\}/);
     assert.match(calloutSource, /dismissTestID=\{uiTestIds\.liveMapRiskDetailDismiss\}/);
@@ -628,7 +631,7 @@ describe("rounded visual language", () => {
     assert.match(loginSource, /testID=\{uiTestIds\.passwordResetForm\}/);
     assert.doesNotMatch(loginSource, /BlurView|cardFrame|styles\.card/);
     assert.match(loginStylesSource, /handoffInputShell:[\s\S]*borderRadius:\s*15/);
-    assert.match(loginStylesSource, /handoffPrimaryButton:[\s\S]*backgroundColor:\s*'#FFFFFF'/);
+    assert.match(loginStylesSource, /handoffPrimaryButton:[\s\S]*backgroundColor:\s*'rgba\(255,255,255,0\.10\)'/);
     assert.match(loginStylesSource, /codeCellRow:[\s\S]*minHeight:\s*58/);
   });
 

@@ -3,6 +3,7 @@ const UNKNOWN_TEST_ID_SEGMENT = "unknown";
 export const uiTestIds = {
   appRoot: "saferoute-app-root",
   appTabBar: "safe-route-tab-bar",
+  appNavigationMenuToggle: "safe-route-navigation-menu-toggle",
   appTab: (tabId: string) =>
     `safe-route-tab-${normalizeTestIdSegment(tabId)}`,
   guestMapCanvas: "guest-map-canvas",

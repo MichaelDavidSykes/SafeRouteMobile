@@ -896,7 +896,7 @@ export const operationsStyles = StyleSheet.create({
     width: 9,
     height: 9,
     borderWidth: 2,
-    borderColor: colors.surface,
+    borderColor: colors.onAccent,
     borderRadius: radius.pill,
     backgroundColor: colors.safe,
   },
@@ -1165,7 +1165,7 @@ export const operationsStyles = StyleSheet.create({
     backgroundColor: colors.appleBlue,
   },
   vehicleDoneButtonText: {
-    color: colors.surface,
+    color: colors.onAccent,
     fontSize: typeScale.md,
     fontWeight: "800",
   },
@@ -1310,7 +1310,7 @@ export const operationsStyles = StyleSheet.create({
     backgroundColor: colors.appleBluePressed,
   },
   sheetMapActionText: {
-    color: colors.surface,
+    color: colors.onAccent,
     fontSize: typeScale.md,
     fontWeight: "900",
   },

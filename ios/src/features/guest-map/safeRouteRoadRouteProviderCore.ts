@@ -20,11 +20,12 @@ import {
 } from './routePreferences';
 
 type SafeRouteVerifiedPreviewPayload = {
-  accept_provisional_risk_coverage: true;
+  accept_provisional_risk_coverage: false;
   client_id: string;
   include_alternatives: true;
-  include_road_metadata: true;
-  include_route_alerts: true;
+  include_fast_route_alerts: true;
+  include_road_metadata: false;
+  include_route_alerts: false;
   policy_version: typeof SAFE_ROUTE_POLICY_VERSION;
   preferences?: SafeRouteRoutePreferencesApi;
   target_alternative_count: 2;
@@ -85,11 +86,12 @@ export function buildSafeRoutePreviewPayload({
   preferences?: SafeRouteRoutePreferences;
 }): SafeRouteVerifiedPreviewPayload {
   const payload: SafeRouteVerifiedPreviewPayload = {
-    accept_provisional_risk_coverage: true,
+    accept_provisional_risk_coverage: false,
     client_id: clientId.trim(),
     include_alternatives: true,
-    include_road_metadata: true,
-    include_route_alerts: true,
+    include_fast_route_alerts: true,
+    include_road_metadata: false,
+    include_route_alerts: false,
     policy_version: SAFE_ROUTE_POLICY_VERSION,
     target_alternative_count: 2,
     travel_mode: travelMode,
@@ -122,12 +124,13 @@ export function buildPublicSafeRoutePreviewPayload({
   });
 
   return {
-    accept_provisional_risk_coverage: true,
+    accept_provisional_risk_coverage: false,
     ...(workspacePayload.preferences
       ? { preferences: workspacePayload.preferences }
       : {}),
     include_alternatives: true,
-    include_route_alerts: true,
+    include_fast_route_alerts: true,
+    include_route_alerts: false,
     policy_version: SAFE_ROUTE_POLICY_VERSION,
     target_alternative_count: 2,
     travel_mode: workspacePayload.travel_mode,

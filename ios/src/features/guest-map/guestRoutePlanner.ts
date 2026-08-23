@@ -79,8 +79,6 @@ export type GuestRoutePlanOptions = {
 export type GuestMapHomeCopy = {
   primaryActionAccessibilityLabel: string;
   primaryActionLabel: string;
-  sheetTitle: string;
-  sheetSubtitle: string;
 };
 
 export type GuestMapGateOptions = {
@@ -271,10 +269,6 @@ export function resolveGuestCollapsedRouteCardState({
   return routePlotted ? 'ready' : 'search';
 }
 
-export function shouldShowGuestMapSubtitle(routePlotted: boolean): boolean {
-  return !routePlotted;
-}
-
 export function createGuestRouteInputCopy({
   field,
   routePlotted
@@ -297,7 +291,7 @@ export function createGuestRouteInputCopy({
       ? 'Changing the destination clears the current preview.'
       : 'Enter a destination to unlock route plotting.',
     accessibilityLabel: 'Route destination',
-    placeholder: 'Where to?'
+    placeholder: 'Search for a location'
   };
 }
 
@@ -305,17 +299,13 @@ export function createGuestMapHomeCopy(authenticated: boolean): GuestMapHomeCopy
   if (authenticated) {
     return {
       primaryActionAccessibilityLabel: 'Open saved routes',
-      primaryActionLabel: 'Saved',
-      sheetTitle: 'Where to?',
-      sheetSubtitle: 'Plot fast or open Saved.'
+      primaryActionLabel: 'Saved'
     };
   }
 
   return {
     primaryActionAccessibilityLabel: 'Sign in to SafeRoute',
-    primaryActionLabel: 'Login',
-    sheetTitle: 'Where to?',
-    sheetSubtitle: 'Map first. Save after sign-in.'
+    primaryActionLabel: 'Login'
   };
 }
 

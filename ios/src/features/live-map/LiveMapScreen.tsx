@@ -183,17 +183,25 @@ export function LiveMapScreen({
       : null;
   const demoDriveActive =
     SAFEROUTE_DEMO_DRIVE_ENABLED && isPreviewAccessToken(accessToken);
+  const automaticNavigationStartRequested = Boolean(
+    startNavigationOnOpen && !resumedNavigationSession,
+  );
   const automaticNavigationStartRouteKeyRef = useRef<string | null>(null);
-  const automaticNavigationStartPendingRef = useRef(false);
+  const automaticNavigationStartPendingRef = useRef(
+    automaticNavigationStartRequested,
+  );
   const mapRef = useRef<MapView | null>(null);
   const activeRerouteRequestRef = useRef<AbortController | null>(null);
   const lastDriveAlongCameraPoseRef = useRef<DriveAlongCameraPose | null>(null);
   const driveAlongCameraActiveRef = useRef(
     Boolean(
-      resumedNavigationSession?.followModeEnabled
-      && (
-        resumedNavigationSession.navigationState === "navigating"
-        || resumedNavigationSession.navigationState === "off-route"
+      automaticNavigationStartRequested
+      || (
+        resumedNavigationSession?.followModeEnabled
+        && (
+          resumedNavigationSession.navigationState === "navigating"
+          || resumedNavigationSession.navigationState === "off-route"
+        )
       )
     ),
   );
@@ -235,7 +243,10 @@ export function LiveMapScreen({
       resumedNavigationSession?.navigationState || "loaded",
     );
   const [liveLocationRequested, setLiveLocationRequested] = useState(
-    Boolean(resumedNavigationSession),
+    Boolean(
+      resumedNavigationSession ||
+      (automaticNavigationStartRequested && !demoDriveActive),
+    ),
   );
   const [backgroundTrackingRequested, setBackgroundTrackingRequested] =
     useState(Boolean(resumedNavigationSession?.backgroundTrackingEnabled));
@@ -247,7 +258,9 @@ export function LiveMapScreen({
   const [navigationStartedAtMs, setNavigationStartedAtMs] = useState(
     () => resumedNavigationSession?.navigationStartedAtMs || Date.now(),
   );
-  const [pendingNavigationStart, setPendingNavigationStart] = useState(false);
+  const [pendingNavigationStart, setPendingNavigationStart] = useState(
+    automaticNavigationStartRequested,
+  );
   const [navigationAuthorizationPending, setNavigationAuthorizationPending] = useState(false);
   const [navigationAuthorizationNotice, setNavigationAuthorizationNotice] =
     useState<string | null>(null);
@@ -483,11 +496,18 @@ export function LiveMapScreen({
     navigationState,
     progress,
   );
+  const automaticNavigationStartInProgress =
+    startNavigationOnOpen &&
+    (pendingNavigationStart || navigationAuthorizationPending) &&
+    (navigationState === "loaded" || navigationState === "stopped");
+  const navigationPresentationState = automaticNavigationStartInProgress
+    ? "navigating"
+    : activeNavigationState;
   driveAlongCameraActiveRef.current =
     followModeEnabled
     && (
-      activeNavigationState === "navigating"
-      || activeNavigationState === "off-route"
+      navigationPresentationState === "navigating"
+      || navigationPresentationState === "off-route"
     );
   const backendManeuverBatch = useMemo(
     () => normalizeBackendManeuverBatch({
@@ -540,6 +560,11 @@ export function LiveMapScreen({
     progress,
     rawVehicleCoordinate,
   });
+  const driveAlongCameraCoordinate =
+    vehicleCoordinate ||
+    (automaticNavigationStartInProgress
+      ? liveRoutePlan.route.coordinates[0] || null
+      : null);
   const progressCoordinates =
     progress?.completedCoordinates ||
     (demoDriveActive
@@ -584,6 +609,17 @@ export function LiveMapScreen({
     navigationAuthorizationNotice?.toLowerCase().includes("reconnect")
       ? navigationAuthorizationNotice
       : null;
+  const automaticNavigationStartProgress = useMemo(
+    () => automaticNavigationStartInProgress
+      ? calculateRouteProgress(
+          liveRoutePlan.route.coordinates,
+          liveRoutePlan.route.coordinates[0] || null,
+        )
+      : null,
+    [automaticNavigationStartInProgress, liveRoutePlan.route.coordinates],
+  );
+  const navigationPresentationProgress =
+    progress || automaticNavigationStartProgress;
   const navigationReadinessNotice = (
     navigationState === "loaded" ||
     navigationState === "paused" ||
@@ -613,8 +649,8 @@ export function LiveMapScreen({
   });
   const guidance = resolveGuidance(
     liveRoutePlan.route,
-    progress,
-    activeNavigationState,
+    navigationPresentationProgress,
+    navigationPresentationState,
   );
   const riskAdvisory = createRouteRiskAdvisory({
     progress,
@@ -1345,11 +1381,11 @@ export function LiveMapScreen({
 
   useEffect(() => {
     if (
-      !vehicleCoordinate ||
+      !driveAlongCameraCoordinate ||
       !shouldUseDriveAlongCamera(
-        activeNavigationState,
+        navigationPresentationState,
         followModeEnabled,
-        vehicleCoordinate,
+        driveAlongCameraCoordinate,
       )
     ) {
       lastDriveAlongCameraPoseRef.current = null;
@@ -1358,9 +1394,9 @@ export function LiveMapScreen({
 
     const nextCameraPose: DriveAlongCameraPose = {
       compact: layout.isCompact,
-      coordinate: vehicleCoordinate,
+      coordinate: driveAlongCameraCoordinate,
       heading,
-      state: activeNavigationState,
+      state: navigationPresentationState,
     };
 
     if (
@@ -1378,16 +1414,19 @@ export function LiveMapScreen({
       nextCameraPose.compact,
     );
     mapRef.current?.animateCamera(driveAlongCamera.camera, {
-      duration: driveAlongCamera.durationMs,
+      duration: automaticNavigationStartInProgress
+        ? 320
+        : driveAlongCamera.durationMs,
     });
     lastDriveAlongCameraPoseRef.current = nextCameraPose;
   }, [
-    activeNavigationState,
+    automaticNavigationStartInProgress,
+    navigationPresentationState,
     followModeEnabled,
     heading,
     layout.isCompact,
-    vehicleCoordinate?.latitude,
-    vehicleCoordinate?.longitude,
+    driveAlongCameraCoordinate?.latitude,
+    driveAlongCameraCoordinate?.longitude,
   ]);
 
   const resetToOverviewCamera = () => {
@@ -1428,23 +1467,25 @@ export function LiveMapScreen({
       return;
     }
 
-    if (!vehicleCoordinate) {
+    if (!driveAlongCameraCoordinate) {
       return;
     }
 
     const driveAlongCamera = resolveDriveAlongCamera(
-      vehicleCoordinate,
+      driveAlongCameraCoordinate,
       heading,
       layout.isCompact,
     );
     mapRef.current?.animateCamera(driveAlongCamera.camera, {
-      duration: driveAlongCamera.durationMs,
+      duration: automaticNavigationStartInProgress
+        ? 320
+        : driveAlongCamera.durationMs,
     });
     lastDriveAlongCameraPoseRef.current = {
       compact: layout.isCompact,
-      coordinate: vehicleCoordinate,
+      coordinate: driveAlongCameraCoordinate,
       heading,
-      state: activeNavigationState,
+      state: navigationPresentationState,
     };
   };
 
@@ -1698,6 +1739,10 @@ export function LiveMapScreen({
     onNavigationSessionChangeRef.current?.(null);
     void clearActiveNavigationSession();
     void stopBackgroundNavigation();
+    if (routeContext === "guest") {
+      onChangeRoute();
+      return;
+    }
     fitRoute();
   };
 
@@ -1788,6 +1833,7 @@ export function LiveMapScreen({
   return (
     <View testID={uiTestIds.liveMapScreen} style={styles.screen}>
       <MotionEntrance
+        duration={automaticNavigationStartInProgress ? 220 : undefined}
         pointerEvents="box-none"
         replayKey={liveRoutePlan.id}
         style={styles.mapScene}
@@ -1817,13 +1863,13 @@ export function LiveMapScreen({
       </MotionEntrance>
 
       <LiveMapOverlay
-        activeNavigationState={activeNavigationState}
+        activeNavigationState={navigationPresentationState}
         alertsVisible={alertsVisible}
         backgroundNavigationPresentation={backgroundNavigationPresentation}
         guidance={guidance}
         hasVehicleCoordinate={Boolean(rawVehicleCoordinate)}
         layout={layout}
-        locationNotice={locationNotice}
+        locationNotice={automaticNavigationStartInProgress ? null : locationNotice}
         onCenterVehicle={centerOnVehicle}
         onChangeRoute={onChangeRoute}
         onEnableBackgroundNavigation={() => {
@@ -1847,13 +1893,16 @@ export function LiveMapScreen({
         onSetAlertsVisible={handleSetAlertsVisible}
         onStopRoute={handleStopRoute}
         onToggleSpokenGuidance={handleToggleSpokenGuidance}
+        primaryActionPending={automaticNavigationStartInProgress}
         primaryActionStatusReason={navigationAuthorizationRetryNotice}
         primaryDisabledReason={
-          navigationAuthorizationPending
+          automaticNavigationStartInProgress
+            ? null
+            : navigationAuthorizationPending
             ? "Checking workspace access before starting guidance…"
             : liveNavigationBlockedReason
         }
-        progress={progress}
+        progress={navigationPresentationProgress}
         liveRiskAlert={liveRiskAlert}
         riskAdvisory={riskAdvisory}
         reroutePresentation={reroutePresentation}
@@ -1864,7 +1913,9 @@ export function LiveMapScreen({
         spokenGuidanceCanRepeat={spokenGuidanceSnapshot.canRepeat}
         spokenGuidanceMuted={spokenGuidanceSnapshot.muted}
         trackingLabel={
-          networkChecking
+          automaticNavigationStartInProgress
+            ? "On route"
+            : networkChecking
             ? "Checking connection"
             : offline
             ? "Offline route map"

@@ -12,70 +12,53 @@ import {
 } from '../src/features/guest-map/safeRouteRoadRouteTransportCore';
 
 describe('verified SafeRoute road route transport', () => {
-  it('honors the server retry interval without adding client backoff', async () => {
-    const responses = [
-      pendingResponse({ retryAfter: '10' }),
-      pendingResponse({ retryAfter: '10' }),
-      jsonResponse({ data: { route: 'verified' } }, 200),
-    ];
-    const retryDelays: number[] = [];
+  it('never polls a pending route response', async () => {
     let requests = 0;
 
-    const result = await requestVerifiedSafeRoutePreview({
-      init: { method: 'POST' },
-      input: 'https://example.test/verified-route-preview',
-      now: () => 0,
-      request: async () => {
-        const response = responses[requests];
-        requests += 1;
-        assert.ok(response);
-        return response;
-      },
-      sleep: async (delayMs) => {
-        retryDelays.push(delayMs);
-      },
-      timeoutMs: 60_000,
-    });
+    await assert.rejects(
+      requestVerifiedSafeRoutePreview({
+        init: { method: 'POST' },
+        input: 'https://example.test/verified-route-preview',
+        now: () => 0,
+        request: async () => {
+          requests += 1;
+          return pendingResponse({ retryAfter: '10' });
+        },
+        timeoutMs: 60_000,
+      }),
+      (error) => error instanceof SafeRoutePreviewCoveragePendingError,
+    );
 
-    assert.deepEqual(result, { route: 'verified' });
-    assert.equal(requests, 3);
-    assert.deepEqual(retryDelays, [10_000, 10_000]);
+    assert.equal(requests, 1);
   });
 
-  it('publishes provisional 200 geometry once and keeps polling for proof', async () => {
-    const responses = [
-      jsonResponse({ data: pendingPreviewBody() }, 200),
-      pendingResponse({ retryAfter: '10' }),
-      jsonResponse({ data: { route: 'verified' } }, 200),
-    ];
+  it('never replaces provisional geometry with a later automatic request', async () => {
     const provisional: unknown[] = [];
     const provisionalFlags: unknown[] = [];
-    const retryDelays: number[] = [];
     let requests = 0;
 
-    const result = await requestVerifiedSafeRoutePreview({
-      init: {
-        body: JSON.stringify({ accept_provisional_risk_coverage: true }),
-        method: 'POST',
-      },
-      input: 'https://example.test/verified-route-preview',
-      now: () => 0,
-      onProvisionalResponse: (response) => provisional.push(response),
-      request: async (_input, init) => {
-        provisionalFlags.push(JSON.parse(String(init?.body)).accept_provisional_risk_coverage);
-        return responses[requests++] as Response;
-      },
-      sleep: async (delayMs) => {
-        retryDelays.push(delayMs);
-      },
-      timeoutMs: 60_000,
-    });
+    await assert.rejects(
+      requestVerifiedSafeRoutePreview({
+        init: {
+          body: JSON.stringify({ accept_provisional_risk_coverage: false }),
+          method: 'POST',
+        },
+        input: 'https://example.test/verified-route-preview',
+        now: () => 0,
+        onProvisionalResponse: (response) => provisional.push(response),
+        request: async (_input, init) => {
+          provisionalFlags.push(JSON.parse(String(init?.body)).accept_provisional_risk_coverage);
+          requests += 1;
+          return jsonResponse({ data: pendingPreviewBody() }, 200);
+        },
+        timeoutMs: 60_000,
+      }),
+      (error) => error instanceof SafeRoutePreviewCoveragePendingError,
+    );
 
     assert.deepEqual(provisional, [pendingPreviewBody()]);
-    assert.deepEqual(provisionalFlags, [true, false, false]);
-    assert.deepEqual(retryDelays, [2_000, 10_000]);
-    assert.deepEqual(result, { route: 'verified' });
-    assert.equal(requests, 3);
+    assert.deepEqual(provisionalFlags, [false]);
+    assert.equal(requests, 1);
     assert.equal(
       isSafeRoutePreviewProvisionalResponse(
         200,
@@ -85,7 +68,7 @@ describe('verified SafeRoute road route transport', () => {
     );
   });
 
-  it('clears a provisional polling loop through the owner AbortSignal', async () => {
+  it('cancels a provisional response through the owner AbortSignal', async () => {
     const controller = new AbortController();
     let published = false;
     let requests = 0;
@@ -135,7 +118,7 @@ describe('verified SafeRoute road route transport', () => {
     );
   });
 
-  it('retries unavailable proof only when its structured coverage state is pending', () => {
+  it('recognizes pending proof only from its structured coverage state', () => {
     assert.equal(isSafeRoutePreviewCoveragePendingResponse(503, pendingBody({
       coverageStatus: 'pending',
       status: 'unavailable',
@@ -166,9 +149,6 @@ describe('verified SafeRoute road route transport', () => {
             status: 'unavailable',
           }), 503);
         },
-        sleep: async () => {
-          assert.fail('non-pending failures must not be retried');
-        },
         timeoutMs: 60_000,
       }),
       (error) => error instanceof ApiRequestError
@@ -198,7 +178,7 @@ describe('verified SafeRoute road route transport', () => {
     assert.equal(requests, 1);
   });
 
-  it('cancels a pending retry through the owner AbortSignal', async () => {
+  it('cancels the single pending request through the owner AbortSignal', async () => {
     const controller = new AbortController();
     let requests = 0;
     const preview = requestVerifiedSafeRoutePreview({
@@ -219,12 +199,11 @@ describe('verified SafeRoute road route transport', () => {
     assert.equal(requests <= 1, true);
   });
 
-  it('returns a meaningful terminal error after the pending budget expires', async () => {
+  it('returns a meaningful terminal error immediately for pending coverage', async () => {
     await assert.rejects(
       requestVerifiedSafeRoutePreview({
         init: { method: 'POST' },
         input: 'https://example.test/verified-route-preview',
-        maxPendingWaitMs: 0,
         now: () => 0,
         request: async () => pendingResponse({ retryAfter: '10' }),
         timeoutMs: 60_000,
@@ -232,7 +211,7 @@ describe('verified SafeRoute road route transport', () => {
       (error) => error instanceof SafeRoutePreviewCoveragePendingError
         && error.statusCode === 503
         && error.retryAfterSeconds === 10
-        && /still verifying risk coverage.*tap plot route/i.test(error.message),
+        && /could not read a usable risk snapshot.*tap plot route/i.test(error.message),
     );
   });
 });

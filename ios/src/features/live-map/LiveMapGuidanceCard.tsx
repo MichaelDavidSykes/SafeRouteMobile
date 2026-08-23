@@ -173,7 +173,7 @@ export function LiveMapGuidanceCard({
               ) : (
                 <Volume2
                   accessibilityElementsHidden
-                  color={colors.surface}
+                  color={colors.onAccent}
                   size={19}
                   strokeWidth={2.2}
                 />

@@ -43,7 +43,10 @@ describe("risk detail interaction", () => {
 
     assert.match(callout, /snapPoints=\{snapPoints\}/);
     assert.match(callout, /<BottomSheetScrollView/);
-    assert.match(callout, /sheetRef\.current\?\.snapToIndex\(expanded \? 0 : 1\)/);
+    assert.match(
+      callout,
+      /sheetRef\.current\?\.snapToIndex\(expanded \? 0 : 1\)/,
+    );
     assert.match(
       callout,
       /nextIndex === 0[\s\S]*scrollRef\.current\?\.scrollTo\(\{ animated: false, y: 0 \}\)/,
@@ -89,5 +92,34 @@ describe("risk detail interaction", () => {
     assert.match(callout, /expandedSnapPoint = Math\.min\(500, availableSheetHeight\)/);
     assert.match(callout, /scrollEnabled=\{expanded\}/);
     assert.doesNotMatch(callout, /minHeight: Math\.max\([\s\S]*compactSnapPoint/);
+  });
+
+  it("morphs guest map details inside one persistent search sheet", () => {
+    const guestMap = readFileSync(
+      join(process.cwd(), "src/features/guest-map/GuestMapScreen.tsx"),
+      "utf8",
+    );
+    const callout = readFileSync(
+      join(process.cwd(), "src/features/live-map/LiveMapRiskDetailCallout.tsx"),
+      "utf8",
+    );
+
+    assert.match(guestMap, /animatedIndex=\{routeSheetAnimatedIndex\}/);
+    assert.match(guestMap, /index=\{mapSheetLayout\.collapsedIndex\}/);
+    assert.match(guestMap, /style=\{\[[\s\S]*styles\.persistentCollapsedContent,[\s\S]*collapsedSheetAnimatedStyle/);
+    assert.match(guestMap, /<LiveMapRiskDetailContent/);
+    assert.match(guestMap, /<LiveMapDetailContent/);
+    assert.match(
+      guestMap,
+      /handleSelectRiskZone[\s\S]*snapToIndex\(routeSheetDetailCompactIndex\)/,
+    );
+    assert.match(
+      guestMap,
+      /dismissMapDetail[\s\S]*handleRouteSheetClose\(\)/,
+    );
+    assert.doesNotMatch(guestMap, /index=\{-1\}|routeSheetRef\.current\?\.close\(\)/);
+    assert.doesNotMatch(guestMap, /<LiveMapRiskDetailCallout|<LiveMapDetailCallout/);
+    assert.match(callout, /export function LiveMapRiskDetailContent/);
+    assert.match(callout, /export function LiveMapDetailContent/);
   });
 });

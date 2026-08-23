@@ -2,6 +2,10 @@ import assert from 'node:assert/strict';
 import { describe, it } from 'node:test';
 
 import {
+  createGuestMapSheetLayout,
+  GUEST_MAP_SHEET_COLLAPSED_HEIGHT,
+  GUEST_MAP_SHEET_DETAIL_COMPACT_HEIGHT,
+  GUEST_MAP_SHEET_DETAIL_EXPANDED_HEIGHT,
   GUEST_ROUTE_SHEET_MIN_BOTTOM_PADDING,
   GUEST_ROUTE_SHEET_VIEWPORT_FRACTION,
   GUEST_SELECTED_LOCATION_SCREEN_Y_FRACTION,
@@ -11,6 +15,25 @@ import {
 } from '../src/features/guest-map/guestMapSheetLayout';
 
 describe('guest map route sheet layout', () => {
+  it('keeps search, details, and planning as detents of one persistent sheet', () => {
+    const layout = createGuestMapSheetLayout(874, 34);
+
+    assert.deepEqual(layout.snapPoints, [
+      GUEST_MAP_SHEET_COLLAPSED_HEIGHT,
+      GUEST_MAP_SHEET_DETAIL_COMPACT_HEIGHT,
+      437,
+      GUEST_MAP_SHEET_DETAIL_EXPANDED_HEIGHT,
+    ]);
+    assert.equal(layout.collapsedIndex, 0);
+    assert.equal(layout.detailCompactIndex, 1);
+    assert.equal(layout.plannerIndex, 2);
+    assert.equal(layout.detailExpandedIndex, 3);
+  });
+
+  it('keeps the compact risk summary close to its content', () => {
+    assert.equal(GUEST_MAP_SHEET_DETAIL_COMPACT_HEIGHT, 224);
+  });
+
   it('keeps the expanded location search sheet at half the portrait viewport', () => {
     assert.equal(GUEST_ROUTE_SHEET_VIEWPORT_FRACTION, 0.5);
     assert.equal(resolveGuestRouteSheetHeight(874), 437);
@@ -21,6 +44,7 @@ describe('guest map route sheet layout', () => {
     assert.equal(resolveGuestRouteSheetHeight(0), 0);
     assert.equal(resolveGuestRouteSheetHeight(Number.NaN), 0);
     assert.equal(resolveGuestRouteSheetHeight(Number.POSITIVE_INFINITY), 0);
+    assert.deepEqual(createGuestMapSheetLayout(Number.NaN, 34).snapPoints, [76]);
   });
 
   it('uses the safe-area inset without adding redundant bottom whitespace', () => {

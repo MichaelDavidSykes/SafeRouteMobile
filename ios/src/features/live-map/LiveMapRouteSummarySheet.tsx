@@ -1,6 +1,6 @@
 import { useState } from "react";
-import { List, Share2 } from "lucide-react-native";
-import { Pressable, Text, View } from "react-native";
+import { Ellipsis, List, Share2 } from "lucide-react-native";
+import { Animated, Pressable, Text, View } from "react-native";
 
 import type { LiveMapOverlayLayout } from "./liveMapLayout";
 import type { RoutePath, SavedSafeRoutePlan } from "./liveMapTypes";
@@ -24,6 +24,7 @@ import { routeSummaryStyles as styles } from "./LiveMapRouteSummarySheet.styles"
 import { uiTestIds } from "../../testing/uiTestIds";
 import {
   createRouteSummaryDetail,
+  createGuestRouteDestinationLabel,
   createRouteSummaryHeadline,
   createRouteSummaryPrimaryAction,
   createRouteSummaryRemainingMetric,
@@ -33,7 +34,10 @@ import {
   shouldUseCompactRouteSummary,
 } from "./routeSummaryPresentation";
 import type { BackgroundNavigationPresentation } from "./backgroundNavigationState";
-import { MotionEntrance } from "../../motion/SafeRouteMotion";
+import {
+  MotionEntrance,
+  useLoopingPulse,
+} from "../../motion/SafeRouteMotion";
 
 const ROUTE_SUMMARY_ACTION_HIT_SLOP = 12;
 const ROUTE_SUMMARY_ACTION_PRESS_RETENTION_OFFSET = 20;
@@ -46,6 +50,7 @@ interface LiveMapRouteSummarySheetProps {
   onPrimaryAction: () => void;
   onShareRoute: () => void;
   onStopRoute: () => void;
+  primaryActionPending?: boolean;
   primaryActionStatusReason?: string | null;
   primaryDisabledReason?: string | null;
   progress: RouteProgressSnapshot | null;
@@ -64,6 +69,7 @@ export function LiveMapRouteSummarySheet({
   onPrimaryAction,
   onShareRoute,
   onStopRoute,
+  primaryActionPending = false,
   primaryActionStatusReason,
   primaryDisabledReason,
   progress,
@@ -86,7 +92,8 @@ export function LiveMapRouteSummarySheet({
     primaryActionStatusReason,
   );
   const stopAccessibility = stopRouteAccessibility(navigationState);
-  const primaryDisabled = Boolean(primaryAccessibility.state.disabled);
+  const primaryDisabled =
+    primaryActionPending || Boolean(primaryAccessibility.state.disabled);
   const compactRouteSummary = shouldUseCompactRouteSummary(navigationState);
   const showStopAction =
     navigationState === "navigating" ||
@@ -183,6 +190,14 @@ export function LiveMapRouteSummarySheet({
             </View>
             <StatusPill compact presentation={statusPresentation} />
           </View>
+        ) : routeContext === "guest" ? (
+          <GuestRouteOverview
+            destination={routePlan.destination}
+            distanceAccessibilityLabel={routeDetail.accessibilityLabel}
+            distance={distanceMetricValue}
+            etaAccessibilityLabel={headlinePresentation.accessibilityLabel}
+            eta={headlinePresentation.text}
+          />
         ) : (
           <>
             <View style={styles.identityRow}>
@@ -203,27 +218,17 @@ export function LiveMapRouteSummarySheet({
               origin={routePlan.origin}
             />
 
-            <View
-              style={[
-                styles.metricsRow,
-                routeContext === "guest" ? styles.metricsRowGuest : null,
-              ]}
-            >
+            <View style={styles.metricsRow}>
               <Metric
                 accessibilityLabel={headlinePresentation.accessibilityLabel}
-                compact={routeContext === "guest"}
                 label="ETA"
                 value={headlinePresentation.text}
               />
               <View
-                style={[
-                  styles.metricDivider,
-                  routeContext === "guest" ? styles.metricDividerGuest : null,
-                ]}
+                style={styles.metricDivider}
               />
               <Metric
                 accessibilityLabel={routeDetail.accessibilityLabel}
-                compact={routeContext === "guest"}
                 label={remainingDistance ? "Remaining" : "Distance"}
                 value={distanceMetricValue}
               />
@@ -297,93 +302,111 @@ export function LiveMapRouteSummarySheet({
         style={[
           styles.actionRow,
           compactRouteSummary ? styles.actionRowCompactNavigation : null,
+          routeContext === "guest" && !compactRouteSummary
+            ? styles.actionRowGuest
+            : null,
         ]}
       >
-        <Pressable
-          accessibilityHint={primaryAccessibility.hint}
-          accessibilityLabel={primaryAccessibility.label}
-          accessibilityRole="button"
-          accessibilityState={primaryAccessibility.state}
-          disabled={primaryDisabled}
-          hitSlop={ROUTE_SUMMARY_ACTION_HIT_SLOP}
-          pressRetentionOffset={ROUTE_SUMMARY_ACTION_PRESS_RETENTION_OFFSET}
-          testID={uiTestIds.liveMapPrimaryAction}
-          style={({ pressed }) => [
-            styles.startButton,
-            compactRouteSummary ? styles.startButtonCompactNavigation : null,
-            primaryDisabled ? styles.startButtonDisabled : null,
-            pressed && !primaryDisabled ? styles.startButtonPressed : null,
-          ]}
-          onPress={onPrimaryAction}
-        >
-          <Text
-            numberOfLines={1}
-            style={[
-              styles.startButtonText,
-              primaryDisabled ? styles.startButtonTextDisabled : null,
-            ]}
-          >
-            {primary.label}
-          </Text>
-        </Pressable>
-
-        {showStopAction ? (
-          <Pressable
-            accessibilityHint={stopAccessibility.hint}
-            accessibilityLabel={stopAccessibility.label}
-            accessibilityRole="button"
-            accessibilityState={stopAccessibility.state}
-            hitSlop={ROUTE_SUMMARY_ACTION_HIT_SLOP}
-            pressRetentionOffset={ROUTE_SUMMARY_ACTION_PRESS_RETENTION_OFFSET}
-            testID={uiTestIds.liveMapStopAction}
-            style={({ pressed }) => [
-              styles.stopButton,
-              compactRouteSummary ? styles.stopButtonCompactNavigation : null,
-              pressed ? styles.stopButtonPressed : null,
-            ]}
-            onPress={onStopRoute}
-          >
-            <Text numberOfLines={1} style={styles.stopButtonText}>
-              End
-            </Text>
-          </Pressable>
+        {primaryActionPending ? (
+          <RouteStartLoadingBar />
         ) : (
           <>
             <Pressable
-              accessibilityLabel={sharePending ? "Preparing route share" : "Share route"}
+              accessibilityHint={primaryAccessibility.hint}
+              accessibilityLabel={primaryAccessibility.label}
               accessibilityRole="button"
-              accessibilityState={{ busy: sharePending, disabled: sharePending }}
-              disabled={sharePending}
+              accessibilityState={primaryAccessibility.state}
+              disabled={primaryDisabled}
               hitSlop={ROUTE_SUMMARY_ACTION_HIT_SLOP}
-              testID={uiTestIds.liveMapShareRoute}
+              pressRetentionOffset={ROUTE_SUMMARY_ACTION_PRESS_RETENTION_OFFSET}
+              testID={uiTestIds.liveMapPrimaryAction}
               style={({ pressed }) => [
-                styles.detailsButton,
-                sharePending ? styles.detailsButtonDisabled : null,
-                pressed && !sharePending ? styles.detailsButtonPressed : null,
+                styles.startButton,
+                compactRouteSummary ? styles.startButtonCompactNavigation : null,
+                routeContext === "guest" && !compactRouteSummary
+                  ? styles.startButtonGuest
+                  : null,
+                primaryDisabled ? styles.startButtonDisabled : null,
+                pressed && !primaryDisabled ? styles.startButtonPressed : null,
               ]}
-              onPress={onShareRoute}
+              onPress={onPrimaryAction}
             >
-              <Share2 accessibilityElementsHidden color="#0a84ff" size={21} strokeWidth={2.1} />
+              <Text
+                numberOfLines={1}
+                style={[
+                  styles.startButtonText,
+                  primaryDisabled ? styles.startButtonTextDisabled : null,
+                ]}
+              >
+                {primary.label}
+              </Text>
             </Pressable>
-            <Pressable
-              accessibilityLabel={
-                routeContext === "saved"
-                  ? savedRouteContext.accessibilityLabel
-                  : "Route details"
-              }
-              accessibilityRole="button"
-              accessibilityState={{ expanded: detailsVisible }}
-              hitSlop={ROUTE_SUMMARY_ACTION_HIT_SLOP}
-              testID={uiTestIds.liveMapSavedRouteDetails}
-              style={({ pressed }) => [
-                styles.detailsButton,
-                detailsVisible ? styles.detailsButtonActive : null,
-                pressed ? styles.detailsButtonPressed : null,
-              ]}
-              onPress={() => setDetailsVisible((visible) => !visible)}
-            >
-              <List accessibilityElementsHidden color="#0a84ff" size={22} strokeWidth={2.1} />
-            </Pressable>
+
+            {showStopAction ? (
+              <Pressable
+                accessibilityHint={stopAccessibility.hint}
+                accessibilityLabel={stopAccessibility.label}
+                accessibilityRole="button"
+                accessibilityState={stopAccessibility.state}
+                hitSlop={ROUTE_SUMMARY_ACTION_HIT_SLOP}
+                pressRetentionOffset={ROUTE_SUMMARY_ACTION_PRESS_RETENTION_OFFSET}
+                testID={uiTestIds.liveMapStopAction}
+                style={({ pressed }) => [
+                  styles.stopButton,
+                  compactRouteSummary ? styles.stopButtonCompactNavigation : null,
+                  pressed ? styles.stopButtonPressed : null,
+                ]}
+                onPress={onStopRoute}
+              >
+                <Text numberOfLines={1} style={styles.stopButtonText}>
+                  End
+                </Text>
+              </Pressable>
+            ) : (
+              <>
+                <Pressable
+                  accessibilityLabel={sharePending ? "Preparing route share" : "Share route"}
+                  accessibilityRole="button"
+                  accessibilityState={{ busy: sharePending, disabled: sharePending }}
+                  disabled={sharePending}
+                  hitSlop={ROUTE_SUMMARY_ACTION_HIT_SLOP}
+                  testID={uiTestIds.liveMapShareRoute}
+                  style={({ pressed }) => [
+                    styles.detailsButton,
+                    routeContext === "guest" ? styles.detailsButtonGuest : null,
+                    sharePending ? styles.detailsButtonDisabled : null,
+                    pressed && !sharePending ? styles.detailsButtonPressed : null,
+                  ]}
+                  onPress={onShareRoute}
+                >
+                  <Share2 accessibilityElementsHidden color="#0a84ff" size={21} strokeWidth={2.1} />
+                </Pressable>
+                <Pressable
+                  accessibilityLabel={
+                    routeContext === "saved"
+                      ? savedRouteContext.accessibilityLabel
+                      : "Route details"
+                  }
+                  accessibilityRole="button"
+                  accessibilityState={{ expanded: detailsVisible }}
+                  hitSlop={ROUTE_SUMMARY_ACTION_HIT_SLOP}
+                  testID={uiTestIds.liveMapSavedRouteDetails}
+                  style={({ pressed }) => [
+                    styles.detailsButton,
+                    routeContext === "guest" ? styles.detailsButtonGuest : null,
+                    detailsVisible ? styles.detailsButtonActive : null,
+                    pressed ? styles.detailsButtonPressed : null,
+                  ]}
+                  onPress={() => setDetailsVisible((visible) => !visible)}
+                >
+                  {routeContext === "guest" ? (
+                    <Ellipsis accessibilityElementsHidden color="#0a84ff" size={22} strokeWidth={2.1} />
+                  ) : (
+                    <List accessibilityElementsHidden color="#0a84ff" size={22} strokeWidth={2.1} />
+                  )}
+                </Pressable>
+              </>
+            )}
           </>
         )}
       </View>
@@ -391,15 +414,48 @@ export function LiveMapRouteSummarySheet({
   );
 }
 
+function RouteStartLoadingBar() {
+  const [trackWidth, setTrackWidth] = useState(0);
+  const sweepProgress = useLoopingPulse({ duration: 1050 });
+  const sweepWidth = Math.max(72, trackWidth * 0.38);
+
+  return (
+    <View
+      accessible
+      accessibilityLabel="Starting route guidance"
+      accessibilityLiveRegion="polite"
+      accessibilityRole="progressbar"
+      accessibilityState={{ busy: true }}
+      onLayout={(event) => setTrackWidth(event.nativeEvent.layout.width)}
+      style={styles.startLoadingTrack}
+      testID={uiTestIds.liveMapPrimaryAction}
+    >
+      <Animated.View
+        accessibilityElementsHidden
+        style={[
+          styles.startLoadingSweep,
+          {
+            width: sweepWidth,
+            transform: [{
+              translateX: sweepProgress.interpolate({
+                inputRange: [0, 1],
+                outputRange: [-sweepWidth, trackWidth],
+              }),
+            }],
+          },
+        ]}
+      />
+    </View>
+  );
+}
+
 function Metric({
   accessibilityLabel,
-  compact,
   label,
   tone,
   value,
 }: {
   accessibilityLabel: string;
-  compact?: boolean;
   label: string;
   tone?: RoutePath["tone"];
   value: string;
@@ -408,11 +464,11 @@ function Metric({
     <View
       accessible
       accessibilityLabel={accessibilityLabel}
-      style={[styles.metric, compact ? styles.metricGuest : null]}
+      style={styles.metric}
     >
       <Text
         numberOfLines={1}
-        style={[styles.metricLabel, compact ? styles.metricLabelGuest : null]}
+        style={styles.metricLabel}
       >
         {label}
       </Text>
@@ -422,12 +478,54 @@ function Metric({
         numberOfLines={1}
         style={[
           styles.metricValue,
-          compact ? styles.metricValueGuest : null,
           tone ? metricToneStyle(tone) : null,
         ]}
       >
         {value}
       </Text>
+    </View>
+  );
+}
+
+function GuestRouteOverview({
+  destination,
+  distance,
+  distanceAccessibilityLabel,
+  eta,
+  etaAccessibilityLabel,
+}: {
+  destination: string;
+  distance: string;
+  distanceAccessibilityLabel: string;
+  eta: string;
+  etaAccessibilityLabel: string;
+}) {
+  return (
+    <View style={styles.guestOverview}>
+      <Text
+        accessibilityLabel={`Destination ${destination || "Destination"}`}
+        numberOfLines={1}
+        style={styles.guestDestination}
+      >
+        {createGuestRouteDestinationLabel(destination)}
+      </Text>
+      <View style={styles.guestMetrics}>
+        <Text
+          accessibilityLabel={etaAccessibilityLabel}
+          numberOfLines={1}
+          style={styles.guestMetric}
+        >
+          {eta}
+        </Text>
+        <View accessibilityElementsHidden style={styles.guestMetricSeparator} />
+        <Text
+          accessibilityLabel={distanceAccessibilityLabel}
+          numberOfLines={1}
+          style={styles.guestMetric}
+        >
+          {distance}
+        </Text>
+      </View>
     </View>
   );
 }

@@ -16,6 +16,8 @@ describe('viewport risk hook integration contract', () => {
   it('debounces, aborts stale requests, and uses the bounded cache', () => {
     assert.match(source, /VIEWPORT_RISK_DEBOUNCE_MS\s*=\s*260/);
     assert.match(source, /VIEWPORT_RISK_TIMEOUT_MS\s*=\s*6000/);
+    assert.match(source, /VIEWPORT_RISK_LIVE_REFRESH_MS\s*=\s*15000/);
+    assert.match(source, /setInterval\(\(\) => \{[\s\S]*setPollRevision/);
     assert.match(source, /new AbortController\(\)/);
     assert.match(
       source,

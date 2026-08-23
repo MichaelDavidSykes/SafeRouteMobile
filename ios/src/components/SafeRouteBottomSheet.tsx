@@ -4,12 +4,13 @@ import BottomSheet, {
   type BottomSheetBackgroundProps,
   type BottomSheetProps,
 } from '@gorhom/bottom-sheet';
+import { BlurView } from 'expo-blur';
 import {
   forwardRef,
   useCallback,
   type ComponentRef,
 } from 'react';
-import { StyleSheet, View, type ColorValue } from 'react-native';
+import { StyleSheet, type ColorValue } from 'react-native';
 
 import { colors, radius } from '../theme';
 
@@ -27,6 +28,9 @@ type SafeRouteBottomSheetProps = Omit<
   | 'keyboardBlurBehavior'
 > & {
   backdrop?: boolean;
+  backdropAppearsOnIndex?: number;
+  backdropDisappearsOnIndex?: number;
+  backdropPressBehavior?: 'none' | 'close' | 'collapse' | number;
   dismissOnBackdropPress?: boolean;
   surfaceColor?: ColorValue;
 };
@@ -38,10 +42,13 @@ export const SafeRouteBottomSheet = forwardRef<
   {
     accessible = false,
     backdrop = false,
+    backdropAppearsOnIndex = 0,
+    backdropDisappearsOnIndex = -1,
+    backdropPressBehavior,
     dismissOnBackdropPress = false,
     children,
     style,
-    surfaceColor = colors.surface,
+    surfaceColor = colors.sheet,
     ...props
   },
   ref,
@@ -51,13 +58,21 @@ export const SafeRouteBottomSheet = forwardRef<
       <BottomSheetBackdrop
         {...backdropProps}
         accessible={false}
-        appearsOnIndex={0}
-        disappearsOnIndex={-1}
-        opacity={0.18}
-        pressBehavior={dismissOnBackdropPress ? 'close' : 'none'}
+        appearsOnIndex={backdropAppearsOnIndex}
+        disappearsOnIndex={backdropDisappearsOnIndex}
+        opacity={0.38}
+        pressBehavior={
+          backdropPressBehavior
+            ?? (dismissOnBackdropPress ? 'close' : 'none')
+        }
       />
     ),
-    [dismissOnBackdropPress],
+    [
+      backdropAppearsOnIndex,
+      backdropDisappearsOnIndex,
+      backdropPressBehavior,
+      dismissOnBackdropPress,
+    ],
   );
 
   return (
@@ -86,12 +101,14 @@ function SafeRouteBottomSheetBackground({
   style,
 }: BottomSheetBackgroundProps) {
   return (
-    <View
+    <BlurView
       accessibilityElementsHidden
       accessible={false}
+      intensity={58}
       importantForAccessibility="no-hide-descendants"
       pointerEvents={pointerEvents}
       style={style}
+      tint="dark"
     />
   );
 }
@@ -100,18 +117,20 @@ const styles = StyleSheet.create({
   sheet: {
     shadowColor: '#000000',
     shadowOffset: { width: 0, height: -4 },
-    shadowOpacity: 0.12,
-    shadowRadius: 18,
+    shadowOpacity: 0.34,
+    shadowRadius: 24,
     elevation: 18,
   },
   background: {
-    backgroundColor: colors.surface,
-    borderColor: colors.borderSoft,
+    overflow: 'hidden',
+    backgroundColor: colors.sheet,
+    borderColor: colors.glassBorder,
+    borderCurve: 'continuous',
     borderRadius: radius.sheet,
     borderWidth: StyleSheet.hairlineWidth,
   },
   handle: {
-    backgroundColor: colors.mutedSoft,
+    backgroundColor: 'rgba(255, 255, 255, 0.34)',
     height: 5,
     width: 38,
   },

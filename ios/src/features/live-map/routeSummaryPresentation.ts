@@ -43,6 +43,16 @@ export type SavedRouteContextDetail = {
   secondary: string;
 };
 
+export function createGuestRouteDestinationLabel(destination: string): string {
+  const normalizedDestination = normalizeInlineCopy(destination) || "Destination";
+  const addressParts = normalizedDestination
+    .split(",")
+    .map((part) => part.trim())
+    .filter(Boolean);
+
+  return addressParts.slice(0, 2).join(", ") || "Destination";
+}
+
 export function createSavedRouteContextDetail({
   convoyCallsign,
   operation,
@@ -99,6 +109,10 @@ function createBlockedRouteActionLabel(
   const reason = disabledReason?.trim().toLowerCase();
   if (!reason) {
     return null;
+  }
+
+  if (reason.includes("starting route")) {
+    return "Starting…";
   }
 
   const workspaceAccessReason =

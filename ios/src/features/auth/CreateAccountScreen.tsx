@@ -443,7 +443,7 @@ export function CreateAccountScreen({
                     testID={uiTestIds.accountCreateSubmit}
                     onPress={() => void submitRegistration()}
                   >
-                    {loading ? <ActivityIndicator color="#12141A" /> : null}
+                    {loading ? <ActivityIndicator color="#F5F5F7" /> : null}
                     <Text style={styles.primaryButtonText}>
                       {loading ? 'Creating account...' : 'Create account'}
                     </Text>
@@ -539,7 +539,7 @@ export function CreateAccountScreen({
                     testID={uiTestIds.accountVerifySubmit}
                     onPress={() => void submitVerification()}
                   >
-                    {loading ? <ActivityIndicator color="#12141A" /> : null}
+                    {loading ? <ActivityIndicator color="#F5F5F7" /> : null}
                     <Text style={styles.primaryButtonText}>
                       {loading ? 'Verifying...' : 'Verify email'}
                     </Text>

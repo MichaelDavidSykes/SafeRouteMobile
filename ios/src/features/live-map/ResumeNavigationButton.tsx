@@ -67,7 +67,7 @@ const styles = StyleSheet.create({
   },
   text: {
     maxWidth: "100%",
-    color: colors.surface,
+    color: colors.onAccent,
     fontSize: typeScale.sm,
     fontWeight: "900",
     textAlign: "center",

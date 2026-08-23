@@ -5,14 +5,14 @@ import { describe, it } from "node:test";
 const source = (path: string) => readFileSync(path, "utf8");
 
 describe("SafeRoute list and Operations motion", () => {
-  it("lifts the selected app tab by three points with reduced-motion-aware spring motion", () => {
-    const tabBar = source("src/components/AppTabBar.tsx");
+  it("smoothly reveals the compact navigation menu while respecting Reduce Motion", () => {
+    const navigationMenu = source("src/components/AppTabBar.tsx");
     const motion = source("src/motion/SafeRouteMotion.tsx");
 
-    assert.match(tabBar, /useMotionValue\(selected \? 1 : 0,\s*\{\s*spring: true/);
-    assert.match(tabBar, /outputRange: \[0, -3\]/);
-    assert.match(tabBar, /accessibilityState=\{\{ disabled, selected \}\}/);
-    assert.match(motion, /spring\s*\?\s*Animated\.spring/);
+    assert.match(navigationMenu, /useMotionValue\(open \? 1 : 0/);
+    assert.match(navigationMenu, /duration: safeRouteMotion\.disclosureDurationMs/);
+    assert.match(navigationMenu, /outputRange: \[18, 0\]/);
+    assert.match(navigationMenu, /accessibilityState=\{\{ expanded: open \}\}/);
     assert.match(motion, /useReduceMotionEnabled\(\)/);
   });
 

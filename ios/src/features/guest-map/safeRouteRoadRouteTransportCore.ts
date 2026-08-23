@@ -7,8 +7,6 @@ import {
   unwrapApiEnvelope,
 } from '../api/apiClientCore';
 
-export const SAFE_ROUTE_PREVIEW_MAX_PENDING_WAIT_MS = 10 * 60_000;
-
 const SAFE_ROUTE_PREVIEW_DEFAULT_RETRY_AFTER_SECONDS = 10;
 const SAFE_ROUTE_PREVIEW_PROVISIONAL_RETRY_AFTER_SECONDS = 2;
 const SAFE_ROUTE_PREVIEW_MIN_RETRY_AFTER_SECONDS = 1;
@@ -26,21 +24,14 @@ export type SafeRoutePreviewHttpRequester = (
   init?: RequestInit,
 ) => Promise<Response>;
 
-type SafeRoutePreviewSleep = (
-  delayMs: number,
-  signal?: AbortSignal,
-) => Promise<void>;
-
 export type VerifiedSafeRoutePreviewRequestOptions = {
   fallbackMessage?: string;
   init: RequestInit;
   input: Parameters<typeof fetch>[0];
-  maxPendingWaitMs?: number;
   now?: () => number;
   onProvisionalResponse?: (response: unknown) => void;
   request?: SafeRoutePreviewHttpRequester;
   signal?: AbortSignal;
-  sleep?: SafeRoutePreviewSleep;
   timeoutMs: number;
 };
 
@@ -49,7 +40,7 @@ export class SafeRoutePreviewCoveragePendingError extends ApiRequestError {
 
   constructor(retryAfterSeconds: number) {
     super(
-      'SafeRoute is still verifying risk coverage for this route. Tap Plot Route to retry shortly.',
+      'SafeRoute could not read a usable risk snapshot. Tap Plot Route to retry.',
       503,
     );
     this.name = 'SafeRoutePreviewCoveragePendingError';
@@ -58,108 +49,66 @@ export class SafeRoutePreviewCoveragePendingError extends ApiRequestError {
 }
 
 /**
- * Keeps a verified route request alive while the backend researches missing
- * corridor coverage. Only the backend's structured pending proof can enter
- * this loop; every other failure still fails closed immediately.
+ * Performs exactly one route request for each explicit user action. A pending
+ * backend response is terminal: the client never polls and silently replaces
+ * geometry that is already visible to the user.
  */
-export async function requestVerifiedSafeRoutePreview({
-  fallbackMessage = 'Unable to prepare a verified road route.',
-  init,
-  input,
-  maxPendingWaitMs = SAFE_ROUTE_PREVIEW_MAX_PENDING_WAIT_MS,
-  now = Date.now,
-  onProvisionalResponse,
-  request,
-  signal,
-  sleep = waitForSafeRoutePreviewRetry,
-  timeoutMs,
-}: VerifiedSafeRoutePreviewRequestOptions): Promise<unknown> {
-  const startedAtMs = now();
-  const pendingDeadlineMs = startedAtMs + normalizePendingWaitMs(maxPendingWaitMs);
-  let activeInit = init;
-  let attempt = 0;
-  let lastRetryAfterSeconds = SAFE_ROUTE_PREVIEW_DEFAULT_RETRY_AFTER_SECONDS;
-  let provisionalResponseDelivered = false;
-
-  while (true) {
+export async function requestVerifiedSafeRoutePreview(
+  options: VerifiedSafeRoutePreviewRequestOptions,
+): Promise<unknown> {
+  const {
+    fallbackMessage = 'Unable to prepare a verified road route.',
+    init,
+    input,
+    now = Date.now,
+    onProvisionalResponse,
+    request,
+    signal,
+    timeoutMs,
+  } = options;
+  if (signal?.aborted) {
+    throw createSafeRoutePreviewAbortError();
+  }
+  const response = await performSafeRoutePreviewRequest({
+    init,
+    input,
+    request,
+    signal,
+    timeoutMs,
+  });
+  if (signal?.aborted) {
+    throw createSafeRoutePreviewAbortError();
+  }
+  const body = await parseJsonResponse(response);
+  const provisionalResponse = isSafeRoutePreviewProvisionalResponse(
+    response.status,
+    body,
+  );
+  const pendingResponse = provisionalResponse
+    || isSafeRoutePreviewCoveragePendingResponse(response.status, body);
+  if (response.ok && !pendingResponse) {
+    return unwrapApiEnvelope<unknown>(body);
+  }
+  if (!pendingResponse) {
+    throw createApiResponseError(response.status, body, fallbackMessage);
+  }
+  if (provisionalResponse) {
+    onProvisionalResponse?.(unwrapApiEnvelope<unknown>(body));
     if (signal?.aborted) {
       throw createSafeRoutePreviewAbortError();
     }
-    if (attempt > 0 && now() >= pendingDeadlineMs) {
-      throw new SafeRoutePreviewCoveragePendingError(lastRetryAfterSeconds);
-    }
-
-    const remainingWaitMs = Math.max(1, pendingDeadlineMs - now());
-    const response = await performSafeRoutePreviewRequest({
-      init: activeInit,
-      input,
-      request,
-      signal,
-      timeoutMs: Math.max(1, Math.min(timeoutMs, remainingWaitMs)),
-    });
-    const body = await parseJsonResponse(response);
-    const provisionalResponse = isSafeRoutePreviewProvisionalResponse(
-      response.status,
+  }
+  const retryAfterSeconds = resolveSafeRoutePreviewRetryDelaySeconds(
+    getSafeRoutePreviewRetryAfterSeconds(
+      response,
       body,
-    );
-    const pendingResponse = provisionalResponse
-      || isSafeRoutePreviewCoveragePendingResponse(response.status, body);
-    if (response.ok && !pendingResponse) {
-      return unwrapApiEnvelope<unknown>(body);
-    }
-    if (!pendingResponse) {
-      throw createApiResponseError(response.status, body, fallbackMessage);
-    }
-    if (provisionalResponse) {
-      if (!provisionalResponseDelivered) {
-        provisionalResponseDelivered = true;
-        onProvisionalResponse?.(unwrapApiEnvelope<unknown>(body));
-      }
-      // The first provisional response supplies the drawable road geometry.
-      // Later polls opt back into strict mode so pending checks stay small and
-      // do not repeatedly rebuild/download alerts and alternatives.
-      activeInit = disableProvisionalCoverageOptIn(activeInit);
-    }
-
-    lastRetryAfterSeconds = resolveSafeRoutePreviewRetryDelaySeconds(
-      getSafeRoutePreviewRetryAfterSeconds(
-        response,
-        body,
-        now(),
-        provisionalResponse
-          ? SAFE_ROUTE_PREVIEW_PROVISIONAL_RETRY_AFTER_SECONDS
-          : SAFE_ROUTE_PREVIEW_DEFAULT_RETRY_AFTER_SECONDS,
-      ),
-    );
-    const retryDelayMs = lastRetryAfterSeconds * 1000;
-    if (now() + retryDelayMs > pendingDeadlineMs) {
-      throw new SafeRoutePreviewCoveragePendingError(lastRetryAfterSeconds);
-    }
-
-    await sleep(retryDelayMs, signal);
-    attempt += 1;
-  }
-}
-
-function disableProvisionalCoverageOptIn(init: RequestInit): RequestInit {
-  if (typeof init.body !== 'string') {
-    return init;
-  }
-  try {
-    const payload = JSON.parse(init.body) as unknown;
-    if (!payload || typeof payload !== 'object' || Array.isArray(payload)) {
-      return init;
-    }
-    return {
-      ...init,
-      body: JSON.stringify({
-        ...payload as Record<string, unknown>,
-        accept_provisional_risk_coverage: false,
-      }),
-    };
-  } catch {
-    return init;
-  }
+      now(),
+      provisionalResponse
+        ? SAFE_ROUTE_PREVIEW_PROVISIONAL_RETRY_AFTER_SECONDS
+        : SAFE_ROUTE_PREVIEW_DEFAULT_RETRY_AFTER_SECONDS,
+    ),
+  );
+  throw new SafeRoutePreviewCoveragePendingError(retryAfterSeconds);
 }
 
 export function isSafeRoutePreviewProvisionalResponse(
@@ -313,12 +262,6 @@ function normalizeRetryAfterSeconds(value: unknown): number | null {
   return Number.isSafeInteger(numeric) && numeric >= 0 ? numeric : null;
 }
 
-function normalizePendingWaitMs(value: number): number {
-  return Number.isFinite(value) && value >= 0
-    ? Math.min(value, SAFE_ROUTE_PREVIEW_MAX_PENDING_WAIT_MS)
-    : SAFE_ROUTE_PREVIEW_MAX_PENDING_WAIT_MS;
-}
-
 function normalizeMarker(value: unknown): string {
   return typeof value === 'string' ? value.trim().toLowerCase() : '';
 }
@@ -327,27 +270,6 @@ function toRecord(value: unknown): Record<string, unknown> | null {
   return value && typeof value === 'object' && !Array.isArray(value)
     ? value as Record<string, unknown>
     : null;
-}
-
-function waitForSafeRoutePreviewRetry(
-  delayMs: number,
-  signal?: AbortSignal,
-): Promise<void> {
-  if (signal?.aborted) {
-    return Promise.reject(createSafeRoutePreviewAbortError());
-  }
-  return new Promise<void>((resolve, reject) => {
-    const timeout = setTimeout(() => {
-      signal?.removeEventListener('abort', handleAbort);
-      resolve();
-    }, delayMs);
-    const handleAbort = () => {
-      clearTimeout(timeout);
-      signal?.removeEventListener('abort', handleAbort);
-      reject(createSafeRoutePreviewAbortError());
-    };
-    signal?.addEventListener('abort', handleAbort, { once: true });
-  });
 }
 
 function createSafeRoutePreviewAbortError(): Error {

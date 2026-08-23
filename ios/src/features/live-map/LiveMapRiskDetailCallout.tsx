@@ -148,6 +148,226 @@ export function LiveMapRiskDetailCallout({
   );
 }
 
+export function LiveMapRiskDetailContent({
+  expanded,
+  expandedPanelStyle,
+  onDismiss,
+  onToggleExpanded,
+  proximity,
+  zone,
+}: {
+  expanded: boolean;
+  expandedPanelStyle?: StyleProp<ViewStyle>;
+  onDismiss: () => void;
+  onToggleExpanded: () => void;
+  proximity?: RouteRiskProximity | null;
+  zone: RiskZone;
+}) {
+  const presentation = createRiskZoneDetailPresentation({
+    proximity: proximity || null,
+    zone,
+  });
+  const areaLabel = createRiskAreaChipLabel(zone);
+  const severityColor = resolveSeverityColor(presentation.tone);
+  const routeAlert = isRouteAlertZone(zone);
+
+  return (
+    <LiveMapDetailContent
+      accessibilityLabel={presentation.accessibilityLabel}
+      dismissAccessibilityLabel={routeAlert
+        ? "Close route alert details"
+        : "Close risk details"}
+      dismissTestID={uiTestIds.liveMapRiskDetailDismiss}
+      expanded={expanded}
+      expandedContent={<RiskZoneExpandedContent zone={zone} />}
+      expandedPanelStyle={expandedPanelStyle}
+      expandedTestID={uiTestIds.liveMapRiskDetailExpanded}
+      icon={routeAlert ? (
+        <CircleAlert
+          accessibilityElementsHidden
+          color={severityColor}
+          size={22}
+          strokeWidth={2.2}
+        />
+      ) : (
+        <AlertTriangle
+          accessibilityElementsHidden
+          color={severityColor}
+          size={22}
+          strokeWidth={2}
+        />
+      )}
+      iconTileStyle={severityIconTileStyle(presentation.tone)}
+      onDismiss={onDismiss}
+      onToggleExpanded={onToggleExpanded}
+      subtitle={routeAlert
+        ? `Route alert · ${zone.category || "Safety intelligence"}`
+        : zone.category || "Risk area"}
+      testID={uiTestIds.liveMapRiskDetail}
+      title={presentation.title}
+    >
+      <View style={styles.chipRow}>
+        <View style={[styles.chip, severityChipStyle(presentation.tone)]}>
+          <View style={[styles.severityDot, { backgroundColor: severityColor }]} />
+          <Text
+            numberOfLines={1}
+            style={[styles.chipText, severityTextStyle(presentation.tone)]}
+          >
+            {createSeverityChipLabel(presentation.tone)}
+          </Text>
+        </View>
+        <View style={[styles.chip, styles.areaChip]}>
+          <Text numberOfLines={1} style={styles.areaChipText}>
+            {areaLabel}
+          </Text>
+        </View>
+      </View>
+
+      <Text numberOfLines={2} style={styles.body}>
+        {presentation.body}
+      </Text>
+
+      {proximity ? (
+        <Text numberOfLines={1} style={styles.clearance}>
+          {presentation.clearanceLabel}
+        </Text>
+      ) : null}
+    </LiveMapDetailContent>
+  );
+}
+
+export function LiveMapDetailContent({
+  accessibilityLabel,
+  children,
+  dismissAccessibilityLabel,
+  dismissTestID,
+  expanded = false,
+  expandedContent,
+  expandedPanelStyle,
+  expandedTestID,
+  groupedAccessibility = false,
+  icon,
+  iconTileStyle,
+  onDismiss,
+  onToggleExpanded,
+  subtitle,
+  testID,
+  title,
+}: {
+  accessibilityLabel: string;
+  children?: ReactNode;
+  dismissAccessibilityLabel: string;
+  dismissTestID?: string;
+  expanded?: boolean;
+  expandedContent?: ReactNode;
+  expandedPanelStyle?: StyleProp<ViewStyle>;
+  expandedTestID?: string;
+  groupedAccessibility?: boolean;
+  icon: ReactNode;
+  iconTileStyle?: StyleProp<ViewStyle>;
+  onDismiss: () => void;
+  onToggleExpanded?: () => void;
+  subtitle: string;
+  testID?: string;
+  title: string;
+}) {
+  return (
+    <View>
+      <View
+        accessible={groupedAccessibility && !expanded}
+        accessibilityLabel={
+          groupedAccessibility && !expanded ? accessibilityLabel : undefined
+        }
+        testID={testID}
+      >
+        <View style={styles.titleRow}>
+          <View style={[styles.iconTile, iconTileStyle]}>{icon}</View>
+          <View
+            accessible={!groupedAccessibility || expanded}
+            accessibilityLabel={
+              !groupedAccessibility || expanded
+                ? accessibilityLabel
+                : undefined
+            }
+            style={styles.titleCopy}
+          >
+            <Text numberOfLines={2} style={styles.title}>{title}</Text>
+            <Text numberOfLines={1} style={styles.category}>{subtitle}</Text>
+          </View>
+          <Pressable
+            accessibilityLabel={dismissAccessibilityLabel}
+            accessibilityRole="button"
+            hitSlop={8}
+            onPress={onDismiss}
+            testID={dismissTestID}
+            style={({ pressed }) => [
+              styles.dismiss,
+              pressed ? styles.dismissPressed : null,
+            ]}
+          >
+            <X
+              accessibilityElementsHidden
+              color={colors.muted}
+              size={14}
+              strokeWidth={2.2}
+            />
+          </Pressable>
+        </View>
+
+        {children}
+
+        {expandedContent && onToggleExpanded ? (
+          <Pressable
+            accessibilityLabel={expanded
+              ? "Collapse detailed risk intelligence"
+              : "Expand detailed risk intelligence"}
+            accessibilityRole="button"
+            accessibilityState={{ expanded }}
+            onPress={onToggleExpanded}
+            style={({ pressed }) => [
+              styles.disclosureHint,
+              pressed ? styles.disclosureHintPressed : null,
+            ]}
+          >
+            {expanded ? (
+              <ChevronDown
+                accessibilityElementsHidden
+                color={colors.appleBlue}
+                size={15}
+                strokeWidth={2.2}
+              />
+            ) : (
+              <ChevronUp
+                accessibilityElementsHidden
+                color={colors.appleBlue}
+                size={15}
+                strokeWidth={2.2}
+              />
+            )}
+            <Text style={styles.disclosureHintText}>
+              {expanded
+                ? "Swipe down for summary"
+                : "Swipe up for full intelligence"}
+            </Text>
+          </Pressable>
+        ) : null}
+      </View>
+
+      {expandedContent ? (
+        <Animated.View
+          accessibilityElementsHidden={!expanded}
+          importantForAccessibility={expanded ? "auto" : "no-hide-descendants"}
+          pointerEvents={expanded ? "auto" : "none"}
+          style={[styles.expandedPanel, expandedPanelStyle]}
+          testID={expandedTestID}
+        >
+          {expandedContent}
+        </Animated.View>
+      ) : null}
+    </View>
+  );
+}
+
 export function LiveMapDetailCallout({
   accessibilityLabel,
   bottomInset = chrome.tabBarHeight + 18,

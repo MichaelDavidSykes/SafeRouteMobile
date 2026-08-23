@@ -67,7 +67,7 @@ const styles = StyleSheet.create({
     backgroundColor: "rgba(10, 18, 30, 0.96)",
   },
   title: {
-    color: colors.surface,
+    color: colors.onAccent,
     fontSize: typeScale.lg,
     fontWeight: "900",
   },
@@ -94,7 +94,7 @@ const styles = StyleSheet.create({
     transform: [{ scale: 0.98 }],
   },
   actionText: {
-    color: colors.surface,
+    color: colors.onAccent,
     fontSize: typeScale.sm,
     fontWeight: "900",
   },

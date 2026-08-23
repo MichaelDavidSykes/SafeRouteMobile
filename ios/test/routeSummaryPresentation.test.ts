@@ -6,6 +6,7 @@ import {
   ROUTE_SUMMARY_DISTANCE_FALLBACK,
   ROUTE_SUMMARY_HEADLINE_MAX_LENGTH,
   createRouteSummaryDetail,
+  createGuestRouteDestinationLabel,
   createRouteSummaryHeadline,
   createRouteSummaryHeadlineAccessibilityLabel,
   createRouteSummaryLabel,
@@ -21,6 +22,20 @@ import {
 } from "../src/features/live-map/routeSummaryPresentation";
 
 describe("live route summary presentation", () => {
+  it("keeps guest destinations compact without losing meaningful place context", () => {
+    assert.equal(
+      createGuestRouteDestinationLabel(
+        "Shard, Broadway, Blendon, London, England, United Kingdom",
+      ),
+      "Shard, Broadway",
+    );
+    assert.equal(
+      createGuestRouteDestinationLabel("  London   City Airport  "),
+      "London City Airport",
+    );
+    assert.equal(createGuestRouteDestinationLabel("   "), "Destination");
+  });
+
   it("shows the saved web route context needed before starting navigation", () => {
     assert.deepEqual(
       createSavedRouteContextDetail({
@@ -58,6 +73,15 @@ describe("live route summary presentation", () => {
   });
 
   it("keeps blocked route actions concise for compact map sheets", () => {
+    assert.deepEqual(
+      createRouteSummaryPrimaryAction(
+        "loaded",
+        "Starting route automatically…",
+      ),
+      {
+        label: "Starting…",
+      },
+    );
     assert.deepEqual(
       createRouteSummaryPrimaryAction(
         "loaded",

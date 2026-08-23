@@ -18,8 +18,6 @@ describe('default Expo Go session', () => {
     assert.deepEqual(createGuestMapHomeCopy(false), {
       primaryActionAccessibilityLabel: 'Sign in to SafeRoute',
       primaryActionLabel: 'Login',
-      sheetTitle: 'Where to?',
-      sheetSubtitle: 'Map first. Save after sign-in.',
     });
   });
 });

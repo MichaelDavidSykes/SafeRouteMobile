@@ -47,6 +47,7 @@ export const VIEWPORT_RISK_MIN_POLL_MS = 1500;
 export const VIEWPORT_RISK_MAX_POLL_MS = 10000;
 export const VIEWPORT_RISK_MAX_UNAVAILABLE_AUTO_RETRIES = 1;
 export const VIEWPORT_RISK_MAX_UNAVAILABLE_AUTO_RETRY_MS = 30000;
+export const VIEWPORT_RISK_LIVE_REFRESH_MS = 15000;
 const VIEWPORT_RISK_DEFAULT_COOLDOWN_SECONDS = 30;
 
 export function useViewportRiskAreas({
@@ -250,6 +251,16 @@ export function useViewportRiskAreas({
     );
     return () => clearTimeout(timer);
   }, [readBlockedUntilMs]);
+
+  useEffect(() => {
+    if (!enabled || !refreshEnabled || !requestSignature) {
+      return;
+    }
+    const timer = setInterval(() => {
+      setPollRevision((revision) => revision + 1);
+    }, VIEWPORT_RISK_LIVE_REFRESH_MS);
+    return () => clearInterval(timer);
+  }, [enabled, refreshEnabled, requestSignature]);
 
   useEffect(() => {
     const revision = requestRevisionRef.current + 1;

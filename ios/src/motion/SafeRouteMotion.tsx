@@ -81,6 +81,7 @@ export function configureNextSafeRouteLayoutAnimation(
 type EntranceVariant =
   | 'auth'
   | 'chrome'
+  | 'control'
   | 'disclosure'
   | 'list'
   | 'scene'
@@ -99,6 +100,7 @@ type MotionEntranceProps = PropsWithChildren<
 
 type EntranceSpec = {
   duration: number;
+  initialScale?: number;
   translateY: number;
 };
 
@@ -110,6 +112,11 @@ const entranceSpecs: Record<EntranceVariant, EntranceSpec> = {
   chrome: {
     duration: safeRouteMotion.chromeDurationMs,
     translateY: -6,
+  },
+  control: {
+    duration: safeRouteMotion.scrimDurationMs,
+    initialScale: 0.9,
+    translateY: 0,
   },
   disclosure: {
     duration: safeRouteMotion.disclosureDurationMs,
@@ -252,18 +259,30 @@ export function MotionEntrance({
   const animatedStyle = useMemo(
     () => ({
       opacity: progress,
-      transform: spec.translateY
-        ? [
-            {
-              translateY: progress.interpolate({
-                inputRange: [0, 1],
-                outputRange: [spec.translateY, 0],
-              }),
-            },
-          ]
-        : undefined,
+      transform: [
+        ...(spec.translateY
+          ? [
+              {
+                translateY: progress.interpolate({
+                  inputRange: [0, 1],
+                  outputRange: [spec.translateY, 0],
+                }),
+              },
+            ]
+          : []),
+        ...(spec.initialScale
+          ? [
+              {
+                scale: progress.interpolate({
+                  inputRange: [0, 1],
+                  outputRange: [spec.initialScale, 1],
+                }),
+              },
+            ]
+          : []),
+      ],
     }),
-    [progress, spec.translateY],
+    [progress, spec.initialScale, spec.translateY],
   );
 
   return (

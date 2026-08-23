@@ -21,24 +21,19 @@ import {
   hasGuestRouteDestination,
   normalizeGuestRouteLabel,
   resolveGuestRoadPreviewStops,
-  resolveGuestRouteCoordinates,
-  shouldShowGuestMapSubtitle
+  resolveGuestRouteCoordinates
 } from '../src/features/guest-map/guestRoutePlanner';
 
 describe('guest route planner helpers', () => {
   it('keeps map-home state copy minimal before and after sign-in', () => {
     assert.deepEqual(createGuestMapHomeCopy(false), {
       primaryActionAccessibilityLabel: 'Sign in to SafeRoute',
-      primaryActionLabel: 'Login',
-      sheetTitle: 'Where to?',
-      sheetSubtitle: 'Map first. Save after sign-in.'
+      primaryActionLabel: 'Login'
     });
 
     assert.deepEqual(createGuestMapHomeCopy(true), {
       primaryActionAccessibilityLabel: 'Open saved routes',
-      primaryActionLabel: 'Saved',
-      sheetTitle: 'Where to?',
-      sheetSubtitle: 'Plot fast or open Saved.'
+      primaryActionLabel: 'Saved'
     });
   });
 
@@ -53,11 +48,6 @@ describe('guest route planner helpers', () => {
 
     assert.equal(normalized.length, GUEST_ROUTE_LABEL_MAX_LENGTH);
     assert.match(normalized, /…$/);
-  });
-
-  it('hides the map-home helper subtitle once route context is visible', () => {
-    assert.equal(shouldShowGuestMapSubtitle(false), true);
-    assert.equal(shouldShowGuestMapSubtitle(true), false);
   });
 
   it('keeps guest route input accessibility hints concise and state-aware', () => {
@@ -81,7 +71,7 @@ describe('guest route planner helpers', () => {
       {
         accessibilityHint: 'Enter a destination to unlock route plotting.',
         accessibilityLabel: 'Route destination',
-        placeholder: 'Where to?'
+        placeholder: 'Search for a location'
       }
     );
 
@@ -105,7 +95,7 @@ describe('guest route planner helpers', () => {
       {
         accessibilityHint: 'Changing the destination clears the current preview.',
         accessibilityLabel: 'Route destination',
-        placeholder: 'Where to?'
+        placeholder: 'Search for a location'
       }
     );
   });

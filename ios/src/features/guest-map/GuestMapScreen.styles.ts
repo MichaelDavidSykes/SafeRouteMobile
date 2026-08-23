@@ -70,7 +70,7 @@ export const guestMapStyles = StyleSheet.create({
     backgroundColor: 'transparent'
   },
   riskLoadStatusText: {
-    color: colors.surface,
+    color: colors.onAccent,
     fontSize: typeScale.xs,
     fontWeight: '700'
   },
@@ -79,7 +79,7 @@ export const guestMapStyles = StyleSheet.create({
     zIndex: 24,
     elevation: 24,
     right: 14,
-    bottom: chrome.screenBottomInset + 76 + spacing.sm,
+    bottom: chrome.screenBottomInset + 76 + spacing.sm + 46 + spacing.sm,
     alignItems: 'flex-end',
     gap: spacing.sm,
   },
@@ -109,9 +109,30 @@ export const guestMapStyles = StyleSheet.create({
     transform: [{ scale: 0.96 }]
   },
   sheetDock: {
-    position: 'relative',
     zIndex: 31,
-    elevation: 31
+    elevation: 31,
+  },
+  persistentMapSheetContainer: {
+    marginHorizontal: spacing.md,
+    borderCurve: 'continuous',
+    borderRadius: radius.sheet,
+  },
+  persistentCollapsedContent: {
+    position: 'absolute',
+    top: 0,
+    right: 0,
+    left: 0,
+    minHeight: 60,
+  },
+  persistentDetailContent: {
+    flex: 1,
+  },
+  persistentDetailScroll: {
+    flex: 1,
+  },
+  persistentDetailScrollContent: {
+    paddingHorizontal: 18,
+    paddingBottom: 14,
   },
   sheetScroll: {
     flex: 1,
@@ -128,30 +149,20 @@ export const guestMapStyles = StyleSheet.create({
     zIndex: 2,
     flexShrink: 0,
     paddingTop: spacing.xs,
-    backgroundColor: colors.sheet,
-    elevation: 2,
   },
   routeChoiceLabel: {
     marginTop: spacing.sm,
-    marginBottom: 2,
+    marginBottom: spacing.xs,
     color: colors.muted,
     fontSize: typeScale.xs,
     fontWeight: '700',
     textAlign: 'center',
   },
-  routeChoiceHelper: {
-    marginBottom: spacing.xs,
-    color: colors.inkSoft,
-    fontSize: typeScale.sm,
-    fontWeight: '600',
-    lineHeight: 18,
-    textAlign: 'center',
-  },
   sheetGrabberTouch: {
-    // Keep the visible grabber understated while giving the drag affordance a
-    // full iOS-sized touch target. This also prevents a downward sheet gesture
-    // from being mistaken for scrolling the route fields beneath it.
-    minHeight: 44,
+    // Keep one measured handle height in every detent. Changing this height
+    // after dismissing details shifts the collapsed row on physical devices.
+    height: 16,
+    minHeight: 16,
     alignItems: 'center',
     justifyContent: 'center'
   },
@@ -162,22 +173,15 @@ export const guestMapStyles = StyleSheet.create({
     backgroundColor: colors.mutedSoft
   },
   sheetHeaderRow: {
+    minHeight: controlSizes.secondary,
     flexDirection: 'row',
-    alignItems: 'flex-start',
+    alignItems: 'center',
     justifyContent: 'space-between',
     gap: spacing.md
   },
-  sheetTitleBlock: {
-    flex: 1,
-    minWidth: 0
-  },
-  sheetTitle: {
-    color: colors.ink,
-    fontSize: 28,
-    fontWeight: '800'
-  },
   sheetCancel: {
     minHeight: controlSizes.secondary,
+    marginLeft: 'auto',
     alignItems: 'center',
     justifyContent: 'center',
     paddingHorizontal: spacing.xs,
@@ -190,14 +194,6 @@ export const guestMapStyles = StyleSheet.create({
     color: colors.appleBlue,
     fontSize: typeScale.sm,
     fontWeight: '700'
-  },
-  sheetSubtitle: {
-    maxWidth: 260,
-    marginTop: 2,
-    color: colors.muted,
-    fontSize: typeScale.sm,
-    fontWeight: '500',
-    lineHeight: 18
   },
   workspacePicker: {
     marginTop: spacing.sm
@@ -440,9 +436,6 @@ export const guestMapStyles = StyleSheet.create({
   },
   inputRow: {
     minHeight: 64,
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 12,
     paddingHorizontal: spacing.md
   },
   waypointRow: {
@@ -490,23 +483,42 @@ export const guestMapStyles = StyleSheet.create({
   },
   input: {
     flex: 1,
-    minHeight: 24,
+    height: 24,
     paddingVertical: 0,
     color: colors.ink,
     fontSize: 15,
-    fontWeight: '600'
+    fontWeight: '600',
+    lineHeight: 20
   },
   routeInputCopy: {
     minWidth: 0,
     flex: 1,
     justifyContent: 'center'
   },
+  routeInputHeaderRow: {
+    minWidth: 0,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12
+  },
+  routeInputMarkerSpacer: {
+    width: 24,
+    height: 13,
+    flexShrink: 0
+  },
   routeInputOverline: {
+    flex: 1,
     color: colors.muted,
     fontSize: 10,
     fontWeight: '700',
     lineHeight: 13,
     textTransform: 'uppercase'
+  },
+  routeInputValueRow: {
+    minWidth: 0,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12
   },
   routeInputMarker: {
     width: 24,
@@ -569,7 +581,8 @@ export const guestMapStyles = StyleSheet.create({
     fontWeight: '600'
   },
   searchSectionLabel: {
-    paddingHorizontal: spacing.md,
+    paddingLeft: spacing.md + 17 + spacing.sm,
+    paddingRight: spacing.md,
     paddingTop: spacing.sm,
     paddingBottom: 4,
     color: colors.muted,
@@ -683,7 +696,7 @@ export const guestMapStyles = StyleSheet.create({
     transform: [{ scale: 0.985 }]
   },
   mapActionPrimaryButtonText: {
-    color: colors.surface,
+    color: colors.onAccent,
     fontSize: typeScale.sm,
     fontWeight: '800',
     textAlign: 'center'
@@ -714,7 +727,7 @@ export const guestMapStyles = StyleSheet.create({
   primaryButtonText: {
     maxWidth: '100%',
     flexShrink: 1,
-    color: colors.surface,
+    color: colors.onAccent,
     fontSize: typeScale.md,
     fontWeight: '800',
     textAlign: 'center'
@@ -771,42 +784,23 @@ export const guestMapStyles = StyleSheet.create({
     fontWeight: '800',
     textAlign: 'center'
   },
-  collapsedSheetDock: {
-    position: 'absolute',
-    zIndex: 32,
-    right: spacing.md,
-    bottom: chrome.screenBottomInset,
-    left: spacing.md,
-    elevation: 32
-  },
-  collapsedSheet: {
-    overflow: 'hidden',
-    borderWidth: 0.5,
-    borderColor: colors.glassBorder,
-    borderRadius: radius.md,
-    backgroundColor: colors.surfaceTranslucent,
-    shadowColor: '#000000',
-    shadowOpacity: 0.16,
-    shadowRadius: 10,
-    shadowOffset: { width: 0, height: 5 }
-  },
   collapsedSheetButton: {
-    minHeight: 76,
+    height: 60,
     flexDirection: 'row',
     alignItems: 'center',
     gap: 13,
     paddingHorizontal: 18,
-    paddingVertical: 13
+    paddingVertical: 0
   },
   collapsedRouteActions: {
-    minHeight: 76,
+    height: 60,
     flexDirection: 'row',
     alignItems: 'stretch',
     gap: spacing.sm,
     padding: spacing.xs,
   },
   collapsedRouteStatus: {
-    minHeight: 76,
+    height: 60,
     flexDirection: 'row',
     alignItems: 'center',
     gap: 13,
@@ -815,7 +809,7 @@ export const guestMapStyles = StyleSheet.create({
   },
   collapsedRouteSummaryButton: {
     minWidth: 0,
-    minHeight: 64,
+    height: 52,
     flex: 1,
     flexDirection: 'row',
     alignItems: 'center',
@@ -826,10 +820,11 @@ export const guestMapStyles = StyleSheet.create({
     color: colors.ink,
     fontSize: typeScale.md,
     fontWeight: '800',
+    lineHeight: 20,
   },
   collapsedRouteStartButton: {
     width: 136,
-    minHeight: 64,
+    minHeight: 52,
     flexShrink: 0,
     flexDirection: 'row',
     alignItems: 'center',
@@ -850,7 +845,7 @@ export const guestMapStyles = StyleSheet.create({
   },
   collapsedRouteStartButtonText: {
     maxWidth: '100%',
-    color: colors.surface,
+    color: colors.onAccent,
     fontSize: typeScale.md,
     fontWeight: '900',
     lineHeight: 19,
@@ -871,18 +866,15 @@ export const guestMapStyles = StyleSheet.create({
   },
   collapsedSearchCopy: {
     minWidth: 0,
-    flex: 1
+    alignSelf: 'stretch',
+    flex: 1,
+    justifyContent: 'center',
   },
   collapsedSheetTitle: {
     color: colors.ink,
-    fontSize: typeScale.lg,
-    fontWeight: '700'
-  },
-  collapsedSheetSubtitle: {
-    marginTop: 1,
-    color: colors.muted,
-    fontSize: typeScale.sm,
-    fontWeight: '400'
+    fontSize: typeScale.md,
+    fontWeight: '700',
+    lineHeight: 20,
   },
   currentLocationMarker: {
     width: 38,
@@ -901,7 +893,7 @@ export const guestMapStyles = StyleSheet.create({
     width: 18,
     height: 18,
     borderWidth: 3,
-    borderColor: colors.surface,
+    borderColor: colors.onAccent,
     borderRadius: radius.pill,
     backgroundColor: colors.appleBlue,
     shadowOpacity: 0,
@@ -921,7 +913,7 @@ export const guestMapStyles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     borderWidth: 2,
-    borderColor: colors.surface,
+    borderColor: colors.onAccent,
     borderRadius: radius.pill,
     shadowOpacity: 0,
     shadowRadius: 0,
@@ -942,7 +934,7 @@ export const guestMapStyles = StyleSheet.create({
   },
   markerSelected: {
     backgroundColor: colors.appleBlue,
-    borderColor: colors.surface,
+    borderColor: colors.onAccent,
     borderRadius: radius.pill
   },
   markerSelectionHalo: {
@@ -973,7 +965,7 @@ export const guestMapStyles = StyleSheet.create({
     gap: 8
   },
   riskSummaryText: {
-    color: colors.surface,
+    color: colors.onAccent,
     fontSize: typeScale.md,
     fontWeight: '700',
     lineHeight: 18,

@@ -39,6 +39,7 @@ interface LiveMapOverlayProps {
   onSetAlertsVisible: (visible: boolean) => void;
   onStopRoute: () => void;
   onToggleSpokenGuidance: () => void;
+  primaryActionPending?: boolean;
   primaryActionStatusReason?: string | null;
   primaryDisabledReason?: string | null;
   progress: RouteProgressSnapshot | null;
@@ -77,6 +78,7 @@ export function LiveMapOverlay({
   onSetAlertsVisible,
   onStopRoute,
   onToggleSpokenGuidance,
+  primaryActionPending,
   primaryActionStatusReason,
   primaryDisabledReason,
   progress,
@@ -173,6 +175,7 @@ export function LiveMapOverlay({
         routeContext={routeContext}
         routePlan={routePlan}
         trackingLabel={trackingLabel}
+        primaryActionPending={primaryActionPending}
         primaryActionStatusReason={primaryActionStatusReason}
         primaryDisabledReason={primaryDisabledReason}
         onEnableBackgroundNavigation={onEnableBackgroundNavigation}

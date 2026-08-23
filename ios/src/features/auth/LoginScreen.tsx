@@ -882,7 +882,7 @@ export function LoginScreen({
                   testID={uiTestIds.loginPrimaryAction}
                   onPress={submitCredentials}
                 >
-                  {loading ? <ActivityIndicator color="#12141A" /> : null}
+                  {loading ? <ActivityIndicator color="#F5F5F7" /> : null}
                   <Text style={styles.handoffPrimaryButtonText}>
                     {loading ? 'Signing in...' : 'Sign in'}
                   </Text>
@@ -1071,7 +1071,7 @@ export function LoginScreen({
                     testID={uiTestIds.loginPrimaryAction}
                     onPress={submitCode}
                   >
-                    {loading ? <ActivityIndicator color="#12141A" /> : null}
+                    {loading ? <ActivityIndicator color="#F5F5F7" /> : null}
                     <Text style={styles.handoffPrimaryButtonText}>
                       {loading ? 'Verifying...' : 'Verify and continue'}
                     </Text>
@@ -1181,7 +1181,7 @@ export function LoginScreen({
                     testID={uiTestIds.passwordResetSend}
                     onPress={submitResetRequest}
                   >
-                    {loading ? <ActivityIndicator color="#12141A" /> : null}
+                    {loading ? <ActivityIndicator color="#F5F5F7" /> : null}
                     <Text style={styles.handoffPrimaryButtonText}>
                       {loading ? 'Sending code...' : 'Send reset code'}
                     </Text>
@@ -1372,7 +1372,7 @@ export function LoginScreen({
                     testID={uiTestIds.passwordResetSubmit}
                     onPress={submitPasswordReset}
                   >
-                    {loading ? <ActivityIndicator color="#12141A" /> : null}
+                    {loading ? <ActivityIndicator color="#F5F5F7" /> : null}
                     <Text style={styles.handoffPrimaryButtonText}>
                       {loading ? 'Resetting password...' : 'Reset password'}
                     </Text>

@@ -72,7 +72,7 @@ export const styles = StyleSheet.create({
     textAlign: "center",
   },
   controlButtonTextActive: {
-    color: colors.surface,
+    color: colors.onAccent,
   },
   controlButtonTextDisabled: {
     color: colors.mutedSoft,

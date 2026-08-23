@@ -168,7 +168,7 @@ const styles = StyleSheet.create({
     transform: [{ scale: 0.98 }],
   },
   primaryActionText: {
-    color: colors.surface,
+    color: colors.onAccent,
     fontSize: typeScale.sm,
     fontWeight: "900",
   },

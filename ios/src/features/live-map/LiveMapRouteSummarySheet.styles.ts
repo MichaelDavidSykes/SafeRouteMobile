@@ -117,7 +117,7 @@ export const routeSummaryStyles = StyleSheet.create({
     height: 9,
     zIndex: 2,
     borderWidth: 2,
-    borderColor: colors.surface,
+    borderColor: colors.onAccent,
     borderRadius: radius.pill,
   },
   endpointDotOrigin: {
@@ -154,41 +154,21 @@ export const routeSummaryStyles = StyleSheet.create({
     borderRadius: 14,
     backgroundColor: colors.quiet,
   },
-  metricsRowGuest: {
-    minHeight: 28,
-    marginTop: 7,
-    paddingVertical: 0,
-    backgroundColor: "transparent",
-  },
   metric: {
     flex: 1,
     minWidth: 0,
     justifyContent: "center",
     paddingHorizontal: 10,
   },
-  metricGuest: {
-    flexDirection: "row",
-    alignItems: "baseline",
-    gap: 6,
-    paddingHorizontal: 0,
-  },
   metricDivider: {
     width: 0.5,
     marginVertical: 3,
     backgroundColor: colors.borderSoft,
   },
-  metricDividerGuest: {
-    height: 16,
-    marginHorizontal: 14,
-    marginVertical: 6,
-  },
   metricLabel: {
     color: colors.muted,
     fontSize: 10,
     fontWeight: "700",
-  },
-  metricLabelGuest: {
-    fontSize: 10.5,
   },
   metricValue: {
     marginTop: 2,
@@ -197,10 +177,33 @@ export const routeSummaryStyles = StyleSheet.create({
     fontWeight: "800",
     lineHeight: 18,
   },
-  metricValueGuest: {
-    marginTop: 0,
-    fontSize: 15,
-    lineHeight: 18,
+  guestOverview: {
+    paddingTop: 2,
+  },
+  guestDestination: {
+    color: colors.ink,
+    fontSize: 17,
+    fontWeight: "800",
+    lineHeight: 22,
+  },
+  guestMetrics: {
+    minHeight: 22,
+    flexDirection: "row",
+    alignItems: "center",
+    gap: spacing.sm,
+    marginTop: 2,
+  },
+  guestMetric: {
+    maxWidth: "44%",
+    color: colors.inkSoft,
+    fontSize: typeScale.sm,
+    fontWeight: "700",
+  },
+  guestMetricSeparator: {
+    width: 3,
+    height: 3,
+    borderRadius: radius.pill,
+    backgroundColor: colors.muted,
   },
   metricValueSafe: {
     color: colors.safeText,
@@ -298,6 +301,10 @@ export const routeSummaryStyles = StyleSheet.create({
   actionRowCompactNavigation: {
     marginTop: spacing.xs,
   },
+  actionRowGuest: {
+    gap: 6,
+    marginTop: spacing.sm,
+  },
   startButton: {
     minHeight: controlSizes.secondary,
     flex: 1,
@@ -309,6 +316,9 @@ export const routeSummaryStyles = StyleSheet.create({
   startButtonCompactNavigation: {
     minHeight: controlSizes.secondary,
   },
+  startButtonGuest: {
+    borderRadius: 14,
+  },
   startButtonDisabled: {
     borderWidth: 0.5,
     borderColor: colors.borderSoft,
@@ -318,10 +328,27 @@ export const routeSummaryStyles = StyleSheet.create({
     backgroundColor: colors.appleBluePressed,
     transform: [{ scale: 0.985 }],
   },
+  startLoadingTrack: {
+    minHeight: controlSizes.secondary,
+    flex: 1,
+    overflow: "hidden",
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: colors.appleBlueSoft,
+    borderRadius: 14,
+    backgroundColor: colors.controlStrong,
+  },
+  startLoadingSweep: {
+    position: "absolute",
+    top: 0,
+    bottom: 0,
+    borderRadius: 14,
+    backgroundColor: colors.appleBlue,
+    opacity: 0.72,
+  },
   startButtonText: {
     maxWidth: "100%",
     flexShrink: 1,
-    color: colors.surface,
+    color: colors.onAccent,
     fontSize: typeScale.md,
     fontWeight: "800",
     textAlign: "center",
@@ -341,6 +368,11 @@ export const routeSummaryStyles = StyleSheet.create({
   detailsButtonActive: {
     borderColor: colors.appleBlue,
     backgroundColor: colors.appleBlueSoft,
+  },
+  detailsButtonGuest: {
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: colors.borderSoft,
+    backgroundColor: "transparent",
   },
   detailsButtonPressed: {
     transform: [{ scale: 0.96 }],

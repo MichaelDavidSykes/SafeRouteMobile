@@ -244,7 +244,7 @@ export const routeDetailSheetStyles = StyleSheet.create({
     transform: [{ scale: 0.99 }],
   },
   doneButtonText: {
-    color: colors.surface,
+    color: colors.onAccent,
     fontSize: typeScale.md,
     fontWeight: "800",
   },

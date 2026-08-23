@@ -166,6 +166,12 @@ describe("production navigation reliability integration", () => {
   it("turns the guest Start route handoff into one gated navigation start", () => {
     const appSource = source("App.tsx");
     const liveMapSource = source("src/features/live-map/LiveMapScreen.tsx");
+    const summarySource = source(
+      "src/features/live-map/LiveMapRouteSummarySheet.tsx",
+    );
+    const summaryStyles = source(
+      "src/features/live-map/LiveMapRouteSummarySheet.styles.ts",
+    );
     const resetBlock = liveMapSource.slice(
       liveMapSource.indexOf("const nextResumeSession ="),
       liveMapSource.indexOf("const workspaceId =", liveMapSource.indexOf("const nextResumeSession =")),
@@ -181,6 +187,14 @@ describe("production navigation reliability integration", () => {
     );
     assert.match(resetBlock, /startNavigationOnOpen[\s\S]*!nextResumeSession/);
     assert.match(resetBlock, /automaticNavigationStartRouteKeyRef/);
+    assert.match(
+      liveMapSource,
+      /automaticNavigationStartPendingRef = useRef\([\s\S]*automaticNavigationStartRequested/,
+    );
+    assert.match(
+      liveMapSource,
+      /setPendingNavigationStart\] = useState\([\s\S]*automaticNavigationStartRequested/,
+    );
     assert.match(resetBlock, /setLiveLocationRequested\([\s\S]*automaticNavigationStartPendingRef/);
     assert.match(resetBlock, /setPendingNavigationStart\(automaticNavigationStartPendingRef\.current\)/);
     assert.match(
@@ -190,6 +204,38 @@ describe("production navigation reliability integration", () => {
     assert.match(
       liveMapSource,
       /const commitNavigationStart = \(\) => \{[\s\S]*automaticNavigationStartPendingRef\.current = false;[\s\S]*setNavigationState\("navigating"\)/,
+    );
+    assert.match(
+      liveMapSource,
+      /navigationPresentationState = automaticNavigationStartInProgress[\s\S]*\? "navigating"/,
+    );
+    assert.match(
+      liveMapSource,
+      /<LiveMapOverlay[\s\S]*activeNavigationState=\{navigationPresentationState\}[\s\S]*primaryActionPending=\{automaticNavigationStartInProgress\}/,
+    );
+    assert.match(
+      liveMapSource,
+      /driveAlongCameraActiveRef = useRef\([\s\S]*automaticNavigationStartRequested/,
+    );
+    assert.match(
+      liveMapSource,
+      /driveAlongCameraCoordinate =[\s\S]*automaticNavigationStartInProgress[\s\S]*liveRoutePlan\.route\.coordinates\[0\]/,
+    );
+    assert.match(
+      liveMapSource,
+      /duration: automaticNavigationStartInProgress[\s\S]*\? 320[\s\S]*driveAlongCamera\.durationMs/,
+    );
+    assert.match(
+      summarySource,
+      /primaryActionPending \? \([\s\S]*<RouteStartLoadingBar \/>/,
+    );
+    assert.match(
+      summarySource,
+      /function RouteStartLoadingBar[\s\S]*useLoopingPulse[\s\S]*accessibilityRole="progressbar"/,
+    );
+    assert.match(
+      summaryStyles,
+      /startLoadingTrack:[\s\S]*overflow: "hidden"[\s\S]*startLoadingSweep:/,
     );
     assert.doesNotMatch(resetBlock, /commitNavigationStart\(/);
   });
@@ -220,6 +266,32 @@ describe("production navigation reliability integration", () => {
     assert.ok(
       stopActionBlock.indexOf('setNavigationState("stopped")') <
         stopActionBlock.indexOf("stopBackgroundNavigation"),
+    );
+    assert.match(
+      stopActionBlock,
+      /routeContext === "guest"[\s\S]*onChangeRoute\(\);[\s\S]*return;[\s\S]*fitRoute\(\)/,
+    );
+    assert.ok(
+      stopActionBlock.indexOf("onChangeRoute();") <
+        stopActionBlock.indexOf("fitRoute();"),
+    );
+  });
+
+  it("preserves the plotted guest route and alternatives across navigation", () => {
+    const appSource = source("App.tsx");
+    const guestMapSource = source("src/features/guest-map/GuestMapScreen.tsx");
+
+    assert.match(
+      guestMapSource,
+      /onOpenRoutePreview\?\.\(nextRoutePlan, \{[\s\S]*routeAlternatives:[\s\S]*routeDraft,[\s\S]*routePlan: nextRoutePlan,[\s\S]*travelMode/,
+    );
+    assert.match(
+      appSource,
+      /setGuestRouteReturnState\(returnState\)[\s\S]*setScreen\('route-preview'\)/,
+    );
+    assert.match(
+      appSource,
+      /<GuestMapScreen[\s\S]*initialRouteState=\{guestRouteReturnState\}/,
     );
   });
 

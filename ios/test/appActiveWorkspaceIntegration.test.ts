@@ -475,7 +475,7 @@ describe("App active workspace integration", () => {
     assert.match(routesSource(), /workspaceAccessRefreshAvailable[\s\S]*<WorkspaceAccessRefreshControl/);
     assert.match(operationsSource(), /workspaceAccessRefreshAvailable[\s\S]*<WorkspaceAccessRefreshControl/);
     assert.match(guestSource(), /workspaceAccessFocusTargetRef\?\.\(sheetCollapsed \? null : target\)/);
-    assert.match(guestSource(), /accessibilityElementsHidden=\{sheetCollapsed\}[\s\S]*importantForAccessibility=\{sheetCollapsed \? 'no-hide-descendants' : 'auto'\}/);
+    assert.match(guestSource(), /!selectedRiskZone && !mapAction && !sheetCollapsed \? \(/);
     assert.match(guestSource(), /ref=\{focusTargetRef\}[\s\S]*testID=\{uiTestIds\.guestMapWorkspaceSelector\}/);
     assert.match(routeFiltersSource(), /ref=\{workspaceAccessFocusTargetRef\}[\s\S]*testID=\{uiTestIds\.routeListWorkspaceSelector\}/);
     assert.match(operationsSource(), /ref=\{workspaceAccessFocusTargetRef\}[\s\S]*testID=\{uiTestIds\.operationsWorkspaceSelector\}/);

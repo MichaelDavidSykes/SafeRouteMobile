@@ -310,12 +310,12 @@ export function WorkspaceSelectionScreen({
               }
             }}
           >
-            {saving ? <ActivityIndicator color="#12141A" size="small" /> : null}
+            {saving ? <ActivityIndicator color="#F5F5F7" size="small" /> : null}
             <Text style={styles.continueText}>
               {saving ? 'Saving workspace…' : 'Continue'}
             </Text>
             {!saving ? (
-              <ArrowRight color="#12141A" size={19} strokeWidth={2.2} />
+              <ArrowRight color="#F5F5F7" size={19} strokeWidth={2.2} />
             ) : null}
           </Pressable>
         </MotionEntrance>

@@ -124,7 +124,7 @@ describe('guest map interaction contract', () => {
     assert.match(screen, /testID=\{uiTestIds\.guestMapCurrentLocation\}/);
     assert.match(screen, /accessibilityLabel=\{[\s\S]*Center map on current location/);
     assert.match(screen, /disabled=\{!mapReady \|\| !liveCoordinate\}/);
-    assert.match(screen, /sheetCollapsed && !selectedRiskZone/);
+    assert.match(screen, /!selectedRiskZone && !mapAction && sheetCollapsed/);
     assert.doesNotMatch(screen, /currentLocationControlBottom = sheetProgress\.interpolate/);
     assert.match(
       screen,
@@ -208,36 +208,34 @@ describe('guest map interaction contract', () => {
   });
 
   it('supports a smooth collapsible route sheet and deliberate map long-press actions', () => {
-    assert.match(screen, /resolveGuestRouteSheetHeight\(viewport\.height\)/);
-    assert.doesNotMatch(screen, /viewport\.height\s*-\s*72/);
-    assert.match(screen, /Animated\.timing\(sheetProgress/);
-    assert.match(screen, /safeRouteEasing\.settled/);
+    assert.match(screen, /createGuestMapSheetLayout\([\s\S]*viewport\.height/);
+    assert.match(screen, /animatedIndex=\{routeSheetAnimatedIndex\}/);
+    assert.match(screen, /index=\{mapSheetLayout\.collapsedIndex\}/);
+    assert.doesNotMatch(screen, /index=\{-1\}|routeSheetRef\.current\?\.close\(\)/);
     assert.match(
       screen,
       /handleCollapsedLocationSearch[\s\S]*transitionActiveInput\(nextStopId\)[\s\S]*animateRouteSheet\([\s\S]*scheduleRouteStopInputFocus\(nextStopId\)/,
     );
-    assert.match(screen, /outputRange: \[0, 24\]/);
-    assert.doesNotMatch(screen, /outputRange: \[0, 620\]/);
-    assert.match(screen, /PanResponder\.create/);
+    assert.match(screen, /animateRouteSheet[\s\S]*snapToIndex\(mapSheetLayout\.plannerIndex\)/);
+    assert.match(screen, /styles\.persistentCollapsedContent/);
     assert.match(screen, /testID=\{uiTestIds\.guestMapCollapsedSheet\}/);
     assert.match(screen, /onLongPress=\{\(event\) => handleMapLongPress/);
     assert.match(screen, /testID=\{uiTestIds\.guestMapLongPressMenu\}/);
     assert.match(
       screen,
-      /<LiveMapDetailCallout[\s\S]*testID=\{uiTestIds\.guestMapLongPressMenu\}/,
+      /<LiveMapDetailContent[\s\S]*testID=\{uiTestIds\.guestMapLongPressMenu\}/,
     );
     assert.match(
       mapDetailCallout,
       /<LiveMapDetailCallout[\s\S]*testID=\{uiTestIds\.liveMapRiskDetail\}/,
     );
-    assert.match(screen, /sheetCollapsed && !selectedRiskZone && !mapAction/);
-    assert.match(screen, /\{!selectedRiskZone && !mapAction \? \(/);
+    assert.match(screen, /!selectedRiskZone && !mapAction && !sheetCollapsed/);
     assert.doesNotMatch(styles, /mapActionMenu:/);
     assert.match(styles, /mapActionIconTile:[\s\S]*backgroundColor: colors\.appleBlueSoft/);
     assert.match(screen, />Add stop<\/Text>/);
     assert.match(screen, /Add risk area/);
-    assert.match(screen, /handleMapLongPress[\s\S]*animateRouteSheet\(true\)/);
-    assert.match(screen, /handleSelectRiskZone[\s\S]*animateRouteSheet\(true\)/);
+    assert.match(screen, /handleMapLongPress[\s\S]*snapToIndex\(mapSheetLayout\.detailCompactIndex\)/);
+    assert.match(screen, /handleSelectRiskZone[\s\S]*snapToIndex\(mapSheetLayout\.detailCompactIndex\)/);
     assert.doesNotMatch(screen, /Ionicons|MaterialIcons|FontAwesome/);
   });
 
@@ -268,7 +266,7 @@ describe('guest map interaction contract', () => {
     );
     assert.match(
       styles,
-      /collapsedRouteStartButton:[\s\S]*minHeight:\s*64[\s\S]*backgroundColor:\s*colors\.appleBlue/,
+      /collapsedRouteStartButton:[\s\S]*minHeight:\s*52[\s\S]*backgroundColor:\s*colors\.appleBlue/,
     );
     assert.match(
       screen,
@@ -276,7 +274,7 @@ describe('guest map interaction contract', () => {
     );
     assert.match(
       screen,
-      /replayKey=\{collapsedRouteCardState\}[\s\S]*collapsedRouteCardState === 'finding'[\s\S]*guestMapCollapsedRouteStatus[\s\S]*Finding \{travelModeRouteLabel\} route/,
+      /styles\.persistentCollapsedContent[\s\S]*collapsedRouteCardState === 'finding'[\s\S]*guestMapCollapsedRouteStatus[\s\S]*`Finding \$\{travelModeRouteLabel\} route`/,
     );
     assert.match(
       screen,
@@ -284,11 +282,11 @@ describe('guest map interaction contract', () => {
     );
     assert.match(
       styles,
-      /collapsedSheetButton:[\s\S]*minHeight:\s*76[\s\S]*collapsedRouteActions:[\s\S]*minHeight:\s*76[\s\S]*collapsedRouteStatus:[\s\S]*minHeight:\s*76/,
+      /collapsedSheetButton:[\s\S]*minHeight:\s*60[\s\S]*collapsedRouteActions:[\s\S]*minHeight:\s*60[\s\S]*collapsedRouteStatus:[\s\S]*minHeight:\s*60/,
     );
     assert.match(
       styles,
-      /currentLocationControlDock:[\s\S]*bottom:\s*chrome\.screenBottomInset \+ 76 \+ spacing\.sm/,
+      /currentLocationControlDock:[\s\S]*bottom:\s*chrome\.screenBottomInset \+ 76 \+ spacing\.sm \+ 46 \+ spacing\.sm/,
     );
   });
 

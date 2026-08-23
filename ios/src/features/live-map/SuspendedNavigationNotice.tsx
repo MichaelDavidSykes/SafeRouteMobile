@@ -102,13 +102,13 @@ const styles = StyleSheet.create({
     backgroundColor: "rgba(10, 18, 30, 0.94)",
   },
   eyebrow: {
-    color: colors.surface,
+    color: colors.onAccent,
     fontSize: typeScale.sm,
     fontWeight: "900",
   },
   routeName: {
     marginTop: 2,
-    color: colors.surface,
+    color: colors.onAccent,
     fontSize: typeScale.lg,
     fontWeight: "800",
   },
@@ -150,12 +150,12 @@ const styles = StyleSheet.create({
     transform: [{ scale: 0.98 }],
   },
   primaryActionText: {
-    color: colors.surface,
+    color: colors.onAccent,
     fontSize: typeScale.sm,
     fontWeight: "900",
   },
   secondaryActionText: {
-    color: colors.surface,
+    color: colors.onAccent,
     fontSize: typeScale.sm,
     fontWeight: "800",
   },

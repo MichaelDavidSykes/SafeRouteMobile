@@ -54,6 +54,12 @@ import MapView, {
   type MapPressEvent,
   type Region,
 } from 'react-native-maps';
+import Animated, {
+  Extrapolation,
+  interpolate,
+  useAnimatedStyle,
+  useSharedValue,
+} from 'react-native-reanimated';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { LUNARCHAIN_API_BASE, SAFEROUTE_PREVIEW_MODE_ENABLED } from '../../config/env';
@@ -63,7 +69,7 @@ import {
   safeRouteMotion,
   useReduceMotionEnabled,
 } from '../../motion/SafeRouteMotion';
-import { colors, spacing } from '../../theme';
+import { chrome, colors, spacing } from '../../theme';
 import {
   SafeRouteBottomSheet,
   type SafeRouteBottomSheetRef,
@@ -81,8 +87,8 @@ import {
   SupportFacilityMarker,
 } from '../live-map/LiveMapMarkers';
 import {
-  LiveMapDetailCallout,
-  LiveMapRiskDetailCallout,
+  LiveMapDetailContent,
+  LiveMapRiskDetailContent,
 } from '../live-map/LiveMapRiskDetailCallout';
 import { useViewportRiskAreas } from '../live-map/useViewportRiskAreas';
 import { invalidateWorkspaceRiskAreaCache } from '../live-map/workspaceRiskAreaApi';
@@ -131,7 +137,6 @@ import {
   createGuestRoutePreviewState,
   resolveGuestCollapsedRouteCardState,
   resolveGuestRoadPreviewStops,
-  shouldShowGuestMapSubtitle,
   type GuestFullAccessFeature
 } from './guestRoutePlanner';
 import {
@@ -176,10 +181,10 @@ import {
 } from './guestMapLocation';
 import { createGuestMapRiskSummary } from './guestMapRiskSummary';
 import {
+  createGuestMapSheetLayout,
   regionForGuestSelectedLocation,
   resolveGuestRouteFitBottomPadding,
   resolveGuestRouteSheetBottomPadding,
-  resolveGuestRouteSheetHeight,
 } from './guestMapSheetLayout';
 import {
   GUEST_TRAVEL_MODE_OPTIONS,
@@ -218,16 +223,28 @@ type LocationSearchShortcut = {
   result: GuestLocationSearchResult;
 };
 
+export interface GuestRoutePreviewReturnState {
+  routeAlternatives: SavedSafeRoutePlan[];
+  routeDraft: GuestRouteDraft;
+  routePlan: SavedSafeRoutePlan;
+  travelMode: SafeRouteTravelMode;
+}
+
 interface GuestMapScreenProps {
   accessToken?: string | null;
   activeWorkspace?: SafeRouteWorkspace | null;
   authenticated: boolean;
   availableWorkspaces?: SafeRouteWorkspace[];
+  initialRouteState?: GuestRoutePreviewReturnState | null;
   mapLayer?: 'dark' | 'satellite';
   onMapLayerChange?: (layer: 'dark' | 'satellite') => void;
+  onMapModalVisibilityChange?: (open: boolean) => void;
   onOpenFullAccessFeature: (feature: GuestFullAccessFeature) => void;
   onPlannerVisibilityChange?: (open: boolean) => void;
-  onOpenRoutePreview?: (routePlan: SavedSafeRoutePlan) => void;
+  onOpenRoutePreview?: (
+    routePlan: SavedSafeRoutePlan,
+    returnState: GuestRoutePreviewReturnState,
+  ) => void;
   placesScopeId?: string | null;
   onSessionExpired?: (message?: string) => void;
   onWorkspaceUnavailable?: (workspaceId: string) => void;
@@ -259,14 +276,14 @@ function RouteSheetHandle({
   return (
     <View
       accessibilityElementsHidden={hidden}
-      accessibilityHint="Swipes down to close route planning."
-      accessibilityLabel="Swipe down to minimize route planning"
+      accessibilityHint="Swipes down to return to location search."
+      accessibilityLabel="Swipe down to minimize this panel"
       accessibilityRole="adjustable"
       importantForAccessibility={hidden ? 'no-hide-descendants' : 'auto'}
       style={styles.sheetGrabberTouch}
       testID={uiTestIds.guestMapSheetGrabber}
     >
-      <View style={styles.sheetGrabber} />
+      {hidden ? null : <View style={styles.sheetGrabber} />}
     </View>
   );
 }
@@ -276,8 +293,10 @@ export function GuestMapScreen({
   activeWorkspace = null,
   authenticated,
   availableWorkspaces = [],
+  initialRouteState = null,
   mapLayer = 'dark',
   onMapLayerChange,
+  onMapModalVisibilityChange,
   onOpenFullAccessFeature,
   onPlannerVisibilityChange,
   onOpenRoutePreview,
@@ -348,12 +367,14 @@ export function GuestMapScreen({
     callback?: () => void;
   } | null>(null);
   const routeInputRefs = useRef(new Map<string, TextInput>());
+  const riskDetailScrollOffsetRef = useRef(0);
+  const riskDetailTouchStartYRef = useRef<number | null>(null);
   const pendingInputFocusFrameRef = useRef<number | null>(null);
   const locationSearchOwnerRef = useRef<string | null>(null);
   const [routeDraft, dispatchRouteDraft] = useReducer(
     guestRouteDraftReducer,
     undefined,
-    () => createGuestRouteDraft()
+    () => initialRouteState?.routeDraft || createGuestRouteDraft()
   );
   const [activeInput, setActiveInput] = useState<string | null>(null);
   const [locationSearchResults, setLocationSearchResults] = useState<GuestLocationSearchResult[]>([]);
@@ -362,11 +383,14 @@ export function GuestMapScreen({
   const [locationSearchMessage, setLocationSearchMessage] = useState('');
   const [persistentPlaces, setPersistentPlaces] = useState<PersistentPlacesRecord | null>(null);
   const [sheetCollapsed, setSheetCollapsed] = useState(true);
+  const [sheetAtAnchor, setSheetAtAnchor] = useState(true);
+  const [mapSheetIndex, setMapSheetIndex] = useState(0);
+  const routeSheetAnimatedIndex = useSharedValue(0);
   const renderRouteSheetHandle = useCallback(
     (props: BottomSheetHandleProps) => (
-      <RouteSheetHandle {...props} hidden={sheetCollapsed} />
+      <RouteSheetHandle {...props} hidden={sheetAtAnchor} />
     ),
-    [sheetCollapsed],
+    [sheetAtAnchor],
   );
   const animateNextMapLayout = (
     duration: number = safeRouteMotion.scrimDurationMs,
@@ -398,9 +422,15 @@ export function GuestMapScreen({
   const [routeMessage, setRouteMessage] = useState('');
   const [workspaceMenuOpen, setWorkspaceMenuOpen] = useState(false);
   const [selectedRiskZone, setSelectedRiskZone] = useState<RiskZone | null>(null);
-  const [routePlan, setRoutePlan] = useState<SavedSafeRoutePlan | null>(null);
-  const [routeAlternatives, setRouteAlternatives] = useState<SavedSafeRoutePlan[]>([]);
-  const [travelMode, setTravelMode] = useState<SafeRouteTravelMode>('drive');
+  const [routePlan, setRoutePlan] = useState<SavedSafeRoutePlan | null>(
+    initialRouteState?.routePlan || null,
+  );
+  const [routeAlternatives, setRouteAlternatives] = useState<SavedSafeRoutePlan[]>(
+    () => initialRouteState?.routeAlternatives || [],
+  );
+  const [travelMode, setTravelMode] = useState<SafeRouteTravelMode>(
+    initialRouteState?.travelMode || 'drive',
+  );
   const [routeOptionsOpen, setRouteOptionsOpen] = useState(false);
   const [routePreferences, setRoutePreferences] =
     useState<SafeRouteRoutePreferences>(DEFAULT_SAFE_ROUTE_PREFERENCES);
@@ -503,17 +533,105 @@ export function GuestMapScreen({
   ]);
   const origin = routeDraft.origin.label;
   const destination = routeDraft.destination.label;
-  const routeSheetMaxHeight = resolveGuestRouteSheetHeight(viewport.height);
   const routeFitBottomPadding = resolveGuestRouteFitBottomPadding(
     viewport.height,
   );
   const routeSheetBottomPadding = resolveGuestRouteSheetBottomPadding(
     safeAreaInsets.bottom,
   );
-  const routeSheetSnapPoints = useMemo(
-    () => [routeSheetMaxHeight],
-    [routeSheetMaxHeight],
+  const mapSheetLayout = useMemo(
+    () => createGuestMapSheetLayout(
+      viewport.height,
+      chrome.screenBottomInset,
+    ),
+    [viewport.height],
   );
+  const collapsedSheetHeight =
+    mapSheetLayout.snapPoints[mapSheetLayout.collapsedIndex];
+  const detailCompactSheetHeight =
+    mapSheetLayout.snapPoints[mapSheetLayout.detailCompactIndex];
+  const plannerSheetHeight =
+    mapSheetLayout.snapPoints[mapSheetLayout.plannerIndex];
+  const routeSheetSnapPoints = useMemo(
+    () => Array.from(new Set([
+      collapsedSheetHeight,
+      detailCompactSheetHeight,
+      plannerSheetHeight,
+    ])).sort((left, right) => left - right),
+    [collapsedSheetHeight, detailCompactSheetHeight, plannerSheetHeight],
+  );
+  const routeSheetDetailCompactIndex = routeSheetSnapPoints.indexOf(
+    detailCompactSheetHeight,
+  );
+  const routeSheetPlannerIndex = routeSheetSnapPoints.indexOf(plannerSheetHeight);
+  const routeSheetExpandedIndex = routeSheetPlannerIndex;
+  const detailExpanded = Boolean(
+    selectedRiskZone &&
+      mapSheetIndex === routeSheetExpandedIndex,
+  );
+  const activeSheetTargetIndex = mapSheetIndex;
+  const collapsedSheetAnimatedStyle = useAnimatedStyle(() => ({
+    opacity: interpolate(
+      routeSheetAnimatedIndex.value,
+      [mapSheetLayout.collapsedIndex, 0.45, routeSheetDetailCompactIndex],
+      [1, 0, 0],
+      Extrapolation.CLAMP,
+    ),
+    transform: [
+      {
+        translateY: interpolate(
+          routeSheetAnimatedIndex.value,
+          [mapSheetLayout.collapsedIndex, routeSheetDetailCompactIndex],
+          [-8, 0],
+          Extrapolation.CLAMP,
+        ),
+      },
+      {
+        scale: interpolate(
+        routeSheetAnimatedIndex.value,
+        [mapSheetLayout.collapsedIndex, routeSheetDetailCompactIndex],
+        [1, 0.985],
+        Extrapolation.CLAMP,
+      ),
+      },
+    ],
+  }), [mapSheetLayout.collapsedIndex, routeSheetDetailCompactIndex]);
+  const expandedSheetContentAnimatedStyle = useAnimatedStyle(() => ({
+    opacity: activeSheetTargetIndex === mapSheetLayout.collapsedIndex
+      ? 0
+      : interpolate(
+          routeSheetAnimatedIndex.value,
+          [
+            mapSheetLayout.collapsedIndex,
+            Math.min(activeSheetTargetIndex, 0.45),
+            activeSheetTargetIndex,
+          ],
+          [0, 0, 1],
+          Extrapolation.CLAMP,
+        ),
+    transform: [{
+      translateY: activeSheetTargetIndex === mapSheetLayout.collapsedIndex
+        ? 8
+        : interpolate(
+            routeSheetAnimatedIndex.value,
+            [mapSheetLayout.collapsedIndex, activeSheetTargetIndex],
+            [8, 0],
+            Extrapolation.CLAMP,
+          ),
+    }],
+  }), [activeSheetTargetIndex, mapSheetLayout.collapsedIndex]);
+  const riskExpandedPanelAnimatedStyle = useAnimatedStyle(() => ({
+    opacity: interpolate(
+      routeSheetAnimatedIndex.value,
+      [
+        routeSheetDetailCompactIndex,
+        routeSheetDetailCompactIndex + 0.45,
+        routeSheetExpandedIndex,
+      ],
+      [0, 0, 1],
+      Extrapolation.CLAMP,
+    ),
+  }), [routeSheetDetailCompactIndex, routeSheetExpandedIndex]);
   const activeDraftStop = activeInput
     ? findGuestRouteDraftStop(routeDraft, activeInput)
     : null;
@@ -558,7 +676,6 @@ export function GuestMapScreen({
       )
     );
   const mapHomeCopy = createGuestMapHomeCopy(authenticated);
-  const showSheetSubtitle = shouldShowGuestMapSubtitle(routePlotted);
   const nativeMapType = resolveSafeRouteMapType({
     layer: mapLayer,
     online,
@@ -581,6 +698,13 @@ export function GuestMapScreen({
   useEffect(() => {
     onPlannerVisibilityChange?.(!sheetCollapsed);
   }, [onPlannerVisibilityChange, sheetCollapsed]);
+  useEffect(() => {
+    onMapModalVisibilityChange?.(Boolean(selectedRiskZone || mapAction));
+  }, [mapAction, onMapModalVisibilityChange, selectedRiskZone]);
+  useEffect(
+    () => () => onMapModalVisibilityChange?.(false),
+    [onMapModalVisibilityChange],
+  );
   useEffect(() => {
     let active = true;
     setPersistentPlaces(null);
@@ -758,33 +882,45 @@ export function GuestMapScreen({
       : null;
     if (collapsed) {
       Keyboard.dismiss();
-      routeSheetRef.current?.close();
+      transitionActiveInput(null);
+      setWorkspaceMenuOpen(false);
+      routeSheetRef.current?.snapToIndex(mapSheetLayout.collapsedIndex);
     } else {
-      // Remove the compact card before the sheet enters so the two surfaces
-      // never overlap or cross-fade through one another.
       setSheetCollapsed(false);
+      setSheetAtAnchor(false);
       routeSheetScrollRef.current?.scrollTo({ animated: false, y: 0 });
-      routeSheetRef.current?.snapToIndex(0);
+      routeSheetRef.current?.snapToIndex(routeSheetPlannerIndex);
     }
   };
   const handleRouteSheetChange = (index: number) => {
-    if (index < 0) {
+    setMapSheetIndex(index);
+    if (index === mapSheetLayout.collapsedIndex) {
+      setSheetCollapsed(true);
+      setSheetAtAnchor(true);
+      setSelectedRiskZone(null);
+      setMapAction(null);
+      finishRouteSheetTransition(true);
       return;
     }
-    setSheetCollapsed(false);
-    finishRouteSheetTransition(false);
+    setSheetAtAnchor(false);
+    if (!selectedRiskZone && !mapAction) {
+      setSheetCollapsed(false);
+      finishRouteSheetTransition(false);
+    }
   };
   const handleRouteSheetAnimate = (_fromIndex: number, toIndex: number) => {
-    if (toIndex === -1) {
+    setMapSheetIndex(toIndex);
+    if (toIndex === mapSheetLayout.collapsedIndex) {
       Keyboard.dismiss();
+      transitionActiveInput(null);
     }
   };
   const handleRouteSheetClose = () => {
     cancelPendingRouteInputFocus();
     Keyboard.dismiss();
     transitionActiveInput(null);
-    setSheetCollapsed(true);
-    finishRouteSheetTransition(true);
+    setWorkspaceMenuOpen(false);
+    routeSheetRef.current?.snapToIndex(mapSheetLayout.collapsedIndex);
   };
   const scheduleRouteStopInputFocus = (stopId: string) => {
     cancelPendingRouteInputFocus();
@@ -796,9 +932,8 @@ export function GuestMapScreen({
   const handleCollapsedLocationSearch = () => {
     const nextStopId = resolveGuestRouteDraftNextStopInputId(routeDraft);
     transitionActiveInput(nextStopId);
-    // Focus only after Gorhom reports the open detent. If the keyboard appears
-    // while the sheet is still leaving index -1, its opening animation can
-    // overwrite the interactive keyboard offset and leave the sheet obscured.
+    // Focus only after Gorhom reports the planner detent so the keyboard and
+    // persistent sheet do not compete for the same interactive transition.
     animateRouteSheet(
       false,
       () => scheduleRouteStopInputFocus(nextStopId),
@@ -822,7 +957,8 @@ export function GuestMapScreen({
       transitionActiveInput(null);
       cancelPendingRouteInputFocus();
       routeSheetScrollRef.current?.scrollTo({ animated: false, y: 0 });
-      routeSheetRef.current?.snapToIndex(0);
+      setSheetAtAnchor(false);
+      routeSheetRef.current?.snapToIndex(routeSheetPlannerIndex);
       setSheetCollapsed(false);
       setWorkspaceMenuOpen(true);
     }
@@ -832,6 +968,7 @@ export function GuestMapScreen({
     workspaceCatalogLoading,
     workspaceSelectionPending,
     workspaceSwitchDisabled,
+    routeSheetPlannerIndex,
   ]);
 
   useEffect(() => {
@@ -1081,6 +1218,9 @@ export function GuestMapScreen({
     setRiskAreaSavePending(false);
     setSelectedRiskZone(null);
     setMapAction(null);
+    setSheetCollapsed(true);
+    setSheetAtAnchor(true);
+    routeSheetRef.current?.snapToIndex(mapSheetLayout.collapsedIndex);
     setRoutePlan((current) => current?.clientId ? null : current);
     setRouteAlternatives((current) =>
       current.filter((plan) => !plan.clientId),
@@ -1264,6 +1404,20 @@ export function GuestMapScreen({
     animateRouteSheet(false);
   };
 
+  const openRoutePreviewWithReturnState = (
+    nextRoutePlan: SavedSafeRoutePlan,
+    nextRouteAlternatives: SavedSafeRoutePlan[] = routeAlternatives,
+  ) => {
+    onOpenRoutePreview?.(nextRoutePlan, {
+      routeAlternatives: nextRouteAlternatives.length
+        ? nextRouteAlternatives
+        : [nextRoutePlan],
+      routeDraft,
+      routePlan: nextRoutePlan,
+      travelMode,
+    });
+  };
+
   const upgradeGuestRouteWithRoadPreview = (localRoutePlan: SavedSafeRoutePlan) => {
     const stops = resolveRoadPreviewStops(localRoutePlan);
 
@@ -1309,6 +1463,7 @@ export function GuestMapScreen({
       requestContextIsCurrent();
     let acceptedRoadPreview = false;
     let acceptedRoadPreviewPlan: SavedSafeRoutePlan | null = null;
+    let acceptedRoutePlansSnapshot: SavedSafeRoutePlan[] = [];
     let publishedProvisionalPreview = false;
     let terminalRouteErrorMessage: string | null = null;
     let sessionExpiryHandled = false;
@@ -1349,13 +1504,16 @@ export function GuestMapScreen({
       return true;
     };
 
-    const openPendingPreview = (nextRoutePlan: SavedSafeRoutePlan) => {
+    const openPendingPreview = (
+      nextRoutePlan: SavedSafeRoutePlan,
+      nextRouteAlternatives: SavedSafeRoutePlan[] = acceptedRoutePlansSnapshot,
+    ) => {
       if (!pendingOpenPreviewRef.current) {
         return;
       }
 
       pendingOpenPreviewRef.current = false;
-      onOpenRoutePreview?.(nextRoutePlan);
+      openRoutePreviewWithReturnState(nextRoutePlan, nextRouteAlternatives);
     };
 
     const publishRoadPreview = (preview: VerifiedSafeRoutePreview): boolean => {
@@ -1390,6 +1548,7 @@ export function GuestMapScreen({
         );
       }).filter((plan) => plan.updatedAtLabel === 'Road preview');
       const acceptedRoutePlans = roadRoutePlans.slice(0, 3);
+      acceptedRoutePlansSnapshot = acceptedRoutePlans;
       acceptedRoutePlans.forEach((plan, index) => {
         plan.route.label = index === 0
           ? 'Primary route'
@@ -1412,7 +1571,7 @@ export function GuestMapScreen({
       setRouteAlternatives(acceptedRoutePlans);
       setRouteMessage('');
       animateRouteSheet(true);
-      openPendingPreview(roadRoutePlan);
+      openPendingPreview(roadRoutePlan, acceptedRoutePlans);
       return true;
     };
 
@@ -1557,7 +1716,7 @@ export function GuestMapScreen({
       return;
     }
 
-    onOpenRoutePreview?.(routePlan);
+    openRoutePreviewWithReturnState(routePlan);
   };
 
   const plotTravelMode = (nextMode: SafeRouteTravelMode) => {
@@ -1798,14 +1957,14 @@ export function GuestMapScreen({
     Keyboard.dismiss();
     transitionActiveInput(null);
     setSelectedRiskZone(null);
-    // Keep the contextual action card unobstructed by the route editor. The
-    // compact sheet preserves route context while the map action takes focus.
-    animateRouteSheet(true);
+    setSheetCollapsed(true);
+    setSheetAtAnchor(false);
     setMapAction({
       coordinate,
       label: formatCoordinateLabel(coordinate),
       pending: online
     });
+    routeSheetRef.current?.snapToIndex(routeSheetDetailCompactIndex);
     if (!online) {
       return;
     }
@@ -1850,19 +2009,25 @@ export function GuestMapScreen({
   const handleSelectRiskZone = useCallback((zone: RiskZone) => {
     setMapAction(null);
     setSelectedRiskZone(zone);
-    // Risk details are a map-level interaction, so present them above the
-    // compact route summary rather than hiding them behind the expanded sheet.
+    setSheetCollapsed(true);
+    setSheetAtAnchor(false);
     cancelPendingRouteInputFocus();
     Keyboard.dismiss();
-    routeSheetRef.current?.close();
-  }, []);
+    routeSheetRef.current?.snapToIndex(routeSheetDetailCompactIndex);
+  }, [routeSheetDetailCompactIndex]);
+
+  const dismissMapDetail = () => {
+    handleRouteSheetClose();
+  };
 
   const handleMapPress = (event: MapPressEvent) => {
     if (event.nativeEvent.action === 'marker-press') {
       return;
     }
 
-    setSelectedRiskZone(null);
+    if (selectedRiskZone || mapAction) {
+      dismissMapDetail();
+    }
   };
 
   const handleAddMapRoutePoint = () => {
@@ -1900,10 +2065,9 @@ export function GuestMapScreen({
         : 'Stop added. Plot the route when ready.'
     );
     setMapAction(null);
+    animateRouteSheet(false);
     if (nextRouteDraft) {
       void handlePlotRoute(travelMode, nextRouteDraft);
-    } else {
-      animateRouteSheet(false);
     }
   };
 
@@ -1911,6 +2075,7 @@ export function GuestMapScreen({
     const action = mapAction;
     if (!authenticated) {
       setMapAction(null);
+      dismissMapDetail();
       onSignIn();
       return;
     }
@@ -1921,6 +2086,7 @@ export function GuestMapScreen({
       !routingAccessToken
     ) {
       setMapAction(null);
+      dismissMapDetail();
       setRouteMessage(
         !online
           ? networkChecking
@@ -1979,7 +2145,7 @@ export function GuestMapScreen({
       // state instead of reusing a preview prepared before this mutation.
       invalidateSafeRoutePreviewCache();
       invalidateWorkspaceRiskAreaCache(requestWorkspaceId);
-      setMapAction(null);
+      dismissMapDetail();
       setRouteMessage('Risk area added for your workspace.');
       viewportRisk.retry();
     } catch (error) {
@@ -1999,6 +2165,7 @@ export function GuestMapScreen({
       });
       if (sessionExpiry) {
         setMapAction(null);
+        dismissMapDetail();
         onSessionExpired?.(sessionExpiry.message);
       } else {
         const unavailableWorkspaceId = getRequestUnavailableWorkspaceId({
@@ -2133,98 +2300,6 @@ export function GuestMapScreen({
         ) : null}
       </MapView>
 
-      {selectedRiskZone ? (
-        <LiveMapRiskDetailCallout
-          mapRef={mapRef}
-          zone={selectedRiskZone}
-          onDismiss={() => setSelectedRiskZone(null)}
-        />
-      ) : null}
-
-      {mapAction ? (
-        <LiveMapDetailCallout
-          accessibilityLabel={`Map actions for ${mapAction.label}`}
-          dismissAccessibilityLabel="Close map actions"
-          icon={(
-            <MapPin
-              accessibilityElementsHidden
-              color={colors.appleBlue}
-              size={22}
-              strokeWidth={2}
-            />
-          )}
-          iconTileStyle={styles.mapActionIconTile}
-          onDismiss={() => setMapAction(null)}
-          replayKey={`${mapAction.coordinate.latitude}:${mapAction.coordinate.longitude}`}
-          subtitle="Selected map location"
-          testID={uiTestIds.guestMapLongPressMenu}
-          title={mapAction.pending ? 'Locating…' : mapAction.label}
-        >
-          <Text style={styles.mapActionBody}>
-            {mapSelectionSetsDestination
-              ? 'Use this point as your destination.'
-              : 'Add this point to the route.'}
-          </Text>
-          <View style={styles.mapActionButtons}>
-            <Pressable
-              accessibilityLabel={mapSelectionSetsDestination
-                ? 'Use this location as the route destination'
-                : 'Add this location as a route stop'}
-              accessibilityRole="button"
-              accessibilityState={{ disabled: !canAddMapRoutePoint }}
-              disabled={!canAddMapRoutePoint}
-              testID={uiTestIds.guestMapLongPressAddWaypoint}
-              style={({ pressed }) => [
-                styles.mapActionButton,
-                styles.mapActionPrimaryButton,
-                !canAddMapRoutePoint ? styles.mapActionButtonDisabled : null,
-                pressed && canAddMapRoutePoint ? styles.mapActionButtonPressed : null
-              ]}
-              onPress={handleAddMapRoutePoint}
-            >
-              <Text style={styles.mapActionPrimaryButtonText}>
-                {mapSelectionSetsDestination ? 'Set destination' : 'Add stop'}
-              </Text>
-            </Pressable>
-            <Pressable
-              accessibilityLabel={authenticated
-                ? networkChecking
-                  ? 'Checking connection before adding a risk area'
-                  : offline
-                    ? 'Reconnect before adding a risk area'
-                    : workspaceSelectionRequired
-                      ? 'Choose a workspace before adding a risk area'
-                      : workspaceAuthorizationRequired
-                        ? 'Verify current workspace access before adding a risk area'
-                        : 'Add a risk area here'
-                : 'Sign in to add a risk area'}
-              accessibilityRole="button"
-              accessibilityState={{
-                busy: riskAreaSavePending,
-                disabled: riskAreaSavePending || riskAreaAuthorizationRequired
-              }}
-              disabled={riskAreaSavePending || riskAreaAuthorizationRequired}
-              testID={uiTestIds.guestMapLongPressAddRisk}
-              style={({ pressed }) => [
-                styles.mapActionButton,
-                styles.mapActionSecondaryButton,
-                riskAreaSavePending || riskAreaAuthorizationRequired
-                  ? styles.mapActionButtonDisabled
-                  : null,
-                pressed && !riskAreaSavePending && !riskAreaAuthorizationRequired
-                  ? styles.mapActionButtonPressed
-                  : null
-              ]}
-              onPress={() => void handleAddMapRiskArea()}
-            >
-              <Text style={styles.mapActionSecondaryButtonText}>
-                {riskAreaSavePending ? 'Adding…' : 'Add risk area'}
-              </Text>
-            </Pressable>
-          </View>
-        </LiveMapDetailCallout>
-      ) : null}
-
       <SafeAreaView
         edges={['top', 'right', 'left']}
         pointerEvents="box-none"
@@ -2232,62 +2307,66 @@ export function GuestMapScreen({
       >
         {!selectedRiskZone && !mapAction && sheetCollapsed ? (
         <View style={styles.currentLocationControlDock}>
-          <Pressable
-            accessibilityHint={`Switches to the ${mapLayer === 'dark' ? 'satellite' : 'dark'} map.`}
-            accessibilityLabel={mapLayer === 'dark' ? 'Show satellite map' : 'Show dark map'}
-            accessibilityRole="button"
-            accessibilityState={{ disabled: !online }}
-            disabled={!online}
-            testID={uiTestIds.guestMapLayerToggle}
-            style={({ pressed }) => [
-              styles.currentLocationButton,
-              styles.layerButton,
-              !online ? styles.currentLocationButtonDisabled : null,
-              pressed && online ? styles.currentLocationButtonPressed : null,
-            ]}
-            onPress={() => onMapLayerChange?.(mapLayer === 'dark' ? 'satellite' : 'dark')}
-          >
-            {mapLayer === 'dark' ? (
-              <Globe2 accessibilityElementsHidden color={colors.appleBlue} size={21} strokeWidth={1.9} />
-            ) : (
-              <MapIcon accessibilityElementsHidden color={colors.appleBlue} size={21} strokeWidth={1.9} />
-            )}
-          </Pressable>
-          <Pressable
-            accessibilityHint={
-              mapReady && liveCoordinate
-                ? 'Moves the map to your live device location.'
-                : permissionStatus === 'denied'
-                  ? 'Allow location access in Settings to use this control.'
-                  : 'Wait for SafeRoute to determine your device location.'
-            }
-            accessibilityLabel={
-              mapReady && liveCoordinate
-                ? 'Center map on current location'
-                : permissionStatus === 'denied'
-                  ? 'Current location unavailable'
-                  : 'Waiting for current location'
-            }
-            accessibilityRole="button"
-            accessibilityState={{
-              busy: permissionStatus === 'checking',
-              disabled: !mapReady || !liveCoordinate
-            }}
-            disabled={!mapReady || !liveCoordinate}
-            testID={uiTestIds.guestMapCurrentLocation}
-            style={({ pressed }) => [
-              styles.currentLocationButton,
-              !mapReady || !liveCoordinate
-                ? styles.currentLocationButtonDisabled
-                : null,
-              pressed && mapReady && liveCoordinate
-                ? styles.currentLocationButtonPressed
-                : null
-            ]}
-            onPress={handleCenterCurrentLocation}
-          >
-            <Crosshair accessibilityElementsHidden color={colors.appleBlue} size={21} strokeWidth={1.9} />
-          </Pressable>
+          <MotionEntrance variant="control">
+            <Pressable
+              accessibilityHint={`Switches to the ${mapLayer === 'dark' ? 'satellite' : 'dark'} map.`}
+              accessibilityLabel={mapLayer === 'dark' ? 'Show satellite map' : 'Show dark map'}
+              accessibilityRole="button"
+              accessibilityState={{ disabled: !online }}
+              disabled={!online}
+              testID={uiTestIds.guestMapLayerToggle}
+              style={({ pressed }) => [
+                styles.currentLocationButton,
+                styles.layerButton,
+                !online ? styles.currentLocationButtonDisabled : null,
+                pressed && online ? styles.currentLocationButtonPressed : null,
+              ]}
+              onPress={() => onMapLayerChange?.(mapLayer === 'dark' ? 'satellite' : 'dark')}
+            >
+              {mapLayer === 'dark' ? (
+                <Globe2 accessibilityElementsHidden color={colors.appleBlue} size={21} strokeWidth={1.9} />
+              ) : (
+                <MapIcon accessibilityElementsHidden color={colors.appleBlue} size={21} strokeWidth={1.9} />
+              )}
+            </Pressable>
+          </MotionEntrance>
+          <MotionEntrance delay={45} variant="control">
+            <Pressable
+              accessibilityHint={
+                mapReady && liveCoordinate
+                  ? 'Moves the map to your live device location.'
+                  : permissionStatus === 'denied'
+                    ? 'Allow location access in Settings to use this control.'
+                    : 'Wait for SafeRoute to determine your device location.'
+              }
+              accessibilityLabel={
+                mapReady && liveCoordinate
+                  ? 'Center map on current location'
+                  : permissionStatus === 'denied'
+                    ? 'Current location unavailable'
+                    : 'Waiting for current location'
+              }
+              accessibilityRole="button"
+              accessibilityState={{
+                busy: permissionStatus === 'checking',
+                disabled: !mapReady || !liveCoordinate
+              }}
+              disabled={!mapReady || !liveCoordinate}
+              testID={uiTestIds.guestMapCurrentLocation}
+              style={({ pressed }) => [
+                styles.currentLocationButton,
+                !mapReady || !liveCoordinate
+                  ? styles.currentLocationButtonDisabled
+                  : null,
+                pressed && mapReady && liveCoordinate
+                  ? styles.currentLocationButtonPressed
+                  : null
+              ]}
+              onPress={handleCenterCurrentLocation}
+            >
+              <Crosshair accessibilityElementsHidden color={colors.appleBlue} size={21} strokeWidth={1.9} />
+            </Pressable>
+          </MotionEntrance>
         </View>
         ) : null}
 
@@ -2450,11 +2529,16 @@ export function GuestMapScreen({
         <SafeRouteBottomSheet
           ref={routeSheetRef}
           animateOnMount={false}
+          animatedIndex={routeSheetAnimatedIndex}
           backdrop
-          dismissOnBackdropPress
-          enablePanDownToClose
+          backdropAppearsOnIndex={routeSheetDetailCompactIndex}
+          backdropDisappearsOnIndex={mapSheetLayout.collapsedIndex}
+          backdropPressBehavior={mapSheetLayout.collapsedIndex}
+          bottomInset={chrome.screenBottomInset}
+          containerStyle={styles.persistentMapSheetContainer}
+          enablePanDownToClose={false}
           handleComponent={renderRouteSheetHandle}
-          index={-1}
+          index={mapSheetLayout.collapsedIndex}
           snapPoints={routeSheetSnapPoints}
           style={styles.sheetDock}
           surfaceColor={colors.sheet}
@@ -2462,11 +2546,296 @@ export function GuestMapScreen({
           onChange={handleRouteSheetChange}
           onClose={handleRouteSheetClose}
         >
-          <View
-            accessibilityElementsHidden={sheetCollapsed}
-            importantForAccessibility={sheetCollapsed ? 'no-hide-descendants' : 'auto'}
-            pointerEvents={sheetCollapsed ? 'none' : 'auto'}
-            style={styles.sheetContentFrame}
+          <Animated.View
+            accessibilityElementsHidden={!sheetAtAnchor}
+            importantForAccessibility={
+              sheetAtAnchor ? 'auto' : 'no-hide-descendants'
+            }
+            pointerEvents={sheetAtAnchor ? 'auto' : 'none'}
+            style={[
+              styles.persistentCollapsedContent,
+              collapsedSheetAnimatedStyle,
+            ]}
+          >
+            {collapsedRouteCardState === 'finding' ? (
+              <View
+                accessible
+                accessibilityLabel={provisionalRouteVisible
+                  ? 'Road route found. Risk coverage verification is pending. The route will appear when verification finishes.'
+                  : `Finding the safest ${travelModeRouteLabel} route. Checking roads and nearby risk areas.`}
+                accessibilityLiveRegion="polite"
+                accessibilityRole="progressbar"
+                style={styles.collapsedRouteStatus}
+                testID={uiTestIds.guestMapCollapsedRouteStatus}
+              >
+                <ActivityIndicator color={colors.appleBlue} size="small" />
+                <View style={styles.collapsedSearchCopy}>
+                  <Text numberOfLines={1} style={styles.collapsedRouteReadyLabel}>
+                    {provisionalRouteVisible
+                      ? 'Safety check pending'
+                      : `Finding ${travelModeRouteLabel} route`}
+                  </Text>
+                </View>
+              </View>
+            ) : routePlan ? (
+              <View style={styles.collapsedRouteActions}>
+                <Pressable
+                  accessibilityHint="Opens the plotted route so its locations and travel mode can be reviewed."
+                  accessibilityLabel={`Review route to ${destination || 'destination'}`}
+                  accessibilityRole="button"
+                  testID={uiTestIds.guestMapCollapsedSheet}
+                  style={({ pressed }) => [
+                    styles.collapsedRouteSummaryButton,
+                    pressed ? styles.collapsedSheetPressed : null,
+                  ]}
+                  onPress={handleCollapsedRouteEdit}
+                >
+                  <View style={styles.collapsedSheetCopy}>
+                    <CarFront
+                      accessibilityElementsHidden
+                      color={colors.appleBlue}
+                      size={21}
+                      strokeWidth={2.2}
+                    />
+                    <View style={styles.collapsedSearchCopy}>
+                      <Text numberOfLines={1} style={styles.collapsedRouteReadyLabel}>
+                        Route ready
+                      </Text>
+                    </View>
+                  </View>
+                </Pressable>
+                <Pressable
+                  accessibilityHint={stagedRouteActionAccessibilityHint}
+                  accessibilityLabel={stagedRouteActionAccessibilityLabel}
+                  accessibilityRole="button"
+                  accessibilityState={{
+                    busy: stagedRouteActionBusy,
+                    disabled: stagedRouteActionDisabled,
+                  }}
+                  disabled={stagedRouteActionDisabled}
+                  testID={uiTestIds.guestMapCollapsedStartRoute}
+                  style={({ pressed }) => [
+                    styles.collapsedRouteStartButton,
+                    stagedRouteActionDisabled
+                      ? styles.collapsedRouteStartButtonDisabled
+                      : null,
+                    pressed && !stagedRouteActionDisabled
+                      ? styles.collapsedRouteStartButtonPressed
+                      : null,
+                  ]}
+                  onPress={handleOpenPreview}
+                >
+                  {stagedRouteActionBusy ? (
+                    <ActivityIndicator
+                      color={stagedRouteActionDisabled ? colors.inkSoft : colors.surface}
+                      size="small"
+                    />
+                  ) : (
+                    <Navigation
+                      accessibilityElementsHidden
+                      color={colors.onAccent}
+                      size={18}
+                      strokeWidth={2.3}
+                    />
+                  )}
+                  <Text
+                    numberOfLines={1}
+                    style={[
+                      styles.collapsedRouteStartButtonText,
+                      stagedRouteActionDisabled
+                        ? styles.collapsedRouteStartButtonTextDisabled
+                        : null,
+                    ]}
+                  >
+                    {stagedRouteActionLabel}
+                  </Text>
+                </Pressable>
+              </View>
+            ) : (
+              <Pressable
+                accessibilityHint="Opens location search."
+                accessibilityLabel="Search for a location"
+                accessibilityRole="button"
+                testID={uiTestIds.guestMapCollapsedSheet}
+                style={({ pressed }) => [
+                  styles.collapsedSheetButton,
+                  pressed ? styles.collapsedSheetPressed : null,
+                ]}
+                onPress={handleCollapsedLocationSearch}
+              >
+                <View style={styles.collapsedSheetCopy}>
+                  <Search
+                    accessibilityElementsHidden
+                    color={colors.muted}
+                    size={20}
+                    strokeWidth={2.2}
+                  />
+                  <View style={styles.collapsedSearchCopy}>
+                    <Text numberOfLines={1} style={styles.collapsedSheetTitle}>
+                      Search for a location
+                    </Text>
+                  </View>
+                </View>
+              </Pressable>
+            )}
+          </Animated.View>
+
+          {selectedRiskZone ? (
+            <Animated.View
+              style={[
+                styles.persistentDetailContent,
+                expandedSheetContentAnimatedStyle,
+              ]}
+            >
+              <BottomSheetScrollView
+                bounces={false}
+                contentContainerStyle={styles.persistentDetailScrollContent}
+                scrollEnabled={detailExpanded}
+                showsVerticalScrollIndicator={false}
+                style={styles.persistentDetailScroll}
+                onScroll={(event) => {
+                  riskDetailScrollOffsetRef.current = Math.max(
+                    0,
+                    event.nativeEvent.contentOffset.y,
+                  );
+                }}
+                onTouchEnd={(event) => {
+                  const touchStartY = riskDetailTouchStartYRef.current;
+                  riskDetailTouchStartYRef.current = null;
+                  if (
+                    detailExpanded &&
+                    riskDetailScrollOffsetRef.current <= 1 &&
+                    touchStartY !== null &&
+                    event.nativeEvent.pageY - touchStartY >= 28
+                  ) {
+                    routeSheetRef.current?.snapToIndex(
+                      routeSheetDetailCompactIndex,
+                    );
+                  }
+                }}
+                onTouchStart={(event) => {
+                  riskDetailTouchStartYRef.current = event.nativeEvent.pageY;
+                }}
+              >
+                <LiveMapRiskDetailContent
+                  expanded={detailExpanded}
+                  expandedPanelStyle={riskExpandedPanelAnimatedStyle}
+                  zone={selectedRiskZone}
+                  onDismiss={dismissMapDetail}
+                  onToggleExpanded={() => routeSheetRef.current?.snapToIndex(
+                    detailExpanded
+                      ? routeSheetDetailCompactIndex
+                      : routeSheetExpandedIndex,
+                  )}
+                />
+              </BottomSheetScrollView>
+            </Animated.View>
+          ) : null}
+
+          {mapAction ? (
+            <Animated.View
+              style={[
+                styles.persistentDetailContent,
+                expandedSheetContentAnimatedStyle,
+              ]}
+            >
+              <BottomSheetScrollView
+                bounces={false}
+                contentContainerStyle={styles.persistentDetailScrollContent}
+                scrollEnabled={false}
+                showsVerticalScrollIndicator={false}
+                style={styles.persistentDetailScroll}
+              >
+                <LiveMapDetailContent
+                  accessibilityLabel={`Map actions for ${mapAction.label}`}
+                  dismissAccessibilityLabel="Close map actions"
+                  icon={(
+                    <MapPin
+                      accessibilityElementsHidden
+                      color={colors.appleBlue}
+                      size={22}
+                      strokeWidth={2}
+                    />
+                  )}
+                  iconTileStyle={styles.mapActionIconTile}
+                  onDismiss={dismissMapDetail}
+                  subtitle="Selected map location"
+                  testID={uiTestIds.guestMapLongPressMenu}
+                  title={mapAction.pending ? 'Locating…' : mapAction.label}
+                >
+                  <Text style={styles.mapActionBody}>
+                    {mapSelectionSetsDestination
+                      ? 'Use this point as your destination.'
+                      : 'Add this point to the route.'}
+                  </Text>
+                  <View style={styles.mapActionButtons}>
+                    <Pressable
+                      accessibilityLabel={mapSelectionSetsDestination
+                        ? 'Use this location as the route destination'
+                        : 'Add this location as a route stop'}
+                      accessibilityRole="button"
+                      accessibilityState={{ disabled: !canAddMapRoutePoint }}
+                      disabled={!canAddMapRoutePoint}
+                      testID={uiTestIds.guestMapLongPressAddWaypoint}
+                      style={({ pressed }) => [
+                        styles.mapActionButton,
+                        styles.mapActionPrimaryButton,
+                        !canAddMapRoutePoint ? styles.mapActionButtonDisabled : null,
+                        pressed && canAddMapRoutePoint ? styles.mapActionButtonPressed : null,
+                      ]}
+                      onPress={handleAddMapRoutePoint}
+                    >
+                      <Text style={styles.mapActionPrimaryButtonText}>
+                        {mapSelectionSetsDestination ? 'Set destination' : 'Add stop'}
+                      </Text>
+                    </Pressable>
+                    <Pressable
+                      accessibilityLabel={authenticated
+                        ? networkChecking
+                          ? 'Checking connection before adding a risk area'
+                          : offline
+                            ? 'Reconnect before adding a risk area'
+                            : workspaceSelectionRequired
+                              ? 'Choose a workspace before adding a risk area'
+                              : workspaceAuthorizationRequired
+                                ? 'Verify current workspace access before adding a risk area'
+                                : 'Add a risk area here'
+                        : 'Sign in to add a risk area'}
+                      accessibilityRole="button"
+                      accessibilityState={{
+                        busy: riskAreaSavePending,
+                        disabled: riskAreaSavePending || riskAreaAuthorizationRequired,
+                      }}
+                      disabled={riskAreaSavePending || riskAreaAuthorizationRequired}
+                      testID={uiTestIds.guestMapLongPressAddRisk}
+                      style={({ pressed }) => [
+                        styles.mapActionButton,
+                        styles.mapActionSecondaryButton,
+                        riskAreaSavePending || riskAreaAuthorizationRequired
+                          ? styles.mapActionButtonDisabled
+                          : null,
+                        pressed && !riskAreaSavePending && !riskAreaAuthorizationRequired
+                          ? styles.mapActionButtonPressed
+                          : null,
+                      ]}
+                      onPress={() => void handleAddMapRiskArea()}
+                    >
+                      <Text style={styles.mapActionSecondaryButtonText}>
+                        {riskAreaSavePending ? 'Adding…' : 'Add risk area'}
+                      </Text>
+                    </Pressable>
+                  </View>
+                </LiveMapDetailContent>
+              </BottomSheetScrollView>
+            </Animated.View>
+          ) : null}
+
+          {!selectedRiskZone && !mapAction && !sheetCollapsed ? (
+          <Animated.View
+            style={[
+              styles.sheetContentFrame,
+              expandedSheetContentAnimatedStyle,
+            ]}
           >
             <BottomSheetScrollView
               ref={routeSheetScrollRef}
@@ -2488,12 +2857,9 @@ export function GuestMapScreen({
               style={styles.sheetScroll}
             >
               <View style={styles.sheetHeaderRow}>
-                <View style={styles.sheetTitleBlock}>
-                  <Text numberOfLines={1} style={styles.sheetTitle}>{mapHomeCopy.sheetTitle}</Text>
-                  {showSheetSubtitle && !searchStageActive ? (
-                    <Text numberOfLines={1} style={styles.sheetSubtitle}>{mapHomeCopy.sheetSubtitle}</Text>
-                  ) : null}
-                </View>
+                {routePlan && !searchStageActive ? (
+                  <RoutePreview authenticated={authenticated} inline routePlan={routePlan} />
+                ) : null}
                 <Pressable
                   accessibilityLabel="Close directions"
                   accessibilityRole="button"
@@ -2506,9 +2872,6 @@ export function GuestMapScreen({
                 >
                   <Text style={styles.sheetCancelText}>Cancel</Text>
                 </Pressable>
-                {routePlan && !searchStageActive ? (
-                  <RoutePreview authenticated={authenticated} inline routePlan={routePlan} />
-                ) : null}
               </View>
 
               {authenticated && !searchStageActive ? (
@@ -2677,10 +3040,7 @@ export function GuestMapScreen({
                   variant="disclosure"
                 >
                   <Text accessibilityRole="header" style={styles.routeChoiceLabel}>
-                    Change travel mode
-                  </Text>
-                  <Text style={styles.routeChoiceHelper}>
-                    Tap a mode to plot its route immediately.
+                    Travel mode
                   </Text>
                   <TravelModeSelector
                     disabled={routePlanningDisabled}
@@ -2755,7 +3115,7 @@ export function GuestMapScreen({
                 ) : routePlan ? (
                   <Navigation
                     accessibilityElementsHidden
-                    color={colors.surface}
+                    color={colors.onAccent}
                     size={18}
                     strokeWidth={2.3}
                   />
@@ -2766,147 +3126,9 @@ export function GuestMapScreen({
               </Pressable>
             </View>
             ) : null}
-          </View>
+          </Animated.View>
+          ) : null}
         </SafeRouteBottomSheet>
-
-        {!selectedRiskZone && !mapAction && sheetCollapsed ? (
-          <MotionEntrance
-            duration={360}
-            style={styles.collapsedSheetDock}
-            variant="sheet"
-          >
-            <View style={styles.collapsedSheet}>
-            {collapsedRouteCardState === 'finding' ? (
-              <View
-                accessible
-                accessibilityLabel={provisionalRouteVisible
-                  ? 'Road route found. Risk coverage verification is pending. The route will appear when verification finishes.'
-                  : `Finding the safest ${travelModeRouteLabel} route. Checking roads and nearby risk areas.`}
-                accessibilityLiveRegion="polite"
-                accessibilityRole="progressbar"
-                style={styles.collapsedRouteStatus}
-                testID={uiTestIds.guestMapCollapsedRouteStatus}
-              >
-                <ActivityIndicator color={colors.appleBlue} size="small" />
-                <View style={styles.collapsedSearchCopy}>
-                  <Text numberOfLines={1} style={styles.collapsedRouteReadyLabel}>
-                    {provisionalRouteVisible
-                      ? 'Safety check pending'
-                      : `Finding ${travelModeRouteLabel} route`}
-                  </Text>
-                  <Text numberOfLines={1} style={styles.collapsedSheetSubtitle}>
-                    {provisionalRouteVisible
-                      ? 'Waiting for verified route'
-                      : 'Checking roads and nearby risk areas'}
-                  </Text>
-                </View>
-              </View>
-            ) : routePlan ? (
-              <View style={styles.collapsedRouteActions}>
-                <Pressable
-                  accessibilityHint="Opens the plotted route so its locations and travel mode can be reviewed."
-                  accessibilityLabel={`Review route to ${destination || 'destination'}`}
-                  accessibilityRole="button"
-                  testID={uiTestIds.guestMapCollapsedSheet}
-                  style={({ pressed }) => [
-                    styles.collapsedRouteSummaryButton,
-                    pressed ? styles.collapsedSheetPressed : null,
-                  ]}
-                  onPress={handleCollapsedRouteEdit}
-                >
-                  <View style={styles.collapsedSheetCopy}>
-                    <CarFront
-                      accessibilityElementsHidden
-                      color={colors.appleBlue}
-                      size={21}
-                      strokeWidth={2.2}
-                    />
-                    <View style={styles.collapsedSearchCopy}>
-                      <Text numberOfLines={1} style={styles.collapsedRouteReadyLabel}>
-                        Route ready
-                      </Text>
-                      <Text numberOfLines={1} style={styles.collapsedSheetSubtitle}>
-                        {travelModeRouteLabel[0]?.toUpperCase()}
-                        {travelModeRouteLabel.slice(1)} to {destination || 'destination'}
-                      </Text>
-                    </View>
-                  </View>
-                </Pressable>
-                <Pressable
-                  accessibilityHint={stagedRouteActionAccessibilityHint}
-                  accessibilityLabel={stagedRouteActionAccessibilityLabel}
-                  accessibilityRole="button"
-                  accessibilityState={{
-                    busy: stagedRouteActionBusy,
-                    disabled: stagedRouteActionDisabled,
-                  }}
-                  disabled={stagedRouteActionDisabled}
-                  testID={uiTestIds.guestMapCollapsedStartRoute}
-                  style={({ pressed }) => [
-                    styles.collapsedRouteStartButton,
-                    stagedRouteActionDisabled
-                      ? styles.collapsedRouteStartButtonDisabled
-                      : null,
-                    pressed && !stagedRouteActionDisabled
-                      ? styles.collapsedRouteStartButtonPressed
-                      : null,
-                  ]}
-                  onPress={handleOpenPreview}
-                >
-                  {stagedRouteActionBusy ? (
-                    <ActivityIndicator
-                      color={stagedRouteActionDisabled ? colors.inkSoft : colors.surface}
-                      size="small"
-                    />
-                  ) : (
-                    <Navigation
-                      accessibilityElementsHidden
-                      color={colors.surface}
-                      size={18}
-                      strokeWidth={2.3}
-                    />
-                  )}
-                  <Text
-                    numberOfLines={2}
-                    style={[
-                      styles.collapsedRouteStartButtonText,
-                      stagedRouteActionDisabled
-                        ? styles.collapsedRouteStartButtonTextDisabled
-                        : null,
-                    ]}
-                  >
-                    {stagedRouteActionLabel}
-                  </Text>
-                </Pressable>
-              </View>
-            ) : (
-              <Pressable
-                accessibilityHint="Opens route planning, focuses the next stop, and shows the keyboard."
-                accessibilityLabel="Search for the next stop"
-                accessibilityRole="button"
-                testID={uiTestIds.guestMapCollapsedSheet}
-                style={({ pressed }) => [
-                  styles.collapsedSheetButton,
-                  pressed ? styles.collapsedSheetPressed : null
-                ]}
-                onPress={handleCollapsedLocationSearch}
-              >
-                <View style={styles.collapsedSheetCopy}>
-                  <Search accessibilityElementsHidden color={colors.muted} size={20} strokeWidth={2.2} />
-                  <View style={styles.collapsedSearchCopy}>
-                  <Text numberOfLines={1} style={styles.collapsedSheetTitle}>
-                    Search for a location
-                  </Text>
-                  <Text numberOfLines={1} style={styles.collapsedSheetSubtitle}>
-                    From {origin || 'current location'}
-                  </Text>
-                  </View>
-                </View>
-              </Pressable>
-            )}
-            </View>
-          </MotionEntrance>
-        ) : null}
       </SafeAreaView>
     </View>
   );
@@ -3383,48 +3605,53 @@ function RouteInput({
       style={[styles.inputRow, divided ? styles.inputRowDivider : null]}
       onPress={focusNativeInput}
     >
-      <View
-        accessibilityElementsHidden
-        style={[
-          styles.routeInputMarker,
-          tone === 'origin'
-            ? styles.routeInputMarkerOrigin
-            : styles.routeInputMarkerDestination,
-        ]}
-      >
-        {tone === 'origin' ? (
-          <Crosshair color={colors.safe} size={14} strokeWidth={2.3} />
-        ) : (
-          <MapPin color={colors.appleBlue} size={14} strokeWidth={2.3} />
-        )}
-      </View>
       <View style={styles.routeInputCopy}>
-        <Text accessibilityElementsHidden style={styles.routeInputOverline}>{overline}</Text>
-        <BottomSheetTextInput
-          ref={(input) => {
-            nativeInputRef.current = input ?? null;
-            inputRef?.(input ?? null);
-          }}
-          accessibilityHint={accessibilityHint}
-          accessibilityLabel={label}
-          autoCapitalize="words"
-          autoComplete="off"
-          autoCorrect={false}
-          importantForAutofill="no"
-          maxLength={GUEST_ROUTE_LABEL_MAX_LENGTH}
-          placeholder={placeholder}
-          placeholderTextColor={colors.muted}
-          returnKeyType={onSubmitEditing ? 'done' : 'default'}
-          showSoftInputOnFocus
-          style={styles.input}
-          submitBehavior="blurAndSubmit"
-          testID={testID}
-          textContentType="none"
-          value={value}
-          onChangeText={onChangeText}
-          onFocus={onFocus}
-          onSubmitEditing={onSubmitEditing}
-        />
+        <View style={styles.routeInputHeaderRow}>
+          <View accessibilityElementsHidden style={styles.routeInputMarkerSpacer} />
+          <Text accessibilityElementsHidden style={styles.routeInputOverline}>{overline}</Text>
+        </View>
+        <View style={styles.routeInputValueRow}>
+          <View
+            accessibilityElementsHidden
+            style={[
+              styles.routeInputMarker,
+              tone === 'origin'
+                ? styles.routeInputMarkerOrigin
+                : styles.routeInputMarkerDestination,
+            ]}
+          >
+            {tone === 'origin' ? (
+              <Crosshair color={colors.safe} size={14} strokeWidth={2.3} />
+            ) : (
+              <MapPin color={colors.appleBlue} size={14} strokeWidth={2.3} />
+            )}
+          </View>
+          <BottomSheetTextInput
+            ref={(input) => {
+              nativeInputRef.current = input ?? null;
+              inputRef?.(input ?? null);
+            }}
+            accessibilityHint={accessibilityHint}
+            accessibilityLabel={label}
+            autoCapitalize="words"
+            autoComplete="off"
+            autoCorrect={false}
+            importantForAutofill="no"
+            maxLength={GUEST_ROUTE_LABEL_MAX_LENGTH}
+            placeholder={placeholder}
+            placeholderTextColor={colors.muted}
+            returnKeyType={onSubmitEditing ? 'done' : 'default'}
+            showSoftInputOnFocus
+            style={styles.input}
+            submitBehavior="blurAndSubmit"
+            testID={testID}
+            textContentType="none"
+            value={value}
+            onChangeText={onChangeText}
+            onFocus={onFocus}
+            onSubmitEditing={onSubmitEditing}
+          />
+        </View>
       </View>
     </Pressable>
   );

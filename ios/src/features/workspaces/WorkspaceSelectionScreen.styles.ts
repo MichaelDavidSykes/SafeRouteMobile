@@ -289,11 +289,13 @@ export const workspaceSelectionStyles = StyleSheet.create({
     justifyContent: 'center',
     gap: 9,
     paddingHorizontal: 20,
-    borderRadius: 8,
-    backgroundColor: '#FFFFFF',
+    borderWidth: 0.5,
+    borderColor: 'rgba(255,255,255,0.22)',
+    borderRadius: 14,
+    backgroundColor: 'rgba(255,255,255,0.10)',
   },
   continueButtonPressed: {
-    backgroundColor: '#E9E9ED',
+    backgroundColor: 'rgba(255,255,255,0.17)',
     transform: [{ scale: 0.985 }],
   },
   continueButtonDisabled: {
@@ -302,7 +304,7 @@ export const workspaceSelectionStyles = StyleSheet.create({
   continueText: {
     minWidth: 0,
     flexShrink: 1,
-    color: '#12141A',
+    color: '#F5F5F7',
     fontSize: 16.5,
     fontWeight: '700',
     letterSpacing: 0,

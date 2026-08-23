@@ -35,13 +35,13 @@ describe('SafeRoute account creation handoff', () => {
     assert.match(createSource, /testID=\{uiTestIds\.accountCreateSignIn\}/);
   });
 
-  it('uses the handoff sizing, white action, and route-around-risk backdrop', () => {
+  it('uses the handoff sizing, glass action, and route-around-risk backdrop', () => {
     assert.match(createSource, /useSafeAreaInsets/);
     assert.match(createSource, /top:\s*safeAreaInsets\.top \+ 12/);
     assert.match(createStyles, /inputShell:[\s\S]*minHeight:\s*52/);
     assert.match(createStyles, /inputShell:[\s\S]*borderRadius:\s*14/);
     assert.match(createStyles, /primaryButton:[\s\S]*minHeight:\s*54/);
-    assert.match(createStyles, /primaryButton:[\s\S]*backgroundColor:\s*'#FFFFFF'/);
+    assert.match(createStyles, /primaryButton:[\s\S]*backgroundColor:\s*'rgba\(255,255,255,0\.10\)'/);
     assert.match(backdropSource, /auth-risk/);
     assert.match(backdropSource, /strokeDasharray="1 16"/);
     assert.match(backdropSource, /fill="#30B85A"/);

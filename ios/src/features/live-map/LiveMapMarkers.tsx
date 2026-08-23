@@ -295,7 +295,7 @@ export const SupportFacilityMarker = memo(function SupportFacilityMarker({
         <View style={[styles.supportFacilityMarker, { backgroundColor: color }]}>
           <Icon
             accessibilityElementsHidden
-            color={colors.surface}
+            color={colors.onAccent}
             size={14}
             strokeWidth={2.4}
           />
@@ -365,7 +365,7 @@ function RiskMarker({
           {routeAlert ? (
             <CircleAlert
               accessibilityElementsHidden
-              color={colors.surface}
+              color={colors.onAccent}
               size={14}
               strokeWidth={2.4}
             />
@@ -527,7 +527,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     borderWidth: 2,
-    borderColor: colors.surface,
+    borderColor: colors.onAccent,
     borderRadius: radius.pill,
     shadowOpacity: 0,
     shadowRadius: 0,
@@ -629,7 +629,7 @@ const styles = StyleSheet.create({
     width: 20,
     height: 20,
     borderWidth: 3,
-    borderColor: colors.surface,
+    borderColor: colors.onAccent,
     borderRadius: radius.pill,
     backgroundColor: colors.appleBlue,
     shadowColor: '#000000',

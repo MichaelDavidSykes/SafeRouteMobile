@@ -59,10 +59,18 @@ import {
   type ActiveSessionExpiryIdentity,
   type ActiveSessionExpiryMonitor,
 } from './src/features/auth/activeSessionExpiry';
-import { GuestMapScreen } from './src/features/guest-map/GuestMapScreen';
+import {
+  GuestMapScreen,
+  type GuestRoutePreviewReturnState,
+} from './src/features/guest-map/GuestMapScreen';
 import type { GuestFullAccessFeature } from './src/features/guest-map/guestRoutePlanner';
 import { LiveMapScreen } from './src/features/live-map/LiveMapScreen';
 import type { SavedSafeRoutePlan } from './src/features/live-map/liveMapTypes';
+import {
+  configureNextSafeRouteLayoutAnimation,
+  safeRouteMotion,
+  useReduceMotionEnabled,
+} from './src/motion/SafeRouteMotion';
 import {
   canResumeActiveNavigationSession,
   isNavigationSessionForRoutePreview,
@@ -105,7 +113,7 @@ import { uiTestIds } from './src/testing/uiTestIds';
 import { shouldInjectConnectivityContractStorageFault } from './src/testing/connectivityContractStorageFault';
 import { colors, spacing } from './src/theme';
 import {
-  AppTabBar,
+  AppNavigationMenu,
   isAppTabDisabled,
   type AppTab,
 } from './src/components/AppTabBar';
@@ -246,6 +254,7 @@ export default function App() {
 }
 
 function SafeRouteApp() {
+  const reduceMotionEnabled = useReduceMotionEnabled();
   const {
     online,
     status: networkStatus,
@@ -270,6 +279,8 @@ function SafeRouteApp() {
   const [savedSessionValidationRetrying, setSavedSessionValidationRetrying] =
     useState(false);
   const [selectedRoute, setSelectedRoute] = useState<SavedSafeRoutePlan | null>(null);
+  const [guestRouteReturnState, setGuestRouteReturnState] =
+    useState<GuestRoutePreviewReturnState | null>(null);
   const [activeNavigationSession, setActiveNavigationSession] =
     useState<ActiveNavigationSession | null>(null);
   const [sessionMessage, setSessionMessage] = useState('');
@@ -280,6 +291,7 @@ function SafeRouteApp() {
   const [invitationStartupReady, setInvitationStartupReady] = useState(false);
   const [screen, setScreen] = useState<AppScreen>('guest-map');
   const [mapPlannerOpen, setMapPlannerOpen] = useState(false);
+  const [mapModalOpen, setMapModalOpen] = useState(false);
   const [operationsDetailOpen, setOperationsDetailOpen] = useState(false);
   const [mapLayer, setMapLayer] = useState<'dark' | 'satellite'>('dark');
   const currentScreenRef = useRef<AppScreen>(screen);
@@ -4671,7 +4683,10 @@ function SafeRouteApp() {
     openAuthenticatedFeature(feature);
   };
 
-  const openRoutePreview = (routePlan: SavedSafeRoutePlan) => {
+  const openRoutePreview = (
+    routePlan: SavedSafeRoutePlan,
+    returnState: GuestRoutePreviewReturnState,
+  ) => {
     const routeWorkspaceId = routePlan.clientId?.trim() || '';
     if (
       navigationCleanupRequiredRef.current ||
@@ -4717,6 +4732,7 @@ function SafeRouteApp() {
       return;
     }
     selectedRouteRef.current = routePlan;
+    setGuestRouteReturnState(returnState);
     clearPendingWorkspaceSelectionRetry();
     setWorkspaceSelectionStatus('idle');
     setSelectedRoute(routePlan);
@@ -4826,6 +4842,11 @@ function SafeRouteApp() {
   };
 
   const returnFromRoutePreview = () => {
+    if (!reduceMotionEnabled) {
+      configureNextSafeRouteLayoutAnimation(
+        safeRouteMotion.sheetExitDurationMs,
+      );
+    }
     selectedRouteRef.current = null;
     setSelectedRoute(null);
     if (operationsRoutePreviewReturnTab) {
@@ -4909,12 +4930,12 @@ function SafeRouteApp() {
           ? 'convoys'
           : 'routes'
       : 'map';
-  const showAppTabBar =
+  const showAppNavigationMenu =
     !workspaceSelectionFlowVisible &&
     screen !== 'login' &&
     screen !== 'route-preview' &&
     !operationsDetailOpen &&
-    !(screen === 'guest-map' && mapPlannerOpen);
+    !(screen === 'guest-map' && (mapPlannerOpen || mapModalOpen));
 
   return (
     <SafeAreaProvider initialMetrics={initialWindowMetrics} style={styles.root}>
@@ -5106,10 +5127,12 @@ function SafeRouteApp() {
             activeWorkspace={activeWorkspace}
             authenticated={authenticated}
             availableWorkspaces={availableWorkspaces}
+            initialRouteState={guestRouteReturnState}
             mapLayer={mapLayer}
             placesScopeId={sessionPrincipalId || 'guest'}
             onOpenFullAccessFeature={openFullAccessFeature}
             onMapLayerChange={setMapLayer}
+            onMapModalVisibilityChange={setMapModalOpen}
             onPlannerVisibilityChange={setMapPlannerOpen}
             onOpenRoutePreview={openRoutePreview}
             onSessionExpired={handleSessionExpired}
@@ -5146,11 +5169,12 @@ function SafeRouteApp() {
             workspaceSelectionPending={workspaceSelectionPending}
           />
         )}
-        {showAppTabBar ? (
-          <AppTabBar
+        {showAppNavigationMenu ? (
+          <AppNavigationMenu
             activeTab={activeAppTab}
             authenticated={authenticated}
             onSelect={selectAppTab}
+            placement={screen === 'guest-map' ? 'map' : 'screen'}
           />
         ) : null}
         {activeNavigationSession && screen !== 'route-preview' && screen !== 'login' ? (

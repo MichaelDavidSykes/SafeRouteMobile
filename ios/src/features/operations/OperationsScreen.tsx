@@ -2594,7 +2594,7 @@ function OperationsCalendarDetail({
         onPress={onSelectRoute}
       >
         {loading ? (
-          <ActivityIndicator color={colors.surface} size="small" />
+          <ActivityIndicator color={colors.onAccent} size="small" />
         ) : (
           <Text
             style={[

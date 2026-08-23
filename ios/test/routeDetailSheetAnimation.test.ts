@@ -31,6 +31,13 @@ describe("saved route detail animation", () => {
     assert.doesNotMatch(sheetSource, /useReduceMotionEnabled/);
   });
 
+  it("clips the shared glass background to continuous rounded corners", () => {
+    assert.match(foundationSource, /<BlurView/);
+    assert.match(foundationSource, /background:[\s\S]*overflow:\s*'hidden'/);
+    assert.match(foundationSource, /background:[\s\S]*borderCurve:\s*'continuous'/);
+    assert.match(foundationSource, /background:[\s\S]*borderRadius:\s*radius\.sheet/);
+  });
+
   it("dismisses by handle, backdrop, close controls, and accessibility escape", () => {
     assert.match(sheetSource, /backdrop/);
     assert.match(sheetSource, /dismissOnBackdropPress/);

@@ -8,7 +8,7 @@ function source(path: string): string {
 }
 
 describe("SafeRoute design handoff", () => {
-  it("keeps the four-tab iPhone chrome and semantic palette", () => {
+  it("keeps four destinations in compact iPhone chrome and the semantic palette", () => {
     const theme = source("src/theme.ts");
     const tabBar = source("src/components/AppTabBar.tsx");
     const app = source("App.tsx");
@@ -16,10 +16,12 @@ describe("SafeRoute design handoff", () => {
     assert.match(theme, /appleBlue:\s*'#0a84ff'/);
     assert.match(theme, /danger:\s*'#e5484d'/);
     assert.match(theme, /amber:\s*'#f76b15'/);
-    assert.match(theme, /tabBarHeight:\s*86/);
+    assert.match(theme, /screenBottomInset:\s*40/);
     for (const label of ["Map", "Routes", "Convoys", "Calendar"]) {
       assert.match(tabBar, new RegExp(`label: "${label}"`));
     }
+    assert.match(tabBar, /<Menu accessibilityElementsHidden/);
+    assert.match(tabBar, /menuProgress/);
     assert.match(app, /!operationsDetailOpen/);
     assert.match(app, /mapPlannerOpen/);
   });

@@ -16,10 +16,10 @@ const styleSource = readFileSync(
 
 describe('SafeRoute authentication design', () => {
   it('ports the final handoff tokens without changing semantic severity colors', () => {
-    assert.equal(authColors.background, '#161B2E');
+    assert.equal(authColors.background, '#090A0E');
     assert.equal(authColors.text, '#F4F5FB');
     assert.equal(authColors.muted, '#A6ACC4');
-    assert.equal(authColors.accent, '#C9C4F4');
+    assert.equal(authColors.accent, '#0A84FF');
     assert.equal(authColors.critical, '#E5484D');
     assert.equal(authColors.criticalText, '#FFB4B8');
     assert.equal(authRadius.card, 22);
@@ -30,7 +30,7 @@ describe('SafeRoute authentication design', () => {
   it('uses the current unframed auth hierarchy across sign-in, MFA, and password reset', () => {
     assert.match(loginSource, /useSafeAreaInsets/);
     assert.match(loginSource, /top:\s*safeAreaInsets\.top \+ 12/g);
-    assert.match(styleSource, /handoffPrimaryButton:[\s\S]*backgroundColor:\s*'#FFFFFF'/);
+    assert.match(styleSource, /handoffPrimaryButton:[\s\S]*backgroundColor:\s*'rgba\(255,255,255,0\.10\)'/);
     assert.match(styleSource, /handoffPrimaryButton:[\s\S]*borderRadius:\s*15/);
     assert.match(styleSource, /handoffInputShell:[\s\S]*minHeight:\s*54/);
     assert.match(styleSource, /flowTitle:[\s\S]*fontSize:\s*25/);

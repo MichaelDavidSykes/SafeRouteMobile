@@ -84,6 +84,10 @@ describe("production navigation reliability integration", () => {
       /entryTrackingVerification[\s\S]*confirmBackgroundNavigationStopped\(\)[\s\S]*stopBackgroundNavigation\(\)[\s\S]*readActiveNavigationSession\(\)[\s\S]*navigationReadback\.status === 'absent'[\s\S]*recordNavigationAbsenceReadback\(entryTrackingVerification\)/,
     );
     assert.match(appSource, /openActiveNavigationSession/);
+    assert.match(
+      appSource,
+      /persistedNavigation\?\.accessScope\.kind === 'public'[\s\S]*discardPersistedNavigation\(undefined, \{[\s\S]*evidenceSession: persistedNavigation[\s\S]*persistedNavigation = null/,
+    );
     assert.match(appSource, /ResumeNavigationButton/);
     assert.match(appSource, /clearActiveNavigationSession/);
     assert.match(

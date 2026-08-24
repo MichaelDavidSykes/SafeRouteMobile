@@ -1788,6 +1788,15 @@ function SafeRouteApp() {
           return;
         }
         persistedNavigation = navigationReadback.session;
+        if (persistedNavigation?.accessScope.kind === 'public') {
+          await discardPersistedNavigation(undefined, {
+            evidenceSession: persistedNavigation,
+          });
+          if (!restoreIsCurrent()) {
+            return;
+          }
+          persistedNavigation = null;
+        }
         if (
           !SAFEROUTE_PREVIEW_MODE_ENABLED &&
           navigationReadback.status === 'absent'

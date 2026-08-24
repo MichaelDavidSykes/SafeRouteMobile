@@ -352,6 +352,7 @@ export function GuestMapScreen({
   const recoverWorkspaceAccessRef = useRef<(workspaceId: string) => void>(() => undefined);
   const userMovedMapRef = useRef(false);
   const pendingOpenPreviewRef = useRef(false);
+  const routePreviewHandoffResetTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const roadRouteRequestIdRef = useRef(0);
   const riskAreaRequestIdRef = useRef(0);
   const workspaceAuthorizationEpochRef = useRef(0);
@@ -436,6 +437,7 @@ export function GuestMapScreen({
     useState<SafeRouteRoutePreferences>(DEFAULT_SAFE_ROUTE_PREFERENCES);
   const [routeResolutionPending, setRouteResolutionPending] = useState(false);
   const [roadPreviewPending, setRoadPreviewPending] = useState(false);
+  const [routePreviewHandoffPending, setRoutePreviewHandoffPending] = useState(false);
   const [riskAreaSavePending, setRiskAreaSavePending] = useState(false);
   const sessionNoticeState = createSessionNoticeState(sessionNotice);
   const {
@@ -740,8 +742,11 @@ export function GuestMapScreen({
     ? routeContextDisabled
     : routePlanningDisabled;
   const stagedRouteActionDisabled =
-    routeActionDisabled || (!routePlan && !routeDraftReady);
+    routePreviewHandoffPending ||
+    routeActionDisabled ||
+    (!routePlan && !routeDraftReady);
   const stagedRouteActionBusy =
+    routePreviewHandoffPending ||
     routeResolutionPending ||
     roadPreviewPending ||
     (networkChecking && !routePlan);
@@ -1157,6 +1162,9 @@ export function GuestMapScreen({
     cancelRoadRouteUpgrade();
     activeLocationSearchRef.current?.abort();
     activeMapReverseGeocodeRef.current?.abort();
+    if (routePreviewHandoffResetTimerRef.current) {
+      clearTimeout(routePreviewHandoffResetTimerRef.current);
+    }
   }, []);
 
   const cancelRoadRouteUpgrade = () => {
@@ -1701,6 +1709,7 @@ export function GuestMapScreen({
 
   const handleOpenPreview = () => {
     if (
+      routePreviewHandoffPending ||
       routeActionDisabled
       || provisionalRoutePlanIdRef.current === routePlan?.id
     ) {
@@ -1718,7 +1727,13 @@ export function GuestMapScreen({
       return;
     }
 
-    openRoutePreviewWithReturnState(routePlan);
+    setRoutePreviewHandoffPending(true);
+    requestAnimationFrame(() => {
+      openRoutePreviewWithReturnState(routePlan);
+      routePreviewHandoffResetTimerRef.current = setTimeout(() => {
+        setRoutePreviewHandoffPending(false);
+      }, 700);
+    });
   };
 
   const plotTravelMode = (nextMode: SafeRouteTravelMode) => {
@@ -2618,7 +2633,7 @@ export function GuestMapScreen({
                   testID={uiTestIds.guestMapCollapsedStartRoute}
                   style={({ pressed }) => [
                     styles.collapsedRouteStartButton,
-                    stagedRouteActionDisabled
+                    stagedRouteActionDisabled && !routePreviewHandoffPending
                       ? styles.collapsedRouteStartButtonDisabled
                       : null,
                     pressed && !stagedRouteActionDisabled
@@ -2629,7 +2644,11 @@ export function GuestMapScreen({
                 >
                   {stagedRouteActionBusy ? (
                     <ActivityIndicator
-                      color={stagedRouteActionDisabled ? colors.inkSoft : colors.appleBlue}
+                      color={
+                        routePreviewHandoffPending || !stagedRouteActionDisabled
+                          ? colors.appleBlue
+                          : colors.inkSoft
+                      }
                       size="small"
                     />
                   ) : (
@@ -2640,17 +2659,19 @@ export function GuestMapScreen({
                       strokeWidth={2.2}
                     />
                   )}
-                  <Text
-                    numberOfLines={1}
-                    style={[
-                      styles.collapsedRouteStartButtonText,
-                      stagedRouteActionDisabled
-                        ? styles.collapsedRouteStartButtonTextDisabled
-                        : null,
-                    ]}
-                  >
-                    {collapsedRouteActionLabel}
-                  </Text>
+                  {routePreviewHandoffPending ? null : (
+                    <Text
+                      numberOfLines={1}
+                      style={[
+                        styles.collapsedRouteStartButtonText,
+                        stagedRouteActionDisabled
+                          ? styles.collapsedRouteStartButtonTextDisabled
+                          : null,
+                      ]}
+                    >
+                      {collapsedRouteActionLabel}
+                    </Text>
+                  )}
                 </Pressable>
               </View>
             ) : (

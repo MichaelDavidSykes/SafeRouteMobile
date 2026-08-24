@@ -1,6 +1,10 @@
 import type { RefObject } from "react";
 import { Platform, StyleSheet } from "react-native";
-import MapView, { Polyline, type LatLng } from "react-native-maps";
+import MapView, {
+  Polyline,
+  type Camera,
+  type LatLng,
+} from "react-native-maps";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import type { PermissionStatus } from "./liveLocationState";
@@ -36,6 +40,7 @@ interface LiveMapCanvasProps {
   activeNavigationState: NavigationLifecycle;
   activeRiskZoneId?: string | null;
   demoDriveActive: boolean;
+  initialCamera?: Camera | null;
   mapRef: RefObject<MapView | null>;
   onMapReady: () => void;
   onMapPress: () => void;
@@ -59,6 +64,7 @@ export function LiveMapCanvas({
   activeNavigationState,
   activeRiskZoneId,
   demoDriveActive,
+  initialCamera,
   mapRef,
   onMapReady,
   onMapPress,
@@ -92,7 +98,9 @@ export function LiveMapCanvas({
       ref={mapRef}
       testID={uiTestIds.liveMapCanvas}
       style={StyleSheet.absoluteFill}
-      initialRegion={routePlan.region}
+      {...(initialCamera
+        ? { initialCamera }
+        : { initialRegion: routePlan.region })}
       cameraZoomRange={SAFE_ROUTE_CAMERA_ZOOM_RANGE}
       showsUserLocation={!demoDriveActive && permissionStatus === "granted"}
       {...(Platform.OS === "ios" && !demoDriveActive && permissionStatus === "granted"

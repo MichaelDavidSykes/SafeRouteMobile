@@ -163,6 +163,26 @@ export function resolveDriveAlongCamera(
   };
 }
 
+export function resolveDriveAlongHandoffCamera(
+  vehicleCoordinate: LatLng,
+  heading: number | null | undefined,
+  compact = false,
+): Camera {
+  const targetCamera = resolveDriveAlongCamera(
+    vehicleCoordinate,
+    heading,
+    compact,
+  ).camera;
+
+  return {
+    altitude: Number(targetCamera.altitude) * 1.42,
+    center: targetCamera.center || vehicleCoordinate,
+    heading: Number(targetCamera.heading),
+    pitch: Math.max(34, Number(targetCamera.pitch) - 16),
+    zoom: Number(targetCamera.zoom) - 0.85,
+  };
+}
+
 export function shouldAnimateDriveAlongCamera(
   previousPose: DriveAlongCameraPose | null | undefined,
   nextPose: DriveAlongCameraPose,

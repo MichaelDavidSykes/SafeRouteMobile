@@ -49,6 +49,7 @@ import {
 import {
   type DriveAlongCameraPose,
   resolveDriveAlongCamera,
+  resolveDriveAlongHandoffCamera,
   resolveActiveNavigationState,
   resolveNavigationVehicleCoordinate,
   resolveOverviewCameraReset,
@@ -704,6 +705,14 @@ export function LiveMapScreen({
     demoDriveActive,
     routeStep,
   );
+  const navigationHandoffCamera =
+    automaticNavigationStartInProgress && driveAlongCameraCoordinate
+      ? resolveDriveAlongHandoffCamera(
+          driveAlongCameraCoordinate,
+          heading,
+          layout.isCompact,
+        )
+      : null;
 
   const commitRerouteState = (nextState: LiveRerouteState) => {
     const currentState = rerouteStateRef.current;
@@ -1484,26 +1493,9 @@ export function LiveMapScreen({
       setNavigationInstanceId(createActiveNavigationInstanceId(startedAtMs));
       setNavigationStartedAtMs(startedAtMs);
     }
-    lastDriveAlongCameraPoseRef.current = null;
     driveAlongCameraActiveRef.current = true;
     setNavigationState("navigating");
     setFollowModeEnabled(true);
-    if (vehicleCoordinate) {
-      const driveAlongCamera = resolveDriveAlongCamera(
-        vehicleCoordinate,
-        heading,
-        layout.isCompact,
-      );
-      mapRef.current?.animateCamera(driveAlongCamera.camera, {
-        duration: driveAlongCamera.durationMs,
-      });
-      lastDriveAlongCameraPoseRef.current = {
-        compact: layout.isCompact,
-        coordinate: vehicleCoordinate,
-        heading,
-        state: "navigating",
-      };
-    }
   };
 
   const authorizeAndStartNavigation = async () => {
@@ -1737,7 +1729,7 @@ export function LiveMapScreen({
   return (
     <View testID={uiTestIds.liveMapScreen} style={styles.screen}>
       <MotionEntrance
-        duration={automaticNavigationStartInProgress ? 220 : undefined}
+        duration={automaticNavigationStartInProgress ? 160 : undefined}
         pointerEvents="box-none"
         replayKey={liveRoutePlan.id}
         style={styles.mapScene}
@@ -1747,6 +1739,7 @@ export function LiveMapScreen({
           activeNavigationState={activeNavigationState}
           activeRiskZoneId={activeRiskZoneId}
           demoDriveActive={demoDriveActive}
+          initialCamera={navigationHandoffCamera}
           mapRef={mapRef}
           onMapReady={handleMapReady}
           onMapPress={handleMapPress}

@@ -4,6 +4,7 @@ import { describe, it } from "node:test";
 import type { RouteProgressSnapshot } from "../src/features/live-map/routeProgress";
 import {
   resolveDriveAlongCamera,
+  resolveDriveAlongHandoffCamera,
   resolveActiveNavigationState,
   resolveNavigationVehicleCoordinate,
   resolveOverviewCameraReset,
@@ -213,6 +214,20 @@ describe("live map navigation helpers", () => {
     assert.ok(Number(compactCamera.camera.pitch) < Number(regularCamera.camera.pitch));
     assert.ok(Number(compactCamera.camera.zoom) < Number(regularCamera.camera.zoom));
     assert.ok(Number(compactCamera.camera.altitude) > Number(regularCamera.camera.altitude));
+  });
+
+  it("starts automatic guidance near POV before settling into the final camera", () => {
+    const handoffCamera = resolveDriveAlongHandoffCamera(
+      routeCoordinates[0],
+      90,
+    );
+    const finalCamera = resolveDriveAlongCamera(routeCoordinates[0], 90).camera;
+
+    assert.deepEqual(handoffCamera.center, finalCamera.center);
+    assert.equal(handoffCamera.heading, finalCamera.heading);
+    assert.ok(Number(handoffCamera.pitch) < Number(finalCamera.pitch));
+    assert.ok(Number(handoffCamera.zoom) < Number(finalCamera.zoom));
+    assert.ok(Number(handoffCamera.altitude) > Number(finalCamera.altitude));
   });
 
   it("resets tilted navigation camera back to a north-up overview", () => {

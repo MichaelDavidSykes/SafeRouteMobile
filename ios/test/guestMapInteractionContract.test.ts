@@ -265,6 +265,14 @@ describe('guest map interaction contract', () => {
       /testID=\{uiTestIds\.guestMapCollapsedStartRoute\}[\s\S]*\{collapsedRouteActionLabel\}/,
     );
     assert.match(
+      screen,
+      /setRoutePreviewHandoffPending\(true\);[\s\S]*requestAnimationFrame\(\(\) => \{[\s\S]*openRoutePreviewWithReturnState\(routePlan\)/,
+    );
+    assert.match(
+      screen,
+      /const stagedRouteActionBusy =[\s\S]*routePreviewHandoffPending/,
+    );
+    assert.match(
       styles,
       /collapsedRouteStartButton:[\s\S]*width:\s*88[\s\S]*minHeight:\s*44[\s\S]*backgroundColor:\s*colors\.appleBlueSoft/,
     );

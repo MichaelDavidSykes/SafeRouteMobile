@@ -220,6 +220,16 @@ describe("production navigation reliability integration", () => {
     );
     assert.match(
       liveMapSource,
+      /navigationHandoffCamera =[\s\S]*automaticNavigationStartInProgress[\s\S]*resolveDriveAlongHandoffCamera/,
+    );
+    assert.match(liveMapSource, /initialCamera=\{navigationHandoffCamera\}/);
+    const commitBlock = liveMapSource.slice(
+      liveMapSource.indexOf("const commitNavigationStart"),
+      liveMapSource.indexOf("const authorizeAndStartNavigation"),
+    );
+    assert.doesNotMatch(commitBlock, /animateCamera/);
+    assert.match(
+      liveMapSource,
       /duration: automaticNavigationStartInProgress[\s\S]*\? 320[\s\S]*driveAlongCamera\.durationMs/,
     );
     assert.match(

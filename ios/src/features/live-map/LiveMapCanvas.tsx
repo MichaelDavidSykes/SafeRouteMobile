@@ -1,4 +1,4 @@
-import type { RefObject } from "react";
+import { useRef, type RefObject } from "react";
 import { Platform, StyleSheet } from "react-native";
 import MapView, {
   Polyline,
@@ -84,6 +84,11 @@ export function LiveMapCanvas({
   visibleSupportFacilities,
 }: LiveMapCanvasProps) {
   const safeAreaInsets = useSafeAreaInsets();
+  const initialViewport = useRef(
+    initialCamera
+      ? { initialCamera }
+      : { initialRegion: routePlan.region },
+  ).current;
   const routeCoordinates = routePlan.route.coordinates;
   const routeLinePresentation = resolveRouteLinePresentation({
     progressCoordinateCount: progressCoordinates.length,
@@ -98,9 +103,7 @@ export function LiveMapCanvas({
       ref={mapRef}
       testID={uiTestIds.liveMapCanvas}
       style={StyleSheet.absoluteFill}
-      {...(initialCamera
-        ? { initialCamera }
-        : { initialRegion: routePlan.region })}
+      {...initialViewport}
       cameraZoomRange={SAFE_ROUTE_CAMERA_ZOOM_RANGE}
       showsUserLocation={!demoDriveActive && permissionStatus === "granted"}
       {...(Platform.OS === "ios" && !demoDriveActive && permissionStatus === "granted"

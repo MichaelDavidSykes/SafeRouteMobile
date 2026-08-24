@@ -6,6 +6,10 @@ const source = readFileSync(
   new URL('../src/features/live-map/LiveMapScreen.tsx', import.meta.url),
   'utf8',
 );
+const canvasSource = readFileSync(
+  new URL('../src/features/live-map/LiveMapCanvas.tsx', import.meta.url),
+  'utf8',
+);
 
 describe('live map camera lifecycle contract', () => {
   it('does not let delayed route framing replace active drive-along guidance', () => {
@@ -31,5 +35,17 @@ describe('live map camera lifecycle contract', () => {
     );
     assert.match(source, /onMapReady=\{handleMapReady\}/);
     assert.doesNotMatch(source, /onMapReady=\{fitRoute\}/);
+  });
+
+  it('keeps the native map mount viewport stable after the POV handoff', () => {
+    assert.match(
+      canvasSource,
+      /const initialViewport = useRef\([\s\S]*initialCamera[\s\S]*initialRegion: routePlan\.region[\s\S]*\)\.current/,
+    );
+    assert.match(canvasSource, /<MapView[\s\S]*\{\.\.\.initialViewport\}/);
+    assert.doesNotMatch(
+      canvasSource,
+      /<MapView[\s\S]*\{\.\.\.\(initialCamera[\s\S]*initialRegion/,
+    );
   });
 });

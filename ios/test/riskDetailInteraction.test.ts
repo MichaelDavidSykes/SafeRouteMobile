@@ -69,7 +69,16 @@ describe("risk detail interaction", () => {
 
     assert.match(callout, /animateOnMount=\{!morphFromRouteStack\}/);
     assert.match(callout, /routeStackMorphProgress\.value = withTiming\(open \? 1 : 0/);
-    assert.match(callout, /morphFromRouteStack \? routeStackMorphAnimatedStyle : null/);
+    assert.match(
+      callout,
+      /<Animated\.View[\s\S]*morphFromRouteStack \? routeStackMorphAnimatedStyle : null[\s\S]*<SafeRouteBottomSheet/,
+    );
+    assert.match(callout, /style=\{styles\.sheet\}/);
+    assert.match(
+      callout,
+      /enablePanDownToClose=\{!hasExpandedSnapPoint \|\| sheetIndex === 0\}/,
+    );
+    assert.match(callout, /open\)[\s\S]*sheetRef\.current\?\.snapToIndex\(0\)/);
     assert.match(callout, /runOnJS\(completeRouteStackMorphDismissal\)\(\)/);
   });
 

@@ -487,6 +487,7 @@ export function LiveMapDetailCallout({
 
     if (open) {
       dismissalNotifiedRef.current = false;
+      sheetRef.current?.snapToIndex(0);
     }
     routeStackMorphProgress.value = withTiming(open ? 1 : 0, {
       duration: open ? 220 : 180,
@@ -553,18 +554,20 @@ export function LiveMapDetailCallout({
   }, [expanded, hasExpandedSnapPoint]);
 
   return (
-    <View
+    <Animated.View
       pointerEvents={morphFromRouteStack && !open ? "none" : "box-none"}
-      style={[StyleSheet.absoluteFill, styles.overlay]}
+      style={[
+        StyleSheet.absoluteFill,
+        styles.overlay,
+        morphFromRouteStack ? routeStackMorphAnimatedStyle : null,
+      ]}
     >
       <SafeRouteBottomSheet
         animateOnMount={!morphFromRouteStack}
         animatedIndex={animatedSheetIndex}
         bottomInset={bottomInset}
         detached
-        enablePanDownToClose={
-          !morphFromRouteStack && (!hasExpandedSnapPoint || sheetIndex === 0)
-        }
+        enablePanDownToClose={!hasExpandedSnapPoint || sheetIndex === 0}
         index={0}
         key={replayKey}
         onChange={handleSheetChange}
@@ -572,10 +575,7 @@ export function LiveMapDetailCallout({
         overrideReduceMotion={ReduceMotion.System}
         ref={sheetRef}
         snapPoints={snapPoints}
-        style={[
-          styles.sheet,
-          morphFromRouteStack ? routeStackMorphAnimatedStyle : null,
-        ]}
+        style={styles.sheet}
       >
         <BottomSheetScrollView
           ref={scrollRef}
@@ -684,7 +684,7 @@ export function LiveMapDetailCallout({
           ) : null}
         </BottomSheetScrollView>
       </SafeRouteBottomSheet>
-    </View>
+    </Animated.View>
   );
 }
 

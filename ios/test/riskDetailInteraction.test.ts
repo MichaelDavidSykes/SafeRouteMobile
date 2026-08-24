@@ -67,7 +67,7 @@ describe("risk detail interaction", () => {
     );
     assert.match(
       liveMap,
-      /handleRiskZonePress[\s\S]*lastRiskZonePressAtMsRef\.current = Date\.now\(\)[\s\S]*setSelectedRiskZoneId\(zone\.id\)/,
+      /handleRiskZonePress[\s\S]*lastRiskZonePressAtMsRef\.current = Date\.now\(\)[\s\S]*overlayRef\.current\?\.openRiskDetail\(\{ proximity, zone \}\)[\s\S]*setSelectedRiskZoneId\(zone\.id\)/,
     );
     assert.match(
       liveMap,
@@ -86,7 +86,7 @@ describe("risk detail interaction", () => {
     );
 
     assert.match(riskCard, /onPress\(alert\)/);
-    assert.match(riskCard, /onPressIn=\{\(event\) => \{[\s\S]*event\.stopPropagation\(\)/);
+    assert.match(riskCard, /onPressIn=\{\(event\) => \{[\s\S]*event\.stopPropagation\(\)[\s\S]*onPress\(alert\)/);
     assert.match(riskCard, /onPress=\{\(event\) => \{[\s\S]*event\.stopPropagation\(\)/);
     assert.match(
       overlay,
@@ -140,6 +140,7 @@ describe("risk detail interaction", () => {
       /openImmediately \? \{ duration: 1 \} : undefined[\s\S]*routeStackMorphProgress\.value = 1/,
     );
     assert.match(callout, /runOnJS\(completeRouteStackMorphDismissal\)\(\)/);
+    assert.doesNotMatch(callout, /key=\{replayKey\}/);
   });
 
   it("keeps one content tree mounted while the native sheet changes snap points", () => {

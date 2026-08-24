@@ -1,4 +1,11 @@
-import { useEffect, useRef, useState } from "react";
+import {
+  forwardRef,
+  useCallback,
+  useEffect,
+  useImperativeHandle,
+  useRef,
+  useState,
+} from "react";
 import {
   SafeAreaView,
   useSafeAreaInsets,
@@ -64,7 +71,15 @@ interface RiskDetailTarget {
   zone: RiskZone;
 }
 
-export function LiveMapOverlay({
+export interface LiveMapOverlayHandle {
+  dismissRiskDetail: () => void;
+  openRiskDetail: (target: RiskDetailTarget) => void;
+}
+
+export const LiveMapOverlay = forwardRef<
+  LiveMapOverlayHandle,
+  LiveMapOverlayProps
+>(function LiveMapOverlay({
   activeNavigationState,
   alertsVisible,
   guidance,
@@ -95,15 +110,18 @@ export function LiveMapOverlay({
   selectedRiskZone,
   selectedRiskProximity,
   trackingLabel,
-}: LiveMapOverlayProps) {
+}, ref) {
   const safeAreaInsets = useSafeAreaInsets();
   const [openLiveRiskAlert, setOpenLiveRiskAlert] =
     useState<LiveRouteRiskAlert | null>(null);
+  const [openedRiskDetail, setOpenedRiskDetail] =
+    useState<RiskDetailTarget | null>(null);
   const retainedSelectedRiskDetailRef = useRef<RiskDetailTarget | null>(null);
   const guidanceCardVisible = shouldShowGuidanceCard(activeNavigationState);
-  const selectedRiskDetail: RiskDetailTarget | null = selectedRiskZone
+  const propSelectedRiskDetail: RiskDetailTarget | null = selectedRiskZone
     ? { proximity: selectedRiskProximity, zone: selectedRiskZone }
     : null;
+  const selectedRiskDetail = openedRiskDetail || propSelectedRiskDetail;
   const advisoryRiskDetail: RiskDetailTarget | null = riskAdvisory
     ? { proximity: riskAdvisory.proximity, zone: riskAdvisory.zone }
     : null;
@@ -118,8 +136,23 @@ export function LiveMapOverlay({
     advisoryRiskDetail ||
     retainedSelectedRiskDetailRef.current;
 
+  const dismissOpenedRiskDetail = useCallback(() => {
+    setOpenedRiskDetail(null);
+  }, []);
+  const openRiskDetail = useCallback((target: RiskDetailTarget) => {
+    retainedSelectedRiskDetailRef.current = target;
+    setOpenLiveRiskAlert(null);
+    setOpenedRiskDetail(target);
+  }, []);
+
+  useImperativeHandle(ref, () => ({
+    dismissRiskDetail: dismissOpenedRiskDetail,
+    openRiskDetail,
+  }), [dismissOpenedRiskDetail, openRiskDetail]);
+
   useEffect(() => {
     setOpenLiveRiskAlert(null);
+    setOpenedRiskDetail(null);
     retainedSelectedRiskDetailRef.current = null;
   }, [routePlan.id]);
 
@@ -228,7 +261,10 @@ export function LiveMapOverlay({
           zone={riskDetailAlert.zone}
           onDismiss={() => {
             if (selectedRiskDetail) {
-              onDismissRiskDetail();
+              dismissOpenedRiskDetail();
+              if (propSelectedRiskDetail) {
+                onDismissRiskDetail();
+              }
               return;
             }
             setOpenLiveRiskAlert(null);
@@ -237,4 +273,4 @@ export function LiveMapOverlay({
       ) : null}
     </SafeAreaView>
   );
-}
+});

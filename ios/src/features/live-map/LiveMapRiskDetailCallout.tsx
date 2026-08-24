@@ -506,7 +506,12 @@ export function LiveMapDetailCallout({
       duration: open ? 220 : 180,
       reduceMotion: ReduceMotion.System,
     });
-  }, [morphFromRouteStack, open, openImmediately, routeStackMorphProgress]);
+  }, [
+    morphFromRouteStack,
+    open,
+    openImmediately,
+    routeStackMorphProgress,
+  ]);
 
   useEffect(() => {
     if (previousReplayKeyRef.current === replayKey) {
@@ -582,7 +587,6 @@ export function LiveMapDetailCallout({
         detached
         enablePanDownToClose={!hasExpandedSnapPoint || sheetIndex === 0}
         index={0}
-        key={replayKey}
         onChange={handleSheetChange}
         onClose={handleSheetClosed}
         overrideReduceMotion={ReduceMotion.System}

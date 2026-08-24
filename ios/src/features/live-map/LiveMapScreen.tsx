@@ -26,7 +26,10 @@ import {
 } from "./liveMapUiState";
 import { resolveLiveMapOverlayLayout } from "./liveMapLayout";
 import { LiveMapCanvas } from "./LiveMapCanvas";
-import { LiveMapOverlay } from "./LiveMapOverlay";
+import {
+  LiveMapOverlay,
+  type LiveMapOverlayHandle,
+} from "./LiveMapOverlay";
 import { createRouteRiskAdvisory } from "./liveRouteRiskAdvisory";
 import {
   calculateRiskZoneRouteProximity,
@@ -186,6 +189,7 @@ export function LiveMapScreen({
     automaticNavigationStartRequested,
   );
   const mapRef = useRef<MapView | null>(null);
+  const overlayRef = useRef<LiveMapOverlayHandle | null>(null);
   const activeRerouteRequestRef = useRef<AbortController | null>(null);
   const lastDriveAlongCameraPoseRef = useRef<DriveAlongCameraPose | null>(null);
   const driveAlongCameraActiveRef = useRef(
@@ -1705,9 +1709,23 @@ export function LiveMapScreen({
 
   const handleRiskZonePress = useCallback((zone: RiskZone) => {
     lastRiskZonePressAtMsRef.current = Date.now();
+    if (
+      activeNavigationState === "navigating" ||
+      activeNavigationState === "off-route"
+    ) {
+      const proximity = routeRiskIndex.entries.find(
+        (entry) => entry.proximity.zone.id === zone.id,
+      )?.proximity || calculateRiskZoneRouteProximity(
+        liveRoutePlan.route.coordinates,
+        zone,
+      );
+      overlayRef.current?.openRiskDetail({ proximity, zone });
+      setAlertsVisible(true);
+      return;
+    }
     setSelectedRiskZoneId(zone.id);
     setAlertsVisible(true);
-  }, []);
+  }, [activeNavigationState, liveRoutePlan.route.coordinates, routeRiskIndex]);
 
   const handleDismissRiskDetail = () => {
     setSelectedRiskZoneId(null);
@@ -1728,6 +1746,7 @@ export function LiveMapScreen({
     if (Date.now() - lastRiskZonePressAtMsRef.current < 500) {
       return;
     }
+    overlayRef.current?.dismissRiskDetail();
     setSelectedRiskZoneId(null);
   };
 
@@ -1762,6 +1781,7 @@ export function LiveMapScreen({
       </MotionEntrance>
 
       <LiveMapOverlay
+        ref={overlayRef}
         activeNavigationState={navigationPresentationState}
         alertsVisible={alertsVisible}
         guidance={guidance}

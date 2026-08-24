@@ -55,6 +55,7 @@ export function LiveRouteRiskAlertCard({
       }}
       onPressIn={(event) => {
         event.stopPropagation();
+        onPress(alert);
       }}
     >
       <View

@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import {
   SafeAreaView,
   useSafeAreaInsets,
@@ -13,7 +13,7 @@ import {
   type NavigationLifecycle,
 } from "./liveMapUiState";
 import type { RouteProgressSnapshot } from "./routeProgress";
-import type { LiveRouteRiskAlert } from "./routeRisk";
+import type { LiveRouteRiskAlert, RouteRiskProximity } from "./routeRisk";
 import { LiveMapControls } from "./LiveMapControls";
 import {
   LiveMapGuidanceCard,
@@ -35,6 +35,7 @@ interface LiveMapOverlayProps {
   locationNotice: string | null;
   onCenterVehicle: () => void;
   onChangeRoute: () => void;
+  onDismissRiskDetail: () => void;
   onFitRoute: () => void;
   onPrimaryAction: () => void;
   onShareRoute: () => void;
@@ -54,7 +55,13 @@ interface LiveMapOverlayProps {
   routePlan: SavedSafeRoutePlan;
   sharePending?: boolean;
   selectedRiskZone: RiskZone | null;
+  selectedRiskProximity: RouteRiskProximity | null;
   trackingLabel: string;
+}
+
+interface RiskDetailTarget {
+  proximity: RouteRiskProximity | null;
+  zone: RiskZone;
 }
 
 export function LiveMapOverlay({
@@ -66,6 +73,7 @@ export function LiveMapOverlay({
   locationNotice,
   onCenterVehicle,
   onChangeRoute,
+  onDismissRiskDetail,
   onFitRoute,
   onPrimaryAction,
   onShareRoute,
@@ -85,17 +93,30 @@ export function LiveMapOverlay({
   routePlan,
   sharePending,
   selectedRiskZone,
+  selectedRiskProximity,
   trackingLabel,
 }: LiveMapOverlayProps) {
   const safeAreaInsets = useSafeAreaInsets();
   const [openLiveRiskAlert, setOpenLiveRiskAlert] =
     useState<LiveRouteRiskAlert | null>(null);
+  const retainedSelectedRiskDetailRef = useRef<RiskDetailTarget | null>(null);
   const guidanceCardVisible = shouldShowGuidanceCard(activeNavigationState);
-  const liveRiskDetailOpen = Boolean(openLiveRiskAlert);
-  const riskDetailAlert = openLiveRiskAlert || liveRiskAlert;
+  const selectedRiskDetail: RiskDetailTarget | null = selectedRiskZone
+    ? { proximity: selectedRiskProximity, zone: selectedRiskZone }
+    : null;
+  if (selectedRiskDetail) {
+    retainedSelectedRiskDetailRef.current = selectedRiskDetail;
+  }
+  const riskDetailOpen = Boolean(selectedRiskDetail || openLiveRiskAlert);
+  const riskDetailAlert: RiskDetailTarget | null =
+    selectedRiskDetail ||
+    openLiveRiskAlert ||
+    liveRiskAlert ||
+    retainedSelectedRiskDetailRef.current;
 
   useEffect(() => {
     setOpenLiveRiskAlert(null);
+    retainedSelectedRiskDetailRef.current = null;
   }, [routePlan.id]);
 
   return (
@@ -149,13 +170,12 @@ export function LiveMapOverlay({
         />
       ) : null}
 
-      {!selectedRiskZone ? (
-        <View
-          accessibilityElementsHidden={liveRiskDetailOpen}
+      <View
+          accessibilityElementsHidden={riskDetailOpen}
           importantForAccessibility={
-            liveRiskDetailOpen ? "no-hide-descendants" : "auto"
+            riskDetailOpen ? "no-hide-descendants" : "auto"
           }
-          pointerEvents={liveRiskDetailOpen ? "none" : "box-none"}
+          pointerEvents={riskDetailOpen ? "none" : "box-none"}
           style={styles.routeStack}
         >
           {liveRiskAlert ? (
@@ -190,16 +210,21 @@ export function LiveMapOverlay({
             sharePending={sharePending}
           />
         </View>
-      ) : null}
 
-      {!selectedRiskZone && riskDetailAlert ? (
+      {riskDetailAlert ? (
         <LiveMapRiskDetailCallout
           bottomInset={safeAreaInsets.bottom + 12}
           morphFromRouteStack
-          open={liveRiskDetailOpen}
+          open={riskDetailOpen}
           proximity={riskDetailAlert.proximity}
           zone={riskDetailAlert.zone}
-          onDismiss={() => setOpenLiveRiskAlert(null)}
+          onDismiss={() => {
+            if (selectedRiskDetail) {
+              onDismissRiskDetail();
+              return;
+            }
+            setOpenLiveRiskAlert(null);
+          }}
         />
       ) : null}
     </SafeAreaView>

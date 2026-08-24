@@ -33,6 +33,7 @@ describe("risk detail interaction", () => {
       canvas,
       /event\.nativeEvent\.action !== "marker-press"[\s\S]*onMapPress\(\)/,
     );
+    assert.doesNotMatch(canvas, /<LiveMapRiskDetailCallout/);
     assert.match(callout, /<SafeRouteBottomSheet/);
     assert.match(callout, /enablePanDownToClose/);
     assert.match(callout, /onClose=\{handleSheetClosed\}/);
@@ -82,9 +83,13 @@ describe("risk detail interaction", () => {
     assert.match(overlay, /onPress=\{setOpenLiveRiskAlert\}/);
     assert.match(overlay, /<LiveMapRiskDetailCallout/);
     assert.match(overlay, /morphFromRouteStack/);
-    assert.match(overlay, /open=\{liveRiskDetailOpen\}/);
+    assert.match(overlay, /open=\{riskDetailOpen\}/);
     assert.match(overlay, /proximity=\{riskDetailAlert\.proximity\}/);
-    assert.match(overlay, /pointerEvents=\{liveRiskDetailOpen \? "none" : "box-none"\}/);
+    assert.match(
+      overlay,
+      /selectedRiskDetail \|\|[\s\S]*openLiveRiskAlert \|\|[\s\S]*liveRiskAlert/,
+    );
+    assert.match(overlay, /pointerEvents=\{riskDetailOpen \? "none" : "box-none"\}/);
     assert.doesNotMatch(overlay, /onOpenRiskAlert/);
   });
 

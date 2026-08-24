@@ -5,10 +5,8 @@ import MapView, {
   type Camera,
   type LatLng,
 } from "react-native-maps";
-import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import type { PermissionStatus } from "./liveLocationState";
-import type { RouteRiskProximity } from "./routeRisk";
 import type {
   RiskZone,
   SavedSafeRoutePlan,
@@ -21,7 +19,6 @@ import {
   SupportFacilityMarker,
   VehicleMarker,
 } from "./LiveMapMarkers";
-import { LiveMapRiskDetailCallout } from "./LiveMapRiskDetailCallout";
 import { resolveRouteLinePresentation } from "./routeLinePresentation";
 import { uiTestIds } from "../../testing/uiTestIds";
 import {
@@ -47,14 +44,11 @@ interface LiveMapCanvasProps {
   onPanDrag: () => void;
   onRegionChangeComplete?: () => void;
   onRiskZonePress: (zone: RiskZone) => void;
-  onDismissRiskDetail: () => void;
   offline: boolean;
   permissionStatus: PermissionStatus;
   progressCoordinates: LatLng[];
   routePlan: SavedSafeRoutePlan;
   selectedRiskZoneId?: string | null;
-  selectedRiskZone?: RiskZone | null;
-  selectedRiskProximity?: RouteRiskProximity | null;
   vehicleCoordinate: LatLng | null;
   visibleRiskZones: RiskZone[];
   visibleSupportFacilities: SupportFacility[];
@@ -71,19 +65,15 @@ export function LiveMapCanvas({
   onPanDrag,
   onRegionChangeComplete,
   onRiskZonePress,
-  onDismissRiskDetail,
   offline,
   permissionStatus,
   progressCoordinates,
   routePlan,
   selectedRiskZoneId,
-  selectedRiskZone,
-  selectedRiskProximity,
   vehicleCoordinate,
   visibleRiskZones,
   visibleSupportFacilities,
 }: LiveMapCanvasProps) {
-  const safeAreaInsets = useSafeAreaInsets();
   const initialViewport = useRef(
     initialCamera
       ? { initialCamera }
@@ -217,14 +207,6 @@ export function LiveMapCanvas({
         />
       ) : null}
       </MapView>
-      {selectedRiskZone ? (
-        <LiveMapRiskDetailCallout
-          bottomInset={safeAreaInsets.bottom + 12}
-          proximity={selectedRiskProximity}
-          zone={selectedRiskZone}
-          onDismiss={onDismissRiskDetail}
-        />
-      ) : null}
     </>
   );
 }

@@ -1749,15 +1749,12 @@ export function LiveMapScreen({
           onMapReady={handleMapReady}
           onMapPress={handleMapPress}
           onPanDrag={handleMapPanDrag}
-          onDismissRiskDetail={handleDismissRiskDetail}
           onRiskZonePress={handleRiskZonePress}
           offline={!online}
           permissionStatus={permissionStatus}
           progressCoordinates={progressCoordinates}
           routePlan={liveRoutePlan}
           selectedRiskZoneId={selectedRiskZoneId}
-          selectedRiskZone={selectedRiskZone}
-          selectedRiskProximity={selectedRiskProximity}
           vehicleCoordinate={vehicleCoordinate}
           visibleRiskZones={visibleRiskZones}
           visibleSupportFacilities={visibleSupportFacilities}
@@ -1773,6 +1770,7 @@ export function LiveMapScreen({
         locationNotice={automaticNavigationStartInProgress ? null : locationNotice}
         onCenterVehicle={centerOnVehicle}
         onChangeRoute={onChangeRoute}
+        onDismissRiskDetail={handleDismissRiskDetail}
         onFitRoute={fitRouteFromControl}
         onPrimaryAction={handlePrimaryNavigationAction}
         onShareRoute={() => {
@@ -1800,6 +1798,7 @@ export function LiveMapScreen({
         routePlan={liveRoutePlan}
         sharePending={sharePending}
         selectedRiskZone={selectedRiskZone}
+        selectedRiskProximity={selectedRiskProximity}
         trackingLabel={
           automaticNavigationStartInProgress
             ? "On route"

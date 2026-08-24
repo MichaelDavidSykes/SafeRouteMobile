@@ -766,6 +766,8 @@ export function GuestMapScreen({
     : routeAction.accessibilityHint;
   const stagedRouteActionLabel =
     !routePlan && !routeDraftReady ? 'Select locations' : routeActionLabel;
+  const collapsedRouteActionLabel =
+    routePlan && !stagedRouteActionBusy ? 'Start' : stagedRouteActionLabel;
   const stagedRouteActionAccessibilityLabel =
     !routePlan && !routeDraftReady
       ? 'Select both locations before plotting a route'
@@ -2627,14 +2629,14 @@ export function GuestMapScreen({
                 >
                   {stagedRouteActionBusy ? (
                     <ActivityIndicator
-                      color={stagedRouteActionDisabled ? colors.inkSoft : colors.surface}
+                      color={stagedRouteActionDisabled ? colors.inkSoft : colors.appleBlue}
                       size="small"
                     />
                   ) : (
                     <Navigation
                       accessibilityElementsHidden
-                      color={colors.onAccent}
-                      size={16}
+                      color={stagedRouteActionDisabled ? colors.inkSoft : colors.appleBlue}
+                      size={15}
                       strokeWidth={2.2}
                     />
                   )}
@@ -2647,7 +2649,7 @@ export function GuestMapScreen({
                         : null,
                     ]}
                   >
-                    {stagedRouteActionLabel}
+                    {collapsedRouteActionLabel}
                   </Text>
                 </Pressable>
               </View>

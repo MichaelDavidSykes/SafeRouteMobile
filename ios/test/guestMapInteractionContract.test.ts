@@ -262,11 +262,11 @@ describe('guest map interaction contract', () => {
     );
     assert.match(
       screen,
-      /testID=\{uiTestIds\.guestMapCollapsedStartRoute\}[\s\S]*\{stagedRouteActionLabel\}/,
+      /testID=\{uiTestIds\.guestMapCollapsedStartRoute\}[\s\S]*\{collapsedRouteActionLabel\}/,
     );
     assert.match(
       styles,
-      /collapsedRouteStartButton:[\s\S]*width:\s*120[\s\S]*minHeight:\s*50[\s\S]*backgroundColor:\s*colors\.appleBlue/,
+      /collapsedRouteStartButton:[\s\S]*width:\s*88[\s\S]*minHeight:\s*44[\s\S]*backgroundColor:\s*colors\.appleBlueSoft/,
     );
     assert.match(styles, /collapsedRouteReadyIcon:[\s\S]*backgroundColor:\s*colors\.appleBlueSoft/);
     assert.match(

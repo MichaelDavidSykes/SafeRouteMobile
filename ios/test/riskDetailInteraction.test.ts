@@ -84,6 +84,11 @@ describe("risk detail interaction", () => {
     assert.match(overlay, /<LiveMapRiskDetailCallout/);
     assert.match(overlay, /morphFromRouteStack/);
     assert.match(overlay, /open=\{riskDetailOpen\}/);
+    assert.match(overlay, /openImmediately=\{Boolean\(selectedRiskDetail\)\}/);
+    assert.match(
+      overlay,
+      /selectedRiskDetail \? styles\.routeStackSuppressed : null/,
+    );
     assert.match(overlay, /proximity=\{riskDetailAlert\.proximity\}/);
     assert.match(
       overlay,
@@ -110,7 +115,14 @@ describe("risk detail interaction", () => {
       callout,
       /enablePanDownToClose=\{!hasExpandedSnapPoint \|\| sheetIndex === 0\}/,
     );
-    assert.match(callout, /open\)[\s\S]*sheetRef\.current\?\.snapToIndex\(0\)/);
+    assert.match(
+      callout,
+      /open\)[\s\S]*sheetRef\.current\?\.snapToIndex\(\s*0/,
+    );
+    assert.match(
+      callout,
+      /openImmediately \? \{ duration: 1 \} : undefined[\s\S]*routeStackMorphProgress\.value = 1/,
+    );
     assert.match(callout, /runOnJS\(completeRouteStackMorphDismissal\)\(\)/);
   });
 

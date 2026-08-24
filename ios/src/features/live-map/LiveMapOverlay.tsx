@@ -176,7 +176,10 @@ export function LiveMapOverlay({
             riskDetailOpen ? "no-hide-descendants" : "auto"
           }
           pointerEvents={riskDetailOpen ? "none" : "box-none"}
-          style={styles.routeStack}
+          style={[
+            styles.routeStack,
+            selectedRiskDetail ? styles.routeStackSuppressed : null,
+          ]}
         >
           {liveRiskAlert ? (
             <MotionEntrance
@@ -216,6 +219,7 @@ export function LiveMapOverlay({
           bottomInset={safeAreaInsets.bottom + 12}
           morphFromRouteStack
           open={riskDetailOpen}
+          openImmediately={Boolean(selectedRiskDetail)}
           proximity={riskDetailAlert.proximity}
           zone={riskDetailAlert.zone}
           onDismiss={() => {

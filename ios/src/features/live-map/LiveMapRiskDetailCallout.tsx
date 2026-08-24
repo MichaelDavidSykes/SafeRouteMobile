@@ -61,6 +61,7 @@ export function LiveMapRiskDetailCallout({
   morphFromRouteStack = false,
   onDismiss,
   open = true,
+  openImmediately = false,
   proximity,
   zone,
 }: {
@@ -68,6 +69,7 @@ export function LiveMapRiskDetailCallout({
   morphFromRouteStack?: boolean;
   onDismiss: () => void;
   open?: boolean;
+  openImmediately?: boolean;
   proximity?: RouteRiskProximity | null;
   zone: RiskZone;
 }) {
@@ -108,6 +110,7 @@ export function LiveMapRiskDetailCallout({
       morphFromRouteStack={morphFromRouteStack}
       onDismiss={onDismiss}
       open={open}
+      openImmediately={openImmediately}
       replayKey={zone.id}
       subtitle={routeAlert
         ? `Route alert · ${zone.category || "Safety intelligence"}`
@@ -387,6 +390,7 @@ export function LiveMapDetailCallout({
   morphFromRouteStack = false,
   onDismiss,
   open = true,
+  openImmediately = false,
   replayKey,
   subtitle,
   testID,
@@ -405,6 +409,7 @@ export function LiveMapDetailCallout({
   morphFromRouteStack?: boolean;
   onDismiss: () => void;
   open?: boolean;
+  openImmediately?: boolean;
   replayKey: string;
   subtitle: string;
   testID?: string;
@@ -487,13 +492,20 @@ export function LiveMapDetailCallout({
 
     if (open) {
       dismissalNotifiedRef.current = false;
-      sheetRef.current?.snapToIndex(0);
+      sheetRef.current?.snapToIndex(
+        0,
+        openImmediately ? { duration: 1 } : undefined,
+      );
+      if (openImmediately) {
+        routeStackMorphProgress.value = 1;
+        return;
+      }
     }
     routeStackMorphProgress.value = withTiming(open ? 1 : 0, {
       duration: open ? 220 : 180,
       reduceMotion: ReduceMotion.System,
     });
-  }, [morphFromRouteStack, open, routeStackMorphProgress]);
+  }, [morphFromRouteStack, open, openImmediately, routeStackMorphProgress]);
 
   useEffect(() => {
     if (previousReplayKeyRef.current === replayKey) {

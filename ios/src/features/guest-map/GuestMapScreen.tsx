@@ -2591,17 +2591,17 @@ export function GuestMapScreen({
                   onPress={handleCollapsedRouteEdit}
                 >
                   <View style={styles.collapsedSheetCopy}>
-                    <CarFront
-                      accessibilityElementsHidden
-                      color={colors.appleBlue}
-                      size={21}
-                      strokeWidth={2.2}
-                    />
-                    <View style={styles.collapsedSearchCopy}>
-                      <Text numberOfLines={1} style={styles.collapsedRouteReadyLabel}>
-                        Route ready
-                      </Text>
+                    <View style={styles.collapsedRouteReadyIcon}>
+                      <CarFront
+                        accessibilityElementsHidden
+                        color={colors.appleBlue}
+                        size={17}
+                        strokeWidth={2.1}
+                      />
                     </View>
+                    <Text numberOfLines={1} style={styles.collapsedRouteReadyLabel}>
+                      Route ready
+                    </Text>
                   </View>
                 </Pressable>
                 <Pressable
@@ -2634,8 +2634,8 @@ export function GuestMapScreen({
                     <Navigation
                       accessibilityElementsHidden
                       color={colors.onAccent}
-                      size={18}
-                      strokeWidth={2.3}
+                      size={16}
+                      strokeWidth={2.2}
                     />
                   )}
                   <Text

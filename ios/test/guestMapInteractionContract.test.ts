@@ -266,8 +266,9 @@ describe('guest map interaction contract', () => {
     );
     assert.match(
       styles,
-      /collapsedRouteStartButton:[\s\S]*minHeight:\s*52[\s\S]*backgroundColor:\s*colors\.appleBlue/,
+      /collapsedRouteStartButton:[\s\S]*width:\s*120[\s\S]*minHeight:\s*50[\s\S]*backgroundColor:\s*colors\.appleBlue/,
     );
+    assert.match(styles, /collapsedRouteReadyIcon:[\s\S]*backgroundColor:\s*colors\.appleBlueSoft/);
     assert.match(
       screen,
       /resolveGuestCollapsedRouteCardState\(\{[\s\S]*roadPreviewPending,[\s\S]*routePlotted,[\s\S]*\}\)/,
@@ -282,7 +283,7 @@ describe('guest map interaction contract', () => {
     );
     assert.match(
       styles,
-      /collapsedSheetButton:[\s\S]*minHeight:\s*60[\s\S]*collapsedRouteActions:[\s\S]*minHeight:\s*60[\s\S]*collapsedRouteStatus:[\s\S]*minHeight:\s*60/,
+      /collapsedSheetButton:[\s\S]*(?:height|minHeight):\s*60[\s\S]*collapsedRouteActions:[\s\S]*minHeight:\s*60[\s\S]*collapsedRouteStatus:[\s\S]*(?:height|minHeight):\s*60/,
     );
     assert.match(
       styles,

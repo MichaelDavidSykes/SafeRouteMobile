@@ -269,6 +269,7 @@ export function LiveMapScreen({
   const [selectedRiskZoneId, setSelectedRiskZoneId] = useState<string | null>(
     null,
   );
+  const lastRiskZonePressAtMsRef = useRef(0);
   // Expo preview sessions advance along the real snapped route automatically
   // once guidance starts. This keeps QA deterministic without exposing a
   // confusing simulation control in the customer-facing route sheet.
@@ -1703,6 +1704,7 @@ export function LiveMapScreen({
   };
 
   const handleRiskZonePress = useCallback((zone: RiskZone) => {
+    lastRiskZonePressAtMsRef.current = Date.now();
     setSelectedRiskZoneId(zone.id);
     setAlertsVisible(true);
   }, []);
@@ -1723,6 +1725,9 @@ export function LiveMapScreen({
   };
 
   const handleMapPress = () => {
+    if (Date.now() - lastRiskZonePressAtMsRef.current < 500) {
+      return;
+    }
     setSelectedRiskZoneId(null);
   };
 

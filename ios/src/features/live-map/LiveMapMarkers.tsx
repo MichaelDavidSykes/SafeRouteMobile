@@ -344,6 +344,7 @@ function RiskMarker({
       tracksViewChanges={false}
       zIndex={routeAlert ? ROUTE_ALERT_MARKER_Z_INDEX : 10}
       onPress={onPress}
+      onSelect={onPress}
     >
       <View
         accessible={visible}

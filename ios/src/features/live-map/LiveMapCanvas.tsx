@@ -128,7 +128,11 @@ export function LiveMapCanvas({
         platform: Platform.OS,
       })}
       userInterfaceStyle="dark"
-      onPress={onMapPress}
+      onPress={(event) => {
+        if (event.nativeEvent.action !== "marker-press") {
+          onMapPress();
+        }
+      }}
       onPanDrag={onPanDrag}
       onMapReady={() => {
         onMapReady();

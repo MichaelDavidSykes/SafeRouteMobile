@@ -29,10 +29,37 @@ describe("risk detail interaction", () => {
     assert.doesNotMatch(guestPanHandler, /setSelectedRiskZone\(null\)/);
     assert.doesNotMatch(livePanHandler, /setSelectedRiskZoneId\(null\)/);
     assert.match(guestMap, /onPress=\{handleMapPress\}/);
-    assert.match(canvas, /onPress=\{onMapPress\}/);
+    assert.match(
+      canvas,
+      /event\.nativeEvent\.action !== "marker-press"[\s\S]*onMapPress\(\)/,
+    );
     assert.match(callout, /<SafeRouteBottomSheet/);
     assert.match(callout, /enablePanDownToClose/);
     assert.match(callout, /onClose=\{handleSheetClosed\}/);
+  });
+
+  it("keeps pitched iOS route-alert marker taps selected", () => {
+    const liveMap = readFileSync(
+      join(process.cwd(), "src/features/live-map/LiveMapScreen.tsx"),
+      "utf8",
+    );
+    const markers = readFileSync(
+      join(process.cwd(), "src/features/live-map/LiveMapMarkers.tsx"),
+      "utf8",
+    );
+
+    assert.match(
+      markers,
+      /<Marker[\s\S]*onPress=\{onPress\}[\s\S]*onSelect=\{onPress\}/,
+    );
+    assert.match(
+      liveMap,
+      /handleRiskZonePress[\s\S]*lastRiskZonePressAtMsRef\.current = Date\.now\(\)[\s\S]*setSelectedRiskZoneId\(zone\.id\)/,
+    );
+    assert.match(
+      liveMap,
+      /handleMapPress[\s\S]*Date\.now\(\) - lastRiskZonePressAtMsRef\.current < 500[\s\S]*setSelectedRiskZoneId\(null\)/,
+    );
   });
 
   it("preloads the exact live alert and morphs it over the route stack", () => {

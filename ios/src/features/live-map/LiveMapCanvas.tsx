@@ -123,6 +123,14 @@ export function LiveMapCanvas({
           onMapPress();
         }
       }}
+      onMarkerPress={(event) => {
+        const zone = visibleRiskZones.find(
+          (candidate) => candidate.id === event.nativeEvent.id,
+        );
+        if (zone) {
+          onRiskZonePress(zone);
+        }
+      }}
       onPanDrag={onPanDrag}
       onMapReady={() => {
         onMapReady();

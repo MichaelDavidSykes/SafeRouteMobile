@@ -214,7 +214,7 @@ export const RiskOverlay = memo(function RiskOverlay({
         />
       ) : null}
       <RiskMarker
-        onPress={handlePress}
+        interactive={tappable}
         routeAlert={routeAlert}
         selected={selected}
         visible={visible}
@@ -318,13 +318,13 @@ function checkpointMarkerRole(kind: RouteCheckpoint['kind']): string {
 }
 
 function RiskMarker({
-  onPress,
+  interactive,
   selected,
   routeAlert,
   visible,
   zone
 }: {
-  onPress?: () => void;
+  interactive: boolean;
   selected?: boolean;
   routeAlert: boolean;
   visible: boolean;
@@ -336,15 +336,14 @@ function RiskMarker({
 
   return (
     <Marker
+      identifier={zone.id}
       coordinate={zone.coordinate}
       anchor={{ x: 0.5, y: 0.5 }}
       opacity={visible ? 1 : 0}
       testID={uiTestIds.liveMapRiskZone(zone.id)}
-      tappable={visible && Boolean(onPress)}
+      tappable={visible && interactive}
       tracksViewChanges={false}
       zIndex={routeAlert ? ROUTE_ALERT_MARKER_Z_INDEX : 10}
-      onPress={onPress}
-      onSelect={onPress}
     >
       <View
         accessible={visible}

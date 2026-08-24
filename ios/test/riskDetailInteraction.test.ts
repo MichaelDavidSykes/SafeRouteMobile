@@ -39,7 +39,7 @@ describe("risk detail interaction", () => {
     assert.match(callout, /onClose=\{handleSheetClosed\}/);
   });
 
-  it("keeps pitched iOS route-alert marker taps selected", () => {
+  it("opens pitched iOS route alerts from the direct native map event", () => {
     const liveMap = readFileSync(
       join(process.cwd(), "src/features/live-map/LiveMapScreen.tsx"),
       "utf8",
@@ -51,7 +51,19 @@ describe("risk detail interaction", () => {
 
     assert.match(
       markers,
-      /<Marker[\s\S]*onPress=\{onPress\}[\s\S]*onSelect=\{onPress\}/,
+      /<Marker[\s\S]*identifier=\{zone\.id\}[\s\S]*tappable=\{visible && interactive\}/,
+    );
+    assert.doesNotMatch(
+      markers,
+      /<Marker[\s\S]*onSelect=\{onPress\}/,
+    );
+    const canvas = readFileSync(
+      join(process.cwd(), "src/features/live-map/LiveMapCanvas.tsx"),
+      "utf8",
+    );
+    assert.match(
+      canvas,
+      /onMarkerPress=\{\(event\) => \{[\s\S]*candidate\.id === event\.nativeEvent\.id[\s\S]*onRiskZonePress\(zone\)/,
     );
     assert.match(
       liveMap,

@@ -1,6 +1,7 @@
 import {
   useCallback,
   useEffect,
+  memo,
   useMemo,
   useRef,
   useState,
@@ -700,7 +701,11 @@ export function LiveMapDetailCallout({
   );
 }
 
-function RiskZoneExpandedContent({ zone }: { zone: RiskZone }) {
+const RiskZoneExpandedContent = memo(function RiskZoneExpandedContent({
+  zone,
+}: {
+  zone: RiskZone;
+}) {
   const detail = createRiskZoneExpandedPresentation(zone);
   const routeAlert = isRouteAlertZone(zone);
   return (
@@ -754,7 +759,7 @@ function RiskZoneExpandedContent({ zone }: { zone: RiskZone }) {
       ) : null}
     </View>
   );
-}
+});
 
 function RiskSourceLinks({
   sources,

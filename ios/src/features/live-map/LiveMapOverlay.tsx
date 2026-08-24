@@ -104,6 +104,9 @@ export function LiveMapOverlay({
   const selectedRiskDetail: RiskDetailTarget | null = selectedRiskZone
     ? { proximity: selectedRiskProximity, zone: selectedRiskZone }
     : null;
+  const advisoryRiskDetail: RiskDetailTarget | null = riskAdvisory
+    ? { proximity: riskAdvisory.proximity, zone: riskAdvisory.zone }
+    : null;
   if (selectedRiskDetail) {
     retainedSelectedRiskDetailRef.current = selectedRiskDetail;
   }
@@ -112,6 +115,7 @@ export function LiveMapOverlay({
     selectedRiskDetail ||
     openLiveRiskAlert ||
     liveRiskAlert ||
+    advisoryRiskDetail ||
     retainedSelectedRiskDetailRef.current;
 
   useEffect(() => {

@@ -94,6 +94,10 @@ describe("risk detail interaction", () => {
       overlay,
       /selectedRiskDetail \|\|[\s\S]*openLiveRiskAlert \|\|[\s\S]*liveRiskAlert/,
     );
+    assert.match(
+      overlay,
+      /advisoryRiskDetail[\s\S]*riskAdvisory\.proximity[\s\S]*riskAdvisory\.zone/,
+    );
     assert.match(overlay, /pointerEvents=\{riskDetailOpen \? "none" : "box-none"\}/);
     assert.doesNotMatch(overlay, /onOpenRiskAlert/);
   });

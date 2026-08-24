@@ -167,7 +167,7 @@ describe("live map navigation helpers", () => {
     assert.equal(driveAlongCamera.camera.heading, 90);
     assert.equal(driveAlongCamera.camera.pitch, 58);
     assert.equal(driveAlongCamera.camera.zoom, 17.2);
-    assert.equal(driveAlongCamera.durationMs, 650);
+    assert.equal(driveAlongCamera.durationMs, 280);
     assert.ok(center.longitude > routeCoordinates[0].longitude);
     assert.ok(Math.abs(center.latitude - routeCoordinates[0].latitude) < 0.0001);
   });

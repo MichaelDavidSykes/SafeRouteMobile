@@ -36,6 +36,8 @@ describe("live route risk advisory", () => {
 
     assert.ok(advisory);
     assert.equal(advisory.severity, "high");
+    assert.equal(advisory.zone.id, "high-near");
+    assert.equal(advisory.proximity.zone.id, "high-near");
     assert.equal(advisory.tone, "danger");
     assert.match(advisory.visibleLabel, /^High risk ahead · \d+ m$/);
     assert.match(

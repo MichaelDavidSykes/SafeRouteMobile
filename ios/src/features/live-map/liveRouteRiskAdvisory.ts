@@ -17,10 +17,12 @@ export type RouteRiskAdvisoryTone = "danger" | "warning" | "info";
 export interface RouteRiskAdvisory {
   accessibilityLabel: string;
   distanceAheadMeters: number;
+  proximity: RouteRiskProximity;
   severity: RiskSeverity;
   title: string;
   tone: RouteRiskAdvisoryTone;
   visibleLabel: string;
+  zone: RiskZone;
 }
 
 interface RouteRiskAdvisoryOptions {
@@ -140,6 +142,7 @@ function createRiskCandidate({
       .filter(Boolean)
       .join(" "),
     distanceAheadMeters,
+    proximity,
     priorityBucket: resolvePriorityBucket(distanceAheadMeters),
     severity: zone.severity,
     title,
@@ -148,6 +151,7 @@ function createRiskCandidate({
       distanceAheadMeters <= 0
         ? `${severityLabel} here`
         : `${severityLabel} ahead · ${distanceLabel}`,
+    zone,
   };
 }
 

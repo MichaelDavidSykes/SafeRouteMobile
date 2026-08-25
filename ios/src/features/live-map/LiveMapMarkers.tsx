@@ -328,8 +328,8 @@ function RiskMarker({
 
   return (
     <Marker
-      accessible={visible}
-      accessibilityElementsHidden={!visible}
+      accessible={visible && interactive}
+      accessibilityElementsHidden={!visible || !interactive}
       accessibilityLabel={createRiskZoneAccessibilityLabel(zone, Boolean(selected))}
       accessibilityRole="button"
       accessibilityState={{ selected: Boolean(selected) }}

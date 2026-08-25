@@ -1,8 +1,17 @@
-import { useMemo, useRef, type RefObject } from "react";
+import {
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  type RefObject,
+} from "react";
 import {
   Platform,
+  Pressable,
   StyleSheet,
   useWindowDimensions,
+  View,
   type GestureResponderEvent,
 } from "react-native";
 import MapView, {
@@ -46,6 +55,14 @@ import {
 
 const POV_RISK_MARKER_TOLERANCE_MULTIPLIER = 1.8;
 const DIRECT_RISK_TOUCH_SUPPRESSION_MS = 1_200;
+const ACTIVE_RISK_TOUCH_TARGET_SIZE = 52;
+const ACTIVE_RISK_PROJECTION_REGION_MARGIN = 1.5;
+const MAX_ACTIVE_RISK_TOUCH_TARGETS = 32;
+
+interface ActiveRiskTouchTarget {
+  point: { x: number; y: number };
+  zone: RiskZone;
+}
 
 interface LiveMapCanvasProps {
   activeNavigationState: NavigationLifecycle;
@@ -100,6 +117,10 @@ export function LiveMapCanvas({
   ).current;
   const latestRegionRef = useRef<Region>(routePlan.region);
   const lastDirectRiskTouchAtMsRef = useRef(0);
+  const riskTouchProjectionRevisionRef = useRef(0);
+  const [activeRiskTouchTargets, setActiveRiskTouchTargets] = useState<
+    ActiveRiskTouchTarget[]
+  >([]);
   const routeCoordinates = routePlan.route.coordinates;
   const routeLinePresentation = resolveRouteLinePresentation({
     progressCoordinateCount: progressCoordinates.length,
@@ -112,6 +133,63 @@ export function LiveMapCanvas({
     () => mountedRiskZones.filter((zone) => visibleRiskZoneIds.has(zone.id)),
     [mountedRiskZones, visibleRiskZoneIds],
   );
+  const activeRiskTouchLayerVisible =
+    activeNavigationState === "navigating" ||
+    activeNavigationState === "off-route";
+  const refreshActiveRiskTouchTargets = useCallback(() => {
+    const revision = riskTouchProjectionRevisionRef.current + 1;
+    riskTouchProjectionRevisionRef.current = revision;
+    const map = mapRef.current;
+    if (!activeRiskTouchLayerVisible || !map) {
+      setActiveRiskTouchTargets([]);
+      return;
+    }
+
+    const region = latestRegionRef.current;
+    const candidateZones = visibleRiskZones
+      .filter((zone) => riskZoneCouldBeVisibleInRegion(zone, region))
+      .sort((first, second) => (
+        riskZoneDistanceFromRegionCenter(first, region) -
+        riskZoneDistanceFromRegionCenter(second, region)
+      ))
+      .slice(0, MAX_ACTIVE_RISK_TOUCH_TARGETS);
+
+    void Promise.all(candidateZones.map(async (zone) => {
+      try {
+        const point = await map.pointForCoordinate(zone.coordinate);
+        return { point, zone };
+      } catch {
+        return null;
+      }
+    })).then((targets) => {
+      if (riskTouchProjectionRevisionRef.current !== revision) {
+        return;
+      }
+
+      const viewportMargin = ACTIVE_RISK_TOUCH_TARGET_SIZE / 2;
+      setActiveRiskTouchTargets(targets.filter(
+        (target): target is ActiveRiskTouchTarget => Boolean(
+          target &&
+          Number.isFinite(target.point.x) &&
+          Number.isFinite(target.point.y) &&
+          target.point.x >= -viewportMargin &&
+          target.point.x <= viewport.width + viewportMargin &&
+          target.point.y >= -viewportMargin &&
+          target.point.y <= viewport.height + viewportMargin
+        ),
+      ));
+    });
+  }, [
+    activeRiskTouchLayerVisible,
+    mapRef,
+    viewport.height,
+    viewport.width,
+    visibleRiskZones,
+  ]);
+
+  useEffect(() => {
+    refreshActiveRiskTouchTargets();
+  }, [refreshActiveRiskTouchTargets]);
   const completedSegmentCoordinates = progressCoordinates.length > 1
     ? progressCoordinates
     : routeCoordinates.slice(0, 2);
@@ -244,9 +322,11 @@ export function LiveMapCanvas({
         onPanDrag={onPanDrag}
         onMapReady={() => {
           onMapReady();
+          requestAnimationFrame(refreshActiveRiskTouchTargets);
         }}
         onRegionChangeComplete={(region) => {
           latestRegionRef.current = region;
+          refreshActiveRiskTouchTargets();
           onRegionChangeComplete?.();
         }}
       >
@@ -299,7 +379,9 @@ export function LiveMapCanvas({
         <RiskOverlay
           key={zone.id}
           active={zone.id === activeRiskZoneId}
-          interactive={visibleRiskZoneIds.has(zone.id)}
+          interactive={
+            visibleRiskZoneIds.has(zone.id) && !activeRiskTouchLayerVisible
+          }
           onPress={onRiskZonePress}
           routeCoordinates={routeCoordinates}
           visible={visibleRiskZoneIds.has(zone.id)}
@@ -338,6 +420,70 @@ export function LiveMapCanvas({
         />
       ) : null}
       </MapView>
+      {activeRiskTouchLayerVisible ? (
+        <View pointerEvents="box-none" style={styles.activeRiskTouchLayer}>
+          {activeRiskTouchTargets.map(({ point, zone }) => (
+            <Pressable
+              accessibilityLabel={`Open risk alert: ${zone.title}`}
+              accessibilityRole="button"
+              key={zone.id}
+              onPressIn={(event) => {
+                event.stopPropagation();
+                lastDirectRiskTouchAtMsRef.current = Date.now();
+                onMapInteractionStart();
+                onRiskZonePress(zone);
+              }}
+              style={[
+                styles.activeRiskTouchTarget,
+                {
+                  left: point.x - ACTIVE_RISK_TOUCH_TARGET_SIZE / 2,
+                  top: point.y - ACTIVE_RISK_TOUCH_TARGET_SIZE / 2,
+                },
+              ]}
+              testID={uiTestIds.liveMapActiveRiskTouchTarget(zone.id)}
+            />
+          ))}
+        </View>
+      ) : null}
     </>
   );
 }
+
+function riskZoneCouldBeVisibleInRegion(zone: RiskZone, region: Region): boolean {
+  const latitudeDelta = Math.max(region.latitudeDelta, 0.001);
+  const longitudeDelta = Math.max(region.longitudeDelta, 0.001);
+  return (
+    Math.abs(zone.coordinate.latitude - region.latitude) <=
+      latitudeDelta * ACTIVE_RISK_PROJECTION_REGION_MARGIN &&
+    longitudeDistance(
+      zone.coordinate.longitude,
+      region.longitude,
+    ) <= longitudeDelta * ACTIVE_RISK_PROJECTION_REGION_MARGIN
+  );
+}
+
+function riskZoneDistanceFromRegionCenter(zone: RiskZone, region: Region): number {
+  const latitudeDistance = zone.coordinate.latitude - region.latitude;
+  const normalizedLongitudeDistance = longitudeDistance(
+    zone.coordinate.longitude,
+    region.longitude,
+  );
+  return latitudeDistance ** 2 + normalizedLongitudeDistance ** 2;
+}
+
+function longitudeDistance(first: number, second: number): number {
+  const directDistance = Math.abs(first - second);
+  return Math.min(directDistance, 360 - directDistance);
+}
+
+const styles = StyleSheet.create({
+  activeRiskTouchLayer: {
+    ...StyleSheet.absoluteFillObject,
+    zIndex: 1,
+  },
+  activeRiskTouchTarget: {
+    height: ACTIVE_RISK_TOUCH_TARGET_SIZE,
+    position: "absolute",
+    width: ACTIVE_RISK_TOUCH_TARGET_SIZE,
+  },
+});

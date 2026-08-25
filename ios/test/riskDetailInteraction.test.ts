@@ -82,6 +82,18 @@ describe("risk detail interaction", () => {
     );
     assert.match(canvas, /onTouchStart=\{handleMapTouchStart\}/);
     assert.match(
+      canvas,
+      /activeRiskTouchLayerVisible[\s\S]*pointForCoordinate\(zone\.coordinate\)[\s\S]*activeRiskTouchTargets\.map/,
+    );
+    assert.match(
+      canvas,
+      /<Pressable[\s\S]*onPressIn=\{\(event\) => \{[\s\S]*onMapInteractionStart\(\);[\s\S]*onRiskZonePress\(zone\)/,
+    );
+    assert.match(
+      canvas,
+      /interactive=\{[\s\S]*visibleRiskZoneIds\.has\(zone\.id\) && !activeRiskTouchLayerVisible/,
+    );
+    assert.match(
       liveMap,
       /handleRiskZonePress[\s\S]*lastRiskZonePressAtMsRef\.current = pressedAtMs[\s\S]*overlayRef\.current\?\.openRiskDetail\(\{ proximity, zone \}\)/,
     );

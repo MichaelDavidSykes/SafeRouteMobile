@@ -36,7 +36,10 @@ describe('map facing-direction indicator', () => {
       liveCanvas,
       /Platform\.OS === "ios" && !demoDriveActive && permissionStatus === "granted"[\s\S]*showsUserHeadingIndicator: true/,
     );
-    assert.match(liveCanvas, /vehicleCoordinate && demoDriveActive[\s\S]*<VehicleMarker/);
+    assert.match(
+      liveCanvas,
+      /<VehicleMarker[\s\S]*coordinate=\{vehicleCoordinate \|\| routeCoordinates\[0\]\}[\s\S]*visible=\{Boolean\(vehicleCoordinate && demoDriveActive\)\}/,
+    );
     assert.doesNotMatch(
       liveCanvas,
       /CompassTrackedHeadingOverlay|onUserLocationChange|nativeUserCoordinate|mapCameraHeadingDegrees/,

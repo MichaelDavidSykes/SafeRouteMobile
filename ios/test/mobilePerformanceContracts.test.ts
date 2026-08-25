@@ -141,12 +141,12 @@ describe("mobile performance contracts", () => {
     assert.equal(summary.route.navigationSteps?.length, 0);
   });
 
-  it("virtualizes list rows and mounts only the visible native risk set", () => {
+  it("virtualizes list rows and mounts only the bounded native risk inventory", () => {
     const canvas = source("src/features/live-map/LiveMapCanvas.tsx");
     const routeList = source("src/features/routes/RouteListScreen.tsx");
     const operations = source("src/features/operations/OperationsScreen.tsx");
 
-    assert.match(canvas, /visibleRiskZones\.map/);
+    assert.match(canvas, /mountedRiskZones\.map/);
     assert.doesNotMatch(canvas, /routePlan\.riskZones\.map/);
     assert.match(routeList, /<FlatList[\s\S]*initialNumToRender=\{8\}[\s\S]*windowSize=\{7\}/);
     assert.match(routeList, /onEndReached=\{\(\) => void loadNextRoutePage\(\)\}/);

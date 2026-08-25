@@ -1,4 +1,3 @@
-import type { ComponentProps, ComponentType } from 'react';
 import { memo } from 'react';
 import {
   AlertTriangle,
@@ -41,13 +40,6 @@ import {
   supportFacilityKindLabel,
 } from './supportFacilities';
 
-type TappableCircleProps = ComponentProps<typeof Circle> & {
-  onPress?: () => void;
-  tappable?: boolean;
-};
-
-const TappableCircle = Circle as ComponentType<TappableCircleProps>;
-
 const ROUTE_PROXIMITY_CASING_Z_INDEX = 32;
 const ROUTE_PROXIMITY_CORE_Z_INDEX = 33;
 const ROUTE_ALERT_CONNECTOR_Z_INDEX = 39;
@@ -57,6 +49,7 @@ const ROUTE_ALERT_MARKER_Z_INDEX = 42;
 
 export const RiskOverlay = memo(function RiskOverlay({
   active,
+  interactive = true,
   onPress,
   routeCoordinates,
   selected,
@@ -64,35 +57,25 @@ export const RiskOverlay = memo(function RiskOverlay({
   zone
 }: {
   active?: boolean;
+  interactive?: boolean;
   onPress?: (zone: RiskZone) => void;
   routeCoordinates?: Array<{ latitude: number; longitude: number }>;
   selected?: boolean;
   visible?: boolean;
   zone: RiskZone;
 }) {
-  if (!visible) {
-    return null;
-  }
-
   const routeSegmentCoordinates = zone.routeSegmentCoordinates || [];
   const connectorCoordinates = zone.connectorCoordinates || [];
   const polygonCoordinates = zone.polygonCoordinates || [];
   const routeAlert = isRouteAlertZone(zone);
   const showRouteProximitySegment = routeAlert || selected || active;
   const routeAlertCoordinates =
-    showRouteProximitySegment && routeSegmentCoordinates.length <= 1
+    routeSegmentCoordinates.length <= 1
       ? buildRouteRiskAlertSegment(routeCoordinates || [], zone)
       : [];
-  const handlePress = (event?: { stopPropagation?: () => void }) => {
-    if (!visible) {
-      return;
-    }
-    event?.stopPropagation?.();
-    onPress?.(zone);
-  };
   const riskTone = resolveRiskOverlayTone(zone);
   const riskColors = severityOverlayColors(riskTone);
-  const tappable = visible && Boolean(onPress);
+  const tappable = visible && interactive && Boolean(onPress);
   const emphasized = Boolean(selected || active);
   const showSegmentCasing = !routeAlert || emphasized;
   const casingColor = visible ? SAFE_ROUTE_DARK_ROUTE_CASING : 'transparent';
@@ -122,64 +105,60 @@ export const RiskOverlay = memo(function RiskOverlay({
     <>
       {routeAlertCoordinates.length > 1 ? (
         <>
-          {showSegmentCasing ? (
-            <Polyline
-              coordinates={routeAlertCoordinates}
-              strokeColor={casingColor}
-              strokeWidth={segmentCasingWidth}
-              lineCap="round"
-              lineJoin="round"
-              zIndex={segmentCasingZIndex}
-              tappable={tappable}
-              onPress={handlePress}
-            />
-          ) : null}
           <Polyline
             coordinates={routeAlertCoordinates}
-            strokeColor={riskStrokeColor}
+            strokeColor={showRouteProximitySegment && showSegmentCasing
+              ? casingColor
+              : 'transparent'}
+            strokeWidth={segmentCasingWidth}
+            lineCap="round"
+            lineJoin="round"
+            zIndex={segmentCasingZIndex}
+          />
+          <Polyline
+            coordinates={routeAlertCoordinates}
+            strokeColor={showRouteProximitySegment ? riskStrokeColor : 'transparent'}
             strokeWidth={segmentCoreWidth}
             lineCap="round"
             lineJoin="round"
             zIndex={segmentCoreZIndex}
             testID={uiTestIds.liveMapRouteRiskSegment(zone.id)}
-            tappable={tappable}
-            onPress={handlePress}
           />
         </>
       ) : null}
-      {showRouteProximitySegment && routeSegmentCoordinates.length > 1 ? (
+      {routeSegmentCoordinates.length > 1 ? (
         <>
-          {showSegmentCasing ? (
-            <Polyline
-              coordinates={routeSegmentCoordinates}
-              strokeColor={casingColor}
-              strokeWidth={segmentCasingWidth}
-              lineCap="round"
-              lineJoin="round"
-              zIndex={segmentCasingZIndex}
-              tappable={tappable}
-              onPress={handlePress}
-            />
-          ) : null}
           <Polyline
             coordinates={routeSegmentCoordinates}
-            strokeColor={riskStrokeColor}
+            strokeColor={
+              showRouteProximitySegment && showSegmentCasing
+                ? casingColor
+                : 'transparent'
+            }
+            strokeWidth={segmentCasingWidth}
+            lineCap="round"
+            lineJoin="round"
+            zIndex={segmentCasingZIndex}
+          />
+          <Polyline
+            coordinates={routeSegmentCoordinates}
+            strokeColor={showRouteProximitySegment ? riskStrokeColor : 'transparent'}
             strokeWidth={segmentCoreWidth}
             lineCap="round"
             lineJoin="round"
             zIndex={segmentCoreZIndex}
             testID={uiTestIds.liveMapRouteRiskSegment(zone.id)}
-            tappable={tappable}
-            onPress={handlePress}
           />
         </>
       ) : null}
-      {showRouteProximitySegment
-        && connectorCoordinates.length > 1
-        && (!routeAlert || emphasized) ? (
+      {connectorCoordinates.length > 1 ? (
         <Polyline
           coordinates={connectorCoordinates}
-          strokeColor={riskStrokeColor}
+          strokeColor={
+            showRouteProximitySegment && (!routeAlert || emphasized)
+              ? riskStrokeColor
+              : 'transparent'
+          }
           strokeWidth={2}
           lineDashPattern={[3, 9]}
           lineCap="round"
@@ -187,8 +166,6 @@ export const RiskOverlay = memo(function RiskOverlay({
           zIndex={routeAlert
             ? ROUTE_ALERT_CONNECTOR_Z_INDEX
             : ROUTE_PROXIMITY_CASING_Z_INDEX}
-          tappable={tappable}
-          onPress={handlePress}
         />
       ) : null}
       {shouldRenderRiskCoverage(zone) && polygonCoordinates.length > 2 ? (
@@ -198,23 +175,20 @@ export const RiskOverlay = memo(function RiskOverlay({
           fillColor={coverageFillColor}
           strokeWidth={selected ? 1 : 0}
           testID={uiTestIds.liveMapRiskZoneArea(zone.id)}
-          tappable={tappable}
-          onPress={handlePress}
         />
       ) : shouldRenderRiskCoverage(zone) ? (
-        <TappableCircle
+        <Circle
           center={zone.coordinate}
           radius={visibleRiskRadiusMeters(zone)}
           strokeColor={coverageStrokeColor}
           fillColor={coverageFillColor}
           strokeWidth={selected ? 1 : 0}
           testID={uiTestIds.liveMapRiskZoneArea(zone.id)}
-          tappable={tappable}
-          onPress={handlePress}
         />
       ) : null}
       <RiskMarker
         interactive={tappable}
+        onPress={onPress ? () => onPress(zone) : undefined}
         routeAlert={routeAlert}
         selected={selected}
         visible={visible}
@@ -224,17 +198,28 @@ export const RiskOverlay = memo(function RiskOverlay({
   );
 });
 
-export function CheckpointMarker({ checkpoint }: { checkpoint: RouteCheckpoint }) {
+export function CheckpointMarker({
+  checkpoint,
+  visible = true,
+}: {
+  checkpoint: RouteCheckpoint;
+  visible?: boolean;
+}) {
   const markerRole = checkpointMarkerRole(checkpoint.kind);
 
   return (
     <Marker
       coordinate={checkpoint.coordinate}
       anchor={{ x: 0.5, y: 0.5 }}
+      opacity={visible ? 1 : 0}
+      tappable={visible}
       title={checkpoint.caption}
       description={markerRole}
+      tracksViewChanges={false}
     >
       <View
+        accessible={visible}
+        accessibilityElementsHidden={!visible}
         accessibilityLabel={`${markerRole}: ${checkpoint.caption}`}
         accessibilityRole="image"
         style={styles.checkpointMarkerHitArea}
@@ -266,8 +251,10 @@ export function CheckpointMarker({ checkpoint }: { checkpoint: RouteCheckpoint }
 
 export const SupportFacilityMarker = memo(function SupportFacilityMarker({
   facility,
+  visible = true,
 }: {
   facility: SupportFacility;
+  visible?: boolean;
 }) {
   const hospital = facility.kind === 'hospital' || facility.supportType === 'hospital';
   const police = facility.kind === 'police';
@@ -279,6 +266,8 @@ export const SupportFacilityMarker = memo(function SupportFacilityMarker({
     <Marker
       coordinate={facility.coordinate}
       anchor={{ x: 0.5, y: 0.5 }}
+      opacity={visible ? 1 : 0}
+      tappable={visible}
       title={facility.label}
       description={supportFacilityCalloutDescription(facility)}
       testID={uiTestIds.supportFacility(facility.id)}
@@ -286,7 +275,8 @@ export const SupportFacilityMarker = memo(function SupportFacilityMarker({
       zIndex={43}
     >
       <View
-        accessible
+        accessible={visible}
+        accessibilityElementsHidden={!visible}
         accessibilityLabel={`${facility.label}. ${kindLabel}. ${supportFacilityCalloutDescription(facility)}`}
         accessibilityRole="button"
         style={styles.supportFacilityMarkerHitArea}
@@ -319,12 +309,14 @@ function checkpointMarkerRole(kind: RouteCheckpoint['kind']): string {
 
 function RiskMarker({
   interactive,
+  onPress,
   selected,
   routeAlert,
   visible,
   zone
 }: {
   interactive: boolean;
+  onPress?: () => void;
   selected?: boolean;
   routeAlert: boolean;
   visible: boolean;
@@ -336,22 +328,24 @@ function RiskMarker({
 
   return (
     <Marker
+      accessible={visible}
+      accessibilityElementsHidden={!visible}
+      accessibilityLabel={createRiskZoneAccessibilityLabel(zone, Boolean(selected))}
+      accessibilityRole="button"
+      accessibilityState={{ selected: Boolean(selected) }}
       identifier={zone.id}
       coordinate={zone.coordinate}
       anchor={{ x: 0.5, y: 0.5 }}
       opacity={visible ? 1 : 0}
+      onPress={onPress}
       testID={uiTestIds.liveMapRiskZone(zone.id)}
       tappable={visible && interactive}
       tracksViewChanges={false}
       zIndex={routeAlert ? ROUTE_ALERT_MARKER_Z_INDEX : 10}
     >
       <View
-        accessible={visible}
-        accessibilityLabel={createRiskZoneAccessibilityLabel(zone, Boolean(selected))}
-        accessibilityElementsHidden={!visible}
-        accessibilityRole="button"
-        accessibilityState={{ selected: Boolean(selected) }}
-        testID={uiTestIds.liveMapRiskZone(zone.id)}
+        accessible={false}
+        accessibilityElementsHidden
         style={routeAlert ? styles.routeAlertMarkerHitArea : styles.riskMarkerHitArea}
       >
         <View
@@ -388,10 +382,12 @@ export function VehicleMarker({
   coordinate,
   demoDriveEnabled = false,
   testID,
+  visible = true,
 }: {
   coordinate: LatLng;
   demoDriveEnabled?: boolean;
   testID?: string;
+  visible?: boolean;
 }) {
   const markerTitle = demoDriveEnabled ? 'Route preview position' : 'Current position';
 
@@ -399,13 +395,16 @@ export function VehicleMarker({
     <Marker
       coordinate={coordinate}
       anchor={{ x: 0.5, y: 0.5 }}
+      opacity={visible ? 1 : 0}
+      tappable={visible}
       testID={testID}
       title={markerTitle}
       tracksViewChanges={false}
       zIndex={100}
     >
       <View
-        accessible
+        accessible={visible}
+        accessibilityElementsHidden={!visible}
         accessibilityLabel={createVehicleMarkerAccessibilityLabel(demoDriveEnabled)}
         accessibilityRole="image"
         collapsable={false}

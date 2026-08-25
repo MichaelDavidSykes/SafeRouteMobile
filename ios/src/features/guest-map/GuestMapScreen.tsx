@@ -199,6 +199,11 @@ import {
   type SafeRouteRoutePreferences,
 } from './routePreferences';
 import { routePreferencesStore } from './routePreferencesStore';
+import {
+  resolveMapPolylineAtCoordinate,
+  resolveRiskMapTapToleranceMeters,
+  resolveRiskZoneAtMapCoordinate,
+} from '../live-map/mapRiskInteraction';
 
 const GUEST_LOCATION_SEARCH_DEBOUNCE_MS = 320;
 const GUEST_LOCATION_SEARCH_MIN_LENGTH = 2;
@@ -339,6 +344,7 @@ export function GuestMapScreen({
     networkRequestEpochRef.current += 1;
   }
   const mapRef = useRef<MapView | null>(null);
+  const lastRiskZonePressAtMsRef = useRef(0);
   const activeRoadRouteRequestRef = useRef<AbortController | null>(null);
   const activeRoadRouteWorkspaceIdRef = useRef<string | null>(null);
   const provisionalRoutePlanIdRef = useRef<string | null>(null);
@@ -840,7 +846,6 @@ export function GuestMapScreen({
       ? routeRenderSession.riskZones
       : resolveGuestMapRenderedRiskZones({
           mapRegion,
-          selectedRiskZoneId: selectedRiskZone?.id,
           zones: visibleRiskZones,
         }),
     [
@@ -850,7 +855,6 @@ export function GuestMapScreen({
       mapRegion.longitudeDelta,
       routeCollectionRevision,
       routePlan,
-      selectedRiskZone?.id,
       visibleRiskZones,
     ],
   );
@@ -2024,6 +2028,7 @@ export function GuestMapScreen({
   };
 
   const handleSelectRiskZone = useCallback((zone: RiskZone) => {
+    lastRiskZonePressAtMsRef.current = Date.now();
     setMapAction(null);
     setSelectedRiskZone(zone);
     setSheetCollapsed(true);
@@ -2038,7 +2043,34 @@ export function GuestMapScreen({
   };
 
   const handleMapPress = (event: MapPressEvent) => {
-    if (event.nativeEvent.action === 'marker-press') {
+    if (
+      event.nativeEvent.action === 'marker-press' ||
+      Date.now() - lastRiskZonePressAtMsRef.current < 500
+    ) {
+      return;
+    }
+
+    const tapToleranceMeters = resolveRiskMapTapToleranceMeters({
+      region: mapRegion,
+      viewportHeight: viewport.height,
+    });
+    const zone = resolveRiskZoneAtMapCoordinate({
+      coordinate: event.nativeEvent.coordinate,
+      toleranceMeters: tapToleranceMeters,
+      zones: renderedRiskZones,
+    });
+    if (zone) {
+      handleSelectRiskZone(zone);
+      return;
+    }
+
+    const alternativeLine = resolveMapPolylineAtCoordinate({
+      coordinate: event.nativeEvent.coordinate,
+      polylines: routeRenderSession.lines.filter((line) => !line.selected),
+      toleranceMeters: tapToleranceMeters,
+    });
+    if (alternativeLine) {
+      handleRouteAlternativeSelect(alternativeLine.plan);
       return;
     }
 
@@ -2263,18 +2295,16 @@ export function GuestMapScreen({
             strokeWidth={line.strokeWidth}
             lineCap="round"
             lineJoin="round"
-            tappable={!line.selected}
             zIndex={line.zIndex}
-            onPress={() => handleRouteAlternativeSelect(line.plan)}
           />
         )) : null}
         {renderedRiskZones.map((zone) => (
           <RiskOverlay
             key={zone.id}
-            routeCoordinates={routeMapCoordinates}
-            selected={selectedRiskZone?.id === zone.id}
-            zone={zone}
+            interactive
             onPress={handleSelectRiskZone}
+            routeCoordinates={routeMapCoordinates}
+            zone={zone}
           />
         ))}
         {(routePlan?.supportFacilities || []).map((facility) => (
@@ -2309,6 +2339,7 @@ export function GuestMapScreen({
             coordinate={mapAction.coordinate}
             anchor={{ x: 0.5, y: 0.5 }}
             accessibilityLabel="Selected map location"
+            tracksViewChanges={false}
           >
             <View style={[styles.marker, styles.markerSelected]}>
               <View style={styles.markerCore} />
@@ -4028,11 +4059,9 @@ function persistentPlaceMatchKey(place: {
 
 function resolveGuestMapRenderedRiskZones({
   mapRegion,
-  selectedRiskZoneId,
   zones,
 }: {
   mapRegion: Region;
-  selectedRiskZoneId?: string;
   zones: RiskZone[];
 }): RiskZone[] {
   const halfLatitudeDelta = Math.max(0.005, mapRegion.latitudeDelta / 2);
@@ -4046,7 +4075,6 @@ function resolveGuestMapRenderedRiskZones({
 
   return zones
     .filter((zone) =>
-      zone.id === selectedRiskZoneId ||
       areaRiskItemIntersectsBounds({
         ...zone,
         coordinates:
@@ -4056,12 +4084,6 @@ function resolveGuestMapRenderedRiskZones({
       }, bounds)
     )
     .sort((left, right) => {
-      const selectedPriority =
-        Number(right.id === selectedRiskZoneId) -
-        Number(left.id === selectedRiskZoneId);
-      if (selectedPriority) {
-        return selectedPriority;
-      }
       const severityPriority =
         guestRiskSeverityPriority(right.severity) -
         guestRiskSeverityPriority(left.severity);
@@ -4133,6 +4155,7 @@ function GuestDraftCheckpointMarker({
         ? { x: 0.5, y: 0.88 }
         : { x: 0.5, y: 0.5 }}
       zIndex={selected ? 92 : 88}
+      tracksViewChanges={false}
     >
       <View
         accessibilityLabel={`Selected ${checkpointKindLabel(checkpoint.kind).toLowerCase()}: ${checkpoint.caption}`}

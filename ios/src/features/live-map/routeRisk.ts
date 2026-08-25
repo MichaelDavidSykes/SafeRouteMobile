@@ -730,7 +730,7 @@ function calculateRouteSegmentRiskZoneRouteProximity(
   };
 }
 
-function calculateRiskZoneCoordinateProximity(
+export function calculateRiskZoneCoordinateProximity(
   coordinate: LatLng,
   zone: RiskZone
 ): { distanceMeters: number; inside: boolean } {

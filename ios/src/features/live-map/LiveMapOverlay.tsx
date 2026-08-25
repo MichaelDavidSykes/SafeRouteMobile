@@ -42,7 +42,6 @@ interface LiveMapOverlayProps {
   locationNotice: string | null;
   onCenterVehicle: () => void;
   onChangeRoute: () => void;
-  onDismissRiskDetail: () => void;
   onFitRoute: () => void;
   onPrimaryAction: () => void;
   onShareRoute: () => void;
@@ -61,8 +60,6 @@ interface LiveMapOverlayProps {
   routeContext: "guest" | "saved";
   routePlan: SavedSafeRoutePlan;
   sharePending?: boolean;
-  selectedRiskZone: RiskZone | null;
-  selectedRiskProximity: RouteRiskProximity | null;
   trackingLabel: string;
 }
 
@@ -88,7 +85,6 @@ export const LiveMapOverlay = forwardRef<
   locationNotice,
   onCenterVehicle,
   onChangeRoute,
-  onDismissRiskDetail,
   onFitRoute,
   onPrimaryAction,
   onShareRoute,
@@ -107,8 +103,6 @@ export const LiveMapOverlay = forwardRef<
   routeContext,
   routePlan,
   sharePending,
-  selectedRiskZone,
-  selectedRiskProximity,
   trackingLabel,
 }, ref) {
   const safeAreaInsets = useSafeAreaInsets();
@@ -116,12 +110,12 @@ export const LiveMapOverlay = forwardRef<
     useState<RiskDetailTarget | null>(null);
   const retainedSelectedRiskDetailRef = useRef<RiskDetailTarget | null>(null);
   const guidanceCardVisible = shouldShowGuidanceCard(activeNavigationState);
-  const propSelectedRiskDetail: RiskDetailTarget | null = selectedRiskZone
-    ? { proximity: selectedRiskProximity, zone: selectedRiskZone }
-    : null;
-  const selectedRiskDetail = openedRiskDetail || propSelectedRiskDetail;
+  const selectedRiskDetail = openedRiskDetail;
   const advisoryRiskDetail: RiskDetailTarget | null = riskAdvisory
     ? { proximity: riskAdvisory.proximity, zone: riskAdvisory.zone }
+    : null;
+  const fallbackRiskDetail: RiskDetailTarget | null = routePlan.riskZones[0]
+    ? { proximity: null, zone: routePlan.riskZones[0] }
     : null;
   if (selectedRiskDetail) {
     retainedSelectedRiskDetailRef.current = selectedRiskDetail;
@@ -131,7 +125,8 @@ export const LiveMapOverlay = forwardRef<
     selectedRiskDetail ||
     liveRiskAlert ||
     advisoryRiskDetail ||
-    retainedSelectedRiskDetailRef.current;
+    retainedSelectedRiskDetailRef.current ||
+    fallbackRiskDetail;
 
   const dismissOpenedRiskDetail = useCallback(() => {
     setOpenedRiskDetail(null);
@@ -262,9 +257,6 @@ export const LiveMapOverlay = forwardRef<
           onDismiss={() => {
             if (selectedRiskDetail) {
               dismissOpenedRiskDetail();
-              if (propSelectedRiskDetail) {
-                onDismissRiskDetail();
-              }
               return;
             }
           }}

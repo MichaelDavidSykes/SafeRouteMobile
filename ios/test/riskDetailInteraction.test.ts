@@ -30,8 +30,17 @@ describe("risk detail interaction", () => {
     assert.doesNotMatch(livePanHandler, /setSelectedRiskZoneId\(null\)/);
     assert.match(guestMap, /onPress=\{handleMapPress\}/);
     assert.match(
+      guestMap,
+      /resolveMapPolylineAtCoordinate\([\s\S]*handleRouteAlternativeSelect\(alternativeLine\.plan\)/,
+    );
+    assert.doesNotMatch(guestMap, /tappable=\{!line\.selected\}/);
+    assert.doesNotMatch(
+      guestMap,
+      /onPress=\{\(\) => handleRouteAlternativeSelect\(line\.plan\)\}/,
+    );
+    assert.match(
       canvas,
-      /event\.nativeEvent\.action !== "marker-press"[\s\S]*onMapPress\(\)/,
+      /event\.nativeEvent\.action === "marker-press"[\s\S]*resolveRiskZoneAtMapCoordinate[\s\S]*onMapPress\(\)/,
     );
     assert.doesNotMatch(canvas, /<LiveMapRiskDetailCallout/);
     assert.match(callout, /<SafeRouteBottomSheet/);
@@ -51,7 +60,7 @@ describe("risk detail interaction", () => {
 
     assert.match(
       markers,
-      /<Marker[\s\S]*identifier=\{zone\.id\}[\s\S]*tappable=\{visible && interactive\}/,
+      /<Marker[\s\S]*accessibilityLabel=\{createRiskZoneAccessibilityLabel[\s\S]*onPress=\{onPress\}[\s\S]*tappable=\{visible && interactive\}/,
     );
     assert.doesNotMatch(
       markers,
@@ -61,17 +70,16 @@ describe("risk detail interaction", () => {
       join(process.cwd(), "src/features/live-map/LiveMapCanvas.tsx"),
       "utf8",
     );
-    assert.match(
-      canvas,
-      /onMarkerPress=\{\(event\) => \{[\s\S]*candidate\.id === event\.nativeEvent\.id[\s\S]*onRiskZonePress\(zone\)/,
-    );
+    assert.match(canvas, /<RiskOverlay[\s\S]*onPress=\{onRiskZonePress\}/);
+    assert.doesNotMatch(canvas, /onMarkerPress=/);
     assert.match(
       liveMap,
-      /handleRiskZonePress[\s\S]*lastRiskZonePressAtMsRef\.current = Date\.now\(\)[\s\S]*overlayRef\.current\?\.openRiskDetail\(\{ proximity, zone \}\)[\s\S]*setSelectedRiskZoneId\(zone\.id\)/,
+      /handleRiskZonePress[\s\S]*lastRiskZonePressAtMsRef\.current = Date\.now\(\)[\s\S]*overlayRef\.current\?\.openRiskDetail\(\{ proximity, zone \}\)/,
     );
+    assert.doesNotMatch(liveMap, /setSelectedRiskZoneId/);
     assert.match(
       liveMap,
-      /handleMapPress[\s\S]*Date\.now\(\) - lastRiskZonePressAtMsRef\.current < 500[\s\S]*setSelectedRiskZoneId\(null\)/,
+      /handleMapPress[\s\S]*Date\.now\(\) - lastRiskZonePressAtMsRef\.current < 500[\s\S]*overlayRef\.current\?\.dismissRiskDetail\(\)/,
     );
   });
 
@@ -108,6 +116,14 @@ describe("risk detail interaction", () => {
     assert.match(
       overlay,
       /advisoryRiskDetail[\s\S]*riskAdvisory\.proximity[\s\S]*riskAdvisory\.zone/,
+    );
+    assert.match(
+      overlay,
+      /fallbackRiskDetail[\s\S]*routePlan\.riskZones\[0\][\s\S]*proximity: null/,
+    );
+    assert.match(
+      overlay,
+      /retainedSelectedRiskDetailRef\.current \|\|[\s\S]*fallbackRiskDetail/,
     );
     assert.match(overlay, /pointerEvents=\{riskDetailOpen \? "none" : "box-none"\}/);
     assert.doesNotMatch(overlay, /onOpenRiskAlert/);

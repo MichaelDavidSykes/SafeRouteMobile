@@ -270,9 +270,6 @@ export function LiveMapScreen({
   const [progressFloorMeters, setProgressFloorMeters] = useState(
     resumedNavigationSession?.progressFloorMeters || 0,
   );
-  const [selectedRiskZoneId, setSelectedRiskZoneId] = useState<string | null>(
-    null,
-  );
   const lastRiskZonePressAtMsRef = useRef(0);
   // Expo preview sessions advance along the real snapped route automatically
   // once guidance starts. This keeps QA deterministic without exposing a
@@ -419,7 +416,7 @@ export function LiveMapScreen({
     void stopBackgroundNavigation();
     setNavigationState("stopped");
     setPendingNavigationStart(false);
-    setSelectedRiskZoneId(null);
+    overlayRef.current?.dismissRiskDetail();
     setFollowModeEnabled(false);
     setBackgroundTrackingRequested(false);
   };
@@ -652,6 +649,38 @@ export function LiveMapScreen({
     (progress?.travelledDistanceMeters || 0) / 250,
   );
   const activeRiskZoneId = liveRiskAlert?.zone.id || null;
+  const mountedRiskZoneCandidates = useMemo(
+    () => cullVisibleRiskZones({
+      progress: null,
+      riskIndex: routeRiskIndex,
+      riskZones: liveRoutePlan.riskZones,
+    }),
+    [liveRoutePlan.riskZones, routeRiskIndex],
+  );
+  const liveMapInventoryRef = useRef({
+    riskZones: mountedRiskZoneCandidates,
+    routeId: liveRoutePlan.route.id,
+    supportFacilities: liveRoutePlan.supportFacilities || [],
+  });
+  // Fabric can corrupt react-native-maps' native child indexes if route
+  // intelligence is inserted or removed while the pitched map is animating.
+  // Freeze the bounded inventory during guidance; visibility still updates in
+  // place and a genuine reroute receives a fresh, intentionally remounted map.
+  const liveMapInventoryLocked =
+    activeNavigationState === "navigating" ||
+    activeNavigationState === "off-route";
+  if (
+    liveMapInventoryRef.current.routeId !== liveRoutePlan.route.id ||
+    !liveMapInventoryLocked
+  ) {
+    liveMapInventoryRef.current = {
+      riskZones: mountedRiskZoneCandidates,
+      routeId: liveRoutePlan.route.id,
+      supportFacilities: liveRoutePlan.supportFacilities || [],
+    };
+  }
+  const mountedRiskZones = liveMapInventoryRef.current.riskZones;
+  const mountedSupportFacilities = liveMapInventoryRef.current.supportFacilities;
   const visibleRiskZones = useMemo(() => {
     const visible = resolveVisibleRiskZones({
       alertsVisible,
@@ -664,7 +693,6 @@ export function LiveMapScreen({
       progress,
       riskIndex: routeRiskIndex,
       riskZones: visible,
-      selectedRiskZoneId,
     });
   }, [
     activeNavigationState,
@@ -673,29 +701,10 @@ export function LiveMapScreen({
     liveRoutePlan.riskZones,
     riskCullProgressBucket,
     routeRiskIndex,
-    selectedRiskZoneId,
   ]);
-  const visibleSupportFacilities = useMemo(
-    () => alertsVisible ? liveRoutePlan.supportFacilities || [] : [],
-    [alertsVisible, liveRoutePlan.supportFacilities],
-  );
-  const selectedRiskZone = useMemo(
-    () =>
-      liveRoutePlan.riskZones.find((zone) => zone.id === selectedRiskZoneId) ||
-      null,
-    [liveRoutePlan.riskZones, selectedRiskZoneId],
-  );
-  const selectedRiskProximity = useMemo(
-    () =>
-      selectedRiskZone
-        ? routeRiskIndex.entries.find(
-            (entry) => entry.proximity.zone.id === selectedRiskZone.id,
-          )?.proximity || calculateRiskZoneRouteProximity(
-          liveRoutePlan.route.coordinates,
-          selectedRiskZone,
-        )
-        : null,
-    [liveRoutePlan.route.coordinates, selectedRiskZone],
+  const visibleRiskZoneIds = useMemo(
+    () => new Set(visibleRiskZones.map((zone) => zone.id)),
+    [visibleRiskZones],
   );
   const severeRouteRiskViolation = useMemo(
     () => auditRouteRiskAvoidance(liveRoutePlan).violations.some(
@@ -840,7 +849,7 @@ export function LiveMapScreen({
       setProgressFloorMeters(0);
       setNavigationState("navigating");
       setFollowModeEnabled(true);
-      setSelectedRiskZoneId(null);
+      overlayRef.current?.dismissRiskDetail();
     } catch (error) {
       const currentRerouteState = rerouteStateRef.current;
       const requestActive =
@@ -1100,7 +1109,7 @@ export function LiveMapScreen({
     cancelNavigationStartAuthorization(navigationAuthorizationGateRef.current);
     setNavigationAuthorizationPending(false);
     setNavigationAuthorizationNotice(null);
-    setSelectedRiskZoneId(null);
+    overlayRef.current?.dismissRiskDetail();
     const timer = setTimeout(() => {
       if (
         !driveAlongCameraActiveRef.current
@@ -1709,32 +1718,20 @@ export function LiveMapScreen({
 
   const handleRiskZonePress = useCallback((zone: RiskZone) => {
     lastRiskZonePressAtMsRef.current = Date.now();
-    if (
-      activeNavigationState === "navigating" ||
-      activeNavigationState === "off-route"
-    ) {
-      const proximity = routeRiskIndex.entries.find(
-        (entry) => entry.proximity.zone.id === zone.id,
-      )?.proximity || calculateRiskZoneRouteProximity(
-        liveRoutePlan.route.coordinates,
-        zone,
-      );
-      overlayRef.current?.openRiskDetail({ proximity, zone });
-      setAlertsVisible(true);
-      return;
-    }
-    setSelectedRiskZoneId(zone.id);
+    const proximity = routeRiskIndex.entries.find(
+      (entry) => entry.proximity.zone.id === zone.id,
+    )?.proximity || calculateRiskZoneRouteProximity(
+      liveRoutePlan.route.coordinates,
+      zone,
+    );
+    overlayRef.current?.openRiskDetail({ proximity, zone });
     setAlertsVisible(true);
-  }, [activeNavigationState, liveRoutePlan.route.coordinates, routeRiskIndex]);
-
-  const handleDismissRiskDetail = () => {
-    setSelectedRiskZoneId(null);
-  };
+  }, [liveRoutePlan.route.coordinates, routeRiskIndex]);
 
   const handleSetAlertsVisible = (nextVisible: boolean) => {
     setAlertsVisible(nextVisible);
     if (!nextVisible) {
-      setSelectedRiskZoneId(null);
+      overlayRef.current?.dismissRiskDetail();
     }
   };
 
@@ -1747,7 +1744,6 @@ export function LiveMapScreen({
       return;
     }
     overlayRef.current?.dismissRiskDetail();
-    setSelectedRiskZoneId(null);
   };
 
   return (
@@ -1773,10 +1769,11 @@ export function LiveMapScreen({
           permissionStatus={permissionStatus}
           progressCoordinates={progressCoordinates}
           routePlan={liveRoutePlan}
-          selectedRiskZoneId={selectedRiskZoneId}
+          mountedRiskZones={mountedRiskZones}
+          supportFacilities={mountedSupportFacilities}
+          supportFacilitiesVisible={alertsVisible}
           vehicleCoordinate={vehicleCoordinate}
-          visibleRiskZones={visibleRiskZones}
-          visibleSupportFacilities={visibleSupportFacilities}
+          visibleRiskZoneIds={visibleRiskZoneIds}
         />
       </MotionEntrance>
 
@@ -1790,7 +1787,6 @@ export function LiveMapScreen({
         locationNotice={automaticNavigationStartInProgress ? null : locationNotice}
         onCenterVehicle={centerOnVehicle}
         onChangeRoute={onChangeRoute}
-        onDismissRiskDetail={handleDismissRiskDetail}
         onFitRoute={fitRouteFromControl}
         onPrimaryAction={handlePrimaryNavigationAction}
         onShareRoute={() => {
@@ -1817,8 +1813,6 @@ export function LiveMapScreen({
         reroutePresentation={reroutePresentation}
         routePlan={liveRoutePlan}
         sharePending={sharePending}
-        selectedRiskZone={selectedRiskZone}
-        selectedRiskProximity={selectedRiskProximity}
         trackingLabel={
           automaticNavigationStartInProgress
             ? "On route"

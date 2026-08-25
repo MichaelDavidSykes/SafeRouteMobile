@@ -76,24 +76,25 @@ describe("iOS polish audit interaction contracts", () => {
 
     assert.match(
       guestMap,
-      /\{!selectedRiskZone && !mapAction \? \([\s\S]*testID=\{uiTestIds\.guestMapCollapsedSheet\}/,
+      /\{!selectedRiskZone && !mapAction && sheetCollapsed \? \([\s\S]*testID=\{uiTestIds\.guestMapCollapsedSheet\}/,
     );
   });
 
   it("dismisses selected risk details when overlays are hidden and honors safe area", () => {
     const liveMap = source("src/features/live-map/LiveMapScreen.tsx");
     const canvas = source("src/features/live-map/LiveMapCanvas.tsx");
+    const overlay = source("src/features/live-map/LiveMapOverlay.tsx");
 
     assert.match(
       liveMap,
-      /const handleSetAlertsVisible =[\s\S]*if \(!nextVisible\) \{[\s\S]*setSelectedRiskZoneId\(null\)/,
+      /const handleSetAlertsVisible =[\s\S]*if \(!nextVisible\) \{[\s\S]*overlayRef\.current\?\.dismissRiskDetail\(\)/,
     );
     assert.match(liveMap, /onSetAlertsVisible=\{handleSetAlertsVisible\}/);
     assert.match(
       canvas,
-      /visibleRiskZones\.map\(\(zone\) => \([\s\S]*key=\{zone\.id\}/,
+      /mountedRiskZones\.map\(\(zone\) => \([\s\S]*key=\{zone\.id\}/,
     );
-    assert.match(canvas, /useSafeAreaInsets\(\)/);
-    assert.match(canvas, /bottomInset=\{safeAreaInsets\.bottom \+ 12\}/);
+    assert.match(overlay, /useSafeAreaInsets\(\)/);
+    assert.match(overlay, /bottomInset=\{safeAreaInsets\.bottom \+ 12\}/);
   });
 });

@@ -85,14 +85,13 @@ describe("risk detail interaction", () => {
       "utf8",
     );
 
-    assert.match(riskCard, /onPress\(alert\)/);
-    assert.match(riskCard, /onPressIn=\{\(event\) => \{[\s\S]*event\.stopPropagation\(\)[\s\S]*onPress\(alert\)/);
-    assert.match(riskCard, /onPress=\{\(event\) => \{[\s\S]*event\.stopPropagation\(\)/);
+    assert.match(riskCard, /lastPressInAtMsRef\.current = Date\.now\(\)[\s\S]*onPress\(alert\)/);
+    assert.match(riskCard, /Date\.now\(\) - lastPressInAtMsRef\.current > 500/);
     assert.match(
       overlay,
-      /useState<LiveRouteRiskAlert \| null>\(null\)/,
+      /onPress=\{\(alert\) => \{[\s\S]*openRiskDetail\(\{[\s\S]*proximity: alert\.proximity,[\s\S]*zone: alert\.zone/,
     );
-    assert.match(overlay, /onPress=\{setOpenLiveRiskAlert\}/);
+    assert.doesNotMatch(overlay, /openLiveRiskAlert|setOpenLiveRiskAlert/);
     assert.match(overlay, /<LiveMapRiskDetailCallout/);
     assert.match(overlay, /morphFromRouteStack/);
     assert.match(overlay, /open=\{riskDetailOpen\}/);
@@ -104,7 +103,7 @@ describe("risk detail interaction", () => {
     assert.match(overlay, /proximity=\{riskDetailAlert\.proximity\}/);
     assert.match(
       overlay,
-      /selectedRiskDetail \|\|[\s\S]*openLiveRiskAlert \|\|[\s\S]*liveRiskAlert/,
+      /selectedRiskDetail \|\|[\s\S]*liveRiskAlert/,
     );
     assert.match(
       overlay,

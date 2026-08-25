@@ -1,4 +1,5 @@
 import { AlertTriangle, ChevronRight, CircleAlert } from "lucide-react-native";
+import { useRef } from "react";
 import { Pressable, Text, View } from "react-native";
 
 import type { LiveMapOverlayLayout } from "./liveMapLayout";
@@ -23,6 +24,7 @@ export function LiveRouteRiskAlertCard({
   layout,
   onPress,
 }: LiveRouteRiskAlertCardProps) {
+  const lastPressInAtMsRef = useRef(0);
   const presentation = createLiveRouteRiskAlertPresentation(alert);
   const areaLabel = createAlertAreaLabel(alert);
   const tone: RiskCardTone =
@@ -51,10 +53,13 @@ export function LiveRouteRiskAlertCard({
       ]}
       onPress={(event) => {
         event.stopPropagation();
-        onPress(alert);
+        if (Date.now() - lastPressInAtMsRef.current > 500) {
+          onPress(alert);
+        }
       }}
       onPressIn={(event) => {
         event.stopPropagation();
+        lastPressInAtMsRef.current = Date.now();
         onPress(alert);
       }}
     >

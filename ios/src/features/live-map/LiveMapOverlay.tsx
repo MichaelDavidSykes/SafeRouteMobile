@@ -112,8 +112,6 @@ export const LiveMapOverlay = forwardRef<
   trackingLabel,
 }, ref) {
   const safeAreaInsets = useSafeAreaInsets();
-  const [openLiveRiskAlert, setOpenLiveRiskAlert] =
-    useState<LiveRouteRiskAlert | null>(null);
   const [openedRiskDetail, setOpenedRiskDetail] =
     useState<RiskDetailTarget | null>(null);
   const retainedSelectedRiskDetailRef = useRef<RiskDetailTarget | null>(null);
@@ -128,10 +126,9 @@ export const LiveMapOverlay = forwardRef<
   if (selectedRiskDetail) {
     retainedSelectedRiskDetailRef.current = selectedRiskDetail;
   }
-  const riskDetailOpen = Boolean(selectedRiskDetail || openLiveRiskAlert);
+  const riskDetailOpen = Boolean(selectedRiskDetail);
   const riskDetailAlert: RiskDetailTarget | null =
     selectedRiskDetail ||
-    openLiveRiskAlert ||
     liveRiskAlert ||
     advisoryRiskDetail ||
     retainedSelectedRiskDetailRef.current;
@@ -141,7 +138,6 @@ export const LiveMapOverlay = forwardRef<
   }, []);
   const openRiskDetail = useCallback((target: RiskDetailTarget) => {
     retainedSelectedRiskDetailRef.current = target;
-    setOpenLiveRiskAlert(null);
     setOpenedRiskDetail(target);
   }, []);
 
@@ -151,7 +147,6 @@ export const LiveMapOverlay = forwardRef<
   }), [dismissOpenedRiskDetail, openRiskDetail]);
 
   useEffect(() => {
-    setOpenLiveRiskAlert(null);
     setOpenedRiskDetail(null);
     retainedSelectedRiskDetailRef.current = null;
   }, [routePlan.id]);
@@ -228,7 +223,12 @@ export const LiveMapOverlay = forwardRef<
               <LiveRouteRiskAlertCard
                 alert={liveRiskAlert}
                 layout={layout}
-                onPress={setOpenLiveRiskAlert}
+                onPress={(alert) => {
+                  openRiskDetail({
+                    proximity: alert.proximity,
+                    zone: alert.zone,
+                  });
+                }}
               />
             </MotionEntrance>
           ) : null}
@@ -267,7 +267,6 @@ export const LiveMapOverlay = forwardRef<
               }
               return;
             }
-            setOpenLiveRiskAlert(null);
           }}
         />
       ) : null}

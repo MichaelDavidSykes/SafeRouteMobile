@@ -9,6 +9,10 @@ const JUMP_ACCURACY_BUFFER_MULTIPLIER = 2;
 const COORDINATE_SMOOTHING_DISTANCE_METERS = 60;
 const JUMP_CONFIRMATION_MAX_AGE_MS = 15_000;
 const JUMP_CONFIRMATION_MIN_RADIUS_METERS = 120;
+const ACTIVE_RENDER_MIN_INTERVAL_MS = 750;
+const ACTIVE_RENDER_IDLE_INTERVAL_MS = 2_000;
+const ACTIVE_RENDER_MIN_DISTANCE_METERS = 2;
+const ACTIVE_RENDER_MIN_HEADING_DEGREES = 10;
 
 export interface ReliableLocationSample {
   accuracyMeters: number | null;
@@ -102,6 +106,34 @@ export function canAcceptLocationSource(
   developmentRuntime: boolean,
 ): boolean {
   return mocked !== true || developmentRuntime;
+}
+
+export function shouldPublishReliableLocationSample(
+  previousPublishedSample: ReliableLocationSample | null,
+  incomingSample: ReliableLocationSample,
+  { navigationActive = false }: { navigationActive?: boolean } = {},
+): boolean {
+  if (!navigationActive || !previousPublishedSample) {
+    return true;
+  }
+
+  const elapsedMs = incomingSample.timestampMs - previousPublishedSample.timestampMs;
+  if (elapsedMs < ACTIVE_RENDER_MIN_INTERVAL_MS) {
+    return false;
+  }
+
+  if (
+    haversineDistanceMeters(previousPublishedSample, incomingSample) >=
+      ACTIVE_RENDER_MIN_DISTANCE_METERS ||
+    headingDistanceDegrees(
+      previousPublishedSample.headingDegrees,
+      incomingSample.headingDegrees,
+    ) >= ACTIVE_RENDER_MIN_HEADING_DEGREES
+  ) {
+    return true;
+  }
+
+  return elapsedMs >= ACTIVE_RENDER_IDLE_INTERVAL_MS;
 }
 
 export function applyReliableLocationSample(
@@ -273,6 +305,23 @@ function smoothLocationSample(
     latitude,
     longitude,
   };
+}
+
+function headingDistanceDegrees(
+  first: number | null,
+  second: number | null,
+): number {
+  if (
+    first === null ||
+    second === null ||
+    !Number.isFinite(first) ||
+    !Number.isFinite(second)
+  ) {
+    return 0;
+  }
+
+  const delta = Math.abs(first - second) % 360;
+  return Math.min(delta, 360 - delta);
 }
 
 function smoothHeading(

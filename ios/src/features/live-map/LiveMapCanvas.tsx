@@ -8,11 +8,9 @@ import {
 } from "react";
 import {
   Platform,
-  Pressable,
   StyleSheet,
   useWindowDimensions,
   View,
-  type GestureResponderEvent,
 } from "react-native";
 import MapView, {
   Polyline,
@@ -29,6 +27,7 @@ import type {
 } from "./liveMapTypes";
 import type { NavigationLifecycle } from "./liveMapUiState";
 import {
+  ActiveRiskTouchMarker,
   CheckpointMarker,
   RiskOverlay,
   SupportFacilityMarker,
@@ -49,11 +48,9 @@ import { SafeRouteDarkMapMask } from "../maps/SafeRouteDarkMapMask";
 import { resolveSafeRouteMapType } from "../api/mapTransportState";
 import {
   resolveRiskMapTapToleranceMeters,
-  resolveRiskMarkerAtMapCoordinate,
   resolveRiskZoneAtMapCoordinate,
 } from "./mapRiskInteraction";
 
-const POV_RISK_MARKER_TOLERANCE_MULTIPLIER = 1.8;
 const DIRECT_RISK_TOUCH_SUPPRESSION_MS = 1_200;
 const ACTIVE_RISK_TOUCH_TARGET_SIZE = 52;
 const ACTIVE_RISK_PROJECTION_REGION_MARGIN = 1.5;
@@ -193,51 +190,6 @@ export function LiveMapCanvas({
   const completedSegmentCoordinates = progressCoordinates.length > 1
     ? progressCoordinates
     : routeCoordinates.slice(0, 2);
-  const handleMapTouchStart = (event: GestureResponderEvent) => {
-    if (
-      activeNavigationState !== "navigating" &&
-      activeNavigationState !== "off-route"
-    ) {
-      return;
-    }
-
-    onMapInteractionStart();
-    const map = mapRef.current;
-    const point = {
-      x: event.nativeEvent.locationX,
-      y: event.nativeEvent.locationY,
-    };
-    if (
-      !map ||
-      !Number.isFinite(point.x) ||
-      !Number.isFinite(point.y)
-    ) {
-      return;
-    }
-
-    void map.coordinateForPoint(point).then((coordinate) => {
-      const coverageToleranceMeters = resolveRiskMapTapToleranceMeters({
-        region: latestRegionRef.current,
-        viewportHeight: viewport.height,
-      });
-      const zone = resolveRiskMarkerAtMapCoordinate({
-        coordinate,
-        toleranceMeters:
-          coverageToleranceMeters * POV_RISK_MARKER_TOLERANCE_MULTIPLIER,
-        zones: visibleRiskZones,
-      }) || resolveRiskZoneAtMapCoordinate({
-        coordinate,
-        toleranceMeters: coverageToleranceMeters,
-        zones: visibleRiskZones,
-      });
-      if (!zone) {
-        return;
-      }
-
-      lastDirectRiskTouchAtMsRef.current = Date.now();
-      onRiskZonePress(zone);
-    }).catch(() => undefined);
-  };
   // Replace the whole native map only when its structural inventory changes.
   // Ordinary navigation state and visibility updates keep every child index
   // stable, avoiding AIRMap insertion crashes and camera resets.
@@ -318,7 +270,6 @@ export function LiveMapCanvas({
           }
           onMapPress();
         }}
-        onTouchStart={handleMapTouchStart}
         onPanDrag={onPanDrag}
         onMapReady={() => {
           onMapReady();
@@ -382,6 +333,7 @@ export function LiveMapCanvas({
           interactive={
             visibleRiskZoneIds.has(zone.id) && !activeRiskTouchLayerVisible
           }
+          markerVisible={!activeRiskTouchLayerVisible}
           onPress={onRiskZonePress}
           routeCoordinates={routeCoordinates}
           visible={visibleRiskZoneIds.has(zone.id)}
@@ -423,12 +375,9 @@ export function LiveMapCanvas({
       {activeRiskTouchLayerVisible ? (
         <View pointerEvents="box-none" style={styles.activeRiskTouchLayer}>
           {activeRiskTouchTargets.map(({ point, zone }) => (
-            <Pressable
-              accessibilityLabel={`Open risk alert: ${zone.title}`}
-              accessibilityRole="button"
+            <ActiveRiskTouchMarker
               key={zone.id}
-              onPressIn={(event) => {
-                event.stopPropagation();
+              onPress={() => {
                 lastDirectRiskTouchAtMsRef.current = Date.now();
                 onMapInteractionStart();
                 onRiskZonePress(zone);
@@ -441,6 +390,7 @@ export function LiveMapCanvas({
                 },
               ]}
               testID={uiTestIds.liveMapActiveRiskTouchTarget(zone.id)}
+              zone={zone}
             />
           ))}
         </View>

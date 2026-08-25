@@ -7,6 +7,7 @@ import {
   createLocationSignalState,
   isReliableLocationSampleRecent,
   normalizeReliableLocationSample,
+  shouldPublishReliableLocationSample,
   type ReliableLocationSample,
 } from "../src/features/live-map/locationSignal";
 
@@ -25,6 +26,51 @@ function sample(
 }
 
 describe("reliable live-location signal", () => {
+  it("bounds active-navigation render updates without staling real movement", () => {
+    const previous = sample({ timestampMs: 1_000 });
+
+    assert.equal(
+      shouldPublishReliableLocationSample(
+        previous,
+        sample({ latitude: 51.50742, timestampMs: 1_400 }),
+        { navigationActive: true },
+      ),
+      false,
+    );
+    assert.equal(
+      shouldPublishReliableLocationSample(
+        previous,
+        sample({ latitude: 51.50742, timestampMs: 1_800 }),
+        { navigationActive: true },
+      ),
+      true,
+    );
+    assert.equal(
+      shouldPublishReliableLocationSample(
+        previous,
+        sample({ timestampMs: 1_800 }),
+        { navigationActive: true },
+      ),
+      false,
+    );
+    assert.equal(
+      shouldPublishReliableLocationSample(
+        previous,
+        sample({ timestampMs: 3_000 }),
+        { navigationActive: true },
+      ),
+      true,
+    );
+    assert.equal(
+      shouldPublishReliableLocationSample(
+        previous,
+        sample({ timestampMs: 1_100 }),
+        { navigationActive: false },
+      ),
+      true,
+    );
+  });
+
   it("normalizes valid samples and rejects unsafe coordinates", () => {
     assert.deepEqual(normalizeReliableLocationSample(sample()), sample());
     assert.equal(

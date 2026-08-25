@@ -48,7 +48,7 @@ describe("risk detail interaction", () => {
     assert.match(callout, /onClose=\{handleSheetClosed\}/);
   });
 
-  it("opens pitched iOS route alerts from the direct native map event", () => {
+  it("opens pitched iOS route alerts from the visible active-route marker", () => {
     const liveMap = readFileSync(
       join(process.cwd(), "src/features/live-map/LiveMapScreen.tsx"),
       "utf8",
@@ -76,23 +76,20 @@ describe("risk detail interaction", () => {
     );
     assert.match(canvas, /<RiskOverlay[\s\S]*onPress=\{onRiskZonePress\}/);
     assert.doesNotMatch(canvas, /onMarkerPress=/);
-    assert.match(
-      canvas,
-      /handleMapTouchStart[\s\S]*coordinateForPoint\(point\)[\s\S]*resolveRiskMarkerAtMapCoordinate[\s\S]*onRiskZonePress\(zone\)/,
-    );
-    assert.match(canvas, /onTouchStart=\{handleMapTouchStart\}/);
+    assert.doesNotMatch(canvas, /handleMapTouchStart|coordinateForPoint\(point\)/);
     assert.match(
       canvas,
       /activeRiskTouchLayerVisible[\s\S]*pointForCoordinate\(zone\.coordinate\)[\s\S]*activeRiskTouchTargets\.map/,
     );
     assert.match(
       canvas,
-      /<Pressable[\s\S]*onPressIn=\{\(event\) => \{[\s\S]*onMapInteractionStart\(\);[\s\S]*onRiskZonePress\(zone\)/,
+      /<ActiveRiskTouchMarker[\s\S]*onPress=\{\(\) => \{[\s\S]*onMapInteractionStart\(\);[\s\S]*onRiskZonePress\(zone\)/,
     );
     assert.match(
       canvas,
       /interactive=\{[\s\S]*visibleRiskZoneIds\.has\(zone\.id\) && !activeRiskTouchLayerVisible/,
     );
+    assert.match(canvas, /markerVisible=\{!activeRiskTouchLayerVisible\}/);
     assert.match(
       liveMap,
       /handleRiskZonePress[\s\S]*lastRiskZonePressAtMsRef\.current = pressedAtMs[\s\S]*overlayRef\.current\?\.openRiskDetail\(\{ proximity, zone \}\)/,
@@ -132,7 +129,7 @@ describe("risk detail interaction", () => {
     assert.match(overlay, /proximity=\{riskDetailAlert\.proximity\}/);
     assert.match(
       overlay,
-      /selectedRiskDetail \|\|[\s\S]*liveRiskAlert/,
+      /const preloadCandidate = liveRiskAlert \|\| advisoryRiskDetail \|\| fallbackRiskDetail/,
     );
     assert.match(
       overlay,
@@ -144,8 +141,10 @@ describe("risk detail interaction", () => {
     );
     assert.match(
       overlay,
-      /retainedSelectedRiskDetailRef\.current \|\|[\s\S]*fallbackRiskDetail/,
+      /retainedSelectedRiskDetailRef\.current \|\|[\s\S]*preloadedRiskDetailRef\.current/,
     );
+    assert.match(overlay, /onDismiss=\{dismissOpenedRiskDetail\}/);
+    assert.match(riskCard, /onPressIn=\{\(event\) => \{/);
     assert.match(overlay, /pointerEvents=\{riskDetailOpen \? "none" : "box-none"\}/);
     assert.doesNotMatch(overlay, /onOpenRiskAlert/);
   });
@@ -157,6 +156,7 @@ describe("risk detail interaction", () => {
     );
 
     assert.match(callout, /animateOnMount=\{!morphFromRouteStack\}/);
+    assert.match(callout, /LiveMapRiskDetailCallout = memo\(function/);
     assert.match(callout, /routeStackMorphProgress\.value = withTiming\(open \? 1 : 0/);
     assert.match(
       callout,

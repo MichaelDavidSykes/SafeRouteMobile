@@ -109,6 +109,7 @@ export const LiveMapOverlay = forwardRef<
   const [openedRiskDetail, setOpenedRiskDetail] =
     useState<RiskDetailTarget | null>(null);
   const retainedSelectedRiskDetailRef = useRef<RiskDetailTarget | null>(null);
+  const preloadedRiskDetailRef = useRef<RiskDetailTarget | null>(null);
   const guidanceCardVisible = shouldShowGuidanceCard(activeNavigationState);
   const selectedRiskDetail = openedRiskDetail;
   const advisoryRiskDetail: RiskDetailTarget | null = riskAdvisory
@@ -121,12 +122,17 @@ export const LiveMapOverlay = forwardRef<
     retainedSelectedRiskDetailRef.current = selectedRiskDetail;
   }
   const riskDetailOpen = Boolean(selectedRiskDetail);
+  const preloadCandidate = liveRiskAlert || advisoryRiskDetail || fallbackRiskDetail;
+  if (
+    preloadCandidate &&
+    preloadedRiskDetailRef.current?.zone.id !== preloadCandidate.zone.id
+  ) {
+    preloadedRiskDetailRef.current = preloadCandidate;
+  }
   const riskDetailAlert: RiskDetailTarget | null =
     selectedRiskDetail ||
-    liveRiskAlert ||
-    advisoryRiskDetail ||
     retainedSelectedRiskDetailRef.current ||
-    fallbackRiskDetail;
+    preloadedRiskDetailRef.current;
 
   const dismissOpenedRiskDetail = useCallback(() => {
     setOpenedRiskDetail(null);
@@ -144,6 +150,7 @@ export const LiveMapOverlay = forwardRef<
   useEffect(() => {
     setOpenedRiskDetail(null);
     retainedSelectedRiskDetailRef.current = null;
+    preloadedRiskDetailRef.current = null;
   }, [routePlan.id]);
 
   return (
@@ -254,12 +261,7 @@ export const LiveMapOverlay = forwardRef<
           openImmediately={Boolean(selectedRiskDetail)}
           proximity={riskDetailAlert.proximity}
           zone={riskDetailAlert.zone}
-          onDismiss={() => {
-            if (selectedRiskDetail) {
-              dismissOpenedRiskDetail();
-              return;
-            }
-          }}
+          onDismiss={dismissOpenedRiskDetail}
         />
       ) : null}
     </SafeAreaView>

@@ -7,7 +7,13 @@ import {
   Shield,
   ShieldCheck,
 } from 'lucide-react-native';
-import { StyleSheet, View } from 'react-native';
+import {
+  Pressable,
+  StyleSheet,
+  View,
+  type StyleProp,
+  type ViewStyle,
+} from 'react-native';
 import {
   Circle,
   Marker,
@@ -50,6 +56,7 @@ const ROUTE_ALERT_MARKER_Z_INDEX = 42;
 export const RiskOverlay = memo(function RiskOverlay({
   active,
   interactive = true,
+  markerVisible = true,
   onPress,
   routeCoordinates,
   selected,
@@ -58,6 +65,7 @@ export const RiskOverlay = memo(function RiskOverlay({
 }: {
   active?: boolean;
   interactive?: boolean;
+  markerVisible?: boolean;
   onPress?: (zone: RiskZone) => void;
   routeCoordinates?: Array<{ latitude: number; longitude: number }>;
   selected?: boolean;
@@ -191,10 +199,71 @@ export const RiskOverlay = memo(function RiskOverlay({
         onPress={onPress ? () => onPress(zone) : undefined}
         routeAlert={routeAlert}
         selected={selected}
-        visible={visible}
+        visible={visible && markerVisible}
         zone={zone}
       />
     </>
+  );
+});
+
+export const ActiveRiskTouchMarker = memo(function ActiveRiskTouchMarker({
+  onPress,
+  style,
+  testID,
+  zone,
+}: {
+  onPress: () => void;
+  style?: StyleProp<ViewStyle>;
+  testID?: string;
+  zone: RiskZone;
+}) {
+  const routeAlert = isRouteAlertZone(zone);
+  const riskTone = resolveRiskOverlayTone(zone);
+  const markerColor = severityOverlayColors(riskTone).stroke;
+
+  return (
+    <Pressable
+      accessibilityLabel={createRiskZoneAccessibilityLabel(zone, false)}
+      accessibilityRole="button"
+      hitSlop={4}
+      onPressIn={(event) => {
+        event.stopPropagation();
+        onPress();
+      }}
+      style={[styles.activeRiskTouchMarker, style]}
+      testID={testID}
+    >
+      <View
+        accessibilityElementsHidden
+        style={routeAlert ? styles.routeAlertMarkerHitArea : styles.riskMarkerHitArea}
+      >
+        <View
+          style={[
+            styles.riskMarker,
+            routeAlert ? styles.routeAlertMarker : null,
+            severityMarkerStyle(riskTone),
+            routeAlert ? { backgroundColor: markerColor } : null,
+          ]}
+        >
+          {routeAlert ? (
+            <CircleAlert
+              accessibilityElementsHidden
+              color={colors.onAccent}
+              size={14}
+              strokeWidth={2.4}
+            />
+          ) : (
+            <AlertTriangle
+              accessibilityElementsHidden
+              color={markerColor}
+              fill={severityMarkerFill(riskTone)}
+              size={severityMarkerSize(riskTone)}
+              strokeWidth={2.6}
+            />
+          )}
+        </View>
+      </View>
+    </Pressable>
   );
 });
 
@@ -518,6 +587,11 @@ function severityOverlayColors(severity: RiskOverlayTone) {
 }
 
 const styles = StyleSheet.create({
+  activeRiskTouchMarker: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    position: 'absolute',
+  },
   checkpointMarkerHitArea: {
     width: 32,
     height: 32,

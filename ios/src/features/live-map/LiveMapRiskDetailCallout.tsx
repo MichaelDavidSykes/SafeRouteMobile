@@ -57,7 +57,7 @@ import { createRiskZoneExpandedPresentation } from "./riskDetailPresentation";
 
 const RISK_DETAIL_SHEET_CONTENT_BOTTOM_PADDING = 14;
 
-export function LiveMapRiskDetailCallout({
+export const LiveMapRiskDetailCallout = memo(function LiveMapRiskDetailCallout({
   bottomInset = chrome.tabBarHeight + 18,
   morphFromRouteStack = false,
   onDismiss,
@@ -155,7 +155,7 @@ export function LiveMapRiskDetailCallout({
       ) : null}
     </LiveMapDetailCallout>
   );
-}
+});
 
 export function LiveMapRiskDetailContent({
   expanded,

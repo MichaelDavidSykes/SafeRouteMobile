@@ -25,6 +25,7 @@ import {
   canAcceptLocationSource,
   createLocationSignalState,
   isReliableLocationSampleRecent,
+  shouldPublishReliableLocationSample,
   type ReliableLocationSample
 } from './locationSignal';
 
@@ -60,6 +61,9 @@ export function useLiveLocation({
   );
   const signalStateRef = useRef(
     createLocationSignalState(initialReliableLocationRef.current)
+  );
+  const publishedSampleRef = useRef<ReliableLocationSample | null>(
+    initialReliableLocationRef.current,
   );
   const navigationActiveRef = useRef(navigationActive);
   const mountedRef = useRef(true);
@@ -106,12 +110,22 @@ export function useLiveLocation({
       nowMs: Date.now()
     });
     signalStateRef.current = transition.state;
-    setLocationQuality(transition.quality);
+    setLocationQuality((current) =>
+      current === transition.quality ? current : transition.quality
+    );
     if (!transition.accepted || !transition.state.sample) {
       return false;
     }
 
     const accepted = transition.state.sample;
+    if (!shouldPublishReliableLocationSample(
+      publishedSampleRef.current,
+      accepted,
+      { navigationActive: navigationActiveRef.current },
+    )) {
+      return true;
+    }
+    publishedSampleRef.current = accepted;
     setCoordinate({
       accuracy: accepted.accuracyMeters,
       altitude: sourceCoords?.altitude ?? null,

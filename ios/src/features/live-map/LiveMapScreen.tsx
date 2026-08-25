@@ -1382,12 +1382,11 @@ export function LiveMapScreen({
       nextCameraPose.heading,
       nextCameraPose.compact,
     );
-    const durationMs = automaticNavigationStartInProgress
-      ? 320
-      : driveAlongCamera.durationMs;
-    mapRef.current?.animateCamera(driveAlongCamera.camera, { duration: durationMs });
-    driveAlongCameraAnimationEndsAtMsRef.current =
-      cameraUpdateStartedAtMs + durationMs + DRIVE_ALONG_CAMERA_SETTLE_PADDING_MS;
+    // Keep active guidance updates synchronous. Repeated native camera
+    // animations monopolize MapKit's gesture recognizer and delay annotation
+    // presses; the initial POV handoff remains animated in handleMapReady.
+    mapRef.current?.setCamera(driveAlongCamera.camera);
+    driveAlongCameraAnimationEndsAtMsRef.current = 0;
     lastDriveAlongCameraPoseRef.current = nextCameraPose;
   }, [
     automaticNavigationStartInProgress,
@@ -1773,11 +1772,6 @@ export function LiveMapScreen({
     suspendDriveAlongCameraForMapReview();
   };
 
-  const handleMapInteractionStart = useCallback(() => {
-    driveAlongCameraInteractionPausedUntilMsRef.current =
-      Date.now() + DRIVE_ALONG_CAMERA_INTERACTION_PAUSE_MS;
-  }, []);
-
   const handleMapPress = () => {
     if (Date.now() - lastRiskZonePressAtMsRef.current < 500) {
       return;
@@ -1800,7 +1794,6 @@ export function LiveMapScreen({
           demoDriveActive={demoDriveActive}
           initialCamera={navigationHandoffCamera}
           mapRef={mapRef}
-          onMapInteractionStart={handleMapInteractionStart}
           onMapReady={handleMapReady}
           onMapPress={handleMapPress}
           onPanDrag={handleMapPanDrag}

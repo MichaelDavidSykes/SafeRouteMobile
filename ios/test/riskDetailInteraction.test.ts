@@ -48,7 +48,7 @@ describe("risk detail interaction", () => {
     assert.match(callout, /onClose=\{handleSheetClosed\}/);
   });
 
-  it("opens pitched iOS route alerts from the visible active-route marker", () => {
+  it("uses the same native marker interaction before and during navigation", () => {
     const liveMap = readFileSync(
       join(process.cwd(), "src/features/live-map/LiveMapScreen.tsx"),
       "utf8",
@@ -62,10 +62,7 @@ describe("risk detail interaction", () => {
       markers,
       /<Marker[\s\S]*accessibilityLabel=\{createRiskZoneAccessibilityLabel[\s\S]*onPress=\{onPress\}[\s\S]*tappable=\{visible && interactive\}/,
     );
-    assert.match(
-      markers,
-      /onTouchStart=\{interactive && onPress[\s\S]*event\.stopPropagation\(\)[\s\S]*onPress\(\)/,
-    );
+    assert.doesNotMatch(markers, /onTouchStart=\{interactive && onPress/);
     assert.doesNotMatch(
       markers,
       /<Marker[\s\S]*onSelect=\{onPress\}/,
@@ -77,19 +74,14 @@ describe("risk detail interaction", () => {
     assert.match(canvas, /<RiskOverlay[\s\S]*onPress=\{onRiskZonePress\}/);
     assert.doesNotMatch(canvas, /onMarkerPress=/);
     assert.doesNotMatch(canvas, /handleMapTouchStart|coordinateForPoint\(point\)/);
-    assert.match(
+    assert.doesNotMatch(
       canvas,
-      /activeRiskTouchLayerVisible[\s\S]*pointForCoordinate\(zone\.coordinate\)[\s\S]*activeRiskTouchTargets\.map/,
+      /ActiveRiskTouchMarker|activeRiskTouchLayerVisible|pointForCoordinate/,
     );
     assert.match(
       canvas,
-      /<ActiveRiskTouchMarker[\s\S]*onPress=\{\(\) => \{[\s\S]*onMapInteractionStart\(\);[\s\S]*onRiskZonePress\(zone\)/,
+      /interactive=\{visibleRiskZoneIds\.has\(zone\.id\)\}/,
     );
-    assert.match(
-      canvas,
-      /interactive=\{[\s\S]*visibleRiskZoneIds\.has\(zone\.id\) && !activeRiskTouchLayerVisible/,
-    );
-    assert.match(canvas, /markerVisible=\{!activeRiskTouchLayerVisible\}/);
     assert.match(
       liveMap,
       /handleRiskZonePress[\s\S]*lastRiskZonePressAtMsRef\.current = pressedAtMs[\s\S]*overlayRef\.current\?\.openRiskDetail\(\{ proximity, zone \}\)/,

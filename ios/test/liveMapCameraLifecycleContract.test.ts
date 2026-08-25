@@ -49,7 +49,7 @@ describe('live map camera lifecycle contract', () => {
     );
   });
 
-  it('does not queue overlapping POV camera animations during map interaction', () => {
+  it('does not animate routine POV updates or use an active-only marker layer', () => {
     assert.match(source, /driveAlongCameraAnimationEndsAtMsRef = useRef\(0\)/);
     assert.match(
       source,
@@ -57,12 +57,16 @@ describe('live map camera lifecycle contract', () => {
     );
     assert.match(
       source,
-      /driveAlongCameraAnimationEndsAtMsRef\.current =[\s\S]*cameraUpdateStartedAtMs \+ durationMs \+ DRIVE_ALONG_CAMERA_SETTLE_PADDING_MS/,
+      /Repeated native camera[\s\S]*mapRef\.current\?\.setCamera\(driveAlongCamera\.camera\)/,
     );
     assert.match(
       source,
-      /handleMapInteractionStart[\s\S]*driveAlongCameraInteractionPausedUntilMsRef\.current =[\s\S]*DRIVE_ALONG_CAMERA_INTERACTION_PAUSE_MS/,
+      /const handleMapReady = \(\) => \{[\s\S]*animateCamera\(driveAlongCamera\.camera/,
     );
-    assert.match(source, /onMapInteractionStart=\{handleMapInteractionStart\}/);
+    assert.doesNotMatch(source, /handleMapInteractionStart|onMapInteractionStart/);
+    assert.doesNotMatch(
+      canvasSource,
+      /ActiveRiskTouchMarker|activeRiskTouchLayerVisible|pointForCoordinate/,
+    );
   });
 });

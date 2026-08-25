@@ -189,8 +189,6 @@ export const uiTestIds = {
     `safe-route-risk-segment-${normalizeTestIdSegment(riskZoneId)}`,
   liveMapRiskZone: (riskZoneId: string) =>
     `safe-route-risk-zone-${normalizeTestIdSegment(riskZoneId)}`,
-  liveMapActiveRiskTouchTarget: (riskZoneId: string) =>
-    `safe-route-active-risk-touch-${normalizeTestIdSegment(riskZoneId)}`,
   supportFacility: (facilityId: string) =>
     `safe-route-support-${normalizeTestIdSegment(facilityId)}`,
 };

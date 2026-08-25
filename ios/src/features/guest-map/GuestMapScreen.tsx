@@ -369,6 +369,7 @@ export function GuestMapScreen({
   }
   const routeSheetRef = useRef<SafeRouteBottomSheetRef | null>(null);
   const routeSheetScrollRef = useRef<BottomSheetScrollViewMethods | null>(null);
+  const riskDetailScrollRef = useRef<BottomSheetScrollViewMethods | null>(null);
   const pendingRouteSheetCompletionRef = useRef<{
     collapsed: boolean;
     callback?: () => void;
@@ -577,7 +578,6 @@ export function GuestMapScreen({
     selectedRiskZone &&
       mapSheetIndex === routeSheetExpandedIndex,
   );
-  const activeSheetTargetIndex = mapSheetIndex;
   const collapsedSheetAnimatedStyle = useAnimatedStyle(() => ({
     opacity: interpolate(
       routeSheetAnimatedIndex.value,
@@ -605,29 +605,28 @@ export function GuestMapScreen({
     ],
   }), [mapSheetLayout.collapsedIndex, routeSheetDetailCompactIndex]);
   const expandedSheetContentAnimatedStyle = useAnimatedStyle(() => ({
-    opacity: activeSheetTargetIndex === mapSheetLayout.collapsedIndex
-      ? 0
-      : interpolate(
-          routeSheetAnimatedIndex.value,
-          [
-            mapSheetLayout.collapsedIndex,
-            Math.min(activeSheetTargetIndex, 0.45),
-            activeSheetTargetIndex,
-          ],
-          [0, 0, 1],
-          Extrapolation.CLAMP,
+    opacity: interpolate(
+      routeSheetAnimatedIndex.value,
+      [
+        mapSheetLayout.collapsedIndex,
+        Math.min(
+          routeSheetDetailCompactIndex,
+          mapSheetLayout.collapsedIndex + 0.45,
         ),
+        routeSheetDetailCompactIndex,
+      ],
+      [0, 0, 1],
+      Extrapolation.CLAMP,
+    ),
     transform: [{
-      translateY: activeSheetTargetIndex === mapSheetLayout.collapsedIndex
-        ? 8
-        : interpolate(
-            routeSheetAnimatedIndex.value,
-            [mapSheetLayout.collapsedIndex, activeSheetTargetIndex],
-            [8, 0],
-            Extrapolation.CLAMP,
-          ),
+      translateY: interpolate(
+        routeSheetAnimatedIndex.value,
+        [mapSheetLayout.collapsedIndex, routeSheetDetailCompactIndex],
+        [8, 0],
+        Extrapolation.CLAMP,
+      ),
     }],
-  }), [activeSheetTargetIndex, mapSheetLayout.collapsedIndex]);
+  }), [mapSheetLayout.collapsedIndex, routeSheetDetailCompactIndex]);
   const riskExpandedPanelAnimatedStyle = useAnimatedStyle(() => ({
     opacity: interpolate(
       routeSheetAnimatedIndex.value,
@@ -2029,10 +2028,14 @@ export function GuestMapScreen({
 
   const handleSelectRiskZone = useCallback((zone: RiskZone) => {
     lastRiskZonePressAtMsRef.current = Date.now();
+    riskDetailScrollOffsetRef.current = 0;
+    riskDetailTouchStartYRef.current = null;
+    riskDetailScrollRef.current?.scrollTo({ animated: false, y: 0 });
     setMapAction(null);
     setSelectedRiskZone(zone);
     setSheetCollapsed(true);
     setSheetAtAnchor(false);
+    setMapSheetIndex(routeSheetDetailCompactIndex);
     cancelPendingRouteInputFocus();
     Keyboard.dismiss();
     routeSheetRef.current?.snapToIndex(routeSheetDetailCompactIndex);
@@ -2744,6 +2747,7 @@ export function GuestMapScreen({
               <BottomSheetScrollView
                 bounces={false}
                 contentContainerStyle={styles.persistentDetailScrollContent}
+                ref={riskDetailScrollRef}
                 scrollEnabled={detailExpanded}
                 showsVerticalScrollIndicator={false}
                 style={styles.persistentDetailScroll}

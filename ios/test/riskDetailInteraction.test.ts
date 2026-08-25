@@ -245,4 +245,25 @@ describe("risk detail interaction", () => {
     assert.match(callout, /export function LiveMapRiskDetailContent/);
     assert.match(callout, /export function LiveMapDetailContent/);
   });
+
+  it("renders a newly selected guest risk immediately after dismissing another", () => {
+    const guestMap = readFileSync(
+      join(process.cwd(), "src/features/guest-map/GuestMapScreen.tsx"),
+      "utf8",
+    );
+
+    assert.doesNotMatch(guestMap, /activeSheetTargetIndex/);
+    assert.match(
+      guestMap,
+      /expandedSheetContentAnimatedStyle[\s\S]*routeSheetAnimatedIndex\.value[\s\S]*routeSheetDetailCompactIndex/,
+    );
+    assert.match(
+      guestMap,
+      /handleSelectRiskZone[\s\S]*riskDetailScrollRef\.current\?\.scrollTo\(\{ animated: false, y: 0 \}\)[\s\S]*setMapSheetIndex\(routeSheetDetailCompactIndex\)[\s\S]*snapToIndex\(routeSheetDetailCompactIndex\)/,
+    );
+    assert.match(
+      guestMap,
+      /<BottomSheetScrollView[\s\S]*ref=\{riskDetailScrollRef\}[\s\S]*<LiveMapRiskDetailContent/,
+    );
+  });
 });

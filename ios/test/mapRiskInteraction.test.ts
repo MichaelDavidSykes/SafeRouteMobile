@@ -5,6 +5,7 @@ import type { RiskZone } from "../src/features/live-map/liveMapTypes";
 import {
   resolveMapPolylineAtCoordinate,
   resolveRiskMapTapToleranceMeters,
+  resolveRiskMarkerAtMapCoordinate,
   resolveRiskZoneAtMapCoordinate,
 } from "../src/features/live-map/mapRiskInteraction";
 
@@ -94,6 +95,22 @@ describe("map risk interaction", () => {
       resolveRiskZoneAtMapCoordinate({
         coordinate: routeAlert.coordinate,
         toleranceMeters: 120,
+        zones: [routeAlert],
+      }),
+      null,
+    );
+    assert.equal(
+      resolveRiskMarkerAtMapCoordinate({
+        coordinate: { latitude: 51.50008, longitude: -0.12 },
+        toleranceMeters: 20,
+        zones: [routeAlert],
+      })?.id,
+      routeAlert.id,
+    );
+    assert.equal(
+      resolveRiskMarkerAtMapCoordinate({
+        coordinate: { latitude: 51.501, longitude: -0.12 },
+        toleranceMeters: 20,
         zones: [routeAlert],
       }),
       null,

@@ -346,6 +346,10 @@ function RiskMarker({
       <View
         accessible={false}
         accessibilityElementsHidden
+        onTouchStart={interactive && onPress ? (event) => {
+          event.stopPropagation();
+          onPress();
+        } : undefined}
         style={routeAlert ? styles.routeAlertMarkerHitArea : styles.riskMarkerHitArea}
       >
         <View

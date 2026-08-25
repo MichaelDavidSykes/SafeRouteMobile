@@ -1,5 +1,10 @@
 import { useMemo, useRef, type RefObject } from "react";
-import { Platform, StyleSheet, useWindowDimensions } from "react-native";
+import {
+  Platform,
+  StyleSheet,
+  useWindowDimensions,
+  type GestureResponderEvent,
+} from "react-native";
 import MapView, {
   Polyline,
   type Camera,
@@ -35,8 +40,12 @@ import { SafeRouteDarkMapMask } from "../maps/SafeRouteDarkMapMask";
 import { resolveSafeRouteMapType } from "../api/mapTransportState";
 import {
   resolveRiskMapTapToleranceMeters,
+  resolveRiskMarkerAtMapCoordinate,
   resolveRiskZoneAtMapCoordinate,
 } from "./mapRiskInteraction";
+
+const POV_RISK_MARKER_TOLERANCE_MULTIPLIER = 1.8;
+const DIRECT_RISK_TOUCH_SUPPRESSION_MS = 1_200;
 
 interface LiveMapCanvasProps {
   activeNavigationState: NavigationLifecycle;
@@ -44,6 +53,7 @@ interface LiveMapCanvasProps {
   demoDriveActive: boolean;
   initialCamera?: Camera | null;
   mapRef: RefObject<MapView | null>;
+  onMapInteractionStart: () => void;
   onMapReady: () => void;
   onMapPress: () => void;
   onPanDrag: () => void;
@@ -66,6 +76,7 @@ export function LiveMapCanvas({
   demoDriveActive,
   initialCamera,
   mapRef,
+  onMapInteractionStart,
   onMapReady,
   onMapPress,
   onPanDrag,
@@ -88,6 +99,7 @@ export function LiveMapCanvas({
       : { initialRegion: routePlan.region },
   ).current;
   const latestRegionRef = useRef<Region>(routePlan.region);
+  const lastDirectRiskTouchAtMsRef = useRef(0);
   const routeCoordinates = routePlan.route.coordinates;
   const routeLinePresentation = resolveRouteLinePresentation({
     progressCoordinateCount: progressCoordinates.length,
@@ -103,6 +115,51 @@ export function LiveMapCanvas({
   const completedSegmentCoordinates = progressCoordinates.length > 1
     ? progressCoordinates
     : routeCoordinates.slice(0, 2);
+  const handleMapTouchStart = (event: GestureResponderEvent) => {
+    if (
+      activeNavigationState !== "navigating" &&
+      activeNavigationState !== "off-route"
+    ) {
+      return;
+    }
+
+    onMapInteractionStart();
+    const map = mapRef.current;
+    const point = {
+      x: event.nativeEvent.locationX,
+      y: event.nativeEvent.locationY,
+    };
+    if (
+      !map ||
+      !Number.isFinite(point.x) ||
+      !Number.isFinite(point.y)
+    ) {
+      return;
+    }
+
+    void map.coordinateForPoint(point).then((coordinate) => {
+      const coverageToleranceMeters = resolveRiskMapTapToleranceMeters({
+        region: latestRegionRef.current,
+        viewportHeight: viewport.height,
+      });
+      const zone = resolveRiskMarkerAtMapCoordinate({
+        coordinate,
+        toleranceMeters:
+          coverageToleranceMeters * POV_RISK_MARKER_TOLERANCE_MULTIPLIER,
+        zones: visibleRiskZones,
+      }) || resolveRiskZoneAtMapCoordinate({
+        coordinate,
+        toleranceMeters: coverageToleranceMeters,
+        zones: visibleRiskZones,
+      });
+      if (!zone) {
+        return;
+      }
+
+      lastDirectRiskTouchAtMsRef.current = Date.now();
+      onRiskZonePress(zone);
+    }).catch(() => undefined);
+  };
   // Replace the whole native map only when its structural inventory changes.
   // Ordinary navigation state and visibility updates keep every child index
   // stable, avoiding AIRMap insertion crashes and camera resets.
@@ -163,6 +220,12 @@ export function LiveMapCanvas({
           if (event.nativeEvent.action === "marker-press") {
             return;
           }
+          if (
+            Date.now() - lastDirectRiskTouchAtMsRef.current <
+              DIRECT_RISK_TOUCH_SUPPRESSION_MS
+          ) {
+            return;
+          }
           const zone = resolveRiskZoneAtMapCoordinate({
             coordinate: event.nativeEvent.coordinate,
             toleranceMeters: resolveRiskMapTapToleranceMeters({
@@ -177,6 +240,7 @@ export function LiveMapCanvas({
           }
           onMapPress();
         }}
+        onTouchStart={handleMapTouchStart}
         onPanDrag={onPanDrag}
         onMapReady={() => {
           onMapReady();

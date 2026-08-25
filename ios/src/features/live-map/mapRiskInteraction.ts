@@ -93,6 +93,40 @@ export function resolveRiskZoneAtMapCoordinate({
   return candidates[0]?.zone || null;
 }
 
+export function resolveRiskMarkerAtMapCoordinate({
+  coordinate,
+  toleranceMeters,
+  zones,
+}: {
+  coordinate: LatLng;
+  toleranceMeters: number;
+  zones: RiskZone[];
+}): RiskZone | null {
+  if (
+    !isValidCoordinate(coordinate) ||
+    !Number.isFinite(toleranceMeters) ||
+    toleranceMeters <= 0 ||
+    !zones.length
+  ) {
+    return null;
+  }
+
+  let nearest: { distanceMeters: number; zone: RiskZone } | null = null;
+  for (const zone of zones) {
+    if (!isValidCoordinate(zone.coordinate)) {
+      continue;
+    }
+    const distanceMeters = haversineDistanceMeters(coordinate, zone.coordinate);
+    if (
+      distanceMeters <= toleranceMeters &&
+      (!nearest || distanceMeters < nearest.distanceMeters)
+    ) {
+      nearest = { distanceMeters, zone };
+    }
+  }
+  return nearest?.zone || null;
+}
+
 export function resolveMapPolylineAtCoordinate<
   T extends { coordinates: LatLng[] },
 >({

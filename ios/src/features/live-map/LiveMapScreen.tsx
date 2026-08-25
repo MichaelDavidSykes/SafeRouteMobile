@@ -122,6 +122,10 @@ import {
   prepareSavedRouteShare,
 } from "../routes/routeShare";
 
+const DRIVE_ALONG_CAMERA_INTERACTION_PAUSE_MS = 700;
+const DRIVE_ALONG_CAMERA_SETTLE_PADDING_MS = 32;
+const DUPLICATE_RISK_PRESS_WINDOW_MS = 1_200;
+
 interface LiveMapScreenProps {
   accessToken?: string | null;
   initialNavigationSession?: ActiveNavigationSession | null;
@@ -192,6 +196,8 @@ export function LiveMapScreen({
   const overlayRef = useRef<LiveMapOverlayHandle | null>(null);
   const activeRerouteRequestRef = useRef<AbortController | null>(null);
   const lastDriveAlongCameraPoseRef = useRef<DriveAlongCameraPose | null>(null);
+  const driveAlongCameraAnimationEndsAtMsRef = useRef(0);
+  const driveAlongCameraInteractionPausedUntilMsRef = useRef(0);
   const driveAlongCameraActiveRef = useRef(
     Boolean(
       automaticNavigationStartRequested
@@ -271,6 +277,7 @@ export function LiveMapScreen({
     resumedNavigationSession?.progressFloorMeters || 0,
   );
   const lastRiskZonePressAtMsRef = useRef(0);
+  const lastRiskZonePressIdRef = useRef<string | null>(null);
   // Expo preview sessions advance along the real snapped route automatically
   // once guidance starts. This keeps QA deterministic without exposing a
   // confusing simulation control in the customer-facing route sheet.
@@ -1346,6 +1353,14 @@ export function LiveMapScreen({
       return;
     }
 
+    const cameraUpdateStartedAtMs = Date.now();
+    if (
+      cameraUpdateStartedAtMs < driveAlongCameraInteractionPausedUntilMsRef.current ||
+      cameraUpdateStartedAtMs < driveAlongCameraAnimationEndsAtMsRef.current
+    ) {
+      return;
+    }
+
     const nextCameraPose: DriveAlongCameraPose = {
       compact: layout.isCompact,
       coordinate: driveAlongCameraCoordinate,
@@ -1367,11 +1382,12 @@ export function LiveMapScreen({
       nextCameraPose.heading,
       nextCameraPose.compact,
     );
-    mapRef.current?.animateCamera(driveAlongCamera.camera, {
-      duration: automaticNavigationStartInProgress
-        ? 320
-        : driveAlongCamera.durationMs,
-    });
+    const durationMs = automaticNavigationStartInProgress
+      ? 320
+      : driveAlongCamera.durationMs;
+    mapRef.current?.animateCamera(driveAlongCamera.camera, { duration: durationMs });
+    driveAlongCameraAnimationEndsAtMsRef.current =
+      cameraUpdateStartedAtMs + durationMs + DRIVE_ALONG_CAMERA_SETTLE_PADDING_MS;
     lastDriveAlongCameraPoseRef.current = nextCameraPose;
   }, [
     automaticNavigationStartInProgress,
@@ -1430,11 +1446,12 @@ export function LiveMapScreen({
       heading,
       layout.isCompact,
     );
-    mapRef.current?.animateCamera(driveAlongCamera.camera, {
-      duration: automaticNavigationStartInProgress
-        ? 320
-        : driveAlongCamera.durationMs,
-    });
+    const durationMs = automaticNavigationStartInProgress
+      ? 320
+      : driveAlongCamera.durationMs;
+    mapRef.current?.animateCamera(driveAlongCamera.camera, { duration: durationMs });
+    driveAlongCameraAnimationEndsAtMsRef.current =
+      Date.now() + durationMs + DRIVE_ALONG_CAMERA_SETTLE_PADDING_MS;
     lastDriveAlongCameraPoseRef.current = {
       compact: layout.isCompact,
       coordinate: driveAlongCameraCoordinate,
@@ -1479,6 +1496,8 @@ export function LiveMapScreen({
       mapRef.current?.animateCamera(driveAlongCamera.camera, {
         duration: 480,
       });
+      driveAlongCameraAnimationEndsAtMsRef.current =
+        Date.now() + 480 + DRIVE_ALONG_CAMERA_SETTLE_PADDING_MS;
       lastDriveAlongCameraPoseRef.current = {
         compact: layout.isCompact,
         coordinate: vehicleCoordinate,
@@ -1508,6 +1527,8 @@ export function LiveMapScreen({
       setNavigationStartedAtMs(startedAtMs);
     }
     driveAlongCameraActiveRef.current = true;
+    driveAlongCameraAnimationEndsAtMsRef.current = 0;
+    driveAlongCameraInteractionPausedUntilMsRef.current = 0;
     setNavigationState("navigating");
     setFollowModeEnabled(true);
   };
@@ -1660,6 +1681,8 @@ export function LiveMapScreen({
     automaticNavigationStartPendingRef.current = false;
     setPendingNavigationStart(false);
     lastDriveAlongCameraPoseRef.current = null;
+    driveAlongCameraAnimationEndsAtMsRef.current = 0;
+    driveAlongCameraInteractionPausedUntilMsRef.current = 0;
     driveAlongCameraActiveRef.current = false;
 
     const stoppedRerouteState = stopLiveRerouteMonitoring(
@@ -1717,7 +1740,18 @@ export function LiveMapScreen({
   };
 
   const handleRiskZonePress = useCallback((zone: RiskZone) => {
-    lastRiskZonePressAtMsRef.current = Date.now();
+    const pressedAtMs = Date.now();
+    if (
+      lastRiskZonePressIdRef.current === zone.id &&
+      pressedAtMs - lastRiskZonePressAtMsRef.current <
+        DUPLICATE_RISK_PRESS_WINDOW_MS
+    ) {
+      return;
+    }
+    lastRiskZonePressAtMsRef.current = pressedAtMs;
+    lastRiskZonePressIdRef.current = zone.id;
+    driveAlongCameraInteractionPausedUntilMsRef.current =
+      pressedAtMs + DRIVE_ALONG_CAMERA_INTERACTION_PAUSE_MS;
     const proximity = routeRiskIndex.entries.find(
       (entry) => entry.proximity.zone.id === zone.id,
     )?.proximity || calculateRiskZoneRouteProximity(
@@ -1738,6 +1772,11 @@ export function LiveMapScreen({
   const handleMapPanDrag = () => {
     suspendDriveAlongCameraForMapReview();
   };
+
+  const handleMapInteractionStart = useCallback(() => {
+    driveAlongCameraInteractionPausedUntilMsRef.current =
+      Date.now() + DRIVE_ALONG_CAMERA_INTERACTION_PAUSE_MS;
+  }, []);
 
   const handleMapPress = () => {
     if (Date.now() - lastRiskZonePressAtMsRef.current < 500) {
@@ -1761,6 +1800,7 @@ export function LiveMapScreen({
           demoDriveActive={demoDriveActive}
           initialCamera={navigationHandoffCamera}
           mapRef={mapRef}
+          onMapInteractionStart={handleMapInteractionStart}
           onMapReady={handleMapReady}
           onMapPress={handleMapPress}
           onPanDrag={handleMapPanDrag}

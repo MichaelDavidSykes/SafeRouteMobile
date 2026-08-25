@@ -48,4 +48,21 @@ describe('live map camera lifecycle contract', () => {
       /<MapView[\s\S]*\{\.\.\.\(initialCamera[\s\S]*initialRegion/,
     );
   });
+
+  it('does not queue overlapping POV camera animations during map interaction', () => {
+    assert.match(source, /driveAlongCameraAnimationEndsAtMsRef = useRef\(0\)/);
+    assert.match(
+      source,
+      /cameraUpdateStartedAtMs < driveAlongCameraInteractionPausedUntilMsRef\.current \|\|[\s\S]*cameraUpdateStartedAtMs < driveAlongCameraAnimationEndsAtMsRef\.current[\s\S]*return/,
+    );
+    assert.match(
+      source,
+      /driveAlongCameraAnimationEndsAtMsRef\.current =[\s\S]*cameraUpdateStartedAtMs \+ durationMs \+ DRIVE_ALONG_CAMERA_SETTLE_PADDING_MS/,
+    );
+    assert.match(
+      source,
+      /handleMapInteractionStart[\s\S]*driveAlongCameraInteractionPausedUntilMsRef\.current =[\s\S]*DRIVE_ALONG_CAMERA_INTERACTION_PAUSE_MS/,
+    );
+    assert.match(source, /onMapInteractionStart=\{handleMapInteractionStart\}/);
+  });
 });

@@ -234,7 +234,7 @@ describe("production navigation reliability integration", () => {
     assert.doesNotMatch(commitBlock, /animateCamera/);
     assert.match(
       liveMapSource,
-      /duration: automaticNavigationStartInProgress[\s\S]*\? 320[\s\S]*driveAlongCamera\.durationMs/,
+      /const durationMs = automaticNavigationStartInProgress[\s\S]*\? 320[\s\S]*driveAlongCamera\.durationMs[\s\S]*animateCamera\(driveAlongCamera\.camera, \{ duration: durationMs \}\)/,
     );
     assert.match(
       summarySource,

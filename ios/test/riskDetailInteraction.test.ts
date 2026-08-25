@@ -62,6 +62,10 @@ describe("risk detail interaction", () => {
       markers,
       /<Marker[\s\S]*accessibilityLabel=\{createRiskZoneAccessibilityLabel[\s\S]*onPress=\{onPress\}[\s\S]*tappable=\{visible && interactive\}/,
     );
+    assert.match(
+      markers,
+      /onTouchStart=\{interactive && onPress[\s\S]*event\.stopPropagation\(\)[\s\S]*onPress\(\)/,
+    );
     assert.doesNotMatch(
       markers,
       /<Marker[\s\S]*onSelect=\{onPress\}/,
@@ -73,8 +77,13 @@ describe("risk detail interaction", () => {
     assert.match(canvas, /<RiskOverlay[\s\S]*onPress=\{onRiskZonePress\}/);
     assert.doesNotMatch(canvas, /onMarkerPress=/);
     assert.match(
+      canvas,
+      /handleMapTouchStart[\s\S]*coordinateForPoint\(point\)[\s\S]*resolveRiskMarkerAtMapCoordinate[\s\S]*onRiskZonePress\(zone\)/,
+    );
+    assert.match(canvas, /onTouchStart=\{handleMapTouchStart\}/);
+    assert.match(
       liveMap,
-      /handleRiskZonePress[\s\S]*lastRiskZonePressAtMsRef\.current = Date\.now\(\)[\s\S]*overlayRef\.current\?\.openRiskDetail\(\{ proximity, zone \}\)/,
+      /handleRiskZonePress[\s\S]*lastRiskZonePressAtMsRef\.current = pressedAtMs[\s\S]*overlayRef\.current\?\.openRiskDetail\(\{ proximity, zone \}\)/,
     );
     assert.doesNotMatch(liveMap, /setSelectedRiskZoneId/);
     assert.match(

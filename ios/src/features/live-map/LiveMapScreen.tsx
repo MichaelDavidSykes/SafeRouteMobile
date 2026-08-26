@@ -122,9 +122,9 @@ import {
   prepareSavedRouteShare,
 } from "../routes/routeShare";
 
-const DRIVE_ALONG_CAMERA_INTERACTION_PAUSE_MS = 700;
+const DRIVE_ALONG_CAMERA_INTERACTION_PAUSE_MS = 1_800;
 const DRIVE_ALONG_CAMERA_SETTLE_PADDING_MS = 32;
-const DUPLICATE_RISK_PRESS_WINDOW_MS = 1_200;
+const DUPLICATE_RISK_PRESS_WINDOW_MS = 350;
 
 interface LiveMapScreenProps {
   accessToken?: string | null;
@@ -1772,6 +1772,11 @@ export function LiveMapScreen({
     suspendDriveAlongCameraForMapReview();
   };
 
+  const handleMapInteractionStart = useCallback(() => {
+    driveAlongCameraInteractionPausedUntilMsRef.current =
+      Date.now() + DRIVE_ALONG_CAMERA_INTERACTION_PAUSE_MS;
+  }, []);
+
   const handleMapPress = () => {
     if (Date.now() - lastRiskZonePressAtMsRef.current < 500) {
       return;
@@ -1794,6 +1799,7 @@ export function LiveMapScreen({
           demoDriveActive={demoDriveActive}
           initialCamera={navigationHandoffCamera}
           mapRef={mapRef}
+          onMapInteractionStart={handleMapInteractionStart}
           onMapReady={handleMapReady}
           onMapPress={handleMapPress}
           onPanDrag={handleMapPanDrag}

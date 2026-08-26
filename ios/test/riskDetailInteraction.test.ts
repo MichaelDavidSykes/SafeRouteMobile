@@ -72,7 +72,11 @@ describe("risk detail interaction", () => {
       "utf8",
     );
     assert.match(canvas, /<RiskOverlay[\s\S]*onPress=\{onRiskZonePress\}/);
-    assert.doesNotMatch(canvas, /onMarkerPress=/);
+    assert.match(
+      canvas,
+      /onMarkerPress=\{\(event\) => \{[\s\S]*candidate\.id === event\.nativeEvent\.id[\s\S]*onRiskZonePress\(zone\)/,
+    );
+    assert.match(canvas, /onTouchStart=\{onMapInteractionStart\}/);
     assert.doesNotMatch(canvas, /handleMapTouchStart|coordinateForPoint\(point\)/);
     assert.doesNotMatch(
       canvas,

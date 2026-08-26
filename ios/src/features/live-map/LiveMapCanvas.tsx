@@ -44,6 +44,7 @@ interface LiveMapCanvasProps {
   demoDriveActive: boolean;
   initialCamera?: Camera | null;
   mapRef: RefObject<MapView | null>;
+  onMapInteractionStart: () => void;
   onMapReady: () => void;
   onMapPress: () => void;
   onPanDrag: () => void;
@@ -66,6 +67,7 @@ export function LiveMapCanvas({
   demoDriveActive,
   initialCamera,
   mapRef,
+  onMapInteractionStart,
   onMapReady,
   onMapPress,
   onPanDrag,
@@ -176,6 +178,22 @@ export function LiveMapCanvas({
           }
           onMapPress();
         }}
+        onMarkerPress={(event) => {
+          const zone = visibleRiskZones.find(
+            (candidate) => candidate.id === event.nativeEvent.id,
+          ) || resolveRiskZoneAtMapCoordinate({
+            coordinate: event.nativeEvent.coordinate,
+            toleranceMeters: resolveRiskMapTapToleranceMeters({
+              region: latestRegionRef.current,
+              viewportHeight: viewport.height,
+            }),
+            zones: visibleRiskZones,
+          });
+          if (zone) {
+            onRiskZonePress(zone);
+          }
+        }}
+        onTouchStart={onMapInteractionStart}
         onPanDrag={onPanDrag}
         onMapReady={onMapReady}
         onRegionChangeComplete={(region) => {

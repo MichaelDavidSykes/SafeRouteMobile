@@ -230,7 +230,7 @@ export function useWorkspaceRiskAreas({
     retryRevision
   ]);
 
-  const zones = useMemo(
+  const selectedZones = useMemo(
     () => loadedContext === requestContext
       ? selectWorkspaceRiskAreasForRegion(allZones, region)
       : [],
@@ -244,6 +244,20 @@ export function useWorkspaceRiskAreas({
       requestContext
     ]
   );
+  const stableZonesRef = useRef<RiskZone[]>([]);
+  const zones = useMemo(() => {
+    const previousZones = stableZonesRef.current;
+    const selectedZoneSet = new Set(selectedZones);
+    if (
+      previousZones.length === selectedZones.length
+      && previousZones.every((zone) => selectedZoneSet.has(zone))
+    ) {
+      return previousZones;
+    }
+
+    stableZonesRef.current = selectedZones;
+    return selectedZones;
+  }, [selectedZones]);
   const retry = useCallback(
     () => setRetryRevision((revision) => revision + 1),
     []

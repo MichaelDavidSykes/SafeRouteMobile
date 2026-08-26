@@ -1772,11 +1772,6 @@ export function LiveMapScreen({
     suspendDriveAlongCameraForMapReview();
   };
 
-  const handleMapInteractionStart = useCallback(() => {
-    driveAlongCameraInteractionPausedUntilMsRef.current =
-      Date.now() + DRIVE_ALONG_CAMERA_INTERACTION_PAUSE_MS;
-  }, []);
-
   const handleMapPress = () => {
     if (Date.now() - lastRiskZonePressAtMsRef.current < 500) {
       return;
@@ -1799,7 +1794,6 @@ export function LiveMapScreen({
           demoDriveActive={demoDriveActive}
           initialCamera={navigationHandoffCamera}
           mapRef={mapRef}
-          onMapInteractionStart={handleMapInteractionStart}
           onMapReady={handleMapReady}
           onMapPress={handleMapPress}
           onPanDrag={handleMapPanDrag}

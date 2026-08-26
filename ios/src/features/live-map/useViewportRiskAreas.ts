@@ -770,7 +770,10 @@ export function useViewportRiskAreas({
   }, [readBlockedUntilMs, researchAvailable, researchBlockedUntilMs]);
 
   const providerZones = cacheScopeContextRef.current === cacheScopeContext ? zones : [];
-  const visibleZones = mergeRiskZonesById(providerZones, workspaceRisk.zones);
+  const visibleZones = useMemo(
+    () => mergeRiskZonesById(providerZones, workspaceRisk.zones),
+    [providerZones, workspaceRisk.zones]
+  );
   const workspacePartial = Boolean(workspaceRisk.errorMessage);
 
   return {

@@ -12,6 +12,10 @@ describe('viewport risk hook integration contract', () => {
     join(process.cwd(), 'src/features/live-map/viewportRiskState.ts'),
     'utf8'
   );
+  const workspaceSource = readFileSync(
+    join(process.cwd(), 'src/features/live-map/useWorkspaceRiskAreas.ts'),
+    'utf8'
+  );
 
   it('debounces, aborts stale requests, and uses the bounded cache', () => {
     assert.match(source, /VIEWPORT_RISK_DEBOUNCE_MS\s*=\s*260/);
@@ -27,7 +31,14 @@ describe('viewport risk hook integration contract', () => {
     assert.match(source, /cacheViewportRiskZones/);
     assert.match(source, /Promise\.allSettled/);
     assert.match(source, /useWorkspaceRiskAreas/);
-    assert.match(source, /mergeRiskZonesById\(providerZones, workspaceRisk\.zones\)/);
+    assert.match(
+      source,
+      /const visibleZones = useMemo\([\s\S]*mergeRiskZonesById\(providerZones, workspaceRisk\.zones\)[\s\S]*\[providerZones, workspaceRisk\.zones\]/,
+    );
+    assert.match(
+      workspaceSource,
+      /const stableZonesRef = useRef<RiskZone\[\]>\(\[\]\)[\s\S]*previousZones\.every\(\(zone\) => selectedZoneSet\.has\(zone\)\)[\s\S]*return previousZones/,
+    );
     assert.match(source, /workspaceRisk\.retry\(\)/);
     assert.match(source, /resolveViewportRiskDisplayZones/);
     assert.match(source, /resolveCompletedViewportRiskZones/);

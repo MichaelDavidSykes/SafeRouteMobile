@@ -63,15 +63,8 @@ describe('live map camera lifecycle contract', () => {
       source,
       /const handleMapReady = \(\) => \{[\s\S]*animateCamera\(driveAlongCamera\.camera/,
     );
-    assert.match(
-      source,
-      /handleMapInteractionStart[\s\S]*driveAlongCameraInteractionPausedUntilMsRef\.current =[\s\S]*DRIVE_ALONG_CAMERA_INTERACTION_PAUSE_MS/,
-    );
-    assert.match(source, /onMapInteractionStart=\{handleMapInteractionStart\}/);
-    assert.match(
-      canvasSource,
-      /onTouchStart=\{[\s\S]*activeNavigationState === "navigating"[\s\S]*activeNavigationState === "off-route"[\s\S]*\? onMapInteractionStart[\s\S]*: undefined/,
-    );
+    assert.doesNotMatch(source, /handleMapInteractionStart|onMapInteractionStart/);
+    assert.doesNotMatch(canvasSource, /onTouchStart|onMapInteractionStart/);
     assert.doesNotMatch(
       canvasSource,
       /ActiveRiskTouchMarker|activeRiskTouchLayerVisible|pointForCoordinate/,

@@ -44,7 +44,6 @@ interface LiveMapCanvasProps {
   demoDriveActive: boolean;
   initialCamera?: Camera | null;
   mapRef: RefObject<MapView | null>;
-  onMapInteractionStart: () => void;
   onMapReady: () => void;
   onMapPress: () => void;
   onPanDrag: () => void;
@@ -67,7 +66,6 @@ export function LiveMapCanvas({
   demoDriveActive,
   initialCamera,
   mapRef,
-  onMapInteractionStart,
   onMapReady,
   onMapPress,
   onPanDrag,
@@ -193,12 +191,6 @@ export function LiveMapCanvas({
             onRiskZonePress(zone);
           }
         }}
-        onTouchStart={
-          activeNavigationState === "navigating" ||
-          activeNavigationState === "off-route"
-            ? onMapInteractionStart
-            : undefined
-        }
         onPanDrag={onPanDrag}
         onMapReady={onMapReady}
         onRegionChangeComplete={(region) => {

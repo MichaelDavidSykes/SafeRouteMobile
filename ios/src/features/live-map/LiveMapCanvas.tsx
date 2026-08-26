@@ -193,7 +193,12 @@ export function LiveMapCanvas({
             onRiskZonePress(zone);
           }
         }}
-        onTouchStart={onMapInteractionStart}
+        onTouchStart={
+          activeNavigationState === "navigating" ||
+          activeNavigationState === "off-route"
+            ? onMapInteractionStart
+            : undefined
+        }
         onPanDrag={onPanDrag}
         onMapReady={onMapReady}
         onRegionChangeComplete={(region) => {

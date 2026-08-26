@@ -76,7 +76,10 @@ describe("risk detail interaction", () => {
       canvas,
       /onMarkerPress=\{\(event\) => \{[\s\S]*candidate\.id === event\.nativeEvent\.id[\s\S]*onRiskZonePress\(zone\)/,
     );
-    assert.match(canvas, /onTouchStart=\{onMapInteractionStart\}/);
+    assert.match(
+      canvas,
+      /onTouchStart=\{[\s\S]*activeNavigationState === "navigating"[\s\S]*activeNavigationState === "off-route"[\s\S]*\? onMapInteractionStart[\s\S]*: undefined/,
+    );
     assert.doesNotMatch(canvas, /handleMapTouchStart|coordinateForPoint\(point\)/);
     assert.doesNotMatch(
       canvas,

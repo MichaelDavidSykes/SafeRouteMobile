@@ -34,7 +34,6 @@ import Animated, {
   Extrapolation,
   ReduceMotion,
   interpolate,
-  runOnJS,
   useAnimatedStyle,
   useSharedValue,
   withTiming,
@@ -539,27 +538,21 @@ export function LiveMapDetailCallout({
     dismissalNotifiedRef.current = true;
     onDismiss();
   }, [onDismiss]);
-  const completeRouteStackMorphDismissal = useCallback(() => {
-    sheetRef.current?.snapToIndex(0);
-    setSheetIndex(0);
-    handleSheetClosed();
-  }, [handleSheetClosed]);
   const handleDismissRequest = useCallback(() => {
     if (morphFromRouteStack) {
+      // Restore the route controls as soon as X is pressed. The morph is
+      // cosmetic and must never gate End, Back, or subsequent map touches.
+      handleSheetClosed();
       routeStackMorphProgress.value = withTiming(0, {
         duration: 180,
         reduceMotion: ReduceMotion.System,
-      }, (finished) => {
-        if (finished) {
-          runOnJS(completeRouteStackMorphDismissal)();
-        }
       });
       return;
     }
 
     sheetRef.current?.close();
   }, [
-    completeRouteStackMorphDismissal,
+    handleSheetClosed,
     morphFromRouteStack,
     routeStackMorphProgress,
   ]);
@@ -585,8 +578,10 @@ export function LiveMapDetailCallout({
         animatedIndex={animatedSheetIndex}
         bottomInset={bottomInset}
         detached
+        enableContentPanningGesture={open}
+        enableHandlePanningGesture={open}
         enablePanDownToClose={!hasExpandedSnapPoint || sheetIndex === 0}
-        index={0}
+        index={open ? 0 : -1}
         onChange={handleSheetChange}
         onClose={handleSheetClosed}
         overrideReduceMotion={ReduceMotion.System}

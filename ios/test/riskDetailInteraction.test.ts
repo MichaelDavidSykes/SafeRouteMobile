@@ -171,7 +171,14 @@ describe("risk detail interaction", () => {
       callout,
       /openImmediately \? \{ duration: 1 \} : undefined[\s\S]*routeStackMorphProgress\.value = 1/,
     );
-    assert.match(callout, /runOnJS\(completeRouteStackMorphDismissal\)\(\)/);
+    assert.match(
+      callout,
+      /handleDismissRequest[\s\S]*handleSheetClosed\(\)[\s\S]*routeStackMorphProgress\.value = withTiming/,
+    );
+    assert.doesNotMatch(callout, /runOnJS|completeRouteStackMorphDismissal/);
+    assert.match(callout, /enableContentPanningGesture=\{open\}/);
+    assert.match(callout, /enableHandlePanningGesture=\{open\}/);
+    assert.match(callout, /index=\{open \? 0 : -1\}/);
     assert.doesNotMatch(callout, /key=\{replayKey\}/);
   });
 

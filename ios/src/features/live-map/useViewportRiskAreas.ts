@@ -35,6 +35,7 @@ import {
   resolveViewportRiskCoverageOutcome,
   resolveViewportRiskDisplayZones,
   resolveViewportRiskUnavailableRecovery,
+  retainEquivalentRiskZones,
   shouldRevalidateViewportRiskRequest,
   type ViewportRiskCache,
   type ViewportRiskCoverageState
@@ -122,6 +123,11 @@ export function useViewportRiskAreas({
   const [researchBlockedUntilMs, setResearchBlockedUntilMs] = useState(0);
   const [readBlockedUntilMs, setReadBlockedUntilMs] = useState(0);
   const [persistentCacheRevision, setPersistentCacheRevision] = useState(0);
+  const commitZones = useCallback((nextZones: RiskZone[]) => {
+    setZones((currentZones) =>
+      retainEquivalentRiskZones(currentZones, nextZones)
+    );
+  }, []);
   if (accessSessionIdentityRef.current.token !== normalizedAccessToken) {
     accessSessionIdentityRef.current = {
       identity: accessSessionIdentityRef.current.identity + 1,
@@ -294,7 +300,7 @@ export function useViewportRiskAreas({
         cacheStorageScopeRef.current = cacheStorageScope;
         cacheRef.current.clear();
         zonesRef.current = [];
-        setZones([]);
+        commitZones([]);
         legacyCompatibilityScopeRef.current = '';
       }
       setResearchBlockedUntilMs(0);
@@ -314,7 +320,7 @@ export function useViewportRiskAreas({
 
     if (!enabled) {
       setLoading(false);
-      setZones([]);
+      commitZones([]);
       setErrorMessage('');
       setStatusMessage('');
       setCoverageState('idle');
@@ -367,7 +373,7 @@ export function useViewportRiskAreas({
         cachedResult,
         false
       );
-      setZones(offlineZones);
+      commitZones(offlineZones);
       setLoading(false);
       setErrorMessage('');
       setStatusMessage(
@@ -391,7 +397,7 @@ export function useViewportRiskAreas({
       return () => controller.abort();
     }
     if (!requestsToLoad.length) {
-      setZones(resolveViewportRiskDisplayZones(retainedZones, cachedResult, true));
+      commitZones(resolveViewportRiskDisplayZones(retainedZones, cachedResult, true));
       setLoading(false);
       setErrorMessage('');
       setStatusMessage(
@@ -402,7 +408,7 @@ export function useViewportRiskAreas({
       setCoverageState(cachedResult.length ? 'current' : 'current-empty');
       return () => controller.abort();
     }
-    setZones(resolveViewportRiskDisplayZones(retainedZones, cachedResult, false));
+    commitZones(resolveViewportRiskDisplayZones(retainedZones, cachedResult, false));
     setLoading(!hasCompleteCachedCoverage);
     setErrorMessage('');
     setStatusMessage(
@@ -546,7 +552,7 @@ export function useViewportRiskAreas({
           if (sessionExpiry) {
             sessionExpiryHandled = true;
             controller.abort();
-            setZones([]);
+            commitZones([]);
             setLoading(false);
             setStatusMessage('');
             setCoverageState('failed');
@@ -571,7 +577,7 @@ export function useViewportRiskAreas({
             void viewportRiskPersistentCache.clear(
               normalizedCacheScopeId
             ).catch(() => undefined);
-            setZones([]);
+            commitZones([]);
             setLoading(false);
             setErrorMessage('');
             setStatusMessage('');
@@ -620,7 +626,7 @@ export function useViewportRiskAreas({
             : (replacementReady ? replacementZones : nextZones),
           replacementReady
         );
-        setZones(visibleZones);
+        commitZones(visibleZones);
         if (cacheUpdated) {
           void viewportRiskPersistentCache.save(
             normalizedCacheScopeId,
@@ -738,6 +744,7 @@ export function useViewportRiskAreas({
     accessToken,
     cacheScopeContext,
     cacheStorageScope,
+    commitZones,
     displayContext,
     enabled,
     normalizedCacheScopeId,

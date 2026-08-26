@@ -20,12 +20,36 @@ import {
   resolveCompletedViewportRiskZones,
   resolveUnavailableViewportRiskZones,
   resolveViewportRiskUnavailableRecovery,
+  retainEquivalentRiskZones,
   shouldRevalidateViewportRiskRequest,
   viewportRiskCacheKey,
   type ViewportRiskCache
 } from '../src/features/live-map/viewportRiskState';
 
 describe('viewport risk state', () => {
+  it('retains collection identity when a poll only clones equivalent zones', () => {
+    const current = [createZone('same', 'medium')];
+    const equivalent = current.map((zone) => ({
+      ...zone,
+      coordinate: { ...zone.coordinate },
+    }));
+
+    const retained = retainEquivalentRiskZones(current, equivalent);
+
+    assert.equal(retained, current);
+    assert.equal(retained[0], current[0]);
+  });
+
+  it('publishes a new collection when refreshed risk content changes', () => {
+    const current = [createZone('changed', 'medium')];
+    const changed = [{ ...current[0], severity: 'high' as const }];
+
+    const retained = retainEquivalentRiskZones(current, changed);
+
+    assert.notEqual(retained, current);
+    assert.equal(retained[0], changed[0]);
+  });
+
   it('suppresses fresh viewport network reads but honors bypass and stale entries', () => {
     const cache: ViewportRiskCache = new Map();
     const request = createRequest();

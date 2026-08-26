@@ -39,6 +39,7 @@ import {
   routeRiskStartBlockedReason,
   resolveLiveRouteRiskAlert,
   resolveVisibleRiskZones,
+  type RouteRiskSpatialIndex,
 } from "./routeRisk";
 import {
   DEFAULT_SPEED_METERS_PER_SECOND,
@@ -215,6 +216,7 @@ export function LiveMapScreen({
     resumedNavigationSession?.routePlan || routePlan,
   );
   const progressRef = useRef<ReturnType<typeof calculateRouteProgress>>(null);
+  const routeRiskIndexRef = useRef<RouteRiskSpatialIndex | null>(null);
   const activeSessionSnapshotRef = useRef<ActiveNavigationSession | null>(null);
   const navigationPersistenceRevisionRef = useRef(0);
   const persistedEvidenceNavigationIdRef = useRef<string | null>(null);
@@ -484,6 +486,7 @@ export function LiveMapScreen({
     ),
     [liveRoutePlan.route.coordinates, liveRoutePlan.riskZones],
   );
+  routeRiskIndexRef.current = routeRiskIndex;
   progressRef.current = progress;
   const activeNavigationState = resolveActiveNavigationState(
     navigationState,
@@ -543,8 +546,10 @@ export function LiveMapScreen({
       ? buildInterpolatedProgressCoordinates(liveRoutePlan.route.coordinates, routeStep)
       : []);
   const riskStartBlockedReason = useMemo(
-    () => routeRiskStartBlockedReason(liveRoutePlan),
-    [liveRoutePlan],
+    () => navigationState === "loaded" || navigationState === "stopped"
+      ? routeRiskStartBlockedReason(liveRoutePlan, routeRiskIndex)
+      : null,
+    [liveRoutePlan, navigationState, routeRiskIndex],
   );
   const startProximityBlockedReason =
     !demoDriveActive &&
@@ -714,10 +719,12 @@ export function LiveMapScreen({
     [visibleRiskZones],
   );
   const severeRouteRiskViolation = useMemo(
-    () => auditRouteRiskAvoidance(liveRoutePlan).violations.some(
+    () => auditRouteRiskAvoidance(liveRoutePlan, {
+      riskIndex: routeRiskIndex,
+    }).violations.some(
       (violation) => violation.zone.severity === "high",
     ),
-    [liveRoutePlan],
+    [liveRoutePlan, routeRiskIndex],
   );
   const heading = resolveVehicleHeading(
     liveRoutePlan.route.coordinates,
@@ -1751,15 +1758,16 @@ export function LiveMapScreen({
     lastRiskZonePressIdRef.current = zone.id;
     driveAlongCameraInteractionPausedUntilMsRef.current =
       pressedAtMs + DRIVE_ALONG_CAMERA_INTERACTION_PAUSE_MS;
-    const proximity = routeRiskIndex.entries.find(
+    const currentRoutePlan = liveRoutePlanRef.current;
+    const proximity = routeRiskIndexRef.current?.entries.find(
       (entry) => entry.proximity.zone.id === zone.id,
     )?.proximity || calculateRiskZoneRouteProximity(
-      liveRoutePlan.route.coordinates,
+      currentRoutePlan.route.coordinates,
       zone,
     );
     overlayRef.current?.openRiskDetail({ proximity, zone });
     setAlertsVisible(true);
-  }, [liveRoutePlan.route.coordinates, routeRiskIndex]);
+  }, []);
 
   const handleSetAlertsVisible = (nextVisible: boolean) => {
     setAlertsVisible(nextVisible);

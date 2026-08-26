@@ -288,6 +288,48 @@ export function resolveViewportRiskDisplayZones(
     : mergeRiskZonesById(retainedZones, nextViewportZones);
 }
 
+const riskZoneFingerprintCache = new WeakMap<RiskZone, string>();
+
+/**
+ * Preserve the rendered risk collection when a refresh only returned cloned
+ * copies of the same records. Route geometry is intentionally memoized by
+ * collection identity, so treating a no-op poll as new data can otherwise
+ * trigger several expensive polygon/route scans on the JavaScript thread.
+ */
+export function retainEquivalentRiskZones(
+  currentZones: RiskZone[],
+  nextZones: readonly RiskZone[]
+): RiskZone[] {
+  if (currentZones === nextZones) {
+    return currentZones;
+  }
+
+  const currentById = new Map(
+    currentZones.map((zone) => [zone.id, zone] as const)
+  );
+  const retained = nextZones.map((zone) => {
+    const current = currentById.get(zone.id);
+    return current && riskZoneFingerprint(current) === riskZoneFingerprint(zone)
+      ? current
+      : zone;
+  });
+
+  return currentZones.length === retained.length
+    && retained.every((zone, index) => zone === currentZones[index])
+    ? currentZones
+    : retained;
+}
+
+function riskZoneFingerprint(zone: RiskZone): string {
+  const cached = riskZoneFingerprintCache.get(zone);
+  if (cached !== undefined) {
+    return cached;
+  }
+  const fingerprint = JSON.stringify(zone);
+  riskZoneFingerprintCache.set(zone, fingerprint);
+  return fingerprint;
+}
+
 export function resolveCompletedViewportRiskZones(
   cachedZones: readonly RiskZone[],
   receivedZones: readonly RiskZone[],

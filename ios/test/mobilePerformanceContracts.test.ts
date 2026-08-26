@@ -33,6 +33,35 @@ describe("mobile performance contracts", () => {
     assert.equal(prepareRouteGeometry(coordinates), first);
   });
 
+  it("reuses the route-risk index across clone-only refreshes", () => {
+    const coordinates: LatLng[] = [
+      { latitude: 51.5, longitude: -0.15 },
+      { latitude: 51.51, longitude: -0.14 },
+    ];
+    const zones: RiskZone[] = [{
+      category: "risk",
+      coordinate: { latitude: 51.505, longitude: -0.145 },
+      description: "",
+      fillColor: "#f002",
+      id: "stable",
+      markerColor: "#f00",
+      radiusMeters: 100,
+      severity: "medium",
+      strokeColor: "#f00",
+      title: "Stable risk",
+    }];
+    const first = createRouteRiskSpatialIndex(coordinates, zones);
+    const second = createRouteRiskSpatialIndex(
+      coordinates,
+      zones.map((zone) => ({
+        ...zone,
+        coordinate: { ...zone.coordinate },
+      })),
+    );
+
+    assert.equal(second, first);
+  });
+
   it("bounds mounted live risk overlays while retaining selected and active risks", () => {
     const coordinates: LatLng[] = [
       { latitude: -33.95, longitude: 18.45 },

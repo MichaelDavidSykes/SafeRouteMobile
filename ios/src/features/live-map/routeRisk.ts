@@ -56,6 +56,26 @@ export interface RouteRiskSpatialIndex {
   routeCoordinates: LatLng[];
 }
 
+interface RouteRiskComputationCache {
+  denseRouteCoordinates?: LatLng[];
+  proximityByZoneId: Map<
+    string,
+    {
+      geometrySignature: string;
+      proximity: RouteRiskProximity | null;
+    }
+  >;
+  spatialIndex?: {
+    index: RouteRiskSpatialIndex;
+    riskZoneSignature: string;
+  };
+}
+
+const routeRiskComputationCache = new WeakMap<
+  LatLng[],
+  RouteRiskComputationCache
+>();
+
 export interface LiveRouteRiskAlert {
   distanceToVehicleMeters: number;
   vehicleInsideRiskArea: boolean;
@@ -84,6 +104,30 @@ export interface RiskZoneDetailPresentation {
 }
 
 export function calculateRiskZoneRouteProximity(
+  routeCoordinates: LatLng[],
+  zone: RiskZone
+): RouteRiskProximity | null {
+  const cache = getRouteRiskComputationCache(routeCoordinates);
+  const geometrySignature = riskZoneGeometrySignature(zone);
+  const cached = cache.proximityByZoneId.get(zone.id);
+  if (cached?.geometrySignature === geometrySignature) {
+    return cached.proximity && cached.proximity.zone !== zone
+      ? { ...cached.proximity, zone }
+      : cached.proximity;
+  }
+
+  const proximity = calculateRiskZoneRouteProximityUncached(
+    routeCoordinates,
+    zone
+  );
+  cache.proximityByZoneId.set(zone.id, {
+    geometrySignature,
+    proximity,
+  });
+  return proximity;
+}
+
+function calculateRiskZoneRouteProximityUncached(
   routeCoordinates: LatLng[],
   zone: RiskZone
 ): RouteRiskProximity | null {
@@ -123,6 +167,12 @@ export function createRouteRiskSpatialIndex(
   routeCoordinates: LatLng[],
   riskZones: RiskZone[]
 ): RouteRiskSpatialIndex {
+  const riskZoneSignature = JSON.stringify(riskZones);
+  const cache = getRouteRiskComputationCache(routeCoordinates);
+  if (cache.spatialIndex?.riskZoneSignature === riskZoneSignature) {
+    return cache.spatialIndex.index;
+  }
+
   const entries = riskZones
     .map((zone): RouteRiskSpatialEntry | null => {
       const proximity = calculateRiskZoneRouteProximity(routeCoordinates, zone);
@@ -160,19 +210,33 @@ export function createRouteRiskSpatialIndex(
       first.proximity.routeDistanceAlongMeters - second.proximity.routeDistanceAlongMeters
     );
 
-  return { entries, routeCoordinates };
+  const index = { entries, routeCoordinates };
+  cache.spatialIndex = {
+    index,
+    riskZoneSignature,
+  };
+  return index;
 }
 
 export function auditRouteRiskAvoidance(
   routePlan: SavedSafeRoutePlan,
   {
     minimumClearanceMeters = ROUTE_RISK_AVOIDANCE_CLEARANCE_METERS,
-  }: { minimumClearanceMeters?: number } = {}
+    riskIndex,
+  }: {
+    minimumClearanceMeters?: number;
+    riskIndex?: RouteRiskSpatialIndex;
+  } = {}
 ): RouteRiskAvoidanceAudit {
-  const proximities = routePlan.riskZones
-    .filter(shouldAuditZoneForRouteAvoidance)
-    .map((zone) => calculateRiskZoneRouteProximity(routePlan.route.coordinates, zone))
-    .filter((proximity): proximity is RouteRiskProximity => Boolean(proximity));
+  const proximities = (
+    riskIndex?.routeCoordinates === routePlan.route.coordinates
+      ? riskIndex.entries.map(({ proximity }) => proximity)
+      : routePlan.riskZones
+          .map((zone) =>
+            calculateRiskZoneRouteProximity(routePlan.route.coordinates, zone)
+          )
+          .filter((proximity): proximity is RouteRiskProximity => Boolean(proximity))
+  ).filter(({ zone }) => shouldAuditZoneForRouteAvoidance(zone));
 
   return {
     proximities,
@@ -207,9 +271,10 @@ export function routeRiskAvoidanceLabel(
 }
 
 export function routeRiskStartBlockedReason(
-  routePlan: SavedSafeRoutePlan
+  routePlan: SavedSafeRoutePlan,
+  riskIndex?: RouteRiskSpatialIndex
 ): string | null {
-  const audit = auditRouteRiskAvoidance(routePlan);
+  const audit = auditRouteRiskAvoidance(routePlan, { riskIndex });
   const requiredStops = routePlan.checkpoints.map(({ coordinate }) => coordinate);
   const hardAvoidRiskZoneIds = new Set(
     routePlan.riskZones
@@ -644,7 +709,10 @@ function calculatePolygonRiskZoneRouteProximity(
     return null;
   }
 
-  const normalizedRoute = densifyRouteCoordinates(routeCoordinates, 25);
+  const cache = getRouteRiskComputationCache(routeCoordinates);
+  const normalizedRoute = cache.denseRouteCoordinates
+    || densifyRouteCoordinates(routeCoordinates, 25);
+  cache.denseRouteCoordinates = normalizedRoute;
   if (!normalizedRoute.length) {
     return null;
   }
@@ -687,6 +755,29 @@ function calculatePolygonRiskZoneRouteProximity(
     routeDistanceMeters: best.distanceMeters,
     zone,
   };
+}
+
+function getRouteRiskComputationCache(
+  routeCoordinates: LatLng[]
+): RouteRiskComputationCache {
+  const cached = routeRiskComputationCache.get(routeCoordinates);
+  if (cached) {
+    return cached;
+  }
+  const created: RouteRiskComputationCache = {
+    proximityByZoneId: new Map(),
+  };
+  routeRiskComputationCache.set(routeCoordinates, created);
+  return created;
+}
+
+function riskZoneGeometrySignature(zone: RiskZone): string {
+  return JSON.stringify([
+    zone.coordinate,
+    zone.radiusMeters,
+    zone.polygonCoordinates || null,
+    zone.routeSegmentCoordinates || null,
+  ]);
 }
 
 function calculateRouteSegmentRiskZoneRouteProximity(

@@ -43,6 +43,7 @@ import {
   SafeRouteBottomSheet,
   type SafeRouteBottomSheetRef,
 } from "../../components/SafeRouteBottomSheet";
+import { safeRouteMotion } from "../../motion/SafeRouteMotion";
 import { uiTestIds } from "../../testing/uiTestIds";
 import { chrome, colors, radius, typeScale } from "../../theme";
 import type { RiskSeverity, RiskZone } from "./liveMapTypes";
@@ -61,7 +62,6 @@ export const LiveMapRiskDetailCallout = memo(function LiveMapRiskDetailCallout({
   morphFromRouteStack = false,
   onDismiss,
   open = true,
-  openImmediately = false,
   proximity,
   zone,
 }: {
@@ -69,7 +69,6 @@ export const LiveMapRiskDetailCallout = memo(function LiveMapRiskDetailCallout({
   morphFromRouteStack?: boolean;
   onDismiss: () => void;
   open?: boolean;
-  openImmediately?: boolean;
   proximity?: RouteRiskProximity | null;
   zone: RiskZone;
 }) {
@@ -110,7 +109,6 @@ export const LiveMapRiskDetailCallout = memo(function LiveMapRiskDetailCallout({
       morphFromRouteStack={morphFromRouteStack}
       onDismiss={onDismiss}
       open={open}
-      openImmediately={openImmediately}
       replayKey={zone.id}
       subtitle={routeAlert
         ? `Route alert · ${zone.category || "Safety intelligence"}`
@@ -390,7 +388,6 @@ export function LiveMapDetailCallout({
   morphFromRouteStack = false,
   onDismiss,
   open = true,
-  openImmediately = false,
   replayKey,
   subtitle,
   testID,
@@ -409,7 +406,6 @@ export function LiveMapDetailCallout({
   morphFromRouteStack?: boolean;
   onDismiss: () => void;
   open?: boolean;
-  openImmediately?: boolean;
   replayKey: string;
   subtitle: string;
   testID?: string;
@@ -423,7 +419,7 @@ export function LiveMapDetailCallout({
   const [sheetIndex, setSheetIndex] = useState(0);
   const animatedSheetIndex = useSharedValue(-1);
   const routeStackMorphProgress = useSharedValue(
-    morphFromRouteStack && !open ? 0 : 1,
+    morphFromRouteStack ? 0 : 1,
   );
 
   const availableSheetHeight = Math.max(
@@ -464,21 +460,18 @@ export function LiveMapDetailCallout({
       : 1,
   }), [hasExpandedSnapPoint]);
   const routeStackMorphAnimatedStyle = useAnimatedStyle(() => ({
-    opacity: routeStackMorphProgress.value,
+    opacity: interpolate(
+      routeStackMorphProgress.value,
+      [0, 0.45, 1],
+      [0, 0, 1],
+      Extrapolation.CLAMP,
+    ),
     transform: [
       {
         translateY: interpolate(
           routeStackMorphProgress.value,
           [0, 1],
-          [18, 0],
-          Extrapolation.CLAMP,
-        ),
-      },
-      {
-        scale: interpolate(
-          routeStackMorphProgress.value,
-          [0, 1],
-          [0.965, 1],
+          [8, 0],
           Extrapolation.CLAMP,
         ),
       },
@@ -492,23 +485,19 @@ export function LiveMapDetailCallout({
 
     if (open) {
       dismissalNotifiedRef.current = false;
-      sheetRef.current?.snapToIndex(
-        0,
-        openImmediately ? { duration: 1 } : undefined,
-      );
-      if (openImmediately) {
-        routeStackMorphProgress.value = 1;
-        return;
-      }
+      // The sheet frame is already preloaded; position it immediately and let
+      // the shared crossfade/translation provide the visible transition.
+      sheetRef.current?.snapToIndex(0, { duration: 1 });
     }
     routeStackMorphProgress.value = withTiming(open ? 1 : 0, {
-      duration: open ? 220 : 180,
+      duration: open
+        ? safeRouteMotion.sheetDurationMs
+        : safeRouteMotion.sheetExitDurationMs,
       reduceMotion: ReduceMotion.System,
     });
   }, [
     morphFromRouteStack,
     open,
-    openImmediately,
     routeStackMorphProgress,
   ]);
 
@@ -544,7 +533,7 @@ export function LiveMapDetailCallout({
       // cosmetic and must never gate End, Back, or subsequent map touches.
       handleSheetClosed();
       routeStackMorphProgress.value = withTiming(0, {
-        duration: 180,
+        duration: safeRouteMotion.sheetExitDurationMs,
         reduceMotion: ReduceMotion.System,
       });
       return;

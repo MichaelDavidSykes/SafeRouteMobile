@@ -16,9 +16,6 @@ export const styles = StyleSheet.create({
   routeStack: {
     ...StyleSheet.absoluteFillObject,
   },
-  routeStackSuppressed: {
-    opacity: 0,
-  },
   mapControls: {
     position: "absolute",
     right: spacing.md,

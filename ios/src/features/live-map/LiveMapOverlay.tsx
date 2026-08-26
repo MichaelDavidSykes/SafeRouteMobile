@@ -10,7 +10,14 @@ import {
   SafeAreaView,
   useSafeAreaInsets,
 } from "react-native-safe-area-context";
-import { View } from "react-native";
+import Animated, {
+  Extrapolation,
+  ReduceMotion,
+  interpolate,
+  useAnimatedStyle,
+  useSharedValue,
+  withTiming,
+} from "react-native-reanimated";
 
 import type { RiskZone, SavedSafeRoutePlan } from "./liveMapTypes";
 import type { LiveMapOverlayLayout } from "./liveMapLayout";
@@ -31,7 +38,10 @@ import { LiveMapRiskDetailCallout } from "./LiveMapRiskDetailCallout";
 import { styles } from "./LiveMapOverlay.styles";
 import { LiveMapRouteHeader } from "./LiveMapRouteHeader";
 import { LiveMapRouteSummarySheet } from "./LiveMapRouteSummarySheet";
-import { MotionEntrance } from "../../motion/SafeRouteMotion";
+import {
+  MotionEntrance,
+  safeRouteMotion,
+} from "../../motion/SafeRouteMotion";
 
 interface LiveMapOverlayProps {
   activeNavigationState: NavigationLifecycle;
@@ -122,6 +132,9 @@ export const LiveMapOverlay = forwardRef<
     retainedSelectedRiskDetailRef.current = selectedRiskDetail;
   }
   const riskDetailOpen = Boolean(selectedRiskDetail);
+  const riskDetailTransitionProgress = useSharedValue(
+    riskDetailOpen ? 1 : 0,
+  );
   const preloadCandidate = liveRiskAlert || advisoryRiskDetail || fallbackRiskDetail;
   if (
     preloadCandidate &&
@@ -133,6 +146,32 @@ export const LiveMapOverlay = forwardRef<
     selectedRiskDetail ||
     retainedSelectedRiskDetailRef.current ||
     preloadedRiskDetailRef.current;
+  const routeStackAnimatedStyle = useAnimatedStyle(() => ({
+    opacity: interpolate(
+      riskDetailTransitionProgress.value,
+      [0, 0.45, 1],
+      [1, 0, 0],
+      Extrapolation.CLAMP,
+    ),
+    transform: [
+      {
+        translateY: interpolate(
+          riskDetailTransitionProgress.value,
+          [0, 1],
+          [0, -8],
+          Extrapolation.CLAMP,
+        ),
+      },
+      {
+        scale: interpolate(
+          riskDetailTransitionProgress.value,
+          [0, 1],
+          [1, 0.985],
+          Extrapolation.CLAMP,
+        ),
+      },
+    ],
+  }));
 
   const dismissOpenedRiskDetail = useCallback(() => {
     setOpenedRiskDetail(null);
@@ -152,6 +191,18 @@ export const LiveMapOverlay = forwardRef<
     retainedSelectedRiskDetailRef.current = null;
     preloadedRiskDetailRef.current = null;
   }, [routePlan.id]);
+
+  useEffect(() => {
+    riskDetailTransitionProgress.value = withTiming(
+      riskDetailOpen ? 1 : 0,
+      {
+        duration: riskDetailOpen
+          ? safeRouteMotion.sheetDurationMs
+          : safeRouteMotion.sheetExitDurationMs,
+        reduceMotion: ReduceMotion.System,
+      },
+    );
+  }, [riskDetailOpen, riskDetailTransitionProgress]);
 
   return (
     <SafeAreaView pointerEvents="box-none" style={styles.overlay}>
@@ -204,61 +255,57 @@ export const LiveMapOverlay = forwardRef<
         />
       ) : null}
 
-      <View
-          accessibilityElementsHidden={riskDetailOpen}
-          importantForAccessibility={
-            riskDetailOpen ? "no-hide-descendants" : "auto"
-          }
-          pointerEvents={riskDetailOpen ? "none" : "box-none"}
-          style={[
-            styles.routeStack,
-            selectedRiskDetail ? styles.routeStackSuppressed : null,
-          ]}
-        >
-          {liveRiskAlert ? (
-            <MotionEntrance
-              pointerEvents="box-none"
-              replayKey={liveRiskAlert.zone.id}
-              style={styles.transientEntrance}
-              variant="sheet"
-            >
-              <LiveRouteRiskAlertCard
-                alert={liveRiskAlert}
-                layout={layout}
-                onPress={(alert) => {
-                  openRiskDetail({
-                    proximity: alert.proximity,
-                    zone: alert.zone,
-                  });
-                }}
-              />
-            </MotionEntrance>
-          ) : null}
+      <Animated.View
+        accessibilityElementsHidden={riskDetailOpen}
+        importantForAccessibility={
+          riskDetailOpen ? "no-hide-descendants" : "auto"
+        }
+        pointerEvents={riskDetailOpen ? "none" : "box-none"}
+        style={[styles.routeStack, routeStackAnimatedStyle]}
+      >
+        {liveRiskAlert ? (
+          <MotionEntrance
+            pointerEvents="box-none"
+            replayKey={liveRiskAlert.zone.id}
+            style={styles.transientEntrance}
+            variant="sheet"
+          >
+            <LiveRouteRiskAlertCard
+              alert={liveRiskAlert}
+              layout={layout}
+              onPress={(alert) => {
+                openRiskDetail({
+                  proximity: alert.proximity,
+                  zone: alert.zone,
+                });
+              }}
+            />
+          </MotionEntrance>
+        ) : null}
 
-          <LiveMapRouteSummarySheet
-            navigationState={activeNavigationState}
-            layout={layout}
-            progress={progress}
-            route={routePlan.route}
-            routeContext={routeContext}
-            routePlan={routePlan}
-            trackingLabel={trackingLabel}
-            primaryActionPending={primaryActionPending}
-            primaryActionStatusReason={primaryActionStatusReason}
-            primaryDisabledReason={primaryDisabledReason}
-            onPrimaryAction={onPrimaryAction}
-            onShareRoute={onShareRoute}
-            onStopRoute={onStopRoute}
-            sharePending={sharePending}
-          />
-        </View>
+        <LiveMapRouteSummarySheet
+          navigationState={activeNavigationState}
+          layout={layout}
+          progress={progress}
+          route={routePlan.route}
+          routeContext={routeContext}
+          routePlan={routePlan}
+          trackingLabel={trackingLabel}
+          primaryActionPending={primaryActionPending}
+          primaryActionStatusReason={primaryActionStatusReason}
+          primaryDisabledReason={primaryDisabledReason}
+          onPrimaryAction={onPrimaryAction}
+          onShareRoute={onShareRoute}
+          onStopRoute={onStopRoute}
+          sharePending={sharePending}
+        />
+      </Animated.View>
 
       {riskDetailAlert ? (
         <LiveMapRiskDetailCallout
           bottomInset={safeAreaInsets.bottom + 12}
           morphFromRouteStack
           open={riskDetailOpen}
-          openImmediately={Boolean(selectedRiskDetail)}
           proximity={riskDetailAlert.proximity}
           zone={riskDetailAlert.zone}
           onDismiss={dismissOpenedRiskDetail}

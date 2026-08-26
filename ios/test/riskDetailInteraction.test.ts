@@ -117,11 +117,19 @@ describe("risk detail interaction", () => {
     assert.match(overlay, /<LiveMapRiskDetailCallout/);
     assert.match(overlay, /morphFromRouteStack/);
     assert.match(overlay, /open=\{riskDetailOpen\}/);
-    assert.match(overlay, /openImmediately=\{Boolean\(selectedRiskDetail\)\}/);
     assert.match(
       overlay,
-      /selectedRiskDetail \? styles\.routeStackSuppressed : null/,
+      /<Animated\.View[\s\S]*styles\.routeStack, routeStackAnimatedStyle/,
     );
+    assert.match(
+      overlay,
+      /riskDetailTransitionProgress\.value = withTiming\([\s\S]*safeRouteMotion\.sheetDurationMs[\s\S]*safeRouteMotion\.sheetExitDurationMs/,
+    );
+    assert.match(
+      overlay,
+      /\[0, 0\.45, 1\],[\s\S]*\[1, 0, 0\],[\s\S]*\[0, -8\],[\s\S]*\[1, 0\.985\]/,
+    );
+    assert.doesNotMatch(overlay, /routeStackSuppressed|openImmediately/);
     assert.match(overlay, /proximity=\{riskDetailAlert\.proximity\}/);
     assert.match(
       overlay,
@@ -165,12 +173,17 @@ describe("risk detail interaction", () => {
     );
     assert.match(
       callout,
-      /open\)[\s\S]*sheetRef\.current\?\.snapToIndex\(\s*0/,
+      /open\)[\s\S]*sheetRef\.current\?\.snapToIndex\(0, \{ duration: 1 \}\)/,
     );
     assert.match(
       callout,
-      /openImmediately \? \{ duration: 1 \} : undefined[\s\S]*routeStackMorphProgress\.value = 1/,
+      /routeStackMorphProgress\.value = withTiming\(open \? 1 : 0[\s\S]*safeRouteMotion\.sheetDurationMs[\s\S]*safeRouteMotion\.sheetExitDurationMs/,
     );
+    assert.match(
+      callout,
+      /\[0, 0\.45, 1\],[\s\S]*\[0, 0, 1\],[\s\S]*\[8, 0\]/,
+    );
+    assert.doesNotMatch(callout, /openImmediately|routeStackMorphProgress\.value = 1/);
     assert.match(
       callout,
       /handleDismissRequest[\s\S]*handleSheetClosed\(\)[\s\S]*routeStackMorphProgress\.value = withTiming/,

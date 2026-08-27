@@ -98,8 +98,8 @@ describe("risk detail interaction", () => {
   });
 
   it("preloads the exact live alert and morphs it over the route stack", () => {
-    const riskCard = readFileSync(
-      join(process.cwd(), "src/features/live-map/LiveMapRiskCard.tsx"),
+    const routeSummary = readFileSync(
+      join(process.cwd(), "src/features/live-map/LiveMapRouteSummarySheet.tsx"),
       "utf8",
     );
     const overlay = readFileSync(
@@ -107,27 +107,22 @@ describe("risk detail interaction", () => {
       "utf8",
     );
 
-    assert.match(riskCard, /lastPressInAtMsRef\.current = Date\.now\(\)[\s\S]*onPress\(alert\)/);
-    assert.match(riskCard, /Date\.now\(\) - lastPressInAtMsRef\.current > 500/);
+    assert.match(routeSummary, /lastPressInAtMsRef\.current = Date\.now\(\)[\s\S]*onPress\(alert\)/);
+    assert.match(routeSummary, /Date\.now\(\) - lastPressInAtMsRef\.current > 500/);
     assert.match(
       overlay,
-      /onPress=\{\(alert\) => \{[\s\S]*openRiskDetail\(\{[\s\S]*proximity: alert\.proximity,[\s\S]*zone: alert\.zone/,
+      /handleLiveRiskAlertPress[\s\S]*openRiskDetail\(\{[\s\S]*proximity: alert\.proximity,[\s\S]*zone: alert\.zone/,
     );
     assert.doesNotMatch(overlay, /openLiveRiskAlert|setOpenLiveRiskAlert/);
     assert.match(overlay, /<LiveMapRiskDetailCallout/);
     assert.match(overlay, /morphFromRouteStack/);
     assert.match(overlay, /open=\{riskDetailOpen\}/);
-    assert.match(
-      overlay,
-      /<Animated\.View[\s\S]*styles\.routeStack, routeStackAnimatedStyle/,
-    );
+    assert.doesNotMatch(overlay, /LiveRouteRiskAlertCard|styles\.routeStack/);
+    assert.match(overlay, /liveRiskAlert=\{liveRiskAlert\}/);
+    assert.match(overlay, /onRiskAlertPress=\{handleLiveRiskAlertPress\}/);
     assert.match(
       overlay,
       /const riskDetailSheetAnimatedIndex = useSharedValue\(0\)/,
-    );
-    assert.match(
-      overlay,
-      /\[0, 0\.45, 1\],[\s\S]*\[1, 0, 0\],[\s\S]*\[0, -8\],[\s\S]*\[1, 0\.985\]/,
     );
     assert.doesNotMatch(overlay, /routeStackSuppressed|openImmediately/);
     assert.match(
@@ -157,8 +152,11 @@ describe("risk detail interaction", () => {
       /retainedSelectedRiskDetailRef\.current \|\|[\s\S]*preloadedRiskDetailRef\.current/,
     );
     assert.match(overlay, /onDismiss=\{dismissOpenedRiskDetail\}/);
-    assert.match(riskCard, /onPressIn=\{\(event\) => \{/);
-    assert.match(overlay, /pointerEvents=\{riskDetailOpen \? "none" : "box-none"\}/);
+    assert.match(routeSummary, /function UpcomingRiskIndicator/);
+    assert.match(routeSummary, /testID=\{uiTestIds\.liveMapRiskAlert\}/);
+    assert.match(routeSummary, /onPressIn=\{\(event\) => \{/);
+    assert.match(routeSummary, /alert\.routeDistanceAheadMeters/);
+    assert.doesNotMatch(routeSummary, /presentation\.zoneTitle/);
     assert.doesNotMatch(overlay, /onOpenRiskAlert/);
   });
 

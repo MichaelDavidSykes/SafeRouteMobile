@@ -10,12 +10,6 @@ export const styles = StyleSheet.create({
   chromeEntrance: {
     ...StyleSheet.absoluteFillObject,
   },
-  transientEntrance: {
-    ...StyleSheet.absoluteFillObject,
-  },
-  routeStack: {
-    ...StyleSheet.absoluteFillObject,
-  },
   mapControls: {
     position: "absolute",
     right: spacing.md,

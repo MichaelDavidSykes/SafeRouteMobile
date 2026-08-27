@@ -247,6 +247,37 @@ export const routeSummaryStyles = StyleSheet.create({
     fontSize: typeScale.xs,
     fontWeight: "800",
   },
+  upcomingRiskIndicator: {
+    minWidth: 0,
+    height: 28,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 5,
+    flexShrink: 0,
+    paddingHorizontal: 8,
+    borderRadius: radius.pill,
+  },
+  upcomingRiskIndicatorWarning: {
+    backgroundColor: colors.amberSoft,
+  },
+  upcomingRiskIndicatorCritical: {
+    backgroundColor: colors.dangerSoft,
+  },
+  upcomingRiskIndicatorPressed: {
+    transform: [{ scale: 0.96 }],
+  },
+  upcomingRiskIndicatorText: {
+    maxWidth: 62,
+    fontSize: typeScale.xs,
+    fontWeight: "800",
+  },
+  upcomingRiskIndicatorTextWarning: {
+    color: colors.amberText,
+  },
+  upcomingRiskIndicatorTextCritical: {
+    color: colors.dangerText,
+  },
   detailsPanel: {
     marginTop: spacing.sm,
     paddingTop: spacing.sm,

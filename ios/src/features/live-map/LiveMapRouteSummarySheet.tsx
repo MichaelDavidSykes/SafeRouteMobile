@@ -1,9 +1,13 @@
-import { useState } from "react";
-import { Ellipsis, List, Share2 } from "lucide-react-native";
+import { useRef, useState } from "react";
+import { CircleAlert, Ellipsis, List, Share2 } from "lucide-react-native";
 import { Pressable, Text, View } from "react-native";
 
 import type { LiveMapOverlayLayout } from "./liveMapLayout";
 import type { RoutePath, SavedSafeRoutePlan } from "./liveMapTypes";
+import {
+  createLiveRouteRiskAlertPresentation,
+  type LiveRouteRiskAlert,
+} from "./routeRisk";
 import {
   createRouteEndpointLinePresentation,
   createRouteTitleAccessibilityLabel,
@@ -34,6 +38,7 @@ import {
   shouldUseCompactRouteSummary,
 } from "./routeSummaryPresentation";
 import { MotionEntrance } from "../../motion/SafeRouteMotion";
+import { colors } from "../../theme";
 
 const ROUTE_SUMMARY_ACTION_HIT_SLOP = 12;
 const ROUTE_SUMMARY_ACTION_PRESS_RETENTION_OFFSET = 20;
@@ -41,9 +46,11 @@ const ROUTE_SUMMARY_ACTION_PRESS_RETENTION_OFFSET = 20;
 interface LiveMapRouteSummarySheetProps {
   inline?: boolean;
   layout: LiveMapOverlayLayout;
+  liveRiskAlert?: LiveRouteRiskAlert | null;
   navigationState: NavigationLifecycle;
   onLayoutHeight?: (height: number) => void;
   onPrimaryAction: () => void;
+  onRiskAlertPress?: (alert: LiveRouteRiskAlert) => void;
   onShareRoute: () => void;
   onStopRoute: () => void;
   primaryActionPending?: boolean;
@@ -60,9 +67,11 @@ interface LiveMapRouteSummarySheetProps {
 export function LiveMapRouteSummarySheet({
   inline = false,
   layout,
+  liveRiskAlert,
   navigationState,
   onLayoutHeight,
   onPrimaryAction,
+  onRiskAlertPress,
   onShareRoute,
   onStopRoute,
   primaryActionPending = false,
@@ -186,6 +195,12 @@ export function LiveMapRouteSummarySheet({
                 </Text>
               ) : null}
             </View>
+            {liveRiskAlert && onRiskAlertPress ? (
+              <UpcomingRiskIndicator
+                alert={liveRiskAlert}
+                onPress={onRiskAlertPress}
+              />
+            ) : null}
             <StatusPill compact presentation={statusPresentation} />
           </View>
         ) : routeContext === "guest" ? (
@@ -384,6 +399,74 @@ export function LiveMapRouteSummarySheet({
         </View>
       )}
     </MotionEntrance>
+  );
+}
+
+function UpcomingRiskIndicator({
+  alert,
+  onPress,
+}: {
+  alert: LiveRouteRiskAlert;
+  onPress: (alert: LiveRouteRiskAlert) => void;
+}) {
+  const lastPressInAtMsRef = useRef(0);
+  const presentation = createLiveRouteRiskAlertPresentation(alert);
+  const critical =
+    alert.zone.avoidanceSeverity === "critical" ||
+    presentation.tone === "high";
+  const distance = alert.status === "inside"
+    ? "Here"
+    : formatDistance(Math.max(
+        0,
+        alert.status === "approaching"
+          ? alert.routeDistanceAheadMeters
+          : alert.distanceToVehicleMeters,
+      ));
+
+  return (
+    <Pressable
+      accessibilityHint="Opens the upcoming alert."
+      accessibilityLabel={`${presentation.title}. ${distance}.`}
+      accessibilityRole="button"
+      hitSlop={ROUTE_SUMMARY_ACTION_HIT_SLOP}
+      testID={uiTestIds.liveMapRiskAlert}
+      style={({ pressed }) => [
+        styles.upcomingRiskIndicator,
+        critical
+          ? styles.upcomingRiskIndicatorCritical
+          : styles.upcomingRiskIndicatorWarning,
+        pressed ? styles.upcomingRiskIndicatorPressed : null,
+      ]}
+      onPress={(event) => {
+        event.stopPropagation();
+        if (Date.now() - lastPressInAtMsRef.current > 500) {
+          onPress(alert);
+        }
+      }}
+      onPressIn={(event) => {
+        event.stopPropagation();
+        lastPressInAtMsRef.current = Date.now();
+        onPress(alert);
+      }}
+    >
+      <CircleAlert
+        accessibilityElementsHidden
+        color={critical ? colors.dangerText : colors.amberText}
+        size={15}
+        strokeWidth={2.3}
+      />
+      <Text
+        numberOfLines={1}
+        style={[
+          styles.upcomingRiskIndicatorText,
+          critical
+            ? styles.upcomingRiskIndicatorTextCritical
+            : styles.upcomingRiskIndicatorTextWarning,
+        ]}
+      >
+        {distance}
+      </Text>
+    </Pressable>
   );
 }
 

@@ -12,11 +12,9 @@ import {
 } from "react-native-safe-area-context";
 import Animated, {
   Extrapolation,
-  ReduceMotion,
   interpolate,
   useAnimatedStyle,
   useSharedValue,
-  withTiming,
 } from "react-native-reanimated";
 
 import type { RiskZone, SavedSafeRoutePlan } from "./liveMapTypes";
@@ -38,10 +36,7 @@ import { LiveMapRiskDetailCallout } from "./LiveMapRiskDetailCallout";
 import { styles } from "./LiveMapOverlay.styles";
 import { LiveMapRouteHeader } from "./LiveMapRouteHeader";
 import { LiveMapRouteSummarySheet } from "./LiveMapRouteSummarySheet";
-import {
-  MotionEntrance,
-  safeRouteMotion,
-} from "../../motion/SafeRouteMotion";
+import { MotionEntrance } from "../../motion/SafeRouteMotion";
 
 interface LiveMapOverlayProps {
   activeNavigationState: NavigationLifecycle;
@@ -118,6 +113,7 @@ export const LiveMapOverlay = forwardRef<
   const safeAreaInsets = useSafeAreaInsets();
   const [openedRiskDetail, setOpenedRiskDetail] =
     useState<RiskDetailTarget | null>(null);
+  const [routeSummaryAnchorHeight, setRouteSummaryAnchorHeight] = useState(100);
   const retainedSelectedRiskDetailRef = useRef<RiskDetailTarget | null>(null);
   const preloadedRiskDetailRef = useRef<RiskDetailTarget | null>(null);
   const guidanceCardVisible = shouldShowGuidanceCard(activeNavigationState);
@@ -132,9 +128,7 @@ export const LiveMapOverlay = forwardRef<
     retainedSelectedRiskDetailRef.current = selectedRiskDetail;
   }
   const riskDetailOpen = Boolean(selectedRiskDetail);
-  const riskDetailTransitionProgress = useSharedValue(
-    riskDetailOpen ? 1 : 0,
-  );
+  const riskDetailSheetAnimatedIndex = useSharedValue(0);
   const preloadCandidate = liveRiskAlert || advisoryRiskDetail || fallbackRiskDetail;
   if (
     preloadCandidate &&
@@ -148,7 +142,7 @@ export const LiveMapOverlay = forwardRef<
     preloadedRiskDetailRef.current;
   const routeStackAnimatedStyle = useAnimatedStyle(() => ({
     opacity: interpolate(
-      riskDetailTransitionProgress.value,
+      riskDetailSheetAnimatedIndex.value,
       [0, 0.45, 1],
       [1, 0, 0],
       Extrapolation.CLAMP,
@@ -156,7 +150,7 @@ export const LiveMapOverlay = forwardRef<
     transform: [
       {
         translateY: interpolate(
-          riskDetailTransitionProgress.value,
+          riskDetailSheetAnimatedIndex.value,
           [0, 1],
           [0, -8],
           Extrapolation.CLAMP,
@@ -164,7 +158,7 @@ export const LiveMapOverlay = forwardRef<
       },
       {
         scale: interpolate(
-          riskDetailTransitionProgress.value,
+          riskDetailSheetAnimatedIndex.value,
           [0, 1],
           [1, 0.985],
           Extrapolation.CLAMP,
@@ -180,6 +174,14 @@ export const LiveMapOverlay = forwardRef<
     retainedSelectedRiskDetailRef.current = target;
     setOpenedRiskDetail(target);
   }, []);
+  const handleRouteSummaryLayoutHeight = useCallback((height: number) => {
+    if (!Number.isFinite(height) || height <= 0) {
+      return;
+    }
+    setRouteSummaryAnchorHeight((current) =>
+      Math.abs(current - height) < 1 ? current : height,
+    );
+  }, []);
 
   useImperativeHandle(ref, () => ({
     dismissRiskDetail: dismissOpenedRiskDetail,
@@ -190,19 +192,8 @@ export const LiveMapOverlay = forwardRef<
     setOpenedRiskDetail(null);
     retainedSelectedRiskDetailRef.current = null;
     preloadedRiskDetailRef.current = null;
-  }, [routePlan.id]);
-
-  useEffect(() => {
-    riskDetailTransitionProgress.value = withTiming(
-      riskDetailOpen ? 1 : 0,
-      {
-        duration: riskDetailOpen
-          ? safeRouteMotion.sheetDurationMs
-          : safeRouteMotion.sheetExitDurationMs,
-        reduceMotion: ReduceMotion.System,
-      },
-    );
-  }, [riskDetailOpen, riskDetailTransitionProgress]);
+    riskDetailSheetAnimatedIndex.value = 0;
+  }, [riskDetailSheetAnimatedIndex, routePlan.id]);
 
   return (
     <SafeAreaView pointerEvents="box-none" style={styles.overlay}>
@@ -286,6 +277,7 @@ export const LiveMapOverlay = forwardRef<
         <LiveMapRouteSummarySheet
           navigationState={activeNavigationState}
           layout={layout}
+          onLayoutHeight={handleRouteSummaryLayoutHeight}
           progress={progress}
           route={routePlan.route}
           routeContext={routeContext}
@@ -304,6 +296,8 @@ export const LiveMapOverlay = forwardRef<
       {riskDetailAlert ? (
         <LiveMapRiskDetailCallout
           bottomInset={safeAreaInsets.bottom + 12}
+          morphAnchorHeight={routeSummaryAnchorHeight}
+          morphAnimatedIndex={riskDetailSheetAnimatedIndex}
           morphFromRouteStack
           open={riskDetailOpen}
           proximity={riskDetailAlert.proximity}

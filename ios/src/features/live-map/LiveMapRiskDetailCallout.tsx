@@ -34,16 +34,15 @@ import Animated, {
   Extrapolation,
   ReduceMotion,
   interpolate,
+  type SharedValue,
   useAnimatedStyle,
   useSharedValue,
-  withTiming,
 } from "react-native-reanimated";
 
 import {
   SafeRouteBottomSheet,
   type SafeRouteBottomSheetRef,
 } from "../../components/SafeRouteBottomSheet";
-import { safeRouteMotion } from "../../motion/SafeRouteMotion";
 import { uiTestIds } from "../../testing/uiTestIds";
 import { chrome, colors, radius, typeScale } from "../../theme";
 import type { RiskSeverity, RiskZone } from "./liveMapTypes";
@@ -59,6 +58,8 @@ const RISK_DETAIL_SHEET_CONTENT_BOTTOM_PADDING = 14;
 
 export const LiveMapRiskDetailCallout = memo(function LiveMapRiskDetailCallout({
   bottomInset = chrome.tabBarHeight + 18,
+  morphAnchorHeight,
+  morphAnimatedIndex,
   morphFromRouteStack = false,
   onDismiss,
   open = true,
@@ -66,6 +67,8 @@ export const LiveMapRiskDetailCallout = memo(function LiveMapRiskDetailCallout({
   zone,
 }: {
   bottomInset?: number;
+  morphAnchorHeight?: number;
+  morphAnimatedIndex?: SharedValue<number>;
   morphFromRouteStack?: boolean;
   onDismiss: () => void;
   open?: boolean;
@@ -106,6 +109,8 @@ export const LiveMapRiskDetailCallout = memo(function LiveMapRiskDetailCallout({
         />
       )}
       iconTileStyle={severityIconTileStyle(presentation.tone)}
+      morphAnchorHeight={morphAnchorHeight}
+      morphAnimatedIndex={morphAnimatedIndex}
       morphFromRouteStack={morphFromRouteStack}
       onDismiss={onDismiss}
       open={open}
@@ -385,6 +390,8 @@ export function LiveMapDetailCallout({
   groupedAccessibility = false,
   icon,
   iconTileStyle,
+  morphAnchorHeight,
+  morphAnimatedIndex,
   morphFromRouteStack = false,
   onDismiss,
   open = true,
@@ -403,6 +410,8 @@ export function LiveMapDetailCallout({
   groupedAccessibility?: boolean;
   icon: ReactNode;
   iconTileStyle?: StyleProp<ViewStyle>;
+  morphAnchorHeight?: number;
+  morphAnimatedIndex?: SharedValue<number>;
   morphFromRouteStack?: boolean;
   onDismiss: () => void;
   open?: boolean;
@@ -417,10 +426,10 @@ export function LiveMapDetailCallout({
   const dismissalNotifiedRef = useRef(false);
   const previousReplayKeyRef = useRef(replayKey);
   const [sheetIndex, setSheetIndex] = useState(0);
-  const animatedSheetIndex = useSharedValue(-1);
-  const routeStackMorphProgress = useSharedValue(
-    morphFromRouteStack ? 0 : 1,
+  const internalAnimatedSheetIndex = useSharedValue(
+    morphFromRouteStack ? 0 : -1,
   );
+  const animatedSheetIndex = morphAnimatedIndex || internalAnimatedSheetIndex;
 
   const availableSheetHeight = Math.max(
     240,
@@ -431,52 +440,79 @@ export function LiveMapDetailCallout({
     preferredCompactHeight,
     Math.max(220, availableSheetHeight - (expandedContent ? 160 : 0)),
   );
+  const routeStackAnchorSnapPoint = Math.min(
+    compactSnapPoint - 24,
+    Math.max(72, morphAnchorHeight || 100),
+  );
   const expandedSnapPoint = Math.min(500, availableSheetHeight);
   const hasExpandedSnapPoint = Boolean(
     expandedContent && expandedSnapPoint > compactSnapPoint + 20,
   );
   const snapPoints = useMemo(
-    () => hasExpandedSnapPoint
-      ? [compactSnapPoint, expandedSnapPoint]
-      : [expandedContent ? expandedSnapPoint : compactSnapPoint],
+    () => {
+      const points = morphFromRouteStack
+        ? [routeStackAnchorSnapPoint, compactSnapPoint]
+        : [compactSnapPoint];
+      if (hasExpandedSnapPoint) {
+        points.push(expandedSnapPoint);
+      }
+      return Array.from(new Set(points)).sort((left, right) => left - right);
+    },
     [
       compactSnapPoint,
-      expandedContent,
       expandedSnapPoint,
       hasExpandedSnapPoint,
+      morphFromRouteStack,
+      routeStackAnchorSnapPoint,
     ],
   );
+  const routeStackAnchorIndex = morphFromRouteStack
+    ? snapPoints.indexOf(routeStackAnchorSnapPoint)
+    : -1;
+  const routeStackCompactIndex = snapPoints.indexOf(compactSnapPoint);
+  const routeStackExpandedIndex = hasExpandedSnapPoint
+    ? snapPoints.indexOf(expandedSnapPoint)
+    : routeStackCompactIndex;
   const expanded = Boolean(
-    expandedContent && (!hasExpandedSnapPoint || sheetIndex === 1),
+    expandedContent &&
+      (!hasExpandedSnapPoint || sheetIndex === routeStackExpandedIndex),
   );
   const expandedPanelAnimatedStyle = useAnimatedStyle(() => ({
     opacity: hasExpandedSnapPoint
       ? interpolate(
           animatedSheetIndex.value,
-          [0, 0.45, 1],
+          [
+            routeStackCompactIndex,
+            routeStackCompactIndex + 0.45,
+            routeStackExpandedIndex,
+          ],
           [0, 0, 1],
           Extrapolation.CLAMP,
         )
       : 1,
-  }), [hasExpandedSnapPoint]);
+  }), [
+    hasExpandedSnapPoint,
+    routeStackCompactIndex,
+    routeStackExpandedIndex,
+  ]);
   const routeStackMorphAnimatedStyle = useAnimatedStyle(() => ({
     opacity: interpolate(
-      routeStackMorphProgress.value,
-      [0, 0.45, 1],
+      animatedSheetIndex.value,
+      [routeStackAnchorIndex, routeStackAnchorIndex + 0.45, routeStackCompactIndex],
       [0, 0, 1],
       Extrapolation.CLAMP,
     ),
     transform: [
       {
         translateY: interpolate(
-          routeStackMorphProgress.value,
-          [0, 1],
+          animatedSheetIndex.value,
+          [routeStackAnchorIndex, routeStackCompactIndex],
           [8, 0],
           Extrapolation.CLAMP,
         ),
       },
     ],
-  }));
+  }), [routeStackAnchorIndex, routeStackCompactIndex]);
 
   useEffect(() => {
     if (!morphFromRouteStack) {
@@ -485,20 +521,15 @@ export function LiveMapDetailCallout({
 
     if (open) {
       dismissalNotifiedRef.current = false;
-      // The sheet frame is already preloaded; position it immediately and let
-      // the shared crossfade/translation provide the visible transition.
-      sheetRef.current?.snapToIndex(0, { duration: 1 });
+      sheetRef.current?.snapToIndex(routeStackCompactIndex);
+    } else {
+      sheetRef.current?.snapToIndex(routeStackAnchorIndex);
     }
-    routeStackMorphProgress.value = withTiming(open ? 1 : 0, {
-      duration: open
-        ? safeRouteMotion.sheetDurationMs
-        : safeRouteMotion.sheetExitDurationMs,
-      reduceMotion: ReduceMotion.System,
-    });
   }, [
     morphFromRouteStack,
     open,
-    routeStackMorphProgress,
+    routeStackAnchorIndex,
+    routeStackCompactIndex,
   ]);
 
   useEffect(() => {
@@ -507,18 +538,22 @@ export function LiveMapDetailCallout({
     }
 
     previousReplayKeyRef.current = replayKey;
-    dismissalNotifiedRef.current = false;
-    setSheetIndex(0);
-    sheetRef.current?.snapToIndex(0);
-  }, [replayKey]);
-
-  const handleSheetChange = useCallback((index: number) => {
-    const nextIndex = Math.max(0, index);
-    if (nextIndex === 0) {
-      scrollRef.current?.scrollTo({ animated: false, y: 0 });
+    const targetIndex = morphFromRouteStack && !open
+      ? routeStackAnchorIndex
+      : routeStackCompactIndex;
+    if (open) {
+      dismissalNotifiedRef.current = false;
     }
-    setSheetIndex(nextIndex);
-  }, []);
+    setSheetIndex(targetIndex);
+    sheetRef.current?.snapToIndex(targetIndex);
+  }, [
+    morphFromRouteStack,
+    open,
+    replayKey,
+    routeStackAnchorIndex,
+    routeStackCompactIndex,
+  ]);
+
   const handleSheetClosed = useCallback(() => {
     if (dismissalNotifiedRef.current) {
       return;
@@ -527,15 +562,32 @@ export function LiveMapDetailCallout({
     dismissalNotifiedRef.current = true;
     onDismiss();
   }, [onDismiss]);
+  const handleSheetChange = useCallback((index: number) => {
+    const nextIndex = Math.max(0, index);
+    if (nextIndex <= routeStackCompactIndex) {
+      scrollRef.current?.scrollTo({ animated: false, y: 0 });
+    }
+    setSheetIndex(nextIndex);
+    if (
+      morphFromRouteStack &&
+      open &&
+      nextIndex === routeStackAnchorIndex
+    ) {
+      handleSheetClosed();
+    }
+  }, [
+    handleSheetClosed,
+    morphFromRouteStack,
+    open,
+    routeStackAnchorIndex,
+    routeStackCompactIndex,
+  ]);
   const handleDismissRequest = useCallback(() => {
     if (morphFromRouteStack) {
-      // Restore the route controls as soon as X is pressed. The morph is
-      // cosmetic and must never gate End, Back, or subsequent map touches.
+      // Restore route controls immediately; the detent animation must never
+      // gate End, Back, or subsequent map touches.
       handleSheetClosed();
-      routeStackMorphProgress.value = withTiming(0, {
-        duration: safeRouteMotion.sheetExitDurationMs,
-        reduceMotion: ReduceMotion.System,
-      });
+      sheetRef.current?.snapToIndex(routeStackAnchorIndex);
       return;
     }
 
@@ -543,15 +595,22 @@ export function LiveMapDetailCallout({
   }, [
     handleSheetClosed,
     morphFromRouteStack,
-    routeStackMorphProgress,
+    routeStackAnchorIndex,
   ]);
   const handleDisclosurePress = useCallback(() => {
     if (!hasExpandedSnapPoint) {
       return;
     }
 
-    sheetRef.current?.snapToIndex(expanded ? 0 : 1);
-  }, [expanded, hasExpandedSnapPoint]);
+    sheetRef.current?.snapToIndex(
+      expanded ? routeStackCompactIndex : routeStackExpandedIndex,
+    );
+  }, [
+    expanded,
+    hasExpandedSnapPoint,
+    routeStackCompactIndex,
+    routeStackExpandedIndex,
+  ]);
 
   return (
     <Animated.View
@@ -569,8 +628,16 @@ export function LiveMapDetailCallout({
         detached
         enableContentPanningGesture={open}
         enableHandlePanningGesture={open}
-        enablePanDownToClose={!hasExpandedSnapPoint || sheetIndex === 0}
-        index={open ? 0 : -1}
+        enablePanDownToClose={
+          morphFromRouteStack
+            ? false
+            : !hasExpandedSnapPoint || sheetIndex === routeStackCompactIndex
+        }
+        index={
+          morphFromRouteStack
+            ? routeStackAnchorIndex
+            : open ? 0 : -1
+        }
         onChange={handleSheetChange}
         onClose={handleSheetClosed}
         overrideReduceMotion={ReduceMotion.System}
@@ -908,7 +975,7 @@ const styles = StyleSheet.create({
     elevation: 50,
   },
   sheet: {
-    marginHorizontal: 12,
+    marginHorizontal: 14,
   },
   sheetContent: {
     paddingHorizontal: 18,

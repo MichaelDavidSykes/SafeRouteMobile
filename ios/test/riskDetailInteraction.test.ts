@@ -123,13 +123,17 @@ describe("risk detail interaction", () => {
     );
     assert.match(
       overlay,
-      /riskDetailTransitionProgress\.value = withTiming\([\s\S]*safeRouteMotion\.sheetDurationMs[\s\S]*safeRouteMotion\.sheetExitDurationMs/,
+      /const riskDetailSheetAnimatedIndex = useSharedValue\(0\)/,
     );
     assert.match(
       overlay,
       /\[0, 0\.45, 1\],[\s\S]*\[1, 0, 0\],[\s\S]*\[0, -8\],[\s\S]*\[1, 0\.985\]/,
     );
     assert.doesNotMatch(overlay, /routeStackSuppressed|openImmediately/);
+    assert.match(
+      overlay,
+      /onLayoutHeight=\{handleRouteSummaryLayoutHeight\}[\s\S]*morphAnchorHeight=\{routeSummaryAnchorHeight\}[\s\S]*morphAnimatedIndex=\{riskDetailSheetAnimatedIndex\}/,
+    );
     assert.match(overlay, /proximity=\{riskDetailAlert\.proximity\}/);
     assert.match(
       overlay,
@@ -161,7 +165,10 @@ describe("risk detail interaction", () => {
 
     assert.match(callout, /animateOnMount=\{!morphFromRouteStack\}/);
     assert.match(callout, /LiveMapRiskDetailCallout = memo\(function/);
-    assert.match(callout, /routeStackMorphProgress\.value = withTiming\(open \? 1 : 0/);
+    assert.match(
+      callout,
+      /const animatedSheetIndex = morphAnimatedIndex \|\| internalAnimatedSheetIndex/,
+    );
     assert.match(
       callout,
       /<Animated\.View[\s\S]*morphFromRouteStack \? routeStackMorphAnimatedStyle : null[\s\S]*<SafeRouteBottomSheet/,
@@ -169,29 +176,36 @@ describe("risk detail interaction", () => {
     assert.match(callout, /style=\{styles\.sheet\}/);
     assert.match(
       callout,
-      /enablePanDownToClose=\{!hasExpandedSnapPoint \|\| sheetIndex === 0\}/,
+      /enablePanDownToClose=\{[\s\S]*morphFromRouteStack[\s\S]*\? false/,
     );
     assert.match(
       callout,
-      /open\)[\s\S]*sheetRef\.current\?\.snapToIndex\(0, \{ duration: 1 \}\)/,
+      /if \(open\)[\s\S]*snapToIndex\(routeStackCompactIndex\)[\s\S]*else[\s\S]*snapToIndex\(routeStackAnchorIndex\)/,
     );
     assert.match(
       callout,
-      /routeStackMorphProgress\.value = withTiming\(open \? 1 : 0[\s\S]*safeRouteMotion\.sheetDurationMs[\s\S]*safeRouteMotion\.sheetExitDurationMs/,
+      /\[routeStackAnchorIndex, routeStackAnchorIndex \+ 0\.45, routeStackCompactIndex\][\s\S]*\[0, 0, 1\]/,
     );
     assert.match(
       callout,
-      /\[0, 0\.45, 1\],[\s\S]*\[0, 0, 1\],[\s\S]*\[8, 0\]/,
+      /\[routeStackAnchorIndex, routeStackCompactIndex\],[\s\S]*\[8, 0\]/,
     );
-    assert.doesNotMatch(callout, /openImmediately|routeStackMorphProgress\.value = 1/);
+    assert.doesNotMatch(callout, /openImmediately|routeStackMorphProgress|withTiming/);
     assert.match(
       callout,
-      /handleDismissRequest[\s\S]*handleSheetClosed\(\)[\s\S]*routeStackMorphProgress\.value = withTiming/,
+      /handleDismissRequest[\s\S]*handleSheetClosed\(\)[\s\S]*snapToIndex\(routeStackAnchorIndex\)/,
     );
     assert.doesNotMatch(callout, /runOnJS|completeRouteStackMorphDismissal/);
     assert.match(callout, /enableContentPanningGesture=\{open\}/);
     assert.match(callout, /enableHandlePanningGesture=\{open\}/);
-    assert.match(callout, /index=\{open \? 0 : -1\}/);
+    assert.match(
+      callout,
+      /index=\{[\s\S]*morphFromRouteStack[\s\S]*\? routeStackAnchorIndex[\s\S]*: open \? 0 : -1/,
+    );
+    assert.match(
+      callout,
+      /nextIndex === routeStackAnchorIndex[\s\S]*handleSheetClosed\(\)/,
+    );
     assert.doesNotMatch(callout, /key=\{replayKey\}/);
   });
 
@@ -205,11 +219,11 @@ describe("risk detail interaction", () => {
     assert.match(callout, /<BottomSheetScrollView/);
     assert.match(
       callout,
-      /sheetRef\.current\?\.snapToIndex\(expanded \? 0 : 1\)/,
+      /expanded \? routeStackCompactIndex : routeStackExpandedIndex/,
     );
     assert.match(
       callout,
-      /nextIndex === 0[\s\S]*scrollRef\.current\?\.scrollTo\(\{ animated: false, y: 0 \}\)/,
+      /nextIndex <= routeStackCompactIndex[\s\S]*scrollRef\.current\?\.scrollTo\(\{ animated: false, y: 0 \}\)/,
     );
     assert.doesNotMatch(callout, /PanResponder|requestAnimationFrame/);
     assert.doesNotMatch(callout, /Animated[\s\S]*from "react-native"/);
@@ -238,7 +252,7 @@ describe("risk detail interaction", () => {
     assert.match(callout, /animatedIndex=\{animatedSheetIndex\}/);
     assert.match(
       callout,
-      /hasExpandedSnapPoint[\s\S]*\? interpolate\([\s\S]*animatedSheetIndex\.value[\s\S]*\[0, 0\.45, 1\][\s\S]*\[0, 0, 1\]/,
+      /hasExpandedSnapPoint[\s\S]*\? interpolate\([\s\S]*animatedSheetIndex\.value[\s\S]*routeStackCompactIndex \+ 0\.45[\s\S]*routeStackExpandedIndex[\s\S]*\[0, 0, 1\]/,
     );
     assert.match(
       callout,

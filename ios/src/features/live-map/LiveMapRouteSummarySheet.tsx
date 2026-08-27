@@ -41,6 +41,7 @@ const ROUTE_SUMMARY_ACTION_PRESS_RETENTION_OFFSET = 20;
 interface LiveMapRouteSummarySheetProps {
   layout: LiveMapOverlayLayout;
   navigationState: NavigationLifecycle;
+  onLayoutHeight?: (height: number) => void;
   onPrimaryAction: () => void;
   onShareRoute: () => void;
   onStopRoute: () => void;
@@ -58,6 +59,7 @@ interface LiveMapRouteSummarySheetProps {
 export function LiveMapRouteSummarySheet({
   layout,
   navigationState,
+  onLayoutHeight,
   onPrimaryAction,
   onShareRoute,
   onStopRoute,
@@ -145,6 +147,7 @@ export function LiveMapRouteSummarySheet({
 
   return (
     <MotionEntrance
+      onLayout={(event) => onLayoutHeight?.(event.nativeEvent.layout.height)}
       replayKey={routePlan.id}
       testID={uiTestIds.liveMapRouteSummarySheet}
       variant="sheet"

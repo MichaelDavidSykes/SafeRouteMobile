@@ -832,6 +832,27 @@ export const guestMapStyles = StyleSheet.create({
     fontWeight: '700',
     lineHeight: 18,
   },
+  collapsedRouteCancelButton: {
+    minWidth: 62,
+    minHeight: 44,
+    flexShrink: 0,
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingHorizontal: spacing.sm,
+    borderRadius: 14,
+    backgroundColor: 'transparent',
+  },
+  collapsedRouteCancelButtonPressed: {
+    backgroundColor: colors.control,
+    transform: [{ scale: 0.98 }],
+  },
+  collapsedRouteCancelButtonText: {
+    color: colors.inkSoft,
+    fontSize: typeScale.xs,
+    fontWeight: '700',
+    lineHeight: 18,
+    textAlign: 'center',
+  },
   collapsedRouteStartButton: {
     width: 88,
     minHeight: 44,

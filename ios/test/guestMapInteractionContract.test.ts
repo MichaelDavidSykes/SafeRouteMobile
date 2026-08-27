@@ -262,6 +262,21 @@ describe('guest map interaction contract', () => {
     );
     assert.match(
       screen,
+      /testID=\{uiTestIds\.guestMapCollapsedCancelRoute\}[\s\S]*onPress=\{handleCancelReadyRoute\}[\s\S]*>Cancel<\/Text>/,
+    );
+    assert.match(
+      screen,
+      /const handleCancelReadyRoute = \(\) => \{[\s\S]*cancelRoadRouteUpgrade\(\);[\s\S]*setRoutePlan\(null\);[\s\S]*setRouteAlternatives\(\[\]\);[\s\S]*transitionActiveInput\(null\);[\s\S]*animateRouteSheet\(false\);/,
+    );
+    const cancelReadyRouteStart = screen.indexOf('const handleCancelReadyRoute =');
+    const cancelReadyRouteEnd = screen.indexOf('\n  };', cancelReadyRouteStart);
+    const cancelReadyRouteHandler = screen.slice(
+      cancelReadyRouteStart,
+      cancelReadyRouteEnd,
+    );
+    assert.doesNotMatch(cancelReadyRouteHandler, /dispatchRouteDraft|createGuestRouteDraft/);
+    assert.match(
+      screen,
       /testID=\{uiTestIds\.guestMapCollapsedStartRoute\}[\s\S]*\{collapsedRouteActionLabel\}/,
     );
     assert.match(

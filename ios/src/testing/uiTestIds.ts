@@ -28,6 +28,7 @@ export const uiTestIds = {
   guestMapSheetClose: "guest-map-sheet-close",
   guestMapCollapsedSheet: "guest-map-collapsed-sheet",
   guestMapCollapsedRouteStatus: "guest-map-collapsed-route-status",
+  guestMapCollapsedCancelRoute: "guest-map-collapsed-cancel-route",
   guestMapCollapsedStartRoute: "guest-map-collapsed-start-route",
   guestMapLongPressMenu: "guest-map-long-press-menu",
   guestMapLongPressAddWaypoint: "guest-map-long-press-add-waypoint",

@@ -1195,6 +1195,24 @@ export function GuestMapScreen({
     }
   };
 
+  const handleCancelReadyRoute = () => {
+    Keyboard.dismiss();
+    cancelRoadRouteUpgrade();
+    if (routePreviewHandoffResetTimerRef.current) {
+      clearTimeout(routePreviewHandoffResetTimerRef.current);
+      routePreviewHandoffResetTimerRef.current = null;
+    }
+    setRoutePreviewHandoffPending(false);
+    setRoutePlan(null);
+    setRouteAlternatives([]);
+    setRouteMessage('');
+    setRouteOptionsOpen(false);
+    setSelectedRiskZone(null);
+    setMapAction(null);
+    transitionActiveInput(null);
+    animateRouteSheet(false);
+  };
+
   useEffect(() => {
     if (!workspaceAuthorizationRequired) {
       return;
@@ -2654,6 +2672,19 @@ export function GuestMapScreen({
                       Route ready
                     </Text>
                   </View>
+                </Pressable>
+                <Pressable
+                  accessibilityHint="Returns to the location planner with the selected locations preserved."
+                  accessibilityLabel="Cancel route and edit locations"
+                  accessibilityRole="button"
+                  testID={uiTestIds.guestMapCollapsedCancelRoute}
+                  style={({ pressed }) => [
+                    styles.collapsedRouteCancelButton,
+                    pressed ? styles.collapsedRouteCancelButtonPressed : null,
+                  ]}
+                  onPress={handleCancelReadyRoute}
+                >
+                  <Text style={styles.collapsedRouteCancelButtonText}>Cancel</Text>
                 </Pressable>
                 <Pressable
                   accessibilityHint={stagedRouteActionAccessibilityHint}

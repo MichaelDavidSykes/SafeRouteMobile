@@ -39,6 +39,7 @@ const ROUTE_SUMMARY_ACTION_HIT_SLOP = 12;
 const ROUTE_SUMMARY_ACTION_PRESS_RETENTION_OFFSET = 20;
 
 interface LiveMapRouteSummarySheetProps {
+  inline?: boolean;
   layout: LiveMapOverlayLayout;
   navigationState: NavigationLifecycle;
   onLayoutHeight?: (height: number) => void;
@@ -57,6 +58,7 @@ interface LiveMapRouteSummarySheetProps {
 }
 
 export function LiveMapRouteSummarySheet({
+  inline = false,
   layout,
   navigationState,
   onLayoutHeight,
@@ -152,7 +154,7 @@ export function LiveMapRouteSummarySheet({
       testID={uiTestIds.liveMapRouteSummarySheet}
       variant="sheet"
       style={[
-        styles.bottomSheet,
+        inline ? styles.inlineContainer : styles.bottomSheet,
         layout.isCompact ? styles.bottomSheetCompact : null,
         compactRouteSummary ? styles.bottomSheetCompactNavigation : null,
         {

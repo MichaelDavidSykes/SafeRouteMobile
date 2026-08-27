@@ -3,6 +3,10 @@ import { StyleSheet } from "react-native";
 import { colors, controlSizes, radius, spacing, typeScale } from "../../theme";
 
 export const routeSummaryStyles = StyleSheet.create({
+  inlineContainer: {
+    paddingHorizontal: 16,
+    paddingTop: 12,
+  },
   bottomSheet: {
     position: "absolute",
     right: 14,

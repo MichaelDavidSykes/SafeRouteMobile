@@ -195,6 +195,27 @@ export const LiveMapOverlay = forwardRef<
     riskDetailSheetAnimatedIndex.value = 0;
   }, [riskDetailSheetAnimatedIndex, routePlan.id]);
 
+  const routeSummary = (
+    <LiveMapRouteSummarySheet
+      inline={Boolean(riskDetailAlert)}
+      navigationState={activeNavigationState}
+      layout={layout}
+      onLayoutHeight={handleRouteSummaryLayoutHeight}
+      progress={progress}
+      route={routePlan.route}
+      routeContext={routeContext}
+      routePlan={routePlan}
+      trackingLabel={trackingLabel}
+      primaryActionPending={primaryActionPending}
+      primaryActionStatusReason={primaryActionStatusReason}
+      primaryDisabledReason={primaryDisabledReason}
+      onPrimaryAction={onPrimaryAction}
+      onShareRoute={onShareRoute}
+      onStopRoute={onStopRoute}
+      sharePending={sharePending}
+    />
+  );
+
   return (
     <SafeAreaView pointerEvents="box-none" style={styles.overlay}>
       <MotionEntrance
@@ -274,29 +295,14 @@ export const LiveMapOverlay = forwardRef<
           </MotionEntrance>
         ) : null}
 
-        <LiveMapRouteSummarySheet
-          navigationState={activeNavigationState}
-          layout={layout}
-          onLayoutHeight={handleRouteSummaryLayoutHeight}
-          progress={progress}
-          route={routePlan.route}
-          routeContext={routeContext}
-          routePlan={routePlan}
-          trackingLabel={trackingLabel}
-          primaryActionPending={primaryActionPending}
-          primaryActionStatusReason={primaryActionStatusReason}
-          primaryDisabledReason={primaryDisabledReason}
-          onPrimaryAction={onPrimaryAction}
-          onShareRoute={onShareRoute}
-          onStopRoute={onStopRoute}
-          sharePending={sharePending}
-        />
+        {riskDetailAlert ? null : routeSummary}
       </Animated.View>
 
       {riskDetailAlert ? (
         <LiveMapRiskDetailCallout
-          bottomInset={safeAreaInsets.bottom + 12}
-          morphAnchorHeight={routeSummaryAnchorHeight}
+          bottomInset={14}
+          collapsedContent={routeSummary}
+          morphAnchorHeight={routeSummaryAnchorHeight + 16}
           morphAnimatedIndex={riskDetailSheetAnimatedIndex}
           morphFromRouteStack
           open={riskDetailOpen}

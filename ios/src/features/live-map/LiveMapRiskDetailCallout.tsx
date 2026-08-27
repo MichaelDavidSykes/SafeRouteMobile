@@ -5,10 +5,11 @@ import {
   useMemo,
   useRef,
   useState,
-  type ReactNode
+  type ReactNode,
 } from "react";
 import {
   BottomSheetScrollView,
+  type BottomSheetHandleProps,
   type BottomSheetScrollViewMethods,
 } from "@gorhom/bottom-sheet";
 import {
@@ -58,6 +59,7 @@ const RISK_DETAIL_SHEET_CONTENT_BOTTOM_PADDING = 14;
 
 export const LiveMapRiskDetailCallout = memo(function LiveMapRiskDetailCallout({
   bottomInset = chrome.tabBarHeight + 18,
+  collapsedContent,
   morphAnchorHeight,
   morphAnimatedIndex,
   morphFromRouteStack = false,
@@ -67,6 +69,7 @@ export const LiveMapRiskDetailCallout = memo(function LiveMapRiskDetailCallout({
   zone,
 }: {
   bottomInset?: number;
+  collapsedContent?: ReactNode;
   morphAnchorHeight?: number;
   morphAnimatedIndex?: SharedValue<number>;
   morphFromRouteStack?: boolean;
@@ -87,6 +90,7 @@ export const LiveMapRiskDetailCallout = memo(function LiveMapRiskDetailCallout({
     <LiveMapDetailCallout
       accessibilityLabel={presentation.accessibilityLabel}
       bottomInset={bottomInset}
+      collapsedContent={collapsedContent}
       dismissAccessibilityLabel={routeAlert
         ? "Close route alert details"
         : "Close risk details"}
@@ -383,6 +387,7 @@ export function LiveMapDetailCallout({
   accessibilityLabel,
   bottomInset = chrome.tabBarHeight + 18,
   children,
+  collapsedContent,
   dismissAccessibilityLabel,
   dismissTestID,
   expandedContent,
@@ -403,6 +408,7 @@ export function LiveMapDetailCallout({
   accessibilityLabel: string;
   bottomInset?: number;
   children?: ReactNode;
+  collapsedContent?: ReactNode;
   dismissAccessibilityLabel: string;
   dismissTestID?: string;
   expandedContent?: ReactNode;
@@ -495,7 +501,33 @@ export function LiveMapDetailCallout({
     routeStackCompactIndex,
     routeStackExpandedIndex,
   ]);
-  const routeStackMorphAnimatedStyle = useAnimatedStyle(() => ({
+  const collapsedContentAnimatedStyle = useAnimatedStyle(() => ({
+    opacity: interpolate(
+      animatedSheetIndex.value,
+      [routeStackAnchorIndex, routeStackAnchorIndex + 0.45, routeStackCompactIndex],
+      [1, 0, 0],
+      Extrapolation.CLAMP,
+    ),
+    transform: [
+      {
+        translateY: interpolate(
+          animatedSheetIndex.value,
+          [routeStackAnchorIndex, routeStackCompactIndex],
+          [0, -8],
+          Extrapolation.CLAMP,
+        ),
+      },
+      {
+        scale: interpolate(
+          animatedSheetIndex.value,
+          [routeStackAnchorIndex, routeStackCompactIndex],
+          [1, 0.985],
+          Extrapolation.CLAMP,
+        ),
+      },
+    ],
+  }), [routeStackAnchorIndex, routeStackCompactIndex]);
+  const detailContentAnimatedStyle = useAnimatedStyle(() => ({
     opacity: interpolate(
       animatedSheetIndex.value,
       [routeStackAnchorIndex, routeStackAnchorIndex + 0.45, routeStackCompactIndex],
@@ -513,6 +545,12 @@ export function LiveMapDetailCallout({
       },
     ],
   }), [routeStackAnchorIndex, routeStackCompactIndex]);
+  const renderPersistentHandle = useCallback(
+    (props: BottomSheetHandleProps) => (
+      <LiveMapDetailSheetHandle {...props} hidden={!open} />
+    ),
+    [open],
+  );
 
   useEffect(() => {
     if (!morphFromRouteStack) {
@@ -614,17 +652,14 @@ export function LiveMapDetailCallout({
 
   return (
     <Animated.View
-      pointerEvents={morphFromRouteStack && !open ? "none" : "box-none"}
-      style={[
-        StyleSheet.absoluteFill,
-        styles.overlay,
-        morphFromRouteStack ? routeStackMorphAnimatedStyle : null,
-      ]}
+      pointerEvents="box-none"
+      style={[StyleSheet.absoluteFill, styles.overlay]}
     >
       <SafeRouteBottomSheet
         animateOnMount={!morphFromRouteStack}
         animatedIndex={animatedSheetIndex}
         bottomInset={bottomInset}
+        containerStyle={styles.persistentSheetContainer}
         detached
         enableContentPanningGesture={open}
         enableHandlePanningGesture={open}
@@ -632,6 +667,11 @@ export function LiveMapDetailCallout({
           morphFromRouteStack
             ? false
             : !hasExpandedSnapPoint || sheetIndex === routeStackCompactIndex
+        }
+        handleComponent={
+          morphFromRouteStack && collapsedContent
+            ? renderPersistentHandle
+            : undefined
         }
         index={
           morphFromRouteStack
@@ -645,114 +685,161 @@ export function LiveMapDetailCallout({
         snapPoints={snapPoints}
         style={styles.sheet}
       >
-        <BottomSheetScrollView
-          ref={scrollRef}
-          contentContainerStyle={styles.sheetContent}
-          scrollEnabled={expanded}
-          showsVerticalScrollIndicator={false}
-        >
-          <View
-            accessible={groupedAccessibility && !expanded}
-            accessibilityLabel={
-              groupedAccessibility && !expanded ? accessibilityLabel : undefined
+        {collapsedContent ? (
+          <Animated.View
+            accessibilityElementsHidden={open}
+            importantForAccessibility={
+              open ? "no-hide-descendants" : "auto"
             }
-            testID={testID}
+            pointerEvents={open ? "none" : "auto"}
+            style={[
+              styles.collapsedContent,
+              collapsedContentAnimatedStyle,
+            ]}
           >
-            <View style={styles.titleRow}>
-              <View style={[styles.iconTile, iconTileStyle]}>
-                {icon}
+            {collapsedContent}
+          </Animated.View>
+        ) : null}
+
+        <Animated.View
+          accessibilityElementsHidden={!open}
+          importantForAccessibility={open ? "auto" : "no-hide-descendants"}
+          pointerEvents={open ? "auto" : "none"}
+          style={[
+            styles.detailContent,
+            morphFromRouteStack ? detailContentAnimatedStyle : null,
+          ]}
+        >
+          <BottomSheetScrollView
+            bounces={false}
+            ref={scrollRef}
+            contentContainerStyle={styles.sheetContent}
+            scrollEnabled={expanded}
+            showsVerticalScrollIndicator={false}
+            style={styles.detailScroll}
+          >
+            <View
+              accessible={groupedAccessibility && !expanded}
+              accessibilityLabel={
+                groupedAccessibility && !expanded
+                  ? accessibilityLabel
+                  : undefined
+              }
+              testID={testID}
+            >
+              <View style={styles.titleRow}>
+                <View style={[styles.iconTile, iconTileStyle]}>
+                  {icon}
+                </View>
+                <View
+                  accessible={!groupedAccessibility || expanded}
+                  accessibilityLabel={
+                    !groupedAccessibility || expanded
+                      ? accessibilityLabel
+                      : undefined
+                  }
+                  style={styles.titleCopy}
+                >
+                  <Text numberOfLines={2} style={styles.title}>
+                    {title}
+                  </Text>
+                  <Text numberOfLines={1} style={styles.category}>
+                    {subtitle}
+                  </Text>
+                </View>
+                <Pressable
+                  accessibilityLabel={dismissAccessibilityLabel}
+                  accessibilityRole="button"
+                  hitSlop={8}
+                  onPress={handleDismissRequest}
+                  testID={dismissTestID}
+                  style={({ pressed }) => [
+                    styles.dismiss,
+                    pressed ? styles.dismissPressed : null,
+                  ]}
+                >
+                  <X
+                    accessibilityElementsHidden
+                    color={colors.muted}
+                    size={14}
+                    strokeWidth={2.2}
+                  />
+                </Pressable>
               </View>
-              <View
-                accessible={!groupedAccessibility || expanded}
-                accessibilityLabel={
-                  !groupedAccessibility || expanded
-                    ? accessibilityLabel
-                    : undefined
-                }
-                style={styles.titleCopy}
-              >
-                <Text numberOfLines={2} style={styles.title}>
-                  {title}
-                </Text>
-                <Text numberOfLines={1} style={styles.category}>
-                  {subtitle}
-                </Text>
-              </View>
-              <Pressable
-                accessibilityLabel={dismissAccessibilityLabel}
-                accessibilityRole="button"
-                hitSlop={8}
-                onPress={handleDismissRequest}
-                testID={dismissTestID}
-                style={({ pressed }) => [
-                  styles.dismiss,
-                  pressed ? styles.dismissPressed : null,
-                ]}
-              >
-                <X
-                  accessibilityElementsHidden
-                  color={colors.muted}
-                  size={14}
-                  strokeWidth={2.2}
-                />
-              </Pressable>
+
+              {children}
+
+              {expandedContent && hasExpandedSnapPoint ? (
+                <Pressable
+                  accessibilityLabel={expanded
+                    ? "Collapse detailed risk intelligence"
+                    : "Expand detailed risk intelligence"}
+                  accessibilityRole="button"
+                  accessibilityState={{ expanded }}
+                  onPress={handleDisclosurePress}
+                  style={({ pressed }) => [
+                    styles.disclosureHint,
+                    pressed ? styles.disclosureHintPressed : null,
+                  ]}
+                >
+                  {expanded ? (
+                    <ChevronDown
+                      accessibilityElementsHidden
+                      color={colors.appleBlue}
+                      size={15}
+                      strokeWidth={2.2}
+                    />
+                  ) : (
+                    <ChevronUp
+                      accessibilityElementsHidden
+                      color={colors.appleBlue}
+                      size={15}
+                      strokeWidth={2.2}
+                    />
+                  )}
+                  <Text style={styles.disclosureHintText}>
+                    {expanded
+                      ? "Swipe down for summary"
+                      : "Swipe up for full intelligence"}
+                  </Text>
+                </Pressable>
+              ) : null}
             </View>
 
-            {children}
-
-            {expandedContent && hasExpandedSnapPoint ? (
-              <Pressable
-                accessibilityLabel={expanded
-                  ? "Collapse detailed risk intelligence"
-                  : "Expand detailed risk intelligence"}
-                accessibilityRole="button"
-                accessibilityState={{ expanded }}
-                onPress={handleDisclosurePress}
-                style={({ pressed }) => [
-                  styles.disclosureHint,
-                  pressed ? styles.disclosureHintPressed : null,
-                ]}
+            {expandedContent ? (
+              <Animated.View
+                accessibilityElementsHidden={!expanded}
+                importantForAccessibility={
+                  expanded ? "auto" : "no-hide-descendants"
+                }
+                pointerEvents={expanded ? "auto" : "none"}
+                style={[styles.expandedPanel, expandedPanelAnimatedStyle]}
+                testID={expandedTestID}
               >
-                {expanded ? (
-                  <ChevronDown
-                    accessibilityElementsHidden
-                    color={colors.appleBlue}
-                    size={15}
-                    strokeWidth={2.2}
-                  />
-                ) : (
-                  <ChevronUp
-                    accessibilityElementsHidden
-                    color={colors.appleBlue}
-                    size={15}
-                    strokeWidth={2.2}
-                  />
-                )}
-                <Text style={styles.disclosureHintText}>
-                  {expanded
-                    ? "Swipe down for summary"
-                    : "Swipe up for full intelligence"}
-                </Text>
-              </Pressable>
+                {expandedContent}
+              </Animated.View>
             ) : null}
-          </View>
-
-          {expandedContent ? (
-            <Animated.View
-              accessibilityElementsHidden={!expanded}
-              importantForAccessibility={
-                expanded ? "auto" : "no-hide-descendants"
-              }
-              pointerEvents={expanded ? "auto" : "none"}
-              style={[styles.expandedPanel, expandedPanelAnimatedStyle]}
-              testID={expandedTestID}
-            >
-              {expandedContent}
-            </Animated.View>
-          ) : null}
-        </BottomSheetScrollView>
+          </BottomSheetScrollView>
+        </Animated.View>
       </SafeRouteBottomSheet>
     </Animated.View>
+  );
+}
+
+function LiveMapDetailSheetHandle({
+  hidden,
+}: BottomSheetHandleProps & { hidden: boolean }) {
+  return (
+    <View
+      accessibilityElementsHidden={hidden}
+      accessibilityHint="Swipes down to return to the route summary."
+      accessibilityLabel="Swipe down to minimize this panel"
+      accessibilityRole="adjustable"
+      importantForAccessibility={hidden ? "no-hide-descendants" : "auto"}
+      style={styles.sheetHandleTouch}
+    >
+      {hidden ? null : <View style={styles.sheetHandle} />}
+    </View>
   );
 }
 
@@ -975,7 +1062,37 @@ const styles = StyleSheet.create({
     elevation: 50,
   },
   sheet: {
+    zIndex: 50,
+    elevation: 50,
+  },
+  persistentSheetContainer: {
     marginHorizontal: 14,
+    borderCurve: "continuous",
+    borderRadius: radius.sheet,
+  },
+  sheetHandleTouch: {
+    height: 16,
+    minHeight: 16,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  sheetHandle: {
+    width: 38,
+    height: 5,
+    borderRadius: radius.pill,
+    backgroundColor: colors.mutedSoft,
+  },
+  collapsedContent: {
+    position: "absolute",
+    top: 0,
+    right: 0,
+    left: 0,
+  },
+  detailContent: {
+    flex: 1,
+  },
+  detailScroll: {
+    flex: 1,
   },
   sheetContent: {
     paddingHorizontal: 18,

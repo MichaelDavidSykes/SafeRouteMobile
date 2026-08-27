@@ -132,7 +132,11 @@ describe("risk detail interaction", () => {
     assert.doesNotMatch(overlay, /routeStackSuppressed|openImmediately/);
     assert.match(
       overlay,
-      /onLayoutHeight=\{handleRouteSummaryLayoutHeight\}[\s\S]*morphAnchorHeight=\{routeSummaryAnchorHeight\}[\s\S]*morphAnimatedIndex=\{riskDetailSheetAnimatedIndex\}/,
+      /inline=\{Boolean\(riskDetailAlert\)\}[\s\S]*onLayoutHeight=\{handleRouteSummaryLayoutHeight\}/,
+    );
+    assert.match(
+      overlay,
+      /collapsedContent=\{routeSummary\}[\s\S]*morphAnchorHeight=\{routeSummaryAnchorHeight \+ 16\}[\s\S]*morphAnimatedIndex=\{riskDetailSheetAnimatedIndex\}/,
     );
     assert.match(overlay, /proximity=\{riskDetailAlert\.proximity\}/);
     assert.match(
@@ -169,11 +173,14 @@ describe("risk detail interaction", () => {
       callout,
       /const animatedSheetIndex = morphAnimatedIndex \|\| internalAnimatedSheetIndex/,
     );
+    assert.match(callout, /pointerEvents="box-none"[\s\S]*<SafeRouteBottomSheet/);
+    assert.match(callout, /containerStyle=\{styles\.persistentSheetContainer\}/);
+    assert.match(callout, /style=\{styles\.sheet\}/);
+    assert.match(callout, /handleComponent=\{[\s\S]*renderPersistentHandle/);
     assert.match(
       callout,
-      /<Animated\.View[\s\S]*morphFromRouteStack \? routeStackMorphAnimatedStyle : null[\s\S]*<SafeRouteBottomSheet/,
+      /styles\.collapsedContent,[\s\S]*collapsedContentAnimatedStyle[\s\S]*\{collapsedContent\}[\s\S]*styles\.detailContent,[\s\S]*detailContentAnimatedStyle/,
     );
-    assert.match(callout, /style=\{styles\.sheet\}/);
     assert.match(
       callout,
       /enablePanDownToClose=\{[\s\S]*morphFromRouteStack[\s\S]*\? false/,

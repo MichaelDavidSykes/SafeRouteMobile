@@ -660,7 +660,6 @@ export function LiveMapDetailCallout({
         animatedIndex={animatedSheetIndex}
         bottomInset={bottomInset}
         containerStyle={styles.persistentSheetContainer}
-        detached
         enableContentPanningGesture={open}
         enableHandlePanningGesture={open}
         enablePanDownToClose={

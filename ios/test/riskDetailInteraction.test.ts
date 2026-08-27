@@ -176,6 +176,7 @@ describe("risk detail interaction", () => {
     );
     assert.match(callout, /pointerEvents="box-none"[\s\S]*<SafeRouteBottomSheet/);
     assert.match(callout, /containerStyle=\{styles\.persistentSheetContainer\}/);
+    assert.doesNotMatch(callout, /\sdetached(?:\s|>)/);
     assert.match(callout, /style=\{styles\.sheet\}/);
     assert.match(callout, /handleComponent=\{[\s\S]*renderPersistentHandle/);
     assert.match(

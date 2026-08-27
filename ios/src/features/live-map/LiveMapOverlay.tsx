@@ -300,7 +300,7 @@ export const LiveMapOverlay = forwardRef<
 
       {riskDetailAlert ? (
         <LiveMapRiskDetailCallout
-          bottomInset={14}
+          bottomInset={safeAreaInsets.bottom + 14}
           collapsedContent={routeSummary}
           morphAnchorHeight={routeSummaryAnchorHeight + 16}
           morphAnimatedIndex={riskDetailSheetAnimatedIndex}

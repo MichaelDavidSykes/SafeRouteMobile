@@ -138,6 +138,7 @@ describe("risk detail interaction", () => {
       overlay,
       /collapsedContent=\{routeSummary\}[\s\S]*morphAnchorHeight=\{routeSummaryAnchorHeight \+ 16\}[\s\S]*morphAnimatedIndex=\{riskDetailSheetAnimatedIndex\}/,
     );
+    assert.match(overlay, /bottomInset=\{safeAreaInsets\.bottom \+ 14\}/);
     assert.match(overlay, /proximity=\{riskDetailAlert\.proximity\}/);
     assert.match(
       overlay,

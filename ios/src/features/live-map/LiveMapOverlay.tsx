@@ -13,7 +13,10 @@ import {
 import { useSharedValue } from "react-native-reanimated";
 
 import type { RiskZone, SavedSafeRoutePlan } from "./liveMapTypes";
-import type { LiveMapOverlayLayout } from "./liveMapLayout";
+import {
+  resolveLiveMapControlsTop,
+  type LiveMapOverlayLayout,
+} from "./liveMapLayout";
 import type { RouteRiskAdvisory } from "./liveRouteRiskAdvisory";
 import {
   shouldShowGuidanceCard,
@@ -111,6 +114,11 @@ export const LiveMapOverlay = forwardRef<
   const retainedSelectedRiskDetailRef = useRef<RiskDetailTarget | null>(null);
   const preloadedRiskDetailRef = useRef<RiskDetailTarget | null>(null);
   const guidanceCardVisible = shouldShowGuidanceCard(activeNavigationState);
+  const mapControlsTop = resolveLiveMapControlsTop({
+    guidanceVisible: guidanceCardVisible,
+    layout,
+    safeAreaTop: safeAreaInsets.top,
+  });
   const selectedRiskDetail = openedRiskDetail;
   const advisoryRiskDetail: RiskDetailTarget | null = riskAdvisory
     ? { proximity: riskAdvisory.proximity, zone: riskAdvisory.zone }
@@ -223,6 +231,7 @@ export const LiveMapOverlay = forwardRef<
           routeIntelCount={
             routePlan.riskZones.length + (routePlan.supportFacilities?.length || 0)
           }
+          top={mapControlsTop}
         />
       </MotionEntrance>
 

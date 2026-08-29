@@ -1,7 +1,10 @@
 import assert from 'node:assert/strict';
 import { describe, it } from 'node:test';
 
-import { resolveLiveMapOverlayLayout } from '../src/features/live-map/liveMapLayout';
+import {
+  resolveLiveMapControlsTop,
+  resolveLiveMapOverlayLayout,
+} from '../src/features/live-map/liveMapLayout';
 
 describe('live map overlay layout', () => {
   it('keeps the regular overlay on modern iPhone sizes', () => {
@@ -36,5 +39,18 @@ describe('live map overlay layout', () => {
     assert.equal(layout.isCompact, false);
     assert.equal(layout.showRouteEndpoints, false);
     assert.equal(layout.guidanceDistanceVisible, true);
+  });
+
+  it('moves the right-side controls below active guidance', () => {
+    const layout = resolveLiveMapOverlayLayout({ height: 844, platform: 'ios', width: 390 });
+
+    assert.equal(
+      resolveLiveMapControlsTop({ guidanceVisible: false, layout, safeAreaTop: 59 }),
+      88,
+    );
+    assert.equal(
+      resolveLiveMapControlsTop({ guidanceVisible: true, layout, safeAreaTop: 59 }),
+      151,
+    );
   });
 });

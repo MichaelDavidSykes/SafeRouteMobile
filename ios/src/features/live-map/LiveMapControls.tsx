@@ -22,6 +22,7 @@ interface LiveMapControlsProps {
   onFitRoute: () => void;
   onSetAlertsVisible: (visible: boolean) => void;
   routeIntelCount: number;
+  top: number;
 }
 
 export function LiveMapControls({
@@ -33,6 +34,7 @@ export function LiveMapControls({
   onFitRoute,
   onSetAlertsVisible,
   routeIntelCount,
+  top,
 }: LiveMapControlsProps) {
   const driveAlongActive = shouldShowDriveAlongControl(activeNavigationState);
   const compactControls = layout.mapControlsDirection === "row";
@@ -45,7 +47,7 @@ export function LiveMapControls({
     <View
       style={[
         styles.mapControls,
-        { top: layout.mapControlsTop },
+        { top },
         layout.mapControlsDirection === "row"
           ? styles.mapControlsCompact
           : null,

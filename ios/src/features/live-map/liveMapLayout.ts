@@ -28,8 +28,44 @@ export interface LiveMapOverlayLayout {
   showRouteSubtitle: boolean;
 }
 
+interface LiveMapControlsTopOptions {
+  guidanceVisible: boolean;
+  layout: LiveMapOverlayLayout;
+  safeAreaTop: number;
+}
+
 const COMPACT_HEIGHT_THRESHOLD = 700;
 const COMPACT_WIDTH_THRESHOLD = 360;
+const GUIDANCE_CARD_TOP_GAP = 8;
+const GUIDANCE_CONTROLS_GAP = 10;
+const REGULAR_GUIDANCE_CARD_HEIGHT = 74;
+const COMPACT_GUIDANCE_CARD_HEIGHT = 62;
+
+export function resolveLiveMapControlsTop({
+  guidanceVisible,
+  layout,
+  safeAreaTop,
+}: LiveMapControlsTopOptions) {
+  if (!guidanceVisible) {
+    return layout.mapControlsTop;
+  }
+
+  const normalizedSafeAreaTop = Number.isFinite(safeAreaTop)
+    ? Math.max(0, safeAreaTop)
+    : 0;
+  const guidanceTop = Math.max(
+    layout.guidanceTop,
+    normalizedSafeAreaTop + GUIDANCE_CARD_TOP_GAP,
+  );
+  const guidanceHeight = layout.isCompact
+    ? COMPACT_GUIDANCE_CARD_HEIGHT
+    : REGULAR_GUIDANCE_CARD_HEIGHT;
+
+  return Math.max(
+    layout.mapControlsTop,
+    guidanceTop + guidanceHeight + GUIDANCE_CONTROLS_GAP,
+  );
+}
 
 export function resolveLiveMapOverlayLayout({
   height,

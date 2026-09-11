@@ -96,7 +96,7 @@ describe('guest map design motion', () => {
     );
     assert.match(
       guestMapSource,
-      /function RouteInput[\s\S]*<BottomSheetTextInput[\s\S]*showSoftInputOnFocus/,
+      /function RouteStopInput[\s\S]*<BottomSheetTextInput[\s\S]*showSoftInputOnFocus/,
     );
     assert.match(
       guestMapSource,

@@ -18,6 +18,7 @@ import {
   mapGuestRouteDraftToCheckpoints,
   mapGuestRouteDraftToResolvedCheckpoints,
   removeGuestRouteWaypoint,
+  reorderGuestRouteStop,
   reorderGuestRouteWaypoint,
   resolveGuestRouteDraftNextStopInputId,
   resolveGuestRouteDraftStopCoordinate,
@@ -195,6 +196,12 @@ describe('guest route draft state', () => {
       selectedFirst.waypoints.map((waypoint) => waypoint.id),
       [firstId, secondId]
     );
+    assert.deepEqual(exportGuestRouteDraftCoordinates(reordered), [
+      originSelection.coordinate,
+      waypointSelections[1].coordinate,
+      waypointSelections[0].coordinate,
+      destinationSelection.coordinate,
+    ]);
 
     const updated = setGuestRouteWaypoint(reordered, firstId, {
       coordinate: { latitude: 51.52, longitude: -0.1 },
@@ -206,6 +213,71 @@ describe('guest route draft state', () => {
     const removed = removeGuestRouteWaypoint(updated, firstId);
     assert.deepEqual(removed.waypoints.map((waypoint) => waypoint.id), [secondId]);
     assert.equal(removed.selectedStopId, null);
+  });
+
+  it('reorders every route location while keeping stable row identities', () => {
+    let draft = createGuestRouteDraft({
+      origin: originSelection,
+      destination: destinationSelection
+    });
+    draft = addGuestRouteWaypoint(draft, waypointSelections[0]);
+    draft = addGuestRouteWaypoint(draft, waypointSelections[1]);
+
+    const originalDestinationId = draft.destination.id;
+    const originalWaypointIds = draft.waypoints.map((waypoint) => waypoint.id);
+    const originalReorderKeys = getOrderedGuestRouteDraftStops(draft)
+      .map((stop) => stop.reorderKey);
+    const reordered = reorderGuestRouteStop(draft, originalDestinationId, 0);
+
+    assert.deepEqual(exportGuestRouteDraftCoordinates(reordered), [
+      destinationSelection.coordinate,
+      originSelection.coordinate,
+      waypointSelections[0].coordinate,
+      waypointSelections[1].coordinate
+    ]);
+    assert.deepEqual(
+      reordered.waypoints.map((waypoint) => waypoint.id),
+      originalWaypointIds
+    );
+    assert.equal(reordered.origin.id, GUEST_ROUTE_DRAFT_ORIGIN_ID);
+    assert.equal(reordered.destination.id, originalDestinationId);
+    assert.deepEqual(
+      getOrderedGuestRouteDraftStops(reordered).map((stop) => stop.reorderKey),
+      [
+        originalReorderKeys[3],
+        originalReorderKeys[0],
+        originalReorderKeys[1],
+        originalReorderKeys[2],
+      ],
+    );
+    assert.deepEqual(
+      getOrderedGuestRouteDraftStops(reordered).map((stop) => stop.kind),
+      ['origin', 'waypoint', 'waypoint', 'destination']
+    );
+
+    const reduced = guestRouteDraftReducer(draft, {
+      stopId: originalDestinationId,
+      toIndex: 1,
+      type: 'stop/reorder'
+    });
+    assert.deepEqual(exportGuestRouteDraftCoordinates(reduced), [
+      originSelection.coordinate,
+      destinationSelection.coordinate,
+      waypointSelections[0].coordinate,
+      waypointSelections[1].coordinate
+    ]);
+
+    const originMovedLast = reorderGuestRouteStop(
+      draft,
+      GUEST_ROUTE_DRAFT_ORIGIN_ID,
+      3,
+    );
+    assert.deepEqual(exportGuestRouteDraftCoordinates(originMovedLast), [
+      waypointSelections[0].coordinate,
+      waypointSelections[1].coordinate,
+      destinationSelection.coordinate,
+      originSelection.coordinate,
+    ]);
   });
 
   it('exports resolved coordinates and checkpoints in route order', () => {

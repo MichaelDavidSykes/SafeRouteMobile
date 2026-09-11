@@ -290,7 +290,7 @@ export const guestMapStyles = StyleSheet.create({
     overflow: 'hidden',
     borderWidth: 0.5,
     borderColor: colors.glassBorder,
-    borderRadius: 16,
+    borderRadius: 20,
     backgroundColor: colors.surface
   },
   routeAlternativeSelector: {
@@ -438,17 +438,111 @@ export const guestMapStyles = StyleSheet.create({
     minHeight: 64,
     paddingHorizontal: spacing.md
   },
-  waypointRow: {
-    minHeight: 54,
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingLeft: spacing.md,
-    paddingRight: spacing.xs
+  sortableRouteStopRow: {
+    position: 'absolute',
+    left: 0,
+    right: 0,
+    height: 64
   },
-  waypointActions: {
+  routeStopSwipeForeground: {
+    height: 64,
+    backgroundColor: colors.surface
+  },
+  routeStopGestureSurface: {
+    height: 64
+  },
+  routeStopDeleteActionContainer: {
+    position: 'absolute',
+    top: 0,
+    right: 0,
+    width: 92,
+    height: 64,
+    paddingVertical: 6,
+    paddingLeft: 6,
+    paddingRight: 6,
+    backgroundColor: colors.surface
+  },
+  routeStopDeleteAction: {
+    flex: 1,
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 2
+    justifyContent: 'center',
+    gap: 6,
+    borderRadius: 16,
+    backgroundColor: colors.danger
+  },
+  routeStopDeleteActionPressed: {
+    opacity: 0.76
+  },
+  routeStopDeleteText: {
+    color: colors.onAccent,
+    fontSize: 13,
+    fontWeight: '700'
+  },
+  waypointRow: {
+    height: 64,
+    backgroundColor: colors.surface
+  },
+  routeStopInputArea: {
+    minWidth: 0,
+    height: 64,
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+    paddingLeft: spacing.md,
+    paddingRight: spacing.sm
+  },
+  routeStopMarker: {
+    width: 32,
+    height: 32,
+    flexShrink: 0,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderRadius: radius.pill,
+    backgroundColor: colors.appleBlue,
+    zIndex: 2
+  },
+  routeStopMarkerOrigin: {
+    backgroundColor: colors.appleBlue
+  },
+  routeStopMarkerDestination: {
+    backgroundColor: '#536fd5'
+  },
+  routeStopDragIndicator: {
+    width: 28,
+    height: 32,
+    flexShrink: 0,
+    alignItems: 'center',
+    justifyContent: 'center'
+  },
+  routeStopConnectorTop: {
+    position: 'absolute',
+    top: 0,
+    left: spacing.md + 15,
+    width: 2,
+    height: 16,
+    borderRadius: radius.pill,
+    backgroundColor: colors.mutedSoft,
+    zIndex: 1
+  },
+  routeStopConnectorBottom: {
+    position: 'absolute',
+    top: 48,
+    left: spacing.md + 15,
+    bottom: 0,
+    width: 2,
+    borderRadius: radius.pill,
+    backgroundColor: colors.mutedSoft,
+    zIndex: 1
+  },
+  routeStopDivider: {
+    position: 'absolute',
+    right: spacing.sm,
+    bottom: 0,
+    left: spacing.md + 44,
+    height: 0.5,
+    backgroundColor: colors.borderSoft
   },
   waypointAction: {
     width: 34,
@@ -486,9 +580,15 @@ export const guestMapStyles = StyleSheet.create({
     height: 24,
     paddingVertical: 0,
     color: colors.ink,
-    fontSize: 15,
-    fontWeight: '600',
+    fontSize: 16,
+    fontWeight: '500',
     lineHeight: 20
+  },
+  routeStopAnimatedInput: {
+    minWidth: 0,
+    flex: 1,
+    height: 24,
+    maxHeight: 24
   },
   routeInputCopy: {
     minWidth: 0,
@@ -536,25 +636,6 @@ export const guestMapStyles = StyleSheet.create({
   routeInputMarkerDestination: {
     borderColor: colors.appleBlue,
     backgroundColor: colors.appleBlueSoft
-  },
-  waypointMarker: {
-    width: 24,
-    height: 24,
-    flexShrink: 0,
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginRight: spacing.sm,
-    borderWidth: 1,
-    borderColor: colors.info,
-    borderRadius: radius.pill,
-    backgroundColor: colors.infoSoft
-  },
-  waypointMarkerLabel: {
-    color: colors.infoText,
-    fontSize: 11,
-    fontWeight: '800',
-    lineHeight: 14,
-    textAlign: 'center'
   },
   searchResults: {
     maxHeight: 280,
@@ -643,22 +724,39 @@ export const guestMapStyles = StyleSheet.create({
     lineHeight: 17
   },
   addStopButton: {
-    minHeight: controlSizes.secondary,
+    height: 56,
     alignItems: 'center',
-    justifyContent: 'center',
+    justifyContent: 'flex-start',
     flexDirection: 'row',
-    gap: 5,
-    marginTop: spacing.xs,
-    borderRadius: radius.pill,
-    backgroundColor: 'transparent'
+    gap: 12,
+    paddingLeft: spacing.md,
+    paddingRight: spacing.sm,
+    backgroundColor: colors.surface
   },
   addStopButtonPressed: {
     backgroundColor: colors.appleBlueSoft
   },
+  addStopConnector: {
+    position: 'absolute',
+    top: 0,
+    left: spacing.md + 15,
+    width: 2,
+    height: 12,
+    borderRadius: radius.pill,
+    backgroundColor: colors.mutedSoft
+  },
+  addStopMarker: {
+    width: 32,
+    height: 32,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderRadius: radius.pill,
+    backgroundColor: colors.appleBlue
+  },
   addStopButtonText: {
     color: colors.appleBlue,
-    fontSize: typeScale.sm,
-    fontWeight: '800'
+    fontSize: 16,
+    fontWeight: '600'
   },
   mapActionIconTile: {
     backgroundColor: colors.appleBlueSoft

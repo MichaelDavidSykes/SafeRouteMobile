@@ -8,6 +8,7 @@ import {
   X,
 } from "lucide-react-native";
 import { BlurView } from "expo-blur";
+import Constants from "expo-constants";
 import { Animated, Pressable, StyleSheet, Text, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
@@ -40,6 +41,12 @@ const tabs: Array<{ id: AppTab; label: string }> = [
   { id: "convoys", label: "Convoys" },
   { id: "calendar", label: "Calendar" },
 ];
+
+const appVersion = Constants.expoConfig?.version ?? "0.1.0";
+const installedBuild = Constants.platform?.ios?.buildNumber;
+const buildLabel = __DEV__
+  ? `v${appVersion} · Development`
+  : `v${appVersion} · Build ${installedBuild ?? Constants.expoConfig?.ios?.buildNumber ?? "unknown"}`;
 
 export function AppNavigationMenu({
   activeTab,
@@ -119,6 +126,9 @@ export function AppNavigationMenu({
                 />
               );
             })}
+            <Text selectable style={styles.buildLabel}>
+              {buildLabel}
+            </Text>
           </BlurView>
         </Animated.View>
 
@@ -293,6 +303,12 @@ const styles = StyleSheet.create({
     gap: 2,
     padding: 6,
     backgroundColor: colors.surfaceTranslucent,
+  },
+  buildLabel: {
+    color: colors.muted,
+    fontSize: 11,
+    textAlign: "center",
+    paddingVertical: 8,
   },
   menuItem: {
     minHeight: 44,

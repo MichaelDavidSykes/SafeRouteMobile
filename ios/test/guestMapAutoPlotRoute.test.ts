@@ -24,7 +24,7 @@ describe('guest route plotting lifecycle', () => {
     );
     assert.match(
       selectionHandler,
-      /selectedStopId === GUEST_ROUTE_DRAFT_DESTINATION_ID[\s\S]*nextRouteDraft\.waypoints\.length === 0/,
+      /selectedStopId === routeDraft\.destination\.id[\s\S]*nextRouteDraft\.waypoints\.length === 0/,
     );
     assert.match(
       selectionHandler,

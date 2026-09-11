@@ -5,6 +5,7 @@ import {
   useReducer,
   useRef,
   useState,
+  type ReactNode,
 } from 'react';
 import {
   Bike,
@@ -19,6 +20,7 @@ import {
   House,
   Map as MapIcon,
   MapPin,
+  Menu,
   Navigation,
   PersonStanding,
   Plus,
@@ -31,7 +33,10 @@ import {
 import {
   ActivityIndicator,
   Alert,
+  Animated as NativeAnimated,
+  Easing as NativeEasing,
   Keyboard,
+  PanResponder,
   Platform,
   Pressable,
   ScrollView,
@@ -161,7 +166,6 @@ import {
   createGuestRouteDraft,
   exportGuestRouteDraftCoordinates,
   findGuestRouteDraftStop,
-  GUEST_ROUTE_DRAFT_DESTINATION_ID,
   GUEST_ROUTE_DRAFT_ORIGIN_ID,
   getGuestRouteDraftUnresolvedStopIds,
   guestRouteDraftReducer,
@@ -172,6 +176,7 @@ import {
   setGuestRouteCurrentLocation,
   shouldUseGuestMapSelectionAsDestination,
   type GuestRouteDraft,
+  type GuestRouteDraftStop,
 } from './guestRouteDraft';
 import { guestMapStyles as styles } from './GuestMapScreen.styles';
 import { createGuestRiskArea } from './guestRiskAreaApi';
@@ -207,7 +212,9 @@ import {
 
 const GUEST_LOCATION_SEARCH_DEBOUNCE_MS = 320;
 const GUEST_LOCATION_SEARCH_MIN_LENGTH = 2;
-const GUEST_WAYPOINT_ACTION_HIT_SLOP = 6;
+const GUEST_ROUTE_STOP_ROW_HEIGHT = 64;
+const GUEST_ROUTE_STOP_DELETE_WIDTH = 92;
+const GUEST_ROUTE_STOP_SETTLE_DURATION_MS = 180;
 const GUEST_MAP_MAX_RENDERED_RISK_ZONES = 80;
 const GUEST_MAP_MAX_ROUTE_COORDINATES = 1200;
 const GUEST_MAP_MAX_ROUTE_FIT_COORDINATES = 420;
@@ -542,6 +549,10 @@ export function GuestMapScreen({
   ]);
   const origin = routeDraft.origin.label;
   const destination = routeDraft.destination.label;
+  const reorderableRouteStops = useMemo(
+    () => [routeDraft.origin, ...routeDraft.waypoints, routeDraft.destination],
+    [routeDraft.destination, routeDraft.origin, routeDraft.waypoints],
+  );
   const routeFitBottomPadding = resolveGuestRouteFitBottomPadding(
     viewport.height,
   );
@@ -1860,11 +1871,6 @@ export function GuestMapScreen({
     handleStopChange(GUEST_ROUTE_DRAFT_ORIGIN_ID, value);
   };
 
-  const handleDestinationChange = (value: string) => handleStopChange(
-    GUEST_ROUTE_DRAFT_DESTINATION_ID,
-    value
-  );
-
   const handleSelectLocation = (result: GuestLocationSearchResult) => {
     if (!activeInput) {
       return;
@@ -1880,7 +1886,7 @@ export function GuestMapScreen({
     };
     const nextRouteDraft = guestRouteDraftReducer(routeDraft, selectionAction);
     const shouldAutoPlotBaseRoute =
-      selectedStopId === GUEST_ROUTE_DRAFT_DESTINATION_ID &&
+      selectedStopId === routeDraft.destination.id &&
       nextRouteDraft.waypoints.length === 0;
     cancelRoadRouteUpgrade();
     dispatchRouteDraft(selectionAction);
@@ -1895,7 +1901,7 @@ export function GuestMapScreen({
     const nextRegion = regionForGuestSelectedLocation(result.coordinate);
     setMapRegion(nextRegion);
     mapRef.current?.animateToRegion(nextRegion, 500);
-    if (selectedStopId === GUEST_ROUTE_DRAFT_DESTINATION_ID) {
+    if (selectedStopId === routeDraft.destination.id) {
       void persistentPlacesStore
         .recordRecentDestination(
           resolvedPlacesScopeId,
@@ -1983,8 +1989,10 @@ export function GuestMapScreen({
     setRouteMessage('');
   };
 
-  const handleReorderWaypoint = (waypointId: string, toIndex: number) => {
-    dispatchRouteDraft({ type: 'waypoint/reorder', waypointId, toIndex });
+  const handleReorderStop = (stopId: string, toIndex: number) => {
+    Keyboard.dismiss();
+    transitionActiveInput(null);
+    dispatchRouteDraft({ type: 'stop/reorder', stopId, toIndex });
     cancelRoadRouteUpgrade();
     setRoutePlan(null);
     setRouteAlternatives([]);
@@ -2112,7 +2120,7 @@ export function GuestMapScreen({
     if (mapSelectionSetsDestination) {
       const selectionAction = {
         selection,
-        stopId: GUEST_ROUTE_DRAFT_DESTINATION_ID,
+        stopId: routeDraft.destination.id,
         type: 'stop/select' as const,
       };
       nextRouteDraft = guestRouteDraftReducer(routeDraft, selectionAction);
@@ -3011,68 +3019,83 @@ export function GuestMapScreen({
               ) : null}
 
               <View style={styles.inputStack}>
-                <RouteInput
-                  divided
-                  accessibilityHint={originInputCopy.accessibilityHint}
-                  label={originInputCopy.accessibilityLabel}
-                  overline="From"
-                  placeholder={originInputCopy.placeholder}
-                  tone="origin"
-                  testID={uiTestIds.guestMapOriginInput}
-                  value={origin}
-                  inputRef={(input) => {
-                    if (input) {
-                      routeInputRefs.current.set(GUEST_ROUTE_DRAFT_ORIGIN_ID, input);
-                    } else {
-                      routeInputRefs.current.delete(GUEST_ROUTE_DRAFT_ORIGIN_ID);
-                    }
+                <SortableRouteStopList
+                  data={reorderableRouteStops}
+                  renderItem={(stop, index, canFocus) => {
+                    const isOrigin = stop.id === routeDraft.origin.id;
+                    const isDestination = stop.id === routeDraft.destination.id;
+                    return (
+                      <RouteStopInput
+                        accessibilityHint={
+                          isOrigin
+                            ? originInputCopy.accessibilityHint
+                            : isDestination
+                              ? destinationInputCopy.accessibilityHint
+                              : 'Enter a place, address, or coordinate for this stop.'
+                        }
+                        accessibilityLabel={
+                          isOrigin
+                            ? originInputCopy.accessibilityLabel
+                            : isDestination
+                              ? destinationInputCopy.accessibilityLabel
+                              : `Stop ${index}`
+                        }
+                        canFocus={canFocus}
+                        divided
+                        isDestination={isDestination}
+                        isOrigin={isOrigin}
+                        usesCurrentLocation={stop.resolution.type === 'current-location'}
+                        placeholder={
+                          isOrigin
+                            ? originInputCopy.placeholder
+                            : isDestination
+                              ? destinationInputCopy.placeholder
+                              : `Stop ${index}`
+                        }
+                        stopId={stop.id}
+                        value={stop.label}
+                        inputRef={(input) => {
+                          if (input) {
+                            routeInputRefs.current.set(stop.id, input);
+                          } else {
+                            routeInputRefs.current.delete(stop.id);
+                          }
+                        }}
+                        onChangeText={(value) => {
+                          if (isOrigin) {
+                            handleOriginChange(value);
+                          } else {
+                            handleStopChange(stop.id, value);
+                          }
+                        }}
+                        onFocus={() => transitionActiveInput(stop.id)}
+                        onSubmitEditing={isDestination
+                          ? (routePlan ? handleOpenPreview : handlePlotRouteAction)
+                          : undefined}
+                      />
+                    );
                   }}
-                  onChangeText={handleOriginChange}
-                  onFocus={() => transitionActiveInput(GUEST_ROUTE_DRAFT_ORIGIN_ID)}
+                  onRemove={handleRemoveWaypoint}
+                  onReorder={handleReorderStop}
                 />
-                {routeDraft.waypoints.map((waypoint, index) => (
-                  <WaypointInput
-                    key={waypoint.id}
-                    divided
-                    canMoveDown={index < routeDraft.waypoints.length - 1}
-                    canMoveUp={index > 0}
-                    index={index}
-                    stopId={waypoint.id}
-                    value={waypoint.label}
-                    inputRef={(input) => {
-                      if (input) {
-                        routeInputRefs.current.set(waypoint.id, input);
-                      } else {
-                        routeInputRefs.current.delete(waypoint.id);
-                      }
-                    }}
-                    onChangeText={(value) => handleStopChange(waypoint.id, value)}
-                    onFocus={() => transitionActiveInput(waypoint.id)}
-                    onMove={(toIndex) => handleReorderWaypoint(waypoint.id, toIndex)}
-                    onRemove={() => handleRemoveWaypoint(waypoint.id)}
-                  />
-                ))}
-                <RouteInput
-                  accessibilityHint={destinationInputCopy.accessibilityHint}
-                  label={destinationInputCopy.accessibilityLabel}
-                  overline="To"
-                  placeholder={destinationInputCopy.placeholder}
-                  tone="destination"
-                  testID={uiTestIds.guestMapDestinationInput}
-                  value={destination}
-                  inputRef={(input) => {
-                    if (input) {
-                      routeInputRefs.current.set(GUEST_ROUTE_DRAFT_DESTINATION_ID, input);
-                    } else {
-                      routeInputRefs.current.delete(GUEST_ROUTE_DRAFT_DESTINATION_ID);
-                    }
-                  }}
-                  onChangeText={handleDestinationChange}
-                  onFocus={() => transitionActiveInput(GUEST_ROUTE_DRAFT_DESTINATION_ID)}
-                  onSubmitEditing={
-                    routePlan ? handleOpenPreview : handlePlotRouteAction
-                  }
-                />
+                <Pressable
+                  accessibilityLabel="Add another stop"
+                  accessibilityRole="button"
+                  accessibilityState={{ disabled: !canAddGuestRouteWaypoint(routeDraft) }}
+                  disabled={!canAddGuestRouteWaypoint(routeDraft)}
+                  testID={uiTestIds.guestMapAddWaypoint}
+                  style={({ pressed }) => [
+                    styles.addStopButton,
+                    pressed ? styles.addStopButtonPressed : null
+                  ]}
+                  onPress={handleAddWaypoint}
+                >
+                  <View accessibilityElementsHidden style={styles.addStopConnector} />
+                  <View accessibilityElementsHidden style={styles.addStopMarker}>
+                    <Plus color={colors.onAccent} size={19} strokeWidth={2.4} />
+                  </View>
+                  <Text style={styles.addStopButtonText}>Add stop</Text>
+                </Pressable>
               </View>
 
               {activeInput ? (
@@ -3087,23 +3110,6 @@ export function GuestMapScreen({
                 />
               ) : null}
 
-              {!searchStageActive ? (
-                <Pressable
-                  accessibilityLabel="Add another stop"
-                  accessibilityRole="button"
-                  accessibilityState={{ disabled: !canAddGuestRouteWaypoint(routeDraft) }}
-                  disabled={!canAddGuestRouteWaypoint(routeDraft)}
-                  testID={uiTestIds.guestMapAddWaypoint}
-                  style={({ pressed }) => [
-                    styles.addStopButton,
-                    pressed ? styles.addStopButtonPressed : null
-                  ]}
-                  onPress={handleAddWaypoint}
-                >
-                  <Plus accessibilityElementsHidden color={colors.appleBlue} size={17} strokeWidth={2.1} />
-                  <Text style={styles.addStopButtonText}>Add stop</Text>
-                </Pressable>
-              ) : null}
             </BottomSheetScrollView>
 
             {showRouteFooter ? (
@@ -3656,84 +3662,533 @@ function resolveRoadPreviewStops(routePlan: SavedSafeRoutePlan) {
   return coordinates;
 }
 
-function RouteInput({
+function SortableRouteStopList({
+  data,
+  onRemove,
+  onReorder,
+  renderItem,
+}: {
+  data: readonly GuestRouteDraftStop[];
+  onRemove: (stopId: string) => void;
+  onReorder: (stopId: string, toIndex: number) => void;
+  renderItem: (
+    stop: GuestRouteDraftStop,
+    index: number,
+    canFocus: () => boolean,
+  ) => ReactNode;
+}) {
+  const [dragState, setDragState] = useState<RouteStopDragState | null>(null);
+  const [openSwipeStopId, setOpenSwipeStopId] = useState<string | null>(null);
+  const dragStateRef = useRef<RouteStopDragState | null>(null);
+
+  const handleDragStart = useCallback((stopId: string, fromIndex: number) => {
+    if (dragStateRef.current) {
+      return;
+    }
+    Keyboard.dismiss();
+    setOpenSwipeStopId(null);
+    const nextState = {
+      fromIndex,
+      hoverIndex: fromIndex,
+      settling: false,
+      stopId,
+    };
+    dragStateRef.current = nextState;
+    setDragState(nextState);
+  }, []);
+
+  const handleDragUpdate = useCallback((fromIndex: number, translationY: number) => {
+    const current = dragStateRef.current;
+    if (!current || current.fromIndex !== fromIndex || current.settling) {
+      return;
+    }
+
+    const minimumTranslation = -fromIndex * GUEST_ROUTE_STOP_ROW_HEIGHT;
+    const maximumTranslation =
+      (data.length - fromIndex - 1) * GUEST_ROUTE_STOP_ROW_HEIGHT;
+    const boundedTranslation = Math.max(
+      minimumTranslation,
+      Math.min(maximumTranslation, translationY),
+    );
+    const nextState = {
+      ...current,
+      hoverIndex: Math.max(
+        0,
+        Math.min(
+          data.length - 1,
+          fromIndex + Math.round(
+            boundedTranslation / GUEST_ROUTE_STOP_ROW_HEIGHT,
+          ),
+        ),
+      ),
+    };
+    dragStateRef.current = nextState;
+    if (current.hoverIndex !== nextState.hoverIndex) {
+      setDragState(nextState);
+    }
+  }, [data.length]);
+
+  const handleDragFinish = useCallback((stopId: string, fromIndex: number) => {
+    const completed = dragStateRef.current;
+    if (
+      completed
+      && completed.stopId === stopId
+      && completed.fromIndex === fromIndex
+    ) {
+      const snappedState = {
+        ...completed,
+        settling: true,
+      };
+      dragStateRef.current = snappedState;
+      setDragState(snappedState);
+      return;
+    }
+
+    dragStateRef.current = null;
+    setDragState(null);
+  }, []);
+
+  const handleDragSettled = useCallback((stopId: string, fromIndex: number) => {
+    const completed = dragStateRef.current;
+    if (
+      !completed
+      || !completed.settling
+      || completed.stopId !== stopId
+      || completed.fromIndex !== fromIndex
+    ) {
+      return;
+    }
+
+    dragStateRef.current = null;
+    setDragState(null);
+    if (completed.hoverIndex !== fromIndex) {
+      onReorder(stopId, completed.hoverIndex);
+    }
+  }, [onReorder]);
+
+  return (
+    <View style={{ height: data.length * GUEST_ROUTE_STOP_ROW_HEIGHT }}>
+      {data.map((stop, index) => {
+        const active = dragState?.fromIndex === index;
+        let targetIndex = index;
+        if (active) {
+          targetIndex = dragState.hoverIndex;
+        } else if (dragState && dragState.hoverIndex > dragState.fromIndex) {
+          if (index > dragState.fromIndex && index <= dragState.hoverIndex) {
+            targetIndex = index - 1;
+          }
+        } else if (dragState && dragState.hoverIndex < dragState.fromIndex) {
+          if (index >= dragState.hoverIndex && index < dragState.fromIndex) {
+            targetIndex = index + 1;
+          }
+        }
+
+        return (
+          <SortableRouteStopRow
+            active={active}
+            count={data.length}
+            index={index}
+            key={stop.reorderKey}
+            openSwipeStopId={openSwipeStopId}
+            settling={Boolean(dragState?.settling)}
+            stopId={stop.id}
+            targetTranslationY={targetIndex * GUEST_ROUTE_STOP_ROW_HEIGHT}
+            onDelete={stop.kind === 'waypoint'
+              ? () => {
+                  setOpenSwipeStopId(null);
+                  onRemove(stop.id);
+                }
+              : undefined}
+            onDragFinish={handleDragFinish}
+            onDragSettled={handleDragSettled}
+            onDragStart={handleDragStart}
+            onDragUpdate={handleDragUpdate}
+            onSwipeOpen={setOpenSwipeStopId}
+          >
+            {(canFocus) => renderItem(
+              stop,
+              index,
+              canFocus,
+            )}
+          </SortableRouteStopRow>
+        );
+      })}
+    </View>
+  );
+}
+
+type RouteStopDragState = {
+  fromIndex: number;
+  hoverIndex: number;
+  settling: boolean;
+  stopId: string;
+};
+
+function SortableRouteStopRow({
+  active,
+  children,
+  count,
+  index,
+  onDelete,
+  onDragFinish,
+  onDragSettled,
+  onDragStart,
+  onDragUpdate,
+  onSwipeOpen,
+  openSwipeStopId,
+  settling,
+  stopId,
+  targetTranslationY,
+}: {
+  active: boolean;
+  children: (canFocus: () => boolean) => ReactNode;
+  count: number;
+  index: number;
+  onDelete?: () => void;
+  onDragFinish: (stopId: string, fromIndex: number) => void;
+  onDragSettled: (stopId: string, fromIndex: number) => void;
+  onDragStart: (stopId: string, fromIndex: number) => void;
+  onDragUpdate: (fromIndex: number, translationY: number) => void;
+  onSwipeOpen: (stopId: string | null) => void;
+  openSwipeStopId: string | null;
+  settling: boolean;
+  stopId: string;
+  targetTranslationY: number;
+}) {
+  // This is an absolute position, so committing the new order never resets it.
+  const translationY = useRef(new NativeAnimated.Value(index * GUEST_ROUTE_STOP_ROW_HEIGHT)).current;
+  const swipeTranslationX = useRef(new NativeAnimated.Value(0)).current;
+  const swipeStartXRef = useRef(0);
+  const swipingRef = useRef(false);
+  const gestureModeRef = useRef<'reorder' | 'swipe' | null>(null);
+  const touchStartTimeRef = useRef(0);
+  const suppressFocusUntilRef = useRef(0);
+  const openSwipeStopIdRef = useRef(openSwipeStopId);
+  openSwipeStopIdRef.current = openSwipeStopId;
+  const onDragSettledRef = useRef(onDragSettled);
+  onDragSettledRef.current = onDragSettled;
+  const settlingRef = useRef(settling);
+  settlingRef.current = settling;
+  const canDelete = Boolean(onDelete);
+
+  const animateSwipeTo = useCallback((toValue: number) => {
+    swipeTranslationX.stopAnimation();
+    NativeAnimated.timing(swipeTranslationX, {
+      duration: 180,
+      easing: NativeEasing.out(NativeEasing.cubic),
+      toValue,
+      useNativeDriver: true,
+    }).start();
+  }, [swipeTranslationX]);
+
+  useEffect(() => {
+    if (openSwipeStopId !== stopId && !swipingRef.current) {
+      animateSwipeTo(0);
+    }
+  }, [animateSwipeTo, openSwipeStopId, stopId]);
+
+  useEffect(() => {
+    if (active && !settling) {
+      return;
+    }
+    translationY.stopAnimation();
+    NativeAnimated.timing(translationY, {
+      duration: settling ? GUEST_ROUTE_STOP_SETTLE_DURATION_MS : 140,
+      easing: NativeEasing.out(NativeEasing.cubic),
+      toValue: targetTranslationY,
+      useNativeDriver: true,
+    }).start(({ finished }) => {
+      if (finished && active && settling) {
+        onDragSettledRef.current(stopId, index);
+      }
+    });
+  }, [active, index, settling, stopId, targetTranslationY, translationY]);
+
+  const rowResponder = useMemo(
+    () => {
+      const resolveGestureMode = (
+        dx: number,
+        dy: number,
+      ): 'reorder' | 'swipe' | null => {
+        if (settlingRef.current) {
+          return null;
+        }
+        const horizontal = canDelete
+          && Math.abs(dx) > 8
+          && Math.abs(dx) > Math.abs(dy) * 1.2;
+        const vertical = count > 1
+          && Date.now() - touchStartTimeRef.current >= 160
+          && Math.abs(dy) > 3
+          && Math.abs(dy) > Math.abs(dx) * 1.1;
+        return horizontal
+          ? 'swipe'
+          : vertical
+            ? 'reorder'
+            : null;
+      };
+      const shouldClaimGesture = (dx: number, dy: number) => {
+        gestureModeRef.current = resolveGestureMode(dx, dy);
+        return gestureModeRef.current !== null;
+      };
+
+      return PanResponder.create({
+        onStartShouldSetPanResponder: () => false,
+        onMoveShouldSetPanResponder: (_event, gestureState) =>
+          shouldClaimGesture(gestureState.dx, gestureState.dy),
+        onMoveShouldSetPanResponderCapture: (_event, gestureState) =>
+          shouldClaimGesture(gestureState.dx, gestureState.dy),
+        onPanResponderGrant: () => {
+          suppressFocusUntilRef.current = Date.now() + 500;
+          if (gestureModeRef.current === 'reorder') {
+            translationY.stopAnimation();
+            onDragStart(stopId, index);
+            return;
+          }
+
+          swipingRef.current = true;
+          const openSwipeStopId = openSwipeStopIdRef.current;
+          if (openSwipeStopId && openSwipeStopId !== stopId) {
+            onSwipeOpen(null);
+          }
+          swipeStartXRef.current = openSwipeStopId === stopId
+            ? -GUEST_ROUTE_STOP_DELETE_WIDTH
+            : 0;
+        },
+        onPanResponderMove: (_event, gestureState) => {
+          if (gestureModeRef.current === 'reorder') {
+            translationY.setValue(Math.max(0, Math.min(
+              (count - 1) * GUEST_ROUTE_STOP_ROW_HEIGHT,
+              index * GUEST_ROUTE_STOP_ROW_HEIGHT + gestureState.dy,
+            )));
+            onDragUpdate(index, gestureState.dy);
+            return;
+          }
+
+          const nextTranslationX = Math.max(
+            -GUEST_ROUTE_STOP_DELETE_WIDTH,
+            Math.min(0, swipeStartXRef.current + gestureState.dx),
+          );
+          swipeTranslationX.setValue(nextTranslationX);
+        },
+        onPanResponderRelease: (_event, gestureState) => {
+          suppressFocusUntilRef.current = Date.now() + 300;
+          if (gestureModeRef.current === 'reorder') {
+            gestureModeRef.current = null;
+            onDragFinish(stopId, index);
+            return;
+          }
+
+          const projectedTranslationX = swipeStartXRef.current
+            + gestureState.dx
+            + gestureState.vx * 24;
+          const shouldOpen = projectedTranslationX
+            < -GUEST_ROUTE_STOP_DELETE_WIDTH * 0.42;
+
+          if (shouldOpen) {
+            onSwipeOpen(stopId);
+            animateSwipeTo(-GUEST_ROUTE_STOP_DELETE_WIDTH);
+          } else {
+            if (openSwipeStopIdRef.current === stopId) {
+              onSwipeOpen(null);
+            }
+            animateSwipeTo(0);
+          }
+          swipingRef.current = false;
+          gestureModeRef.current = null;
+        },
+        onPanResponderTerminate: () => {
+          suppressFocusUntilRef.current = Date.now() + 300;
+          if (gestureModeRef.current === 'reorder') {
+            gestureModeRef.current = null;
+            onDragFinish(stopId, index);
+            return;
+          }
+
+          swipingRef.current = false;
+          gestureModeRef.current = null;
+          animateSwipeTo(openSwipeStopIdRef.current === stopId
+            ? -GUEST_ROUTE_STOP_DELETE_WIDTH
+            : 0);
+        },
+        onPanResponderTerminationRequest: () => false,
+        onShouldBlockNativeResponder: () => true,
+      });
+    },
+    [
+      animateSwipeTo,
+      count,
+      index,
+      canDelete,
+      onDragFinish,
+      onDragStart,
+      onDragUpdate,
+      onSwipeOpen,
+      stopId,
+      swipeTranslationX,
+      translationY,
+    ],
+  );
+
+  return (
+    <NativeAnimated.View
+      collapsable={false}
+      style={[
+        styles.sortableRouteStopRow,
+        { top: 0 },
+        { transform: [{ translateY: translationY }] },
+        { zIndex: active ? 20 : 0 },
+      ]}
+    >
+      {onDelete ? (
+        <NativeAnimated.View
+          pointerEvents={openSwipeStopId === stopId ? 'auto' : 'none'}
+          style={[
+            styles.routeStopDeleteActionContainer,
+            {
+              opacity: swipeTranslationX.interpolate({
+                inputRange: [-GUEST_ROUTE_STOP_DELETE_WIDTH, 0],
+                outputRange: [1, 0],
+                extrapolate: 'clamp',
+              }),
+              transform: [{ translateX: swipeTranslationX.interpolate({
+                inputRange: [-GUEST_ROUTE_STOP_DELETE_WIDTH, 0],
+                outputRange: [0, 18],
+                extrapolate: 'clamp',
+              }) }],
+            },
+          ]}
+        >
+          <Pressable
+            accessibilityElementsHidden={openSwipeStopId !== stopId}
+            accessibilityLabel="Delete this stop"
+            accessibilityRole="button"
+            importantForAccessibility={openSwipeStopId === stopId ? 'yes' : 'no-hide-descendants'}
+            style={({ pressed }) => [
+              styles.routeStopDeleteAction,
+              pressed ? styles.routeStopDeleteActionPressed : null,
+            ]}
+            onPress={onDelete}
+          >
+            <Trash2 accessibilityElementsHidden color={colors.onAccent} size={17} strokeWidth={2.1} />
+            <Text style={styles.routeStopDeleteText}>Delete</Text>
+          </Pressable>
+        </NativeAnimated.View>
+      ) : null}
+      <View
+        collapsable={false}
+        pointerEvents="box-none"
+        style={styles.routeStopGestureSurface}
+        onTouchStart={() => {
+          touchStartTimeRef.current = Date.now();
+          gestureModeRef.current = null;
+        }}
+        {...rowResponder.panHandlers}
+      >
+        <NativeAnimated.View
+          style={[
+            styles.routeStopSwipeForeground,
+            { transform: [{ translateX: swipeTranslationX }] },
+          ]}
+        >
+          {children(() => Date.now() >= suppressFocusUntilRef.current)}
+        </NativeAnimated.View>
+      </View>
+    </NativeAnimated.View>
+  );
+}
+
+function RouteStopInput({
   accessibilityHint,
-  label,
-  overline,
+  accessibilityLabel,
+  canFocus,
+  divided,
   inputRef,
+  isDestination,
+  isOrigin,
   onChangeText,
   onFocus,
   onSubmitEditing,
   placeholder,
-  tone,
-  testID,
+  stopId,
+  usesCurrentLocation,
   value,
-  divided = false
 }: {
   accessibilityHint: string;
+  accessibilityLabel: string;
+  canFocus: () => boolean;
   divided?: boolean;
-  label: string;
-  overline: string;
   inputRef?: (input: TextInput | null) => void;
+  isDestination: boolean;
+  isOrigin: boolean;
   onChangeText: (value: string) => void;
-  onFocus?: () => void;
+  onFocus: () => void;
   onSubmitEditing?: () => void;
   placeholder: string;
-  tone: 'destination' | 'origin';
-  testID: string;
+  stopId: string;
+  usesCurrentLocation: boolean;
   value: string;
 }) {
   const nativeInputRef = useRef<TextInput | null>(null);
   const focusNativeInput = () => {
-    nativeInputRef.current?.focus();
+    if (canFocus()) {
+      nativeInputRef.current?.focus();
+    }
   };
+  const inputTestId = isOrigin
+    ? uiTestIds.guestMapOriginInput
+    : isDestination
+      ? uiTestIds.guestMapDestinationInput
+      : uiTestIds.guestMapWaypointInput(stopId);
 
   return (
-    <Pressable
-      accessible={false}
-      style={[styles.inputRow, divided ? styles.inputRowDivider : null]}
-      onPress={focusNativeInput}
-    >
-      <View style={styles.routeInputCopy}>
-        <View style={styles.routeInputHeaderRow}>
-          <View accessibilityElementsHidden style={styles.routeInputMarkerSpacer} />
-          <Text accessibilityElementsHidden style={styles.routeInputOverline}>{overline}</Text>
+    <View style={styles.waypointRow}>
+      {!isOrigin ? (
+        <View accessibilityElementsHidden style={styles.routeStopConnectorTop} />
+      ) : null}
+      <View accessibilityElementsHidden style={styles.routeStopConnectorBottom} />
+      <Pressable
+        accessible={false}
+        style={styles.routeStopInputArea}
+        onPress={focusNativeInput}
+      >
+        <View
+          accessibilityElementsHidden
+          style={[
+            styles.routeStopMarker,
+            usesCurrentLocation
+              ? styles.routeStopMarkerOrigin
+              : styles.routeStopMarkerDestination,
+          ]}
+        >
+          {usesCurrentLocation ? (
+            <Navigation color={colors.onAccent} fill={colors.onAccent} size={16} strokeWidth={2} />
+          ) : (
+            <Star color={colors.onAccent} fill={colors.onAccent} size={16} strokeWidth={2} />
+          )}
         </View>
-        <View style={styles.routeInputValueRow}>
-          <View
-            accessibilityElementsHidden
-            style={[
-              styles.routeInputMarker,
-              tone === 'origin'
-                ? styles.routeInputMarkerOrigin
-                : styles.routeInputMarkerDestination,
-            ]}
-          >
-            {tone === 'origin' ? (
-              <Crosshair color={colors.safe} size={14} strokeWidth={2.3} />
-            ) : (
-              <MapPin color={colors.appleBlue} size={14} strokeWidth={2.3} />
-            )}
-          </View>
+        <View style={styles.routeStopAnimatedInput}>
           <BottomSheetTextInput
             ref={(input) => {
               nativeInputRef.current = input ?? null;
               inputRef?.(input ?? null);
             }}
             accessibilityHint={accessibilityHint}
-            accessibilityLabel={label}
+            accessibilityLabel={accessibilityLabel}
             autoCapitalize="words"
             autoComplete="off"
             autoCorrect={false}
             importantForAutofill="no"
             maxLength={GUEST_ROUTE_LABEL_MAX_LENGTH}
+            multiline={false}
+            numberOfLines={1}
             placeholder={placeholder}
             placeholderTextColor={colors.muted}
-            returnKeyType={onSubmitEditing ? 'done' : 'default'}
+            pointerEvents="none"
+            returnKeyType={isDestination ? 'done' : 'next'}
             showSoftInputOnFocus
             style={styles.input}
             submitBehavior="blurAndSubmit"
-            testID={testID}
+            testID={inputTestId}
             textContentType="none"
             value={value}
             onChangeText={onChangeText}
@@ -3741,103 +4196,13 @@ function RouteInput({
             onSubmitEditing={onSubmitEditing}
           />
         </View>
-      </View>
-    </Pressable>
-  );
-}
-
-function WaypointInput({
-  canMoveDown,
-  canMoveUp,
-  divided,
-  index,
-  inputRef,
-  onChangeText,
-  onFocus,
-  onMove,
-  onRemove,
-  stopId,
-  value
-}: {
-  canMoveDown: boolean;
-  canMoveUp: boolean;
-  divided?: boolean;
-  index: number;
-  inputRef?: (input: TextInput | null) => void;
-  onChangeText: (value: string) => void;
-  onFocus: () => void;
-  onMove: (toIndex: number) => void;
-  onRemove: () => void;
-  stopId: string;
-  value: string;
-}) {
-  return (
-    <View style={[styles.waypointRow, divided ? styles.inputRowDivider : null]}>
-      <View accessibilityElementsHidden style={styles.waypointMarker}>
-        <Text style={styles.waypointMarkerLabel}>{index + 1}</Text>
-      </View>
-      <BottomSheetTextInput
-        ref={(input) => inputRef?.(input ?? null)}
-        accessibilityHint="Enter a place, address, or coordinate for this stop."
-        accessibilityLabel={`Stop ${index + 1}`}
-        autoCapitalize="words"
-        autoComplete="off"
-        autoCorrect={false}
-        importantForAutofill="no"
-        maxLength={GUEST_ROUTE_LABEL_MAX_LENGTH}
-        placeholder={`Stop ${index + 1}`}
-        placeholderTextColor={colors.muted}
-        returnKeyType="next"
-        style={styles.input}
-        submitBehavior="blurAndSubmit"
-        testID={uiTestIds.guestMapWaypointInput(stopId)}
-        textContentType="none"
-        value={value}
-        onChangeText={onChangeText}
-        onFocus={onFocus}
-      />
-      <View style={styles.waypointActions}>
-        {canMoveUp ? (
-          <Pressable
-            accessibilityLabel={`Move stop ${index + 1} earlier`}
-            accessibilityRole="button"
-            hitSlop={GUEST_WAYPOINT_ACTION_HIT_SLOP}
-            style={({ pressed }) => [
-              styles.waypointAction,
-              pressed ? styles.waypointActionPressed : null
-            ]}
-            onPress={() => onMove(index - 1)}
-          >
-            <ChevronUp accessibilityElementsHidden color={colors.appleBlue} size={17} strokeWidth={2.1} />
-          </Pressable>
-        ) : null}
-        {canMoveDown ? (
-          <Pressable
-            accessibilityLabel={`Move stop ${index + 1} later`}
-            accessibilityRole="button"
-            hitSlop={GUEST_WAYPOINT_ACTION_HIT_SLOP}
-            style={({ pressed }) => [
-              styles.waypointAction,
-              pressed ? styles.waypointActionPressed : null
-            ]}
-            onPress={() => onMove(index + 1)}
-          >
-            <ChevronDown accessibilityElementsHidden color={colors.appleBlue} size={17} strokeWidth={2.1} />
-          </Pressable>
-        ) : null}
-        <Pressable
-          accessibilityLabel={`Remove stop ${index + 1}`}
-          accessibilityRole="button"
-          hitSlop={GUEST_WAYPOINT_ACTION_HIT_SLOP}
-          style={({ pressed }) => [
-            styles.waypointAction,
-            pressed ? styles.waypointActionPressed : null
-          ]}
-          onPress={onRemove}
-        >
-          <Trash2 accessibilityElementsHidden color={colors.danger} size={16} strokeWidth={2} />
-        </Pressable>
-      </View>
+        <View accessibilityElementsHidden style={styles.routeStopDragIndicator}>
+          <Menu color={colors.mutedSoft} size={21} strokeWidth={2.1} />
+        </View>
+      </Pressable>
+      {divided ? (
+        <View accessibilityElementsHidden style={styles.routeStopDivider} />
+      ) : null}
     </View>
   );
 }

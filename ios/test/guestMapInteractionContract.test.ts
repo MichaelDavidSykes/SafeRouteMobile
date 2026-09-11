@@ -23,13 +23,19 @@ describe('guest map interaction contract', () => {
 
   it('keeps route drafting map-first, multi-stop, editable, and keyboard-safe', () => {
     assert.match(screen, /useReducer\(\s*guestRouteDraftReducer/);
-    assert.match(screen, /routeDraft\.waypoints\.map/);
+    assert.match(screen, /<SortableRouteStopList[\s\S]*data=\{reorderableRouteStops\}/);
+    assert.match(screen, /onReorder=\{handleReorderStop\}/);
+    assert.match(screen, /Gesture\.Pan\(\)[\s\S]*\.activateAfterLongPress\(160\)/);
     assert.match(screen, /testID=\{uiTestIds\.guestMapAddWaypoint\}/);
     assert.match(
       screen,
       /const searchStageActive = Boolean\(activeInput\);[\s\S]*const showRouteFooter =[\s\S]*!searchStageActive/,
     );
     assert.match(
+      screen,
+      /<Pressable[\s\S]*testID=\{uiTestIds\.guestMapAddWaypoint\}[\s\S]*onPress=\{handleAddWaypoint\}/,
+    );
+    assert.doesNotMatch(
       screen,
       /\{!searchStageActive \? \(\s*<Pressable[\s\S]*testID=\{uiTestIds\.guestMapAddWaypoint\}/,
     );

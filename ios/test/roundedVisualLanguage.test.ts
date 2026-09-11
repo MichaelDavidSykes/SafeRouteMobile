@@ -396,10 +396,6 @@ describe("rounded visual language", () => {
       /routeInputMarker:\s*\{([\s\S]*?)\n  \},\n  routeInputMarkerOrigin:/.exec(
         guestMapStylesSource,
       )?.[1] || "";
-    const waypointMarkerBlock =
-      /waypointMarker:\s*\{([\s\S]*?)\n  \},\n  waypointMarkerLabel:/.exec(
-        guestMapStylesSource,
-      )?.[1] || "";
     const primaryButtonTextBlock =
       /primaryButtonText:\s*\{([\s\S]*?)\n  \},\n  routePreview:/.exec(
         guestMapStylesSource,
@@ -413,21 +409,19 @@ describe("rounded visual language", () => {
     assert.match(guestMapSource, /placeholder=\{originInputCopy\.placeholder\}/);
     assert.match(guestMapSource, /placeholder=\{destinationInputCopy\.placeholder\}/);
     assert.match(guestMapSource, /accessibilityHint=\{accessibilityHint\}/);
-    assert.match(guestMapSource, /accessibilityLabel=\{label\}/);
-    assert.match(guestMapSource, /<RouteInput\s+divided/);
-    assert.match(guestMapSource, /overline="From"/);
-    assert.match(guestMapSource, /overline="To"/);
-    assert.match(guestMapSource, /tone="origin"/);
-    assert.match(guestMapSource, /tone="destination"/);
-    assert.match(guestMapSource, /tone === 'origin'[\s\S]*<Crosshair[\s\S]*<MapPin/);
-    assert.match(guestMapSource, /styles\.waypointMarkerLabel[\s\S]*\{index \+ 1\}/);
-    assert.match(guestMapSource, /ChevronUp/);
-    assert.match(guestMapSource, /ChevronDown/);
+    assert.match(guestMapSource, /accessibilityLabel=\{accessibilityLabel\}/);
+    assert.match(guestMapSource, /isOrigin \? 'From' : 'To'/);
+    assert.match(guestMapSource, /isOrigin[\s\S]*<Crosshair[\s\S]*<MapPin/);
+    assert.match(guestMapSource, /<SortableRouteStopList[\s\S]*data=\{reorderableRouteStops\}/);
+    assert.match(guestMapSource, /function SortableRouteStopRow/);
+    assert.match(guestMapSource, /Gesture\.Pan\(\)[\s\S]*\.activateAfterLongPress\(160\)/);
+    assert.match(guestMapSource, /NativeAnimated\.timing\(translationY/);
+    assert.doesNotMatch(guestMapSource, /GripVertical|waypointDragHandle/);
     assert.match(guestMapSource, /Trash2/);
     assert.match(guestMapSource, /styles\.inputRowDivider/);
     assert.match(guestMapSource, /const GUEST_WAYPOINT_ACTION_HIT_SLOP = 6/);
-    assert.equal((guestMapSource.match(/hitSlop=\{GUEST_WAYPOINT_ACTION_HIT_SLOP\}/g) || []).length, 3);
-    assert.equal((guestMapSource.match(/pressed \? styles\.waypointActionPressed : null/g) || []).length, 3);
+    assert.equal((guestMapSource.match(/hitSlop=\{GUEST_WAYPOINT_ACTION_HIT_SLOP\}/g) || []).length, 1);
+    assert.equal((guestMapSource.match(/pressed \? styles\.waypointActionPressed : null/g) || []).length, 1);
     assert.match(guestMapSource, /<Text numberOfLines=\{1\} style=\{styles\.primaryButtonText\}>/);
     assert.match(primaryButtonTextBlock, /maxWidth:\s*['"]100%['"]/);
     assert.match(primaryButtonTextBlock, /flexShrink:\s*1/);
@@ -455,8 +449,7 @@ describe("rounded visual language", () => {
     assert.match(routeInputMarkerBlock, /height:\s*24/);
     assert.match(routeInputMarkerBlock, /alignItems:\s*['"]center['"]/);
     assert.match(routeInputMarkerBlock, /justifyContent:\s*['"]center['"]/);
-    assert.match(waypointMarkerBlock, /width:\s*24/);
-    assert.match(waypointMarkerBlock, /marginRight:\s*spacing\.sm/);
+    assert.doesNotMatch(guestMapStylesSource, /waypointMarker:/);
     assert.match(guestMapStylesSource, /routeInputMarkerOrigin:[\s\S]*colors\.safeSoft/);
     assert.match(guestMapStylesSource, /routeInputMarkerDestination:[\s\S]*colors\.appleBlueSoft/);
   });

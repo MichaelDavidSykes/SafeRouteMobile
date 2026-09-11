@@ -52,7 +52,7 @@ describe('guest location-search motion', () => {
     );
     assert.match(
       guestMapSource,
-      /function RouteInput[\s\S]*<Pressable[\s\S]*onPress=\{focusNativeInput\}[\s\S]*<BottomSheetTextInput[\s\S]*showSoftInputOnFocus/,
+      /function RouteStopInput[\s\S]*<Pressable[\s\S]*onPress=\{focusNativeInput\}[\s\S]*<BottomSheetTextInput[\s\S]*showSoftInputOnFocus/,
     );
   });
 

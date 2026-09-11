@@ -20,6 +20,12 @@ const stops = [
   { latitude: -33.9249, longitude: 18.4241 },
   { latitude: -33.9696, longitude: 18.5972 },
 ];
+const multiStops = [
+  stops[0],
+  { latitude: -33.9362, longitude: 18.4728 },
+  { latitude: -33.9517, longitude: 18.5284 },
+  stops[1],
+];
 
 describe('verified SafeRoute road route provider', () => {
   it('allows only a complete workspace identity or a genuinely public request', () => {
@@ -79,6 +85,24 @@ describe('verified SafeRoute road route provider', () => {
         { lat: -33.9696, lon: 18.5972, elevation_m: null },
       ],
     });
+  });
+
+  it('preserves every reordered stop in the server request', () => {
+    const reorderedStops = [
+      multiStops[0],
+      multiStops[2],
+      multiStops[1],
+      multiStops[3],
+    ];
+
+    assert.deepEqual(
+      buildPublicSafeRoutePreviewPayload({ stops: reorderedStops }).waypoints,
+      reorderedStops.map((stop) => ({
+        elevation_m: null,
+        lat: stop.latitude,
+        lon: stop.longitude,
+      })),
+    );
   });
 
   it('sends only enabled provider-enforced preferences', () => {

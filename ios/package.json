@@ -41,6 +41,7 @@
     "start:maestro:ios:workspace-catalog-recovery": "SAFEROUTE_SOURCE_REVISION=$(git rev-parse HEAD) SAFEROUTE_ENABLE_GUIDANCE_CONTRACT_EVIDENCE=true SAFEROUTE_ENABLE_PREVIEW_MODE=false SAFEROUTE_ENABLE_DEMO_DRIVE=false SAFEROUTE_DEV_API_URL=http://127.0.0.1:18080 NODE_OPTIONS=--dns-result-order=ipv4first expo start --localhost --port 8081",
     "android": "expo start --android",
     "ios": "expo start --ios",
+    "build:ios:standalone": "node scripts/build-ios-standalone.mjs",
     "typecheck": "tsc --noEmit",
     "test:logic": "tsx --test test/*.test.ts",
     "test:maestro:ios": "node scripts/run-maestro.mjs test maestro/ios-preview-route-live-map.yaml",

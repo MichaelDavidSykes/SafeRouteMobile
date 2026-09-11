@@ -11,7 +11,7 @@ describe("guest map held-point routing", () => {
 
   it("sets an unresolved destination before adding further held points as waypoints", () => {
     assert.match(source, /shouldUseGuestMapSelectionAsDestination\(routeDraft\)/);
-    assert.match(source, /stopId:\s*GUEST_ROUTE_DRAFT_DESTINATION_ID,[\s\S]*type:\s*'stop\/select'/);
+    assert.match(source, /stopId:\s*routeDraft\.destination\.id,[\s\S]*type:\s*'stop\/select'/);
     assert.match(source, /mapSelectionSetsDestination \? 'Set destination' : 'Add stop'/);
     assert.match(source, /Destination set\. Plot the route when ready\./);
   });

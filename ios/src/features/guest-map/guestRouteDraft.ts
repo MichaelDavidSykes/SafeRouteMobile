@@ -21,6 +21,7 @@ export type GuestRouteDraftStop = {
   id: string;
   kind: GuestRouteDraftStopKind;
   label: string;
+  reorderKey: string;
   resolution: GuestRouteDraftStopResolution;
 };
 
@@ -66,7 +67,8 @@ export type GuestRouteDraftAction =
   | { coordinate: LatLng | null; type: 'current-location/set' }
   | { options?: AddGuestRouteWaypointOptions; type: 'waypoint/add' }
   | { waypointId: string; type: 'waypoint/remove' }
-  | { toIndex: number; type: 'waypoint/reorder'; waypointId: string };
+  | { toIndex: number; type: 'waypoint/reorder'; waypointId: string }
+  | { stopId: string; toIndex: number; type: 'stop/reorder' };
 
 export function createGuestRouteDraft(
   options: CreateGuestRouteDraftOptions = {}
@@ -158,7 +160,7 @@ export function setGuestRouteDestination(
   draft: GuestRouteDraft,
   value: GuestRouteDraftStopValue
 ): GuestRouteDraft {
-  return setGuestRouteDraftStop(draft, GUEST_ROUTE_DRAFT_DESTINATION_ID, value);
+  return setGuestRouteDraftStop(draft, draft.destination.id, value);
 }
 
 export function setGuestRouteWaypoint(
@@ -328,6 +330,48 @@ export function reorderGuestRouteWaypoint(
   };
 }
 
+export function reorderGuestRouteStop(
+  draft: GuestRouteDraft,
+  stopId: string,
+  toIndex: number
+): GuestRouteDraft {
+  const orderedStops = [...getOrderedGuestRouteDraftStops(draft)];
+  const fromIndex = orderedStops.findIndex((stop) => stop.id === stopId);
+  if (fromIndex < 0 || orderedStops.length < 2) {
+    return draft;
+  }
+
+  const nextIndex = clampExistingIndex(toIndex, orderedStops.length);
+  if (fromIndex === nextIndex) {
+    return draft;
+  }
+
+  const [movedStop] = orderedStops.splice(fromIndex, 1);
+  orderedStops.splice(nextIndex, 0, movedStop);
+
+  const copyValueIntoSlot = (
+    slot: GuestRouteDraftStop,
+    value: GuestRouteDraftStop,
+  ): GuestRouteDraftStop => ({
+    ...slot,
+    label: value.label,
+    reorderKey: value.reorderKey,
+    resolution: value.resolution,
+  });
+
+  return {
+    ...draft,
+    destination: copyValueIntoSlot(
+      draft.destination,
+      orderedStops[orderedStops.length - 1],
+    ),
+    origin: copyValueIntoSlot(draft.origin, orderedStops[0]),
+    selectedStopId: null,
+    waypoints: draft.waypoints.map((waypoint, index) =>
+      copyValueIntoSlot(waypoint, orderedStops[index + 1])),
+  };
+}
+
 export function resolveGuestRouteDraftStopCoordinate(
   draft: GuestRouteDraft,
   stopId: string
@@ -362,7 +406,7 @@ export function resolveGuestRouteDraftNextStopInputId(
 ): string {
   return getGuestRouteDraftUnresolvedStopIds(draft).find(
     (stopId) => stopId !== GUEST_ROUTE_DRAFT_ORIGIN_ID
-  ) ?? GUEST_ROUTE_DRAFT_DESTINATION_ID;
+  ) ?? draft.destination.id;
 }
 
 export function hasUnresolvedGuestRouteDraftInput(draft: GuestRouteDraft): boolean {
@@ -453,6 +497,8 @@ export function guestRouteDraftReducer(
       return removeGuestRouteWaypoint(draft, action.waypointId);
     case 'waypoint/reorder':
       return reorderGuestRouteWaypoint(draft, action.waypointId, action.toIndex);
+    case 'stop/reorder':
+      return reorderGuestRouteStop(draft, action.stopId, action.toIndex);
   }
 }
 
@@ -466,6 +512,7 @@ function createStop(
     id,
     kind,
     label,
+    reorderKey: id,
     resolution
   };
 }

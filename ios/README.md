@@ -90,6 +90,14 @@ Set `SAFEROUTE_ENABLE_PREVIEW_MODE=true` only in non-production simulator/dev ru
 
 ## iOS release readiness notes
 
+For a standalone build that runs without Metro or a connected Mac, commit the
+source changes, then run `npm run build:ios:standalone -- 2609.11.1` with a new
+build number each time. This produces a signed Release app using the hosted API
+and disables demo routes and preview data. The build output prints the app path
+and exact Git revision. Open the app's navigation menu to see its version and
+installed build number. This is a locally signed device build, not a TestFlight
+submission. Xcode signing and the native CocoaPods dependencies must be set up.
+
 - Bundle identifier: `com.lunarchain.saferoute`.
 - URL scheme: `saferoute`.
 - The iOS release identity and phone-first display shape are guarded by `test/appConfig.test.ts`; update the tests and this checklist together if the bundle id, scheme, portrait orientation, light style, or phone-only target changes intentionally.

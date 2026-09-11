@@ -97,6 +97,9 @@ and disables demo routes and preview data. The build output prints the app path
 and exact Git revision. Open the app's navigation menu to see its version and
 installed build number. This is a locally signed device build, not a TestFlight
 submission. Xcode signing and the native CocoaPods dependencies must be set up.
+For a personal Apple developer team, append `--personal-team`. That local build
+omits Universal Links, which require a paid developer team; normal release
+entitlements remain unchanged.
 
 - Bundle identifier: `com.lunarchain.saferoute`.
 - URL scheme: `saferoute`.

@@ -1,6 +1,7 @@
 import { spawnSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 import { resolve } from 'node:path';
+import { mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 
 const projectRoot = fileURLToPath(new URL('..', import.meta.url));
 const buildNumber = process.argv[2];
@@ -37,11 +38,27 @@ delete env.SKIP_BUNDLING;
 function run(command, args) {
   const result = spawnSync(command, args, { cwd: projectRoot, env, stdio: 'inherit' });
   if (result.error) throw result.error;
-  if (result.status !== 0) process.exit(result.status ?? 1);
+  if (result.status !== 0) throw new Error(`${command} failed with exit code ${result.status}.`);
 }
 
 // Keep the native Info.plist and embedded Expo configuration on the same build.
-run('npx', ['expo', 'prebuild', '--platform', 'ios', '--no-install']);
+const packagePath = resolve(projectRoot, 'package.json');
+const packageContents = readFileSync(packagePath);
+try {
+  run('npx', ['expo', 'prebuild', '--platform', 'ios', '--no-install']);
+} finally {
+  // Expo also rewrites the development scripts; a release build should not.
+  writeFileSync(packagePath, packageContents);
+}
+
+const signingArguments = [];
+if (process.argv.includes('--personal-team')) {
+  // Personal Apple teams cannot sign the Universal Links entitlement.
+  mkdirSync(buildDirectory, { recursive: true });
+  const entitlements = resolve(buildDirectory, 'LocalDevice.entitlements');
+  writeFileSync(entitlements, '<?xml version="1.0" encoding="UTF-8"?><plist version="1.0"><dict/></plist>');
+  signingArguments.push(`CODE_SIGN_ENTITLEMENTS=${entitlements}`);
+}
 run('xcodebuild', [
   '-workspace', 'ios/SafeRoute.xcworkspace',
   '-scheme', 'SafeRoute',
@@ -49,6 +66,7 @@ run('xcodebuild', [
   '-destination', 'generic/platform=iOS',
   '-derivedDataPath', buildDirectory,
   '-allowProvisioningUpdates',
+  ...signingArguments,
   'build',
 ]);
 
